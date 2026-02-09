@@ -605,6 +605,103 @@ router.get('/docentes', async (req, res) => {
 });
 
 /**
+ * GET /api/alumno/horario
+ * Obtener horario del alumno basado en su grupo
+ */
+router.get('/horario', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id, anio_activo } = req.user;
+
+    // Obtener datos del alumno
+    const alumno = await query(
+      `SELECT a.id FROM alumnos a INNER JOIN usuarios u ON u.alumno_id = a.id WHERE u.id = ? AND u.colegio_id = ?`,
+      [usuario_id, colegio_id]
+    );
+
+    if (alumno.length === 0) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    const alumnoId = alumno[0].id;
+
+    // Obtener matrícula actual del alumno para obtener su grupo
+    const matricula = await query(
+      `SELECT m.grupo_id FROM matriculas m 
+       INNER JOIN grupos g ON g.id = m.grupo_id 
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4) 
+       LIMIT 1`,
+      [alumnoId, colegio_id, anio_activo]
+    );
+
+    if (matricula.length === 0) {
+      return res.json({ horario: [] });
+    }
+
+    const grupoId = matricula[0].grupo_id;
+
+    const anioActivoInt = parseInt(anio_activo);
+
+    // Obtener horario del grupo del alumno
+    // El horario del alumno se basa en los horarios del grupo (grupos_horarios con asignatura_id)
+    const horarioCrudo = await query(
+      `SELECT 
+         gh.id,
+         gh.dia,
+         gh.hora_inicio,
+         gh.hora_final,
+         gh.anio,
+         c.nombre AS curso_nombre,
+         gh.descripcion AS descripcion,
+         g.grado,
+         g.seccion,
+         n.nombre AS nivel_nombre,
+         CONCAT(p.nombres, ' ', p.apellidos) AS docente_nombre
+       FROM grupos_horarios gh
+       LEFT JOIN asignaturas a ON a.id = gh.asignatura_id
+       LEFT JOIN grupos g ON g.id = a.grupo_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN cursos c ON c.id = a.curso_id
+       LEFT JOIN personal p ON p.id = a.personal_id
+       WHERE gh.anio = ? AND a.grupo_id = ?
+       ORDER BY gh.dia, STR_TO_DATE(gh.hora_inicio, '%l:%i %p')`,
+      [anioActivoInt, grupoId]
+    );
+
+    // Mapear a un formato estándar para el frontend
+    const horario = (horarioCrudo || []).map((row) => {
+      // Texto del grupo: NIVEL - X° SECCION - AÑO
+      let grupoTexto = '';
+      if (row.nivel_nombre || row.grado || row.seccion) {
+        const gradoTexto = row.grado ? `${row.grado}°` : '';
+        grupoTexto = `${row.nivel_nombre || ''} ${gradoTexto} ${row.seccion || ''}`.trim();
+        if (row.anio) {
+          grupoTexto = `${grupoTexto} - ${row.anio}`;
+        }
+      }
+
+      const titulo = row.curso_nombre || row.descripcion || '';
+
+      return {
+        id: row.id,
+        dia: typeof row.dia === 'number' ? row.dia : parseInt(row.dia || 0, 10),
+        inicio: row.hora_inicio,
+        fin: row.hora_final,
+        anio: row.anio,
+        titulo,
+        grupo: grupoTexto,
+        docente_nombre: row.docente_nombre || ''
+      };
+    });
+
+    res.json({ horario });
+  } catch (error) {
+    console.error('Error obteniendo horario del alumno:', error);
+    res.status(500).json({ error: 'Error al obtener horario' });
+  }
+});
+
+/**
  * GET /api/alumno/notificaciones
  * Obtener notificaciones del alumno
  */
