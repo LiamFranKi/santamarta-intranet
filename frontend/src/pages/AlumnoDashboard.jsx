@@ -700,19 +700,41 @@ function AlumnoDashboard() {
                         transition: 'all 0.3s'
                       }}
                     >
-                      <div style={{
-                        width: '60px',
-                        height: '60px',
-                        borderRadius: '50%',
-                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '2rem',
-                        flexShrink: 0
-                      }}>
-                        📚
-                      </div>
+                      {curso.curso_imagen_url ? (
+                        <img 
+                          src={curso.curso_imagen_url} 
+                          alt={curso.curso_nombre}
+                          style={{
+                            width: '60px',
+                            height: '60px',
+                            borderRadius: '12px',
+                            objectFit: 'cover',
+                            border: '2px solid #667eea',
+                            flexShrink: 0
+                          }}
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            if (e.target.nextSibling) {
+                              e.target.nextSibling.style.display = 'flex';
+                            }
+                          }}
+                        />
+                      ) : null}
+                      {!curso.curso_imagen_url && (
+                        <div style={{
+                          width: '60px',
+                          height: '60px',
+                          borderRadius: '12px',
+                          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '2rem',
+                          flexShrink: 0
+                        }}>
+                          📚
+                        </div>
+                      )}
                       <div style={{ flex: 1 }}>
                         <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.2rem', color: '#1f2937', fontWeight: '700' }}>
                           {curso.curso_nombre}

@@ -570,8 +570,13 @@ router.get('/docentes', async (req, res) => {
       });
     });
 
-    // Convertir a array
-    const docentes = Object.values(docentesMap);
+    // Convertir a array y ordenar por nombres
+    const docentes = Object.values(docentesMap).sort((a, b) => {
+      // Extraer nombres para comparar
+      const nombreA = a.docente_nombre || '';
+      const nombreB = b.docente_nombre || '';
+      return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base' });
+    });
 
     // Construir URLs de imágenes
     const docentesConImagenes = docentes.map(docente => {
