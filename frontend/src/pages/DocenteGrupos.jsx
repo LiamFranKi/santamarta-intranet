@@ -539,7 +539,6 @@ function DocenteGrupos() {
                               }}
                               title="Opciones"
                             >
-                              <span className="btn-opciones-icon">⚙️</span>
                               Opciones {openDropdownGrupo?.id === grupo.id ? '▲' : '▼'}
                             </button>
                             {openDropdownGrupo?.id === grupo.id && openDropdownGrupo?.top && 
@@ -703,7 +702,6 @@ function DocenteGrupos() {
                                   }}
                                   title="Opciones"
                                 >
-                                  <span className="btn-opciones-icon">⚙️</span>
                                   Opciones {openDropdownAlumno?.id === alumno.id ? '▲' : '▼'}
                                 </button>
                                 {openDropdownAlumno?.id === alumno.id && openDropdownAlumno?.top && 
