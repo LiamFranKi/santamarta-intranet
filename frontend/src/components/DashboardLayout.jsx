@@ -296,31 +296,6 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <div className="sidebar-item">
-                <NavLink 
-                  className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} 
-                  to="/alumno/horario"
-                  onClick={(e) => {
-                    console.log('📅 [NAVLINK] Click en Mi Horario - Navegando a /alumno/horario');
-                    console.log('📅 [NAVLINK] Event:', e);
-                    console.log('📅 [NAVLINK] Target:', e.target);
-                    console.log('📅 [NAVLINK] Current URL:', window.location.href);
-                    // Forzar navegación si NavLink no funciona
-                    if (!e.defaultPrevented) {
-                      setTimeout(() => {
-                        if (window.location.pathname !== '/alumno/horario') {
-                          console.log('📅 [NAVLINK] NavLink no navegó, forzando navegación...');
-                          navigate('/alumno/horario');
-                        }
-                      }, 100);
-                    }
-                  }}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <span className="sidebar-icon">📅</span>
-                  <span className="sidebar-label">Mi Horario</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/avatar">
                   <span className="sidebar-icon">🎭</span>
                   <span className="sidebar-label">Mi Avatar</span>
