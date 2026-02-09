@@ -106,17 +106,17 @@ function DocenteTutoria() {
         {grupoTutor && (
           <>
             <div className="tutoria-content mundo-card">
-              <div className="grupo-info">
-                <h2>Grupo: {grupoTutor.grado}° {grupoTutor.seccion}</h2>
-                <p>{grupoTutor.nivel_nombre} - {grupoTutor.turno_nombre}</p>
-              </div>
-
-              <div className="tutoria-actions">
+              <div className="grupo-info-header">
+                <div className="grupo-info">
+                  <h2>🎓 Grupo: {grupoTutor.grado}° {grupoTutor.seccion}</h2>
+                  <p>{grupoTutor.nivel_nombre} - {grupoTutor.turno_nombre}</p>
+                </div>
                 <button 
                   className="btn-enviar-recomendacion"
                   onClick={() => setMostrarRecomendacion(!mostrarRecomendacion)}
                 >
-                  📝 Enviar Recomendación
+                  <span className="btn-icon">📝</span>
+                  <span className="btn-text">Enviar Recomendación</span>
                 </button>
               </div>
 
@@ -150,15 +150,20 @@ function DocenteTutoria() {
                     />
                   </div>
                   <div className="form-actions">
-                    <button type="button" onClick={() => {
-                      setMostrarRecomendacion(false);
-                      setAlumnoSeleccionado(null);
-                      setRecomendacion('');
-                    }}>
+                    <button 
+                      type="button" 
+                      className="btn-cancelar"
+                      onClick={() => {
+                        setMostrarRecomendacion(false);
+                        setAlumnoSeleccionado(null);
+                        setRecomendacion('');
+                      }}
+                    >
                       Cancelar
                     </button>
                     <button 
                       type="button"
+                      className="btn-guardar"
                       onClick={handleEnviarRecomendacion}
                       disabled={!alumnoSeleccionado || !recomendacion.trim()}
                     >
@@ -169,33 +174,61 @@ function DocenteTutoria() {
               )}
 
               <div className="alumnos-list">
-                <h3>Alumnos Tutelados ({alumnos.length})</h3>
+                <h2>Alumnos Tutelados ({alumnos.length})</h2>
                 {alumnos.length > 0 ? (
                   <div className="alumnos-grid">
-                    {alumnos.map((alumno) => (
-                      <div key={alumno.id} className="alumno-card">
-                        <div className="alumno-avatar">
-                          {alumno.foto ? (
-                            <img src={alumno.foto} alt={alumno.nombres} />
-                          ) : (
-                            <span>{alumno.nombres?.[0] || 'A'}</span>
-                          )}
-                        </div>
-                        <div className="alumno-info">
-                          <h4>{alumno.apellido_paterno} {alumno.apellido_materno}</h4>
-                          <p>{alumno.nombres}</p>
-                          <button 
-                            className="btn-ver-perfil"
-                            onClick={() => {
-                              setAlumnoSeleccionado(alumno);
-                              setMostrarRecomendacion(true);
-                            }}
+                    {alumnos.map((alumno, index) => {
+                      const nombreCompleto = `${alumno.apellido_paterno || ''} ${alumno.apellido_materno || ''}, ${alumno.nombres || ''}`.trim();
+                      
+                      // Colores pasteles diferentes para cada card
+                      const coloresPasteles = [
+                        { bg: 'linear-gradient(145deg, #fef3f2, #fff5f5)', border: '#fbcfe8', avatar: '#fee2e2' },
+                        { bg: 'linear-gradient(145deg, #f0fdf4, #f0fdf4)', border: '#bbf7d0', avatar: '#dcfce7' },
+                        { bg: 'linear-gradient(145deg, #eff6ff, #eff6ff)', border: '#bfdbfe', avatar: '#dbeafe' },
+                        { bg: 'linear-gradient(145deg, #fefce8, #fefce8)', border: '#fde68a', avatar: '#fef3c7' },
+                        { bg: 'linear-gradient(145deg, #f5f3ff, #f5f3ff)', border: '#ddd6fe', avatar: '#e9d5ff' },
+                        { bg: 'linear-gradient(145deg, #f0f9ff, #f0f9ff)', border: '#bae6fd', avatar: '#e0f2fe' },
+                        { bg: 'linear-gradient(145deg, #fdf2f8, #fdf2f8)', border: '#fbcfe8', avatar: '#fce7f3' },
+                        { bg: 'linear-gradient(145deg, #ecfdf5, #ecfdf5)', border: '#a7f3d0', avatar: '#d1fae5' }
+                      ];
+                      
+                      const colorCard = coloresPasteles[index % coloresPasteles.length];
+                      
+                      return (
+                        <div 
+                          key={alumno.id} 
+                          className="alumno-card"
+                          style={{
+                            background: colorCard.bg,
+                            borderColor: colorCard.border
+                          }}
+                        >
+                          <div 
+                            className="alumno-avatar"
+                            style={{ backgroundColor: colorCard.avatar }}
                           >
-                            Ver Perfil
-                          </button>
+                            {alumno.foto ? (
+                              <img src={alumno.foto} alt={nombreCompleto} />
+                            ) : (
+                              <span>{(alumno.nombres?.[0] || 'A').toUpperCase()}</span>
+                            )}
+                          </div>
+                          <div className="alumno-info">
+                            <h3>{nombreCompleto}</h3>
+                            <button 
+                              className="btn-ver-perfil"
+                              onClick={() => {
+                                setAlumnoSeleccionado(alumno);
+                                setMostrarRecomendacion(true);
+                              }}
+                            >
+                              <span className="btn-icon">👁️</span>
+                              <span className="btn-text">Ver</span>
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="empty-state">

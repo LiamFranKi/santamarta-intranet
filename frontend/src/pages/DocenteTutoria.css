@@ -11,62 +11,325 @@
   min-height: 400px;
 }
 
+.loading-spinner {
+  font-size: 1.2rem;
+  color: #4a83c1;
+}
+
 .page-header {
   margin-bottom: 2rem;
 }
 
 .page-header h1 {
   font-size: 2rem;
-  font-weight: 800;
   color: #1f2937;
-  margin: 0 0 0.5rem 0;
+  margin-bottom: 0.5rem;
 }
 
 .page-header p {
   color: #6b7280;
-  margin: 0;
+  font-size: 1rem;
 }
 
 .no-tutor {
   text-align: center;
-  padding: 3rem;
-  background: linear-gradient(145deg, #eef2ff, #ffffff);
-  border: 1px solid rgba(74, 131, 193, 0.18);
-  border-radius: 16px;
+  padding: 3rem 2rem;
 }
 
 .no-tutor h2 {
-  margin: 0 0 1rem 0;
   color: #1f2937;
+  margin-bottom: 1rem;
 }
 
 .no-tutor p {
-  margin: 0;
   color: #6b7280;
 }
 
 .tutoria-content {
-  background: linear-gradient(145deg, #eef2ff, #ffffff);
-  border: 1px solid rgba(74, 131, 193, 0.18);
-  border-radius: 16px;
   padding: 2rem;
-  box-shadow: 0 4px 16px rgba(74, 131, 193, 0.12);
 }
 
-.grupo-info {
+.grupo-info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 2rem;
-  padding-bottom: 1rem;
-  border-bottom: 2px solid rgba(74, 131, 193, 0.2);
+  padding-bottom: 1.5rem;
+  border-bottom: 2px solid #e5e7eb;
+  flex-wrap: wrap;
+  gap: 1rem;
 }
 
 .grupo-info h2 {
-  margin: 0 0 0.5rem 0;
-  color: #1f2937;
   font-size: 1.5rem;
+  color: #1f2937;
+  margin: 0 0 0.5rem 0;
+  font-weight: 700;
 }
 
 .grupo-info p {
+  color: #6b7280;
   margin: 0;
+  font-size: 1rem;
+}
+
+.btn-enviar-recomendacion {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-enviar-recomendacion:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-enviar-recomendacion .btn-icon {
+  font-size: 1.1rem;
+}
+
+.recomendacion-form {
+  background: linear-gradient(145deg, #f9fafb, #ffffff);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  border: 2px solid #e5e7eb;
+}
+
+.recomendacion-form h3 {
+  font-size: 1.3rem;
+  color: #1f2937;
+  margin: 0 0 1.5rem 0;
+  font-weight: 700;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  transition: all 0.2s;
+  background: white;
+  color: #1f2937;
+}
+
+.form-group select:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #e5e7eb;
+}
+
+.btn-cancelar {
+  background: #f3f4f6;
+  color: #374151;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancelar:hover:not(:disabled) {
+  background: #e5e7eb;
+  color: #1f2937;
+  transform: translateY(-1px);
+}
+
+.btn-guardar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.btn-guardar:hover:not(:disabled) {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-cancelar:disabled,
+.btn-guardar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.alumnos-list {
+  margin-top: 2rem;
+}
+
+.alumnos-list h2 {
+  font-size: 1.5rem;
+  color: #1f2937;
+  margin-bottom: 1.5rem;
+  font-weight: 700;
+}
+
+.alumnos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.alumno-card {
+  background: linear-gradient(145deg, #f0f9ff, #ffffff);
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 2px solid #e0f2fe;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  position: relative;
+}
+
+.alumno-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.alumno-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: bold;
+  color: white;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.alumno-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.alumno-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alumno-info h3 {
+  font-size: 1.1rem;
+  color: #1f2937;
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.btn-ver-perfil {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  align-self: flex-start;
+}
+
+.btn-ver-perfil:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-ver-perfil .btn-icon {
+  font-size: 1rem;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
   color: #6b7280;
 }
 
+@media (max-width: 768px) {
+  .grupo-info-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .alumnos-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .alumno-card {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .alumno-info {
+    align-items: center;
+  }
+
+  .btn-ver-perfil {
+    align-self: center;
+  }
+}
