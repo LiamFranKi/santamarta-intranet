@@ -4,10 +4,12 @@ import api from '../services/api';
 import './AlumnoHorario.css';
 
 function AlumnoHorario() {
+  console.log('📅 [ALUMNO HORARIO] Componente montado');
   const [loading, setLoading] = useState(true);
   const [horarioRaw, setHorarioRaw] = useState([]);
 
   useEffect(() => {
+    console.log('📅 [ALUMNO HORARIO] useEffect ejecutado, cargando horario...');
     cargarHorario();
   }, []);
 
@@ -115,6 +117,7 @@ function AlumnoHorario() {
 
   // Función para obtener clase en un día y bloque de horario específico
   const obtenerClase = (dia, horaInicio, horaFin) => {
+    if (!horario || horario.length === 0) return null;
     const clase = horario.find(c => {
       if (c.diaNormalizado !== dia) return false;
       
