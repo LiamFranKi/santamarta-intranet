@@ -303,7 +303,16 @@ export default function DashboardLayout({ children }) {
                     console.log('📅 [NAVLINK] Click en Mi Horario - Navegando a /alumno/horario');
                     console.log('📅 [NAVLINK] Event:', e);
                     console.log('📅 [NAVLINK] Target:', e.target);
-                    // No prevenir el comportamiento por defecto, dejar que NavLink maneje la navegación
+                    console.log('📅 [NAVLINK] Current URL:', window.location.href);
+                    // Forzar navegación si NavLink no funciona
+                    if (!e.defaultPrevented) {
+                      setTimeout(() => {
+                        if (window.location.pathname !== '/alumno/horario') {
+                          console.log('📅 [NAVLINK] NavLink no navegó, forzando navegación...');
+                          navigate('/alumno/horario');
+                        }
+                      }, 100);
+                    }
                   }}
                   style={{ cursor: 'pointer' }}
                 >
