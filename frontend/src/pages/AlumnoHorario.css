@@ -1,0 +1,412 @@
+.alumno-horario {
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.alumno-horario-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.loading-spinner {
+  font-size: 1.2rem;
+  color: #4a83c1;
+}
+
+.page-header {
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.page-header h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #4a83c1 !important;
+  margin: 0 0 0.5rem 0;
+  text-align: left;
+}
+
+.page-header p {
+  color: #6b7280 !important;
+  margin: 0;
+  text-align: left;
+}
+
+.btn-imprimir {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-imprimir:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-imprimir .btn-icon {
+  font-size: 1.1rem;
+}
+
+.horario-container {
+  background: linear-gradient(145deg, #eef2ff, #ffffff);
+  border: 1px solid rgba(74, 131, 193, 0.18);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 4px 16px rgba(74, 131, 193, 0.12);
+  overflow-x: auto;
+}
+
+.horario-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.horario-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  font-size: 0.8rem;
+  border: 2px solid #4a83c1;
+}
+
+.horario-table thead {
+  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
+  color: white;
+}
+
+.horario-table thead th {
+  padding: 0.5rem 0.4rem;
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-bottom: 2px solid #4a83c1;
+}
+
+.horario-table thead th:last-child {
+  border-right: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.horario-table thead th:first-child {
+  text-align: left;
+  padding-left: 0.75rem;
+}
+
+.horario-hora-col {
+  width: 120px;
+  min-width: 110px;
+}
+
+.horario-dia-col {
+  min-width: 120px;
+  width: auto;
+}
+
+.horario-table tbody tr {
+  border-bottom: 1px solid #4a83c1;
+  transition: background-color 0.2s;
+}
+
+.horario-table tbody tr:first-child td {
+  border-top: 1px solid #4a83c1;
+}
+
+.horario-table tbody tr:hover {
+  background-color: rgba(74, 131, 193, 0.05);
+}
+
+.horario-table tbody tr:last-child {
+  border-bottom: 2px solid #4a83c1;
+}
+
+.horario-hora-cell {
+  padding: 0.6rem 0.8rem;
+  font-weight: 700;
+  color: #4a83c1;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  background-color: #f9fafb;
+  border: 1px solid #4a83c1;
+  border-right: 2px solid #4a83c1;
+  border-top: 1px solid #4a83c1;
+  border-bottom: 1px solid #4a83c1;
+}
+
+.horario-clase-cell {
+  padding: 0.6rem 0.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  color: #1f2937;
+  line-height: 1.5;
+  vertical-align: middle;
+  min-height: 60px;
+  border: 1px solid #4a83c1;
+  border-top: 1px solid #4a83c1;
+  border-bottom: 1px solid #4a83c1;
+  border-right: 1px solid #4a83c1;
+}
+
+.horario-cell-empty {
+  background-color: #E3F2FD !important;
+}
+
+.horario-clase-cell:not(.horario-cell-empty) {
+  font-weight: 500;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 3rem;
+  color: #6b7280;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+/* Detalle de Horario */
+.detalle-horario-container {
+  margin-top: 2.5rem;
+  background: linear-gradient(145deg, #eef2ff, #ffffff);
+  border: 1px solid rgba(74, 131, 193, 0.18);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 4px 16px rgba(74, 131, 193, 0.12);
+}
+
+.detalle-horario-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #4a83c1;
+  margin: 0 0 1.5rem 0;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid rgba(74, 131, 193, 0.2);
+}
+
+.detalle-horario-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.detalle-curso-card {
+  background: white;
+  border: 1px solid rgba(74, 131, 193, 0.25);
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.detalle-curso-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(74, 131, 193, 0.15);
+}
+
+.detalle-curso-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(74, 131, 193, 0.1);
+}
+
+.detalle-curso-color-indicator {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid rgba(74, 131, 193, 0.3);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.detalle-curso-info {
+  flex: 1;
+}
+
+.detalle-curso-titulo {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 0.25rem 0;
+}
+
+.detalle-curso-docente {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.detalle-curso-horarios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.detalle-horario-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f9fafb;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(74, 131, 193, 0.15);
+  font-size: 0.85rem;
+}
+
+.detalle-horario-dia {
+  font-weight: 700;
+  color: #4a83c1;
+  min-width: 80px;
+}
+
+.detalle-horario-hora {
+  color: #1f2937;
+  font-weight: 500;
+}
+
+/* Estilos para impresión */
+@media print {
+  .alumno-horario {
+    padding: 0;
+    max-width: 100%;
+  }
+
+  .page-header {
+    margin-bottom: 1rem;
+  }
+
+  .btn-imprimir {
+    display: none;
+  }
+
+  .horario-container {
+    box-shadow: none;
+    border: 1px solid #4a83c1;
+  }
+
+  .detalle-horario-container {
+    margin-top: 1.5rem;
+    box-shadow: none;
+    border: 1px solid rgba(74, 131, 193, 0.18);
+  }
+
+  .horario-table {
+    page-break-inside: avoid;
+  }
+}
+
+@media (max-width: 768px) {
+  .alumno-horario {
+    padding: 1rem;
+  }
+
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .btn-imprimir {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .horario-container {
+    padding: 1rem;
+  }
+
+  .horario-table {
+    font-size: 0.85rem;
+  }
+
+  .horario-table thead th {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .horario-hora-cell {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .horario-clase-cell {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .horario-hora-col {
+    width: 120px;
+    min-width: 100px;
+  }
+
+  .horario-dia-col {
+    min-width: 120px;
+  }
+
+  .detalle-horario-container {
+    padding: 1.5rem;
+    margin-top: 2rem;
+  }
+
+  .detalle-horario-title {
+    font-size: 1.25rem;
+  }
+
+  .detalle-curso-card {
+    padding: 1rem;
+  }
+
+  .detalle-curso-titulo {
+    font-size: 1rem;
+  }
+
+  .detalle-curso-docente {
+    font-size: 0.85rem;
+  }
+
+  .detalle-curso-horarios {
+    flex-direction: column;
+  }
+
+  .detalle-horario-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .detalle-horario-dia {
+    min-width: auto;
+  }
+}
+

@@ -29,6 +29,7 @@ import AlumnoComunicados from './pages/AlumnoComunicados';
 import AlumnoActividades from './pages/AlumnoActividades';
 import AlumnoMensajes from './pages/AlumnoMensajes';
 import AlumnoCursos from './pages/AlumnoCursos';
+import AlumnoHorario from './pages/AlumnoHorario';
 import AlumnoExamen from './pages/AlumnoExamen';
 import './App.css';
 
@@ -266,7 +267,7 @@ function AppRoutes() {
         path="/alumno/horario"
         element={
           <PrivateRoute>
-            <AlumnoDashboard />
+            <AlumnoHorario />
           </PrivateRoute>
         }
       />
