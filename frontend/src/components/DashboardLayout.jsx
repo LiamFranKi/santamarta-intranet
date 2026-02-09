@@ -139,153 +139,110 @@ export default function DashboardLayout({ children }) {
         <nav className="sidebar-nav">
           {role === 'DOCENTE' ? (
             <>
-              {/* MENÚ PRINCIPAL */}
-              <div className="sidebar-section">
-                <div className="sidebar-section-title">MENÚ PRINCIPAL</div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/dashboard" end>
-                    <span className="sidebar-icon">📊</span>
-                    <span className="sidebar-label">Dashboard</span>
-                  </NavLink>
-                </div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/perfil">
-                    <span className="sidebar-icon">👤</span>
-                    <span className="sidebar-label">Mi Perfil</span>
-                  </NavLink>
-                </div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/grupos">
-                    <span className="sidebar-icon">👥</span>
-                    <span className="sidebar-label">Grupos Asignados</span>
-                  </NavLink>
-                </div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/cursos">
-                    <span className="sidebar-icon">📚</span>
-                    <span className="sidebar-label">Cursos Asignados</span>
-                  </NavLink>
-                </div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/horario">
-                    <span className="sidebar-icon">📅</span>
-                    <span className="sidebar-label">Mi Horario</span>
-                  </NavLink>
-                </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/dashboard" end>
+                  <span className="sidebar-icon">📊</span>
+                  <span className="sidebar-label">Dashboard</span>
+                </NavLink>
               </div>
-
-              {/* COMUNICADOS */}
-              <div className="sidebar-section">
-                <div className="sidebar-section-title">COMUNICADOS</div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/comunicados">
-                    <span className="sidebar-icon">📢</span>
-                    <span className="sidebar-label">Comunicados</span>
-                  </NavLink>
-                </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/perfil">
+                  <span className="sidebar-icon">👤</span>
+                  <span className="sidebar-label">Mi Perfil</span>
+                </NavLink>
               </div>
-
-              {/* CALENDARIO */}
-              <div className="sidebar-section">
-                <div className="sidebar-section-title">CALENDARIO</div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/actividades">
-                    <span className="sidebar-icon">📆</span>
-                    <span className="sidebar-label">Actividades</span>
-                  </NavLink>
-                </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/grupos">
+                  <span className="sidebar-icon">👥</span>
+                  <span className="sidebar-label">Grupos Asignados</span>
+                </NavLink>
               </div>
-
-              {/* MENSAJERÍA */}
-              <div className="sidebar-section">
-                <div className="sidebar-section-title">MENSAJERÍA</div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/mensajes">
-                    <span className="sidebar-icon">✉️</span>
-                    <span className="sidebar-label">Mensajes</span>
-                  </NavLink>
-                </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/cursos">
+                  <span className="sidebar-icon">📚</span>
+                  <span className="sidebar-label">Cursos Asignados</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/horario">
+                  <span className="sidebar-icon">📅</span>
+                  <span className="sidebar-label">Mi Horario</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/comunicados">
+                  <span className="sidebar-icon">📢</span>
+                  <span className="sidebar-label">Comunicados</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/actividades">
+                  <span className="sidebar-icon">📆</span>
+                  <span className="sidebar-label">Actividades</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/mensajes">
+                  <span className="sidebar-icon">✉️</span>
+                  <span className="sidebar-label">Mensajes</span>
+                </NavLink>
               </div>
             </>
           ) : role === 'ALUMNO' ? (
             <>
-              {/* MENÚ PRINCIPAL */}
-              <div className="sidebar-section">
-                <div className="sidebar-section-title">MENÚ PRINCIPAL</div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/dashboard" end>
-                    <span className="sidebar-icon">📊</span>
-                    <span className="sidebar-label">Dashboard</span>
-                  </NavLink>
-                </div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/perfil">
-                    <span className="sidebar-icon">👤</span>
-                    <span className="sidebar-label">Mi Perfil</span>
-                  </NavLink>
-                </div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/cursos">
-                    <span className="sidebar-icon">📚</span>
-                    <span className="sidebar-label">Mis Cursos</span>
-                  </NavLink>
-                </div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/calificaciones">
-                    <span className="sidebar-icon">📊</span>
-                    <span className="sidebar-label">Calificaciones</span>
-                  </NavLink>
-                </div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/horario">
-                    <span className="sidebar-icon">📅</span>
-                    <span className="sidebar-label">Mi Horario</span>
-                  </NavLink>
-                </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/dashboard" end>
+                  <span className="sidebar-icon">📊</span>
+                  <span className="sidebar-label">Dashboard</span>
+                </NavLink>
               </div>
-
-              {/* AULA VIRTUAL */}
-              <div className="sidebar-section">
-                <div className="sidebar-section-title">AULA VIRTUAL</div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/aula-virtual">
-                    <span className="sidebar-icon">🌍</span>
-                    <span className="sidebar-label">Mundos</span>
-                  </NavLink>
-                </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/perfil">
+                  <span className="sidebar-icon">👤</span>
+                  <span className="sidebar-label">Mi Perfil</span>
+                </NavLink>
               </div>
-
-              {/* COMUNICADOS */}
-              <div className="sidebar-section">
-                <div className="sidebar-section-title">COMUNICADOS</div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/comunicados">
-                    <span className="sidebar-icon">📢</span>
-                    <span className="sidebar-label">Comunicados</span>
-                  </NavLink>
-                </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/qr">
+                  <span className="sidebar-icon">📱</span>
+                  <span className="sidebar-label">Mi QR</span>
+                </NavLink>
               </div>
-
-              {/* CALENDARIO */}
-              <div className="sidebar-section">
-                <div className="sidebar-section-title">CALENDARIO</div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/actividades">
-                    <span className="sidebar-icon">📆</span>
-                    <span className="sidebar-label">Actividades</span>
-                  </NavLink>
-                </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/cursos">
+                  <span className="sidebar-icon">📚</span>
+                  <span className="sidebar-label">Mis Cursos</span>
+                </NavLink>
               </div>
-
-              {/* MENSAJERÍA */}
-              <div className="sidebar-section">
-                <div className="sidebar-section-title">MENSAJERÍA</div>
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/mensajes">
-                    <span className="sidebar-icon">✉️</span>
-                    <span className="sidebar-label">Mensajes</span>
-                  </NavLink>
-                </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/calificaciones">
+                  <span className="sidebar-icon">📊</span>
+                  <span className="sidebar-label">Calificaciones</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/horario">
+                  <span className="sidebar-icon">📅</span>
+                  <span className="sidebar-label">Mi Horario</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/comunicados">
+                  <span className="sidebar-icon">📢</span>
+                  <span className="sidebar-label">Comunicados</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/actividades">
+                  <span className="sidebar-icon">📆</span>
+                  <span className="sidebar-label">Actividades</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/mensajes">
+                  <span className="sidebar-icon">✉️</span>
+                  <span className="sidebar-label">Mensajes</span>
+                </NavLink>
               </div>
             </>
           ) : (

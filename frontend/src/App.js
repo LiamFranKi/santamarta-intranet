@@ -20,6 +20,7 @@ import AdminConfiguracion from './pages/admin/AdminConfiguracion';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
 import AlumnoDashboard from './pages/AlumnoDashboard';
 import AlumnoPerfil from './pages/AlumnoPerfil';
+import AlumnoQR from './pages/AlumnoQR';
 import AlumnoAulaVirtual from './pages/AlumnoAulaVirtual';
 import AlumnoComunicados from './pages/AlumnoComunicados';
 import AlumnoActividades from './pages/AlumnoActividades';
@@ -198,6 +199,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <AlumnoPerfil />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/alumno/qr"
+        element={
+          <PrivateRoute>
+            <AlumnoQR />
           </PrivateRoute>
         }
       />
