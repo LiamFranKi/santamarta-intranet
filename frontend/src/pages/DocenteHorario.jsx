@@ -348,6 +348,253 @@ function DocenteHorario() {
     return cursosArray;
   }, [horario, diasSemana]);
 
+  // Función para exportar horario a PDF
+  const handleExportarPDF = () => {
+    if (!horario || horario.length === 0) {
+      Swal.fire({
+        title: 'Sin datos',
+        text: 'No hay horario para exportar',
+        icon: 'info'
+      });
+      return;
+    }
+
+    try {
+      const doc = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      const contentWidth = pageWidth - (margin * 2);
+      let yPosition = margin;
+
+      // Colores
+      const colorHeader = [59, 130, 246]; // Azul
+      const colorBorder = [30, 64, 175]; // Azul oscuro
+      const colorText = [30, 41, 59]; // Gris oscuro
+
+      // ========== HEADER ==========
+      doc.setFillColor(...colorHeader);
+      doc.rect(margin, yPosition, contentWidth, 25, 'F');
+      
+      doc.setDrawColor(...colorBorder);
+      doc.setLineWidth(0.5);
+      doc.rect(margin, yPosition, contentWidth, 25);
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('MI HORARIO DE CLASES', margin + contentWidth / 2, yPosition + 15, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Año Académico Actual', margin + contentWidth / 2, yPosition + 22, { align: 'center' });
+      
+      yPosition += 30;
+
+      // ========== TABLA DE HORARIO ==========
+      const colWidth = contentWidth / 6; // 1 columna para hora + 5 días
+      const rowHeight = 15; // Filas más altas
+      const headerHeight = 12; // Encabezado más alto
+
+      // Encabezados de la tabla
+      doc.setFillColor(...colorHeader);
+      doc.rect(margin, yPosition, colWidth, headerHeight, 'F');
+      doc.setDrawColor(...colorBorder);
+      doc.setLineWidth(0.3);
+      doc.rect(margin, yPosition, colWidth, headerHeight);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('HORA', margin + colWidth / 2, yPosition + headerHeight / 2 + 3, { align: 'center' });
+
+      diasSemana.forEach((dia, idx) => {
+        const xPos = margin + colWidth + (idx * colWidth);
+        doc.setFillColor(...colorHeader);
+        doc.rect(xPos, yPosition, colWidth, headerHeight, 'F');
+        doc.setDrawColor(...colorBorder);
+        doc.rect(xPos, yPosition, colWidth, headerHeight);
+        doc.text(dia.abrev, xPos + colWidth / 2, yPosition + headerHeight / 2 + 3, { align: 'center' });
+      });
+
+      yPosition += headerHeight;
+
+      // Filas de horarios
+      horariosUnicos.forEach((bloque, idx) => {
+        const claseLunes = obtenerClase(1, bloque.inicio, bloque.fin);
+        const claseMartes = obtenerClase(2, bloque.inicio, bloque.fin);
+        const claseMiercoles = obtenerClase(3, bloque.inicio, bloque.fin);
+        const claseJueves = obtenerClase(4, bloque.inicio, bloque.fin);
+        const claseViernes = obtenerClase(5, bloque.inicio, bloque.fin);
+
+        const tieneClase = claseLunes || claseMartes || claseMiercoles || claseJueves || claseViernes;
+        if (!tieneClase) return;
+
+        // Verificar si necesitamos una nueva página
+        if (yPosition + rowHeight > pageHeight - margin - 10) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        // Celda de hora
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.3);
+        doc.rect(margin, yPosition, colWidth, rowHeight);
+        doc.setTextColor(...colorText);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        const horaTexto = `${formatearHora(bloque.inicio)} - ${formatearHora(bloque.fin)}`;
+        doc.text(horaTexto, margin + colWidth / 2, yPosition + rowHeight / 2 + 3, { align: 'center', maxWidth: colWidth - 4 });
+
+        // Celdas de días
+        const clases = [claseLunes, claseMartes, claseMiercoles, claseJueves, claseViernes];
+        clases.forEach((clase, diaIdx) => {
+          const xPos = margin + colWidth + (diaIdx * colWidth);
+          doc.setDrawColor(200, 200, 200);
+          doc.setLineWidth(0.3);
+          doc.rect(xPos, yPosition, colWidth, rowHeight);
+          
+          if (clase) {
+            const colorCurso = getColorForCourse(clase.titulo || '');
+            const rgb = hexToRgb(colorCurso);
+            if (rgb) {
+              doc.setFillColor(rgb.r, rgb.g, rgb.b);
+              doc.rect(xPos + 0.5, yPosition + 0.5, colWidth - 1, rowHeight - 1, 'F');
+            }
+            
+            doc.setTextColor(...colorText);
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            const textoClase = formatearClase(clase);
+            if (textoClase) {
+              const lineas = doc.splitTextToSize(textoClase, colWidth - 6);
+              const numLineas = lineas.length;
+              const alturaTexto = numLineas * 4;
+              const yInicio = yPosition + (rowHeight - alturaTexto) / 2 + 3;
+              lineas.forEach((linea, lineIdx) => {
+                doc.text(linea, xPos + colWidth / 2, yInicio + (lineIdx * 4), { align: 'center', maxWidth: colWidth - 6 });
+              });
+            }
+          }
+        });
+
+        yPosition += rowHeight;
+      });
+
+      // ========== DETALLE DE HORARIO ==========
+      if (detalleHorario.length > 0) {
+        if (yPosition + 20 > pageHeight - margin - 10) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        yPosition += 10;
+        doc.setDrawColor(...colorBorder);
+        doc.setLineWidth(0.5);
+        doc.line(margin, yPosition, margin + contentWidth, yPosition);
+        yPosition += 5;
+
+        doc.setTextColor(...colorText);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DETALLE DE HORARIO', margin, yPosition);
+        yPosition += 8;
+
+        detalleHorario.forEach((curso) => {
+          const cardHeight = 28;
+          
+          if (yPosition + cardHeight > pageHeight - margin - 10) {
+            doc.addPage();
+            yPosition = margin;
+          }
+
+          const colorCurso = getColorForCourse(curso.titulo);
+          const rgb = hexToRgb(colorCurso);
+          
+          if (rgb) {
+            doc.setFillColor(rgb.r, rgb.g, rgb.b);
+            doc.roundedRect(margin, yPosition, contentWidth, cardHeight, 3, 3, 'F');
+          }
+          
+          doc.setDrawColor(200, 200, 200);
+          doc.setLineWidth(0.3);
+          doc.roundedRect(margin, yPosition, contentWidth, cardHeight, 3, 3);
+          
+          const centroVertical = yPosition + cardHeight / 2;
+          
+          // Nombre del curso - centrado
+          doc.setTextColor(...colorText);
+          doc.setFontSize(14);
+          doc.setFont('helvetica', 'bold');
+          const tituloLines = doc.splitTextToSize(curso.titulo, contentWidth - 20);
+          const tituloY = centroVertical - 8;
+          doc.text(tituloLines, margin + contentWidth / 2, tituloY, { align: 'center', maxWidth: contentWidth - 20 });
+          
+          // Grupo - centrado (en lugar de docente)
+          if (curso.grupo) {
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'normal');
+            const grupoY = centroVertical - 1;
+            doc.text(`Grupo: ${curso.grupo}`, margin + contentWidth / 2, grupoY, { align: 'center', maxWidth: contentWidth - 20 });
+          }
+          
+          // Horarios - centrado
+          if (curso.horarios && curso.horarios.length > 0) {
+            let horariosTexto = curso.horarios.map(h => 
+              `${h.diaNombre}: ${formatearHora(h.inicio)} - ${formatearHora(h.fin)}`
+            ).join(' | ');
+            
+            doc.setFontSize(10);
+            const horariosLines = doc.splitTextToSize(horariosTexto, contentWidth - 20);
+            const horariosY = centroVertical + 6;
+            doc.text(horariosLines, margin + contentWidth / 2, horariosY, { align: 'center', maxWidth: contentWidth - 20 });
+          }
+          
+          yPosition += cardHeight + 4;
+        });
+      }
+
+      // ========== PIE DE PÁGINA ==========
+      const fechaGeneracion = new Date().toLocaleDateString('es-PE', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Generado el: ${fechaGeneracion}`, margin, pageHeight - 10);
+
+      // Guardar PDF
+      const nombreArchivo = `Mi_Horario_${new Date().getTime()}.pdf`;
+      doc.save(nombreArchivo);
+
+      Swal.fire({
+        title: '¡PDF Generado!',
+        text: 'El horario se ha exportado correctamente',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      Swal.fire({
+        title: 'Error',
+        text: 'No se pudo generar el PDF',
+        icon: 'error'
+      });
+    }
+  };
+
+  // Función auxiliar para convertir hex a RGB
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
