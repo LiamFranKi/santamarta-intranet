@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
+import { jsPDF } from 'jspdf';
+import Swal from 'sweetalert2';
 import './DocenteHorario.css';
 
 function DocenteHorario() {
@@ -360,8 +362,18 @@ function DocenteHorario() {
     <DashboardLayout>
       <div className="docente-horario">
         <div className="page-header">
-          <h1>Mi Horario</h1>
-          <p>Horario de clases del año académico actual</p>
+          <div className="header-content">
+            <div>
+              <h1>📅 Mi Horario</h1>
+              <p>Horario de clases del año académico actual</p>
+            </div>
+            {horario && horario.length > 0 && (
+              <button className="btn-imprimir" onClick={handleExportarPDF}>
+                <span className="btn-icon">📄</span>
+                <span className="btn-text">Exportar</span>
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="horario-container">
