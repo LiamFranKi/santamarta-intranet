@@ -357,6 +357,41 @@ router.get('/dashboard', async (req, res) => {
       };
     }
 
+    // Verificar roles adicionales (apoderado y tutor)
+    // Verificar si es apoderado (tiene hijos estudiando en el colegio)
+    const esApoderado = await query(
+      `SELECT COUNT(DISTINCT f.alumno_id) as total_hijos
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       INNER JOIN matriculas m ON m.alumno_id = a.id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE ap.colegio_id = ? 
+         AND ap.nro_documento = (
+           SELECT p.nro_documento 
+           FROM personal p 
+           WHERE p.id = ? AND p.colegio_id = ?
+         )
+         AND m.colegio_id = ?
+         AND (m.estado = 0 OR m.estado = 4)
+         AND g.anio = ?`,
+      [colegio_id, docente.id, colegio_id, colegio_id, anio_activo]
+    );
+
+    const tieneHijos = (esApoderado[0]?.total_hijos || 0) > 0;
+
+    // Verificar si es tutor
+    const gruposTutor = await query(
+      `SELECT g.*, n.nombre as nivel_nombre, t.nombre as turno_nombre
+       FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN turnos t ON t.id = g.turno_id
+       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [docente.id, colegio_id, anio_activo]
+    );
+
+    const esTutor = gruposTutor.length > 0;
+
     // Construir nombre completo
     const nombreCompleto = `${docente.nombres || ''} ${docente.apellidos || ''}`.trim();
     
@@ -381,6 +416,10 @@ router.get('/dashboard', async (req, res) => {
         apellidos: docente.apellidos || '',
         foto: fotoUrl,
         email: docente.email || ''
+      },
+      rolesAdicionales: {
+        es_apoderado: tieneHijos,
+        es_tutor: esTutor
       },
       estadisticas: {
         gruposAsignados: gruposAsignados[0]?.total || 0,
@@ -3480,6 +3519,193 @@ router.get('/tutoria', async (req, res) => {
   } catch (error) {
     console.error('Error verificando tutoría:', error);
     res.status(500).json({ error: 'Error al verificar tutoría' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/alumnos
+ * Obtener alumnos del grupo del tutor
+ */
+router.get('/tutoria/alumnos', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+
+    if (!personalId) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    // Verificar si es tutor y obtener grupo
+    const gruposTutor = await query(
+      `SELECT g.*, n.nombre as nivel_nombre, t.nombre as turno_nombre
+       FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN turnos t ON t.id = g.turno_id
+       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [personalId, colegio_id, anio_activo]
+    );
+
+    if (gruposTutor.length === 0) {
+      return res.json({
+        es_tutor: false,
+        grupo: null,
+        alumnos: []
+      });
+    }
+
+    const grupoTutor = gruposTutor[0];
+
+    // Obtener alumnos del grupo
+    const alumnos = await query(
+      `SELECT DISTINCT
+              a.*, 
+              m.id as matricula_id,
+              m.fecha_registro, 
+              m.estado as estado_matricula,
+              a.fecha_nacimiento,
+              COALESCE(
+                (SELECT ap2.telefono_celular 
+                 FROM familias f2 
+                 INNER JOIN apoderados ap2 ON ap2.id = f2.apoderado_id 
+                 WHERE f2.alumno_id = a.id 
+                 AND ap2.telefono_celular IS NOT NULL 
+                 AND ap2.telefono_celular != '' 
+                 LIMIT 1),
+                (SELECT ap3.telefono_fijo 
+                 FROM familias f3 
+                 INNER JOIN apoderados ap3 ON ap3.id = f3.apoderado_id 
+                 WHERE f3.alumno_id = a.id 
+                 AND ap3.telefono_fijo IS NOT NULL 
+                 AND ap3.telefono_fijo != '' 
+                 LIMIT 1),
+                'N/A'
+              ) as telefono
+       FROM alumnos a
+       INNER JOIN matriculas m ON m.alumno_id = a.id
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND m.estado = 0
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
+      [grupoTutor.id, colegio_id]
+    );
+
+    // Construir URLs de fotos
+    const alumnosConFotos = alumnos.map(alumno => {
+      let fotoUrl = null;
+      if (alumno.foto && alumno.foto !== '') {
+        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+        const isProduction = process.env.NODE_ENV === 'production';
+        if (isProduction) {
+          fotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${alumno.foto}`;
+        } else {
+          fotoUrl = `http://localhost:5000/Static/Image/Fotos/${alumno.foto}`;
+        }
+      }
+      return { ...alumno, foto: fotoUrl };
+    });
+
+    res.json({
+      es_tutor: true,
+      grupo: grupoTutor,
+      alumnos: alumnosConFotos || []
+    });
+  } catch (error) {
+    console.error('Error obteniendo alumnos del tutor:', error);
+    res.status(500).json({ error: 'Error al obtener alumnos del tutor' });
+  }
+});
+
+/**
+ * GET /api/docente/roles-adicionales
+ * Verificar roles adicionales del docente (apoderado y tutor)
+ */
+router.get('/roles-adicionales', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+
+    if (!personalId) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    // Verificar si es apoderado (tiene hijos estudiando en el colegio)
+    // Buscar si el personal tiene un registro en apoderados y tiene hijos (familias)
+    const esApoderado = await query(
+      `SELECT COUNT(DISTINCT f.alumno_id) as total_hijos
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       INNER JOIN matriculas m ON m.alumno_id = a.id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE ap.colegio_id = ? 
+         AND ap.nro_documento = (
+           SELECT p.nro_documento 
+           FROM personal p 
+           WHERE p.id = ? AND p.colegio_id = ?
+         )
+         AND m.colegio_id = ?
+         AND (m.estado = 0 OR m.estado = 4)
+         AND g.anio = ?`,
+      [colegio_id, personalId, colegio_id, colegio_id, anio_activo]
+    );
+
+    const tieneHijos = (esApoderado[0]?.total_hijos || 0) > 0;
+
+    // Obtener lista de hijos si es apoderado
+    let hijos = [];
+    if (tieneHijos) {
+      hijos = await query(
+        `SELECT DISTINCT
+                a.id,
+                a.nombres,
+                a.apellido_paterno,
+                a.apellido_materno,
+                a.foto,
+                g.grado,
+                g.seccion,
+                n.nombre as nivel_nombre,
+                t.nombre as turno_nombre,
+                m.id as matricula_id
+         FROM apoderados ap
+         INNER JOIN familias f ON f.apoderado_id = ap.id
+         INNER JOIN alumnos a ON a.id = f.alumno_id
+         INNER JOIN matriculas m ON m.alumno_id = a.id
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         INNER JOIN niveles n ON n.id = g.nivel_id
+         INNER JOIN turnos t ON t.id = g.turno_id
+         WHERE ap.colegio_id = ? 
+           AND ap.nro_documento = (
+             SELECT p.nro_documento 
+             FROM personal p 
+             WHERE p.id = ? AND p.colegio_id = ?
+           )
+           AND m.colegio_id = ?
+           AND (m.estado = 0 OR m.estado = 4)
+           AND g.anio = ?
+         ORDER BY n.nombre, g.grado, g.seccion, a.apellido_paterno, a.apellido_materno, a.nombres`,
+        [colegio_id, personalId, colegio_id, colegio_id, anio_activo]
+      );
+    }
+
+    // Verificar si es tutor
+    const gruposTutor = await query(
+      `SELECT g.*, n.nombre as nivel_nombre, t.nombre as turno_nombre
+       FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN turnos t ON t.id = g.turno_id
+       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [personalId, colegio_id, anio_activo]
+    );
+
+    const esTutor = gruposTutor.length > 0;
+
+    res.json({
+      es_apoderado: tieneHijos,
+      es_tutor: esTutor,
+      hijos: hijos || [],
+      grupo_tutor: esTutor ? gruposTutor[0] : null
+    });
+  } catch (error) {
+    console.error('Error verificando roles adicionales:', error);
+    res.status(500).json({ error: 'Error al verificar roles adicionales' });
   }
 });
 

@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 import CalendarioWidget from './CalendarioWidget';
 import PublicacionesWidget from './PublicacionesWidget';
 import NotificacionesWidget from './NotificacionesWidget';
@@ -19,10 +20,36 @@ export default function DashboardLayout({ children }) {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
+  const [rolesAdicionales, setRolesAdicionales] = useState({
+    es_apoderado: false,
+    es_tutor: false
+  });
   
   // Debug: verificar que el componente se monta
   React.useEffect(() => {
     console.log('✅ [DASHBOARD LAYOUT] Componente montado, user:', user?.tipo);
+  }, [user]);
+
+  // Cargar roles adicionales si es docente
+  useEffect(() => {
+    const cargarRolesAdicionales = async () => {
+      if (user?.tipo === 'DOCENTE') {
+        try {
+          const response = await api.get('/docente/roles-adicionales');
+          setRolesAdicionales({
+            es_apoderado: response.data.es_apoderado || false,
+            es_tutor: response.data.es_tutor || false
+          });
+        } catch (error) {
+          console.error('Error cargando roles adicionales:', error);
+          // En caso de error, mantener valores por defecto
+        }
+      }
+    };
+
+    if (user?.tipo === 'DOCENTE') {
+      cargarRolesAdicionales();
+    }
   }, [user]);
 
   // Toggle submenu
@@ -187,6 +214,54 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mensajes</span>
                 </NavLink>
               </div>
+
+              {/* Menú Hijos a Cargo (si es apoderado) */}
+              {rolesAdicionales.es_apoderado && (
+                <>
+                  <div className="sidebar-section-divider"></div>
+                  <div className="sidebar-section-label" style={{ 
+                    fontSize: '0.75rem', 
+                    color: '#9ca3af', 
+                    fontWeight: '600', 
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    padding: '1rem 1.5rem 0.5rem 1.5rem',
+                    marginTop: '0.5rem'
+                  }}>
+                    Como Apoderado
+                  </div>
+                  <div className="sidebar-item">
+                    <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/hijos">
+                      <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
+                      <span className="sidebar-label">Hijos a Cargo</span>
+                    </NavLink>
+                  </div>
+                </>
+              )}
+
+              {/* Menú Tutoría (si es tutor) */}
+              {rolesAdicionales.es_tutor && (
+                <>
+                  {!rolesAdicionales.es_apoderado && <div className="sidebar-section-divider"></div>}
+                  <div className="sidebar-section-label" style={{ 
+                    fontSize: '0.75rem', 
+                    color: '#9ca3af', 
+                    fontWeight: '600', 
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    padding: '1rem 1.5rem 0.5rem 1.5rem',
+                    marginTop: rolesAdicionales.es_apoderado ? '0' : '0.5rem'
+                  }}>
+                    Como Tutor
+                  </div>
+                  <div className="sidebar-item">
+                    <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/tutoria">
+                      <span className="sidebar-icon">🎓</span>
+                      <span className="sidebar-label">Tutoría</span>
+                    </NavLink>
+                  </div>
+                </>
+              )}
             </>
           ) : role === 'ALUMNO' ? (
             <>

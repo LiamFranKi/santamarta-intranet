@@ -14,6 +14,8 @@ import DocenteHorario from './pages/DocenteHorario';
 import DocenteComunicados from './pages/DocenteComunicados';
 import DocenteActividades from './pages/DocenteActividades';
 import DocenteMensajes from './pages/DocenteMensajes';
+import DocenteHijos from './pages/DocenteHijos';
+import DocenteTutoria from './pages/DocenteTutoria';
 import AdminActividades from './pages/admin/AdminActividades';
 import AdminComunicados from './pages/admin/AdminComunicados';
 import AdminConfiguracion from './pages/admin/AdminConfiguracion';
@@ -175,6 +177,22 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <DocenteMensajes />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/hijos"
+        element={
+          <PrivateRoute>
+            <DocenteHijos />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/tutoria"
+        element={
+          <PrivateRoute>
+            <DocenteTutoria />
           </PrivateRoute>
         }
       />
