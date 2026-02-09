@@ -470,7 +470,7 @@ function AlumnoHorario() {
 
         detalleHorario.forEach((curso) => {
           // Altura del card basada en contenido
-          const cardHeight = 20; // Cards más altos
+          const cardHeight = 28; // Cards más altos para mejor visualización
           
           // Verificar si necesitamos una nueva página
           if (yPosition + cardHeight > pageHeight - margin - 10) {
@@ -496,17 +496,17 @@ function AlumnoHorario() {
           
           // Nombre del curso - centrado
           doc.setTextColor(...colorText);
-          doc.setFontSize(13);
+          doc.setFontSize(14);
           doc.setFont('helvetica', 'bold');
           const tituloLines = doc.splitTextToSize(curso.titulo, contentWidth - 20);
-          const tituloY = centroVertical - (tituloLines.length > 1 ? 6 : 3);
+          const tituloY = centroVertical - 8; // Más espacio desde el centro
           doc.text(tituloLines, margin + contentWidth / 2, tituloY, { align: 'center', maxWidth: contentWidth - 20 });
           
           // Docente - centrado
           if (curso.docente) {
-            doc.setFontSize(10);
+            doc.setFontSize(11);
             doc.setFont('helvetica', 'normal');
-            const docenteY = centroVertical + (tituloLines.length > 1 ? 2 : 4);
+            const docenteY = centroVertical - 1; // Cerca del centro
             doc.text(`Docente: ${curso.docente}`, margin + contentWidth / 2, docenteY, { align: 'center', maxWidth: contentWidth - 20 });
           }
           
@@ -516,13 +516,13 @@ function AlumnoHorario() {
               `${h.diaNombre}: ${formatearHora(h.inicio)} - ${formatearHora(h.fin)}`
             ).join(' | ');
             
-            doc.setFontSize(9);
+            doc.setFontSize(10);
             const horariosLines = doc.splitTextToSize(horariosTexto, contentWidth - 20);
-            const horariosY = centroVertical + (tituloLines.length > 1 ? 7 : 9);
+            const horariosY = centroVertical + 6; // Más abajo del centro
             doc.text(horariosLines, margin + contentWidth / 2, horariosY, { align: 'center', maxWidth: contentWidth - 20 });
           }
           
-          yPosition += cardHeight + 3; // Espacio entre cards
+          yPosition += cardHeight + 4; // Más espacio entre cards
         });
       }
 
