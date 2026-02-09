@@ -63,8 +63,8 @@ function DocenteTutoria() {
     const rect = e.currentTarget.getBoundingClientRect();
     setOpenDropdown({
       grupoId,
-      top: rect.bottom + window.scrollY + 5,
-      left: rect.left + window.scrollX
+      top: rect.bottom + 5,
+      left: rect.left
     });
   };
 
@@ -286,7 +286,7 @@ function DocenteTutoria() {
               ref={dropdownRef}
               className="dropdown-menu"
               style={{
-                position: 'absolute',
+                position: 'fixed',
                 top: `${openDropdown.top}px`,
                 left: `${openDropdown.left}px`,
                 zIndex: 10000
@@ -299,9 +299,9 @@ function DocenteTutoria() {
                 const opciones = [
                   { id: 'lista-alumnos', label: 'Lista de Alumnos', icon: '📋' },
                   { id: 'notas-asistencia', label: 'Notas / Asistencia', icon: '📊' },
-                  { id: 'enviar-comunicado', label: 'Enviar Comunicado', icon: '✉️' },
+                  { id: 'enviar-comunicado', label: 'Enviar Mensaje', icon: '✉️' },
                   { id: 'registrar-asistencia', label: 'Registrar Asistencia', icon: '✅' },
-                  { id: 'apreciaciones-recomendaciones', label: 'Apreciaciones / Recomendaciones', icon: '💬' },
+                  { id: 'apreciaciones-recomendaciones', label: 'Recomendaciones', icon: '💬' },
                   { id: 'lista-asignaturas', label: 'Lista de Asignaturas', icon: '📚' },
                   { id: 'registrar-conducta', label: 'Registrar Conducta', icon: '📝' }
                 ];
