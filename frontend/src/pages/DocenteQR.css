@@ -1,0 +1,254 @@
+.docente-qr {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.docente-qr-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.loading-spinner {
+  font-size: 1.2rem;
+  color: #4a83c1;
+}
+
+.page-header {
+  margin-bottom: 2rem;
+  text-align: left;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.page-header h1 {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #4a83c1 !important;
+  margin: 0 0 0.5rem 0;
+  text-align: left;
+}
+
+.page-header p {
+  color: #6b7280 !important;
+  margin: 0;
+  text-align: left;
+}
+
+.btn-exportar {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-exportar:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-exportar .btn-icon {
+  font-size: 1.1rem;
+}
+
+/* Contenedor de la tarjeta QR */
+.qr-card-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 500px;
+  padding: 3rem;
+  background: linear-gradient(145deg, #eef2ff, #ffffff);
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(74, 131, 193, 0.12);
+}
+
+/* Tarjeta QR - Tamaño fotocheck estándar (proporción 89mm x 54mm) */
+.qr-card {
+  width: 450px;
+  height: auto;
+  min-height: 280px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  overflow: visible;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+/* Header de la tarjeta */
+.qr-card-header {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  padding: 0.75rem 1.5rem;
+  text-align: center;
+  height: 45px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.qr-colegio-nombre {
+  color: white;
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Cuerpo de la tarjeta */
+.qr-card-body {
+  flex: 1;
+  display: flex;
+  padding: 1.25rem;
+  gap: 1.25rem;
+  background: linear-gradient(to bottom, #ffffff, #f9fafb);
+  min-height: 200px;
+}
+
+/* Sección del QR Code */
+.qr-code-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  flex-shrink: 0;
+  padding-right: 1.25rem;
+  border-right: 2px solid #e5e7eb;
+  width: 180px;
+}
+
+.qr-code-wrapper {
+  background: white;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 2px solid #d1d5db;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 160px;
+}
+
+.qr-code-label {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 600;
+  text-align: center;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Sección de información */
+.qr-info-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1rem;
+  padding-left: 1.5rem;
+}
+
+.qr-info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.qr-info-label {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #1f2937;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: 0;
+}
+
+.qr-info-value {
+  font-size: 1.1rem;
+  color: #111827;
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+/* Footer de la tarjeta */
+.qr-card-footer {
+  background: linear-gradient(to bottom, #f9fafb, #f3f4f6);
+  padding: 0.6rem;
+  text-align: center;
+  border-top: 2px solid #e5e7eb;
+  flex-shrink: 0;
+  margin-top: auto;
+}
+
+.qr-anio {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #2563eb;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .qr-card {
+    width: 100%;
+    max-width: 356px;
+    height: auto;
+    aspect-ratio: 89 / 54;
+  }
+
+  .qr-card-body {
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+  }
+
+  .qr-code-section {
+    margin-bottom: 1rem;
+  }
+
+  .qr-info-section {
+    width: 100%;
+    padding-left: 0;
+    text-align: center;
+  }
+
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .btn-exportar {
+    width: 100%;
+    justify-content: center;
+  }
+}
+

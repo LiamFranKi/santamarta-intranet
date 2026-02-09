@@ -499,6 +499,73 @@ router.get('/perfil', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/qr
+ * Obtener datos del docente para generar QR (fotocheck)
+ */
+router.get('/qr', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id, anio_activo } = req.user;
+
+    // Obtener datos del docente
+    const personal = await query(
+      `SELECT p.id, p.nombres, p.apellidos, p.fecha_nacimiento, p.nro_documento
+       FROM personal p
+       INNER JOIN usuarios u ON u.personal_id = p.id
+       WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+      [usuario_id, colegio_id]
+    );
+
+    if (personal.length === 0) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    const docenteData = personal[0];
+
+    // Obtener nombre del colegio
+    const colegio = await query(
+      `SELECT nombre FROM colegios WHERE id = ?`,
+      [colegio_id]
+    );
+
+    const colegioNombre = colegio.length > 0 ? colegio[0].nombre : 'Vanguard Schools';
+
+    // Generar código QR (puede ser el DNI o un ID único)
+    const qrData = docenteData.nro_documento || `DOCENTE-${docenteData.id}`;
+
+    // Formatear fecha de nacimiento
+    let fechaNacimientoFormateada = '';
+    if (docenteData.fecha_nacimiento) {
+      const fecha = new Date(docenteData.fecha_nacimiento);
+      if (!isNaN(fecha.getTime())) {
+        fechaNacimientoFormateada = fecha.toLocaleDateString('es-PE', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      }
+    }
+
+    // Separar nombres y apellidos
+    const nombres = docenteData.nombres || '';
+    const apellidos = docenteData.apellidos || '';
+
+    res.json({
+      nombres: nombres,
+      apellidos: apellidos,
+      nombre_completo: `${nombres} ${apellidos}`.trim(),
+      fecha_nacimiento: fechaNacimientoFormateada,
+      colegio_nombre: colegioNombre,
+      anio: anio_activo,
+      qr_data: qrData,
+      nro_documento: docenteData.nro_documento || ''
+    });
+  } catch (error) {
+    console.error('Error obteniendo datos para QR:', error);
+    res.status(500).json({ error: 'Error al obtener datos para QR' });
+  }
+});
+
+/**
  * PUT /api/docente/perfil
  * Actualizar perfil del docente (incluyendo foto)
  */

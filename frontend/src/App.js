@@ -8,6 +8,7 @@ import Login from './pages/Login';
 import Dashboard from './pages/admin/Dashboard';
 import DocenteDashboard from './pages/DocenteDashboard';
 import DocentePerfil from './pages/DocentePerfil';
+import DocenteQR from './pages/DocenteQR';
 import DocenteGrupos from './pages/DocenteGrupos';
 import DocenteCursos from './pages/DocenteCursos';
 import DocenteHorario from './pages/DocenteHorario';
@@ -130,6 +131,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <DocentePerfil />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/qr"
+        element={
+          <PrivateRoute>
+            <DocenteQR />
           </PrivateRoute>
         }
       />
