@@ -58,21 +58,21 @@ function AlumnoQR() {
       doc.setFillColor(255, 255, 255);
       doc.rect(0, 0, width, height, 'F');
 
-      // Borde superior con color del colegio
-      doc.setFillColor(74, 131, 193);
-      doc.rect(0, 0, width, 8, 'F');
+      // Borde superior con color del colegio - más alto y con gradiente
+      doc.setFillColor(37, 99, 235); // Azul más vibrante
+      doc.rect(0, 0, width, 10, 'F');
 
-      // Nombre del colegio
+      // Nombre del colegio - más grande y en mayúsculas
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11);
+      doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      const colegioNombre = qrData.colegio_nombre || 'Vanguard Schools';
-      doc.text(colegioNombre, width / 2, 5.5, { align: 'center' });
+      const colegioNombre = (qrData.colegio_nombre || 'Vanguard Schools').toUpperCase();
+      doc.text(colegioNombre, width / 2, 6.5, { align: 'center' });
 
       let yPos = 10;
 
-      // QR Code a la izquierda
-      const qrSize = 35;
+      // QR Code a la izquierda - más grande
+      const qrSize = 42; // Aumentado de 35 a 42mm
       const qrX = margin + 2;
       const qrY = yPos;
 
@@ -128,36 +128,36 @@ function AlumnoQR() {
       doc.text('Código QR', qrX + qrSize / 2, qrY + qrSize + 3, { align: 'center' });
 
       // Información del alumno a la derecha
-      const infoX = qrX + qrSize + 5;
-      const infoY = yPos + 2;
+      const infoX = qrX + qrSize + 4;
+      const infoY = yPos + 3;
 
-      doc.setTextColor(30, 41, 59);
-      doc.setFontSize(8);
+      doc.setTextColor(31, 41, 55);
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
-      doc.text('Nombres:', infoX, infoY);
+      doc.text('NOMBRES:', infoX, infoY);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
+      doc.setFontSize(8);
       const nombres = qrData.nombres || '';
       const nombresLines = doc.splitTextToSize(nombres, contentWidth - infoX - margin);
-      doc.text(nombresLines, infoX, infoY + 4, { maxWidth: contentWidth - infoX - margin });
+      doc.text(nombresLines, infoX, infoY + 5, { maxWidth: contentWidth - infoX - margin });
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      doc.text('Apellidos:', infoX, infoY + 8);
+      doc.setFontSize(9);
+      doc.text('APELLIDOS:', infoX, infoY + 11);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(7);
+      doc.setFontSize(8);
       const apellidos = `${qrData.apellido_paterno || ''} ${qrData.apellido_materno || ''}`.trim();
       const apellidosLines = doc.splitTextToSize(apellidos, contentWidth - infoX - margin);
-      doc.text(apellidosLines, infoX, infoY + 12, { maxWidth: contentWidth - infoX - margin });
+      doc.text(apellidosLines, infoX, infoY + 16, { maxWidth: contentWidth - infoX - margin });
 
       if (qrData.grupo) {
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('Sección:', infoX, infoY + 18);
+        doc.setFontSize(9);
+        doc.text('SECCIÓN:', infoX, infoY + 22);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
+        doc.setFontSize(8);
         const grupoLines = doc.splitTextToSize(qrData.grupo, contentWidth - infoX - margin);
-        doc.text(grupoLines, infoX, infoY + 22, { maxWidth: contentWidth - infoX - margin });
+        doc.text(grupoLines, infoX, infoY + 27, { maxWidth: contentWidth - infoX - margin });
       }
 
       // Año
@@ -237,7 +237,7 @@ function AlumnoQR() {
                 <div className="qr-code-wrapper">
                   <QRCodeSVG 
                     value={qrData.qr_data || qrData.nro_documento || 'ALUMNO'}
-                    size={140}
+                    size={180}
                     level="H"
                     includeMargin={true}
                   />
