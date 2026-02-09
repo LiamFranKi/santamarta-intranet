@@ -299,9 +299,13 @@ export default function DashboardLayout({ children }) {
                 <NavLink 
                   className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} 
                   to="/alumno/horario"
-                  onClick={() => {
+                  onClick={(e) => {
                     console.log('📅 [NAVLINK] Click en Mi Horario - Navegando a /alumno/horario');
+                    console.log('📅 [NAVLINK] Event:', e);
+                    console.log('📅 [NAVLINK] Target:', e.target);
+                    // No prevenir el comportamiento por defecto, dejar que NavLink maneje la navegación
                   }}
+                  style={{ cursor: 'pointer' }}
                 >
                   <span className="sidebar-icon">📅</span>
                   <span className="sidebar-label">Mi Horario</span>
