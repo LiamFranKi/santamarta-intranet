@@ -649,7 +649,9 @@ router.get('/horario', async (req, res) => {
     const anioActivoInt = parseInt(anio_activo);
 
     // Obtener horario del grupo del alumno
-    // El horario del alumno se basa en los horarios del grupo (grupos_horarios con asignatura_id)
+    // Incluye horarios con asignaturas Y horarios manuales (recreos, talleres, etc.)
+    // Los horarios manuales tienen descripcion pero pueden no tener asignatura_id válido
+    // Usamos LEFT JOIN para incluir ambos tipos de horarios
     const horarioCrudo = await query(
       `SELECT 
          gh.id,
@@ -664,14 +666,19 @@ router.get('/horario', async (req, res) => {
          n.nombre AS nivel_nombre,
          CONCAT(p.nombres, ' ', p.apellidos) AS docente_nombre
        FROM grupos_horarios gh
-       INNER JOIN asignaturas a ON a.id = gh.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
+       LEFT JOIN asignaturas a ON a.id = gh.asignatura_id AND a.colegio_id = ?
+       LEFT JOIN grupos g ON g.id = COALESCE(a.grupo_id, gh.grupo_id)
        LEFT JOIN niveles n ON n.id = g.nivel_id
        LEFT JOIN cursos c ON c.id = a.curso_id
-       LEFT JOIN personal p ON p.id = a.personal_id
-       WHERE gh.anio = ? AND a.grupo_id = ? AND a.colegio_id = ?
+       LEFT JOIN personal p ON p.id = COALESCE(a.personal_id, gh.personal_id)
+       WHERE gh.anio = ? 
+         AND (
+           (a.grupo_id = ? AND a.colegio_id = ?) 
+           OR 
+           (gh.grupo_id = ? AND a.id IS NULL)
+         )
        ORDER BY gh.dia, STR_TO_DATE(gh.hora_inicio, '%l:%i %p')`,
-      [anioActivoInt, grupoId, colegio_id]
+      [colegio_id, anioActivoInt, grupoId, colegio_id, grupoId]
     );
 
     console.log(`📅 [ALUMNO HORARIO] Filas de horario encontradas: ${horarioCrudo ? horarioCrudo.length : 0}`);
