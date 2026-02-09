@@ -116,18 +116,6 @@ function DocenteHijos() {
                         borderColor: colorCard.border
                       }}
                     >
-                      <button 
-                        className="hijo-btn-ver"
-                        onClick={() => {
-                          // Funcionalidad se implementará después
-                          console.log('Ver perfil de:', nombreCompleto);
-                        }}
-                        title="Ver perfil completo"
-                      >
-                        <span className="btn-icon">👁️</span>
-                        <span className="btn-text">Ver</span>
-                      </button>
-                      
                       <div 
                         className="hijo-avatar"
                         style={{ backgroundColor: colorCard.avatar }}
@@ -155,6 +143,18 @@ function DocenteHijos() {
                           </p>
                         </div>
                       </div>
+                      
+                      <button 
+                        className="hijo-btn-ver"
+                        onClick={() => {
+                          // Funcionalidad se implementará después
+                          console.log('Ver perfil de:', nombreCompleto);
+                        }}
+                        title="Ver perfil completo"
+                      >
+                        <span className="btn-icon">👁️</span>
+                        <span className="btn-text">Ver</span>
+                      </button>
                     </div>
                   );
                 })}
