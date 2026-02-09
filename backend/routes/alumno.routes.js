@@ -396,7 +396,7 @@ router.get('/cursos', async (req, res) => {
        INNER JOIN cursos c ON c.id = a.curso_id
        INNER JOIN personal p ON p.id = a.personal_id
        WHERE a.grupo_id = ? AND a.colegio_id = ?
-       ORDER BY c.orden ASC, c.nombre ASC`,
+       ORDER BY c.nombre ASC`,
       [grupoId, colegio_id]
     );
 
@@ -545,7 +545,7 @@ router.get('/docentes', async (req, res) => {
        INNER JOIN cursos c ON c.id = a.curso_id
        INNER JOIN personal p ON p.id = a.personal_id
        WHERE a.grupo_id = ? AND a.colegio_id = ?
-       ORDER BY p.apellidos, p.nombres, c.nombre ASC`,
+       ORDER BY p.nombres ASC, p.apellidos ASC, c.nombre ASC`,
       [grupoId, colegio_id]
     );
 
