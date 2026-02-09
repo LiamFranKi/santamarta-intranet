@@ -3491,7 +3491,7 @@ router.put('/cursos/:cursoId/aula-virtual', async (req, res) => {
 
 /**
  * GET /api/docente/tutoria
- * Verificar si el docente es tutor y obtener grupo
+ * Verificar si el docente es tutor y obtener TODOS los grupos donde es tutor
  */
 router.get('/tutoria', async (req, res) => {
   try {
@@ -3502,19 +3502,25 @@ router.get('/tutoria', async (req, res) => {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
-    // Verificar si es tutor
+    // Obtener TODOS los grupos donde es tutor
     const gruposTutor = await query(
-      `SELECT g.*, n.nombre as nivel_nombre, t.nombre as turno_nombre
+      `SELECT g.*, n.nombre as nivel_nombre, t.nombre as turno_nombre,
+              (SELECT COUNT(*) 
+               FROM matriculas m 
+               WHERE m.grupo_id = g.id 
+               AND m.colegio_id = ? 
+               AND (m.estado = 0 OR m.estado = 4)) as total_alumnos
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [personalId, colegio_id, anio_activo]
+       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?
+       ORDER BY n.nombre, g.grado, g.seccion`,
+      [colegio_id, personalId, colegio_id, anio_activo]
     );
 
     res.json({
       es_tutor: gruposTutor.length > 0,
-      grupo: gruposTutor.length > 0 ? gruposTutor[0] : null
+      grupos: gruposTutor || []
     });
   } catch (error) {
     console.error('Error verificando tutoría:', error);
@@ -3523,11 +3529,12 @@ router.get('/tutoria', async (req, res) => {
 });
 
 /**
- * GET /api/docente/tutoria/alumnos
- * Obtener alumnos del grupo del tutor
+ * GET /api/docente/tutoria/grupos/:grupoId/alumnos
+ * Obtener alumnos de un grupo específico del tutor
  */
-router.get('/tutoria/alumnos', async (req, res) => {
+router.get('/tutoria/grupos/:grupoId/alumnos', async (req, res) => {
   try {
+    const { grupoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
 
@@ -3535,25 +3542,21 @@ router.get('/tutoria/alumnos', async (req, res) => {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
-    // Verificar si es tutor y obtener grupo
-    const gruposTutor = await query(
+    // Verificar que el docente es tutor de este grupo
+    const grupoTutor = await query(
       `SELECT g.*, n.nombre as nivel_nombre, t.nombre as turno_nombre
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
     );
 
-    if (gruposTutor.length === 0) {
-      return res.json({
-        es_tutor: false,
-        grupo: null,
-        alumnos: []
-      });
+    if (grupoTutor.length === 0) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
 
-    const grupoTutor = gruposTutor[0];
+    const grupo = grupoTutor[0];
 
     // Obtener alumnos del grupo
     const alumnos = await query(
@@ -3584,7 +3587,7 @@ router.get('/tutoria/alumnos', async (req, res) => {
        INNER JOIN matriculas m ON m.alumno_id = a.id
        WHERE m.grupo_id = ? AND m.colegio_id = ? AND m.estado = 0
        ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
-      [grupoTutor.id, colegio_id]
+      [grupo.id, colegio_id]
     );
 
     // Construir URLs de fotos
@@ -3603,8 +3606,7 @@ router.get('/tutoria/alumnos', async (req, res) => {
     });
 
     res.json({
-      es_tutor: true,
-      grupo: grupoTutor,
+      grupo: grupo,
       alumnos: alumnosConFotos || []
     });
   } catch (error) {

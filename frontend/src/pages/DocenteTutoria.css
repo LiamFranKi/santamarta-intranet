@@ -1,6 +1,6 @@
 .docente-tutoria {
   padding: 2rem;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -49,69 +49,298 @@
   padding: 2rem;
 }
 
-.grupo-info-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 2px solid #e5e7eb;
-  flex-wrap: wrap;
-  gap: 1rem;
-}
-
-.grupo-info h2 {
+.tutoria-content > h2 {
   font-size: 1.5rem;
   color: #1f2937;
-  margin: 0 0 0.5rem 0;
+  margin-bottom: 1.5rem;
   font-weight: 700;
 }
 
-.grupo-info p {
-  color: #6b7280;
-  margin: 0;
-  font-size: 1rem;
+/* Tabla de Grupos */
+.grupos-table-container {
+  overflow-x: auto;
+  margin-bottom: 2rem;
 }
 
-.btn-enviar-recomendacion {
+.grupos-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.grupos-table thead {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+}
+
+.grupos-table th {
+  padding: 1rem;
+  text-align: left;
+  font-weight: 700;
+  color: #1f2937;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.grupos-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  color: #374151;
+  font-size: 0.95rem;
+}
+
+.grupos-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+.grupos-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.btn-opciones {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.btn-opciones:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  box-shadow: 0 4px 10px rgba(102, 126, 234, 0.4);
+  transform: translateY(-1px);
+}
+
+.dropdown-arrow {
+  font-size: 0.7rem;
+}
+
+/* Dropdown Menu */
+.dropdown-menu {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e5e7eb;
+  min-width: 250px;
+  padding: 0.5rem 0;
+  z-index: 10000;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.dropdown-item:hover {
+  background-color: #f3f4f6;
+  color: #1f2937;
+}
+
+.dropdown-icon {
+  font-size: 1.1rem;
+  width: 24px;
+  text-align: center;
+}
+
+.dropdown-label {
+  flex: 1;
+  font-weight: 500;
+}
+
+/* Sección de Alumnos */
+.alumnos-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 2px solid #e5e7eb;
+}
+
+.alumnos-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.alumnos-header h3 {
+  font-size: 1.3rem;
+  color: #1f2937;
+  margin: 0;
+  font-weight: 700;
+}
+
+.btn-cerrar-alumnos {
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all 0.2s;
+}
+
+.btn-cerrar-alumnos:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}
+
+.loading-alumnos {
+  text-align: center;
+  padding: 2rem;
+  color: #6b7280;
+}
+
+.alumnos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.alumno-card {
+  background: linear-gradient(145deg, #f0f9ff, #ffffff);
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 2px solid #e0f2fe;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  position: relative;
+}
+
+.alumno-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.alumno-avatar {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  font-weight: bold;
+  color: white;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.alumno-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.alumno-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alumno-info h4 {
+  font-size: 1rem;
+  color: #1f2937;
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.btn-ver-perfil {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   border-radius: 8px;
-  padding: 0.75rem 1.5rem;
+  padding: 0.5rem 0.75rem;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.4rem;
+  align-self: flex-start;
 }
 
-.btn-enviar-recomendacion:hover {
+.btn-ver-perfil:hover {
   background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
   transform: translateY(-2px);
 }
 
-.btn-enviar-recomendacion .btn-icon {
-  font-size: 1.1rem;
+.btn-ver-perfil .btn-icon {
+  font-size: 1rem;
 }
 
+/* Formulario de Recomendación */
 .recomendacion-form {
   background: linear-gradient(145deg, #f9fafb, #ffffff);
   border-radius: 12px;
   padding: 1.5rem;
-  margin-bottom: 2rem;
+  margin-top: 2rem;
   border: 2px solid #e5e7eb;
 }
 
-.recomendacion-form h3 {
+.recomendacion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.recomendacion-header h3 {
   font-size: 1.3rem;
   color: #1f2937;
-  margin: 0 0 1.5rem 0;
+  margin: 0;
   font-weight: 700;
+}
+
+.btn-cerrar-form {
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all 0.2s;
+}
+
+.btn-cerrar-form:hover {
+  background: #dc2626;
+  transform: scale(1.1);
 }
 
 .form-group {
@@ -204,106 +433,6 @@
   transform: none;
 }
 
-.alumnos-list {
-  margin-top: 2rem;
-}
-
-.alumnos-list h2 {
-  font-size: 1.5rem;
-  color: #1f2937;
-  margin-bottom: 1.5rem;
-  font-weight: 700;
-}
-
-.alumnos-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
-}
-
-.alumno-card {
-  background: linear-gradient(145deg, #f0f9ff, #ffffff);
-  border-radius: 12px;
-  padding: 1.5rem;
-  border: 2px solid #e0f2fe;
-  display: flex;
-  align-items: center;
-  gap: 1.5rem;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-  position: relative;
-}
-
-.alumno-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.alumno-avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 2rem;
-  font-weight: bold;
-  color: white;
-  flex-shrink: 0;
-  overflow: hidden;
-  border: 3px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.alumno-avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.alumno-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.alumno-info h3 {
-  font-size: 1.1rem;
-  color: #1f2937;
-  margin: 0;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.btn-ver-perfil {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
-  font-weight: 600;
-  font-size: 0.85rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  align-self: flex-start;
-}
-
-.btn-ver-perfil:hover {
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-  transform: translateY(-2px);
-}
-
-.btn-ver-perfil .btn-icon {
-  font-size: 1rem;
-}
-
 .empty-state {
   text-align: center;
   padding: 3rem 2rem;
@@ -311,9 +440,12 @@
 }
 
 @media (max-width: 768px) {
-  .grupo-info-header {
-    flex-direction: column;
-    align-items: flex-start;
+  .grupos-table-container {
+    overflow-x: scroll;
+  }
+
+  .grupos-table {
+    min-width: 600px;
   }
 
   .alumnos-grid {
