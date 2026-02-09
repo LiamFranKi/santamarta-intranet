@@ -1288,6 +1288,79 @@ router.put('/perfil/password', async (req, res) => {
 });
 
 /**
+ * GET /api/alumno/qr
+ * Obtener datos del alumno para generar QR (fotocheck)
+ */
+router.get('/qr', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id, anio_activo } = req.user;
+
+    // Obtener datos del alumno
+    const alumno = await query(
+      `SELECT a.id, a.nombres, a.apellido_paterno, a.apellido_materno, a.nro_documento
+       FROM alumnos a
+       INNER JOIN usuarios u ON u.alumno_id = a.id
+       WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+      [usuario_id, colegio_id]
+    );
+
+    if (alumno.length === 0) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    const alumnoData = alumno[0];
+
+    // Obtener matrícula actual del alumno
+    const matricula = await query(
+      `SELECT m.*, 
+              g.grado, 
+              g.seccion,
+              n.nombre as nivel_nombre
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [alumnoData.id, colegio_id, anio_activo]
+    );
+
+    // Obtener nombre del colegio
+    const colegio = await query(
+      `SELECT nombre FROM colegios WHERE id = ?`,
+      [colegio_id]
+    );
+
+    const colegioNombre = colegio.length > 0 ? colegio[0].nombre : 'Vanguard Schools';
+    const matriculaData = matricula.length > 0 ? matricula[0] : null;
+
+    // Construir texto del grupo
+    let grupoTexto = '';
+    if (matriculaData) {
+      const gradoTexto = matriculaData.grado ? `${matriculaData.grado}°` : '';
+      grupoTexto = `${matriculaData.nivel_nombre || ''} ${gradoTexto} ${matriculaData.seccion || ''}`.trim();
+    }
+
+    // Generar código QR (puede ser el DNI o un ID único)
+    const qrData = alumnoData.nro_documento || `ALUMNO-${alumnoData.id}`;
+
+    res.json({
+      nombres: alumnoData.nombres || '',
+      apellido_paterno: alumnoData.apellido_paterno || '',
+      apellido_materno: alumnoData.apellido_materno || '',
+      nombre_completo: `${alumnoData.nombres || ''} ${alumnoData.apellido_paterno || ''} ${alumnoData.apellido_materno || ''}`.trim(),
+      grupo: grupoTexto,
+      colegio_nombre: colegioNombre,
+      anio: anio_activo,
+      qr_data: qrData
+    });
+  } catch (error) {
+    console.error('Error obteniendo datos para QR:', error);
+    res.status(500).json({ error: 'Error al obtener datos para QR' });
+  }
+});
+
+/**
  * GET /api/alumno/comunicados
  * Obtener comunicados (solo lectura, generados por admin)
  */
