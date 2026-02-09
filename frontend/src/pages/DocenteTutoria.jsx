@@ -298,9 +298,9 @@ function DocenteTutoria() {
 
                 const opciones = [
                   { id: 'lista-alumnos', label: 'Lista de Alumnos', icon: '📋' },
-                  { id: 'notas-asistencia', label: 'Notas / Asistencia', icon: '📊' },
+                  { id: 'notas-asistencia', label: 'Ver Notas', icon: '📊' },
                   { id: 'enviar-comunicado', label: 'Enviar Mensaje', icon: '✉️' },
-                  { id: 'registrar-asistencia', label: 'Registrar Asistencia', icon: '✅' },
+                  { id: 'registrar-asistencia', label: 'Asistencias', icon: '✅' },
                   { id: 'apreciaciones-recomendaciones', label: 'Recomendaciones', icon: '💬' },
                   { id: 'lista-asignaturas', label: 'Lista de Asignaturas', icon: '📚' },
                   { id: 'registrar-conducta', label: 'Registrar Conducta', icon: '📝' }
