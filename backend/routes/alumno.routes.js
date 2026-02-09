@@ -1018,13 +1018,15 @@ router.get('/comunicados', async (req, res) => {
     const { page = 1, limit = 12, search = '' } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // Construir query base - Filtrar por año activo
+    // Construir query base - Mostrar activos e inactivos del año activo
+    // Nota: Los alumnos siempre ven solo del año activo, pero todos los estados
     let querySql = `
       SELECT c.*
        FROM comunicados c
-       WHERE c.colegio_id = ? AND c.estado = 'ACTIVO' AND YEAR(c.fecha_hora) = ?
+       WHERE c.colegio_id = ? AND YEAR(c.fecha_hora) = ?
     `;
     const params = [colegio_id, anio_activo];
+    // Nota: No filtramos por estado, mostramos activos e inactivos
 
     // Agregar búsqueda si existe
     if (search && search.trim() !== '') {

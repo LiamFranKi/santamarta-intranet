@@ -3720,17 +3720,26 @@ router.delete('/comunicados/:id', async (req, res) => {
  */
 router.get('/comunicados', async (req, res) => {
   try {
-    const { colegio_id, anio_activo } = req.user;
+    const { colegio_id, anio_activo, tipo } = req.user;
     const { page = 1, limit = 12, search = '' } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    // Construir query base - Filtrar por año activo
+    // Construir query base
+    // - Todos los usuarios (excepto admin): mostrar activos e inactivos del año activo
+    // - Administrador: mostrar todos los años (activos e inactivos)
     let querySql = `
       SELECT c.*
        FROM comunicados c
-       WHERE c.colegio_id = ? AND c.estado = 'ACTIVO' AND YEAR(c.fecha_hora) = ?
+       WHERE c.colegio_id = ?
     `;
-    const params = [colegio_id, anio_activo];
+    const params = [colegio_id];
+
+    // Si NO es administrador, filtrar por año activo
+    if (tipo !== 'ADMINISTRADOR') {
+      querySql += ` AND YEAR(c.fecha_hora) = ?`;
+      params.push(anio_activo);
+    }
+    // Nota: No filtramos por estado, mostramos activos e inactivos
 
     // Agregar búsqueda si existe
     if (search && search.trim() !== '') {
