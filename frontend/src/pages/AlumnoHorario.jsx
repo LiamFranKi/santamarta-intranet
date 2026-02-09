@@ -299,7 +299,7 @@ function AlumnoHorario() {
               <h1>📅 Mi Horario</h1>
               <p>Horario de clases del año académico actual</p>
             </div>
-            {horario.length > 0 && (
+            {horario && horario.length > 0 && (
               <button className="btn-imprimir" onClick={handleImprimir}>
                 <span className="btn-icon">🖨️</span>
                 <span className="btn-text">Imprimir / Exportar</span>
@@ -309,7 +309,7 @@ function AlumnoHorario() {
         </div>
 
         <div className="horario-container">
-          {horario.length > 0 ? (
+          {horario && horario.length > 0 ? (
             <div className="horario-table-wrapper">
               <table className="horario-table">
                 <thead>
