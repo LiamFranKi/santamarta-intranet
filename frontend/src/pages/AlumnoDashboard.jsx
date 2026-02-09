@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
@@ -8,12 +9,24 @@ import './AlumnoDashboard.css';
 import './DocenteGrupos.css';
 
 function AlumnoDashboard() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
   const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
   const [tipoEventoSeleccionado, setTipoEventoSeleccionado] = useState(null);
   const [mostrarComunicadoHome, setMostrarComunicadoHome] = useState(false);
+  
+  // Estados para modales
+  const [mostrarModalCursos, setMostrarModalCursos] = useState(false);
+  const [mostrarModalDocentes, setMostrarModalDocentes] = useState(false);
+  const [mostrarModalMatriculas, setMostrarModalMatriculas] = useState(false);
+  const [cursos, setCursos] = useState([]);
+  const [docentes, setDocentes] = useState([]);
+  const [matriculas, setMatriculas] = useState([]);
+  const [loadingCursos, setLoadingCursos] = useState(false);
+  const [loadingDocentes, setLoadingDocentes] = useState(false);
+  const [loadingMatriculas, setLoadingMatriculas] = useState(false);
 
   const cargarDashboard = async () => {
     try {
@@ -343,12 +356,59 @@ function AlumnoDashboard() {
     ? `${alumno.nombres} ${alumno.apellido_paterno}${alumno.apellido_materno ? ' ' + alumno.apellido_materno : ''}`
     : alumno?.nombres || 'Alumno';
 
+  // Funciones para abrir modales
+  const abrirModalCursos = async () => {
+    setMostrarModalCursos(true);
+    setLoadingCursos(true);
+    try {
+      const response = await api.get('/alumno/cursos');
+      setCursos(response.data.cursos || []);
+    } catch (error) {
+      console.error('Error cargando cursos:', error);
+      setCursos([]);
+    } finally {
+      setLoadingCursos(false);
+    }
+  };
+
+  const abrirModalDocentes = async () => {
+    setMostrarModalDocentes(true);
+    setLoadingDocentes(true);
+    try {
+      const response = await api.get('/alumno/docentes');
+      setDocentes(response.data.docentes || []);
+    } catch (error) {
+      console.error('Error cargando docentes:', error);
+      setDocentes([]);
+    } finally {
+      setLoadingDocentes(false);
+    }
+  };
+
+  const abrirModalMatriculas = async () => {
+    setMostrarModalMatriculas(true);
+    setLoadingMatriculas(true);
+    try {
+      const response = await api.get('/alumno/matriculas');
+      setMatriculas(response.data.matriculas || []);
+    } catch (error) {
+      console.error('Error cargando matrículas:', error);
+      setMatriculas([]);
+    } finally {
+      setLoadingMatriculas(false);
+    }
+  };
+
+  const irAMensajes = () => {
+    navigate('/alumno/mensajes');
+  };
+
   return (
     <DashboardLayout>
       <div className="alumno-dashboard">
-        {/* Tarjetas de estadísticas */}
-        <div className="stats-grid">
-          <div className="stat-card mundo-card">
+        {/* Tarjetas de estadísticas - 4 columnas */}
+        <div className="stats-grid-4">
+          <div className="stat-card mundo-card" onClick={abrirModalCursos} style={{ cursor: 'pointer' }}>
             <div className="stat-icon">📚</div>
             <div className="stat-content">
               <div className="stat-number">{estadisticas?.cursosAsignados || 0}</div>
@@ -356,7 +416,7 @@ function AlumnoDashboard() {
             </div>
           </div>
 
-          <div className="stat-card mundo-card">
+          <div className="stat-card mundo-card" onClick={abrirModalDocentes} style={{ cursor: 'pointer' }}>
             <div className="stat-icon">👨‍🏫</div>
             <div className="stat-content">
               <div className="stat-number">{estadisticas?.totalDocentes || 0}</div>
@@ -364,7 +424,7 @@ function AlumnoDashboard() {
             </div>
           </div>
 
-          <div className="stat-card mundo-card">
+          <div className="stat-card mundo-card" onClick={abrirModalMatriculas} style={{ cursor: 'pointer' }}>
             <div className="stat-icon">📋</div>
             <div className="stat-content">
               <div className="stat-number">{estadisticas?.totalMatriculas || 0}</div>
@@ -372,23 +432,7 @@ function AlumnoDashboard() {
             </div>
           </div>
 
-          <div className="stat-card mundo-card">
-            <div className="stat-icon">⏰</div>
-            <div className="stat-content">
-              <div className="stat-number">{estadisticas?.totalTardanzas || 0}</div>
-              <div className="stat-label">Total Tardanzas</div>
-            </div>
-          </div>
-
-          <div className="stat-card mundo-card">
-            <div className="stat-icon">🚫</div>
-            <div className="stat-content">
-              <div className="stat-number">{estadisticas?.totalFaltas || 0}</div>
-              <div className="stat-label">Total Faltas</div>
-            </div>
-          </div>
-
-          <div className="stat-card mundo-card">
+          <div className="stat-card mundo-card" onClick={irAMensajes} style={{ cursor: 'pointer' }}>
             <div className="stat-icon">✉️</div>
             <div className="stat-content">
               <div className="stat-number">{estadisticas?.mensajesNoLeidos || 0}</div>
@@ -606,6 +650,316 @@ function AlumnoDashboard() {
                   Entendido
                 </button>
               </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Mis Cursos */}
+      {mostrarModalCursos && createPortal(
+        <div 
+          className="modal-mensaje-overlay" 
+          onClick={() => setMostrarModalCursos(false)}
+          style={{ zIndex: 100002 }}
+        >
+          <div 
+            className="modal-mensaje-container" 
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            style={{ maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            <div className="modal-mensaje-header">
+              <h2>📚 Mis Cursos</h2>
+              <button
+                className="modal-mensaje-close"
+                onClick={() => setMostrarModalCursos(false)}
+                type="button"
+                aria-label="Cerrar modal"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-mensaje-body">
+              {loadingCursos ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando cursos...</div>
+              ) : cursos.length > 0 ? (
+                <div style={{ display: 'grid', gap: '1rem' }}>
+                  {cursos.map((curso) => (
+                    <div 
+                      key={curso.asignatura_id}
+                      style={{
+                        background: 'linear-gradient(145deg, #f0f9ff, #ffffff)',
+                        borderRadius: '12px',
+                        padding: '1.5rem',
+                        border: '2px solid #e0f2fe',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '1.5rem',
+                        transition: 'all 0.3s'
+                      }}
+                    >
+                      <div style={{
+                        width: '60px',
+                        height: '60px',
+                        borderRadius: '50%',
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '2rem',
+                        flexShrink: 0
+                      }}>
+                        📚
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '1.2rem', color: '#1f2937', fontWeight: '700' }}>
+                          {curso.curso_nombre}
+                        </h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#4a83c1', fontWeight: '600' }}>
+                          <span>👨‍🏫</span>
+                          <span>{curso.docente_nombre || 'Sin docente asignado'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                  No tienes cursos asignados
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Total Docentes */}
+      {mostrarModalDocentes && createPortal(
+        <div 
+          className="modal-mensaje-overlay" 
+          onClick={() => setMostrarModalDocentes(false)}
+          style={{ zIndex: 100003 }}
+        >
+          <div 
+            className="modal-mensaje-container" 
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            style={{ maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            <div className="modal-mensaje-header">
+              <h2>👨‍🏫 Total Docentes</h2>
+              <button
+                className="modal-mensaje-close"
+                onClick={() => setMostrarModalDocentes(false)}
+                type="button"
+                aria-label="Cerrar modal"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-mensaje-body">
+              {loadingDocentes ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando docentes...</div>
+              ) : docentes.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  {docentes.map((docente) => (
+                    <div 
+                      key={docente.docente_id}
+                      style={{
+                        background: 'linear-gradient(145deg, #fef3f2, #ffffff)',
+                        borderRadius: '12px',
+                        padding: '1.5rem',
+                        border: '2px solid #fbcfe8',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                        {docente.docente_foto_url ? (
+                          <img 
+                            src={docente.docente_foto_url} 
+                            alt={docente.docente_nombre}
+                            style={{
+                              width: '60px',
+                              height: '60px',
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                              border: '3px solid #667eea'
+                            }}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              if (e.target.nextSibling) {
+                                e.target.nextSibling.style.display = 'flex';
+                              }
+                            }}
+                          />
+                        ) : null}
+                        {!docente.docente_foto_url && (
+                          <div style={{
+                            width: '60px',
+                            height: '60px',
+                            borderRadius: '50%',
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '2rem',
+                            color: 'white'
+                          }}>
+                            👨‍🏫
+                          </div>
+                        )}
+                        <h3 style={{ margin: 0, fontSize: '1.3rem', color: '#1f2937', fontWeight: '700' }}>
+                          {docente.docente_nombre}
+                        </h3>
+                      </div>
+                      <div style={{ marginTop: '1rem' }}>
+                        <div style={{ fontSize: '0.9rem', color: '#6b7280', marginBottom: '0.75rem', fontWeight: '600' }}>
+                          Cursos:
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                          {docente.cursos.map((curso) => (
+                            <div 
+                              key={curso.curso_id}
+                              style={{
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                color: 'white',
+                                padding: '0.5rem 1rem',
+                                borderRadius: '8px',
+                                fontSize: '0.9rem',
+                                fontWeight: '600',
+                                boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)'
+                              }}
+                            >
+                              {curso.curso_nombre}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                  No tienes docentes asignados
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Total Matrículas */}
+      {mostrarModalMatriculas && createPortal(
+        <div 
+          className="modal-mensaje-overlay" 
+          onClick={() => setMostrarModalMatriculas(false)}
+          style={{ zIndex: 100004 }}
+        >
+          <div 
+            className="modal-mensaje-container" 
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            style={{ maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }}
+          >
+            <div className="modal-mensaje-header">
+              <h2>📋 Historial de Matrículas</h2>
+              <button
+                className="modal-mensaje-close"
+                onClick={() => setMostrarModalMatriculas(false)}
+                type="button"
+                aria-label="Cerrar modal"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="modal-mensaje-body">
+              {loadingMatriculas ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>Cargando matrículas...</div>
+              ) : matriculas.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {matriculas.map((matricula, index) => (
+                    <div 
+                      key={matricula.id}
+                      style={{
+                        background: 'linear-gradient(145deg, #f0fdf4, #ffffff)',
+                        borderRadius: '12px',
+                        padding: '1.5rem',
+                        border: '2px solid #bbf7d0',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                        position: 'relative',
+                        overflow: 'hidden'
+                      }}
+                    >
+                      {index === 0 && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '10px',
+                          right: '10px',
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          color: 'white',
+                          padding: '0.25rem 0.75rem',
+                          borderRadius: '20px',
+                          fontSize: '0.75rem',
+                          fontWeight: '700',
+                          textTransform: 'uppercase'
+                        }}>
+                          Actual
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem' }}>
+                        <div style={{
+                          width: '50px',
+                          height: '50px',
+                          borderRadius: '50%',
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '1.5rem',
+                          color: 'white',
+                          flexShrink: 0
+                        }}>
+                          📅
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.2rem', color: '#1f2937', fontWeight: '700' }}>
+                            Año {matricula.anio}
+                          </h3>
+                          <div style={{ fontSize: '0.9rem', color: '#6b7280' }}>
+                            {matricula.nivel_nombre} - {matricula.grado}° {matricula.seccion} - {matricula.turno_nombre}
+                          </div>
+                        </div>
+                      </div>
+                      {matricula.fecha_registro && (
+                        <div style={{ 
+                          fontSize: '0.85rem', 
+                          color: '#10b981', 
+                          fontWeight: '600',
+                          marginTop: '0.5rem',
+                          paddingTop: '0.75rem',
+                          borderTop: '1px solid #d1fae5'
+                        }}>
+                          📝 Fecha de registro: {new Date(matricula.fecha_registro).toLocaleDateString('es-PE', { 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                  No se encontraron matrículas
+                </div>
+              )}
             </div>
           </div>
         </div>,

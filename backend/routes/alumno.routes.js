@@ -441,6 +441,165 @@ router.get('/cursos', async (req, res) => {
 });
 
 /**
+ * GET /api/alumno/matriculas
+ * Obtener historial completo de matrículas del alumno
+ */
+router.get('/matriculas', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id } = req.user;
+    
+    // Obtener datos del alumno
+    const alumno = await query(
+      `SELECT a.*, u.tipo as tipo_usuario
+       FROM alumnos a
+       INNER JOIN usuarios u ON u.alumno_id = a.id
+       WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+      [usuario_id, colegio_id]
+    );
+
+    if (alumno.length === 0) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    const alumnoData = alumno[0];
+
+    // Obtener todas las matrículas del alumno ordenadas por año (más reciente primero)
+    const matriculas = await query(
+      `SELECT m.*, 
+              g.grado, 
+              g.seccion,
+              g.anio,
+              n.nombre as nivel_nombre,
+              t.nombre as turno_nombre
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN turnos t ON t.id = g.turno_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ?
+       ORDER BY g.anio DESC, m.fecha_registro DESC`,
+      [alumnoData.id, colegio_id]
+    );
+
+    res.json({ matriculas: matriculas || [] });
+  } catch (error) {
+    console.error('Error obteniendo matrículas del alumno:', error);
+    res.status(500).json({ error: 'Error al obtener matrículas' });
+  }
+});
+
+/**
+ * GET /api/alumno/docentes
+ * Obtener docentes agrupados con sus cursos
+ */
+router.get('/docentes', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id, anio_activo } = req.user;
+    
+    // Obtener datos del alumno
+    const alumno = await query(
+      `SELECT a.*, u.tipo as tipo_usuario
+       FROM alumnos a
+       INNER JOIN usuarios u ON u.alumno_id = a.id
+       WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+      [usuario_id, colegio_id]
+    );
+
+    if (alumno.length === 0) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    const alumnoData = alumno[0];
+
+    // Obtener matrícula actual del alumno
+    const matricula = await query(
+      `SELECT m.*, m.grupo_id
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [alumnoData.id, colegio_id, anio_activo]
+    );
+
+    const matriculaData = matricula.length > 0 ? matricula[0] : null;
+    const grupoId = matriculaData ? matriculaData.grupo_id : null;
+
+    if (!grupoId) {
+      return res.json({ docentes: [] });
+    }
+
+    // Obtener asignaturas (cursos) del alumno agrupadas por docente
+    const cursos = await query(
+      `SELECT DISTINCT
+              a.id as asignatura_id,
+              c.id as curso_id,
+              c.nombre as curso_nombre,
+              c.imagen as curso_imagen,
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
+              p.id as docente_id,
+              p.foto as docente_foto,
+              (SELECT u.id FROM usuarios u 
+               WHERE u.personal_id = p.id AND u.estado = 'ACTIVO' 
+               LIMIT 1) as docente_usuario_id
+       FROM asignaturas a
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN personal p ON p.id = a.personal_id
+       WHERE a.grupo_id = ? AND a.colegio_id = ?
+       ORDER BY p.apellidos, p.nombres, c.nombre ASC`,
+      [grupoId, colegio_id]
+    );
+
+    // Agrupar por docente
+    const docentesMap = {};
+    cursos.forEach(curso => {
+      const docenteId = curso.docente_id;
+      if (!docentesMap[docenteId]) {
+        docentesMap[docenteId] = {
+          docente_id: curso.docente_id,
+          docente_nombre: curso.docente_nombre,
+          docente_foto: curso.docente_foto,
+          docente_usuario_id: curso.docente_usuario_id,
+          cursos: []
+        };
+      }
+      docentesMap[docenteId].cursos.push({
+        curso_id: curso.curso_id,
+        curso_nombre: curso.curso_nombre,
+        curso_imagen: curso.curso_imagen,
+        asignatura_id: curso.asignatura_id
+      });
+    });
+
+    // Convertir a array
+    const docentes = Object.values(docentesMap);
+
+    // Construir URLs de imágenes
+    const docentesConImagenes = docentes.map(docente => {
+      let docenteFotoUrl = null;
+      if (docente.docente_foto && docente.docente_foto !== '') {
+        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+        const isProduction = process.env.NODE_ENV === 'production';
+        if (isProduction) {
+          docenteFotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${docente.docente_foto}`;
+        } else {
+          docenteFotoUrl = `http://localhost:5000/Static/Image/Fotos/${docente.docente_foto}`;
+        }
+      }
+      
+      return {
+        ...docente,
+        docente_foto_url: docenteFotoUrl
+      };
+    });
+
+    res.json({ docentes: docentesConImagenes });
+  } catch (error) {
+    console.error('Error obteniendo docentes del alumno:', error);
+    res.status(500).json({ error: 'Error al obtener docentes' });
+  }
+});
+
+/**
  * GET /api/alumno/notificaciones
  * Obtener notificaciones del alumno
  */
