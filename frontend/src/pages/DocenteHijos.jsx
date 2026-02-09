@@ -89,13 +89,49 @@ function DocenteHijos() {
             <div className="hijos-list">
               <h2>Mis Hijos ({hijos.length})</h2>
               <div className="hijos-grid">
-                {hijos.map((hijo) => {
+                {hijos.map((hijo, index) => {
                   const fotoUrl = getFotoUrl(hijo.foto);
                   const nombreCompleto = `${hijo.nombres || ''} ${hijo.apellido_paterno || ''} ${hijo.apellido_materno || ''}`.trim();
                   
+                  // Colores pasteles diferentes para cada card
+                  const coloresPasteles = [
+                    { bg: 'linear-gradient(145deg, #fef3f2, #fff5f5)', border: '#fbcfe8', avatar: '#fee2e2' },
+                    { bg: 'linear-gradient(145deg, #f0fdf4, #f0fdf4)', border: '#bbf7d0', avatar: '#dcfce7' },
+                    { bg: 'linear-gradient(145deg, #eff6ff, #eff6ff)', border: '#bfdbfe', avatar: '#dbeafe' },
+                    { bg: 'linear-gradient(145deg, #fefce8, #fefce8)', border: '#fde68a', avatar: '#fef3c7' },
+                    { bg: 'linear-gradient(145deg, #f5f3ff, #f5f3ff)', border: '#ddd6fe', avatar: '#e9d5ff' },
+                    { bg: 'linear-gradient(145deg, #f0f9ff, #f0f9ff)', border: '#bae6fd', avatar: '#e0f2fe' },
+                    { bg: 'linear-gradient(145deg, #fdf2f8, #fdf2f8)', border: '#fbcfe8', avatar: '#fce7f3' },
+                    { bg: 'linear-gradient(145deg, #ecfdf5, #ecfdf5)', border: '#a7f3d0', avatar: '#d1fae5' }
+                  ];
+                  
+                  const colorCard = coloresPasteles[index % coloresPasteles.length];
+                  
                   return (
-                    <div key={hijo.id} className="hijo-card">
-                      <div className="hijo-avatar">
+                    <div 
+                      key={hijo.id} 
+                      className="hijo-card"
+                      style={{
+                        background: colorCard.bg,
+                        borderColor: colorCard.border
+                      }}
+                    >
+                      <button 
+                        className="hijo-btn-ver"
+                        onClick={() => {
+                          // Funcionalidad se implementará después
+                          console.log('Ver perfil de:', nombreCompleto);
+                        }}
+                        title="Ver perfil completo"
+                      >
+                        <span className="btn-icon">👁️</span>
+                        <span className="btn-text">Ver</span>
+                      </button>
+                      
+                      <div 
+                        className="hijo-avatar"
+                        style={{ backgroundColor: colorCard.avatar }}
+                      >
                         {fotoUrl ? (
                           <img src={fotoUrl} alt={nombreCompleto} />
                         ) : (

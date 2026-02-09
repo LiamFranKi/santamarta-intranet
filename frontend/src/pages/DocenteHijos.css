@@ -71,12 +71,51 @@
   gap: 1.5rem;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  position: relative;
 }
 
 .hijo-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: #4a83c1;
+}
+
+.hijo-btn-ver {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1f2937;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+.hijo-btn-ver:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: scale(1.05);
+}
+
+.hijo-btn-ver:active {
+  transform: scale(0.98);
+}
+
+.hijo-btn-ver .btn-icon {
+  font-size: 1rem;
+}
+
+.hijo-btn-ver .btn-text {
+  font-size: 0.8rem;
 }
 
 .hijo-avatar {
@@ -92,7 +131,8 @@
   color: white;
   flex-shrink: 0;
   overflow: hidden;
-  border: 3px solid #e0f2fe;
+  border: 3px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .hijo-avatar img {
