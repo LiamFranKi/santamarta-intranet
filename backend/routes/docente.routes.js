@@ -3628,61 +3628,86 @@ router.get('/roles-adicionales', async (req, res) => {
 
     // Verificar si es apoderado (tiene hijos estudiando en el colegio)
     // Buscar si el personal tiene un registro en apoderados y tiene hijos (familias)
-    const esApoderado = await query(
-      `SELECT COUNT(DISTINCT f.alumno_id) as total_hijos
-       FROM apoderados ap
-       INNER JOIN familias f ON f.apoderado_id = ap.id
-       INNER JOIN alumnos a ON a.id = f.alumno_id
-       INNER JOIN matriculas m ON m.alumno_id = a.id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE ap.colegio_id = ? 
-         AND ap.nro_documento = (
-           SELECT p.nro_documento 
-           FROM personal p 
-           WHERE p.id = ? AND p.colegio_id = ?
-         )
-         AND m.colegio_id = ?
-         AND (m.estado = 0 OR m.estado = 4)
-         AND g.anio = ?`,
-      [colegio_id, personalId, colegio_id, colegio_id, anio_activo]
-    );
+    // Primero obtener el nro_documento del personal
+    let tieneHijos = false;
+    let hijos = [];
+    
+    try {
+      const personalData = await query(
+        `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+        [personalId, colegio_id]
+      );
 
-    const tieneHijos = (esApoderado[0]?.total_hijos || 0) > 0;
+      if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+        const nroDocumento = personalData[0].nro_documento;
+        
+        // Buscar si existe un apoderado con ese nro_documento que tenga hijos
+        const esApoderado = await query(
+          `SELECT COUNT(DISTINCT f.alumno_id) as total_hijos
+           FROM apoderados ap
+           INNER JOIN familias f ON f.apoderado_id = ap.id
+           INNER JOIN alumnos a ON a.id = f.alumno_id
+           INNER JOIN matriculas m ON m.alumno_id = a.id
+           INNER JOIN grupos g ON g.id = m.grupo_id
+           WHERE ap.colegio_id = ? 
+             AND ap.nro_documento = ?
+             AND m.colegio_id = ?
+             AND (m.estado = 0 OR m.estado = 4)
+             AND g.anio = ?`,
+          [colegio_id, nroDocumento, colegio_id, anio_activo]
+        );
+
+        tieneHijos = (esApoderado[0]?.total_hijos || 0) > 0;
+      }
+    } catch (error) {
+      console.error('Error verificando si es apoderado:', error);
+      // Continuar sin fallar, simplemente no será apoderado
+      tieneHijos = false;
+    }
 
     // Obtener lista de hijos si es apoderado
-    let hijos = [];
     if (tieneHijos) {
-      hijos = await query(
-        `SELECT DISTINCT
-                a.id,
-                a.nombres,
-                a.apellido_paterno,
-                a.apellido_materno,
-                a.foto,
-                g.grado,
-                g.seccion,
-                n.nombre as nivel_nombre,
-                t.nombre as turno_nombre,
-                m.id as matricula_id
-         FROM apoderados ap
-         INNER JOIN familias f ON f.apoderado_id = ap.id
-         INNER JOIN alumnos a ON a.id = f.alumno_id
-         INNER JOIN matriculas m ON m.alumno_id = a.id
-         INNER JOIN grupos g ON g.id = m.grupo_id
-         INNER JOIN niveles n ON n.id = g.nivel_id
-         INNER JOIN turnos t ON t.id = g.turno_id
-         WHERE ap.colegio_id = ? 
-           AND ap.nro_documento = (
-             SELECT p.nro_documento 
-             FROM personal p 
-             WHERE p.id = ? AND p.colegio_id = ?
-           )
-           AND m.colegio_id = ?
-           AND (m.estado = 0 OR m.estado = 4)
-           AND g.anio = ?
-         ORDER BY n.nombre, g.grado, g.seccion, a.apellido_paterno, a.apellido_materno, a.nombres`,
-        [colegio_id, personalId, colegio_id, colegio_id, anio_activo]
-      );
+      try {
+        const personalData = await query(
+          `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+          [personalId, colegio_id]
+        );
+
+        if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+          const nroDocumento = personalData[0].nro_documento;
+          
+          hijos = await query(
+            `SELECT DISTINCT
+                    a.id,
+                    a.nombres,
+                    a.apellido_paterno,
+                    a.apellido_materno,
+                    a.foto,
+                    g.grado,
+                    g.seccion,
+                    n.nombre as nivel_nombre,
+                    t.nombre as turno_nombre,
+                    m.id as matricula_id
+             FROM apoderados ap
+             INNER JOIN familias f ON f.apoderado_id = ap.id
+             INNER JOIN alumnos a ON a.id = f.alumno_id
+             INNER JOIN matriculas m ON m.alumno_id = a.id
+             INNER JOIN grupos g ON g.id = m.grupo_id
+             INNER JOIN niveles n ON n.id = g.nivel_id
+             INNER JOIN turnos t ON t.id = g.turno_id
+             WHERE ap.colegio_id = ? 
+               AND ap.nro_documento = ?
+               AND m.colegio_id = ?
+               AND (m.estado = 0 OR m.estado = 4)
+               AND g.anio = ?
+             ORDER BY n.nombre, g.grado, g.seccion, a.apellido_paterno, a.apellido_materno, a.nombres`,
+            [colegio_id, nroDocumento, colegio_id, anio_activo]
+          );
+        }
+      } catch (error) {
+        console.error('Error obteniendo lista de hijos:', error);
+        hijos = [];
+      }
     }
 
     // Verificar si es tutor
