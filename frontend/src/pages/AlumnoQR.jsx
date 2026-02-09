@@ -58,21 +58,21 @@ function AlumnoQR() {
       doc.setFillColor(255, 255, 255);
       doc.rect(0, 0, width, height, 'F');
 
-      // Borde superior con color del colegio - más alto y con gradiente
+      // Borde superior con color del colegio - más alto
       doc.setFillColor(37, 99, 235); // Azul más vibrante
-      doc.rect(0, 0, width, 10, 'F');
+      doc.rect(0, 0, width, 12, 'F');
 
       // Nombre del colegio - más grande y en mayúsculas
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(12);
+      doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
       const colegioNombre = (qrData.colegio_nombre || 'Vanguard Schools').toUpperCase();
-      doc.text(colegioNombre, width / 2, 6.5, { align: 'center' });
+      doc.text(colegioNombre, width / 2, 7.5, { align: 'center' });
 
-      let yPos = 10;
+      let yPos = 13;
 
       // QR Code a la izquierda - más grande
-      const qrSize = 42; // Aumentado de 35 a 42mm
+      const qrSize = 45; // Aumentado a 45mm para que sea más grande
       const qrX = margin + 2;
       const qrY = yPos;
 
@@ -121,50 +121,62 @@ function AlumnoQR() {
         doc.rect(qrX, qrY, qrSize, qrSize);
       }
 
-      // Texto "Código QR"
+      // Texto "Código QR" - más abajo
       doc.setTextColor(100, 100, 100);
-      doc.setFontSize(6);
+      doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
-      doc.text('Código QR', qrX + qrSize / 2, qrY + qrSize + 3, { align: 'center' });
+      doc.text('Código QR', qrX + qrSize / 2, qrY + qrSize + 4, { align: 'center' });
 
-      // Información del alumno a la derecha
-      const infoX = qrX + qrSize + 4;
-      const infoY = yPos + 3;
+      // Información del alumno a la derecha - mejor espaciado
+      const infoX = qrX + qrSize + 5;
+      const infoY = yPos + 4;
+      const lineSpacing = 8; // Espaciado entre líneas
 
       doc.setTextColor(31, 41, 55);
-      doc.setFontSize(9);
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('NOMBRES:', infoX, infoY);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(9);
       const nombres = qrData.nombres || '';
       const nombresLines = doc.splitTextToSize(nombres, contentWidth - infoX - margin);
-      doc.text(nombresLines, infoX, infoY + 5, { maxWidth: contentWidth - infoX - margin });
+      let nombresY = infoY + 5;
+      nombresLines.forEach((line, idx) => {
+        doc.text(line, infoX, nombresY + (idx * 4), { maxWidth: contentWidth - infoX - margin });
+      });
+      const nombresHeight = nombresLines.length * 4;
 
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      doc.text('APELLIDOS:', infoX, infoY + 11);
+      doc.setFontSize(10);
+      const apellidosY = infoY + nombresHeight + lineSpacing;
+      doc.text('APELLIDOS:', infoX, apellidosY);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(9);
       const apellidos = `${qrData.apellido_paterno || ''} ${qrData.apellido_materno || ''}`.trim();
       const apellidosLines = doc.splitTextToSize(apellidos, contentWidth - infoX - margin);
-      doc.text(apellidosLines, infoX, infoY + 16, { maxWidth: contentWidth - infoX - margin });
+      apellidosLines.forEach((line, idx) => {
+        doc.text(line, infoX, apellidosY + 5 + (idx * 4), { maxWidth: contentWidth - infoX - margin });
+      });
+      const apellidosHeight = apellidosLines.length * 4;
 
       if (qrData.grupo) {
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.text('SECCIÓN:', infoX, infoY + 22);
+        doc.setFontSize(10);
+        const seccionY = apellidosY + apellidosHeight + lineSpacing;
+        doc.text('SECCIÓN:', infoX, seccionY);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
+        doc.setFontSize(9);
         const grupoLines = doc.splitTextToSize(qrData.grupo, contentWidth - infoX - margin);
-        doc.text(grupoLines, infoX, infoY + 27, { maxWidth: contentWidth - infoX - margin });
+        grupoLines.forEach((line, idx) => {
+          doc.text(line, infoX, seccionY + 5 + (idx * 4), { maxWidth: contentWidth - infoX - margin });
+        });
       }
 
-      // Año
-      doc.setFontSize(8);
+      // Año - más grande y centrado
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(74, 131, 193);
-      doc.text(qrData.anio?.toString() || '2026', width / 2, height - 3, { align: 'center' });
+      doc.setTextColor(37, 99, 235);
+      doc.text(qrData.anio?.toString() || '2026', width / 2, height - 4, { align: 'center' });
 
       const nombreArchivo = `Fotocheck_${qrData.nombre_completo?.replace(/\s+/g, '_') || 'Alumno'}_${new Date().getTime()}.pdf`;
       doc.save(nombreArchivo);
@@ -237,7 +249,7 @@ function AlumnoQR() {
                 <div className="qr-code-wrapper">
                   <QRCodeSVG 
                     value={qrData.qr_data || qrData.nro_documento || 'ALUMNO'}
-                    size={180}
+                    size={220}
                     level="H"
                     includeMargin={true}
                   />
