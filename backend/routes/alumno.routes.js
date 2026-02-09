@@ -378,20 +378,23 @@ router.get('/cursos', async (req, res) => {
     // Obtener asignaturas (cursos) del alumno
     // IMPORTANTE: Igual que el sistema anterior - obtener asignaturas del grupo sin filtrar por año
     // El año ya está implícito en el grupo (grupoId ya corresponde al año activo)
+    // Usar DISTINCT y subquery para evitar duplicados cuando un docente tiene múltiples usuarios activos
     const cursos = await query(
-      `SELECT a.id as asignatura_id,
+      `SELECT DISTINCT
+              a.id as asignatura_id,
               c.id as curso_id,
               c.nombre as curso_nombre,
               c.imagen as curso_imagen,
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
               p.id as docente_id,
               p.foto as docente_foto,
-              u.id as docente_usuario_id,
+              (SELECT u.id FROM usuarios u 
+               WHERE u.personal_id = p.id AND u.estado = 'ACTIVO' 
+               LIMIT 1) as docente_usuario_id,
               a.aula_virtual as link_aula_virtual
        FROM asignaturas a
        INNER JOIN cursos c ON c.id = a.curso_id
        INNER JOIN personal p ON p.id = a.personal_id
-       INNER JOIN usuarios u ON u.personal_id = p.id AND u.estado = 'ACTIVO'
        WHERE a.grupo_id = ? AND a.colegio_id = ?
        ORDER BY c.orden ASC, c.nombre ASC`,
       [grupoId, colegio_id]
