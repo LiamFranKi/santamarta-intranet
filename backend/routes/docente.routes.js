@@ -841,25 +841,34 @@ router.get('/grupos/:grupoId/alumnos', async (req, res) => {
 
     // Obtener alumnos del grupo con fecha de nacimiento y teléfono (del alumno o apoderado)
     // Los alumnos se relacionan con apoderados a través de la tabla familias
-    // Usar GROUP BY para evitar duplicados cuando un alumno tiene múltiples apoderados
-    // Tomar el primer teléfono disponible (celular o fijo) de cualquier apoderado
+    // Usar subconsulta para obtener un solo teléfono por alumno y evitar duplicados
     const alumnos = await query(
-      `SELECT a.*, 
+      `SELECT DISTINCT
+              a.*, 
               m.id as matricula_id,
               m.fecha_registro, 
               m.estado as estado_matricula,
               a.fecha_nacimiento,
               COALESCE(
-                MAX(NULLIF(ap.telefono_celular, '')), 
-                MAX(NULLIF(ap.telefono_fijo, '')),
+                (SELECT ap2.telefono_celular 
+                 FROM familias f2 
+                 INNER JOIN apoderados ap2 ON ap2.id = f2.apoderado_id 
+                 WHERE f2.alumno_id = a.id 
+                 AND ap2.telefono_celular IS NOT NULL 
+                 AND ap2.telefono_celular != '' 
+                 LIMIT 1),
+                (SELECT ap3.telefono_fijo 
+                 FROM familias f3 
+                 INNER JOIN apoderados ap3 ON ap3.id = f3.apoderado_id 
+                 WHERE f3.alumno_id = a.id 
+                 AND ap3.telefono_fijo IS NOT NULL 
+                 AND ap3.telefono_fijo != '' 
+                 LIMIT 1),
                 'N/A'
               ) as telefono
        FROM alumnos a
        INNER JOIN matriculas m ON m.alumno_id = a.id
-       LEFT JOIN familias f ON f.alumno_id = a.id
-       LEFT JOIN apoderados ap ON ap.id = f.apoderado_id
        WHERE m.grupo_id = ? AND m.colegio_id = ? AND m.estado = 0
-       GROUP BY a.id, m.id, m.fecha_registro, m.estado, a.fecha_nacimiento
        ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
       [grupoId, colegio_id]
     );
