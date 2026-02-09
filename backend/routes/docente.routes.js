@@ -2710,6 +2710,8 @@ router.get('/horario', async (req, res) => {
     console.log(`📅 Usando año para horario docente: ${anioUsar}`);
 
     // Traer todas las filas de horario con curso y grupo ya resueltos
+    // Incluye horarios con asignaturas Y horarios manuales (recreos, talleres, etc.)
+    // Los horarios manuales tienen descripcion pero pueden no tener asignatura_id válido
     const horarioCrudo = await query(
       `SELECT 
          gh.id,
@@ -2724,7 +2726,7 @@ router.get('/horario', async (req, res) => {
          n.nombre        AS nivel_nombre
        FROM grupos_horarios gh
        LEFT JOIN asignaturas a ON a.id = gh.asignatura_id
-       LEFT JOIN grupos g      ON g.id = a.grupo_id
+       LEFT JOIN grupos g      ON g.id = COALESCE(a.grupo_id, gh.grupo_id)
        LEFT JOIN niveles n     ON n.id = g.nivel_id
        LEFT JOIN cursos c      ON c.id = a.curso_id
        WHERE gh.anio = ?
