@@ -277,6 +277,19 @@
   box-shadow: 0 0 0 3px rgba(74, 131, 193, 0.1);
 }
 
+/* Estilos para inputs readonly */
+.form-group input.readonly-input {
+  background-color: #f3f4f6;
+  color: #6b7280;
+  cursor: not-allowed;
+  border-color: #d1d5db;
+}
+
+.form-group input.readonly-input:focus {
+  border-color: #d1d5db;
+  box-shadow: none;
+}
+
 .form-group select {
   cursor: pointer;
   appearance: none;

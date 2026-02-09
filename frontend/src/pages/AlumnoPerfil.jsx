@@ -203,9 +203,10 @@ function AlumnoPerfil() {
       
       const formDataToSend = new FormData();
       
-      formDataToSend.append('nombres', formData.nombres);
-      formDataToSend.append('apellido_paterno', formData.apellido_paterno);
-      formDataToSend.append('apellido_materno', formData.apellido_materno);
+      // NO enviar nombres y apellidos ya que son readonly y no deben modificarse
+      // formDataToSend.append('nombres', formData.nombres);
+      // formDataToSend.append('apellido_paterno', formData.apellido_paterno);
+      // formDataToSend.append('apellido_materno', formData.apellido_materno);
       formDataToSend.append('email', formData.email);
       formDataToSend.append('sexo', formData.sexo || '');
       formDataToSend.append('fecha_nacimiento', formData.fecha_nacimiento);
@@ -454,8 +455,9 @@ function AlumnoPerfil() {
                   id="nombres"
                   name="nombres"
                   value={formData.nombres}
-                  onChange={handleInputChange}
-                  required
+                  readOnly
+                  className="readonly-input"
+                  title="Este campo no se puede modificar"
                 />
               </div>
 
@@ -466,8 +468,9 @@ function AlumnoPerfil() {
                   id="apellido_paterno"
                   name="apellido_paterno"
                   value={formData.apellido_paterno}
-                  onChange={handleInputChange}
-                  required
+                  readOnly
+                  className="readonly-input"
+                  title="Este campo no se puede modificar"
                 />
               </div>
 
@@ -478,7 +481,9 @@ function AlumnoPerfil() {
                   id="apellido_materno"
                   name="apellido_materno"
                   value={formData.apellido_materno}
-                  onChange={handleInputChange}
+                  readOnly
+                  className="readonly-input"
+                  title="Este campo no se puede modificar"
                 />
               </div>
 
