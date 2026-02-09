@@ -356,19 +356,22 @@ function AlumnoHorario() {
       yPosition += 30;
 
       // ========== TABLA DE HORARIO ==========
-      const colWidth = (contentWidth - 30) / 6; // 1 columna para hora + 5 días
-      const rowHeight = 8;
-      const headerHeight = 10;
+      // Usar todo el ancho disponible, con márgenes mínimos
+      const colWidth = contentWidth / 6; // 1 columna para hora + 5 días
+      const rowHeight = 15; // Filas más altas
+      const headerHeight = 12; // Encabezado más alto
 
       // Encabezados de la tabla
       doc.setFillColor(...colorHeader);
       doc.rect(margin, yPosition, colWidth, headerHeight, 'F');
       doc.setDrawColor(...colorBorder);
+      doc.setLineWidth(0.3);
       doc.rect(margin, yPosition, colWidth, headerHeight);
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(10);
+      doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
-      doc.text('HORA', margin + colWidth / 2, yPosition + 7, { align: 'center' });
+      // Centrar verticalmente: yPosition + headerHeight/2 + 3 (ajuste para centrado)
+      doc.text('HORA', margin + colWidth / 2, yPosition + headerHeight / 2 + 3, { align: 'center' });
 
       diasSemana.forEach((dia, idx) => {
         const xPos = margin + colWidth + (idx * colWidth);
@@ -376,7 +379,7 @@ function AlumnoHorario() {
         doc.rect(xPos, yPosition, colWidth, headerHeight, 'F');
         doc.setDrawColor(...colorBorder);
         doc.rect(xPos, yPosition, colWidth, headerHeight);
-        doc.text(dia.abrev, xPos + colWidth / 2, yPosition + 7, { align: 'center' });
+        doc.text(dia.abrev, xPos + colWidth / 2, yPosition + headerHeight / 2 + 3, { align: 'center' });
       });
 
       yPosition += headerHeight;
@@ -400,19 +403,21 @@ function AlumnoHorario() {
 
         // Celda de hora
         doc.setDrawColor(200, 200, 200);
-        doc.setLineWidth(0.2);
+        doc.setLineWidth(0.3);
         doc.rect(margin, yPosition, colWidth, rowHeight);
         doc.setTextColor(...colorText);
-        doc.setFontSize(9);
+        doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
         const horaTexto = `${formatearHora(bloque.inicio)} - ${formatearHora(bloque.fin)}`;
-        doc.text(horaTexto, margin + colWidth / 2, yPosition + 5, { align: 'center', maxWidth: colWidth - 2 });
+        // Centrar verticalmente: yPosition + rowHeight/2 + 3
+        doc.text(horaTexto, margin + colWidth / 2, yPosition + rowHeight / 2 + 3, { align: 'center', maxWidth: colWidth - 4 });
 
         // Celdas de días
         const clases = [claseLunes, claseMartes, claseMiercoles, claseJueves, claseViernes];
         clases.forEach((clase, diaIdx) => {
           const xPos = margin + colWidth + (diaIdx * colWidth);
           doc.setDrawColor(200, 200, 200);
+          doc.setLineWidth(0.3);
           doc.rect(xPos, yPosition, colWidth, rowHeight);
           
           if (clase) {
@@ -424,12 +429,18 @@ function AlumnoHorario() {
             }
             
             doc.setTextColor(...colorText);
-            doc.setFontSize(8);
+            doc.setFontSize(9);
             doc.setFont('helvetica', 'normal');
             const textoClase = formatearClase(clase);
             if (textoClase) {
-              const lineas = doc.splitTextToSize(textoClase, colWidth - 4);
-              doc.text(lineas, xPos + colWidth / 2, yPosition + 4, { align: 'center', maxWidth: colWidth - 4 });
+              const lineas = doc.splitTextToSize(textoClase, colWidth - 6);
+              // Calcular posición vertical centrada
+              const numLineas = lineas.length;
+              const alturaTexto = numLineas * 4; // Aproximadamente 4mm por línea
+              const yInicio = yPosition + (rowHeight - alturaTexto) / 2 + 3;
+              lineas.forEach((linea, lineIdx) => {
+                doc.text(linea, xPos + colWidth / 2, yInicio + (lineIdx * 4), { align: 'center', maxWidth: colWidth - 6 });
+              });
             }
           }
         });
@@ -458,8 +469,11 @@ function AlumnoHorario() {
         yPosition += 8;
 
         detalleHorario.forEach((curso) => {
+          // Altura del card basada en contenido
+          const cardHeight = 20; // Cards más altos
+          
           // Verificar si necesitamos una nueva página
-          if (yPosition + 15 > pageHeight - margin - 10) {
+          if (yPosition + cardHeight > pageHeight - margin - 10) {
             doc.addPage();
             yPosition = margin;
           }
@@ -470,36 +484,45 @@ function AlumnoHorario() {
           // Fondo del curso
           if (rgb) {
             doc.setFillColor(rgb.r, rgb.g, rgb.b);
-            doc.roundedRect(margin, yPosition, contentWidth, 12, 2, 2, 'F');
+            doc.roundedRect(margin, yPosition, contentWidth, cardHeight, 3, 3, 'F');
           }
           
           doc.setDrawColor(200, 200, 200);
-          doc.roundedRect(margin, yPosition, contentWidth, 12, 2, 2);
+          doc.setLineWidth(0.3);
+          doc.roundedRect(margin, yPosition, contentWidth, cardHeight, 3, 3);
           
-          // Nombre del curso
+          // Calcular posición centrada verticalmente
+          const centroVertical = yPosition + cardHeight / 2;
+          
+          // Nombre del curso - centrado
           doc.setTextColor(...colorText);
-          doc.setFontSize(11);
+          doc.setFontSize(13);
           doc.setFont('helvetica', 'bold');
-          doc.text(curso.titulo, margin + 5, yPosition + 7);
+          const tituloLines = doc.splitTextToSize(curso.titulo, contentWidth - 20);
+          const tituloY = centroVertical - (tituloLines.length > 1 ? 6 : 3);
+          doc.text(tituloLines, margin + contentWidth / 2, tituloY, { align: 'center', maxWidth: contentWidth - 20 });
           
-          // Docente
+          // Docente - centrado
           if (curso.docente) {
-            doc.setFontSize(9);
+            doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
-            doc.text(`Docente: ${curso.docente}`, margin + 5, yPosition + 10.5);
+            const docenteY = centroVertical + (tituloLines.length > 1 ? 2 : 4);
+            doc.text(`Docente: ${curso.docente}`, margin + contentWidth / 2, docenteY, { align: 'center', maxWidth: contentWidth - 20 });
           }
           
-          // Horarios
+          // Horarios - centrado
           if (curso.horarios && curso.horarios.length > 0) {
             let horariosTexto = curso.horarios.map(h => 
               `${h.diaNombre}: ${formatearHora(h.inicio)} - ${formatearHora(h.fin)}`
             ).join(' | ');
             
-            doc.setFontSize(8);
-            doc.text(horariosTexto, margin + 5, yPosition + 12.5, { maxWidth: contentWidth - 10 });
+            doc.setFontSize(9);
+            const horariosLines = doc.splitTextToSize(horariosTexto, contentWidth - 20);
+            const horariosY = centroVertical + (tituloLines.length > 1 ? 7 : 9);
+            doc.text(horariosLines, margin + contentWidth / 2, horariosY, { align: 'center', maxWidth: contentWidth - 20 });
           }
           
-          yPosition += 15;
+          yPosition += cardHeight + 3; // Espacio entre cards
         });
       }
 
