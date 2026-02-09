@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
+import { jsPDF } from 'jspdf';
+import Swal from 'sweetalert2';
 import './AlumnoHorario.css';
 
 function AlumnoHorario() {
@@ -309,9 +311,238 @@ function AlumnoHorario() {
     return cursosArray;
   }, [horario, diasSemana]);
 
-  // Función para imprimir/exportar horario
-  const handleImprimir = () => {
-    window.print();
+  // Función para exportar horario a PDF
+  const handleExportarPDF = () => {
+    if (!horario || horario.length === 0) {
+      Swal.fire({
+        title: 'Sin datos',
+        text: 'No hay horario para exportar',
+        icon: 'info'
+      });
+      return;
+    }
+
+    try {
+      const doc = new jsPDF('l', 'mm', 'a4'); // Landscape orientation
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      const contentWidth = pageWidth - (margin * 2);
+      let yPosition = margin;
+
+      // Colores
+      const colorHeader = [59, 130, 246]; // Azul
+      const colorBorder = [30, 64, 175]; // Azul oscuro
+      const colorText = [30, 41, 59]; // Gris oscuro
+      const colorLight = [219, 234, 254]; // Azul claro
+
+      // ========== HEADER ==========
+      doc.setFillColor(...colorHeader);
+      doc.rect(margin, yPosition, contentWidth, 25, 'F');
+      
+      doc.setDrawColor(...colorBorder);
+      doc.setLineWidth(0.5);
+      doc.rect(margin, yPosition, contentWidth, 25);
+      
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('MI HORARIO DE CLASES', margin + contentWidth / 2, yPosition + 15, { align: 'center' });
+      
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Año Académico Actual', margin + contentWidth / 2, yPosition + 22, { align: 'center' });
+      
+      yPosition += 30;
+
+      // ========== TABLA DE HORARIO ==========
+      const colWidth = (contentWidth - 30) / 6; // 1 columna para hora + 5 días
+      const rowHeight = 8;
+      const headerHeight = 10;
+
+      // Encabezados de la tabla
+      doc.setFillColor(...colorHeader);
+      doc.rect(margin, yPosition, colWidth, headerHeight, 'F');
+      doc.setDrawColor(...colorBorder);
+      doc.rect(margin, yPosition, colWidth, headerHeight);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text('HORA', margin + colWidth / 2, yPosition + 7, { align: 'center' });
+
+      diasSemana.forEach((dia, idx) => {
+        const xPos = margin + colWidth + (idx * colWidth);
+        doc.setFillColor(...colorHeader);
+        doc.rect(xPos, yPosition, colWidth, headerHeight, 'F');
+        doc.setDrawColor(...colorBorder);
+        doc.rect(xPos, yPosition, colWidth, headerHeight);
+        doc.text(dia.abrev, xPos + colWidth / 2, yPosition + 7, { align: 'center' });
+      });
+
+      yPosition += headerHeight;
+
+      // Filas de horarios
+      horariosUnicos.forEach((bloque, idx) => {
+        const claseLunes = obtenerClase(1, bloque.inicio, bloque.fin);
+        const claseMartes = obtenerClase(2, bloque.inicio, bloque.fin);
+        const claseMiercoles = obtenerClase(3, bloque.inicio, bloque.fin);
+        const claseJueves = obtenerClase(4, bloque.inicio, bloque.fin);
+        const claseViernes = obtenerClase(5, bloque.inicio, bloque.fin);
+
+        const tieneClase = claseLunes || claseMartes || claseMiercoles || claseJueves || claseViernes;
+        if (!tieneClase) return;
+
+        // Verificar si necesitamos una nueva página
+        if (yPosition + rowHeight > pageHeight - margin - 10) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        // Celda de hora
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.2);
+        doc.rect(margin, yPosition, colWidth, rowHeight);
+        doc.setTextColor(...colorText);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        const horaTexto = `${formatearHora(bloque.inicio)} - ${formatearHora(bloque.fin)}`;
+        doc.text(horaTexto, margin + colWidth / 2, yPosition + 5, { align: 'center', maxWidth: colWidth - 2 });
+
+        // Celdas de días
+        const clases = [claseLunes, claseMartes, claseMiercoles, claseJueves, claseViernes];
+        clases.forEach((clase, diaIdx) => {
+          const xPos = margin + colWidth + (diaIdx * colWidth);
+          doc.setDrawColor(200, 200, 200);
+          doc.rect(xPos, yPosition, colWidth, rowHeight);
+          
+          if (clase) {
+            const colorCurso = getColorForCourse(clase.titulo || '');
+            const rgb = hexToRgb(colorCurso);
+            if (rgb) {
+              doc.setFillColor(rgb.r, rgb.g, rgb.b);
+              doc.rect(xPos + 0.5, yPosition + 0.5, colWidth - 1, rowHeight - 1, 'F');
+            }
+            
+            doc.setTextColor(...colorText);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            const textoClase = formatearClase(clase);
+            if (textoClase) {
+              const lineas = doc.splitTextToSize(textoClase, colWidth - 4);
+              doc.text(lineas, xPos + colWidth / 2, yPosition + 4, { align: 'center', maxWidth: colWidth - 4 });
+            }
+          }
+        });
+
+        yPosition += rowHeight;
+      });
+
+      // ========== DETALLE DE HORARIO ==========
+      if (detalleHorario.length > 0) {
+        // Verificar si necesitamos una nueva página
+        if (yPosition + 20 > pageHeight - margin - 10) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        yPosition += 10;
+        doc.setDrawColor(...colorBorder);
+        doc.setLineWidth(0.5);
+        doc.line(margin, yPosition, margin + contentWidth, yPosition);
+        yPosition += 5;
+
+        doc.setTextColor(...colorText);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DETALLE DE HORARIO', margin, yPosition);
+        yPosition += 8;
+
+        detalleHorario.forEach((curso) => {
+          // Verificar si necesitamos una nueva página
+          if (yPosition + 15 > pageHeight - margin - 10) {
+            doc.addPage();
+            yPosition = margin;
+          }
+
+          const colorCurso = getColorForCourse(curso.titulo);
+          const rgb = hexToRgb(colorCurso);
+          
+          // Fondo del curso
+          if (rgb) {
+            doc.setFillColor(rgb.r, rgb.g, rgb.b);
+            doc.roundedRect(margin, yPosition, contentWidth, 12, 2, 2, 'F');
+          }
+          
+          doc.setDrawColor(200, 200, 200);
+          doc.roundedRect(margin, yPosition, contentWidth, 12, 2, 2);
+          
+          // Nombre del curso
+          doc.setTextColor(...colorText);
+          doc.setFontSize(11);
+          doc.setFont('helvetica', 'bold');
+          doc.text(curso.titulo, margin + 5, yPosition + 7);
+          
+          // Docente
+          if (curso.docente) {
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Docente: ${curso.docente}`, margin + 5, yPosition + 10.5);
+          }
+          
+          // Horarios
+          if (curso.horarios && curso.horarios.length > 0) {
+            let horariosTexto = curso.horarios.map(h => 
+              `${h.diaNombre}: ${formatearHora(h.inicio)} - ${formatearHora(h.fin)}`
+            ).join(' | ');
+            
+            doc.setFontSize(8);
+            doc.text(horariosTexto, margin + 5, yPosition + 12.5, { maxWidth: contentWidth - 10 });
+          }
+          
+          yPosition += 15;
+        });
+      }
+
+      // ========== PIE DE PÁGINA ==========
+      const fechaGeneracion = new Date().toLocaleDateString('es-PE', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Generado el: ${fechaGeneracion}`, margin, pageHeight - 10);
+
+      // Guardar PDF
+      const nombreArchivo = `Mi_Horario_${new Date().getTime()}.pdf`;
+      doc.save(nombreArchivo);
+
+      Swal.fire({
+        title: '¡PDF Generado!',
+        text: 'El horario se ha exportado correctamente',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      Swal.fire({
+        title: 'Error',
+        text: 'No se pudo generar el PDF',
+        icon: 'error'
+      });
+    }
+  };
+
+  // Función auxiliar para convertir hex a RGB
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
   };
 
   if (loading) {
@@ -334,9 +565,9 @@ function AlumnoHorario() {
               <p>Horario de clases del año académico actual</p>
             </div>
             {horario && horario.length > 0 && (
-              <button className="btn-imprimir" onClick={handleImprimir}>
-                <span className="btn-icon">🖨️</span>
-                <span className="btn-text">Imprimir / Exportar</span>
+              <button className="btn-imprimir" onClick={handleExportarPDF}>
+                <span className="btn-icon">📄</span>
+                <span className="btn-text">Exportar</span>
               </button>
             )}
           </div>
