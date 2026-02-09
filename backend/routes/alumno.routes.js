@@ -612,6 +612,8 @@ router.get('/horario', async (req, res) => {
   try {
     const { usuario_id, colegio_id, anio_activo } = req.user;
 
+    console.log('📅 [ALUMNO HORARIO] Iniciando carga para usuario:', usuario_id, 'colegio:', colegio_id, 'año:', anio_activo);
+
     // Obtener datos del alumno
     const alumno = await query(
       `SELECT a.id FROM alumnos a INNER JOIN usuarios u ON u.alumno_id = a.id WHERE u.id = ? AND u.colegio_id = ?`,
@@ -619,10 +621,12 @@ router.get('/horario', async (req, res) => {
     );
 
     if (alumno.length === 0) {
+      console.log('📅 [ALUMNO HORARIO] Alumno no encontrado');
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
 
     const alumnoId = alumno[0].id;
+    console.log('📅 [ALUMNO HORARIO] Alumno encontrado:', alumnoId);
 
     // Obtener matrícula actual del alumno para obtener su grupo
     const matricula = await query(
@@ -635,10 +639,12 @@ router.get('/horario', async (req, res) => {
     );
 
     if (matricula.length === 0) {
+      console.log('📅 [ALUMNO HORARIO] No se encontró matrícula para el año activo');
       return res.json({ horario: [] });
     }
 
     const grupoId = matricula[0].grupo_id;
+    console.log('📅 [ALUMNO HORARIO] Grupo encontrado:', grupoId);
 
     const anioActivoInt = parseInt(anio_activo);
 
@@ -658,15 +664,20 @@ router.get('/horario', async (req, res) => {
          n.nombre AS nivel_nombre,
          CONCAT(p.nombres, ' ', p.apellidos) AS docente_nombre
        FROM grupos_horarios gh
-       LEFT JOIN asignaturas a ON a.id = gh.asignatura_id
-       LEFT JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN asignaturas a ON a.id = gh.asignatura_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
        LEFT JOIN niveles n ON n.id = g.nivel_id
        LEFT JOIN cursos c ON c.id = a.curso_id
        LEFT JOIN personal p ON p.id = a.personal_id
-       WHERE gh.anio = ? AND a.grupo_id = ?
+       WHERE gh.anio = ? AND a.grupo_id = ? AND a.colegio_id = ?
        ORDER BY gh.dia, STR_TO_DATE(gh.hora_inicio, '%l:%i %p')`,
-      [anioActivoInt, grupoId]
+      [anioActivoInt, grupoId, colegio_id]
     );
+
+    console.log(`📅 [ALUMNO HORARIO] Filas de horario encontradas: ${horarioCrudo ? horarioCrudo.length : 0}`);
+    if (horarioCrudo && horarioCrudo.length > 0) {
+      console.log('📅 [ALUMNO HORARIO] Primera fila de horario:', horarioCrudo[0]);
+    }
 
     // Mapear a un formato estándar para el frontend
     const horario = (horarioCrudo || []).map((row) => {
@@ -694,9 +705,10 @@ router.get('/horario', async (req, res) => {
       };
     });
 
+    console.log(`📅 [ALUMNO HORARIO] Horario procesado: ${horario.length} registros`);
     res.json({ horario });
   } catch (error) {
-    console.error('Error obteniendo horario del alumno:', error);
+    console.error('📅 [ALUMNO HORARIO] Error obteniendo horario del alumno:', error);
     res.status(500).json({ error: 'Error al obtener horario' });
   }
 });
