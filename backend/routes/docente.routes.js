@@ -841,8 +841,10 @@ router.get('/grupos/:grupoId/alumnos', async (req, res) => {
 
     // Obtener alumnos del grupo con fecha de nacimiento y teléfono (del alumno o apoderado)
     // Los alumnos se relacionan con apoderados a través de la tabla familias
+    // Usar DISTINCT para evitar duplicados cuando un alumno tiene múltiples apoderados
     const alumnos = await query(
-      `SELECT a.*, 
+      `SELECT DISTINCT
+              a.*, 
               m.id as matricula_id,
               m.fecha_registro, 
               m.estado as estado_matricula,

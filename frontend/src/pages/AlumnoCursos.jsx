@@ -32,7 +32,13 @@ function AlumnoCursos() {
     try {
       setLoading(true);
       const response = await api.get('/alumno/cursos');
-      setCursos(response.data.cursos || []);
+      // Ordenar cursos por nombre de asignatura (curso_nombre) de forma ascendente
+      const cursosOrdenados = (response.data.cursos || []).sort((a, b) => {
+        const nombreA = (a.curso_nombre || '').toLowerCase();
+        const nombreB = (b.curso_nombre || '').toLowerCase();
+        return nombreA.localeCompare(nombreB);
+      });
+      setCursos(cursosOrdenados);
     } catch (error) {
       console.error('Error cargando cursos:', error);
     } finally {
