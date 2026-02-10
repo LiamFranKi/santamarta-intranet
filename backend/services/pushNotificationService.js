@@ -47,15 +47,16 @@ async function enviarPushNotification(subscription, payload) {
 
 /**
  * Enviar notificación push a múltiples dispositivos (apoderados)
+ * Envía todas las notificaciones en paralelo para mayor velocidad
  */
 async function enviarPushNotificationMultiple(subscriptions, payload) {
-  const resultados = [];
-  
-  for (const subscription of subscriptions) {
+  // Enviar todas las notificaciones en paralelo usando Promise.all
+  const promesas = subscriptions.map(async (subscription) => {
     const resultado = await enviarPushNotification(subscription, payload);
-    resultados.push({ subscription, resultado });
-  }
+    return { subscription, resultado };
+  });
   
+  const resultados = await Promise.all(promesas);
   return resultados;
 }
 
