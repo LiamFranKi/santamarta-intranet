@@ -26,6 +26,7 @@ function AsistenciaEscaneo() {
   const busquedaTimeoutRef = useRef(null);
   const ultimoQRProcesado = useRef(null); // Prevenir procesar el mismo QR múltiples veces
   const tiempoUltimoQR = useRef(0); // Timestamp del último QR procesado
+  const cambiandoCamara = useRef(false); // Prevenir múltiples cambios de cámara simultáneos
 
   useEffect(() => {
     // Limpiar al desmontar
@@ -60,30 +61,40 @@ function AsistenciaEscaneo() {
   // Reiniciar escaneo cuando cambia la cámara seleccionada
   useEffect(() => {
     if (!cargado) return; // No hacer nada hasta que la página esté cargada
+    if (cambiandoCamara.current) return; // Evitar múltiples cambios simultáneos
     
     if (escaneando && modo === 'continuo') {
+      cambiandoCamara.current = true;
       // Si está escaneando y cambia la cámara, reiniciar con la nueva cámara
       const reiniciarConNuevaCamara = async () => {
         try {
           await detenerEscaneo();
           // Esperar un poco más para asegurar que la cámara anterior se liberó
-          await new Promise(resolve => setTimeout(resolve, 800));
-          if (modo === 'continuo' && !procesando && !mostrarBusqueda && !escaneando) {
-            iniciarEscaneo();
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Verificar condiciones antes de reiniciar
+          if (modo === 'continuo' && !procesando && !mostrarBusqueda) {
+            await iniciarEscaneo();
           }
         } catch (error) {
           console.error('Error al reiniciar con nueva cámara:', error);
           // Intentar de nuevo después de un delay
-          setTimeout(() => {
-            if (modo === 'continuo' && !procesando && !mostrarBusqueda && !escaneando) {
-              iniciarEscaneo();
+          setTimeout(async () => {
+            if (modo === 'continuo' && !procesando && !mostrarBusqueda) {
+              try {
+                await iniciarEscaneo();
+              } catch (e) {
+                console.error('Error en segundo intento:', e);
+              }
             }
-          }, 1000);
+          }, 1500);
+        } finally {
+          cambiandoCamara.current = false;
         }
       };
       reiniciarConNuevaCamara();
     }
-  }, [camaraSeleccionada]);
+  }, [camaraSeleccionada, cargado, modo]);
 
   const detenerEscaneo = async () => {
     if (html5QrCodeRef.current) {
