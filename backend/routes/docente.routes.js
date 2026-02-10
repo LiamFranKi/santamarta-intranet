@@ -5783,6 +5783,9 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
 
+    // Guardar el ID de la publicación para usar en notificaciones
+    const publicacionId = result.insertId;
+
     // ========== CREAR NOTIFICACIONES PARA LA PUBLICACIÓN ==========
     // Hacer esto de forma asíncrona para no bloquear la respuesta
     setImmediate(async () => {
@@ -5925,8 +5928,149 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
           
           console.log(`✅ [PUBLICACIONES] ${destinatarios.length} notificaciones creadas exitosamente`);
           
-          // TODO: Enviar push notifications (opcional, se puede implementar después)
-          // Por ahora solo creamos las notificaciones en la BD
+          // ========== ENVIAR PUSH NOTIFICATIONS ==========
+          try {
+            // Obtener suscripciones push de todos los destinatarios
+            const usuarioIds = destinatarios.map(d => d.usuario_id);
+            
+            if (usuarioIds.length > 0) {
+              // Obtener suscripciones push de usuarios directos
+              const subscriptionsData = await query(
+                `SELECT endpoint, p256dh, auth 
+                 FROM push_subscriptions 
+                 WHERE usuario_id IN (${usuarioIds.map(() => '?').join(',')}) 
+                   AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+                [...usuarioIds, colegio_id]
+              );
+              
+              let subscriptions = subscriptionsData.map(sub => ({
+                endpoint: sub.endpoint,
+                keys: {
+                  p256dh: sub.p256dh,
+                  auth: sub.auth
+                }
+              }));
+              
+              // Si es para grupos específicos, también incluir docentes que son apoderados
+              if (compartir_con === 'grupos' && grupos_ids) {
+                const gruposArray = typeof grupos_ids === 'string' ? JSON.parse(grupos_ids) : grupos_ids;
+                
+                if (gruposArray.length > 0) {
+                  // Obtener alumnos de los grupos
+                  const alumnosGrupos = await query(
+                    `SELECT DISTINCT a.id as alumno_id
+                     FROM alumnos a
+                     INNER JOIN matriculas m ON m.alumno_id = a.id
+                     WHERE m.grupo_id IN (${gruposArray.map(() => '?').join(',')})
+                       AND m.colegio_id = ?
+                       AND (m.estado = 0 OR m.estado = 4)`,
+                    [...gruposArray, colegio_id]
+                  );
+                  
+                  const alumnoIds = alumnosGrupos.map(a => a.alumno_id);
+                  
+                  if (alumnoIds.length > 0) {
+                    // Obtener apoderados de esos alumnos
+                    const apoderados = await query(
+                      `SELECT DISTINCT ap.nro_documento
+                       FROM apoderados ap
+                       INNER JOIN familias f ON f.apoderado_id = ap.id
+                       WHERE f.alumno_id IN (${alumnoIds.map(() => '?').join(',')})
+                         AND ap.colegio_id = ?
+                         AND ap.nro_documento IS NOT NULL
+                         AND ap.nro_documento != ''`,
+                      [...alumnoIds, colegio_id]
+                    );
+                    
+                    const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
+                    
+                    if (apoderadoDnis.length > 0) {
+                      // Obtener usuarios DOCENTE que también son apoderados (mismo nro_documento)
+                      const usuariosDocentesApoderados = await query(
+                        `SELECT DISTINCT u.id 
+                         FROM usuarios u
+                         INNER JOIN personal p ON p.id = u.personal_id
+                         WHERE u.colegio_id = ? 
+                           AND u.estado = 'ACTIVO'
+                           AND u.tipo = 'DOCENTE'
+                           AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
+                                OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))
+                           AND u.id NOT IN (${usuarioIds.map(() => '?').join(',')})`, // Evitar duplicados
+                        [colegio_id, ...apoderadoDnis, ...apoderadoDnis, ...usuarioIds]
+                      );
+                      
+                      const docentesApoderadosIds = usuariosDocentesApoderados.map(u => u.id);
+                      
+                      if (docentesApoderadosIds.length > 0) {
+                        console.log(`📱 [PUBLICACIONES] Encontrados ${docentesApoderadosIds.length} docentes que también son apoderados`);
+                        
+                        // Obtener suscripciones push de estos docentes-apoderados
+                        const subscriptionsDocentesApoderados = await query(
+                          `SELECT endpoint, p256dh, auth 
+                           FROM push_subscriptions 
+                           WHERE usuario_id IN (${docentesApoderadosIds.map(() => '?').join(',')}) 
+                             AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+                          [...docentesApoderadosIds, colegio_id]
+                        );
+                        
+                        const subscriptionsAdicionales = subscriptionsDocentesApoderados.map(sub => ({
+                          endpoint: sub.endpoint,
+                          keys: {
+                            p256dh: sub.p256dh,
+                            auth: sub.auth
+                          }
+                        }));
+                        
+                        subscriptions = [...subscriptions, ...subscriptionsAdicionales];
+                        console.log(`📱 [PUBLICACIONES] Agregadas ${subscriptionsAdicionales.length} suscripciones push de docentes-apoderados`);
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // Enviar push notifications
+              if (subscriptions.length > 0) {
+                const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
+                
+                const payloadPush = {
+                  title: tituloNotificacion,
+                  body: mensajeNotificacion,
+                  icon: '/icons/icon-192x192.png',
+                  badge: '/icons/icon-192x192.png',
+                  vibrate: [200, 100, 200],
+                  tag: `publicacion-${publicacionId}`,
+                  data: {
+                    url: '/docente/dashboard', // URL genérica, se puede ajustar según destinatario
+                    tipo: 'publicacion',
+                    publicacion_id: publicacionId
+                  }
+                };
+                
+                console.log(`📱 [PUBLICACIONES] Enviando ${subscriptions.length} push notifications...`);
+                
+                enviarPushNotificationMultiple(subscriptions, payloadPush)
+                  .then(resultadosPush => {
+                    const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
+                    const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
+                    console.log(`✅ [PUBLICACIONES] Push notifications: ${exitosas} exitosas, ${fallidas} fallidas`);
+                    if (fallidas > 0) {
+                      console.log(`❌ [PUBLICACIONES] Errores en push notifications:`, 
+                        resultadosPush.filter(r => !r.resultado || !r.resultado.success).map(r => r.resultado?.error || 'Error desconocido')
+                      );
+                    }
+                  })
+                  .catch(err => {
+                    console.error(`❌ [PUBLICACIONES] Error en envío de push notifications:`, err);
+                  });
+              } else {
+                console.log('⚠️ [PUBLICACIONES] No hay suscripciones push activas para enviar notificaciones');
+              }
+            }
+          } catch (error) {
+            console.error('❌ [PUBLICACIONES] Error enviando push notifications:', error);
+            // No fallar el proceso si hay error en push notifications
+          }
         } else {
           console.log('⚠️ [PUBLICACIONES] No se encontraron destinatarios para notificar');
         }
