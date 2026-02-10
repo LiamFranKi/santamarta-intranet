@@ -34,9 +34,18 @@ function AsistenciaEscaneo() {
     };
   }, []);
 
+  // Delay inicial al cargar la página para evitar problemas
+  const [cargado, setCargado] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setCargado(true);
+    }, 1000); // Esperar 1 segundo antes de permitir inicio automático
+    return () => clearTimeout(timer);
+  }, []);
+
   // Iniciar escaneo automáticamente cuando se cambia a modo continuo
   useEffect(() => {
-    if (modo === 'continuo' && !escaneando && !procesando && !mostrarBusqueda) {
+    if (cargado && modo === 'continuo' && !escaneando && !procesando && !mostrarBusqueda) {
       // Pequeño delay para asegurar que el DOM esté listo
       const timer = setTimeout(() => {
         iniciarEscaneo();
@@ -46,19 +55,31 @@ function AsistenciaEscaneo() {
       // Si cambia a manual y está escaneando, detener
       detenerEscaneo();
     }
-  }, [modo]);
+  }, [modo, cargado]);
 
   // Reiniciar escaneo cuando cambia la cámara seleccionada
   useEffect(() => {
+    if (!cargado) return; // No hacer nada hasta que la página esté cargada
+    
     if (escaneando && modo === 'continuo') {
       // Si está escaneando y cambia la cámara, reiniciar con la nueva cámara
       const reiniciarConNuevaCamara = async () => {
-        await detenerEscaneo();
-        setTimeout(() => {
-          if (modo === 'continuo' && !procesando && !mostrarBusqueda) {
+        try {
+          await detenerEscaneo();
+          // Esperar un poco más para asegurar que la cámara anterior se liberó
+          await new Promise(resolve => setTimeout(resolve, 800));
+          if (modo === 'continuo' && !procesando && !mostrarBusqueda && !escaneando) {
             iniciarEscaneo();
           }
-        }, 500);
+        } catch (error) {
+          console.error('Error al reiniciar con nueva cámara:', error);
+          // Intentar de nuevo después de un delay
+          setTimeout(() => {
+            if (modo === 'continuo' && !procesando && !mostrarBusqueda && !escaneando) {
+              iniciarEscaneo();
+            }
+          }, 1000);
+        }
       };
       reiniciarConNuevaCamara();
     }
@@ -101,13 +122,22 @@ function AsistenciaEscaneo() {
       const html5QrCode = new Html5Qrcode('qr-reader');
       html5QrCodeRef.current = html5QrCode;
 
+      // Calcular tamaño del qrbox basado en el tamaño del contenedor
+      const qrReaderElement = document.getElementById('qr-reader');
+      const containerWidth = qrReaderElement ? qrReaderElement.offsetWidth : 500;
+      const containerHeight = qrReaderElement ? qrReaderElement.offsetHeight : 500;
+      
+      // Usar 70% del tamaño del contenedor, mínimo 300px, máximo 500px
+      const qrboxSize = Math.min(Math.max(Math.floor(Math.min(containerWidth, containerHeight) * 0.7), 300), 500);
+      
       await html5QrCode.start(
         {
           facingMode: camaraSeleccionada // Usar la cámara seleccionada
         },
         {
           fps: 10,
-          qrbox: { width: 250, height: 250 }
+          qrbox: { width: qrboxSize, height: qrboxSize },
+          aspectRatio: 1.0 // Mantener aspecto cuadrado
         },
         (decodedText) => {
           // QR escaneado exitosamente - procesar solo si no está procesando otro
@@ -124,11 +154,33 @@ function AsistenciaEscaneo() {
       setEscaneando(true);
     } catch (error) {
       console.error('Error iniciando escáner:', error);
-      Swal.fire({
-        title: 'Error',
-        text: 'No se pudo acceder a la cámara. Verifica los permisos.',
-        icon: 'error'
-      });
+      setEscaneando(false);
+      
+      // Si es un error de cámara, intentar con la otra cámara como fallback
+      if (error.message && (error.message.includes('camera') || error.message.includes('permission'))) {
+        const otraCamara = camaraSeleccionada === 'environment' ? 'user' : 'environment';
+        console.log(`⚠️ Intentando con cámara alternativa: ${otraCamara}`);
+        
+        // Intentar una vez más con la cámara alternativa después de un delay
+        setTimeout(async () => {
+          try {
+            setCamaraSeleccionada(otraCamara);
+            // El useEffect se encargará de reiniciar el escaneo
+          } catch (e) {
+            Swal.fire({
+              title: 'Error',
+              text: 'No se pudo acceder a ninguna cámara. Verifica los permisos.',
+              icon: 'error'
+            });
+          }
+        }, 1000);
+      } else {
+        Swal.fire({
+          title: 'Error',
+          text: 'No se pudo acceder a la cámara. Verifica los permisos.',
+          icon: 'error'
+        });
+      }
     }
   };
 

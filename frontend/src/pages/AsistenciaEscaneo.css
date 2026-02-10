@@ -259,12 +259,20 @@
 
 #qr-reader {
   width: 100%;
-  max-width: 500px;
-  height: 500px;
+  max-width: 600px;
+  height: 600px;
   border-radius: 12px;
   overflow: hidden;
   background: white;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* Asegurar que el área de escaneo sea más grande */
+#qr-reader video,
+#qr-reader canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
 }
 
 /* Overlays */
@@ -453,11 +461,11 @@
 
   #qr-reader {
     max-width: 100%;
-    height: 400px;
+    height: 500px;
   }
 
   .qr-reader-container {
-    min-height: 300px;
+    min-height: 400px;
     padding: 1rem;
   }
 
@@ -472,7 +480,7 @@
   }
 
   #qr-reader {
-    height: 300px;
+    height: 400px;
   }
 
   .btn-iniciar-escaneo,
