@@ -58,18 +58,18 @@ function AsistenciaEscaneo() {
     }
   }, [modo, cargado]);
 
-  // Reiniciar escaneo cuando cambia la cámara seleccionada
+  // Reiniciar escaneo cuando cambia la cámara seleccionada (solo en modo continuo)
   useEffect(() => {
     if (!cargado) return; // No hacer nada hasta que la página esté cargada
-    if (cambiandoCamara.current) return; // Evitar múltiples cambios simultáneos
     if (modo !== 'continuo') return; // Solo en modo continuo
     if (mostrarBusqueda) return; // No reiniciar si está en búsqueda manual
+    if (cambiandoCamara.current) return; // Evitar múltiples cambios simultáneos
     
     cambiandoCamara.current = true;
     console.log(`🔄 Cambiando a cámara: ${camaraSeleccionada === 'environment' ? 'TRASERA' : 'FRONTAL'}`);
     
-    // Si está escaneando y cambia la cámara, reiniciar con la nueva cámara
-    const reiniciarConNuevaCamara = async () => {
+    // Detener escaneo actual y luego reiniciar (usando la misma lógica que el inicio automático)
+    const cambiarCamara = async () => {
       try {
         // Detener escaneo actual si existe
         if (html5QrCodeRef.current) {
@@ -83,40 +83,35 @@ function AsistenciaEscaneo() {
         setEscaneando(false);
         
         // Esperar para asegurar que la cámara anterior se liberó completamente
-        await new Promise(resolve => setTimeout(resolve, 800));
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Verificar condiciones antes de reiniciar
-        if (modo === 'continuo' && !procesando && !mostrarBusqueda) {
-          console.log('✅ Reiniciando escaneo con nueva cámara...');
-          await iniciarEscaneo();
-        } else {
-          console.log('⚠️ Condiciones no cumplidas para reiniciar:', { modo, procesando, mostrarBusqueda });
-        }
-      } catch (error) {
-        console.error('❌ Error al reiniciar con nueva cámara:', error);
-        // Intentar de nuevo después de un delay más largo
-        setTimeout(async () => {
-          if (modo === 'continuo' && !procesando && !mostrarBusqueda) {
-            try {
-              console.log('🔄 Segundo intento de reinicio...');
-              await iniciarEscaneo();
-            } catch (e) {
-              console.error('❌ Error en segundo intento:', e);
-              cambiandoCamara.current = false;
-            }
+        // Liberar el flag ANTES de intentar iniciar
+        cambiandoCamara.current = false;
+        
+        // Usar la MISMA lógica que el useEffect del modo continuo
+        // Esperar un poco más para asegurar que el estado se actualizó
+        setTimeout(() => {
+          if (modo === 'continuo' && !escaneando && !procesando && !mostrarBusqueda) {
+            console.log('✅ Iniciando escaneo con nueva cámara...');
+            iniciarEscaneo();
           } else {
-            cambiandoCamara.current = false;
+            console.log('⚠️ Condiciones no cumplidas:', { modo, escaneando, procesando, mostrarBusqueda });
+          }
+        }, 500);
+      } catch (error) {
+        console.error('❌ Error al cambiar cámara:', error);
+        cambiandoCamara.current = false;
+        // Intentar de nuevo después de un delay
+        setTimeout(() => {
+          if (modo === 'continuo' && !escaneando && !procesando && !mostrarBusqueda) {
+            console.log('🔄 Segundo intento de reinicio...');
+            iniciarEscaneo();
           }
         }, 1500);
-      } finally {
-        // Liberar el flag después de un delay adicional para evitar loops
-        setTimeout(() => {
-          cambiandoCamara.current = false;
-        }, 2000);
       }
     };
     
-    reiniciarConNuevaCamara();
+    cambiarCamara();
   }, [camaraSeleccionada]);
 
   const detenerEscaneo = async () => {
