@@ -192,7 +192,7 @@ router.post('/registrar', async (req, res) => {
       [usuario_id, colegio_id, fechaHoy, anio_activo]
     );
 
-    console.log(`📋 [ASISTENCIA] Registrando ${tipo_registro} para usuario ${usuario_id} en fecha ${fechaHoy}`);
+    console.log(`📋 [ASISTENCIA] Registrando ${tipo_registro} para usuario ${usuario_id} (tipo: ${tipo_usuario}) en fecha ${fechaHoy}`);
     if (asistenciaExistente.length > 0) {
       console.log(`📋 [ASISTENCIA] Registro existente encontrado:`, {
         id: asistenciaExistente[0].id,
@@ -200,6 +200,8 @@ router.post('/registrar', async (req, res) => {
         hora_entrada: asistenciaExistente[0].hora_entrada,
         hora_salida: asistenciaExistente[0].hora_salida
       });
+    } else {
+      console.log(`📋 [ASISTENCIA] No hay registro existente para hoy - creando nuevo`);
     }
 
     let resultado;
@@ -260,7 +262,10 @@ router.post('/registrar', async (req, res) => {
 
     // Obtener datos del usuario para notificaciones
     let datosUsuario = null;
+    console.log(`📋 [ASISTENCIA] Obteniendo datos del usuario para notificaciones...`);
+    
     if (tipo_usuario === 'ALUMNO') {
+      console.log(`📋 [ASISTENCIA] Buscando datos de ALUMNO con usuario_id: ${usuario_id}`);
       const alumno = await query(
         `SELECT a.id, a.nombres, a.apellido_paterno, a.apellido_materno, u.id as usuario_id
          FROM alumnos a
@@ -268,13 +273,18 @@ router.post('/registrar', async (req, res) => {
          WHERE u.id = ? AND u.colegio_id = ?`,
         [usuario_id, colegio_id]
       );
+      console.log(`📋 [ASISTENCIA] Resultado búsqueda alumno: ${alumno.length} registros encontrados`);
       if (alumno.length > 0) {
         datosUsuario = {
           ...alumno[0],
           nombre_completo: `${alumno[0].nombres} ${alumno[0].apellido_paterno} ${alumno[0].apellido_materno}`.trim()
         };
+        console.log(`✅ [ASISTENCIA] Datos de alumno obtenidos: ${datosUsuario.nombre_completo} (ID: ${datosUsuario.id})`);
+      } else {
+        console.log(`⚠️ [ASISTENCIA] No se encontró alumno con usuario_id: ${usuario_id}`);
       }
     } else {
+      console.log(`📋 [ASISTENCIA] Buscando datos de DOCENTE con usuario_id: ${usuario_id}`);
       const docente = await query(
         `SELECT p.id, p.nombres, p.apellidos, u.id as usuario_id
          FROM personal p
@@ -282,11 +292,15 @@ router.post('/registrar', async (req, res) => {
          WHERE u.id = ? AND u.colegio_id = ?`,
         [usuario_id, colegio_id]
       );
+      console.log(`📋 [ASISTENCIA] Resultado búsqueda docente: ${docente.length} registros encontrados`);
       if (docente.length > 0) {
         datosUsuario = {
           ...docente[0],
           nombre_completo: `${docente[0].nombres} ${docente[0].apellidos}`.trim()
         };
+        console.log(`✅ [ASISTENCIA] Datos de docente obtenidos: ${datosUsuario.nombre_completo} (ID: ${datosUsuario.id})`);
+      } else {
+        console.log(`⚠️ [ASISTENCIA] No se encontró docente con usuario_id: ${usuario_id}`);
       }
     }
 

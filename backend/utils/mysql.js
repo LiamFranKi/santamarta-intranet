@@ -25,11 +25,11 @@ const mysqlReadPool = mysql.createPool({
   queueLimit: 0,
   multipleStatements: false,
   // Configuración adicional para producción
-  reconnect: true,
   enableKeepAlive: true,
   keepAliveInitialDelay: 0
   // Nota: La zona horaria se manejará en las consultas SQL usando DATE() y CURDATE()
   // o configurándola directamente en las consultas cuando sea necesario
+  // Nota: 'reconnect' fue removido porque MySQL2 no lo soporta en createPool
 });
 
 async function query(sql, params = []) {
