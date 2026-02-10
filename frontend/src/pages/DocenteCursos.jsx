@@ -3029,7 +3029,6 @@ function DocenteCursos() {
                               }}
                               title="Opciones"
                             >
-                              <span className="btn-opciones-icon">⚙️</span>
                               Opciones {openDropdownAlumno?.id === alumno.id ? '▲' : '▼'}
                             </button>
                             {openDropdownAlumno?.id === alumno.id && openDropdownAlumno?.top && 

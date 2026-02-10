@@ -312,15 +312,17 @@
 /* Card de Alumno en Cursos */
 .alumno-card-cursos {
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
   align-items: center;
-  padding: 1.2rem 1.5rem;
+  justify-content: center;
+  padding: 1.5rem;
   border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.1);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   color: #333;
-  min-height: 120px;
+  min-height: 140px;
+  text-align: center;
 }
 
 .alumno-card-cursos:hover {
@@ -329,16 +331,20 @@
 }
 
 .alumno-card-info-cursos {
-  flex-grow: 1;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
 .alumno-card-main-cursos {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
 }
 
 .alumno-nombre-cursos {
@@ -346,14 +352,20 @@
   font-weight: 700;
   color: #2c3e50;
   line-height: 1.4;
+  text-align: center;
+  width: 100%;
+  padding: 0 1rem;
+  word-wrap: break-word;
 }
 
 /* Container de Badges */
 .alumno-badges-container {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.5rem;
   align-items: center;
+  justify-content: center;
+  width: 100%;
 }
 
 /* Badges para Cards */
@@ -412,8 +424,10 @@
 }
 
 .alumno-card-actions-cursos {
-  flex-shrink: 0;
-  margin-left: 1rem;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 0.5rem;
 }
 
 .estrellas-badge {
@@ -1716,14 +1730,17 @@
     grid-template-columns: 1fr;
     padding: 0.75rem;
     gap: 1rem;
+    max-width: 100%;
   }
 
   .alumno-card-cursos {
     flex-direction: column;
     align-items: center;
-    padding: 1rem;
+    padding: 1.2rem;
     min-height: unset;
     text-align: center;
+    width: 100%;
+    max-width: 100%;
   }
 
   .alumno-card-info-cursos {
@@ -1739,14 +1756,35 @@
     width: 100%;
   }
 
+  .alumno-nombre-cursos {
+    font-size: 0.95rem;
+    padding: 0 0.5rem;
+  }
+
   .alumno-badges-container {
     justify-content: center;
     width: 100%;
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+  }
+
+  .estrellas-badge-card,
+  .incidencias-badge-card,
+  .promedio-badge-card {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.5rem;
+    flex: 0 0 auto;
+    min-width: auto;
+  }
+
+  .promedio-badge-card {
+    min-width: 50px;
   }
 
   .alumno-card-actions-cursos {
     width: 100%;
     margin-left: 0;
+    margin-top: 0.5rem;
     text-align: center;
   }
 
