@@ -44,7 +44,7 @@ function AsistenciaEscaneo() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Iniciar escaneo automáticamente cuando se cambia a modo continuo
+  // Iniciar escaneo automáticamente cuando se cambia a modo continuo o cambia la cámara
   useEffect(() => {
     if (cargado && modo === 'continuo' && !escaneando && !procesando && !mostrarBusqueda) {
       // Pequeño delay para asegurar que el DOM esté listo
@@ -56,19 +56,21 @@ function AsistenciaEscaneo() {
       // Si cambia a manual y está escaneando, detener
       detenerEscaneo();
     }
-  }, [modo, cargado]);
+  }, [modo, cargado, camaraSeleccionada]); // Agregar camaraSeleccionada como dependencia
 
-  // Reiniciar escaneo cuando cambia la cámara seleccionada (solo en modo continuo)
+  // Detener escaneo cuando cambia la cámara (solo en modo continuo)
+  // El useEffect del modo continuo se encargará de reiniciar automáticamente
   useEffect(() => {
     if (!cargado) return; // No hacer nada hasta que la página esté cargada
     if (modo !== 'continuo') return; // Solo en modo continuo
     if (mostrarBusqueda) return; // No reiniciar si está en búsqueda manual
     if (cambiandoCamara.current) return; // Evitar múltiples cambios simultáneos
+    if (!escaneando) return; // Solo detener si está escaneando
     
     cambiandoCamara.current = true;
     console.log(`🔄 Cambiando a cámara: ${camaraSeleccionada === 'environment' ? 'TRASERA' : 'FRONTAL'}`);
     
-    // Detener escaneo actual y luego reiniciar (usando la misma lógica que el inicio automático)
+    // Detener escaneo actual - el useEffect del modo continuo se encargará de reiniciar
     const cambiarCamara = async () => {
       try {
         // Detener escaneo actual si existe
@@ -85,29 +87,12 @@ function AsistenciaEscaneo() {
         // Esperar para asegurar que la cámara anterior se liberó completamente
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Liberar el flag ANTES de intentar iniciar
+        // Liberar el flag - esto permitirá que el useEffect del modo continuo se ejecute
         cambiandoCamara.current = false;
-        
-        // Usar la MISMA lógica que el useEffect del modo continuo
-        // Esperar un poco más para asegurar que el estado se actualizó
-        setTimeout(() => {
-          if (modo === 'continuo' && !escaneando && !procesando && !mostrarBusqueda) {
-            console.log('✅ Iniciando escaneo con nueva cámara...');
-            iniciarEscaneo();
-          } else {
-            console.log('⚠️ Condiciones no cumplidas:', { modo, escaneando, procesando, mostrarBusqueda });
-          }
-        }, 500);
+        console.log('✅ Cámara detenida, esperando reinicio automático...');
       } catch (error) {
         console.error('❌ Error al cambiar cámara:', error);
         cambiandoCamara.current = false;
-        // Intentar de nuevo después de un delay
-        setTimeout(() => {
-          if (modo === 'continuo' && !escaneando && !procesando && !mostrarBusqueda) {
-            console.log('🔄 Segundo intento de reinicio...');
-            iniciarEscaneo();
-          }
-        }, 1500);
       }
     };
     
