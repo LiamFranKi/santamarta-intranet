@@ -5783,6 +5783,159 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
 
+    // ========== CREAR NOTIFICACIONES PARA LA PUBLICACIÓN ==========
+    // Hacer esto de forma asíncrona para no bloquear la respuesta
+    setImmediate(async () => {
+      try {
+        console.log('📢 [PUBLICACIONES] Iniciando creación de notificaciones...');
+        
+        // Obtener nombre del docente que crea la publicación
+        const docenteInfo = await query(
+          `SELECT CONCAT(p.nombres, ' ', p.apellidos) as nombre_completo
+           FROM personal p
+           INNER JOIN usuarios u ON u.personal_id = p.id
+           WHERE u.id = ? AND u.colegio_id = ? LIMIT 1`,
+          [usuario_id, colegio_id]
+        );
+        
+        const nombreDocente = docenteInfo.length > 0 ? docenteInfo[0].nombre_completo : 'Un docente';
+        
+        // Preparar título y mensaje de la notificación
+        const tituloNotificacion = 'Nueva Publicación';
+        // Limpiar HTML del contenido para el mensaje (solo primeros 200 caracteres)
+        const contenidoLimpio = contenido.replace(/<[^>]*>/g, '').trim();
+        const mensajeCorto = contenidoLimpio.length > 200 
+          ? contenidoLimpio.substring(0, 200) + '...' 
+          : contenidoLimpio;
+        const mensajeNotificacion = `${nombreDocente} ha publicado: "${mensajeCorto}"`;
+
+        let destinatarios = [];
+
+        if (compartir_con === 'todos') {
+          // Obtener TODOS los usuarios activos del colegio
+          console.log('📢 [PUBLICACIONES] Creando notificaciones para TODOS los usuarios');
+          
+          const todosUsuarios = await query(
+            `SELECT DISTINCT u.id, u.tipo
+             FROM usuarios u
+             WHERE u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+            [colegio_id]
+          );
+          
+          destinatarios = todosUsuarios.map(u => ({
+            usuario_id: u.id,
+            tipo: u.tipo
+          }));
+          
+          console.log(`📢 [PUBLICACIONES] Encontrados ${destinatarios.length} usuarios para notificar (TODOS)`);
+        } else if (compartir_con === 'grupos' && grupos_ids) {
+          // Obtener destinatarios de los grupos específicos
+          console.log('📢 [PUBLICACIONES] Creando notificaciones para grupos específicos');
+          
+          const gruposArray = typeof grupos_ids === 'string' ? JSON.parse(grupos_ids) : grupos_ids;
+          
+          if (gruposArray.length > 0) {
+            // 1. Obtener alumnos de los grupos
+            const alumnosGrupos = await query(
+              `SELECT DISTINCT u.id, u.tipo, a.id as alumno_id
+               FROM alumnos a
+               INNER JOIN matriculas m ON m.alumno_id = a.id
+               INNER JOIN usuarios u ON u.alumno_id = a.id
+               WHERE m.grupo_id IN (${gruposArray.map(() => '?').join(',')})
+                 AND m.colegio_id = ?
+                 AND (m.estado = 0 OR m.estado = 4)
+                 AND u.colegio_id = ?
+                 AND u.estado = 'ACTIVO'`,
+              [...gruposArray, colegio_id, colegio_id]
+            );
+            
+            // 2. Obtener apoderados de esos alumnos
+            const alumnoIds = alumnosGrupos.map(a => a.alumno_id);
+            let apoderadosIds = [];
+            if (alumnoIds.length > 0) {
+              const apoderadosData = await query(
+                `SELECT DISTINCT u.id, u.tipo
+                 FROM apoderados ap
+                 INNER JOIN familias f ON f.apoderado_id = ap.id
+                 INNER JOIN usuarios u ON u.apoderado_id = ap.id
+                 WHERE f.alumno_id IN (${alumnoIds.map(() => '?').join(',')})
+                   AND ap.colegio_id = ?
+                   AND u.colegio_id = ?
+                   AND u.estado = 'ACTIVO'`,
+                [...alumnoIds, colegio_id, colegio_id]
+              );
+              apoderadosIds = apoderadosData.map(a => ({ usuario_id: a.id, tipo: a.tipo }));
+            }
+            
+            // 3. Obtener docentes que enseñan en esos grupos (a través de asignaturas)
+            const docentesGrupos = await query(
+              `SELECT DISTINCT u.id, u.tipo
+               FROM asignaturas a
+               INNER JOIN usuarios u ON u.personal_id = a.personal_id
+               WHERE a.grupo_id IN (${gruposArray.map(() => '?').join(',')})
+                 AND a.colegio_id = ?
+                 AND u.colegio_id = ?
+                 AND u.estado = 'ACTIVO'`,
+              [...gruposArray, colegio_id, colegio_id]
+            );
+            
+            // Combinar todos los destinatarios
+            destinatarios = [
+              ...alumnosGrupos.map(a => ({ usuario_id: a.id, tipo: a.tipo })),
+              ...apoderadosIds,
+              ...docentesGrupos.map(d => ({ usuario_id: d.id, tipo: d.tipo }))
+            ];
+            
+            // Eliminar duplicados
+            const uniqueDestinatarios = [];
+            const seenIds = new Set();
+            for (const dest of destinatarios) {
+              if (!seenIds.has(dest.usuario_id)) {
+                seenIds.add(dest.usuario_id);
+                uniqueDestinatarios.push(dest);
+              }
+            }
+            destinatarios = uniqueDestinatarios;
+            
+            console.log(`📢 [PUBLICACIONES] Encontrados ${destinatarios.length} usuarios para notificar (grupos: ${gruposArray.join(', ')})`);
+          }
+        }
+
+        // Crear notificaciones en la BD para cada destinatario
+        if (destinatarios.length > 0) {
+          console.log(`📢 [PUBLICACIONES] Creando ${destinatarios.length} notificaciones en la BD...`);
+          
+          for (const destinatario of destinatarios) {
+            try {
+              await execute(
+                `INSERT INTO notificaciones 
+                 (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
+                 VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'ENVIADO')`,
+                [
+                  usuario_id, // Usuario que crea (docente)
+                  destinatario.usuario_id, // Destinatario
+                  tituloNotificacion, // TÍTULO (asunto)
+                  mensajeNotificacion // MENSAJE (contenido)
+                ]
+              );
+            } catch (error) {
+              console.error(`❌ [PUBLICACIONES] Error creando notificación para usuario ${destinatario.usuario_id}:`, error);
+            }
+          }
+          
+          console.log(`✅ [PUBLICACIONES] ${destinatarios.length} notificaciones creadas exitosamente`);
+          
+          // TODO: Enviar push notifications (opcional, se puede implementar después)
+          // Por ahora solo creamos las notificaciones en la BD
+        } else {
+          console.log('⚠️ [PUBLICACIONES] No se encontraron destinatarios para notificar');
+        }
+      } catch (error) {
+        console.error('❌ [PUBLICACIONES] Error en proceso de notificaciones:', error);
+        console.error('❌ [PUBLICACIONES] Stack:', error.stack);
+      }
+    });
+
     res.json({
       success: true,
       message: 'Publicación creada correctamente',
