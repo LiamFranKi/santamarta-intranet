@@ -215,11 +215,24 @@ function AsistenciaEscaneo() {
       }
     } catch (error) {
       console.error('Error registrando asistencia:', error);
+      const errorMessage = error.response?.data?.error || 'No se pudo registrar la asistencia';
+      
       Swal.fire({
         title: 'Error',
-        text: error.response?.data?.error || 'No se pudo registrar la asistencia',
-        icon: 'error'
+        text: errorMessage,
+        icon: 'error',
+        confirmButtonText: 'Entendido'
       });
+      
+      // Si es error de duplicado, limpiar selección para permitir nuevo intento
+      if (errorMessage.includes('Ya existe un registro')) {
+        setUsuarioSeleccionado(null);
+        if (modo === 'continuo') {
+          setTimeout(() => {
+            iniciarEscaneo();
+          }, 1000);
+        }
+      }
     } finally {
       setProcesando(false);
     }
