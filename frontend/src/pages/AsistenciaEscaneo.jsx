@@ -23,6 +23,8 @@ function AsistenciaEscaneo() {
   const html5QrCodeRef = useRef(null);
   const scannerId = useRef(null);
   const busquedaTimeoutRef = useRef(null);
+  const ultimoQRProcesado = useRef(null); // Prevenir procesar el mismo QR múltiples veces
+  const tiempoUltimoQR = useRef(0); // Timestamp del último QR procesado
 
   useEffect(() => {
     // Limpiar al desmontar
@@ -58,12 +60,27 @@ function AsistenciaEscaneo() {
   };
 
   const iniciarEscaneo = async () => {
+    // Prevenir iniciar si ya está escaneando o procesando
     if (escaneando) {
-      await detenerEscaneo();
+      console.log('⚠️ Ya está escaneando, ignorando inicio...');
+      return;
+    }
+    
+    if (procesando) {
+      console.log('⚠️ Hay un proceso en curso, esperando...');
       return;
     }
 
     try {
+      // Limpiar cualquier instancia anterior
+      if (html5QrCodeRef.current) {
+        try {
+          await html5QrCodeRef.current.stop();
+        } catch (e) {
+          // Ignorar errores al detener instancia anterior
+        }
+      }
+      
       const html5QrCode = new Html5Qrcode('qr-reader');
       html5QrCodeRef.current = html5QrCode;
 
@@ -76,11 +93,14 @@ function AsistenciaEscaneo() {
           qrbox: { width: 250, height: 250 }
         },
         (decodedText) => {
-          // QR escaneado exitosamente
-          procesarQR(decodedText);
+          // QR escaneado exitosamente - procesar solo si no está procesando otro
+          if (!procesando) {
+            procesarQR(decodedText);
+          }
         },
         (errorMessage) => {
-          // Ignorar errores de escaneo (solo log)
+          // Ignorar errores de escaneo (solo log en desarrollo)
+          // No hacer nada para evitar spam de errores
         }
       );
 
@@ -96,8 +116,22 @@ function AsistenciaEscaneo() {
   };
 
   const procesarQR = async (qrData) => {
-    if (procesando) return;
+    // Prevenir procesar si ya está procesando
+    if (procesando) {
+      console.log('⚠️ Ya hay un QR siendo procesado, ignorando...');
+      return;
+    }
     
+    // Prevenir procesar el mismo QR múltiples veces en menos de 2 segundos
+    const ahora = Date.now();
+    if (ultimoQRProcesado.current === qrData && (ahora - tiempoUltimoQR.current) < 2000) {
+      console.log('⚠️ QR ya procesado recientemente, ignorando...');
+      return;
+    }
+    
+    // Marcar como procesando
+    ultimoQRProcesado.current = qrData;
+    tiempoUltimoQR.current = ahora;
     setProcesando(true);
     
     try {
@@ -106,11 +140,16 @@ function AsistenciaEscaneo() {
         navigator.vibrate(200);
       }
 
-      // Detener escaneo temporalmente
+      // Detener escaneo temporalmente para evitar múltiples escaneos
       if (modo === 'continuo' && html5QrCodeRef.current) {
-        await detenerEscaneo();
+        try {
+          await detenerEscaneo();
+        } catch (error) {
+          console.warn('Error deteniendo escáner:', error);
+        }
       }
 
+      console.log('📱 Procesando QR:', qrData.substring(0, 20) + '...');
       const response = await api.post('/asistencia/escaneo', { qr_data: qrData });
       
       if (response.data.success) {
@@ -120,24 +159,38 @@ function AsistenciaEscaneo() {
         Swal.fire({
           title: 'Error',
           text: 'No se pudo procesar el QR',
-          icon: 'error'
+          icon: 'error',
+          confirmButtonText: 'Entendido'
         });
+        // Limpiar estado para permitir nuevo intento
+        ultimoQRProcesado.current = null;
+        tiempoUltimoQR.current = 0;
       }
     } catch (error) {
-      console.error('Error procesando QR:', error);
+      console.error('❌ Error procesando QR:', error);
+      const errorMessage = error.response?.data?.error || 'No se pudo procesar el QR. Intenta nuevamente.';
+      
       Swal.fire({
-        title: 'Error',
-        text: error.response?.data?.error || 'No se pudo procesar el QR',
-        icon: 'error'
+        title: 'Error al Escanear',
+        text: errorMessage,
+        icon: 'error',
+        confirmButtonText: 'Entendido'
       });
+      
+      // Limpiar estado para permitir nuevo intento
+      ultimoQRProcesado.current = null;
+      tiempoUltimoQR.current = 0;
     } finally {
       setProcesando(false);
       
-      // Reanudar escaneo si es modo continuo
+      // Reanudar escaneo si es modo continuo y no hay usuario seleccionado
       if (modo === 'continuo' && !usuarioSeleccionado) {
+        // Esperar un poco más antes de reanudar para evitar escaneos múltiples
         setTimeout(() => {
-          iniciarEscaneo();
-        }, 1000);
+          if (!procesando && !usuarioSeleccionado) {
+            iniciarEscaneo();
+          }
+        }, 1500); // Aumentado a 1.5 segundos
       }
     }
   };
@@ -175,8 +228,16 @@ function AsistenciaEscaneo() {
   };
 
   const registrarAsistencia = async (usuarioId, tipoUsuario, tipoRegistro) => {
+    // Prevenir múltiples registros simultáneos
+    if (procesando) {
+      console.log('⚠️ Ya hay un registro en proceso, ignorando...');
+      return;
+    }
+    
     try {
       setProcesando(true);
+      
+      console.log('📝 Registrando asistencia:', { usuarioId, tipoUsuario, tipoRegistro });
       
       const response = await api.post('/asistencia/registrar', {
         usuario_id: usuarioId,
@@ -204,34 +265,43 @@ function AsistenciaEscaneo() {
           showConfirmButton: false
         });
 
+        // Limpiar estado
         setUsuarioSeleccionado(null);
+        ultimoQRProcesado.current = null;
+        tiempoUltimoQR.current = 0;
         
-        // Reanudar escaneo si es modo continuo
+        // Reanudar escaneo si es modo continuo (con delay para evitar escaneos inmediatos)
         if (modo === 'continuo') {
           setTimeout(() => {
-            iniciarEscaneo();
-        }, 500);
+            if (!procesando && !usuarioSeleccionado) {
+              iniciarEscaneo();
+            }
+          }, 1500); // Aumentado a 1.5 segundos
         }
       }
     } catch (error) {
-      console.error('Error registrando asistencia:', error);
-      const errorMessage = error.response?.data?.error || 'No se pudo registrar la asistencia';
+      console.error('❌ Error registrando asistencia:', error);
+      const errorMessage = error.response?.data?.error || 'No se pudo registrar la asistencia. Intenta nuevamente.';
       
       Swal.fire({
-        title: 'Error',
+        title: 'Error al Registrar',
         text: errorMessage,
         icon: 'error',
         confirmButtonText: 'Entendido'
       });
       
-      // Si es error de duplicado, limpiar selección para permitir nuevo intento
-      if (errorMessage.includes('Ya existe un registro')) {
-        setUsuarioSeleccionado(null);
-        if (modo === 'continuo') {
-          setTimeout(() => {
+      // Limpiar estado para permitir nuevo intento
+      setUsuarioSeleccionado(null);
+      ultimoQRProcesado.current = null;
+      tiempoUltimoQR.current = 0;
+      
+      // Reanudar escaneo si es modo continuo (solo si no es error de duplicado)
+      if (modo === 'continuo' && !errorMessage.includes('Ya existe un registro')) {
+        setTimeout(() => {
+          if (!procesando && !usuarioSeleccionado) {
             iniciarEscaneo();
-          }, 1000);
-        }
+          }
+        }, 2000); // Esperar más tiempo después de un error
       }
     } finally {
       setProcesando(false);
