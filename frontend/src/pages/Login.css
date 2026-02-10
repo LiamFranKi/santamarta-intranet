@@ -367,6 +367,21 @@
 
   .login-form-right {
     padding: 2rem 1.5rem;
+    padding-top: 4.5rem; /* Más espacio arriba para el logo */
+  }
+
+  .form-logo-container {
+    top: 1rem; /* Reducir espacio superior */
+    right: 1rem;
+  }
+
+  .form-logo {
+    height: 45px; /* Logo más pequeño en móvil */
+    max-width: 90px;
+  }
+
+  .form-header {
+    margin-top: 0.5rem; /* Espacio adicional entre logo y título */
   }
 
   .form-header h2 {
