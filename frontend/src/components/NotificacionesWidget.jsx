@@ -60,10 +60,24 @@ function NotificacionesWidget() {
                   >
                     <div className="notificacion-icon">🔔</div>
                     <div className="notificacion-content">
-                      <h4>{notif.titulo}</h4>
-                      <p>{notif.mensaje}</p>
+                      <h4>{notif.titulo || 'Sin título'}</h4>
+                      {notif.mensaje && (
+                        <p>{notif.mensaje}</p>
+                      )}
+                      {!notif.mensaje && notif.descripcion && (
+                        <p>{notif.descripcion}</p>
+                      )}
+                      {!notif.mensaje && !notif.descripcion && notif.contenido && (
+                        <p>{notif.contenido}</p>
+                      )}
                       <span className="notificacion-fecha">
-                        {new Date(notif.fecha_hora || notif.fecha).toLocaleDateString('es-PE')}
+                        {new Date(notif.fecha_hora || notif.fecha || notif.fecha_creacion).toLocaleDateString('es-PE', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
                       </span>
                     </div>
                   </div>

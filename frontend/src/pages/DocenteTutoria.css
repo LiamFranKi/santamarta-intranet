@@ -440,12 +440,31 @@
 }
 
 @media (max-width: 768px) {
+  .docente-tutoria {
+    padding: 1rem;
+  }
+
+  .tutoria-content {
+    padding: 1rem;
+  }
+
   .grupos-table-container {
-    overflow-x: scroll;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-left: -1rem;
+    margin-right: -1rem;
+    padding: 0 1rem;
   }
 
   .grupos-table {
-    min-width: 600px;
+    min-width: 100%;
+    width: 100%;
+  }
+
+  .grupos-table th,
+  .grupos-table td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.85rem;
   }
 
   .alumnos-grid {
