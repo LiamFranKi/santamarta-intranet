@@ -312,7 +312,7 @@ router.post('/registrar', async (req, res) => {
       try {
         // Obtener apoderados del alumno
         const apoderados = await query(
-          `SELECT DISTINCT ap.id, ap.email, ap.nombres, ap.apellido_paterno, ap.apellido_materno
+          `SELECT DISTINCT ap.id, ap.email, ap.nombres, ap.apellido_paterno, ap.apellido_materno, ap.nro_documento
            FROM apoderados ap
            INNER JOIN familias f ON f.apoderado_id = ap.id
            WHERE f.alumno_id = ? AND ap.colegio_id = ? AND ap.email != '' AND ap.email IS NOT NULL`,
@@ -332,19 +332,47 @@ router.post('/registrar', async (req, res) => {
         const horaFormateada = moment().tz('America/Lima').format('HH:mm');
 
         // Obtener suscripciones push de los apoderados
+        // IMPORTANTE: También incluir docentes que son apoderados (mismo nro_documento)
         const apoderadoIds = apoderados.map(a => a.id);
+        const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni); // Obtener DNI de apoderados
+        
         let subscriptions = [];
-        if (apoderadoIds.length > 0) {
-          // Obtener usuarios de apoderados para buscar sus suscripciones
-          const usuariosApoderados = await query(
-            `SELECT u.id FROM usuarios u 
-             WHERE u.apoderado_id IN (${apoderadoIds.map(() => '?').join(',')}) 
-               AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
-            [...apoderadoIds, colegio_id]
-          );
+        if (apoderadoIds.length > 0 || apoderadoDnis.length > 0) {
+          let usuarioIds = [];
           
-          const usuarioIds = usuariosApoderados.map(u => u.id);
+          // 1. Obtener usuarios con apoderado_id (caso normal: apoderado con usuario tipo APODERADO)
+          if (apoderadoIds.length > 0) {
+            const usuariosApoderados = await query(
+              `SELECT u.id FROM usuarios u 
+               WHERE u.apoderado_id IN (${apoderadoIds.map(() => '?').join(',')}) 
+                 AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+              [...apoderadoIds, colegio_id]
+            );
+            usuarioIds.push(...usuariosApoderados.map(u => u.id));
+          }
+          
+          // 2. Obtener usuarios DOCENTE que también son apoderados (mismo nro_documento)
+          if (apoderadoDnis.length > 0) {
+            const usuariosDocentesApoderados = await query(
+              `SELECT DISTINCT u.id 
+               FROM usuarios u
+               INNER JOIN personal p ON p.id = u.personal_id
+               WHERE u.colegio_id = ? 
+                 AND u.estado = 'ACTIVO'
+                 AND u.tipo = 'DOCENTE'
+                 AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
+                      OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))`,
+              [colegio_id, ...apoderadoDnis, ...apoderadoDnis]
+            );
+            usuarioIds.push(...usuariosDocentesApoderados.map(u => u.id));
+            console.log(`📱 [ASISTENCIA] Encontrados ${usuariosDocentesApoderados.length} usuarios DOCENTE que también son apoderados`);
+          }
+          
+          // Eliminar duplicados
+          usuarioIds = [...new Set(usuarioIds)];
+          
           if (usuarioIds.length > 0) {
+            console.log(`📱 [ASISTENCIA] Buscando suscripciones push para ${usuarioIds.length} usuarios (apoderados + docentes-apoderados)`);
             const subscriptionsData = await query(
               `SELECT endpoint, p256dh, auth 
                FROM push_subscriptions 
@@ -361,7 +389,9 @@ router.post('/registrar', async (req, res) => {
               }
             }));
             
-            console.log(`📱 Encontradas ${subscriptions.length} suscripciones push para ${apoderados.length} apoderados`);
+            console.log(`📱 [ASISTENCIA] Encontradas ${subscriptions.length} suscripciones push para ${apoderados.length} apoderados (incluyendo docentes que son apoderados)`);
+          } else {
+            console.log(`⚠️ [ASISTENCIA] No se encontraron usuarios (ni apoderados ni docentes-apoderados) para las suscripciones push`);
           }
         }
 
