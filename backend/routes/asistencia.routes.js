@@ -304,9 +304,19 @@ router.post('/registrar', async (req, res) => {
       }
     }
 
-    // Enviar notificaciones si es alumno
+    // Enviar notificaciones según el tipo de usuario
     console.log(`📧 [ASISTENCIA] Verificando notificaciones para tipo_usuario: ${tipo_usuario}, datosUsuario:`, datosUsuario ? 'existe' : 'null');
     
+    // Obtener nombre del colegio (se usa tanto para ALUMNO como DOCENTE)
+    const colegio = await query(
+      `SELECT nombre FROM colegios WHERE id = ?`,
+      [colegio_id]
+    );
+    const colegioNombre = colegio.length > 0 ? colegio[0].nombre : 'Vanguard Schools';
+    const fechaFormateada = moment().tz('America/Lima').format('DD/MM/YYYY');
+    const horaFormateada = moment().tz('America/Lima').format('HH:mm');
+    
+    // ========== NOTIFICACIONES PARA ALUMNO ==========
     if (tipo_usuario === 'ALUMNO' && datosUsuario) {
       console.log(`📧 [ASISTENCIA] Iniciando proceso de notificaciones para alumno: ${datosUsuario.nombre_completo}`);
       try {
@@ -320,16 +330,6 @@ router.post('/registrar', async (req, res) => {
         );
         
         console.log(`📧 [ASISTENCIA] Encontrados ${apoderados.length} apoderados con email para el alumno`);
-
-        // Obtener nombre del colegio
-        const colegio = await query(
-          `SELECT nombre FROM colegios WHERE id = ?`,
-          [colegio_id]
-        );
-        const colegioNombre = colegio.length > 0 ? colegio[0].nombre : 'Vanguard Schools';
-
-        const fechaFormateada = moment().tz('America/Lima').format('DD/MM/YYYY');
-        const horaFormateada = moment().tz('America/Lima').format('HH:mm');
 
         // Obtener suscripciones push de los apoderados
         // IMPORTANTE: También incluir docentes que son apoderados (mismo nro_documento)
@@ -395,7 +395,7 @@ router.post('/registrar', async (req, res) => {
           }
         }
 
-        // Preparar payload de notificación
+        // Preparar payload de notificación para APODERADOS
         const mensajeConfig = mensajesConfig.asistencia[tipo_registro.toLowerCase()];
         const tituloNotificacion = mensajeConfig.titulo;
         const mensajeNotificacion = mensajeConfig.mensaje_corto
@@ -483,10 +483,94 @@ router.post('/registrar', async (req, res) => {
           }
         });
       } catch (error) {
-        console.error(`❌ [ASISTENCIA] Error preparando notificaciones:`, error);
+        console.error(`❌ [ASISTENCIA] Error preparando notificaciones de ALUMNO:`, error);
         // No fallar el registro si fallan las notificaciones
       }
-    } else {
+    }
+    
+    // ========== NOTIFICACIONES PARA DOCENTE ==========
+    if (tipo_usuario === 'DOCENTE' && datosUsuario) {
+      console.log(`📧 [ASISTENCIA] Iniciando proceso de notificaciones para docente: ${datosUsuario.nombre_completo}`);
+      try {
+        // Obtener suscripciones push del docente
+        const subscriptionsDocente = await query(
+          `SELECT endpoint, p256dh, auth 
+           FROM push_subscriptions 
+           WHERE usuario_id = ? 
+             AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+          [usuario_id, colegio_id]
+        );
+        
+        const subscriptions = subscriptionsDocente.map(sub => ({
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.p256dh,
+            auth: sub.auth
+          }
+        }));
+        
+        console.log(`📱 [ASISTENCIA] Encontradas ${subscriptions.length} suscripciones push para el docente`);
+
+        // Preparar payload de notificación para DOCENTE
+        const mensajeConfigDocente = mensajesConfig.docente[tipo_registro.toLowerCase()];
+        const tituloNotificacionDocente = mensajeConfigDocente.titulo;
+        const mensajeNotificacionDocente = mensajeConfigDocente.mensaje_corto
+          .replace('{hora}', horaFormateada)
+          .replace('{fecha}', fechaFormateada);
+
+        const payloadPushDocente = {
+          title: tituloNotificacionDocente,
+          body: mensajeNotificacionDocente,
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          vibrate: [200, 100, 200],
+          tag: `asistencia-docente-${tipo_registro}-${datosUsuario.id}`,
+          data: {
+            url: '/docente/dashboard',
+            tipo: 'asistencia_docente',
+            docente_id: datosUsuario.id
+          }
+        };
+
+        // Enviar notificaciones de forma ASÍNCRONA (sin bloquear la respuesta)
+        setImmediate(async () => {
+          try {
+            // Enviar push notifications al docente
+            if (subscriptions.length > 0) {
+              console.log(`📱 [ASISTENCIA] Enviando ${subscriptions.length} notificaciones push al docente (asíncrono)...`);
+              console.log(`📱 [ASISTENCIA] Payload docente:`, JSON.stringify(payloadPushDocente, null, 2));
+              
+              // No esperar a que terminen, solo iniciar el proceso
+              enviarPushNotificationMultiple(subscriptions, payloadPushDocente)
+                .then(resultadosPush => {
+                  const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
+                  const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
+                  console.log(`✅ [ASISTENCIA] Push notifications docente: ${exitosas} exitosas, ${fallidas} fallidas`);
+                  if (fallidas > 0) {
+                    console.log(`❌ [ASISTENCIA] Errores en push notifications docente:`, 
+                      resultadosPush.filter(r => !r.resultado || !r.resultado.success).map(r => r.resultado?.error || 'Error desconocido')
+                    );
+                  }
+                })
+                .catch(err => {
+                  console.error(`❌ [ASISTENCIA] Error en envío de push notifications docente:`, err);
+                });
+            } else {
+              console.log(`⚠️ [ASISTENCIA] No hay suscripciones push activas para el docente`);
+            }
+          } catch (error) {
+            console.error(`❌ [ASISTENCIA] Error en bloque de notificaciones docente (asíncrono):`, error);
+            console.error(`❌ [ASISTENCIA] Stack trace:`, error.stack);
+          }
+        });
+      } catch (error) {
+        console.error(`❌ [ASISTENCIA] Error preparando notificaciones de DOCENTE:`, error);
+        // No fallar el registro si fallan las notificaciones
+      }
+    }
+    
+    // Si no es ALUMNO ni DOCENTE, no enviar notificaciones
+    if (tipo_usuario !== 'ALUMNO' && tipo_usuario !== 'DOCENTE') {
       console.log(`⚠️ [ASISTENCIA] No se enviarán notificaciones: tipo_usuario=${tipo_usuario}, datosUsuario=${datosUsuario ? 'existe' : 'null'}`);
     }
 
