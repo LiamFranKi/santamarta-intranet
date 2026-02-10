@@ -3,13 +3,34 @@ const path = require('path');
 const fs = require('fs');
 
 // Configurar transporter de nodemailer
-const transporter = nodemailer.createTransport({
+const emailConfig = {
   host: process.env.EMAIL_HOST || 'smtp.gmail.com',
   port: parseInt(process.env.EMAIL_PORT || '587'),
   secure: false, // true para 465, false para otros puertos
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASSWORD
+  },
+  tls: {
+    rejectUnauthorized: false // Para desarrollo/producción con certificados auto-firmados
+  }
+};
+
+console.log(`📧 [EMAIL] Configuración de email:`, {
+  host: emailConfig.host,
+  port: emailConfig.port,
+  user: emailConfig.auth.user ? `${emailConfig.auth.user.substring(0, 3)}***` : 'NO CONFIGURADO',
+  hasPassword: !!emailConfig.auth.pass
+});
+
+const transporter = nodemailer.createTransport(emailConfig);
+
+// Verificar conexión al iniciar
+transporter.verify(function (error, success) {
+  if (error) {
+    console.error(`❌ [EMAIL] Error verificando conexión SMTP:`, error);
+  } else {
+    console.log(`✅ [EMAIL] Servidor SMTP listo para enviar correos`);
   }
 });
 
@@ -108,7 +129,15 @@ function generarTemplateAsistencia(datos) {
  */
 async function enviarCorreoAsistencia(destinatario, datos) {
   try {
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+      console.error(`❌ [EMAIL] Variables de entorno EMAIL_USER o EMAIL_PASSWORD no configuradas`);
+      return { success: false, error: 'Configuración de email incompleta' };
+    }
+
     const { nombreAlumno, hora, fecha, tipo, colegioNombre } = datos;
+    
+    console.log(`📧 [EMAIL] Preparando correo para: ${destinatario}`);
+    console.log(`📧 [EMAIL] Datos:`, { nombreAlumno, hora, fecha, tipo, colegioNombre });
     
     const template = generarTemplateAsistencia({
       nombreAlumno,
@@ -127,11 +156,13 @@ async function enviarCorreoAsistencia(destinatario, datos) {
       html: template
     };
 
+    console.log(`📧 [EMAIL] Enviando correo desde: ${process.env.EMAIL_USER} hacia: ${destinatario}`);
     const info = await transporter.sendMail(mailOptions);
-    console.log('✅ Correo enviado:', info.messageId);
+    console.log(`✅ [EMAIL] Correo enviado exitosamente. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error('❌ Error enviando correo:', error);
+    console.error(`❌ [EMAIL] Error enviando correo a ${destinatario}:`, error.message);
+    console.error(`❌ [EMAIL] Stack trace:`, error.stack);
     return { success: false, error: error.message };
   }
 }

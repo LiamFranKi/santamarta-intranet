@@ -184,7 +184,7 @@ router.post('/registrar', async (req, res) => {
 
     // Verificar registro existente
     const asistenciaExistente = await query(
-      `SELECT id, tipo_registro, hora_entrada, hora_salida
+      `SELECT id, tipo_registro, hora_entrada, hora_salida, fecha
        FROM asistencia_registros
        WHERE usuario_id = ? AND colegio_id = ? AND fecha = ? AND anio = ?
        ORDER BY id DESC
@@ -192,24 +192,57 @@ router.post('/registrar', async (req, res) => {
       [usuario_id, colegio_id, fechaHoy, anio_activo]
     );
 
+    console.log(`📋 [ASISTENCIA] Registrando ${tipo_registro} para usuario ${usuario_id} en fecha ${fechaHoy}`);
+    if (asistenciaExistente.length > 0) {
+      console.log(`📋 [ASISTENCIA] Registro existente encontrado:`, {
+        id: asistenciaExistente[0].id,
+        tipo_registro: asistenciaExistente[0].tipo_registro,
+        hora_entrada: asistenciaExistente[0].hora_entrada,
+        hora_salida: asistenciaExistente[0].hora_salida
+      });
+    }
+
     let resultado;
 
     if (asistenciaExistente.length > 0) {
-      // Actualizar registro existente (agregar salida)
-      if (tipo_registro === 'SALIDA' && asistenciaExistente[0].hora_entrada && !asistenciaExistente[0].hora_salida) {
+      const registro = asistenciaExistente[0];
+      
+      // CASO 1: Intentar registrar ENTRADA cuando ya existe una entrada HOY
+      if (tipo_registro === 'ENTRADA' && registro.hora_entrada) {
+        console.log(`❌ [ASISTENCIA] Ya existe una entrada registrada hoy para este usuario`);
+        return res.status(400).json({ 
+          error: 'Ya existe un registro de entrada para hoy. No se puede registrar otra entrada.' 
+        });
+      }
+      
+      // CASO 2: Intentar registrar SALIDA cuando ya existe entrada pero NO salida (CORRECTO - actualizar)
+      if (tipo_registro === 'SALIDA' && registro.hora_entrada && !registro.hora_salida) {
+        console.log(`✅ [ASISTENCIA] Actualizando registro existente: agregando salida`);
         await execute(
           `UPDATE asistencia_registros
            SET hora_salida = ?, tipo_registro = 'ENTRADA_SALIDA', actualizado_por = ?, fecha_actualizacion = NOW()
            WHERE id = ?`,
-          [horaActual, asistencia_usuario_id, asistenciaExistente[0].id]
+          [horaActual, asistencia_usuario_id, registro.id]
         );
-        resultado = { id: asistenciaExistente[0].id, tipo: 'SALIDA', hora: horaActual };
-      } else {
+        resultado = { id: registro.id, tipo: 'SALIDA', hora: horaActual };
+      } 
+      // CASO 3: Intentar registrar SALIDA cuando ya tiene entrada Y salida
+      else if (tipo_registro === 'SALIDA' && registro.hora_entrada && registro.hora_salida) {
+        console.log(`❌ [ASISTENCIA] Ya existe entrada y salida registradas hoy para este usuario`);
+        return res.status(400).json({ 
+          error: 'Ya existe un registro completo (entrada y salida) para hoy.' 
+        });
+      }
+      // CASO 4: Cualquier otro caso (no debería pasar)
+      else {
+        console.log(`❌ [ASISTENCIA] Estado de registro inválido:`, registro);
         return res.status(400).json({ error: 'Ya existe un registro de este tipo para hoy' });
       }
     } else {
-      // Crear nuevo registro
+      // No hay registro existente HOY
+      // CASO 5: Registrar ENTRADA (primera vez hoy) - PERMITIDO
       if (tipo_registro === 'ENTRADA') {
+        console.log(`✅ [ASISTENCIA] Creando nuevo registro de ENTRADA`);
         const insertResult = await execute(
           `INSERT INTO asistencia_registros 
            (usuario_id, colegio_id, anio, fecha, tipo_registro, hora_entrada, creado_por, fecha_creacion)
@@ -217,7 +250,10 @@ router.post('/registrar', async (req, res) => {
           [usuario_id, colegio_id, anio_activo, fechaHoy, tipo_registro, horaActual, asistencia_usuario_id]
         );
         resultado = { id: insertResult.insertId, tipo: 'ENTRADA', hora: horaActual };
-      } else {
+      } 
+      // CASO 6: Intentar registrar SALIDA sin entrada previa - RECHAZAR
+      else {
+        console.log(`❌ [ASISTENCIA] No se puede registrar salida sin entrada previa`);
         return res.status(400).json({ error: 'No se puede registrar salida sin entrada previa' });
       }
     }
@@ -255,7 +291,10 @@ router.post('/registrar', async (req, res) => {
     }
 
     // Enviar notificaciones si es alumno
+    console.log(`📧 [ASISTENCIA] Verificando notificaciones para tipo_usuario: ${tipo_usuario}, datosUsuario:`, datosUsuario ? 'existe' : 'null');
+    
     if (tipo_usuario === 'ALUMNO' && datosUsuario) {
+      console.log(`📧 [ASISTENCIA] Iniciando proceso de notificaciones para alumno: ${datosUsuario.nombre_completo}`);
       try {
         // Obtener apoderados del alumno
         const apoderados = await query(
@@ -265,6 +304,8 @@ router.post('/registrar', async (req, res) => {
            WHERE f.alumno_id = ? AND ap.colegio_id = ? AND ap.email != '' AND ap.email IS NOT NULL`,
           [datosUsuario.id, colegio_id]
         );
+        
+        console.log(`📧 [ASISTENCIA] Encontrados ${apoderados.length} apoderados con email para el alumno`);
 
         // Obtener nombre del colegio
         const colegio = await query(
@@ -333,42 +374,58 @@ router.post('/registrar', async (req, res) => {
         };
 
         // Enviar correos a apoderados
-        console.log(`📧 Enviando correos a ${apoderados.length} apoderados...`);
-        for (const apoderado of apoderados) {
-          if (apoderado.email) {
-            try {
-              const resultadoCorreo = await enviarCorreoAsistencia(apoderado.email, {
-                nombreAlumno: datosUsuario.nombre_completo,
-                hora: horaFormateada,
-                fecha: fechaFormateada,
-                tipo: tipo_registro,
-                colegioNombre
-              });
-              if (resultadoCorreo.success) {
-                console.log(`✅ Correo enviado a ${apoderado.email}`);
-              } else {
-                console.error(`❌ Error enviando correo a ${apoderado.email}:`, resultadoCorreo.error);
+        if (apoderados.length > 0) {
+          console.log(`📧 [ASISTENCIA] Enviando correos a ${apoderados.length} apoderados...`);
+          for (const apoderado of apoderados) {
+            if (apoderado.email) {
+              try {
+                console.log(`📧 [ASISTENCIA] Enviando correo a: ${apoderado.email}`);
+                const resultadoCorreo = await enviarCorreoAsistencia(apoderado.email, {
+                  nombreAlumno: datosUsuario.nombre_completo,
+                  hora: horaFormateada,
+                  fecha: fechaFormateada,
+                  tipo: tipo_registro,
+                  colegioNombre
+                });
+                if (resultadoCorreo.success) {
+                  console.log(`✅ [ASISTENCIA] Correo enviado exitosamente a ${apoderado.email}`);
+                } else {
+                  console.error(`❌ [ASISTENCIA] Error enviando correo a ${apoderado.email}:`, resultadoCorreo.error);
+                }
+              } catch (error) {
+                console.error(`❌ [ASISTENCIA] Excepción al enviar correo a ${apoderado.email}:`, error.message);
               }
-            } catch (error) {
-              console.error(`❌ Error enviando correo a ${apoderado.email}:`, error);
+            } else {
+              console.log(`⚠️ [ASISTENCIA] Apoderado ${apoderado.id} no tiene email configurado`);
             }
           }
+        } else {
+          console.log(`⚠️ [ASISTENCIA] No se encontraron apoderados con email para este alumno`);
         }
 
         // Enviar push notifications a todos los apoderados suscritos
         if (subscriptions.length > 0) {
-          console.log(`📱 Enviando ${subscriptions.length} notificaciones push...`);
+          console.log(`📱 [ASISTENCIA] Enviando ${subscriptions.length} notificaciones push...`);
+          console.log(`📱 [ASISTENCIA] Payload:`, JSON.stringify(payloadPush, null, 2));
           const resultadosPush = await enviarPushNotificationMultiple(subscriptions, payloadPush);
-          const exitosas = resultadosPush.filter(r => r.resultado.success).length;
-          const fallidas = resultadosPush.filter(r => !r.resultado.success).length;
-          console.log(`✅ Push notifications: ${exitosas} exitosas, ${fallidas} fallidas`);
+          const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
+          const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
+          console.log(`✅ [ASISTENCIA] Push notifications: ${exitosas} exitosas, ${fallidas} fallidas`);
+          if (fallidas > 0) {
+            console.log(`❌ [ASISTENCIA] Errores en push notifications:`, 
+              resultadosPush.filter(r => !r.resultado || !r.resultado.success).map(r => r.resultado?.error || 'Error desconocido')
+            );
+          }
         } else {
-          console.log('⚠️ No hay suscripciones push activas para enviar notificaciones');
+          console.log(`⚠️ [ASISTENCIA] No hay suscripciones push activas para enviar notificaciones`);
         }
       } catch (error) {
-        console.error('Error enviando notificaciones:', error);
+        console.error(`❌ [ASISTENCIA] Error en bloque de notificaciones:`, error);
+        console.error(`❌ [ASISTENCIA] Stack trace:`, error.stack);
         // No fallar el registro si fallan las notificaciones
       }
+    } else {
+      console.log(`⚠️ [ASISTENCIA] No se enviarán notificaciones: tipo_usuario=${tipo_usuario}, datosUsuario=${datosUsuario ? 'existe' : 'null'}`);
     }
 
     res.json({
