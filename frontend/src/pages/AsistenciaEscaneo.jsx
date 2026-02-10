@@ -18,6 +18,7 @@ function AsistenciaEscaneo() {
   const [procesando, setProcesando] = useState(false);
   const [historial, setHistorial] = useState([]);
   const [buscando, setBuscando] = useState(false);
+  const [camaraSeleccionada, setCamaraSeleccionada] = useState('environment'); // 'environment' (trasera) o 'user' (frontal)
   
   const qrCodeRef = useRef(null);
   const html5QrCodeRef = useRef(null);
@@ -46,6 +47,22 @@ function AsistenciaEscaneo() {
       detenerEscaneo();
     }
   }, [modo]);
+
+  // Reiniciar escaneo cuando cambia la cámara seleccionada
+  useEffect(() => {
+    if (escaneando && modo === 'continuo') {
+      // Si está escaneando y cambia la cámara, reiniciar con la nueva cámara
+      const reiniciarConNuevaCamara = async () => {
+        await detenerEscaneo();
+        setTimeout(() => {
+          if (modo === 'continuo' && !procesando && !mostrarBusqueda) {
+            iniciarEscaneo();
+          }
+        }, 500);
+      };
+      reiniciarConNuevaCamara();
+    }
+  }, [camaraSeleccionada]);
 
   const detenerEscaneo = async () => {
     if (html5QrCodeRef.current) {
@@ -86,7 +103,7 @@ function AsistenciaEscaneo() {
 
       await html5QrCode.start(
         {
-          facingMode: 'environment' // Cámara trasera
+          facingMode: camaraSeleccionada // Usar la cámara seleccionada
         },
         {
           fps: 10,
@@ -395,6 +412,15 @@ function AsistenciaEscaneo() {
           <h1>📱 Escáner de Asistencia</h1>
         </div>
         <div className="header-right">
+          <button
+            className="btn-cambiar-camara"
+            onClick={() => {
+              setCamaraSeleccionada(prev => prev === 'environment' ? 'user' : 'environment');
+            }}
+            title={camaraSeleccionada === 'environment' ? 'Cambiar a cámara frontal' : 'Cambiar a cámara trasera'}
+          >
+            {camaraSeleccionada === 'environment' ? '📷' : '🤳'}
+          </button>
           <select 
             className="modo-select"
             value={modo}

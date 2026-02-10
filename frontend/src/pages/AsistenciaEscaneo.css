@@ -45,6 +45,7 @@
   border-color: #667eea;
 }
 
+.btn-cambiar-camara,
 .btn-buscar,
 .btn-cerrar-sesion {
   padding: 0.5rem 1rem;
@@ -54,6 +55,22 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s;
+}
+
+.btn-cambiar-camara {
+  background: #10b981;
+  color: white;
+  font-size: 1.2rem;
+  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-cambiar-camara:hover {
+  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
 }
 
 .btn-buscar {
