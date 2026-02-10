@@ -8,6 +8,221 @@ const PDFDocument = require('pdfkit');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { registrarAccion } = require('../utils/auditoria');
 const { uploadToPHPServer } = require('../utils/ftpUpload');
+const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
+
+/**
+ * Función auxiliar para crear notificaciones de Aula Virtual
+ * @param {Object} params - Parámetros de la notificación
+ * @param {number} params.asignatura_id - ID de la asignatura
+ * @param {string} params.tipo - Tipo de contenido: 'tema', 'tarea', 'examen', 'video', 'enlace'
+ * @param {string} params.nombre - Nombre/título del contenido
+ * @param {number} params.usuario_id - ID del usuario que crea (docente)
+ * @param {number} params.colegio_id - ID del colegio
+ * @param {number} params.anio_activo - Año activo
+ * @param {string} params.docente_nombre - Nombre del docente (opcional, se obtiene si no se proporciona)
+ * @param {string} params.fecha_entrega - Fecha de entrega (solo para tareas)
+ * @param {number} params.entidad_id - ID de la entidad creada (tema/tarea/examen/video/enlace)
+ */
+async function crearNotificacionesAulaVirtual(params) {
+  const { asignatura_id, tipo, nombre, usuario_id, colegio_id, anio_activo, docente_nombre, fecha_entrega, entidad_id } = params;
+  
+  try {
+    console.log(`📚 [AULA VIRTUAL] Iniciando notificaciones para ${tipo}: "${nombre}"`);
+    
+    // Obtener información de la asignatura (grupo y curso)
+    const asignaturaInfo = await query(
+      `SELECT a.grupo_id, a.curso_id, c.nombre as curso_nombre,
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre_completo
+       FROM asignaturas a
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN personal p ON p.id = a.personal_id
+       WHERE a.id = ? AND a.colegio_id = ?`,
+      [asignatura_id, colegio_id]
+    );
+    
+    if (asignaturaInfo.length === 0) {
+      console.error(`❌ [AULA VIRTUAL] Asignatura ${asignatura_id} no encontrada`);
+      return;
+    }
+    
+    const { grupo_id, curso_nombre, docente_nombre_completo } = asignaturaInfo[0];
+    const nombreDocente = docente_nombre || docente_nombre_completo || 'Un docente';
+    
+    // Preparar título y mensaje según el tipo
+    let tituloNotificacion = '';
+    let mensajeNotificacion = '';
+    
+    switch (tipo) {
+      case 'tema':
+        tituloNotificacion = 'Nuevo Tema';
+        mensajeNotificacion = `Curso: ${curso_nombre} - Tema: ${nombre} - Docente: ${nombreDocente}`;
+        break;
+      case 'tarea':
+        tituloNotificacion = 'Nueva Tarea';
+        const fechaEntregaTexto = fecha_entrega ? ` - Fecha de entrega: ${fecha_entrega}` : '';
+        mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}${fechaEntregaTexto}`;
+        break;
+      case 'examen':
+        tituloNotificacion = 'Nuevo Examen';
+        mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
+        break;
+      case 'video':
+        tituloNotificacion = 'Nuevo Video';
+        mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
+        break;
+      case 'enlace':
+        tituloNotificacion = 'Nuevo Enlace de Ayuda';
+        mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
+        break;
+      default:
+        tituloNotificacion = 'Nueva Actividad';
+        mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
+    }
+    
+    // Obtener alumnos del grupo
+    const alumnos = await query(
+      `SELECT DISTINCT a.id as alumno_id, u.id as usuario_id
+       FROM alumnos a
+       INNER JOIN matriculas m ON m.alumno_id = a.id
+       INNER JOIN usuarios u ON u.alumno_id = a.id
+       WHERE m.grupo_id = ? 
+         AND m.colegio_id = ?
+         AND (m.estado = 0 OR m.estado = 4)
+         AND u.colegio_id = ?
+         AND u.estado = 'ACTIVO'`,
+      [grupo_id, colegio_id, colegio_id]
+    );
+    
+    const alumnoIds = alumnos.map(a => a.alumno_id);
+    const alumnoUsuarioIds = alumnos.map(a => a.usuario_id);
+    
+    // Obtener apoderados de esos alumnos
+    let apoderadoUsuarioIds = [];
+    if (alumnoIds.length > 0) {
+      const apoderados = await query(
+        `SELECT DISTINCT u.id as usuario_id, ap.nro_documento
+         FROM apoderados ap
+         INNER JOIN familias f ON f.apoderado_id = ap.id
+         INNER JOIN usuarios u ON u.apoderado_id = ap.id
+         WHERE f.alumno_id IN (${alumnoIds.map(() => '?').join(',')})
+           AND ap.colegio_id = ?
+           AND u.colegio_id = ?
+           AND u.estado = 'ACTIVO'`,
+        [...alumnoIds, colegio_id, colegio_id]
+      );
+      apoderadoUsuarioIds = apoderados.map(a => a.usuario_id);
+      
+      // Obtener DNI de apoderados para buscar docentes-apoderados
+      const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
+      
+      if (apoderadoDnis.length > 0) {
+        // Obtener usuarios DOCENTE que también son apoderados (mismo nro_documento)
+        const docentesApoderados = await query(
+          `SELECT DISTINCT u.id 
+           FROM usuarios u
+           INNER JOIN personal p ON p.id = u.personal_id
+           WHERE u.colegio_id = ? 
+             AND u.estado = 'ACTIVO'
+             AND u.tipo = 'DOCENTE'
+             AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
+                  OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))
+             AND u.id NOT IN (${[...alumnoUsuarioIds, ...apoderadoUsuarioIds].map(() => '?').join(',')})`, // Evitar duplicados
+          [colegio_id, ...apoderadoDnis, ...apoderadoDnis, ...alumnoUsuarioIds, ...apoderadoUsuarioIds]
+        );
+        
+        const docentesApoderadosIds = docentesApoderados.map(u => u.id);
+        apoderadoUsuarioIds = [...apoderadoUsuarioIds, ...docentesApoderadosIds];
+        
+        if (docentesApoderadosIds.length > 0) {
+          console.log(`📚 [AULA VIRTUAL] Encontrados ${docentesApoderadosIds.length} docentes que también son apoderados`);
+        }
+      }
+    }
+    
+    // Combinar todos los destinatarios (alumnos + apoderados + docentes-apoderados)
+    const todosDestinatarios = [...new Set([...alumnoUsuarioIds, ...apoderadoUsuarioIds])];
+    
+    console.log(`📚 [AULA VIRTUAL] Encontrados ${todosDestinatarios.length} destinatarios (${alumnoUsuarioIds.length} alumnos, ${apoderadoUsuarioIds.length} apoderados incluyendo docentes)`);
+    
+    // Crear notificaciones en la BD
+    if (todosDestinatarios.length > 0) {
+      for (const destinatarioId of todosDestinatarios) {
+        try {
+          await execute(
+            `INSERT INTO notificaciones 
+             (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
+             VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
+            [
+              usuario_id, // Usuario que crea (docente)
+              destinatarioId, // Destinatario
+              tituloNotificacion, // TÍTULO (asunto)
+              mensajeNotificacion // MENSAJE (contenido)
+            ]
+          );
+        } catch (error) {
+          console.error(`❌ [AULA VIRTUAL] Error creando notificación para usuario ${destinatarioId}:`, error);
+        }
+      }
+      
+      console.log(`✅ [AULA VIRTUAL] ${todosDestinatarios.length} notificaciones creadas en BD`);
+      
+      // Enviar push notifications
+      if (todosDestinatarios.length > 0) {
+        const subscriptionsData = await query(
+          `SELECT endpoint, p256dh, auth 
+           FROM push_subscriptions 
+           WHERE usuario_id IN (${todosDestinatarios.map(() => '?').join(',')}) 
+             AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+          [...todosDestinatarios, colegio_id]
+        );
+        
+        const subscriptions = subscriptionsData.map(sub => ({
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.p256dh,
+            auth: sub.auth
+          }
+        }));
+        
+        if (subscriptions.length > 0) {
+          const payloadPush = {
+            title: tituloNotificacion,
+            body: mensajeNotificacion,
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-192x192.png',
+            vibrate: [200, 100, 200],
+            tag: `aula-virtual-${tipo}-${entidad_id || Date.now()}`,
+            data: {
+              url: '/alumno/dashboard',
+              tipo: `aula_virtual_${tipo}`,
+              asignatura_id: asignatura_id,
+              entidad_id: entidad_id
+            }
+          };
+          
+          console.log(`📱 [AULA VIRTUAL] Enviando ${subscriptions.length} push notifications...`);
+          
+          enviarPushNotificationMultiple(subscriptions, payloadPush)
+            .then(resultadosPush => {
+              const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
+              const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
+              console.log(`✅ [AULA VIRTUAL] Push notifications: ${exitosas} exitosas, ${fallidas} fallidas`);
+            })
+            .catch(err => {
+              console.error(`❌ [AULA VIRTUAL] Error en envío de push notifications:`, err);
+            });
+        } else {
+          console.log('⚠️ [AULA VIRTUAL] No hay suscripciones push activas para enviar notificaciones');
+        }
+      }
+    } else {
+      console.log('⚠️ [AULA VIRTUAL] No se encontraron destinatarios para notificar');
+    }
+  } catch (error) {
+    console.error(`❌ [AULA VIRTUAL] Error en proceso de notificaciones:`, error);
+    console.error(`❌ [AULA VIRTUAL] Stack:`, error.stack);
+  }
+}
 
 // Configurar multer para subir fotos de personal
 const personalStorage = multer.diskStorage({
@@ -6467,6 +6682,20 @@ router.post('/aula-virtual/tareas', uploadAulaVirtual.single('archivo'), async (
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
 
+    // Crear notificaciones de forma asíncrona
+    setImmediate(async () => {
+      await crearNotificacionesAulaVirtual({
+        asignatura_id,
+        tipo: 'tarea',
+        nombre: titulo,
+        usuario_id,
+        colegio_id,
+        anio_activo,
+        fecha_entrega: fecha_entrega,
+        entidad_id: result.insertId
+      });
+    });
+
     res.json({ 
       message: 'Tarea creada correctamente',
       id: result.insertId 
@@ -7861,6 +8090,19 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
 
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
+    
+    // Crear notificaciones de forma asíncrona
+    setImmediate(async () => {
+      await crearNotificacionesAulaVirtual({
+        asignatura_id,
+        tipo: 'examen',
+        nombre: titulo,
+        usuario_id,
+        colegio_id,
+        anio_activo,
+        entidad_id: result.insertId
+      });
+    });
     
     res.json({ 
       success: true, 
@@ -9739,6 +9981,19 @@ router.post('/aula-virtual/archivos', uploadAulaVirtual.single('archivo'), async
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
 
+    // Crear notificaciones de forma asíncrona
+    setImmediate(async () => {
+      await crearNotificacionesAulaVirtual({
+        asignatura_id,
+        tipo: 'tema',
+        nombre: nombre,
+        usuario_id,
+        colegio_id,
+        anio_activo,
+        entidad_id: result.insertId
+      });
+    });
+
     res.json({ 
       message: 'Tema creado correctamente',
       id: result.insertId 
@@ -10116,6 +10371,19 @@ router.post('/aula-virtual/videos', async (req, res) => {
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
 
+    // Crear notificaciones de forma asíncrona
+    setImmediate(async () => {
+      await crearNotificacionesAulaVirtual({
+        asignatura_id,
+        tipo: 'video',
+        nombre: descripcion,
+        usuario_id,
+        colegio_id,
+        anio_activo,
+        entidad_id: result.insertId
+      });
+    });
+
     res.json({ 
       success: true, 
       message: 'Video creado correctamente',
@@ -10385,6 +10653,19 @@ router.post('/aula-virtual/enlaces', async (req, res) => {
 
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
+
+    // Crear notificaciones de forma asíncrona
+    setImmediate(async () => {
+      await crearNotificacionesAulaVirtual({
+        asignatura_id,
+        tipo: 'enlace',
+        nombre: descripcion,
+        usuario_id,
+        colegio_id,
+        anio_activo,
+        entidad_id: result.insertId
+      });
+    });
 
     res.json({ 
       success: true, 
