@@ -77,70 +77,76 @@
   color: #9ca3af;
 }
 
-.grupos-table-container {
-  overflow-x: auto;
-  overflow-y: visible;
-  position: relative;
-  overflow: visible;
-}
-
-.grupos-table-container::-webkit-scrollbar {
-  height: 8px;
-}
-
-.grupos-table-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
-}
-
-.grupos-table-container::-webkit-scrollbar-thumb {
-  background: #4a83c1;
-  border-radius: 4px;
-}
-
-.grupos-table {
-  width: 100%;
-  border-collapse: collapse;
-  position: relative;
-}
-
-.grupos-table td {
-  position: relative;
-}
-
-.grupos-table thead {
-  background: linear-gradient(135deg, #6ba3d4 0%, #4a83c1 100%);
-  color: white;
-}
-
-.grupos-table th {
+/* Cards Container para Grupos */
+.grupos-cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
   padding: 1rem;
-  text-align: center;
+}
+
+/* Card de Grupo */
+.grupo-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.2rem 1.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  color: #333;
+  min-height: 100px;
+}
+
+.grupo-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.grupo-card-info {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.grupo-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.grupo-grado-seccion {
+  font-size: 1.15rem;
   font-weight: 700;
+  color: #2c3e50;
+}
+
+.grupo-nivel {
   font-size: 0.9rem;
-  text-transform: uppercase;
+  color: #555;
+  font-weight: 600;
 }
 
-.grupos-table td {
-  padding: 1rem;
-  border-bottom: 1px solid #e5e7eb;
-  text-align: center;
-  position: relative;
-  overflow: visible;
+.grupo-turno {
+  font-size: 0.85rem;
+  color: #666;
 }
 
-.grupos-table tbody tr:nth-child(even) {
-  background: rgba(219, 234, 254, 0.3);
+.grupo-card-alumnos {
+  margin-top: 0.5rem;
 }
 
-.grupos-table tbody tr:nth-child(odd) {
-  background: white;
+.grupo-alumnos-count {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
 }
 
-.grupos-table tbody tr:hover {
-  background: rgba(74, 131, 193, 0.2) !important;
-  /* Eliminado transform: scale para evitar interferencia con dropdown */
-  transition: background 0.2s ease;
+.grupo-card-actions {
+  flex-shrink: 0;
+  margin-left: 1rem;
 }
 
 /* Dropdown Container */
@@ -430,143 +436,69 @@
   color: #4a83c1;
 }
 
-.alumnos-table-container {
-  overflow-y: auto;
-  overflow-x: auto;
-  flex: 1;
-  padding-right: 0.5rem;
-  position: relative;
-  /* NO usar isolation: isolate porque recorta el dropdown con position: fixed */
-  /* Asegurar que no recorte contenido con position fixed */
-  contain: none;
+/* Cards Container para Alumnos */
+.alumnos-cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 1rem;
 }
 
-/* Asegurar que la tabla no recorte el dropdown */
-.alumnos-list-section {
-  overflow: visible !important;
-  contain: none !important;
+/* Card de Alumno */
+.alumno-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.2rem 1.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  color: #333;
+  min-height: 100px;
 }
 
-/* Scrollbar personalizado para el panel de alumnos - delgado y color blanco */
-.alumnos-table-container::-webkit-scrollbar {
-  width: 4px;
+.alumno-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
 }
 
-.alumnos-table-container::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
+.alumno-card-info {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.alumnos-table-container::-webkit-scrollbar-thumb {
-  background: #ffffff;
-  border-radius: 10px;
+.alumno-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.alumnos-table-container::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.9);
-}
-
-/* Scrollbar para la sección completa */
-.alumnos-section::-webkit-scrollbar {
-  width: 4px;
-}
-
-.alumnos-section::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-}
-
-.alumnos-section::-webkit-scrollbar-thumb {
-  background: #ffffff;
-  border-radius: 10px;
-}
-
-.alumnos-section::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.alumnos-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.alumnos-table thead {
-  background: rgba(74, 131, 193, 0.1);
-  position: sticky;
-  top: 0;
-}
-
-.alumnos-table th {
-  padding: 0.75rem 0.5rem;
-  text-align: center;
+.alumno-nombre {
+  font-size: 1rem;
   font-weight: 700;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  background: #4a83c1;
-  color: white;
+  color: #2c3e50;
+  line-height: 1.4;
 }
 
-.alumnos-table th:nth-child(1) {
-  min-width: 250px;
-  width: 35%;
+.alumno-card-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
 }
 
-.alumnos-table th:nth-child(2),
-.alumnos-table th:nth-child(3) {
-  min-width: 120px;
-  width: 15%;
-}
-
-.alumnos-table th:nth-child(4) {
-  min-width: 180px;
-  width: 20%;
-}
-
-.alumnos-table td:nth-child(1) {
-  text-align: left;
-  padding-left: 1rem;
-}
-
-.alumnos-table td {
-  padding: 0.75rem 0.5rem;
-  border-bottom: 1px solid #e5e7eb;
+.alumno-fecha,
+.alumno-telefono {
   font-size: 0.85rem;
-  text-align: center;
-  position: relative;
-  overflow: visible;
+  color: #666;
+  font-weight: 500;
 }
 
-/* Asegurar que la última columna (con dropdown) tenga overflow visible */
-.alumnos-table td:last-child {
-  overflow: visible !important;
-  position: relative;
-  z-index: auto !important;
-}
-
-/* Botón de opciones debe tener z-index normal cuando está cerrado */
-.btn-opciones-dropdown {
-  position: relative;
-  z-index: 1;
-}
-
-/* Cuando el dropdown está abierto, el botón debe estar por encima */
-.alumnos-table tbody tr:has(.dropdown-menu-alumno) .btn-opciones-dropdown,
-.alumnos-table tbody tr .btn-opciones-dropdown:focus {
-  z-index: 99998;
-}
-
-.alumnos-table tbody tr:nth-child(even) {
-  background: rgba(215, 234, 254, 0.4);
-}
-
-.alumnos-table tbody tr:nth-child(odd) {
-  background: white;
-}
-
-.alumnos-table tbody tr:hover {
-  background: rgba(74, 131, 193, 0.2) !important;
-  transform: scale(1.01);
-  transition: all 0.2s ease;
+.alumno-card-actions {
+  flex-shrink: 0;
+  margin-left: 1rem;
 }
 
 .estado-badge {
@@ -602,9 +534,38 @@
     padding: 1rem;
   }
 
-  .grupos-table-container,
-  .alumnos-table-container {
-    overflow-x: auto;
+  .grupos-cards-container,
+  .alumnos-cards-container {
+    grid-template-columns: 1fr;
+    padding: 0.75rem;
+    gap: 1rem;
+  }
+
+  .grupo-card,
+  .alumno-card {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1rem;
+    min-height: unset;
+  }
+
+  .grupo-card-info,
+  .alumno-card-info {
+    width: 100%;
+    margin-bottom: 0.75rem;
+  }
+
+  .grupo-card-actions,
+  .alumno-card-actions {
+    width: 100%;
+    margin-left: 0;
+    text-align: center;
+  }
+
+  .grupo-card-actions .btn-opciones-dropdown,
+  .alumno-card-actions .btn-opciones-dropdown {
+    width: 100%;
+    justify-content: center;
   }
 
   .alumnos-header-section {
@@ -630,12 +591,6 @@
 
   .btn-regresar {
     padding: 0.45rem 0.85rem;
-    font-size: 0.85rem;
-  }
-
-  .grupos-table th,
-  .grupos-table td {
-    padding: 0.75rem 0.5rem;
     font-size: 0.85rem;
   }
 

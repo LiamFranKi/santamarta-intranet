@@ -484,129 +484,138 @@ function DocenteGrupos() {
               </div>
             </div>
 
-            <div className="grupos-table-container">
-              <table className="grupos-table">
-                <thead>
-                  <tr>
-                    <th>GRADO</th>
-                    <th>SECCIÓN</th>
-                    <th>NIVEL</th>
-                    <th>TURNO</th>
-                    <th>ALUMNOS</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gruposFiltrados.length > 0 ? (
-                    gruposFiltrados.map((grupo) => (
-                      <tr key={grupo.id}>
-                        <td>{grupo.grado}°</td>
-                        <td>{grupo.seccion}</td>
-                        <td>{grupo.nivel_nombre}</td>
-                        <td>{grupo.turno_nombre}</td>
-                        <td>{grupo.total_alumnos || 0}</td>
-                        <td>
-                          <div className="dropdown-container">
-                            <button
-                              className="btn-opciones-dropdown"
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                if (openDropdownGrupo?.id === grupo.id) {
-                                  setOpenDropdownGrupo(null);
-                                } else {
-                                  // Cerrar otros dropdowns primero
-                                  // Calcular posición: justo debajo del botón
-                                  const dropdownWidth = 180;
-                                  let left = rect.left;
-                                  // Si el dropdown se sale por la derecha, ajustar
-                                  if (left + dropdownWidth > window.innerWidth) {
-                                    left = window.innerWidth - dropdownWidth - 10;
-                                  }
-                                  // Asegurar que no se salga por la izquierda
-                                  if (left < 10) {
-                                    left = 10;
-                                  }
-                                  setOpenDropdownGrupo({ 
-                                    id: grupo.id, 
-                                    top: rect.bottom + 2, 
-                                    left: left
-                                  });
+            <div className="grupos-cards-container">
+              {gruposFiltrados.length > 0 ? (
+                gruposFiltrados.map((grupo, index) => {
+                  // Colores pasteles suaves para cada card
+                  const coloresPasteles = [
+                    'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%)', // Light Cyan
+                    'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)', // Light Green
+                    'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)', // Light Purple
+                    'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)', // Light Orange
+                    'linear-gradient(135deg, #fbe9e7 0%, #ffccbc 100%)', // Light Red
+                    'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', // Light Blue
+                    'linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%)', // Light Pink
+                    'linear-gradient(135deg, #f1f8e9 0%, #dcedc8 100%)', // Lighter Green
+                  ];
+                  
+                  const colorCard = coloresPasteles[grupo.id % coloresPasteles.length];
+                  
+                  return (
+                    <div
+                      key={grupo.id}
+                      className="grupo-card"
+                      style={{ background: colorCard }}
+                    >
+                      <div className="grupo-card-info">
+                        <div className="grupo-card-main">
+                          <span className="grupo-grado-seccion">{grupo.grado}° {grupo.seccion}</span>
+                          <span className="grupo-nivel">{grupo.nivel_nombre}</span>
+                          <span className="grupo-turno">{grupo.turno_nombre}</span>
+                        </div>
+                        <div className="grupo-card-alumnos">
+                          <span className="grupo-alumnos-count">👥 {grupo.total_alumnos || 0} alumnos</span>
+                        </div>
+                      </div>
+                      <div className="grupo-card-actions">
+                        <div className="dropdown-container">
+                          <button
+                            className="btn-opciones-dropdown"
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              e.preventDefault();
+                              
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              if (openDropdownGrupo?.id === grupo.id) {
+                                setOpenDropdownGrupo(null);
+                              } else {
+                                // Cerrar otros dropdowns primero
+                                // Calcular posición: justo debajo del botón
+                                const dropdownWidth = 180;
+                                let left = rect.left;
+                                // Si el dropdown se sale por la derecha, ajustar
+                                if (left + dropdownWidth > window.innerWidth) {
+                                  left = window.innerWidth - dropdownWidth - 10;
                                 }
-                              }}
-                              title="Opciones"
-                            >
-                              Opciones {openDropdownGrupo?.id === grupo.id ? '▲' : '▼'}
-                            </button>
-                            {openDropdownGrupo?.id === grupo.id && openDropdownGrupo?.top && 
-                              createPortal(
-                                <div 
-                                  className="dropdown-menu dropdown-menu-grupo"
-                                  style={{
-                                    top: `${openDropdownGrupo.top}px`,
-                                    left: `${openDropdownGrupo.left}px`,
-                                    position: 'fixed',
-                                    zIndex: 10001,
-                                    transform: 'translateZ(0)',
-                                    willChange: 'transform',
+                                // Asegurar que no se salga por la izquierda
+                                if (left < 10) {
+                                  left = 10;
+                                }
+                                setOpenDropdownGrupo({ 
+                                  id: grupo.id, 
+                                  top: rect.bottom + 2, 
+                                  left: left
+                                });
+                              }
+                            }}
+                            title="Opciones"
+                          >
+                            Opciones {openDropdownGrupo?.id === grupo.id ? '▲' : '▼'}
+                          </button>
+                          {openDropdownGrupo?.id === grupo.id && openDropdownGrupo?.top && 
+                            createPortal(
+                              <div 
+                                className="dropdown-menu dropdown-menu-grupo"
+                                style={{
+                                  top: `${openDropdownGrupo.top}px`,
+                                  left: `${openDropdownGrupo.left}px`,
+                                  position: 'fixed',
+                                  zIndex: 10001,
+                                  transform: 'translateZ(0)',
+                                  willChange: 'transform',
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    console.log('✅ Click en Lista de Alumnos, grupo.id:', grupo.id);
+                                    const grupoId = grupo.id;
+                                    // Cerrar dropdown primero
+                                    setOpenDropdownGrupo(null);
+                                    // Cargar alumnos inmediatamente
+                                    cargarAlumnos(grupoId);
                                   }}
-                                  onClick={(e) => e.stopPropagation()}
                                 >
-                                  <button
-                                    className="dropdown-item"
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      e.preventDefault();
-                                      console.log('✅ Click en Lista de Alumnos, grupo.id:', grupo.id);
-                                      const grupoId = grupo.id;
-                                      // Cerrar dropdown primero
-                                      setOpenDropdownGrupo(null);
-                                      // Cargar alumnos inmediatamente
-                                      cargarAlumnos(grupoId);
-                                    }}
-                                  >
-                                    <span className="dropdown-icon">📋</span>
-                                    <span>Lista de Alumnos</span>
-                                  </button>
-                                  <button
-                                    className="dropdown-item"
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      e.preventDefault();
-                                      // Abrir modal de mensaje para el grupo
-                                      setGrupoParaMensaje(grupo);
-                                      setMostrarModalMensajeGrupo(true);
-                                      setAsuntoMensajeGrupo('');
-                                      setContenidoMensajeGrupo('');
-                                      setArchivosAdjuntosMensajeGrupo([]);
-                                      setOpenDropdownGrupo(null);
-                                    }}
-                                  >
-                                    <span className="dropdown-icon">✉️</span>
-                                    <span>Enviar Mensaje</span>
-                                  </button>
-                                </div>,
-                                document.body
-                              )
-                            }
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="6" className="empty-state">
-                        {filter ? 'No se encontraron grupos con ese filtro' : 'No tienes grupos asignados'}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                                  <span className="dropdown-icon">📋</span>
+                                  <span>Lista de Alumnos</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    // Abrir modal de mensaje para el grupo
+                                    setGrupoParaMensaje(grupo);
+                                    setMostrarModalMensajeGrupo(true);
+                                    setAsuntoMensajeGrupo('');
+                                    setContenidoMensajeGrupo('');
+                                    setArchivosAdjuntosMensajeGrupo([]);
+                                    setOpenDropdownGrupo(null);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">✉️</span>
+                                  <span>Enviar Mensaje</span>
+                                </button>
+                              </div>,
+                              document.body
+                            )
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="empty-state">
+                  {filter ? 'No se encontraron grupos con ese filtro' : 'No tienes grupos asignados'}
+                </div>
+              )}
             </div>
             </div>
           </div>
@@ -630,138 +639,150 @@ function DocenteGrupos() {
               {loadingAlumnos ? (
                 <div className="loading-alumnos">Cargando alumnos...</div>
               ) : (
-                <div className="alumnos-table-container">
-                  <table className="alumnos-table">
-                    <thead>
-                      <tr>
-                        <th>APELLIDOS Y NOMBRES</th>
-                        <th>FECHA DE NACIMIENTO</th>
-                        <th>TELÉFONO</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {alumnos.length > 0 ? (
-                        alumnos.map((alumno, index) => (
-                          <tr key={`alumno-${alumno.id}-${index}-${alumno.telefono || ''}`}>
-                            <td>
-                              {alumno.apellido_paterno} {alumno.apellido_materno}, {alumno.nombres}
-                            </td>
-                            <td>
-                              {alumno.fecha_nacimiento 
-                                ? new Date(alumno.fecha_nacimiento).toLocaleDateString('es-PE')
-                                : 'N/A'}
-                            </td>
-                            <td>
-                              {alumno.telefono || 'N/A'}
-                            </td>
-                            <td>
-                              <div className="dropdown-container">
-                                <button
-                                  className="btn-opciones-dropdown"
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    
-                                    // Cerrar otros dropdowns primero
-                                    if (openDropdownAlumno?.id !== alumno.id) {
-                                      setOpenDropdownGrupo(null);
-                                    }
-                                    
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    if (openDropdownAlumno?.id === alumno.id) {
-                                      setOpenDropdownAlumno(null);
-                                    } else {
-                                      // Calcular posición del dropdown
-                                      const dropdownWidth = 180;
-                                      const dropdownHeight = 90; // Aproximado
-                                      let left = rect.left;
-                                      let top = rect.bottom + 2;
-                                      
-                                      // Si el dropdown se sale por la derecha, ajustar
-                                      if (left + dropdownWidth > window.innerWidth - 10) {
-                                        left = window.innerWidth - dropdownWidth - 10;
-                                      }
-                                      // Asegurar que no se salga por la izquierda
-                                      if (left < 10) {
-                                        left = 10;
-                                      }
-                                      
-                                      // Si el dropdown se sale por abajo, mostrarlo arriba
-                                      if (top + dropdownHeight > window.innerHeight - 10) {
-                                        top = rect.top - dropdownHeight - 2;
-                                      }
-                                      
-                                      setOpenDropdownAlumno({ 
-                                        id: alumno.id, 
-                                        top: top, 
-                                        left: left
-                                      });
-                                    }
-                                  }}
-                                  title="Opciones"
-                                >
-                                  Opciones {openDropdownAlumno?.id === alumno.id ? '▲' : '▼'}
-                                </button>
-                                {openDropdownAlumno?.id === alumno.id && openDropdownAlumno?.top && 
-                                  createPortal(
-                                    <div 
-                                      className="dropdown-menu dropdown-menu-alumno"
-                                      style={{
-                                        top: `${openDropdownAlumno.top}px`,
-                                        left: `${openDropdownAlumno.left}px`,
-                                        position: 'fixed',
-                                        zIndex: 99999
-                                      }}
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <button
-                                        className="dropdown-item"
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          e.preventDefault();
-                                          // Abrir modal de mensaje para el alumno
-                                          setAlumnoParaMensaje(alumno);
-                                          setMostrarModalMensajeAlumno(true);
-                                          setAsuntoMensajeAlumno('');
-                                          setContenidoMensajeAlumno('');
-                                          setArchivosAdjuntosMensajeAlumno([]);
-                                          setOpenDropdownAlumno(null);
-                                        }}
-                                      >
-                                        <span className="dropdown-icon">✉️</span>
-                                        <span>Enviar Mensaje</span>
-                                      </button>
-                                      <button
-                                        className="dropdown-item"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          cargarInfoAlumno(alumno.id);
-                                          setOpenDropdownAlumno(null);
-                                        }}
-                                      >
-                                        <span className="dropdown-icon">ℹ️</span>
-                                        <span>Ver Información</span>
-                                      </button>
-                                    </div>,
-                                    document.body
-                                  )
-                                }
+                <div className="alumnos-cards-container">
+                  {alumnos.length > 0 ? (
+                    alumnos.map((alumno, index) => {
+                      // Colores pasteles suaves para cada card de alumno
+                      const coloresPasteles = [
+                        'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%)', // Light Cyan
+                        'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)', // Light Green
+                        'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)', // Light Purple
+                        'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)', // Light Orange
+                        'linear-gradient(135deg, #fbe9e7 0%, #ffccbc 100%)', // Light Red
+                        'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', // Light Blue
+                        'linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%)', // Light Pink
+                        'linear-gradient(135deg, #f1f8e9 0%, #dcedc8 100%)', // Lighter Green
+                      ];
+                      
+                      const colorCard = coloresPasteles[alumno.id % coloresPasteles.length];
+                      
+                      return (
+                        <div
+                          key={`alumno-${alumno.id}-${index}-${alumno.telefono || ''}`}
+                          className="alumno-card"
+                          style={{ background: colorCard }}
+                        >
+                          <div className="alumno-card-info">
+                            <div className="alumno-card-main">
+                              <span className="alumno-nombre">
+                                {alumno.apellido_paterno} {alumno.apellido_materno}, {alumno.nombres}
+                              </span>
+                              <div className="alumno-card-details">
+                                <span className="alumno-fecha">
+                                  📅 {alumno.fecha_nacimiento 
+                                    ? new Date(alumno.fecha_nacimiento).toLocaleDateString('es-PE')
+                                    : 'N/A'}
+                                </span>
+                                <span className="alumno-telefono">
+                                  📞 {alumno.telefono || 'N/A'}
+                                </span>
                               </div>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="4" className="empty-state">
-                            No hay alumnos en este grupo
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                            </div>
+                          </div>
+                          <div className="alumno-card-actions">
+                            <div className="dropdown-container">
+                              <button
+                                className="btn-opciones-dropdown"
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  
+                                  // Cerrar otros dropdowns primero
+                                  if (openDropdownAlumno?.id !== alumno.id) {
+                                    setOpenDropdownGrupo(null);
+                                  }
+                                  
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  if (openDropdownAlumno?.id === alumno.id) {
+                                    setOpenDropdownAlumno(null);
+                                  } else {
+                                    // Calcular posición del dropdown
+                                    const dropdownWidth = 180;
+                                    const dropdownHeight = 90; // Aproximado
+                                    let left = rect.left;
+                                    let top = rect.bottom + 2;
+                                    
+                                    // Si el dropdown se sale por la derecha, ajustar
+                                    if (left + dropdownWidth > window.innerWidth - 10) {
+                                      left = window.innerWidth - dropdownWidth - 10;
+                                    }
+                                    // Asegurar que no se salga por la izquierda
+                                    if (left < 10) {
+                                      left = 10;
+                                    }
+                                    
+                                    // Si el dropdown se sale por abajo, mostrarlo arriba
+                                    if (top + dropdownHeight > window.innerHeight - 10) {
+                                      top = rect.top - dropdownHeight - 2;
+                                    }
+                                    
+                                    setOpenDropdownAlumno({ 
+                                      id: alumno.id, 
+                                      top: top, 
+                                      left: left
+                                    });
+                                  }
+                                }}
+                                title="Opciones"
+                              >
+                                Opciones {openDropdownAlumno?.id === alumno.id ? '▲' : '▼'}
+                              </button>
+                              {openDropdownAlumno?.id === alumno.id && openDropdownAlumno?.top && 
+                                createPortal(
+                                  <div 
+                                    className="dropdown-menu dropdown-menu-alumno"
+                                    style={{
+                                      top: `${openDropdownAlumno.top}px`,
+                                      left: `${openDropdownAlumno.left}px`,
+                                      position: 'fixed',
+                                      zIndex: 99999
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <button
+                                      className="dropdown-item"
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        // Abrir modal de mensaje para el alumno
+                                        setAlumnoParaMensaje(alumno);
+                                        setMostrarModalMensajeAlumno(true);
+                                        setAsuntoMensajeAlumno('');
+                                        setContenidoMensajeAlumno('');
+                                        setArchivosAdjuntosMensajeAlumno([]);
+                                        setOpenDropdownAlumno(null);
+                                      }}
+                                    >
+                                      <span className="dropdown-icon">✉️</span>
+                                      <span>Enviar Mensaje</span>
+                                    </button>
+                                    <button
+                                      className="dropdown-item"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        cargarInfoAlumno(alumno.id);
+                                        setOpenDropdownAlumno(null);
+                                      }}
+                                    >
+                                      <span className="dropdown-icon">ℹ️</span>
+                                      <span>Ver Información</span>
+                                    </button>
+                                  </div>,
+                                  document.body
+                                )
+                              }
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="empty-state">
+                      No hay alumnos en este grupo
+                    </div>
+                  )}
                 </div>
               )}
             </div>
