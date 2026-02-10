@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const { query, execute } = require('../utils/mysql');
-const auth = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 const moment = require('moment-timezone');
 const { enviarCorreoAsistencia } = require('../services/emailService');
 const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
 const mensajesConfig = require('../config/mensajes.json');
 
 // Todas las rutas requieren autenticación y ser ASISTENCIA o ADMINISTRADOR
-router.use(auth);
+router.use(authenticateToken);
 
 router.use((req, res, next) => {
   if (req.user.tipo !== 'ASISTENCIA' && req.user.tipo !== 'ADMINISTRADOR') {
