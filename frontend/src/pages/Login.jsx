@@ -104,6 +104,8 @@ function Login() {
         navigate('/alumno/dashboard');
       } else if (result.user?.tipo === 'ADMINISTRADOR') {
         navigate('/admin/dashboard');
+      } else if (result.user?.tipo === 'ASISTENCIA') {
+        navigate('/asistencia/escaneo');
       } else {
         navigate('/admin/dashboard');
       }

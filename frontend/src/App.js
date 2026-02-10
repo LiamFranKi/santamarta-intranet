@@ -93,6 +93,8 @@ function NavigateToDashboard() {
     return <Navigate to="/alumno/dashboard" />;
   } else if (tipo === 'ADMINISTRADOR') {
     return <Navigate to="/admin/dashboard" />;
+  } else if (tipo === 'ASISTENCIA') {
+    return <Navigate to="/asistencia/escaneo" />;
   }
   
   return <Navigate to="/admin/dashboard" />;
