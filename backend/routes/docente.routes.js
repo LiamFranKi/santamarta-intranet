@@ -5910,7 +5910,7 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
               await execute(
                 `INSERT INTO notificaciones 
                  (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
-                 VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'ENVIADO')`,
+                 VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
                 [
                   usuario_id, // Usuario que crea (docente)
                   destinatario.usuario_id, // Destinatario

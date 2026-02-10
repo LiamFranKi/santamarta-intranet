@@ -9,7 +9,15 @@ function NotificacionesWidget() {
   const [mostrarDropdown, setMostrarDropdown] = useState(false);
 
   useEffect(() => {
-    cargarNotificaciones();
+    if (user) {
+      cargarNotificaciones();
+      // Recargar notificaciones cada 30 segundos
+      const interval = setInterval(() => {
+        cargarNotificaciones();
+      }, 30000);
+      
+      return () => clearInterval(interval);
+    }
   }, [user]);
 
   const cargarNotificaciones = async () => {
@@ -23,13 +31,23 @@ function NotificacionesWidget() {
     }
   };
 
+  // Recargar notificaciones cuando se abre el dropdown
+  const handleToggleDropdown = () => {
+    const nuevoEstado = !mostrarDropdown;
+    setMostrarDropdown(nuevoEstado);
+    if (nuevoEstado) {
+      // Recargar cuando se abre
+      cargarNotificaciones();
+    }
+  };
+
   const notificacionesNoLeidas = notificaciones.filter(n => n.estado === 'NO_LEIDO').length;
 
   return (
     <div className="notificaciones-widget">
       <button
         className="notificaciones-btn"
-        onClick={() => setMostrarDropdown(!mostrarDropdown)}
+        onClick={handleToggleDropdown}
         title="Notificaciones"
       >
         🔔
