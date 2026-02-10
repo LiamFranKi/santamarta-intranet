@@ -286,7 +286,7 @@ router.post('/registrar', async (req, res) => {
     } else {
       console.log(`📋 [ASISTENCIA] Buscando datos de DOCENTE con usuario_id: ${usuario_id}`);
       const docente = await query(
-        `SELECT p.id, p.nombres, p.apellidos, u.id as usuario_id
+        `SELECT p.id, p.nombres, p.apellidos, p.email, u.id as usuario_id
          FROM personal p
          INNER JOIN usuarios u ON u.personal_id = p.id
          WHERE u.id = ? AND u.colegio_id = ?`,
@@ -535,6 +535,31 @@ router.post('/registrar', async (req, res) => {
         // Enviar notificaciones de forma ASÍNCRONA (sin bloquear la respuesta)
         setImmediate(async () => {
           try {
+            // Enviar correo al docente si tiene email
+            if (datosUsuario.email && datosUsuario.email.trim() !== '') {
+              console.log(`📧 [ASISTENCIA] Enviando correo al docente: ${datosUsuario.email}`);
+              enviarCorreoAsistencia(datosUsuario.email, {
+                nombreAlumno: datosUsuario.nombre_completo, // Reutilizamos el campo para el nombre del docente
+                hora: horaFormateada,
+                fecha: fechaFormateada,
+                tipo: tipo_registro,
+                colegioNombre,
+                esDocente: true // Indicar que es un correo para docente
+              })
+                .then(resultadoCorreo => {
+                  if (resultadoCorreo.success) {
+                    console.log(`✅ [ASISTENCIA] Correo enviado exitosamente al docente ${datosUsuario.email}`);
+                  } else {
+                    console.error(`❌ [ASISTENCIA] Error enviando correo al docente ${datosUsuario.email}:`, resultadoCorreo.error);
+                  }
+                })
+                .catch(error => {
+                  console.error(`❌ [ASISTENCIA] Excepción al enviar correo al docente ${datosUsuario.email}:`, error.message);
+                });
+            } else {
+              console.log(`⚠️ [ASISTENCIA] Docente ${datosUsuario.nombre_completo} no tiene email configurado`);
+            }
+
             // Enviar push notifications al docente
             if (subscriptions.length > 0) {
               console.log(`📱 [ASISTENCIA] Enviando ${subscriptions.length} notificaciones push al docente (asíncrono)...`);

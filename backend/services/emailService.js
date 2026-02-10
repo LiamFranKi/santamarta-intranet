@@ -38,13 +38,19 @@ transporter.verify(function (error, success) {
  * Generar template HTML para correo de asistencia
  */
 function generarTemplateAsistencia(datos) {
-  const { nombreAlumno, hora, fecha, tipo, colegioNombre } = datos;
+  const { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente } = datos;
   
   const icono = tipo === 'ENTRADA' ? '✅' : '👋';
-  const titulo = tipo === 'ENTRADA' ? 'Llegada al Colegio' : 'Salida del Colegio';
-  const mensaje = tipo === 'ENTRADA' 
-    ? `Tu hijo(a) <strong>${nombreAlumno}</strong> ha llegado al colegio.`
-    : `Tu hijo(a) <strong>${nombreAlumno}</strong> ha salido del colegio.`;
+  const titulo = esDocente 
+    ? (tipo === 'ENTRADA' ? 'Registro de Entrada' : 'Registro de Salida')
+    : (tipo === 'ENTRADA' ? 'Llegada al Colegio' : 'Salida del Colegio');
+  const mensaje = esDocente
+    ? (tipo === 'ENTRADA' 
+        ? `Su entrada ha sido registrada correctamente.`
+        : `Su salida ha sido registrada correctamente.`)
+    : (tipo === 'ENTRADA' 
+        ? `Tu hijo(a) <strong>${nombreAlumno}</strong> ha llegado al colegio.`
+        : `Tu hijo(a) <strong>${nombreAlumno}</strong> ha salido del colegio.`);
   
   const colorPrincipal = tipo === 'ENTRADA' ? '#10b981' : '#3b82f6';
   
@@ -79,10 +85,18 @@ function generarTemplateAsistencia(datos) {
               
               <div style="background-color: #f9fafb; border-left: 4px solid ${colorPrincipal}; padding: 20px; margin: 25px 0; border-radius: 6px;">
                 <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                  ${esDocente ? '' : `
                   <tr>
-                    <td style="padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 600;">👤 Estudiante:</td>
+                    <td style="padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 600;">👤 ${esDocente ? 'Docente' : 'Estudiante'}:</td>
                     <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${nombreAlumno}</td>
                   </tr>
+                  `}
+                  ${esDocente ? `
+                  <tr>
+                    <td style="padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 600;">👤 Docente:</td>
+                    <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${nombreAlumno}</td>
+                  </tr>
+                  ` : ''}
                   <tr>
                     <td style="padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 600;">📅 Fecha:</td>
                     <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${fecha}</td>
@@ -134,25 +148,32 @@ async function enviarCorreoAsistencia(destinatario, datos) {
       return { success: false, error: 'Configuración de email incompleta' };
     }
 
-    const { nombreAlumno, hora, fecha, tipo, colegioNombre } = datos;
+    const { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente } = datos;
     
     console.log(`📧 [EMAIL] Preparando correo para: ${destinatario}`);
-    console.log(`📧 [EMAIL] Datos:`, { nombreAlumno, hora, fecha, tipo, colegioNombre });
+    console.log(`📧 [EMAIL] Datos:`, { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente });
     
     const template = generarTemplateAsistencia({
       nombreAlumno,
       hora,
       fecha,
       tipo,
-      colegioNombre: colegioNombre || 'Vanguard Schools'
+      colegioNombre: colegioNombre || 'Vanguard Schools',
+      esDocente: esDocente || false
     });
+
+    const asunto = esDocente
+      ? (tipo === 'ENTRADA' 
+          ? `✅ Registro de Entrada - ${hora}`
+          : `👋 Registro de Salida - ${hora}`)
+      : (tipo === 'ENTRADA' 
+          ? `✅ ${nombreAlumno} llegó al colegio - ${hora}`
+          : `👋 ${nombreAlumno} salió del colegio - ${hora}`);
 
     const mailOptions = {
       from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`,
       to: destinatario,
-      subject: tipo === 'ENTRADA' 
-        ? `✅ ${nombreAlumno} llegó al colegio - ${hora}`
-        : `👋 ${nombreAlumno} salió del colegio - ${hora}`,
+      subject: asunto,
       html: template
     };
 
