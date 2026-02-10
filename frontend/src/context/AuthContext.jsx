@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
+import { suscribirNotificacionesPush } from '../services/pushNotificationService';
 
 const AuthContext = createContext();
 
@@ -40,6 +41,16 @@ export const AuthProvider = ({ children }) => {
           setIsAuthenticated(true);
           // Actualizar usuario guardado
           localStorage.setItem('user', JSON.stringify(response.data.user));
+          
+          // Suscribir automáticamente a notificaciones push (solo para ALUMNO y APODERADO)
+          if (response.data.user.tipo === 'ALUMNO' || response.data.user.tipo === 'APODERADO') {
+            // Esperar un poco para que el Service Worker esté listo
+            setTimeout(() => {
+              suscribirNotificacionesPush().catch(err => {
+                console.warn('No se pudo suscribir a notificaciones push:', err);
+              });
+            }, 2000);
+          }
         })
         .catch((error) => {
           // Solo limpiar token si es un error 401 (no autorizado)
@@ -72,6 +83,16 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
       setIsAuthenticated(true);
+
+      // Suscribir automáticamente a notificaciones push (solo para ALUMNO y APODERADO)
+      if (userData.tipo === 'ALUMNO' || userData.tipo === 'APODERADO') {
+        // Esperar un poco para que el Service Worker esté listo
+        setTimeout(() => {
+          suscribirNotificacionesPush().catch(err => {
+            console.warn('No se pudo suscribir a notificaciones push:', err);
+          });
+        }, 2000);
+      }
 
       return { success: true, user: userData };
     } catch (error) {

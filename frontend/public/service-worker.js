@@ -117,3 +117,68 @@ self.addEventListener('message', (event) => {
   }
 });
 
+// Manejar notificaciones push
+self.addEventListener('push', (event) => {
+  console.log('📬 Service Worker: Push notification recibida', event);
+  
+  let notificationData = {
+    title: 'Vanguard Schools',
+    body: 'Tienes una nueva notificación',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-192x192.png',
+    vibrate: [200, 100, 200],
+    data: {
+      url: '/'
+    }
+  };
+
+  // Si el evento tiene datos, usarlos
+  if (event.data) {
+    try {
+      const data = event.data.json();
+      notificationData = {
+        title: data.title || notificationData.title,
+        body: data.body || notificationData.body,
+        icon: data.icon || notificationData.icon,
+        badge: data.badge || notificationData.badge,
+        vibrate: data.vibrate || notificationData.vibrate,
+        data: data.data || notificationData.data,
+        tag: data.tag || 'default',
+        requireInteraction: data.requireInteraction || false
+      };
+    } catch (e) {
+      console.error('Error parseando datos de push:', e);
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(notificationData.title, notificationData)
+  );
+});
+
+// Manejar clics en notificaciones
+self.addEventListener('notificationclick', (event) => {
+  console.log('👆 Service Worker: Notificación clickeada', event);
+  
+  event.notification.close();
+
+  const urlToOpen = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // Si ya hay una ventana abierta, enfocarla
+        for (let i = 0; i < clientList.length; i++) {
+          const client = clientList[i];
+          if (client.url === urlToOpen && 'focus' in client) {
+            return client.focus();
+          }
+        }
+        // Si no hay ventana abierta, abrir una nueva
+        if (clients.openWindow) {
+          return clients.openWindow(urlToOpen);
+        }
+      })
+  );
+});
+

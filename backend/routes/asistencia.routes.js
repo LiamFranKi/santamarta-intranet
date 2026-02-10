@@ -126,10 +126,10 @@ router.post('/escaneo', async (req, res) => {
         : usuario.nro_documento
     };
 
-    // Verificar si ya hay un registro de asistencia hoy
+    // Verificar si ya hay un registro de asistencia HOY (mismo día)
     const fechaHoy = moment().tz('America/Lima').format('YYYY-MM-DD');
     const asistenciaHoy = await query(
-      `SELECT id, tipo_registro, hora_entrada, hora_salida
+      `SELECT id, tipo_registro, hora_entrada, hora_salida, fecha
        FROM asistencia_registros
        WHERE usuario_id = ? AND colegio_id = ? AND fecha = ? AND anio = ?
        ORDER BY id DESC
@@ -137,9 +137,20 @@ router.post('/escaneo', async (req, res) => {
       [usuario.id, colegio_id, fechaHoy, anio_activo]
     );
 
+    // IMPORTANTE: Solo es SALIDA si:
+    // 1. Hay un registro HOY (mismo día)
+    // 2. Tiene hora_entrada
+    // 3. NO tiene hora_salida
+    // Si no cumple estas condiciones, SIEMPRE es ENTRADA (incluso si ayer no se escaneó salida)
     let tipoRegistro = 'ENTRADA';
-    if (asistenciaHoy.length > 0 && asistenciaHoy[0].hora_entrada && !asistenciaHoy[0].hora_salida) {
-      tipoRegistro = 'SALIDA';
+    if (asistenciaHoy.length > 0) {
+      const registro = asistenciaHoy[0];
+      // Verificar que el registro sea del día de HOY (no de ayer)
+      const fechaRegistro = moment(registro.fecha).format('YYYY-MM-DD');
+      if (fechaRegistro === fechaHoy && registro.hora_entrada && !registro.hora_salida) {
+        tipoRegistro = 'SALIDA';
+      }
+      // Si el registro es de otro día, siempre es ENTRADA
     }
 
     res.json({

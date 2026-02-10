@@ -206,6 +206,7 @@ const adminRoutes = require('./routes/admin.routes');
 app.use('/api/docente', docenteRoutes);
 app.use('/api/alumno', alumnoRoutes);
 app.use('/api/asistencia', asistenciaRoutes);
+app.use('/api/push', pushRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Rutas de prueba (solo desarrollo)
