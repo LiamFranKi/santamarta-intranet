@@ -6,8 +6,6 @@ const moment = require('moment-timezone');
 const { enviarCorreoAsistencia } = require('../services/emailService');
 const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
 const mensajesConfig = require('../config/mensajes.json');
-const { enviarCorreoAsistencia } = require('../services/emailService');
-const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
 const mensajesConfig = require('../config/mensajes.json');
 
 // Todas las rutas requieren autenticación y ser ASISTENCIA o ADMINISTRADOR
@@ -279,6 +277,60 @@ router.post('/registrar', async (req, res) => {
         const fechaFormateada = moment().tz('America/Lima').format('DD/MM/YYYY');
         const horaFormateada = moment().tz('America/Lima').format('HH:mm');
 
+        // Obtener suscripciones push de los apoderados
+        const apoderadoIds = apoderados.map(a => a.id);
+        let subscriptions = [];
+        if (apoderadoIds.length > 0) {
+          // Obtener usuarios de apoderados para buscar sus suscripciones
+          const usuariosApoderados = await query(
+            `SELECT u.id FROM usuarios u 
+             WHERE u.apoderado_id IN (${apoderadoIds.map(() => '?').join(',')}) 
+               AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+            [...apoderadoIds, colegio_id]
+          );
+          
+          const usuarioIds = usuariosApoderados.map(u => u.id);
+          if (usuarioIds.length > 0) {
+            const subscriptionsData = await query(
+              `SELECT endpoint, p256dh, auth 
+               FROM push_subscriptions 
+               WHERE usuario_id IN (${usuarioIds.map(() => '?').join(',')}) 
+                 AND colegio_id = ? AND activo = 1`,
+              [...usuarioIds, colegio_id]
+            );
+            
+            subscriptions = subscriptionsData.map(sub => ({
+              endpoint: sub.endpoint,
+              keys: {
+                p256dh: sub.p256dh,
+                auth: sub.auth
+              }
+            }));
+          }
+        }
+
+        // Preparar payload de notificación
+        const mensajeConfig = mensajesConfig.asistencia[tipo_registro.toLowerCase()];
+        const tituloNotificacion = mensajeConfig.titulo;
+        const mensajeNotificacion = mensajeConfig.mensaje_corto
+          .replace('{nombreAlumno}', datosUsuario.nombre_completo)
+          .replace('{hora}', horaFormateada)
+          .replace('{fecha}', fechaFormateada);
+
+        const payloadPush = {
+          title: tituloNotificacion,
+          body: mensajeNotificacion,
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          vibrate: [200, 100, 200],
+          tag: `asistencia-${tipo_registro}-${datosUsuario.id}`,
+          data: {
+            url: '/alumno/dashboard',
+            tipo: 'asistencia',
+            alumno_id: datosUsuario.id
+          }
+        };
+
         // Enviar correos a apoderados
         for (const apoderado of apoderados) {
           if (apoderado.email) {
@@ -292,8 +344,10 @@ router.post('/registrar', async (req, res) => {
           }
         }
 
-        // TODO: Enviar push notifications (requiere tabla de subscriptions)
-        // Por ahora solo correos
+        // Enviar push notifications a todos los apoderados suscritos
+        if (subscriptions.length > 0) {
+          await enviarPushNotificationMultiple(subscriptions, payloadPush);
+        }
       } catch (error) {
         console.error('Error enviando notificaciones:', error);
         // No fallar el registro si fallan las notificaciones
