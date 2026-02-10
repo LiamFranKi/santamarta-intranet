@@ -62,39 +62,62 @@ function AsistenciaEscaneo() {
   useEffect(() => {
     if (!cargado) return; // No hacer nada hasta que la página esté cargada
     if (cambiandoCamara.current) return; // Evitar múltiples cambios simultáneos
+    if (modo !== 'continuo') return; // Solo en modo continuo
+    if (mostrarBusqueda) return; // No reiniciar si está en búsqueda manual
     
-    if (escaneando && modo === 'continuo') {
-      cambiandoCamara.current = true;
-      // Si está escaneando y cambia la cámara, reiniciar con la nueva cámara
-      const reiniciarConNuevaCamara = async () => {
-        try {
-          await detenerEscaneo();
-          // Esperar un poco más para asegurar que la cámara anterior se liberó
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
-          // Verificar condiciones antes de reiniciar
-          if (modo === 'continuo' && !procesando && !mostrarBusqueda) {
-            await iniciarEscaneo();
+    cambiandoCamara.current = true;
+    console.log(`🔄 Cambiando a cámara: ${camaraSeleccionada === 'environment' ? 'TRASERA' : 'FRONTAL'}`);
+    
+    // Si está escaneando y cambia la cámara, reiniciar con la nueva cámara
+    const reiniciarConNuevaCamara = async () => {
+      try {
+        // Detener escaneo actual si existe
+        if (html5QrCodeRef.current) {
+          try {
+            await html5QrCodeRef.current.stop();
+            html5QrCodeRef.current = null;
+          } catch (e) {
+            console.warn('Error deteniendo escáner anterior:', e);
           }
-        } catch (error) {
-          console.error('Error al reiniciar con nueva cámara:', error);
-          // Intentar de nuevo después de un delay
-          setTimeout(async () => {
-            if (modo === 'continuo' && !procesando && !mostrarBusqueda) {
-              try {
-                await iniciarEscaneo();
-              } catch (e) {
-                console.error('Error en segundo intento:', e);
-              }
-            }
-          }, 1500);
-        } finally {
-          cambiandoCamara.current = false;
         }
-      };
-      reiniciarConNuevaCamara();
-    }
-  }, [camaraSeleccionada, cargado, modo]);
+        setEscaneando(false);
+        
+        // Esperar para asegurar que la cámara anterior se liberó completamente
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Verificar condiciones antes de reiniciar
+        if (modo === 'continuo' && !procesando && !mostrarBusqueda) {
+          console.log('✅ Reiniciando escaneo con nueva cámara...');
+          await iniciarEscaneo();
+        } else {
+          console.log('⚠️ Condiciones no cumplidas para reiniciar:', { modo, procesando, mostrarBusqueda });
+        }
+      } catch (error) {
+        console.error('❌ Error al reiniciar con nueva cámara:', error);
+        // Intentar de nuevo después de un delay más largo
+        setTimeout(async () => {
+          if (modo === 'continuo' && !procesando && !mostrarBusqueda) {
+            try {
+              console.log('🔄 Segundo intento de reinicio...');
+              await iniciarEscaneo();
+            } catch (e) {
+              console.error('❌ Error en segundo intento:', e);
+              cambiandoCamara.current = false;
+            }
+          } else {
+            cambiandoCamara.current = false;
+          }
+        }, 1500);
+      } finally {
+        // Liberar el flag después de un delay adicional para evitar loops
+        setTimeout(() => {
+          cambiandoCamara.current = false;
+        }, 2000);
+      }
+    };
+    
+    reiniciarConNuevaCamara();
+  }, [camaraSeleccionada]);
 
   const detenerEscaneo = async () => {
     if (html5QrCodeRef.current) {
