@@ -1,18 +1,20 @@
 {
   "asistencia": {
-    "entrada": {
-      "titulo": "Llegada al Colegio",
-      "mensaje_corto": "Tu hijo(a) {nombreAlumno} ha llegado al colegio a las {hora}.",
-      "mensaje_largo": "Estimado(a) apoderado(a), le informamos que su hijo(a) {nombreAlumno} ha llegado al colegio el día {fecha} a las {hora}. Este es un mensaje automático del sistema de asistencia.",
-      "icono": "✅",
-      "color": "#10b981"
-    },
-    "salida": {
-      "titulo": "Salida del Colegio",
-      "mensaje_corto": "Tu hijo(a) {nombreAlumno} ha salido del colegio a las {hora}.",
-      "mensaje_largo": "Estimado(a) apoderado(a), le informamos que su hijo(a) {nombreAlumno} ha salido del colegio el día {fecha} a las {hora}. Este es un mensaje automático del sistema de asistencia.",
-      "icono": "👋",
-      "color": "#3b82f6"
+    "alumno": {
+      "entrada": {
+        "titulo": "Llegada al Colegio",
+        "mensaje_corto": "Tu hijo(a) {nombreAlumno} ha llegado al colegio a las {hora}.",
+        "mensaje_largo": "Estimado(a) apoderado(a), le informamos que su hijo(a) {nombreAlumno} ha llegado al colegio el día {fecha} a las {hora}. Este es un mensaje automático del sistema de asistencia.",
+        "icono": "✅",
+        "color": "#10b981"
+      },
+      "salida": {
+        "titulo": "Salida del Colegio",
+        "mensaje_corto": "Tu hijo(a) {nombreAlumno} ha salido del colegio a las {hora}.",
+        "mensaje_largo": "Estimado(a) apoderado(a), le informamos que su hijo(a) {nombreAlumno} ha salido del colegio el día {fecha} a las {hora}. Este es un mensaje automático del sistema de asistencia.",
+        "icono": "👋",
+        "color": "#3b82f6"
+      }
     }
   },
   "docente": {

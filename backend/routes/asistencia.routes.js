@@ -396,12 +396,43 @@ router.post('/registrar', async (req, res) => {
         }
 
         // Preparar payload de notificación para APODERADOS
-        const mensajeConfig = mensajesConfig.asistencia[tipo_registro.toLowerCase()];
+        const mensajeConfig = mensajesConfig.asistencia.alumno[tipo_registro.toLowerCase()];
         const tituloNotificacion = mensajeConfig.titulo;
         const mensajeNotificacion = mensajeConfig.mensaje_corto
           .replace('{nombreAlumno}', datosUsuario.nombre_completo)
           .replace('{hora}', horaFormateada)
           .replace('{fecha}', fechaFormateada);
+
+        // Crear notificaciones en la BD para los apoderados
+        if (apoderados.length > 0) {
+          try {
+            for (const apoderado of apoderados) {
+              // Obtener usuario_id del apoderado
+              const usuarioApoderado = await query(
+                `SELECT id FROM usuarios WHERE apoderado_id = ? AND colegio_id = ? AND estado = 'ACTIVO' LIMIT 1`,
+                [apoderado.id, colegio_id]
+              );
+              
+              // Si el apoderado tiene usuario, crear notificación
+              if (usuarioApoderado.length > 0) {
+                await execute(
+                  `INSERT INTO notificaciones 
+                   (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
+                   VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'ENVIADO')`,
+                  [
+                    asistencia_usuario_id, // Usuario que registró (ASISTENCIA)
+                    usuarioApoderado[0].id, // Destinatario (apoderado)
+                    tituloNotificacion, // TÍTULO (asunto)
+                    mensajeNotificacion // MENSAJE (contenido)
+                  ]
+                );
+                console.log(`✅ [ASISTENCIA] Notificación creada en BD para apoderado ID: ${usuarioApoderado[0].id}`);
+              }
+            }
+          } catch (error) {
+            console.error(`❌ [ASISTENCIA] Error creando notificaciones en BD para apoderados:`, error);
+          }
+        }
 
         const payloadPush = {
           title: tituloNotificacion,
@@ -517,6 +548,24 @@ router.post('/registrar', async (req, res) => {
         const mensajeNotificacionDocente = mensajeConfigDocente.mensaje_corto
           .replace('{hora}', horaFormateada)
           .replace('{fecha}', fechaFormateada);
+
+        // Crear notificación en la BD para el docente
+        try {
+          await execute(
+            `INSERT INTO notificaciones 
+             (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
+             VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'ENVIADO')`,
+            [
+              asistencia_usuario_id, // Usuario que registró (ASISTENCIA)
+              usuario_id, // Destinatario (docente)
+              tituloNotificacionDocente, // TÍTULO (asunto)
+              mensajeNotificacionDocente // MENSAJE (contenido)
+            ]
+          );
+          console.log(`✅ [ASISTENCIA] Notificación creada en BD para docente ID: ${usuario_id}`);
+        } catch (error) {
+          console.error(`❌ [ASISTENCIA] Error creando notificación en BD para docente:`, error);
+        }
 
         const payloadPushDocente = {
           title: tituloNotificacionDocente,

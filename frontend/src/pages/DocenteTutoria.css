@@ -56,48 +56,60 @@
   font-weight: 700;
 }
 
-/* Tabla de Grupos */
-.grupos-table-container {
-  overflow-x: auto;
+/* Cards de Grupos */
+.grupos-cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
-.grupos-table {
-  width: 100%;
-  border-collapse: collapse;
+.grupo-card {
   background: white;
-  border-radius: 8px;
-  overflow: hidden;
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 2px solid #e5e7eb;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
-.grupos-table thead {
-  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+.grupo-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.grupos-table th {
-  padding: 1rem;
-  text-align: left;
+.grupo-card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.grupo-card-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.grupo-grado-seccion-nivel {
+  font-size: 1.1rem;
   font-weight: 700;
   color: #1f2937;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  line-height: 1.3;
 }
 
-.grupos-table td {
-  padding: 1rem;
-  border-bottom: 1px solid #e5e7eb;
-  color: #374151;
-  font-size: 0.95rem;
+.grupo-turno-anio {
+  font-size: 0.85rem;
+  color: #6b7280;
+  font-weight: 500;
 }
 
-.grupos-table tbody tr:hover {
-  background-color: #f9fafb;
-}
-
-.grupos-table tbody tr:last-child td {
-  border-bottom: none;
+.grupo-card-acciones {
+  flex-shrink: 0;
 }
 
 .btn-opciones {
@@ -448,23 +460,24 @@
     padding: 1rem;
   }
 
-  .grupos-table-container {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    margin-left: -1rem;
-    margin-right: -1rem;
-    padding: 0 1rem;
+  .grupos-cards-container {
+    grid-template-columns: 1fr;
+    gap: 1rem;
   }
 
-  .grupos-table {
-    min-width: 100%;
+  .grupo-card {
+    padding: 1.25rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .grupo-card-acciones {
     width: 100%;
   }
 
-  .grupos-table th,
-  .grupos-table td {
-    padding: 0.75rem 0.5rem;
-    font-size: 0.85rem;
+  .btn-opciones {
+    width: 100%;
+    justify-content: center;
   }
 
   .alumnos-grid {

@@ -241,38 +241,52 @@ function DocenteTutoria() {
           <h2>Grupos a Cargo</h2>
           
           {gruposTutor.length > 0 ? (
-            <div className="grupos-table-container">
-              <table className="grupos-table">
-                <thead>
-                  <tr>
-                    <th>GRADO</th>
-                    <th>SECCIÓN</th>
-                    <th>NIVEL</th>
-                    <th>TURNO</th>
-                    <th>AÑO ACADÉMICO</th>
-                    <th>OPCIONES</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {gruposTutor.map((grupo) => (
-                    <tr key={grupo.id}>
-                      <td>{grupo.grado}°</td>
-                      <td>{grupo.seccion}</td>
-                      <td>{grupo.nivel_nombre}</td>
-                      <td>{grupo.turno_nombre}</td>
-                      <td>{grupo.anio}</td>
-                      <td>
-                        <button
-                          className="btn-opciones"
-                          onClick={(e) => handleOpcionesClick(e, grupo.id)}
-                        >
-                          Opciones <span className="dropdown-arrow">▼</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grupos-cards-container">
+              {gruposTutor.map((grupo, index) => {
+                // Colores pasteles suaves para cada card
+                const coloresPasteles = [
+                  { bg: 'linear-gradient(145deg, #fef3f2, #fff5f5)', border: '#fecaca', text: '#991b1b' },
+                  { bg: 'linear-gradient(145deg, #f0fdf4, #f0fdf4)', border: '#bbf7d0', text: '#166534' },
+                  { bg: 'linear-gradient(145deg, #eff6ff, #eff6ff)', border: '#bfdbfe', text: '#1e40af' },
+                  { bg: 'linear-gradient(145deg, #fefce8, #fefce8)', border: '#fde68a', text: '#854d0e' },
+                  { bg: 'linear-gradient(145deg, #f5f3ff, #f5f3ff)', border: '#ddd6fe', text: '#6b21a8' },
+                  { bg: 'linear-gradient(145deg, #f0f9ff, #f0f9ff)', border: '#bae6fd', text: '#0c4a6e' },
+                  { bg: 'linear-gradient(145deg, #fdf2f8, #fdf2f8)', border: '#fbcfe8', text: '#9f1239' },
+                  { bg: 'linear-gradient(145deg, #ecfdf5, #ecfdf5)', border: '#a7f3d0', text: '#14532d' }
+                ];
+                
+                const colorCard = coloresPasteles[index % coloresPasteles.length];
+                
+                return (
+                  <div
+                    key={grupo.id}
+                    className="grupo-card"
+                    style={{
+                      background: colorCard.bg,
+                      borderColor: colorCard.border
+                    }}
+                  >
+                    <div className="grupo-card-info">
+                      <div className="grupo-card-texto">
+                        <span className="grupo-grado-seccion-nivel">
+                          {grupo.grado}° {grupo.seccion} - {grupo.nivel_nombre}
+                        </span>
+                        <span className="grupo-turno-anio">
+                          {grupo.turno_nombre} • {grupo.anio}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="grupo-card-acciones">
+                      <button
+                        className="btn-opciones"
+                        onClick={(e) => handleOpcionesClick(e, grupo.id)}
+                      >
+                        Opciones <span className="dropdown-arrow">▼</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="empty-state">
