@@ -63,7 +63,7 @@ function NotificacionesWidget() {
                       <h4>{notif.titulo}</h4>
                       <p>{notif.mensaje}</p>
                       <span className="notificacion-fecha">
-                        {new Date(notif.fecha).toLocaleDateString('es-PE')}
+                        {new Date(notif.fecha_hora || notif.fecha).toLocaleDateString('es-PE')}
                       </span>
                     </div>
                   </div>
