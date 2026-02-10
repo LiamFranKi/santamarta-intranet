@@ -301,70 +301,119 @@
   overflow: visible;
 }
 
-.alumnos-table-container {
-  overflow-x: auto;
-  overflow-y: visible;
-  position: relative;
-  overflow: visible;
-}
-
-.alumnos-table-container::-webkit-scrollbar {
-  height: 8px;
-}
-
-.alumnos-table-container::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
-}
-
-.alumnos-table-container::-webkit-scrollbar-thumb {
-  background: #4a83c1;
-  border-radius: 4px;
-}
-
-.alumnos-table {
-  width: 100%;
-  border-collapse: collapse;
-  position: relative;
-}
-
-.alumnos-table thead {
-  background: linear-gradient(135deg, #6ba3d4 0%, #4a83c1 100%);
-  color: white;
-}
-
-.alumnos-table th {
+/* Cards Container para Alumnos en Cursos */
+.alumnos-cards-container-cursos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
   padding: 1rem;
-  text-align: left;
+}
+
+/* Card de Alumno en Cursos */
+.alumno-card-cursos {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.2rem 1.5rem;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  color: #333;
+  min-height: 120px;
+}
+
+.alumno-card-cursos:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.alumno-card-info-cursos {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alumno-card-main-cursos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.alumno-nombre-cursos {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #2c3e50;
+  line-height: 1.4;
+}
+
+/* Container de Badges */
+.alumno-badges-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+/* Badges para Cards */
+.estrellas-badge-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: white;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  box-shadow: 0 2px 6px rgba(251, 191, 36, 0.3);
+  white-space: nowrap;
+}
+
+.incidencias-badge-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+  color: white;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  box-shadow: 0 2px 6px rgba(167, 139, 250, 0.3);
+  white-space: nowrap;
+}
+
+.promedio-badge-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.8rem;
+  border-radius: 20px;
   font-weight: 700;
   font-size: 0.9rem;
-  text-transform: uppercase;
-}
-
-.alumnos-table td {
-  padding: 1rem;
-  border-bottom: 1px solid #e5e7eb;
-  text-align: left;
-  position: relative;
-  overflow: visible;
-}
-
-.alumnos-table td:last-child {
-  overflow: visible;
+  min-width: 60px;
   text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  white-space: nowrap;
 }
 
-.alumnos-table tbody tr:nth-child(even) {
-  background: rgba(219, 234, 254, 0.3);
+.promedio-badge-card.aprobado {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
 }
 
-.alumnos-table tbody tr:nth-child(odd) {
-  background: white;
+.promedio-badge-card.desaprobado {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
 }
 
-.alumnos-table tbody tr:hover {
-  background: rgba(74, 131, 193, 0.2) !important;
-  transition: background 0.2s ease;
+.alumno-card-actions-cursos {
+  flex-shrink: 0;
+  margin-left: 1rem;
 }
 
 .estrellas-badge {
@@ -1661,6 +1710,49 @@
   .alumnos-header-info {
     text-align: left;
     align-items: flex-start;
+  }
+
+  .alumnos-cards-container-cursos {
+    grid-template-columns: 1fr;
+    padding: 0.75rem;
+    gap: 1rem;
+  }
+
+  .alumno-card-cursos {
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    min-height: unset;
+    text-align: center;
+  }
+
+  .alumno-card-info-cursos {
+    width: 100%;
+    margin-bottom: 0.75rem;
+    text-align: center;
+    align-items: center;
+  }
+
+  .alumno-card-main-cursos {
+    text-align: center;
+    align-items: center;
+    width: 100%;
+  }
+
+  .alumno-badges-container {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .alumno-card-actions-cursos {
+    width: 100%;
+    margin-left: 0;
+    text-align: center;
+  }
+
+  .alumno-card-actions-cursos .btn-opciones-dropdown-alumno {
+    width: 100%;
+    justify-content: center;
   }
 
   .alumnos-table-container {

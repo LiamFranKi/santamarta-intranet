@@ -2948,143 +2948,152 @@ function DocenteCursos() {
               {loadingAlumnos ? (
                 <div className="loading-spinner">Cargando alumnos...</div>
               ) : alumnos.length > 0 ? (
-                <div className="alumnos-table-container">
-                  <table className="alumnos-table">
-                    <thead>
-                      <tr>
-                        <th>APELLIDOS Y NOMBRES</th>
-                        <th>ESTRELLAS</th>
-                        <th>INCIDENCIAS</th>
-                        <th>PROMEDIO</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {alumnos.map((alumno) => (
-                        <tr key={alumno.id}>
-                          <td>{alumno.nombre_completo}</td>
-                          <td>
-                            <span className="estrellas-badge">
-                              ⭐ {alumno.total_estrellas || 0}
+                <div className="alumnos-cards-container-cursos">
+                  {alumnos.map((alumno, index) => {
+                    // Colores pasteles suaves para cada card de alumno
+                    const coloresPasteles = [
+                      'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%)', // Light Cyan
+                      'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)', // Light Green
+                      'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)', // Light Purple
+                      'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)', // Light Orange
+                      'linear-gradient(135deg, #fbe9e7 0%, #ffccbc 100%)', // Light Red
+                      'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', // Light Blue
+                      'linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%)', // Light Pink
+                      'linear-gradient(135deg, #f1f8e9 0%, #dcedc8 100%)', // Lighter Green
+                    ];
+                    
+                    const colorCard = coloresPasteles[alumno.id % coloresPasteles.length];
+                    
+                    return (
+                      <div
+                        key={alumno.id}
+                        className="alumno-card-cursos"
+                        style={{ background: colorCard }}
+                      >
+                        <div className="alumno-card-info-cursos">
+                          <div className="alumno-card-main-cursos">
+                            <span className="alumno-nombre-cursos">
+                              {alumno.nombre_completo}
                             </span>
-                          </td>
-                          <td>
-                            <span className="incidencias-badge">
-                              📋 {alumno.total_incidencias || 0}
-                            </span>
-                          </td>
-                          <td>
-                            <span className={`promedio-badge ${alumno.promedio_final && parseFloat(alumno.promedio_final) >= 11 ? 'aprobado' : 'desaprobado'}`}>
-                              {alumno.promedio_final ? parseFloat(alumno.promedio_final).toFixed(0) : '-'}
-                            </span>
-                          </td>
-                          <td>
-                            <div className="dropdown-container">
-                              <button
-                                className="btn-opciones-dropdown-alumno"
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  e.preventDefault();
-                                  
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  if (openDropdownAlumno?.id === alumno.id) {
-                                    setOpenDropdownAlumno(null);
-                                  } else {
-                                    const dropdownWidth = 200;
-                                    let left = rect.left;
-                                    if (left + dropdownWidth > window.innerWidth) {
-                                      left = window.innerWidth - dropdownWidth - 10;
-                                    }
-                                    if (left < 10) {
-                                      left = 10;
-                                    }
-                                    
-                                    // Verificar si hay espacio abajo, si no, mostrar arriba
-                                    const spaceBelow = window.innerHeight - rect.bottom;
-                                    const spaceAbove = rect.top;
-                                    const dropdownHeight = 120; // Aproximado
-                                    
-                                    let top = rect.bottom + 2;
-                                    if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
-                                      top = rect.top - dropdownHeight - 2;
-                                    }
-                                    
-                                    setOpenDropdownAlumno({ 
-                                      id: alumno.id, 
-                                      top: top, 
-                                      left: left
-                                    });
-                                  }
-                                }}
-                                title="Opciones"
-                              >
-                                <span className="btn-opciones-icon">⚙️</span>
-                                Opciones {openDropdownAlumno?.id === alumno.id ? '▲' : '▼'}
-                              </button>
-                              {openDropdownAlumno?.id === alumno.id && openDropdownAlumno?.top && 
-                                createPortal(
-                                  <div 
-                                    className="dropdown-menu dropdown-menu-alumno"
-                                    style={{
-                                      top: `${openDropdownAlumno.top}px`,
-                                      left: `${openDropdownAlumno.left}px`,
-                                      position: 'fixed',
-                                      zIndex: 10001,
-                                      transform: 'translateZ(0)',
-                                      willChange: 'transform',
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <button
-                                      className="dropdown-item"
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setOpenDropdownAlumno(null);
-                                        abrirModalIncidencias(alumno);
-                                      }}
-                                    >
-                                      <span className="dropdown-icon">📋</span>
-                                      <span>Incidencias</span>
-                                    </button>
-                                    <button
-                                      className="dropdown-item"
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setOpenDropdownAlumno(null);
-                                        abrirModalEstrellas(alumno);
-                                      }}
-                                    >
-                                      <span className="dropdown-icon">⭐</span>
-                                      <span>Estrellas</span>
-                                    </button>
-                                    <button
-                                      className="dropdown-item"
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setOpenDropdownAlumno(null);
-                                        abrirModalNotasDetalladas(alumno);
-                                      }}
-                                    >
-                                      <span className="dropdown-icon">📝</span>
-                                      <span>Notas Detalladas</span>
-                                    </button>
-                                  </div>,
-                                  document.body
-                                )
-                              }
+                            <div className="alumno-badges-container">
+                              <span className="estrellas-badge-card">
+                                ⭐ {alumno.total_estrellas || 0}
+                              </span>
+                              <span className="incidencias-badge-card">
+                                📋 {alumno.total_incidencias || 0}
+                              </span>
+                              <span className={`promedio-badge-card ${alumno.promedio_final && parseFloat(alumno.promedio_final) >= 11 ? 'aprobado' : 'desaprobado'}`}>
+                                📊 {alumno.promedio_final ? parseFloat(alumno.promedio_final).toFixed(0) : '-'}
+                              </span>
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                        </div>
+                        <div className="alumno-card-actions-cursos">
+                          <div className="dropdown-container">
+                            <button
+                              className="btn-opciones-dropdown-alumno"
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                if (openDropdownAlumno?.id === alumno.id) {
+                                  setOpenDropdownAlumno(null);
+                                } else {
+                                  const dropdownWidth = 200;
+                                  let left = rect.left;
+                                  if (left + dropdownWidth > window.innerWidth) {
+                                    left = window.innerWidth - dropdownWidth - 10;
+                                  }
+                                  if (left < 10) {
+                                    left = 10;
+                                  }
+                                  
+                                  // Verificar si hay espacio abajo, si no, mostrar arriba
+                                  const spaceBelow = window.innerHeight - rect.bottom;
+                                  const spaceAbove = rect.top;
+                                  const dropdownHeight = 120; // Aproximado
+                                  
+                                  let top = rect.bottom + 2;
+                                  if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
+                                    top = rect.top - dropdownHeight - 2;
+                                  }
+                                  
+                                  setOpenDropdownAlumno({ 
+                                    id: alumno.id, 
+                                    top: top, 
+                                    left: left
+                                  });
+                                }
+                              }}
+                              title="Opciones"
+                            >
+                              <span className="btn-opciones-icon">⚙️</span>
+                              Opciones {openDropdownAlumno?.id === alumno.id ? '▲' : '▼'}
+                            </button>
+                            {openDropdownAlumno?.id === alumno.id && openDropdownAlumno?.top && 
+                              createPortal(
+                                <div 
+                                  className="dropdown-menu dropdown-menu-alumno"
+                                  style={{
+                                    top: `${openDropdownAlumno.top}px`,
+                                    left: `${openDropdownAlumno.left}px`,
+                                    position: 'fixed',
+                                    zIndex: 10001,
+                                    transform: 'translateZ(0)',
+                                    willChange: 'transform',
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <button
+                                    className="dropdown-item"
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      setOpenDropdownAlumno(null);
+                                      abrirModalIncidencias(alumno);
+                                    }}
+                                  >
+                                    <span className="dropdown-icon">📋</span>
+                                    <span>Incidencias</span>
+                                  </button>
+                                  <button
+                                    className="dropdown-item"
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      setOpenDropdownAlumno(null);
+                                      abrirModalEstrellas(alumno);
+                                    }}
+                                  >
+                                    <span className="dropdown-icon">⭐</span>
+                                    <span>Estrellas</span>
+                                  </button>
+                                  <button
+                                    className="dropdown-item"
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      setOpenDropdownAlumno(null);
+                                      abrirModalNotasDetalladas(alumno);
+                                    }}
+                                  >
+                                    <span className="dropdown-icon">📝</span>
+                                    <span>Notas Detalladas</span>
+                                  </button>
+                                </div>,
+                                document.body
+                              )
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="empty-state">
