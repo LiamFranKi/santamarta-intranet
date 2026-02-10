@@ -729,9 +729,11 @@ router.get('/notificaciones', async (req, res) => {
     const { usuario_id, colegio_id } = req.user;
 
     // Obtener notificaciones para el alumno
-    // Incluye: notificaciones de la tabla notificaciones Y registros de asistencia
+    // NOTA: Las asistencias se guardan en asistencia_registros, pero las notificaciones
+    // se crean automáticamente en la tabla notificaciones para los apoderados.
+    // Aquí solo mostramos las notificaciones de la tabla notificaciones.
     const notificaciones = await query(
-      `(SELECT 
+      `SELECT 
          n.id,
          n.asunto as titulo,
          n.contenido as mensaje,
@@ -739,29 +741,10 @@ router.get('/notificaciones', async (req, res) => {
          n.estado,
          'NOTIFICACION' as tipo_origen
        FROM notificaciones n
-       WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?)))
-       UNION ALL
-       (SELECT 
-         ar.id + 1000000 as id, -- Offset para evitar conflictos de IDs
-         CASE 
-           WHEN ar.tipo_registro = 'ENTRADA' THEN CONCAT('Entrada registrada - ', DATE_FORMAT(ar.fecha, '%d/%m/%Y'))
-           WHEN ar.tipo_registro = 'SALIDA' THEN CONCAT('Salida registrada - ', DATE_FORMAT(ar.fecha, '%d/%m/%Y'))
-           ELSE CONCAT('Registro de asistencia - ', DATE_FORMAT(ar.fecha, '%d/%m/%Y'))
-         END as titulo,
-         CASE 
-           WHEN ar.tipo_registro = 'ENTRADA' THEN CONCAT('Tu entrada fue registrada a las ', TIME_FORMAT(ar.hora_entrada, '%h:%i %p'), ' el ', DATE_FORMAT(ar.fecha, '%d/%m/%Y'))
-           WHEN ar.tipo_registro = 'SALIDA' THEN CONCAT('Tu salida fue registrada a las ', TIME_FORMAT(ar.hora_salida, '%h:%i %p'), ' el ', DATE_FORMAT(ar.fecha, '%d/%m/%Y'))
-           ELSE CONCAT('Registro de asistencia del ', DATE_FORMAT(ar.fecha, '%d/%m/%Y'))
-         END as mensaje,
-         CONCAT(ar.fecha, ' ', COALESCE(ar.hora_entrada, ar.hora_salida, '00:00:00')) as fecha_hora,
-         'NO_LEIDO' as estado,
-         'ASISTENCIA' as tipo_origen
-       FROM asistencia_registros ar
-       INNER JOIN usuarios u ON u.id = ar.usuario_id
-       WHERE u.id = ? AND ar.colegio_id = ? AND ar.anio = ?)
-       ORDER BY fecha_hora DESC
+       WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
+       ORDER BY n.fecha_hora DESC
        LIMIT 30`,
-      [usuario_id, usuario_id, colegio_id, req.user.anio_activo || new Date().getFullYear()]
+      [usuario_id]
     );
 
     // Mapear campos para compatibilidad con el frontend
