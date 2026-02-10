@@ -1,14 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const { query, execute } = require('../utils/mysql');
-const auth = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 const { enviarPushNotification, enviarPushNotificationMultiple } = require('../services/pushNotificationService');
 
 /**
  * POST /api/push/subscribe
  * Suscribir usuario a notificaciones push
  */
-router.post('/subscribe', auth, async (req, res) => {
+router.post('/subscribe', authenticateToken, async (req, res) => {
   try {
     const { subscription } = req.body;
     const { usuario_id, colegio_id } = req.user;
@@ -65,7 +65,7 @@ router.post('/subscribe', auth, async (req, res) => {
  * POST /api/push/unsubscribe
  * Desuscribir usuario de notificaciones push
  */
-router.post('/unsubscribe', auth, async (req, res) => {
+router.post('/unsubscribe', authenticateToken, async (req, res) => {
   try {
     const { endpoint } = req.body;
     const { usuario_id } = req.user;
