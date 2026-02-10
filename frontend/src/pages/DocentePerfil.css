@@ -384,6 +384,98 @@
 }
 
 /* Cambio de Contraseña */
+/* Notificaciones Push */
+.notificaciones-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.notificaciones-descripcion {
+  color: #6b7280;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.notificaciones-estado {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.estado-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.estado-label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.estado-value {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.estado-granted {
+  color: #10b981;
+}
+
+.estado-denied {
+  color: #ef4444;
+}
+
+.estado-default {
+  color: #f59e0b;
+}
+
+.estado-no-soportado {
+  color: #6b7280;
+}
+
+.estado-mensaje {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0;
+  font-style: italic;
+}
+
+.btn-activar-notificaciones {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-activar-notificaciones:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.btn-activar-notificaciones:disabled {
+  background: linear-gradient(135deg, #6ee7b7 0%, #34d399 100%);
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
 .btn-change-password {
   background: linear-gradient(135deg, #6ba3d4 0%, #4a83c1 50%, #2d5a8f 100%);
   color: white;

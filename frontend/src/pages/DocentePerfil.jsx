@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { suscribirNotificacionesPush, verificarEstadoNotificaciones } from '../services/pushNotificationService';
 import Swal from 'sweetalert2';
 import './DocentePerfil.css';
 
@@ -37,10 +38,18 @@ function DocentePerfil() {
     password_confirmar: ''
   });
   const [changingPassword, setChangingPassword] = useState(false);
+  const [notificacionesEstado, setNotificacionesEstado] = useState(null);
+  const [activandoNotificaciones, setActivandoNotificaciones] = useState(false);
 
   useEffect(() => {
     cargarPerfil();
+    verificarNotificaciones();
   }, []);
+
+  const verificarNotificaciones = () => {
+    const estado = verificarEstadoNotificaciones();
+    setNotificacionesEstado(estado);
+  };
 
   const cargarPerfil = async () => {
     try {
@@ -350,6 +359,59 @@ function DocentePerfil() {
     }
   };
 
+  const handleActivarNotificaciones = async () => {
+    try {
+      setActivandoNotificaciones(true);
+      const resultado = await suscribirNotificacionesPush();
+      
+      if (resultado.success) {
+        Swal.fire({
+          icon: 'success',
+          title: '¡Notificaciones Activadas!',
+          text: 'Ahora recibirás notificaciones push en tu dispositivo',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 3000
+        });
+        verificarNotificaciones();
+      } else {
+        if (resultado.error === 'Permiso denegado' || resultado.permission === 'denied') {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Permiso Denegado',
+            text: 'Has bloqueado las notificaciones. Por favor, habilítalas en la configuración de tu navegador.',
+            confirmButtonText: 'Entendido'
+          });
+        } else if (resultado.retry) {
+          Swal.fire({
+            icon: 'info',
+            title: 'Permiso Requerido',
+            text: 'Por favor, haz clic en "Permitir" cuando tu navegador te lo solicite.',
+            confirmButtonText: 'Entendido'
+          });
+        } else {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: resultado.error || 'No se pudieron activar las notificaciones',
+            confirmButtonText: 'Entendido'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error activando notificaciones:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudieron activar las notificaciones',
+        confirmButtonText: 'Entendido'
+      });
+    } finally {
+      setActivandoNotificaciones(false);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -547,6 +609,60 @@ function DocentePerfil() {
             </button>
           </div>
         </form>
+
+        {/* Notificaciones Push */}
+        <div className="perfil-section mundo-card">
+          <h2 className="section-title">Notificaciones Push</h2>
+          <div className="notificaciones-info">
+            <p className="notificaciones-descripcion">
+              Activa las notificaciones push para recibir alertas importantes en tu dispositivo, incluso cuando la aplicación esté cerrada.
+            </p>
+            {notificacionesEstado && (
+              <div className="notificaciones-estado">
+                <div className="estado-item">
+                  <span className="estado-label">Estado:</span>
+                  <span className={`estado-value estado-${notificacionesEstado.permiso}`}>
+                    {notificacionesEstado.permiso === 'granted' ? '✅ Activadas' : 
+                     notificacionesEstado.permiso === 'denied' ? '❌ Bloqueadas' : 
+                     notificacionesEstado.permiso === 'default' ? '⚠️ No configuradas' : 
+                     '❓ No disponible'}
+                  </span>
+                </div>
+                {!notificacionesEstado.disponible && (
+                  <p className="estado-mensaje">Tu navegador no soporta notificaciones push</p>
+                )}
+                {notificacionesEstado.permiso === 'denied' && (
+                  <p className="estado-mensaje">
+                    Las notificaciones están bloqueadas. Por favor, habilítalas en la configuración de tu navegador.
+                  </p>
+                )}
+              </div>
+            )}
+            <button
+              type="button"
+              className="btn-activar-notificaciones"
+              onClick={handleActivarNotificaciones}
+              disabled={activandoNotificaciones || (notificacionesEstado && notificacionesEstado.permiso === 'granted')}
+            >
+              {activandoNotificaciones ? (
+                <>
+                  <span className="btn-icon">⏳</span>
+                  Activando...
+                </>
+              ) : notificacionesEstado && notificacionesEstado.permiso === 'granted' ? (
+                <>
+                  <span className="btn-icon">✅</span>
+                  Notificaciones Activadas
+                </>
+              ) : (
+                <>
+                  <span className="btn-icon">🔔</span>
+                  Activar Notificaciones
+                </>
+              )}
+            </button>
+          </div>
+        </div>
 
         {/* Cambio de Contraseña - Fuera del formulario principal */}
         <div className="perfil-section mundo-card">

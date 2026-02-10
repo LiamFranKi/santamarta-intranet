@@ -42,8 +42,8 @@ export const AuthProvider = ({ children }) => {
           // Actualizar usuario guardado
           localStorage.setItem('user', JSON.stringify(response.data.user));
           
-          // Suscribir automáticamente a notificaciones push (solo para ALUMNO y APODERADO)
-          if (response.data.user.tipo === 'ALUMNO' || response.data.user.tipo === 'APODERADO') {
+          // Suscribir automáticamente a notificaciones push (para ALUMNO, APODERADO y DOCENTE)
+          if (response.data.user.tipo === 'ALUMNO' || response.data.user.tipo === 'APODERADO' || response.data.user.tipo === 'DOCENTE') {
             // Esperar un poco para que el Service Worker esté listo
             setTimeout(() => {
               suscribirNotificacionesPush().catch(err => {
@@ -84,8 +84,8 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       setIsAuthenticated(true);
 
-      // Suscribir automáticamente a notificaciones push (solo para ALUMNO y APODERADO)
-      if (userData.tipo === 'ALUMNO' || userData.tipo === 'APODERADO') {
+      // Suscribir automáticamente a notificaciones push (para ALUMNO, APODERADO y DOCENTE)
+      if (userData.tipo === 'ALUMNO' || userData.tipo === 'APODERADO' || userData.tipo === 'DOCENTE') {
         // Esperar un poco para que el Service Worker esté listo
         setTimeout(() => {
           suscribirNotificacionesPush().catch(err => {
