@@ -201,6 +201,9 @@ const docenteRoutes = require('./routes/docente.routes');
 const alumnoRoutes = require('./routes/alumno.routes');
 const asistenciaRoutes = require('./routes/asistencia.routes');
 
+// Rutas de push notifications
+const pushRoutes = require('./routes/push.routes');
+
 // Rutas de administrador
 const adminRoutes = require('./routes/admin.routes');
 app.use('/api/docente', docenteRoutes);
