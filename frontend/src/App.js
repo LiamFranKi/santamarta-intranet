@@ -32,6 +32,7 @@ import AlumnoMensajes from './pages/AlumnoMensajes';
 import AlumnoCursos from './pages/AlumnoCursos';
 import AlumnoHorario from './pages/AlumnoHorario';
 import AlumnoExamen from './pages/AlumnoExamen';
+import AsistenciaEscaneo from './pages/AsistenciaEscaneo';
 import './App.css';
 
 // Configurar React Router para evitar warnings
@@ -115,6 +116,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/asistencia/escaneo"
+        element={
+          <PrivateRoute>
+            <AsistenciaEscaneo />
           </PrivateRoute>
         }
       />

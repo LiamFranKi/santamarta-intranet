@@ -1,0 +1,35 @@
+{
+  "asistencia": {
+    "entrada": {
+      "titulo": "Llegada al Colegio",
+      "mensaje_corto": "Tu hijo(a) {nombreAlumno} ha llegado al colegio a las {hora}.",
+      "mensaje_largo": "Estimado(a) apoderado(a), le informamos que su hijo(a) {nombreAlumno} ha llegado al colegio el día {fecha} a las {hora}. Este es un mensaje automático del sistema de asistencia.",
+      "icono": "✅",
+      "color": "#10b981"
+    },
+    "salida": {
+      "titulo": "Salida del Colegio",
+      "mensaje_corto": "Tu hijo(a) {nombreAlumno} ha salido del colegio a las {hora}.",
+      "mensaje_largo": "Estimado(a) apoderado(a), le informamos que su hijo(a) {nombreAlumno} ha salido del colegio el día {fecha} a las {hora}. Este es un mensaje automático del sistema de asistencia.",
+      "icono": "👋",
+      "color": "#3b82f6"
+    }
+  },
+  "docente": {
+    "entrada": {
+      "titulo": "Registro de Entrada",
+      "mensaje_corto": "Entrada registrada a las {hora}.",
+      "mensaje_largo": "Su entrada ha sido registrada correctamente el día {fecha} a las {hora}.",
+      "icono": "✅",
+      "color": "#10b981"
+    },
+    "salida": {
+      "titulo": "Registro de Salida",
+      "mensaje_corto": "Salida registrada a las {hora}.",
+      "mensaje_largo": "Su salida ha sido registrada correctamente el día {fecha} a las {hora}.",
+      "icono": "👋",
+      "color": "#3b82f6"
+    }
+  }
+}
+

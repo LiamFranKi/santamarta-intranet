@@ -199,11 +199,13 @@ app.use('/api/auditoria', auditoriaRoutes);
 // Rutas de docente
 const docenteRoutes = require('./routes/docente.routes');
 const alumnoRoutes = require('./routes/alumno.routes');
+const asistenciaRoutes = require('./routes/asistencia.routes');
 
 // Rutas de administrador
 const adminRoutes = require('./routes/admin.routes');
 app.use('/api/docente', docenteRoutes);
 app.use('/api/alumno', alumnoRoutes);
+app.use('/api/asistencia', asistenciaRoutes);
 app.use('/api/admin', adminRoutes);
 
 // Rutas de prueba (solo desarrollo)

@@ -44,6 +44,8 @@ function Login() {
         navigate('/alumno/dashboard');
       } else if (user.tipo === 'ADMINISTRADOR') {
         navigate('/admin/dashboard');
+      } else if (user.tipo === 'ASISTENCIA') {
+        navigate('/asistencia/escaneo');
       } else {
         navigate('/admin/dashboard');
       }
