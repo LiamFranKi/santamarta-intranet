@@ -86,6 +86,8 @@ const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
   'http://127.0.0.1:3000',
+  'https://sistema.vanguardschools.edu.pe',
+  'http://sistema.vanguardschools.edu.pe',
   'https://intranet.vanguardschools.com',
   'http://intranet.vanguardschools.com'
 ];
