@@ -508,7 +508,7 @@ router.get('/qr', async (req, res) => {
 
     // Obtener datos del docente
     const personal = await query(
-      `SELECT p.id, p.nombres, p.apellidos, p.fecha_nacimiento, COALESCE(p.nro_documento, p.dni) as nro_documento
+      `SELECT p.id, p.nombres, p.apellidos, p.fecha_nacimiento, u.usuario as nro_documento
        FROM personal p
        INNER JOIN usuarios u ON u.personal_id = p.id
        WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
