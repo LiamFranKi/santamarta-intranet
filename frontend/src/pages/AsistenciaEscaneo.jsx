@@ -17,10 +17,12 @@ function AsistenciaEscaneo() {
   const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
   const [procesando, setProcesando] = useState(false);
   const [historial, setHistorial] = useState([]);
+  const [buscando, setBuscando] = useState(false);
   
   const qrCodeRef = useRef(null);
   const html5QrCodeRef = useRef(null);
   const scannerId = useRef(null);
+  const busquedaTimeoutRef = useRef(null);
 
   useEffect(() => {
     // Limpiar al desmontar
@@ -28,6 +30,20 @@ function AsistenciaEscaneo() {
       detenerEscaneo();
     };
   }, []);
+
+  // Iniciar escaneo automáticamente cuando se cambia a modo continuo
+  useEffect(() => {
+    if (modo === 'continuo' && !escaneando && !procesando && !mostrarBusqueda) {
+      // Pequeño delay para asegurar que el DOM esté listo
+      const timer = setTimeout(() => {
+        iniciarEscaneo();
+      }, 500);
+      return () => clearTimeout(timer);
+    } else if (modo === 'manual' && escaneando) {
+      // Si cambia a manual y está escaneando, detener
+      detenerEscaneo();
+    }
+  }, [modo]);
 
   const detenerEscaneo = async () => {
     if (html5QrCodeRef.current) {
@@ -209,26 +225,53 @@ function AsistenciaEscaneo() {
     }
   };
 
-  const buscarUsuario = async () => {
-    if (!busqueda.trim() || busqueda.trim().length < 2) {
+  const buscarUsuario = async (termino) => {
+    if (!termino || termino.trim().length < 2) {
+      setResultadosBusqueda([]);
       return;
     }
 
     try {
-      const response = await api.post('/asistencia/buscar', { busqueda: busqueda.trim() });
+      setBuscando(true);
+      const response = await api.post('/asistencia/buscar', { busqueda: termino.trim() });
       
       if (response.data.success) {
         setResultadosBusqueda(response.data.resultados);
+      } else {
+        setResultadosBusqueda([]);
       }
     } catch (error) {
       console.error('Error buscando usuario:', error);
-      Swal.fire({
-        title: 'Error',
-        text: 'No se pudo realizar la búsqueda',
-        icon: 'error'
-      });
+      setResultadosBusqueda([]);
+    } finally {
+      setBuscando(false);
     }
   };
+
+  // Búsqueda en tiempo real con debounce
+  useEffect(() => {
+    // Limpiar timeout anterior
+    if (busquedaTimeoutRef.current) {
+      clearTimeout(busquedaTimeoutRef.current);
+    }
+
+    // Si la búsqueda tiene menos de 2 caracteres, limpiar resultados
+    if (busqueda.trim().length < 2) {
+      setResultadosBusqueda([]);
+      return;
+    }
+
+    // Esperar 300ms después de que el usuario deje de escribir
+    busquedaTimeoutRef.current = setTimeout(() => {
+      buscarUsuario(busqueda);
+    }, 300);
+
+    return () => {
+      if (busquedaTimeoutRef.current) {
+        clearTimeout(busquedaTimeoutRef.current);
+      }
+    };
+  }, [busqueda]);
 
   const seleccionarUsuarioManual = (usuario) => {
     setUsuarioSeleccionado(usuario);
@@ -304,45 +347,57 @@ function AsistenciaEscaneo() {
             <input
               type="text"
               className="busqueda-input"
-              placeholder="Buscar por DNI, nombres o apellidos..."
+              placeholder="Buscar por DNI, nombres o apellidos... (mínimo 2 caracteres)"
               value={busqueda}
-              onChange={(e) => {
-                setBusqueda(e.target.value);
-                if (e.target.value.length >= 2) {
-                  buscarUsuario();
-                } else {
-                  setResultadosBusqueda([]);
-                }
-              }}
+              onChange={(e) => setBusqueda(e.target.value)}
               autoFocus
             />
+            {buscando && (
+              <div className="busqueda-loading">🔍</div>
+            )}
             <button 
               className="btn-cerrar-busqueda"
               onClick={() => {
                 setMostrarBusqueda(false);
                 setBusqueda('');
                 setResultadosBusqueda([]);
+                if (busquedaTimeoutRef.current) {
+                  clearTimeout(busquedaTimeoutRef.current);
+                }
               }}
             >
               ✕
             </button>
           </div>
           
-          {resultadosBusqueda.length > 0 && (
-            <div className="resultados-busqueda">
-              {resultadosBusqueda.map((usuario, idx) => (
-                <div 
-                  key={idx}
-                  className="resultado-item"
-                  onClick={() => seleccionarUsuarioManual(usuario)}
-                >
-                  <div className="resultado-info">
-                    <strong>{usuario.nombre_completo}</strong>
-                    <span className="resultado-tipo">{usuario.tipo}</span>
-                  </div>
-                  <div className="resultado-dni">DNI: {usuario.nro_documento || 'N/A'}</div>
+          {busqueda.trim().length >= 2 && (
+            <div className="resultados-busqueda-container">
+              {buscando ? (
+                <div className="resultado-cargando">
+                  <div className="spinner-pequeño"></div>
+                  <span>Buscando...</span>
                 </div>
-              ))}
+              ) : resultadosBusqueda.length > 0 ? (
+                <div className="resultados-busqueda">
+                  {resultadosBusqueda.map((usuario, idx) => (
+                    <div 
+                      key={idx}
+                      className="resultado-item"
+                      onClick={() => seleccionarUsuarioManual(usuario)}
+                    >
+                      <div className="resultado-info">
+                        <strong>{usuario.nombre_completo}</strong>
+                        <span className="resultado-tipo">{usuario.tipo}</span>
+                      </div>
+                      <div className="resultado-dni">DNI: {usuario.nro_documento || 'N/A'}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : busqueda.trim().length >= 2 ? (
+                <div className="resultado-vacio">
+                  No se encontraron resultados
+                </div>
+              ) : null}
             </div>
           )}
         </div>

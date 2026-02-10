@@ -294,7 +294,7 @@ router.post('/registrar', async (req, res) => {
               `SELECT endpoint, p256dh, auth 
                FROM push_subscriptions 
                WHERE usuario_id IN (${usuarioIds.map(() => '?').join(',')}) 
-                 AND colegio_id = ? AND activo = 1`,
+                 AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
               [...usuarioIds, colegio_id]
             );
             
@@ -305,6 +305,8 @@ router.post('/registrar', async (req, res) => {
                 auth: sub.auth
               }
             }));
+            
+            console.log(`📱 Encontradas ${subscriptions.length} suscripciones push para ${apoderados.length} apoderados`);
           }
         }
 
@@ -331,21 +333,37 @@ router.post('/registrar', async (req, res) => {
         };
 
         // Enviar correos a apoderados
+        console.log(`📧 Enviando correos a ${apoderados.length} apoderados...`);
         for (const apoderado of apoderados) {
           if (apoderado.email) {
-            await enviarCorreoAsistencia(apoderado.email, {
-              nombreAlumno: datosUsuario.nombre_completo,
-              hora: horaFormateada,
-              fecha: fechaFormateada,
-              tipo: tipo_registro,
-              colegioNombre
-            });
+            try {
+              const resultadoCorreo = await enviarCorreoAsistencia(apoderado.email, {
+                nombreAlumno: datosUsuario.nombre_completo,
+                hora: horaFormateada,
+                fecha: fechaFormateada,
+                tipo: tipo_registro,
+                colegioNombre
+              });
+              if (resultadoCorreo.success) {
+                console.log(`✅ Correo enviado a ${apoderado.email}`);
+              } else {
+                console.error(`❌ Error enviando correo a ${apoderado.email}:`, resultadoCorreo.error);
+              }
+            } catch (error) {
+              console.error(`❌ Error enviando correo a ${apoderado.email}:`, error);
+            }
           }
         }
 
         // Enviar push notifications a todos los apoderados suscritos
         if (subscriptions.length > 0) {
-          await enviarPushNotificationMultiple(subscriptions, payloadPush);
+          console.log(`📱 Enviando ${subscriptions.length} notificaciones push...`);
+          const resultadosPush = await enviarPushNotificationMultiple(subscriptions, payloadPush);
+          const exitosas = resultadosPush.filter(r => r.resultado.success).length;
+          const fallidas = resultadosPush.filter(r => !r.resultado.success).length;
+          console.log(`✅ Push notifications: ${exitosas} exitosas, ${fallidas} fallidas`);
+        } else {
+          console.log('⚠️ No hay suscripciones push activas para enviar notificaciones');
         }
       } catch (error) {
         console.error('Error enviando notificaciones:', error);
