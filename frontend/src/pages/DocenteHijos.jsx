@@ -56,7 +56,7 @@ function DocenteHijos() {
     } else {
       // Calcular posición del dropdown
       const dropdownWidth = 200;
-      const dropdownHeight = 350; // Aproximado para 9 opciones
+      const dropdownHeight = 390; // Aproximado para 10 opciones
       let left = rect.left;
       let top = rect.bottom + 2;
       
@@ -120,6 +120,10 @@ function DocenteHijos() {
         break;
       case 'psicologia':
         console.log('Psicología de:', hijo);
+        // Implementar después
+        break;
+      case 'reiniciar-contrasena':
+        console.log('Reiniciar contraseña de:', hijo);
         // Implementar después
         break;
       default:
@@ -367,6 +371,17 @@ function DocenteHijos() {
                                 >
                                   <span className="dropdown-icon">🧠</span>
                                   <span>Psicología</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('reiniciar-contrasena', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">🔑</span>
+                                  <span>Reiniciar Contraseña</span>
                                 </button>
                               </div>,
                               document.body
