@@ -4073,8 +4073,11 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
     const { hijoId } = req.params;
     const { colegio_id, usuario_id, personal_id } = req.user;
 
+    console.log(`📋 [HIJOS-DATOS] Iniciando solicitud para hijoId: ${hijoId}`);
+    console.log(`📋 [HIJOS-DATOS] Usuario: usuario_id=${usuario_id}, personal_id=${personal_id}, colegio_id=${colegio_id}`);
+
     if (!personal_id) {
-      console.error('Error: personal_id no encontrado en req.user');
+      console.error('❌ [HIJOS-DATOS] Error: personal_id no encontrado en req.user');
       return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
     }
 
@@ -4082,32 +4085,41 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
     let nroDocumento = null;
     
     // Primero intentar obtener desde la tabla personal
+    console.log(`📋 [HIJOS-DATOS] Buscando nro_documento en personal para personal_id=${personal_id}`);
     const personalData = await query(
       `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
       [personal_id, colegio_id]
     );
 
+    console.log(`📋 [HIJOS-DATOS] Resultado personalData:`, personalData);
+
     if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
       nroDocumento = personalData[0].nro_documento;
+      console.log(`✅ [HIJOS-DATOS] nro_documento encontrado en personal: ${nroDocumento}`);
     } else {
       // Si no está en personal, obtener desde usuarios.usuario (que es el DNI)
+      console.log(`📋 [HIJOS-DATOS] Buscando nro_documento en usuarios para usuario_id=${usuario_id}`);
       const usuarioData = await query(
         `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
         [usuario_id, colegio_id, personal_id]
       );
       
+      console.log(`📋 [HIJOS-DATOS] Resultado usuarioData:`, usuarioData);
+      
       if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
         nroDocumento = usuarioData[0].usuario;
+        console.log(`✅ [HIJOS-DATOS] nro_documento encontrado en usuarios: ${nroDocumento}`);
       }
     }
 
     if (!nroDocumento) {
-      console.error(`Error: No se encontró nro_documento para personal_id ${personal_id}, usuario_id ${usuario_id}, colegio_id ${colegio_id}`);
+      console.error(`❌ [HIJOS-DATOS] Error: No se encontró nro_documento para personal_id ${personal_id}, usuario_id ${usuario_id}, colegio_id ${colegio_id}`);
       return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
     }
 
     // Verificar que el alumno es hijo del docente
     // Buscar en apoderados usando el nro_documento
+    console.log(`📋 [HIJOS-DATOS] Verificando si alumno ${hijoId} es hijo del docente con nro_documento ${nroDocumento}`);
     const esHijo = await query(
       `SELECT COUNT(*) as count
        FROM apoderados ap
@@ -4120,12 +4132,18 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
       [colegio_id, nroDocumento, hijoId, colegio_id]
     );
 
+    console.log(`📋 [HIJOS-DATOS] Resultado verificación esHijo:`, esHijo);
+
     if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
-      console.error(`Error: El alumno ${hijoId} no es hijo del docente con nro_documento ${nroDocumento}`);
+      console.error(`❌ [HIJOS-DATOS] Error: El alumno ${hijoId} no es hijo del docente con nro_documento ${nroDocumento}`);
+      console.error(`❌ [HIJOS-DATOS] Detalles: colegio_id=${colegio_id}, nro_documento=${nroDocumento}, hijoId=${hijoId}`);
       return res.status(403).json({ error: 'No tienes permisos para ver estos datos. El alumno no está registrado como tu hijo.' });
     }
 
+    console.log(`✅ [HIJOS-DATOS] Verificación exitosa: el alumno ${hijoId} es hijo del docente`);
+
     // Obtener datos del alumno
+    console.log(`📋 [HIJOS-DATOS] Obteniendo datos del alumno con id=${hijoId}, colegio_id=${colegio_id}`);
     const alumno = await query(
       `SELECT a.*, u.usuario as nro_documento
        FROM alumnos a
@@ -4134,11 +4152,19 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
       [hijoId, colegio_id]
     );
 
+    console.log(`📋 [HIJOS-DATOS] Resultado consulta alumno:`, alumno.length > 0 ? 'Encontrado' : 'No encontrado');
+
     if (!alumno || alumno.length === 0) {
+      console.error(`❌ [HIJOS-DATOS] Error: Alumno no encontrado con id=${hijoId}, colegio_id=${colegio_id}`);
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
 
     const alumnoData = alumno[0];
+    console.log(`✅ [HIJOS-DATOS] Datos del alumno obtenidos exitosamente:`, {
+      id: alumnoData.id,
+      nombres: alumnoData.nombres,
+      nro_documento: alumnoData.nro_documento
+    });
 
     res.json({
       id: alumnoData.id,
@@ -4152,7 +4178,8 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
       nro_documento: alumnoData.nro_documento
     });
   } catch (error) {
-    console.error('Error obteniendo datos del hijo:', error);
+    console.error('❌ [HIJOS-DATOS] Error obteniendo datos del hijo:', error);
+    console.error('❌ [HIJOS-DATOS] Stack:', error.stack);
     res.status(500).json({ error: 'Error al obtener datos del alumno' });
   }
 });

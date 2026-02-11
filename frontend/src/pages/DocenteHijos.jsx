@@ -158,7 +158,9 @@ function DocenteHijos() {
 
   const cargarDatosHijo = async (hijoId) => {
     try {
+      console.log('📋 [FRONTEND] Cargando datos del hijo con ID:', hijoId);
       const response = await api.get(`/docente/hijos/${hijoId}/datos`);
+      console.log('✅ [FRONTEND] Datos recibidos:', response.data);
       const datos = response.data;
       
       setFormData({
@@ -182,7 +184,10 @@ function DocenteHijos() {
       }
       setFotoFile(null);
     } catch (error) {
-      console.error('Error cargando datos del hijo:', error);
+      console.error('❌ [FRONTEND] Error cargando datos del hijo:', error);
+      console.error('❌ [FRONTEND] Error response:', error.response);
+      console.error('❌ [FRONTEND] Error status:', error.response?.status);
+      console.error('❌ [FRONTEND] Error data:', error.response?.data);
       const errorMessage = error.response?.data?.error || error.message || 'No se pudieron cargar los datos del alumno';
       Swal.fire({
         icon: 'error',
