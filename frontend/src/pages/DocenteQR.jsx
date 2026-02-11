@@ -144,10 +144,10 @@ function DocenteQR() {
 
       // Card Nombres
       doc.setFillColor(255, 255, 255);
-      doc.roundedRect(margin, currentY, contentWidth, 8, 1, 1, 'F');
+      doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1, 'F');
       doc.setDrawColor(224, 231, 255);
       doc.setLineWidth(0.3);
-      doc.roundedRect(margin, currentY, contentWidth, 8, 1, 1);
+      doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1);
       
       // Label Nombres
       doc.setFillColor(238, 242, 255); // #eef2ff
@@ -157,22 +157,22 @@ function DocenteQR() {
       doc.setFont('helvetica', 'bold');
       doc.text('NOMBRES:', margin + cardPadding + 1, currentY + 2);
       
-      // Valor Nombres
+      // Valor Nombres - con más espacio desde el label
       doc.setTextColor(30, 41, 59); // #1e293b
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
       const nombres = qrData.nombres || '';
       const nombresLines = doc.splitTextToSize(nombres, contentWidth - (cardPadding * 2) - 2);
       nombresLines.forEach((line, idx) => {
-        doc.text(line, margin + cardPadding, currentY + 4.5 + (idx * 3.5), { maxWidth: contentWidth - (cardPadding * 2) });
+        doc.text(line, margin + cardPadding, currentY + 5.5 + (idx * 3.5), { maxWidth: contentWidth - (cardPadding * 2) });
       });
-      currentY += 8 + cardSpacing;
+      currentY += 9 + cardSpacing;
 
       // Card Apellidos
       doc.setFillColor(255, 255, 255);
-      doc.roundedRect(margin, currentY, contentWidth, 8, 1, 1, 'F');
+      doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1, 'F');
       doc.setDrawColor(224, 231, 255);
-      doc.roundedRect(margin, currentY, contentWidth, 8, 1, 1);
+      doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1);
       
       doc.setFillColor(238, 242, 255);
       doc.roundedRect(margin + cardPadding, currentY + 0.5, 13, 2.5, 0.5, 0.5, 'F');
@@ -187,16 +187,16 @@ function DocenteQR() {
       const apellidos = qrData.apellidos || '';
       const apellidosLines = doc.splitTextToSize(apellidos, contentWidth - (cardPadding * 2) - 2);
       apellidosLines.forEach((line, idx) => {
-        doc.text(line, margin + cardPadding, currentY + 4.5 + (idx * 3.5), { maxWidth: contentWidth - (cardPadding * 2) });
+        doc.text(line, margin + cardPadding, currentY + 5.5 + (idx * 3.5), { maxWidth: contentWidth - (cardPadding * 2) });
       });
-      currentY += 8 + cardSpacing;
+      currentY += 9 + cardSpacing;
 
       // Card Fecha Nacimiento (si existe)
       if (qrData.fecha_nacimiento) {
         doc.setFillColor(255, 255, 255);
-        doc.roundedRect(margin, currentY, contentWidth, 8, 1, 1, 'F');
+        doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1, 'F');
         doc.setDrawColor(224, 231, 255);
-        doc.roundedRect(margin, currentY, contentWidth, 8, 1, 1);
+        doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1);
         
         doc.setFillColor(238, 242, 255);
         doc.roundedRect(margin + cardPadding, currentY + 0.5, 18, 2.5, 0.5, 0.5, 'F');
@@ -210,7 +210,7 @@ function DocenteQR() {
         doc.setFont('helvetica', 'bold');
         const fechaLines = doc.splitTextToSize(qrData.fecha_nacimiento, contentWidth - (cardPadding * 2) - 2);
         fechaLines.forEach((line, idx) => {
-          doc.text(line, margin + cardPadding, currentY + 4.5 + (idx * 3.5), { maxWidth: contentWidth - (cardPadding * 2) });
+          doc.text(line, margin + cardPadding, currentY + 5.5 + (idx * 3.5), { maxWidth: contentWidth - (cardPadding * 2) });
         });
       }
 
