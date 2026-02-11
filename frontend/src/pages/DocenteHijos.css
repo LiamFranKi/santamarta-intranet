@@ -238,6 +238,14 @@
 }
 
 @media (max-width: 768px) {
+  .docente-hijos {
+    padding: 1rem;
+  }
+
+  .hijos-content {
+    padding: 1rem;
+  }
+
   .hijos-grid {
     grid-template-columns: 1fr;
   }
@@ -245,10 +253,26 @@
   .hijo-card {
     flex-direction: column;
     text-align: center;
+    padding: 1.25rem;
   }
 
   .hijo-details {
     align-items: center;
+    width: 100%;
+    margin-bottom: 1rem;
+  }
+
+  .hijo-actions {
+    position: static !important;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: 0.5rem;
+  }
+
+  .btn-opciones-hijo {
+    width: auto;
+    margin: 0 auto;
   }
 }
 
