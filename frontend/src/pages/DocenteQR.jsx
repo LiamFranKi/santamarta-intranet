@@ -81,10 +81,10 @@ function DocenteQR() {
       const bodyHeight = height - headerHeight - footerHeight;
       let yPos = headerHeight + 3;
 
-      // QR Code arriba centrado
+      // QR Code arriba centrado - centrado perfecto vertical y horizontal
       const qrSize = 28; // Tamaño optimizado para formato vertical
-      const qrX = (width - qrSize) / 2; // Centrado
-      const qrY = yPos;
+      const qrX = (width - qrSize) / 2; // Centrado horizontal perfecto
+      const qrY = yPos; // Posición vertical
 
       // Obtener el elemento QR del DOM y convertirlo a imagen
       const qrElement = document.querySelector('#qr-card-print .qr-code-wrapper svg');
@@ -105,16 +105,22 @@ function DocenteQR() {
               ctx.drawImage(img, 0, 0);
               const imgData = canvas.toDataURL('image/png');
               
-              // Dibujar fondo blanco para el QR
+              // Dibujar fondo blanco para el QR - centrado perfecto
+              const qrBoxSize = qrSize + 2;
+              const qrBoxX = (width - qrBoxSize) / 2; // Centrado horizontal perfecto
+              const qrBoxY = qrY - 1;
               doc.setFillColor(255, 255, 255);
-              doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1, 'F');
+              doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1, 'F');
               
               // Borde del QR
               doc.setDrawColor(224, 231, 255); // #e0e7ff
               doc.setLineWidth(0.5);
-              doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1);
+              doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1);
               
-              doc.addImage(imgData, 'PNG', qrX, qrY, qrSize, qrSize);
+              // QR centrado perfecto dentro del cuadro
+              const qrImageX = qrBoxX + 1; // 1mm de padding desde el borde del cuadro
+              const qrImageY = qrBoxY + 1;
+              doc.addImage(imgData, 'PNG', qrImageX, qrImageY, qrSize, qrSize);
               
               URL.revokeObjectURL(url);
               resolve();
@@ -124,20 +130,26 @@ function DocenteQR() {
           });
         } catch (error) {
           console.warn('Error convirtiendo QR a imagen, usando placeholder:', error);
+          const qrBoxSize = qrSize + 2;
+          const qrBoxX = (width - qrBoxSize) / 2;
+          const qrBoxY = qrY - 1;
           doc.setFillColor(240, 240, 240);
-          doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1, 'F');
+          doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1, 'F');
           doc.setDrawColor(200, 200, 200);
-          doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1);
+          doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1);
         }
       } else {
+        const qrBoxSize = qrSize + 2;
+        const qrBoxX = (width - qrBoxSize) / 2;
+        const qrBoxY = qrY - 1;
         doc.setFillColor(240, 240, 240);
-        doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1, 'F');
+        doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1, 'F');
         doc.setDrawColor(200, 200, 200);
-        doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1);
+        doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1);
       }
 
-      // Información del docente debajo del QR - estilo card
-      const infoStartY = qrY + qrSize + 4;
+      // Información del docente debajo del QR - estilo card (2mm más abajo)
+      const infoStartY = qrY + qrSize + 6; // 2mm más abajo (de 4 a 6)
       const cardPadding = 1.5;
       const cardSpacing = 2.5;
       let currentY = infoStartY;
@@ -149,22 +161,24 @@ function DocenteQR() {
       doc.setLineWidth(0.3);
       doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1);
       
-      // Label Nombres
+      // Label Nombres - centrado
+      const labelWidth = 12;
+      const labelX = (width - labelWidth) / 2; // Centrado
       doc.setFillColor(238, 242, 255); // #eef2ff
-      doc.roundedRect(margin + cardPadding, currentY + 0.5, 12, 2.5, 0.5, 0.5, 'F');
+      doc.roundedRect(labelX, currentY + 0.5, labelWidth, 2.5, 0.5, 0.5, 'F');
       doc.setTextColor(99, 102, 241); // #6366f1
       doc.setFontSize(5);
       doc.setFont('helvetica', 'bold');
-      doc.text('NOMBRES:', margin + cardPadding + 1, currentY + 2);
+      doc.text('NOMBRES:', width / 2, currentY + 2, { align: 'center' });
       
-      // Valor Nombres - con más espacio desde el label
+      // Valor Nombres - centrado
       doc.setTextColor(30, 41, 59); // #1e293b
       doc.setFontSize(7);
       doc.setFont('helvetica', 'bold');
       const nombres = qrData.nombres || '';
       const nombresLines = doc.splitTextToSize(nombres, contentWidth - (cardPadding * 2) - 2);
       nombresLines.forEach((line, idx) => {
-        doc.text(line, margin + cardPadding, currentY + 5.5 + (idx * 3.5), { maxWidth: contentWidth - (cardPadding * 2) });
+        doc.text(line, width / 2, currentY + 5.5 + (idx * 3.5), { align: 'center', maxWidth: contentWidth - (cardPadding * 2) });
       });
       currentY += 9 + cardSpacing;
 
@@ -174,12 +188,15 @@ function DocenteQR() {
       doc.setDrawColor(224, 231, 255);
       doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1);
       
+      // Label Apellidos - centrado
+      const labelWidthApellidos = 13;
+      const labelXApellidos = (width - labelWidthApellidos) / 2; // Centrado
       doc.setFillColor(238, 242, 255);
-      doc.roundedRect(margin + cardPadding, currentY + 0.5, 13, 2.5, 0.5, 0.5, 'F');
+      doc.roundedRect(labelXApellidos, currentY + 0.5, labelWidthApellidos, 2.5, 0.5, 0.5, 'F');
       doc.setTextColor(99, 102, 241);
       doc.setFontSize(5);
       doc.setFont('helvetica', 'bold');
-      doc.text('APELLIDOS:', margin + cardPadding + 1, currentY + 2);
+      doc.text('APELLIDOS:', width / 2, currentY + 2, { align: 'center' });
       
       doc.setTextColor(30, 41, 59);
       doc.setFontSize(7);
@@ -187,7 +204,7 @@ function DocenteQR() {
       const apellidos = qrData.apellidos || '';
       const apellidosLines = doc.splitTextToSize(apellidos, contentWidth - (cardPadding * 2) - 2);
       apellidosLines.forEach((line, idx) => {
-        doc.text(line, margin + cardPadding, currentY + 5.5 + (idx * 3.5), { maxWidth: contentWidth - (cardPadding * 2) });
+        doc.text(line, width / 2, currentY + 5.5 + (idx * 3.5), { align: 'center', maxWidth: contentWidth - (cardPadding * 2) });
       });
       currentY += 9 + cardSpacing;
 
@@ -198,19 +215,22 @@ function DocenteQR() {
         doc.setDrawColor(224, 231, 255);
         doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1);
         
+        // Label Fecha Nacimiento - centrado
+        const labelWidthFecha = 18;
+        const labelXFecha = (width - labelWidthFecha) / 2; // Centrado
         doc.setFillColor(238, 242, 255);
-        doc.roundedRect(margin + cardPadding, currentY + 0.5, 18, 2.5, 0.5, 0.5, 'F');
+        doc.roundedRect(labelXFecha, currentY + 0.5, labelWidthFecha, 2.5, 0.5, 0.5, 'F');
         doc.setTextColor(99, 102, 241);
         doc.setFontSize(5);
         doc.setFont('helvetica', 'bold');
-        doc.text('F. NACIMIENTO:', margin + cardPadding + 1, currentY + 2);
+        doc.text('F. NACIMIENTO:', width / 2, currentY + 2, { align: 'center' });
         
         doc.setTextColor(30, 41, 59);
         doc.setFontSize(7);
         doc.setFont('helvetica', 'bold');
         const fechaLines = doc.splitTextToSize(qrData.fecha_nacimiento, contentWidth - (cardPadding * 2) - 2);
         fechaLines.forEach((line, idx) => {
-          doc.text(line, margin + cardPadding, currentY + 5.5 + (idx * 3.5), { maxWidth: contentWidth - (cardPadding * 2) });
+          doc.text(line, width / 2, currentY + 5.5 + (idx * 3.5), { align: 'center', maxWidth: contentWidth - (cardPadding * 2) });
         });
       }
 
