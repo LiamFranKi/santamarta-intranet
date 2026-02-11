@@ -16,6 +16,10 @@ function DocenteDashboard() {
   const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
   const [tipoEventoSeleccionado, setTipoEventoSeleccionado] = useState(null);
   const [mostrarComunicadoHome, setMostrarComunicadoHome] = useState(false);
+  const [tieneAsignaciones, setTieneAsignaciones] = useState({
+    tiene_grupos: true,
+    tiene_cursos: true
+  });
 
   const cargarDashboard = async () => {
     try {
@@ -62,6 +66,26 @@ function DocenteDashboard() {
 
   useEffect(() => {
     cargarDashboard();
+    
+    // Cargar información de asignaciones
+    const cargarAsignaciones = async () => {
+      try {
+        const response = await api.get('/docente/tiene-asignaciones');
+        setTieneAsignaciones({
+          tiene_grupos: response.data.tiene_grupos || false,
+          tiene_cursos: response.data.tiene_cursos || false
+        });
+      } catch (error) {
+        console.error('Error cargando asignaciones:', error);
+        // En caso de error, mantener valores por defecto (mostrar cards)
+        setTieneAsignaciones({
+          tiene_grupos: true,
+          tiene_cursos: true
+        });
+      }
+    };
+    
+    cargarAsignaciones();
   }, []);
 
   // Extraer datos del dashboard (con valores por defecto para evitar errores)
@@ -362,51 +386,60 @@ function DocenteDashboard() {
       <div className="docente-dashboard">
         {/* Tarjetas de estadísticas */}
         <div className="stats-grid">
-          <div 
-            className="stat-card mundo-card stat-card-clickable" 
-            onClick={() => navigate('/docente/grupos')}
-            style={{ cursor: 'pointer' }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                navigate('/docente/grupos');
-              }
-            }}
-          >
-            <div className="stat-icon">🎓</div>
-            <div className="stat-content">
-              <div className="stat-number">{estadisticas?.gruposAsignados || 0}</div>
-              <div className="stat-label">Grupos Asignados</div>
+          {/* Card Grupos Asignados - Solo mostrar si tiene grupos */}
+          {tieneAsignaciones.tiene_grupos && (
+            <div 
+              className="stat-card mundo-card stat-card-clickable" 
+              onClick={() => navigate('/docente/grupos')}
+              style={{ cursor: 'pointer' }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  navigate('/docente/grupos');
+                }
+              }}
+            >
+              <div className="stat-icon">🎓</div>
+              <div className="stat-content">
+                <div className="stat-number">{estadisticas?.gruposAsignados || 0}</div>
+                <div className="stat-label">Grupos Asignados</div>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div 
-            className="stat-card mundo-card stat-card-clickable" 
-            onClick={() => navigate('/docente/cursos')}
-            style={{ cursor: 'pointer' }}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                navigate('/docente/cursos');
-              }
-            }}
-          >
-            <div className="stat-icon">📚</div>
-            <div className="stat-content">
-              <div className="stat-number">{estadisticas?.cursosAsignados || 0}</div>
-              <div className="stat-label">Cursos Asignados</div>
+          {/* Card Cursos Asignados - Solo mostrar si tiene cursos */}
+          {tieneAsignaciones.tiene_cursos && (
+            <div 
+              className="stat-card mundo-card stat-card-clickable" 
+              onClick={() => navigate('/docente/cursos')}
+              style={{ cursor: 'pointer' }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  navigate('/docente/cursos');
+                }
+              }}
+            >
+              <div className="stat-icon">📚</div>
+              <div className="stat-content">
+                <div className="stat-number">{estadisticas?.cursosAsignados || 0}</div>
+                <div className="stat-label">Cursos Asignados</div>
+              </div>
             </div>
-          </div>
+          )}
 
-          <div className="stat-card mundo-card">
-            <div className="stat-icon">👥</div>
-            <div className="stat-content">
-              <div className="stat-number">{estadisticas?.estudiantes || 0}</div>
-              <div className="stat-label">Estudiantes</div>
+          {/* Card Estudiantes - Solo mostrar si tiene grupos o cursos */}
+          {(tieneAsignaciones.tiene_grupos || tieneAsignaciones.tiene_cursos) && (
+            <div className="stat-card mundo-card">
+              <div className="stat-icon">👥</div>
+              <div className="stat-content">
+                <div className="stat-number">{estadisticas?.estudiantes || 0}</div>
+                <div className="stat-label">Estudiantes</div>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="stat-card mundo-card">
             <div className="stat-icon">⏰</div>
