@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import './DocenteHijos.css';
@@ -7,10 +8,31 @@ function DocenteHijos() {
   const [loading, setLoading] = useState(true);
   const [hijos, setHijos] = useState([]);
   const [esApoderado, setEsApoderado] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState(null);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     cargarHijos();
   }, []);
+
+  // Cerrar dropdown al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        const isDropdownButton = event.target.closest('.btn-opciones-hijo');
+        if (!isDropdownButton) {
+          setOpenDropdown(null);
+        }
+      }
+    };
+
+    if (openDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [openDropdown]);
 
   const cargarHijos = async () => {
     try {
@@ -22,6 +44,86 @@ function DocenteHijos() {
       console.error('Error cargando hijos:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpcionesClick = (e, hijoId) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    
+    if (openDropdown === hijoId) {
+      setOpenDropdown(null);
+    } else {
+      // Calcular posición del dropdown
+      const dropdownWidth = 200;
+      const dropdownHeight = 350; // Aproximado para 9 opciones
+      let left = rect.left;
+      let top = rect.bottom + 2;
+      
+      // Si el dropdown se sale por la derecha, ajustar
+      if (left + dropdownWidth > window.innerWidth - 10) {
+        left = window.innerWidth - dropdownWidth - 10;
+      }
+      // Asegurar que no se salga por la izquierda
+      if (left < 10) {
+        left = 10;
+      }
+      
+      // Si el dropdown se sale por abajo, mostrarlo arriba
+      if (top + dropdownHeight > window.innerHeight - 10) {
+        top = rect.top - dropdownHeight - 2;
+      }
+      
+      setOpenDropdown({
+        hijoId,
+        top,
+        left
+      });
+    }
+  };
+
+  const handleOpcionClick = (opcion, hijo) => {
+    setOpenDropdown(null);
+    
+    switch (opcion) {
+      case 'editar-datos':
+        console.log('Editar datos de:', hijo);
+        // Implementar después
+        break;
+      case 'cursos-asignados':
+        console.log('Cursos asignados de:', hijo);
+        // Implementar después
+        break;
+      case 'incidencias':
+        console.log('Incidencias de:', hijo);
+        // Implementar después
+        break;
+      case 'estrellas':
+        console.log('Estrellas de:', hijo);
+        // Implementar después
+        break;
+      case 'asistencias':
+        console.log('Asistencias de:', hijo);
+        // Implementar después
+        break;
+      case 'imprimir-qr':
+        console.log('Imprimir QR de:', hijo);
+        // Implementar después
+        break;
+      case 'imprimir-notas':
+        console.log('Imprimir notas de:', hijo);
+        // Implementar después
+        break;
+      case 'pagos-realizados':
+        console.log('Pagos realizados de:', hijo);
+        // Implementar después
+        break;
+      case 'psicologia':
+        console.log('Psicología de:', hijo);
+        // Implementar después
+        break;
+      default:
+        break;
     }
   };
 
@@ -144,17 +246,134 @@ function DocenteHijos() {
                         </div>
                       </div>
                       
-                      <button 
-                        className="hijo-btn-ver"
-                        onClick={() => {
-                          // Funcionalidad se implementará después
-                          console.log('Ver perfil de:', nombreCompleto);
-                        }}
-                        title="Ver perfil completo"
-                      >
-                        <span className="btn-icon">👁️</span>
-                        <span className="btn-text">Ver</span>
-                      </button>
+                      <div className="hijo-actions">
+                        <div className="dropdown-container">
+                          <button 
+                            className="btn-opciones-hijo"
+                            onClick={(e) => handleOpcionesClick(e, hijo.id)}
+                            title="Opciones"
+                          >
+                            Opciones {openDropdown?.hijoId === hijo.id ? '▲' : '▼'}
+                          </button>
+                          
+                          {openDropdown?.hijoId === hijo.id && openDropdown?.top && 
+                            createPortal(
+                              <div 
+                                ref={dropdownRef}
+                                className="dropdown-menu dropdown-menu-hijo"
+                                style={{
+                                  top: `${openDropdown.top}px`,
+                                  left: `${openDropdown.left}px`,
+                                  position: 'fixed',
+                                  zIndex: 99999
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('editar-datos', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">✏️</span>
+                                  <span>Editar Datos</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('cursos-asignados', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">📚</span>
+                                  <span>Cursos Asignados</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('incidencias', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">⚠️</span>
+                                  <span>Incidencias</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('estrellas', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">⭐</span>
+                                  <span>Estrellas</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('asistencias', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">✅</span>
+                                  <span>Asistencias</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('imprimir-qr', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">🖨️</span>
+                                  <span>Imprimir QR</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('imprimir-notas', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">📄</span>
+                                  <span>Imprimir Notas</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('pagos-realizados', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">💳</span>
+                                  <span>Pagos Realizados</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('psicologia', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">🧠</span>
+                                  <span>Psicología</span>
+                                </button>
+                              </div>,
+                              document.body
+                            )
+                          }
+                        </div>
+                      </div>
                     </div>
                   );
                 })}

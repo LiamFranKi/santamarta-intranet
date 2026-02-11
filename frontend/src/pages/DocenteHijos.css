@@ -79,42 +79,98 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.hijo-btn-ver {
+.hijo-actions {
   position: absolute;
   bottom: 1rem;
   right: 1rem;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
   z-index: 10;
 }
 
-.hijo-btn-ver:hover {
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-  transform: translateY(-2px);
+.dropdown-container {
+  position: relative;
 }
 
-.hijo-btn-ver:active {
+/* Botón Opciones Dropdown */
+.btn-opciones-hijo {
+  background: linear-gradient(135deg, #6ba3d4 0%, #4a83c1 100%);
+  color: white;
+  padding: 0.5rem 0.85rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(74, 131, 193, 0.25);
+}
+
+.btn-opciones-hijo:hover {
+  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
+  color: white;
+  box-shadow: 0 4px 10px rgba(74, 131, 193, 0.35);
+  transform: translateY(-1px);
+}
+
+.btn-opciones-hijo:active {
   transform: translateY(0);
 }
 
-.hijo-btn-ver .btn-icon {
-  font-size: 1rem;
+/* Dropdown Menu */
+.dropdown-menu-hijo {
+  position: fixed !important;
+  background: white !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  min-width: 200px !important;
+  max-width: 220px !important;
+  z-index: 99999 !important;
+  overflow: hidden !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  padding: 0.25rem 0 !important;
+  pointer-events: auto !important;
+  margin: 0 !important;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
-.hijo-btn-ver .btn-text {
-  font-size: 0.85rem;
+.dropdown-menu-hijo .dropdown-item {
+  width: 100%;
+  padding: 0.6rem 0.75rem !important;
+  border: none !important;
+  background: transparent !important;
+  color: #1f2937 !important;
+  text-align: left !important;
+  cursor: pointer !important;
+  font-size: 0.85rem !important;
+  font-weight: 500 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  transition: all 0.2s ease !important;
+  text-decoration: none !important;
+}
+
+.dropdown-menu-hijo .dropdown-item:hover {
+  background: #f3f4f6 !important;
+  color: #4a83c1 !important;
+}
+
+.dropdown-menu-hijo .dropdown-item:active {
+  background: #e5e7eb !important;
+}
+
+.dropdown-menu-hijo .dropdown-icon {
+  font-size: 1rem;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .hijo-avatar {
