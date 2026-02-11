@@ -24,31 +24,47 @@ export default function DashboardLayout({ children }) {
     es_apoderado: false,
     es_tutor: false
   });
+  const [tieneAsignaciones, setTieneAsignaciones] = useState({
+    tiene_grupos: true,
+    tiene_cursos: true
+  });
   
   // Debug: verificar que el componente se monta
   React.useEffect(() => {
     console.log('✅ [DASHBOARD LAYOUT] Componente montado, user:', user?.tipo);
   }, [user]);
 
-  // Cargar roles adicionales si es docente
+  // Cargar roles adicionales y asignaciones si es docente
   useEffect(() => {
-    const cargarRolesAdicionales = async () => {
+    const cargarDatosDocente = async () => {
       if (user?.tipo === 'DOCENTE') {
         try {
-          const response = await api.get('/docente/roles-adicionales');
+          // Cargar roles adicionales
+          const responseRoles = await api.get('/docente/roles-adicionales');
           setRolesAdicionales({
-            es_apoderado: response.data.es_apoderado || false,
-            es_tutor: response.data.es_tutor || false
+            es_apoderado: responseRoles.data.es_apoderado || false,
+            es_tutor: responseRoles.data.es_tutor || false
+          });
+
+          // Cargar información de asignaciones (grupos y cursos)
+          const responseAsignaciones = await api.get('/docente/tiene-asignaciones');
+          setTieneAsignaciones({
+            tiene_grupos: responseAsignaciones.data.tiene_grupos || false,
+            tiene_cursos: responseAsignaciones.data.tiene_cursos || false
           });
         } catch (error) {
-          console.error('Error cargando roles adicionales:', error);
-          // En caso de error, mantener valores por defecto
+          console.error('Error cargando datos del docente:', error);
+          // En caso de error, mantener valores por defecto (mostrar menús)
+          setTieneAsignaciones({
+            tiene_grupos: true,
+            tiene_cursos: true
+          });
         }
       }
     };
 
     if (user?.tipo === 'DOCENTE') {
-      cargarRolesAdicionales();
+      cargarDatosDocente();
     }
   }, [user]);
 
@@ -184,24 +200,33 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mi QR</span>
                 </NavLink>
               </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/grupos">
-                  <span className="sidebar-icon">👥</span>
-                  <span className="sidebar-label">Grupos Asignados</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/cursos">
-                  <span className="sidebar-icon">📚</span>
-                  <span className="sidebar-label">Cursos Asignados</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/horario">
-                  <span className="sidebar-icon">📅</span>
-                  <span className="sidebar-label">Mi Horario</span>
-                </NavLink>
-              </div>
+              {/* Grupos Asignados - Solo mostrar si tiene grupos */}
+              {tieneAsignaciones.tiene_grupos && (
+                <div className="sidebar-item">
+                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/grupos">
+                    <span className="sidebar-icon">👥</span>
+                    <span className="sidebar-label">Grupos Asignados</span>
+                  </NavLink>
+                </div>
+              )}
+              {/* Cursos Asignados - Solo mostrar si tiene cursos */}
+              {tieneAsignaciones.tiene_cursos && (
+                <div className="sidebar-item">
+                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/cursos">
+                    <span className="sidebar-icon">📚</span>
+                    <span className="sidebar-label">Cursos Asignados</span>
+                  </NavLink>
+                </div>
+              )}
+              {/* Mi Horario - Solo mostrar si tiene grupos o cursos */}
+              {(tieneAsignaciones.tiene_grupos || tieneAsignaciones.tiene_cursos) && (
+                <div className="sidebar-item">
+                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/horario">
+                    <span className="sidebar-icon">📅</span>
+                    <span className="sidebar-label">Mi Horario</span>
+                  </NavLink>
+                </div>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/comunicados">
                   <span className="sidebar-icon">📢</span>

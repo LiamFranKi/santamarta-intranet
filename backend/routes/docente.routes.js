@@ -1079,6 +1079,50 @@ router.put('/perfil/password', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/tiene-asignaciones
+ * Verificar si el docente tiene grupos y cursos asignados
+ */
+router.get('/tiene-asignaciones', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    
+    if (!personalId) {
+      return res.json({ tiene_grupos: false, tiene_cursos: false });
+    }
+
+    // Verificar si tiene grupos asignados
+    const gruposAsignados = await query(
+      `SELECT COUNT(DISTINCT g.id) as total
+       FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [personalId, colegio_id, anio_activo]
+    );
+
+    // Verificar si tiene cursos asignados
+    const cursosAsignados = await query(
+      `SELECT COUNT(DISTINCT a.id) as total
+       FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [personalId, colegio_id, anio_activo]
+    );
+
+    const tieneGrupos = (gruposAsignados[0]?.total || 0) > 0;
+    const tieneCursos = (cursosAsignados[0]?.total || 0) > 0;
+
+    res.json({ 
+      tiene_grupos: tieneGrupos,
+      tiene_cursos: tieneCursos
+    });
+  } catch (error) {
+    console.error('Error verificando asignaciones:', error);
+    res.json({ tiene_grupos: false, tiene_cursos: false });
+  }
+});
+
+/**
  * GET /api/docente/grupos
  * Obtener grupos asignados al docente
  */
