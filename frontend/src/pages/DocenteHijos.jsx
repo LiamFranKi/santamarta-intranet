@@ -111,6 +111,18 @@ function DocenteHijos() {
     switch (opcion) {
       case 'editar-datos':
         // Cargar datos del hijo para editar
+        console.log('📋 [FRONTEND] Hijo seleccionado para editar:', hijo);
+        console.log('📋 [FRONTEND] Hijo ID:', hijo.id);
+        console.log('📋 [FRONTEND] Hijo completo:', JSON.stringify(hijo, null, 2));
+        if (!hijo || !hijo.id) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo obtener el ID del alumno',
+            confirmButtonText: 'Entendido'
+          });
+          return;
+        }
         await cargarDatosHijo(hijo.id);
         setHijoSeleccionado(hijo);
         setShowModalEditar(true);

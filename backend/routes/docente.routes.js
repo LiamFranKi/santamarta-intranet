@@ -4068,13 +4068,28 @@ router.get('/roles-adicionales', async (req, res) => {
  * GET /api/docente/hijos/:hijoId/datos
  * Obtener datos completos de un hijo para editar
  */
-router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE']), async (req, res) => {
+// Nota: authenticateToken y requireUserType ya están aplicados globalmente en router.use()
+// pero los dejamos aquí para mayor claridad
+router.get('/hijos/:hijoId/datos', async (req, res) => {
   try {
     const { hijoId } = req.params;
     const { colegio_id, usuario_id, personal_id } = req.user;
 
-    console.log(`📋 [HIJOS-DATOS] Iniciando solicitud para hijoId: ${hijoId}`);
+    console.log(`\n🔵 ========== [HIJOS-DATOS] NUEVA PETICIÓN ==========`);
+    console.log(`📋 [HIJOS-DATOS] Método: ${req.method}`);
+    console.log(`📋 [HIJOS-DATOS] URL: ${req.originalUrl}`);
+    console.log(`📋 [HIJOS-DATOS] Params:`, req.params);
+    console.log(`📋 [HIJOS-DATOS] hijoId recibido: ${hijoId} (tipo: ${typeof hijoId})`);
     console.log(`📋 [HIJOS-DATOS] Usuario: usuario_id=${usuario_id}, personal_id=${personal_id}, colegio_id=${colegio_id}`);
+    
+    // Validar que hijoId sea un número válido
+    if (!hijoId || isNaN(parseInt(hijoId))) {
+      console.error(`❌ [HIJOS-DATOS] Error: hijoId inválido: ${hijoId}`);
+      return res.status(400).json({ error: 'ID de alumno inválido' });
+    }
+    
+    const hijoIdNum = parseInt(hijoId);
+    console.log(`📋 [HIJOS-DATOS] hijoId convertido a número: ${hijoIdNum}`);
 
     if (!personal_id) {
       console.error('❌ [HIJOS-DATOS] Error: personal_id no encontrado en req.user');
@@ -4119,7 +4134,7 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
 
     // Verificar que el alumno es hijo del docente
     // Buscar en apoderados usando el nro_documento
-    console.log(`📋 [HIJOS-DATOS] Verificando si alumno ${hijoId} es hijo del docente con nro_documento ${nroDocumento}`);
+    console.log(`📋 [HIJOS-DATOS] Verificando si alumno ${hijoIdNum} es hijo del docente con nro_documento ${nroDocumento}`);
     const esHijo = await query(
       `SELECT COUNT(*) as count
        FROM apoderados ap
@@ -4129,33 +4144,33 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
          AND ap.nro_documento = ?
          AND a.id = ?
          AND a.colegio_id = ?`,
-      [colegio_id, nroDocumento, hijoId, colegio_id]
+      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
     );
 
     console.log(`📋 [HIJOS-DATOS] Resultado verificación esHijo:`, esHijo);
 
     if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
-      console.error(`❌ [HIJOS-DATOS] Error: El alumno ${hijoId} no es hijo del docente con nro_documento ${nroDocumento}`);
-      console.error(`❌ [HIJOS-DATOS] Detalles: colegio_id=${colegio_id}, nro_documento=${nroDocumento}, hijoId=${hijoId}`);
+      console.error(`❌ [HIJOS-DATOS] Error: El alumno ${hijoIdNum} no es hijo del docente con nro_documento ${nroDocumento}`);
+      console.error(`❌ [HIJOS-DATOS] Detalles: colegio_id=${colegio_id}, nro_documento=${nroDocumento}, hijoId=${hijoIdNum}`);
       return res.status(403).json({ error: 'No tienes permisos para ver estos datos. El alumno no está registrado como tu hijo.' });
     }
 
-    console.log(`✅ [HIJOS-DATOS] Verificación exitosa: el alumno ${hijoId} es hijo del docente`);
+    console.log(`✅ [HIJOS-DATOS] Verificación exitosa: el alumno ${hijoIdNum} es hijo del docente`);
 
     // Obtener datos del alumno
-    console.log(`📋 [HIJOS-DATOS] Obteniendo datos del alumno con id=${hijoId}, colegio_id=${colegio_id}`);
+    console.log(`📋 [HIJOS-DATOS] Obteniendo datos del alumno con id=${hijoIdNum}, colegio_id=${colegio_id}`);
     const alumno = await query(
       `SELECT a.*, u.usuario as nro_documento
        FROM alumnos a
        LEFT JOIN usuarios u ON u.alumno_id = a.id AND u.colegio_id = a.colegio_id
        WHERE a.id = ? AND a.colegio_id = ?`,
-      [hijoId, colegio_id]
+      [hijoIdNum, colegio_id]
     );
 
     console.log(`📋 [HIJOS-DATOS] Resultado consulta alumno:`, alumno.length > 0 ? 'Encontrado' : 'No encontrado');
 
     if (!alumno || alumno.length === 0) {
-      console.error(`❌ [HIJOS-DATOS] Error: Alumno no encontrado con id=${hijoId}, colegio_id=${colegio_id}`);
+      console.error(`❌ [HIJOS-DATOS] Error: Alumno no encontrado con id=${hijoIdNum}, colegio_id=${colegio_id}`);
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
 
@@ -4166,7 +4181,7 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
       nro_documento: alumnoData.nro_documento
     });
 
-    res.json({
+    const respuesta = {
       id: alumnoData.id,
       nombres: alumnoData.nombres,
       apellido_paterno: alumnoData.apellido_paterno,
@@ -4176,11 +4191,17 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
       fecha_nacimiento: alumnoData.fecha_nacimiento,
       foto: alumnoData.foto,
       nro_documento: alumnoData.nro_documento
-    });
+    };
+    
+    console.log(`✅ [HIJOS-DATOS] Respuesta enviada exitosamente para hijoId: ${hijoIdNum}`);
+    console.log(`🔵 ========== [HIJOS-DATOS] FIN DE PETICIÓN ==========\n`);
+    
+    res.json(respuesta);
   } catch (error) {
     console.error('❌ [HIJOS-DATOS] Error obteniendo datos del hijo:', error);
-    console.error('❌ [HIJOS-DATOS] Stack:', error.stack);
-    res.status(500).json({ error: 'Error al obtener datos del alumno' });
+    console.error('❌ [HIJOS-DATOS] Stack trace:', error.stack);
+    console.error(`🔵 ========== [HIJOS-DATOS] FIN DE PETICIÓN (ERROR) ==========\n`);
+    res.status(500).json({ error: 'Error al obtener datos del alumno', details: error.message });
   }
 });
 
