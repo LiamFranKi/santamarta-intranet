@@ -259,7 +259,6 @@ function DocenteQR() {
                     includeMargin={true}
                   />
                 </div>
-                <p className="qr-code-label">Código QR</p>
               </div>
 
               {/* Información del docente debajo */}
