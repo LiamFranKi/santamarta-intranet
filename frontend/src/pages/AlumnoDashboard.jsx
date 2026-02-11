@@ -476,6 +476,12 @@ function AlumnoDashboard() {
                     titulo = 'Evento';
                   }
                   
+                  // Obtener información del grupo (grado, sección, nivel) para tareas y exámenes
+                  let grupoInfo = '';
+                  if ((evento.tipo === 'tarea' || evento.tipo === 'examen') && evento.grado && evento.seccion && evento.nivel_nombre) {
+                    grupoInfo = `${evento.grado}° ${evento.seccion} - ${evento.nivel_nombre}`;
+                  }
+                  
                   return (
                     <div
                       key={`${evento.tipo}-${evento.id}-${index}`}
@@ -488,6 +494,9 @@ function AlumnoDashboard() {
                       </div>
                       <div className="evento-card-contenido">
                         <h3 className="evento-card-titulo">{titulo}</h3>
+                        {grupoInfo && (
+                          <span className="evento-card-grupo">{grupoInfo}</span>
+                        )}
                         <span className="evento-card-tipo">{getTipoTexto(evento.tipo)}</span>
                       </div>
                     </div>
