@@ -247,14 +247,14 @@ function DocenteQR() {
               <h2 className="qr-colegio-nombre">{qrData.colegio_nombre || 'Vanguard Schools'}</h2>
             </div>
 
-            {/* Contenido principal */}
+            {/* Contenido principal - Layout Vertical */}
             <div className="qr-card-body">
-              {/* QR Code a la izquierda */}
+              {/* QR Code arriba centrado */}
               <div className="qr-code-section">
                 <div className="qr-code-wrapper">
                   <QRCodeSVG 
                     value={qrData.qr_data || qrData.nro_documento || 'DOCENTE'}
-                    size={160}
+                    size={220}
                     level="H"
                     includeMargin={true}
                   />
@@ -262,7 +262,7 @@ function DocenteQR() {
                 <p className="qr-code-label">Código QR</p>
               </div>
 
-              {/* Información del docente a la derecha */}
+              {/* Información del docente debajo */}
               <div className="qr-info-section">
                 <div className="qr-info-item">
                   <label className="qr-info-label">Nombres:</label>
