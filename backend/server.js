@@ -236,4 +236,34 @@ app.listen(PORT, () => {
   console.log(`\n✅ Servidor corriendo en puerto ${PORT}`);
   console.log(`🌐 URL: http://localhost:${PORT}`);
   console.log(`📡 Health: http://localhost:${PORT}/api/health\n`);
+  
+  // Iniciar verificación automática de tareas por vencer
+  // Se ejecuta al iniciar el servidor y luego cada 24 horas (una vez al día)
+  const iniciarVerificacionTareas = () => {
+    try {
+      // Importar la función de verificación directamente
+      const { verificarTareasPorVencer } = require('./routes/docente.routes');
+      
+      // Ejecutar inmediatamente al iniciar (después de 60 segundos para que el servidor y BD estén listos)
+      setTimeout(async () => {
+        console.log('📅 [AUTO-VERIFICACION] Iniciando primera verificación de tareas por vencer...');
+        await verificarTareasPorVencer();
+      }, 60000); // 60 segundos después de iniciar
+      
+      // Ejecutar cada 24 horas (86400000 ms = 24 horas)
+      setInterval(async () => {
+        console.log('📅 [AUTO-VERIFICACION] Ejecutando verificación periódica de tareas por vencer...');
+        await verificarTareasPorVencer();
+      }, 24 * 60 * 60 * 1000); // Cada 24 horas
+      
+      console.log('📅 [AUTO-VERIFICACION] Sistema de verificación automática configurado:');
+      console.log('   - Primera ejecución: 60 segundos después de iniciar');
+      console.log('   - Ejecuciones periódicas: cada 24 horas');
+    } catch (error) {
+      console.error('❌ [AUTO-VERIFICACION] Error configurando verificación automática:', error);
+    }
+  };
+  
+  // Iniciar verificación automática (siempre activa, en desarrollo y producción)
+  iniciarVerificacionTareas();
 });
