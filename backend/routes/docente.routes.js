@@ -4075,23 +4075,39 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
 
     if (!personal_id) {
       console.error('Error: personal_id no encontrado en req.user');
-      return res.status(400).json({ error: 'Información de usuario incompleta' });
+      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
     }
 
-    // Verificar que el docente es apoderado del alumno
+    // Obtener nro_documento del personal (puede estar en personal.nro_documento o en usuarios.usuario)
+    let nroDocumento = null;
+    
+    // Primero intentar obtener desde la tabla personal
     const personalData = await query(
       `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
       [personal_id, colegio_id]
     );
 
-    if (!personalData || personalData.length === 0 || !personalData[0].nro_documento) {
-      console.error(`Error: No se encontró nro_documento para personal_id ${personal_id}, colegio_id ${colegio_id}`);
-      return res.status(403).json({ error: 'No tienes permisos para ver estos datos. No se encontró tu número de documento.' });
+    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+      nroDocumento = personalData[0].nro_documento;
+    } else {
+      // Si no está en personal, obtener desde usuarios.usuario (que es el DNI)
+      const usuarioData = await query(
+        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+        [usuario_id, colegio_id, personal_id]
+      );
+      
+      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
+        nroDocumento = usuarioData[0].usuario;
+      }
     }
 
-    const nroDocumento = personalData[0].nro_documento;
+    if (!nroDocumento) {
+      console.error(`Error: No se encontró nro_documento para personal_id ${personal_id}, usuario_id ${usuario_id}, colegio_id ${colegio_id}`);
+      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
+    }
 
     // Verificar que el alumno es hijo del docente
+    // Buscar en apoderados usando el nro_documento
     const esHijo = await query(
       `SELECT COUNT(*) as count
        FROM apoderados ap
@@ -4105,7 +4121,8 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
     );
 
     if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
-      return res.status(403).json({ error: 'No tienes permisos para ver estos datos' });
+      console.error(`Error: El alumno ${hijoId} no es hijo del docente con nro_documento ${nroDocumento}`);
+      return res.status(403).json({ error: 'No tienes permisos para ver estos datos. El alumno no está registrado como tu hijo.' });
     }
 
     // Obtener datos del alumno
@@ -4180,20 +4197,41 @@ const uploadAlumnoHijo = multer({
 router.put('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE']), uploadAlumnoHijo.single('foto'), async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, personal_id } = req.user;
+    const { colegio_id, usuario_id, personal_id } = req.user;
     const { nombres, apellido_paterno, apellido_materno, email, sexo, fecha_nacimiento } = req.body;
 
-    // Verificar que el docente es apoderado del alumno
+    if (!personal_id) {
+      console.error('Error: personal_id no encontrado en req.user');
+      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
+    }
+
+    // Obtener nro_documento del personal (puede estar en personal.nro_documento o en usuarios.usuario)
+    let nroDocumento = null;
+    
+    // Primero intentar obtener desde la tabla personal
     const personalData = await query(
       `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
       [personal_id, colegio_id]
     );
 
-    if (!personalData || personalData.length === 0 || !personalData[0].nro_documento) {
-      return res.status(403).json({ error: 'No tienes permisos para editar estos datos' });
+    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+      nroDocumento = personalData[0].nro_documento;
+    } else {
+      // Si no está en personal, obtener desde usuarios.usuario (que es el DNI)
+      const usuarioData = await query(
+        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+        [usuario_id, colegio_id, personal_id]
+      );
+      
+      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
+        nroDocumento = usuarioData[0].usuario;
+      }
     }
 
-    const nroDocumento = personalData[0].nro_documento;
+    if (!nroDocumento) {
+      console.error(`Error: No se encontró nro_documento para personal_id ${personal_id}, usuario_id ${usuario_id}, colegio_id ${colegio_id}`);
+      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
+    }
 
     // Verificar que el alumno es hijo del docente
     const esHijo = await query(
@@ -4209,7 +4247,8 @@ router.put('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
     );
 
     if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
-      return res.status(403).json({ error: 'No tienes permisos para editar estos datos' });
+      console.error(`Error: El alumno ${hijoId} no es hijo del docente con nro_documento ${nroDocumento}`);
+      return res.status(403).json({ error: 'No tienes permisos para editar estos datos. El alumno no está registrado como tu hijo.' });
     }
 
     // Obtener alumno actual
