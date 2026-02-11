@@ -451,6 +451,97 @@
   color: #6b7280;
 }
 
+/* Estilos para la vista de alumnos (similar a DocenteGrupos) */
+.alumnos-container {
+  display: block;
+}
+
+.alumnos-header-section {
+  background: linear-gradient(145deg, #e0f2fe 0%, #bae6fd 50%, #dbeafe 100%);
+  border: 1px solid rgba(74, 131, 193, 0.18);
+  border-radius: 16px;
+  padding: 1rem 1.5rem;
+  box-shadow: 0 4px 16px rgba(74, 131, 193, 0.12);
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  position: relative;
+  margin-bottom: 1.5rem;
+}
+
+.grupo-info {
+  flex: 1;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.grupo-info h2.section-title-blue {
+  margin: 0;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #4a83c1;
+}
+
+.grupo-subtitle {
+  margin: 0.25rem 0 0 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: center;
+}
+
+.btn-regresar {
+  background: linear-gradient(135deg, #6ba3d4 0%, #4a83c1 100%);
+  color: white;
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(74, 131, 193, 0.25);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-regresar:hover {
+  transform: translateX(-3px);
+  box-shadow: 0 4px 12px rgba(74, 131, 193, 0.4);
+  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
+}
+
+.btn-regresar .btn-icon {
+  font-size: 1.2rem;
+  display: inline-block;
+}
+
+.alumnos-list-section {
+  background: linear-gradient(145deg, #eef2ff, #ffffff);
+  border: 1px solid rgba(74, 131, 193, 0.18);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 4px 16px rgba(74, 131, 193, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  margin-bottom: 1.5rem;
+}
+
+.alumnos-cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  padding: 1rem;
+}
+
 @media (max-width: 768px) {
   .docente-tutoria {
     padding: 1rem;
@@ -495,5 +586,44 @@
 
   .btn-ver-perfil {
     align-self: center;
+  }
+
+  .alumnos-header-section {
+    flex-direction: row;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .grupo-info {
+    width: auto;
+    flex: 1;
+    text-align: center;
+  }
+
+  .grupo-info h2.section-title-blue {
+    font-size: 1rem;
+  }
+
+  .alumnos-cards-container {
+    grid-template-columns: 1fr;
+    padding: 0.75rem;
+    gap: 1rem;
+  }
+
+  .alumno-card {
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .alumno-info {
+    width: 100%;
+    margin-bottom: 0.75rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
 }

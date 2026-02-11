@@ -11,6 +11,7 @@ function DocenteTutoria() {
   const [gruposTutor, setGruposTutor] = useState([]);
   const [openDropdown, setOpenDropdown] = useState(null); // { grupoId, top, left }
   const [selectedGrupo, setSelectedGrupo] = useState(null);
+  const [grupoInfo, setGrupoInfo] = useState(null); // Información del grupo seleccionado
   const [alumnos, setAlumnos] = useState([]);
   const [loadingAlumnos, setLoadingAlumnos] = useState(false);
   const [mostrarRecomendacion, setMostrarRecomendacion] = useState(false);
@@ -150,6 +151,20 @@ function DocenteTutoria() {
       setLoadingAlumnos(true);
       const response = await api.get(`/docente/tutoria/grupos/${grupoId}/alumnos`);
       setAlumnos(response.data.alumnos || []);
+      
+      // Guardar información del grupo seleccionado
+      const grupo = gruposTutor.find(g => g.id === grupoId);
+      setGrupoInfo(grupo);
+      setSelectedGrupo(grupoId);
+      
+      // Hacer scroll al inicio de la página cuando se carga la lista de alumnos
+      setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        const tutoriaContainer = document.querySelector('.docente-tutoria');
+        if (tutoriaContainer) {
+          tutoriaContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
     } catch (error) {
       console.error('Error cargando alumnos:', error);
       Swal.fire({
@@ -164,6 +179,15 @@ function DocenteTutoria() {
     } finally {
       setLoadingAlumnos(false);
     }
+  };
+
+  const volverAGrupos = () => {
+    setSelectedGrupo(null);
+    setGrupoInfo(null);
+    setAlumnos([]);
+    setMostrarRecomendacion(false);
+    setAlumnoSeleccionado(null);
+    setRecomendacion('');
   };
 
   const handleEnviarRecomendacion = async () => {
@@ -232,17 +256,19 @@ function DocenteTutoria() {
   return (
     <DashboardLayout>
       <div className="docente-tutoria">
-        <div className="page-header">
-          <h1>🎓 Tutoría</h1>
-          <p>Gestiona tus grupos como tutor</p>
-        </div>
+        {!selectedGrupo ? (
+          <>
+            <div className="page-header">
+              <h1>🎓 Tutoría</h1>
+              <p>Gestiona tus grupos como tutor</p>
+            </div>
 
-        <div className="tutoria-content mundo-card">
-          <h2>Grupos a Cargo</h2>
-          
-          {gruposTutor.length > 0 ? (
-            <div className="grupos-cards-container">
-              {gruposTutor.map((grupo, index) => {
+            <div className="tutoria-content mundo-card">
+              <h2>Grupos a Cargo</h2>
+              
+              {gruposTutor.length > 0 ? (
+                <div className="grupos-cards-container">
+                  {gruposTutor.map((grupo, index) => {
                 // Colores pasteles suaves para cada card
                 const coloresPasteles = [
                   { bg: 'linear-gradient(145deg, #fef3f2, #fff5f5)', border: '#fecaca', text: '#991b1b' },
@@ -294,189 +320,196 @@ function DocenteTutoria() {
             </div>
           )}
 
-          {/* Dropdown de Opciones */}
-          {openDropdown && createPortal(
-            <div
-              ref={dropdownRef}
-              className="dropdown-menu"
-              style={{
-                position: 'fixed',
-                top: `${openDropdown.top}px`,
-                left: `${openDropdown.left}px`,
-                zIndex: 10000
-              }}
-            >
-              {(() => {
-                const grupo = gruposTutor.find(g => g.id === openDropdown.grupoId);
-                if (!grupo) return null;
-
-                const opciones = [
-                  { id: 'lista-alumnos', label: 'Lista de Alumnos', icon: '📋' },
-                  { id: 'notas-asistencia', label: 'Ver Notas', icon: '📊' },
-                  { id: 'enviar-comunicado', label: 'Enviar Mensaje', icon: '✉️' },
-                  { id: 'registrar-asistencia', label: 'Asistencias', icon: '✅' },
-                  { id: 'apreciaciones-recomendaciones', label: 'Recomendaciones', icon: '💬' },
-                  { id: 'lista-asignaturas', label: 'Lista de Asignaturas', icon: '📚' },
-                  { id: 'registrar-conducta', label: 'Registrar Conducta', icon: '📝' }
-                ];
-
-                return opciones.map((opcion) => (
-                  <div
-                    key={opcion.id}
-                    className="dropdown-item"
-                    onClick={() => handleOpcionClick(opcion.id, grupo)}
-                  >
-                    <span className="dropdown-icon">{opcion.icon}</span>
-                    <span className="dropdown-label">{opcion.label}</span>
-                  </div>
-                ));
-              })()}
-            </div>,
-            document.body
-          )}
-
-          {/* Lista de Alumnos */}
-          {selectedGrupo && alumnos.length > 0 && (
-            <div className="alumnos-section">
-              <div className="alumnos-header">
-                <h3>Alumnos - {selectedGrupo.grado}° {selectedGrupo.seccion}</h3>
-                <button
-                  className="btn-cerrar-alumnos"
-                  onClick={() => {
-                    setSelectedGrupo(null);
-                    setAlumnos([]);
-                    setMostrarRecomendacion(false);
+              {/* Dropdown de Opciones */}
+              {openDropdown && createPortal(
+                <div
+                  ref={dropdownRef}
+                  className="dropdown-menu"
+                  style={{
+                    position: 'fixed',
+                    top: `${openDropdown.top}px`,
+                    left: `${openDropdown.left}px`,
+                    zIndex: 10000
                   }}
                 >
-                  ✕
-                </button>
-              </div>
-              {loadingAlumnos ? (
-                <div className="loading-alumnos">Cargando alumnos...</div>
-              ) : (
-                <div className="alumnos-grid">
-                  {alumnos.map((alumno, index) => {
-                    const nombreCompleto = `${alumno.apellido_paterno || ''} ${alumno.apellido_materno || ''}, ${alumno.nombres || ''}`.trim();
-                    
-                    const coloresPasteles = [
-                      { bg: 'linear-gradient(145deg, #fef3f2, #fff5f5)', border: '#fbcfe8', avatar: '#fee2e2' },
-                      { bg: 'linear-gradient(145deg, #f0fdf4, #f0fdf4)', border: '#bbf7d0', avatar: '#dcfce7' },
-                      { bg: 'linear-gradient(145deg, #eff6ff, #eff6ff)', border: '#bfdbfe', avatar: '#dbeafe' },
-                      { bg: 'linear-gradient(145deg, #fefce8, #fefce8)', border: '#fde68a', avatar: '#fef3c7' },
-                      { bg: 'linear-gradient(145deg, #f5f3ff, #f5f3ff)', border: '#ddd6fe', avatar: '#e9d5ff' },
-                      { bg: 'linear-gradient(145deg, #f0f9ff, #f0f9ff)', border: '#bae6fd', avatar: '#e0f2fe' },
-                      { bg: 'linear-gradient(145deg, #fdf2f8, #fdf2f8)', border: '#fbcfe8', avatar: '#fce7f3' },
-                      { bg: 'linear-gradient(145deg, #ecfdf5, #ecfdf5)', border: '#a7f3d0', avatar: '#d1fae5' }
+                  {(() => {
+                    const grupo = gruposTutor.find(g => g.id === openDropdown.grupoId);
+                    if (!grupo) return null;
+
+                    const opciones = [
+                      { id: 'lista-alumnos', label: 'Lista de Alumnos', icon: '📋' },
+                      { id: 'notas-asistencia', label: 'Ver Notas', icon: '📊' },
+                      { id: 'enviar-comunicado', label: 'Enviar Mensaje', icon: '✉️' },
+                      { id: 'registrar-asistencia', label: 'Asistencias', icon: '✅' },
+                      { id: 'apreciaciones-recomendaciones', label: 'Recomendaciones', icon: '💬' },
+                      { id: 'lista-asignaturas', label: 'Lista de Asignaturas', icon: '📚' },
+                      { id: 'registrar-conducta', label: 'Registrar Conducta', icon: '📝' }
                     ];
-                    
-                    const colorCard = coloresPasteles[index % coloresPasteles.length];
-                    
-                    return (
+
+                    return opciones.map((opcion) => (
                       <div
-                        key={alumno.id}
-                        className="alumno-card"
-                        style={{
-                          background: colorCard.bg,
-                          borderColor: colorCard.border
-                        }}
+                        key={opcion.id}
+                        className="dropdown-item"
+                        onClick={() => handleOpcionClick(opcion.id, grupo)}
                       >
-                        <div
-                          className="alumno-avatar"
-                          style={{ backgroundColor: colorCard.avatar }}
-                        >
-                          {alumno.foto ? (
-                            <img src={alumno.foto} alt={nombreCompleto} />
-                          ) : (
-                            <span>{(alumno.nombres?.[0] || 'A').toUpperCase()}</span>
-                          )}
-                        </div>
-                        <div className="alumno-info">
-                          <h4>{nombreCompleto}</h4>
-                          <button
-                            className="btn-ver-perfil"
-                            onClick={() => {
-                              setAlumnoSeleccionado(alumno);
-                              setMostrarRecomendacion(true);
+                        <span className="dropdown-icon">{opcion.icon}</span>
+                        <span className="dropdown-label">{opcion.label}</span>
+                      </div>
+                    ));
+                  })()}
+                </div>,
+                document.body
+              )}
+            </div>
+          </>
+          ) : (
+            <div className="alumnos-container">
+              <div className="alumnos-header-section mundo-card">
+                <button className="btn-regresar" onClick={volverAGrupos}>
+                  <span className="btn-icon">←</span>
+                  Volver
+                </button>
+                <div className="grupo-info">
+                  <h2 className="section-title-blue">
+                    Lista de Alumnos - {grupoInfo?.grado}° {grupoInfo?.seccion}
+                  </h2>
+                  <p className="grupo-subtitle">{grupoInfo?.nivel_nombre} - {grupoInfo?.turno_nombre}</p>
+                </div>
+              </div>
+              
+              <div className="alumnos-list-section mundo-card">
+                {loadingAlumnos ? (
+                  <div className="loading-alumnos">Cargando alumnos...</div>
+                ) : (
+                  <div className="alumnos-cards-container">
+                    {alumnos.length > 0 ? (
+                      alumnos.map((alumno, index) => {
+                        const nombreCompleto = `${alumno.apellido_paterno || ''} ${alumno.apellido_materno || ''}, ${alumno.nombres || ''}`.trim();
+                        
+                        const coloresPasteles = [
+                          { bg: 'linear-gradient(145deg, #fef3f2, #fff5f5)', border: '#fbcfe8', avatar: '#fee2e2' },
+                          { bg: 'linear-gradient(145deg, #f0fdf4, #f0fdf4)', border: '#bbf7d0', avatar: '#dcfce7' },
+                          { bg: 'linear-gradient(145deg, #eff6ff, #eff6ff)', border: '#bfdbfe', avatar: '#dbeafe' },
+                          { bg: 'linear-gradient(145deg, #fefce8, #fefce8)', border: '#fde68a', avatar: '#fef3c7' },
+                          { bg: 'linear-gradient(145deg, #f5f3ff, #f5f3ff)', border: '#ddd6fe', avatar: '#e9d5ff' },
+                          { bg: 'linear-gradient(145deg, #f0f9ff, #f0f9ff)', border: '#bae6fd', avatar: '#e0f2fe' },
+                          { bg: 'linear-gradient(145deg, #fdf2f8, #fdf2f8)', border: '#fbcfe8', avatar: '#fce7f3' },
+                          { bg: 'linear-gradient(145deg, #ecfdf5, #ecfdf5)', border: '#a7f3d0', avatar: '#d1fae5' }
+                        ];
+                        
+                        const colorCard = coloresPasteles[index % coloresPasteles.length];
+                        
+                        return (
+                          <div
+                            key={alumno.id}
+                            className="alumno-card"
+                            style={{
+                              background: colorCard.bg,
+                              borderColor: colorCard.border
                             }}
                           >
-                            <span className="btn-icon">👁️</span>
-                            <span className="btn-text">Ver</span>
-                          </button>
-                        </div>
+                            <div
+                              className="alumno-avatar"
+                              style={{ backgroundColor: colorCard.avatar }}
+                            >
+                              {alumno.foto ? (
+                                <img src={alumno.foto} alt={nombreCompleto} />
+                              ) : (
+                                <span>{(alumno.nombres?.[0] || 'A').toUpperCase()}</span>
+                              )}
+                            </div>
+                            <div className="alumno-info">
+                              <h4>{nombreCompleto}</h4>
+                              <button
+                                className="btn-ver-perfil"
+                                onClick={() => {
+                                  setAlumnoSeleccionado(alumno);
+                                  setMostrarRecomendacion(true);
+                                }}
+                              >
+                                <span className="btn-icon">👁️</span>
+                                <span className="btn-text">Ver</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="empty-state">
+                        <p>No hay alumnos en este grupo</p>
                       </div>
-                    );
-                  })}
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Formulario de Recomendación */}
+              {mostrarRecomendacion && (
+                <div className="recomendacion-form mundo-card">
+                  <div className="recomendacion-header">
+                    <h3>Recomendaciones</h3>
+                    <button
+                      className="btn-cerrar-form"
+                      onClick={() => {
+                        setMostrarRecomendacion(false);
+                        setAlumnoSeleccionado(null);
+                        setRecomendacion('');
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <div className="form-group">
+                    <label>Alumno</label>
+                    <select
+                      value={alumnoSeleccionado?.id || ''}
+                      onChange={(e) => {
+                        const alumno = alumnos.find(a => a.id === parseInt(e.target.value));
+                        setAlumnoSeleccionado(alumno);
+                      }}
+                    >
+                      <option value="">Selecciona un alumno</option>
+                      {alumnos.map((alumno) => (
+                        <option key={alumno.id} value={alumno.id}>
+                          {alumno.apellido_paterno} {alumno.apellido_materno}, {alumno.nombres}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Recomendación</label>
+                    <textarea
+                      value={recomendacion}
+                      onChange={(e) => setRecomendacion(e.target.value)}
+                      rows="5"
+                      placeholder="Escribe la recomendación para el alumno..."
+                    />
+                  </div>
+                  <div className="form-actions">
+                    <button
+                      type="button"
+                      className="btn-cancelar"
+                      onClick={() => {
+                        setMostrarRecomendacion(false);
+                        setAlumnoSeleccionado(null);
+                        setRecomendacion('');
+                      }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-guardar"
+                      onClick={handleEnviarRecomendacion}
+                      disabled={!alumnoSeleccionado || !recomendacion.trim()}
+                    >
+                      Enviar Recomendación
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
           )}
-
-          {/* Formulario de Recomendación */}
-          {mostrarRecomendacion && selectedGrupo && (
-            <div className="recomendacion-form">
-              <div className="recomendacion-header">
-                <h3>Apreciaciones / Recomendaciones</h3>
-                <button
-                  className="btn-cerrar-form"
-                  onClick={() => {
-                    setMostrarRecomendacion(false);
-                    setAlumnoSeleccionado(null);
-                    setRecomendacion('');
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="form-group">
-                <label>Alumno</label>
-                <select
-                  value={alumnoSeleccionado?.id || ''}
-                  onChange={(e) => {
-                    const alumno = alumnos.find(a => a.id === parseInt(e.target.value));
-                    setAlumnoSeleccionado(alumno);
-                  }}
-                >
-                  <option value="">Selecciona un alumno</option>
-                  {alumnos.map((alumno) => (
-                    <option key={alumno.id} value={alumno.id}>
-                      {alumno.apellido_paterno} {alumno.apellido_materno}, {alumno.nombres}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Recomendación</label>
-                <textarea
-                  value={recomendacion}
-                  onChange={(e) => setRecomendacion(e.target.value)}
-                  rows="5"
-                  placeholder="Escribe la recomendación para el alumno..."
-                />
-              </div>
-              <div className="form-actions">
-                <button
-                  type="button"
-                  className="btn-cancelar"
-                  onClick={() => {
-                    setMostrarRecomendacion(false);
-                    setAlumnoSeleccionado(null);
-                    setRecomendacion('');
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  className="btn-guardar"
-                  onClick={handleEnviarRecomendacion}
-                  disabled={!alumnoSeleccionado || !recomendacion.trim()}
-                >
-                  Enviar Recomendación
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </DashboardLayout>
   );
