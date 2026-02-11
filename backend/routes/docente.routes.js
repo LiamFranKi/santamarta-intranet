@@ -8413,6 +8413,170 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
     
+    // Si se activa el examen, enviar notificaciones a alumnos y apoderados
+    if (estado === 'ACTIVO') {
+      setImmediate(async () => {
+        try {
+          // Obtener información del examen y asignatura
+          const examenInfo = await query(
+            `SELECT ae.*, a.grupo_id, a.curso_id, c.nombre as curso_nombre,
+                    CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre_completo
+             FROM asignaturas_examenes ae
+             INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+             INNER JOIN cursos c ON c.id = a.curso_id
+             INNER JOIN personal p ON p.id = a.personal_id
+             WHERE ae.id = ?`,
+            [examenId]
+          );
+          
+          if (examenInfo.length > 0) {
+            const { grupo_id, curso_nombre, docente_nombre_completo, titulo } = examenInfo[0];
+            
+            // Obtener alumnos del grupo
+            const alumnos = await query(
+              `SELECT DISTINCT a.id as alumno_id, u.id as usuario_id
+               FROM alumnos a
+               INNER JOIN matriculas m ON m.alumno_id = a.id
+               INNER JOIN usuarios u ON u.alumno_id = a.id
+               WHERE m.grupo_id = ? 
+                 AND m.colegio_id = ?
+                 AND (m.estado = 0 OR m.estado = 4)
+                 AND u.colegio_id = ?
+                 AND u.estado = 'ACTIVO'`,
+              [grupo_id, colegio_id, colegio_id]
+            );
+            
+            const alumnoIds = alumnos.map(a => a.alumno_id);
+            const alumnoUsuarioIds = alumnos.map(a => a.usuario_id);
+            
+            // Obtener apoderados de esos alumnos
+            let apoderadoUsuarioIds = [];
+            if (alumnoIds.length > 0) {
+              const apoderados = await query(
+                `SELECT DISTINCT u.id as usuario_id, ap.nro_documento
+                 FROM apoderados ap
+                 INNER JOIN familias f ON f.apoderado_id = ap.id
+                 INNER JOIN usuarios u ON u.apoderado_id = ap.id
+                 WHERE f.alumno_id IN (${alumnoIds.map(() => '?').join(',')})
+                   AND ap.colegio_id = ?
+                   AND u.colegio_id = ?
+                   AND u.estado = 'ACTIVO'`,
+                [...alumnoIds, colegio_id, colegio_id]
+              );
+              apoderadoUsuarioIds = apoderados.map(a => a.usuario_id);
+              
+              // Obtener DNI de apoderados para buscar docentes-apoderados
+              const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
+              
+              if (apoderadoDnis.length > 0) {
+                // Obtener usuarios DOCENTE que también son apoderados (mismo nro_documento)
+                const docentesApoderados = await query(
+                  `SELECT DISTINCT u.id 
+                   FROM usuarios u
+                   INNER JOIN personal p ON p.id = u.personal_id
+                   WHERE u.colegio_id = ? 
+                     AND u.estado = 'ACTIVO'
+                     AND u.tipo = 'DOCENTE'
+                     AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
+                          OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))
+                     AND u.id NOT IN (${[...alumnoUsuarioIds, ...apoderadoUsuarioIds].map(() => '?').join(',')})`,
+                  [colegio_id, ...apoderadoDnis, ...apoderadoDnis, ...alumnoUsuarioIds, ...apoderadoUsuarioIds]
+                );
+                
+                const docentesApoderadosIds = docentesApoderados.map(u => u.id);
+                apoderadoUsuarioIds = [...apoderadoUsuarioIds, ...docentesApoderadosIds];
+                
+                if (docentesApoderadosIds.length > 0) {
+                  console.log(`📚 [EXAMEN ACTIVADO] Encontrados ${docentesApoderadosIds.length} docentes que también son apoderados`);
+                }
+              }
+            }
+            
+            // Combinar todos los destinatarios
+            const todosDestinatarios = [...new Set([...alumnoUsuarioIds, ...apoderadoUsuarioIds])];
+            
+            console.log(`📚 [EXAMEN ACTIVADO] Enviando notificaciones a ${todosDestinatarios.length} destinatarios (${alumnoUsuarioIds.length} alumnos, ${apoderadoUsuarioIds.length} apoderados incluyendo docentes)`);
+            
+            // Preparar notificación
+            const tituloNotificacion = 'Examen Activado';
+            const mensajeNotificacion = `Examen: "${titulo}" - Curso: ${curso_nombre} - Docente: ${docente_nombre_completo}`;
+            
+            // Crear notificaciones en la BD
+            if (todosDestinatarios.length > 0) {
+              for (const destinatarioId of todosDestinatarios) {
+                try {
+                  await execute(
+                    `INSERT INTO notificaciones 
+                     (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
+                     VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
+                    [
+                      usuario_id, // Usuario que activa (docente)
+                      destinatarioId, // Destinatario
+                      tituloNotificacion, // TÍTULO (asunto)
+                      mensajeNotificacion // MENSAJE (contenido)
+                    ]
+                  );
+                } catch (error) {
+                  console.error(`❌ [EXAMEN ACTIVADO] Error creando notificación para usuario ${destinatarioId}:`, error);
+                }
+              }
+              
+              console.log(`✅ [EXAMEN ACTIVADO] ${todosDestinatarios.length} notificaciones creadas en BD`);
+              
+              // Enviar push notifications
+              const subscriptionsData = await query(
+                `SELECT endpoint, p256dh, auth 
+                 FROM push_subscriptions 
+                 WHERE usuario_id IN (${todosDestinatarios.map(() => '?').join(',')}) 
+                   AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+                [...todosDestinatarios, colegio_id]
+              );
+              
+              const subscriptions = subscriptionsData.map(sub => ({
+                endpoint: sub.endpoint,
+                keys: {
+                  p256dh: sub.p256dh,
+                  auth: sub.auth
+                }
+              }));
+              
+              if (subscriptions.length > 0) {
+                const payloadPush = {
+                  title: tituloNotificacion,
+                  body: mensajeNotificacion,
+                  icon: '/icons/icon-192x192.png',
+                  badge: '/icons/icon-192x192.png',
+                  vibrate: [200, 100, 200],
+                  tag: `examen-activado-${examenId}`,
+                  data: {
+                    url: '/alumno/dashboard',
+                    tipo: 'examen_activado',
+                    examen_id: parseInt(examenId)
+                  }
+                };
+                
+                console.log(`📱 [EXAMEN ACTIVADO] Enviando ${subscriptions.length} push notifications...`);
+                
+                enviarPushNotificationMultiple(subscriptions, payloadPush)
+                  .then(resultadosPush => {
+                    const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
+                    const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
+                    console.log(`✅ [EXAMEN ACTIVADO] Push notifications: ${exitosas} exitosas, ${fallidas} fallidas`);
+                  })
+                  .catch(err => {
+                    console.error(`❌ [EXAMEN ACTIVADO] Error en envío de push notifications:`, err);
+                  });
+              } else {
+                console.log('⚠️ [EXAMEN ACTIVADO] No hay suscripciones push activas para enviar notificaciones');
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`❌ [EXAMEN ACTIVADO] Error en proceso de notificaciones:`, error);
+        }
+      });
+    }
+    
     res.json({ 
       success: true, 
       message: `Examen ${estado === 'ACTIVO' ? 'habilitado' : 'deshabilitado'} correctamente`,
@@ -11568,6 +11732,299 @@ router.delete('/aula-virtual/alternativas/:alternativaId', async (req, res) => {
   } catch (error) {
     console.error('Error eliminando alternativa:', error);
     res.status(500).json({ error: 'Error al eliminar alternativa' });
+  }
+});
+
+/**
+ * Función para verificar y enviar notificaciones de tareas por vencer
+ * Se ejecuta periódicamente para notificar a alumnos y apoderados
+ */
+async function verificarTareasPorVencer() {
+  try {
+    console.log('📅 [TAREAS POR VENCER] Iniciando verificación de tareas...');
+    
+    const moment = require('moment-timezone');
+    const ahoraLima = moment.tz('America/Lima');
+    const fechaActual = ahoraLima.format('YYYY-MM-DD');
+    
+    // Obtener todas las tareas activas con fecha de entrega en los próximos 3 días o hoy
+    // Obtener año activo de cada colegio para filtrar correctamente
+    const colegios = await query(
+      `SELECT id, anio_activo FROM colegios WHERE estado = 'ACTIVO'`,
+      []
+    );
+    
+    let tareasPorVencer = [];
+    
+    // Para cada colegio, obtener tareas del año activo
+    for (const colegio of colegios) {
+      const anioActivo = colegio.anio_activo || new Date().getFullYear();
+      
+      const tareasColegio = await query(
+        `SELECT t.*, 
+                a.grupo_id, a.curso_id, a.colegio_id, a.personal_id,
+                c.nombre as curso_nombre,
+                CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre_completo,
+                g.anio
+         FROM asignaturas_tareas t
+         INNER JOIN asignaturas a ON a.id = t.asignatura_id
+         INNER JOIN cursos c ON c.id = a.curso_id
+         INNER JOIN personal p ON p.id = a.personal_id
+         INNER JOIN grupos g ON g.id = a.grupo_id
+         WHERE DATE(t.fecha_entrega) >= DATE(NOW())
+           AND DATE(t.fecha_entrega) <= DATE(DATE_ADD(NOW(), INTERVAL 3 DAY))
+           AND a.colegio_id = ?
+           AND g.anio = ?
+         ORDER BY t.fecha_entrega ASC`,
+        [colegio.id, anioActivo]
+      );
+      
+      tareasPorVencer = [...tareasPorVencer, ...tareasColegio];
+    }
+    
+    if (tareasPorVencer.length === 0) {
+      console.log('📅 [TAREAS POR VENCER] No hay tareas por vencer en los próximos 3 días');
+      return;
+    }
+    
+    console.log(`📅 [TAREAS POR VENCER] Encontradas ${tareasPorVencer.length} tareas por verificar`);
+    
+    // Procesar cada tarea
+    for (const tarea of tareasPorVencer) {
+      try {
+        const fechaEntrega = moment.tz(tarea.fecha_entrega, 'America/Lima');
+        const diasRestantes = fechaEntrega.diff(ahoraLima, 'days');
+        
+        // Determinar qué tipo de notificación enviar
+        let tipoNotificacion = null;
+        let mensajeNotificacion = '';
+        
+        if (diasRestantes === 0) {
+          // Se vence hoy
+          tipoNotificacion = 'HOY';
+          mensajeNotificacion = `⚠️ La tarea "${tarea.titulo}" se vence HOY - Curso: ${tarea.curso_nombre}`;
+        } else if (diasRestantes === 1) {
+          // Falta 1 día
+          tipoNotificacion = '1_DIA';
+          mensajeNotificacion = `⏰ La tarea "${tarea.titulo}" se vence MAÑANA - Curso: ${tarea.curso_nombre}`;
+        } else if (diasRestantes === 2) {
+          // Faltan 2 días
+          tipoNotificacion = '2_DIAS';
+          mensajeNotificacion = `📅 La tarea "${tarea.titulo}" se vence en 2 DÍAS - Curso: ${tarea.curso_nombre}`;
+        } else if (diasRestantes === 3) {
+          // Faltan 3 días
+          tipoNotificacion = '3_DIAS';
+          mensajeNotificacion = `📅 La tarea "${tarea.titulo}" se vence en 3 DÍAS - Curso: ${tarea.curso_nombre}`;
+        }
+        
+        // Si no corresponde a ninguna notificación, saltar
+        if (!tipoNotificacion) {
+          continue;
+        }
+        
+        // Verificar si ya se envió esta notificación (evitar duplicados)
+        const notificacionExistente = await query(
+          `SELECT id FROM notificaciones 
+           WHERE para = 'USUARIO' 
+             AND asunto LIKE ?
+             AND contenido LIKE ?
+             AND DATE(fecha_hora) = DATE(NOW())
+           LIMIT 1`,
+          [`%${tipoNotificacion}%`, `%${tarea.titulo}%`]
+        );
+        
+        if (notificacionExistente.length > 0) {
+          console.log(`📅 [TAREAS POR VENCER] Notificación ya enviada hoy para tarea "${tarea.titulo}" (${tipoNotificacion})`);
+          continue;
+        }
+        
+        // Obtener alumnos del grupo
+        const alumnos = await query(
+          `SELECT DISTINCT a.id as alumno_id, u.id as usuario_id
+           FROM alumnos a
+           INNER JOIN matriculas m ON m.alumno_id = a.id
+           INNER JOIN usuarios u ON u.alumno_id = a.id
+           WHERE m.grupo_id = ? 
+             AND m.colegio_id = ?
+             AND (m.estado = 0 OR m.estado = 4)
+             AND u.colegio_id = ?
+             AND u.estado = 'ACTIVO'`,
+          [tarea.grupo_id, tarea.colegio_id, tarea.colegio_id]
+        );
+        
+        // Obtener alumnos que YA entregaron la tarea (tienen entrega en asignaturas_tareas_entregas)
+        const alumnosConEntrega = await query(
+          `SELECT DISTINCT alumno_id 
+           FROM asignaturas_tareas_entregas 
+           WHERE tarea_id = ?`,
+          [tarea.id]
+        );
+        
+        const alumnosConEntregaIds = alumnosConEntrega.map(e => e.alumno_id);
+        
+        // Filtrar alumnos: solo los que NO han entregado
+        const alumnosPendientes = alumnos.filter(a => !alumnosConEntregaIds.includes(a.alumno_id));
+        
+        const alumnoIds = alumnosPendientes.map(a => a.alumno_id);
+        const alumnoUsuarioIds = alumnosPendientes.map(a => a.usuario_id);
+        
+        console.log(`📅 [TAREAS POR VENCER] Tarea "${tarea.titulo}": ${alumnos.length} alumnos totales, ${alumnosConEntregaIds.length} ya entregaron, ${alumnoIds.length} pendientes`);
+        
+        // Obtener apoderados de esos alumnos
+        let apoderadoUsuarioIds = [];
+        if (alumnoIds.length > 0) {
+          const apoderados = await query(
+            `SELECT DISTINCT u.id as usuario_id, ap.nro_documento
+             FROM apoderados ap
+             INNER JOIN familias f ON f.apoderado_id = ap.id
+             INNER JOIN usuarios u ON u.apoderado_id = ap.id
+             WHERE f.alumno_id IN (${alumnoIds.map(() => '?').join(',')})
+               AND ap.colegio_id = ?
+               AND u.colegio_id = ?
+               AND u.estado = 'ACTIVO'`,
+            [...alumnoIds, tarea.colegio_id, tarea.colegio_id]
+          );
+          apoderadoUsuarioIds = apoderados.map(a => a.usuario_id);
+          
+          // Obtener DNI de apoderados para buscar docentes-apoderados
+          const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
+          
+          if (apoderadoDnis.length > 0) {
+            // Obtener usuarios DOCENTE que también son apoderados
+            const docentesApoderados = await query(
+              `SELECT DISTINCT u.id 
+               FROM usuarios u
+               INNER JOIN personal p ON p.id = u.personal_id
+               WHERE u.colegio_id = ? 
+                 AND u.estado = 'ACTIVO'
+                 AND u.tipo = 'DOCENTE'
+                 AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
+                      OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))
+                 AND u.id NOT IN (${[...alumnoUsuarioIds, ...apoderadoUsuarioIds].map(() => '?').join(',')})`,
+              [tarea.colegio_id, ...apoderadoDnis, ...apoderadoDnis, ...alumnoUsuarioIds, ...apoderadoUsuarioIds]
+            );
+            
+            const docentesApoderadosIds = docentesApoderados.map(u => u.id);
+            apoderadoUsuarioIds = [...apoderadoUsuarioIds, ...docentesApoderadosIds];
+          }
+        }
+        
+        // Combinar todos los destinatarios
+        const todosDestinatarios = [...new Set([...alumnoUsuarioIds, ...apoderadoUsuarioIds])];
+        
+        if (todosDestinatarios.length === 0) {
+          console.log(`⚠️ [TAREAS POR VENCER] No se encontraron destinatarios para tarea "${tarea.titulo}"`);
+          continue;
+        }
+        
+        // Preparar título de notificación
+        let tituloNotificacion = '';
+        if (tipoNotificacion === 'HOY') {
+          tituloNotificacion = '⚠️ Tarea se vence HOY';
+        } else if (tipoNotificacion === '1_DIA') {
+          tituloNotificacion = '⏰ Tarea se vence MAÑANA';
+        } else if (tipoNotificacion === '2_DIAS') {
+          tituloNotificacion = '📅 Tarea se vence en 2 DÍAS';
+        } else if (tipoNotificacion === '3_DIAS') {
+          tituloNotificacion = '📅 Tarea se vence en 3 DÍAS';
+        }
+        
+        console.log(`📅 [TAREAS POR VENCER] Enviando notificaciones para tarea "${tarea.titulo}" (${tipoNotificacion}) a ${todosDestinatarios.length} destinatarios`);
+        
+        // Crear notificaciones en la BD
+        for (const destinatarioId of todosDestinatarios) {
+          try {
+            await execute(
+              `INSERT INTO notificaciones 
+               (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
+               VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
+              [
+                tarea.personal_id, // Usuario que crea (docente)
+                destinatarioId, // Destinatario
+                tituloNotificacion, // TÍTULO (asunto)
+                mensajeNotificacion // MENSAJE (contenido)
+              ]
+            );
+          } catch (error) {
+            console.error(`❌ [TAREAS POR VENCER] Error creando notificación para usuario ${destinatarioId}:`, error);
+          }
+        }
+        
+        console.log(`✅ [TAREAS POR VENCER] ${todosDestinatarios.length} notificaciones creadas para tarea "${tarea.titulo}"`);
+        
+        // Enviar push notifications
+        const subscriptionsData = await query(
+          `SELECT endpoint, p256dh, auth 
+           FROM push_subscriptions 
+           WHERE usuario_id IN (${todosDestinatarios.map(() => '?').join(',')}) 
+             AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+          [...todosDestinatarios, tarea.colegio_id]
+        );
+        
+        const subscriptions = subscriptionsData.map(sub => ({
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.p256dh,
+            auth: sub.auth
+          }
+        }));
+        
+        if (subscriptions.length > 0) {
+          const payloadPush = {
+            title: tituloNotificacion,
+            body: mensajeNotificacion,
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-192x192.png',
+            vibrate: [200, 100, 200],
+            tag: `tarea-por-vencer-${tarea.id}-${tipoNotificacion}`,
+            data: {
+              url: '/alumno/dashboard',
+              tipo: 'tarea_por_vencer',
+              tarea_id: tarea.id,
+              dias_restantes: diasRestantes
+            }
+          };
+          
+          enviarPushNotificationMultiple(subscriptions, payloadPush)
+            .then(resultadosPush => {
+              const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
+              const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
+              console.log(`✅ [TAREAS POR VENCER] Push notifications para "${tarea.titulo}": ${exitosas} exitosas, ${fallidas} fallidas`);
+            })
+            .catch(err => {
+              console.error(`❌ [TAREAS POR VENCER] Error en envío de push notifications:`, err);
+            });
+        }
+      } catch (error) {
+        console.error(`❌ [TAREAS POR VENCER] Error procesando tarea ${tarea.id}:`, error);
+      }
+    }
+    
+    console.log('✅ [TAREAS POR VENCER] Verificación completada');
+  } catch (error) {
+    console.error('❌ [TAREAS POR VENCER] Error en verificación:', error);
+  }
+}
+
+/**
+ * GET /api/docente/tareas/verificar-vencimiento
+ * Endpoint para verificar y enviar notificaciones de tareas por vencer
+ * Se puede llamar periódicamente (cron job) o manualmente
+ */
+router.get('/tareas/verificar-vencimiento', async (req, res) => {
+  try {
+    // Ejecutar verificación de forma asíncrona
+    setImmediate(async () => {
+      await verificarTareasPorVencer();
+    });
+    
+    res.json({ 
+      success: true, 
+      message: 'Verificación de tareas por vencer iniciada' 
+    });
+  } catch (error) {
+    console.error('Error iniciando verificación de tareas:', error);
+    res.status(500).json({ error: 'Error al iniciar verificación' });
   }
 });
 
