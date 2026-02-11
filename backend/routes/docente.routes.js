@@ -4065,6 +4065,218 @@ router.get('/roles-adicionales', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/hijos/:hijoId/datos
+ * Obtener datos completos de un hijo para editar
+ */
+router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE']), async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, usuario_id, personal_id } = req.user;
+
+    // Verificar que el docente es apoderado del alumno
+    const personalData = await query(
+      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [personal_id, colegio_id]
+    );
+
+    if (!personalData || personalData.length === 0 || !personalData[0].nro_documento) {
+      return res.status(403).json({ error: 'No tienes permisos para ver estos datos' });
+    }
+
+    const nroDocumento = personalData[0].nro_documento;
+
+    // Verificar que el alumno es hijo del docente
+    const esHijo = await query(
+      `SELECT COUNT(*) as count
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE ap.colegio_id = ?
+         AND ap.nro_documento = ?
+         AND a.id = ?
+         AND a.colegio_id = ?`,
+      [colegio_id, nroDocumento, hijoId, colegio_id]
+    );
+
+    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+      return res.status(403).json({ error: 'No tienes permisos para ver estos datos' });
+    }
+
+    // Obtener datos del alumno
+    const alumno = await query(
+      `SELECT a.*, u.usuario as nro_documento
+       FROM alumnos a
+       LEFT JOIN usuarios u ON u.alumno_id = a.id AND u.colegio_id = a.colegio_id
+       WHERE a.id = ? AND a.colegio_id = ?`,
+      [hijoId, colegio_id]
+    );
+
+    if (!alumno || alumno.length === 0) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    const alumnoData = alumno[0];
+
+    res.json({
+      id: alumnoData.id,
+      nombres: alumnoData.nombres,
+      apellido_paterno: alumnoData.apellido_paterno,
+      apellido_materno: alumnoData.apellido_materno,
+      email: alumnoData.email,
+      sexo: alumnoData.sexo,
+      fecha_nacimiento: alumnoData.fecha_nacimiento,
+      foto: alumnoData.foto,
+      nro_documento: alumnoData.nro_documento
+    });
+  } catch (error) {
+    console.error('Error obteniendo datos del hijo:', error);
+    res.status(500).json({ error: 'Error al obtener datos del alumno' });
+  }
+});
+
+/**
+ * PUT /api/docente/hijos/:hijoId/datos
+ * Actualizar datos de un hijo (solo si es apoderado)
+ */
+// Configurar multer para fotos de alumnos
+const alumnoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos';
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `alumno-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+const fileFilterAlumno = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|gif|webp/;
+  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimetype = allowedTypes.test(file.mimetype);
+  
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb(new Error('Solo se permiten imágenes (JPEG, JPG, PNG, GIF, WEBP)'));
+  }
+};
+
+const uploadAlumnoHijo = multer({
+  storage: alumnoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: fileFilterAlumno
+});
+
+router.put('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE']), uploadAlumnoHijo.single('foto'), async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, personal_id } = req.user;
+    const { nombres, apellido_paterno, apellido_materno, email, sexo, fecha_nacimiento } = req.body;
+
+    // Verificar que el docente es apoderado del alumno
+    const personalData = await query(
+      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [personal_id, colegio_id]
+    );
+
+    if (!personalData || personalData.length === 0 || !personalData[0].nro_documento) {
+      return res.status(403).json({ error: 'No tienes permisos para editar estos datos' });
+    }
+
+    const nroDocumento = personalData[0].nro_documento;
+
+    // Verificar que el alumno es hijo del docente
+    const esHijo = await query(
+      `SELECT COUNT(*) as count
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE ap.colegio_id = ?
+         AND ap.nro_documento = ?
+         AND a.id = ?
+         AND a.colegio_id = ?`,
+      [colegio_id, nroDocumento, hijoId, colegio_id]
+    );
+
+    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+      return res.status(403).json({ error: 'No tienes permisos para editar estos datos' });
+    }
+
+    // Obtener alumno actual
+    const alumno = await query(
+      `SELECT * FROM alumnos WHERE id = ? AND colegio_id = ?`,
+      [hijoId, colegio_id]
+    );
+
+    if (!alumno || alumno.length === 0) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    const alumnoData = alumno[0];
+    let fotoPath = alumnoData.foto;
+
+    // Si se subió una nueva foto
+    if (req.file) {
+      // Eliminar foto anterior si existe
+      if (alumnoData.foto && alumnoData.foto !== '') {
+        const oldFotoPath = `/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos/${path.basename(alumnoData.foto)}`;
+        if (fs.existsSync(oldFotoPath)) {
+          fs.unlinkSync(oldFotoPath);
+        }
+      }
+      
+      // Guardar nueva foto - solo el nombre del archivo
+      fotoPath = req.file.filename;
+    }
+
+    // Actualizar datos
+    await execute(
+      `UPDATE alumnos SET
+        nombres = ?,
+        apellido_paterno = ?,
+        apellido_materno = ?,
+        email = ?,
+        sexo = ?,
+        foto = ?,
+        fecha_nacimiento = ?
+      WHERE id = ? AND colegio_id = ?`,
+      [
+        nombres || alumnoData.nombres,
+        apellido_paterno || alumnoData.apellido_paterno,
+        apellido_materno || alumnoData.apellido_materno,
+        email || alumnoData.email || null,
+        sexo !== undefined ? sexo : (alumnoData.sexo !== undefined ? alumnoData.sexo : null),
+        fotoPath,
+        fecha_nacimiento || alumnoData.fecha_nacimiento || null,
+        hijoId,
+        colegio_id
+      ]
+    );
+
+    // Obtener datos actualizados
+    const alumnoActualizado = await query(
+      `SELECT a.*, u.usuario as nro_documento
+       FROM alumnos a
+       LEFT JOIN usuarios u ON u.alumno_id = a.id AND u.colegio_id = a.colegio_id
+       WHERE a.id = ? AND a.colegio_id = ?`,
+      [hijoId, colegio_id]
+    );
+
+    res.json({
+      message: 'Datos actualizados correctamente',
+      alumno: alumnoActualizado[0]
+    });
+  } catch (error) {
+    console.error('Error actualizando datos del hijo:', error);
+    res.status(500).json({ error: 'Error al actualizar datos del alumno' });
+  }
+});
+
+/**
  * POST /api/docente/comunicados
  * Crear nuevo comunicado (solo ADMINISTRADOR puede crear)
  */

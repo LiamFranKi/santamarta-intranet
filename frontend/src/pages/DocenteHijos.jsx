@@ -2,7 +2,15 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
+import Swal from 'sweetalert2';
 import './DocenteHijos.css';
+
+// Función para obtener iniciales del nombre
+function getInitials(nombre) {
+  if (!nombre) return 'A';
+  const parts = String(nombre).trim().split(/\s+/).slice(0, 2);
+  return parts.map((p) => p[0]?.toUpperCase()).join('') || 'A';
+}
 
 function DocenteHijos() {
   const [loading, setLoading] = useState(true);
@@ -10,6 +18,21 @@ function DocenteHijos() {
   const [esApoderado, setEsApoderado] = useState(false);
   const [openDropdown, setOpenDropdown] = useState(null);
   const dropdownRef = useRef(null);
+  const [showModalEditar, setShowModalEditar] = useState(false);
+  const [hijoSeleccionado, setHijoSeleccionado] = useState(null);
+  const [dniHijo, setDniHijo] = useState('');
+  const [formData, setFormData] = useState({
+    nombres: '',
+    apellido_paterno: '',
+    apellido_materno: '',
+    email: '',
+    sexo: '',
+    fecha_nacimiento: ''
+  });
+  const [fotoPreview, setFotoPreview] = useState(null);
+  const [fotoFile, setFotoFile] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     cargarHijos();
@@ -82,13 +105,15 @@ function DocenteHijos() {
     }
   };
 
-  const handleOpcionClick = (opcion, hijo) => {
+  const handleOpcionClick = async (opcion, hijo) => {
     setOpenDropdown(null);
     
     switch (opcion) {
       case 'editar-datos':
-        console.log('Editar datos de:', hijo);
-        // Implementar después
+        // Cargar datos del hijo para editar
+        await cargarDatosHijo(hijo.id);
+        setHijoSeleccionado(hijo);
+        setShowModalEditar(true);
         break;
       case 'cursos-asignados':
         console.log('Cursos asignados de:', hijo);
@@ -128,6 +153,152 @@ function DocenteHijos() {
         break;
       default:
         break;
+    }
+  };
+
+  const cargarDatosHijo = async (hijoId) => {
+    try {
+      const response = await api.get(`/docente/hijos/${hijoId}/datos`);
+      const datos = response.data;
+      
+      setFormData({
+        nombres: datos.nombres || '',
+        apellido_paterno: datos.apellido_paterno || '',
+        apellido_materno: datos.apellido_materno || '',
+        email: datos.email || '',
+        sexo: datos.sexo !== undefined ? String(datos.sexo) : '',
+        fecha_nacimiento: datos.fecha_nacimiento || ''
+      });
+      
+      // Guardar DNI
+      setDniHijo(datos.nro_documento || 'N/A');
+      
+      // Cargar foto preview
+      if (datos.foto) {
+        const fotoUrl = getFotoUrl(datos.foto);
+        setFotoPreview(fotoUrl);
+      } else {
+        setFotoPreview(null);
+      }
+      setFotoFile(null);
+    } catch (error) {
+      console.error('Error cargando datos del hijo:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudieron cargar los datos del alumno',
+        confirmButtonText: 'Entendido'
+      });
+    }
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleFotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validar tamaño (5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Archivo muy grande',
+          text: 'La foto no debe superar los 5MB',
+          confirmButtonText: 'Entendido'
+        });
+        return;
+      }
+      
+      // Validar tipo
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Formato no válido',
+          text: 'Solo se permiten imágenes (JPG, PNG, GIF, WEBP)',
+          confirmButtonText: 'Entendido'
+        });
+        return;
+      }
+      
+      setFotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFotoPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleGuardarDatos = async (e) => {
+    e.preventDefault();
+    
+    try {
+      setSaving(true);
+      
+      if (fotoFile) {
+        setUploadingPhoto(true);
+      }
+      
+      const formDataToSend = new FormData();
+      formDataToSend.append('nombres', formData.nombres);
+      formDataToSend.append('apellido_paterno', formData.apellido_paterno);
+      formDataToSend.append('apellido_materno', formData.apellido_materno);
+      formDataToSend.append('email', formData.email);
+      formDataToSend.append('sexo', formData.sexo || '');
+      formDataToSend.append('fecha_nacimiento', formData.fecha_nacimiento);
+      
+      if (fotoFile) {
+        formDataToSend.append('foto', fotoFile);
+      }
+
+      await api.put(`/docente/hijos/${hijoSeleccionado.id}/datos`, formDataToSend, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      if (fotoFile) {
+        setTimeout(() => {
+          setUploadingPhoto(false);
+        }, 2000);
+      }
+
+      Swal.fire({
+        icon: 'success',
+        title: '¡Datos actualizados!',
+        text: fotoFile ? 'Los datos se han actualizado. La foto se está subiendo...' : 'Los datos se han actualizado correctamente',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true
+      });
+
+      // Recargar lista de hijos
+      await cargarHijos();
+      
+      // Cerrar modal
+      setShowModalEditar(false);
+      setHijoSeleccionado(null);
+      setFotoFile(null);
+      setFotoPreview(null);
+    } catch (error) {
+      console.error('Error guardando datos:', error);
+      setUploadingPhoto(false);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudieron actualizar los datos',
+        confirmButtonText: 'Entendido'
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -403,6 +574,187 @@ function DocenteHijos() {
           </div>
         )}
       </div>
+
+      {/* Modal Editar Datos */}
+      {showModalEditar && hijoSeleccionado && createPortal(
+        <div className="modal-overlay" onClick={() => !saving && setShowModalEditar(false)}>
+          <div className="modal-content modal-editar-hijo" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>✏️ Editar Datos del Alumno</h2>
+              <button 
+                className="modal-close-btn"
+                onClick={() => !saving && setShowModalEditar(false)}
+                disabled={saving}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleGuardarDatos} className="modal-form">
+              {/* Sección de Foto */}
+              <div className="modal-section">
+                <h3 className="section-title">Foto de Perfil</h3>
+                <div className="foto-upload-container">
+                  <div className="foto-preview-wrapper">
+                    <div className="foto-preview">
+                      {fotoPreview ? (
+                        <img 
+                          src={fotoPreview} 
+                          alt="Foto de perfil"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            const placeholder = e.target.parentElement.querySelector('.foto-placeholder');
+                            if (placeholder) placeholder.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div className="foto-placeholder" style={{ display: fotoPreview ? 'none' : 'flex' }}>
+                        {getInitials(`${formData.nombres} ${formData.apellido_paterno}`)}
+                      </div>
+                    </div>
+                    {uploadingPhoto && (
+                      <div className="photo-upload-overlay">
+                        <div className="upload-spinner">
+                          <div className="spinner-ring"></div>
+                          <div className="spinner-ring"></div>
+                          <div className="spinner-ring"></div>
+                        </div>
+                        <p className="upload-text">Subiendo foto...</p>
+                      </div>
+                    )}
+                  </div>
+                  <label className="foto-upload-btn" style={{ opacity: uploadingPhoto ? 0.6 : 1, pointerEvents: uploadingPhoto ? 'none' : 'auto' }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFotoChange}
+                      style={{ display: 'none' }}
+                      disabled={uploadingPhoto || saving}
+                    />
+                    📷 Cambiar Foto
+                  </label>
+                  <p className="foto-hint">Formatos: JPG, PNG, GIF, WEBP (máx. 5MB)</p>
+                </div>
+              </div>
+
+              {/* Información Personal */}
+              <div className="modal-section">
+                <h3 className="section-title">Información Personal</h3>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label htmlFor="nombres">Nombres *</label>
+                    <input
+                      type="text"
+                      id="nombres"
+                      name="nombres"
+                      value={formData.nombres}
+                      onChange={handleInputChange}
+                      required
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="apellido_paterno">Apellido Paterno *</label>
+                    <input
+                      type="text"
+                      id="apellido_paterno"
+                      name="apellido_paterno"
+                      value={formData.apellido_paterno}
+                      onChange={handleInputChange}
+                      required
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="apellido_materno">Apellido Materno</label>
+                    <input
+                      type="text"
+                      id="apellido_materno"
+                      name="apellido_materno"
+                      value={formData.apellido_materno}
+                      onChange={handleInputChange}
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="email">Email *</label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      required
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="sexo">Sexo</label>
+                    <select
+                      id="sexo"
+                      name="sexo"
+                      value={formData.sexo}
+                      onChange={handleInputChange}
+                      disabled={saving}
+                    >
+                      <option value="">Seleccionar...</option>
+                      <option value="0">Masculino</option>
+                      <option value="1">Femenino</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="fecha_nacimiento">Fecha de Nacimiento</label>
+                    <input
+                      type="date"
+                      id="fecha_nacimiento"
+                      name="fecha_nacimiento"
+                      value={formData.fecha_nacimiento}
+                      onChange={handleInputChange}
+                      disabled={saving}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Información de Solo Lectura */}
+              <div className="modal-section">
+                <h3 className="section-title">Información del Sistema</h3>
+                <div className="info-grid">
+                  <div className="info-item">
+                    <span className="info-label">DNI:</span>
+                    <span className="info-value">{dniHijo}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botones */}
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn-cancelar"
+                  onClick={() => !saving && setShowModalEditar(false)}
+                  disabled={saving}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-guardar"
+                  disabled={saving}
+                >
+                  {saving ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
     </DashboardLayout>
   );
 }
