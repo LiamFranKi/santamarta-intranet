@@ -25,9 +25,10 @@ export default function DashboardLayout({ children }) {
     es_tutor: false
   });
   const [tieneAsignaciones, setTieneAsignaciones] = useState({
-    tiene_grupos: true,
-    tiene_cursos: true
+    tiene_grupos: false,
+    tiene_cursos: false
   });
+  const [cargandoAsignaciones, setCargandoAsignaciones] = useState(false);
   
   // Debug: verificar que el componente se monta
   React.useEffect(() => {
@@ -39,6 +40,8 @@ export default function DashboardLayout({ children }) {
     const cargarDatosDocente = async () => {
       if (user?.tipo === 'DOCENTE') {
         try {
+          setCargandoAsignaciones(true);
+          
           // Cargar roles adicionales
           const responseRoles = await api.get('/docente/roles-adicionales');
           setRolesAdicionales({
@@ -54,17 +57,33 @@ export default function DashboardLayout({ children }) {
           });
         } catch (error) {
           console.error('Error cargando datos del docente:', error);
-          // En caso de error, mantener valores por defecto (mostrar menús)
+          // En caso de error, mantener valores por defecto (ocultar menús)
           setTieneAsignaciones({
-            tiene_grupos: true,
-            tiene_cursos: true
+            tiene_grupos: false,
+            tiene_cursos: false
           });
+        } finally {
+          setCargandoAsignaciones(false);
         }
+      } else {
+        // Si no es docente, resetear estados
+        setTieneAsignaciones({
+          tiene_grupos: false,
+          tiene_cursos: false
+        });
+        setCargandoAsignaciones(false);
       }
     };
 
     if (user?.tipo === 'DOCENTE') {
       cargarDatosDocente();
+    } else {
+      // Resetear si no es docente
+      setTieneAsignaciones({
+        tiene_grupos: false,
+        tiene_cursos: false
+      });
+      setCargandoAsignaciones(false);
     }
   }, [user]);
 
