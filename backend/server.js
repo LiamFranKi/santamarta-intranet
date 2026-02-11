@@ -198,6 +198,16 @@ app.use('/api/auth', authRoutes);
 const auditoriaRoutes = require('./routes/auditoria.routes');
 app.use('/api/auditoria', auditoriaRoutes);
 
+// Middleware de logging para todas las peticiones (solo para debugging)
+app.use('/api/docente', (req, res, next) => {
+  if (req.path.includes('/hijos/') && req.path.includes('/datos')) {
+    console.log(`📋 [SERVER] Petición recibida: ${req.method} ${req.path}`);
+    console.log(`📋 [SERVER] Query params:`, req.query);
+    console.log(`📋 [SERVER] Params:`, req.params);
+  }
+  next();
+});
+
 // Rutas de docente
 const docenteRoutes = require('./routes/docente.routes');
 const alumnoRoutes = require('./routes/alumno.routes');

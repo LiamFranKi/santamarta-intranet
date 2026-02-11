@@ -114,7 +114,10 @@ api.interceptors.response.use(
     };
 
     // Verificar si es un error crítico
-    if (status && criticalErrors[status]) {
+    // EXCEPCIÓN: No cerrar sesión para errores 403 en rutas de hijos (editar datos)
+    const isHijosRoute = error.config?.url?.includes('/hijos/') && error.config?.url?.includes('/datos');
+    
+    if (status && criticalErrors[status] && !isHijosRoute) {
       const errorInfo = criticalErrors[status];
       console.warn(`⚠️ Error crítico detectado (${status}):`, errorInfo.reason);
       
