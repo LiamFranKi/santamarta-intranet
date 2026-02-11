@@ -42,47 +42,49 @@ function DocenteQR() {
     }
 
     try {
-      // Tamaño fotocheck estándar: 89mm x 54mm
-      const width = 89;
-      const height = 54;
+      // Tamaño fotocheck vertical: 54mm x 89mm (portrait)
+      const width = 54;
+      const height = 89;
       const doc = new jsPDF({
-        orientation: 'landscape',
+        orientation: 'portrait',
         unit: 'mm',
         format: [width, height]
       });
 
-      const margin = 3;
+      const margin = 2.5;
       const contentWidth = width - (margin * 2);
 
-      // Fondo blanco
+      // Fondo con gradiente suave
       doc.setFillColor(255, 255, 255);
       doc.rect(0, 0, width, height, 'F');
+      doc.setFillColor(248, 250, 252);
+      doc.rect(0, 0, width, height * 0.6, 'F');
 
-      // Borde superior con color del colegio
-      const headerHeight = 10;
-      doc.setFillColor(37, 99, 235);
+      // Header con gradiente púrpura/azul
+      const headerHeight = 8;
+      doc.setFillColor(79, 70, 229); // #4f46e5
       doc.rect(0, 0, width, headerHeight, 'F');
+      
+      // Efecto de gradiente en header (simulado con rectángulo más claro)
+      doc.setFillColor(99, 102, 241); // #6366f1
+      doc.rect(0, headerHeight * 0.5, width, headerHeight * 0.5, 'F');
 
       // Nombre del colegio - en mayúsculas
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(12);
+      doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       const colegioNombre = (qrData.colegio_nombre || 'Vanguard Schools').toUpperCase();
-      doc.text(colegioNombre, width / 2, 6.5, { align: 'center' });
+      doc.text(colegioNombre, width / 2, 5.5, { align: 'center' });
 
-      // Calcular espacio disponible para el body
+      // Calcular espacio disponible
       const footerHeight = 6;
       const bodyHeight = height - headerHeight - footerHeight;
-      let yPos = headerHeight + 2;
+      let yPos = headerHeight + 3;
 
-      // QR Code a la izquierda - tamaño optimizado
-      const qrX = margin + 2;
+      // QR Code arriba centrado
+      const qrSize = 28; // Tamaño optimizado para formato vertical
+      const qrX = (width - qrSize) / 2; // Centrado
       const qrY = yPos;
-      
-      // Verificar que el QR no sobrepase el espacio disponible
-      const maxQrSize = bodyHeight - 8;
-      const qrSize = 36;
-      const finalQrSize = Math.min(qrSize, maxQrSize);
 
       // Obtener el elemento QR del DOM y convertirlo a imagen
       const qrElement = document.querySelector('#qr-card-print .qr-code-wrapper svg');
@@ -103,7 +105,16 @@ function DocenteQR() {
               ctx.drawImage(img, 0, 0);
               const imgData = canvas.toDataURL('image/png');
               
-              doc.addImage(imgData, 'PNG', qrX, qrY, finalQrSize, finalQrSize);
+              // Dibujar fondo blanco para el QR
+              doc.setFillColor(255, 255, 255);
+              doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1, 'F');
+              
+              // Borde del QR
+              doc.setDrawColor(224, 231, 255); // #e0e7ff
+              doc.setLineWidth(0.5);
+              doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1);
+              
+              doc.addImage(imgData, 'PNG', qrX, qrY, qrSize, qrSize);
               
               URL.revokeObjectURL(url);
               resolve();
@@ -114,74 +125,106 @@ function DocenteQR() {
         } catch (error) {
           console.warn('Error convirtiendo QR a imagen, usando placeholder:', error);
           doc.setFillColor(240, 240, 240);
-          doc.rect(qrX, qrY, finalQrSize, finalQrSize, 'F');
+          doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1, 'F');
           doc.setDrawColor(200, 200, 200);
-          doc.rect(qrX, qrY, finalQrSize, finalQrSize);
+          doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1);
         }
       } else {
         doc.setFillColor(240, 240, 240);
-        doc.rect(qrX, qrY, finalQrSize, finalQrSize, 'F');
+        doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1, 'F');
         doc.setDrawColor(200, 200, 200);
-        doc.rect(qrX, qrY, finalQrSize, finalQrSize);
+        doc.roundedRect(qrX - 1, qrY - 1, qrSize + 2, qrSize + 2, 1, 1);
       }
 
-      // Texto "Código QR"
-      doc.setTextColor(100, 100, 100);
-      doc.setFontSize(6);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Código QR', qrX + finalQrSize / 2, qrY + finalQrSize + 3, { align: 'center' });
+      // Información del docente debajo del QR - estilo card
+      const infoStartY = qrY + qrSize + 4;
+      const cardPadding = 1.5;
+      const cardSpacing = 2.5;
+      let currentY = infoStartY;
 
-      // Información del docente a la derecha
-      const infoX = qrX + finalQrSize + 4;
-      const infoY = yPos + 3;
-      const lineSpacing = 7;
-
-      doc.setTextColor(31, 41, 55);
-      doc.setFontSize(10);
+      // Card Nombres
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(margin, currentY, contentWidth, 8, 1, 1, 'F');
+      doc.setDrawColor(224, 231, 255);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(margin, currentY, contentWidth, 8, 1, 1);
+      
+      // Label Nombres
+      doc.setFillColor(238, 242, 255); // #eef2ff
+      doc.roundedRect(margin + cardPadding, currentY + 0.5, 12, 2.5, 0.5, 0.5, 'F');
+      doc.setTextColor(99, 102, 241); // #6366f1
+      doc.setFontSize(5);
       doc.setFont('helvetica', 'bold');
-      doc.text('NOMBRES:', infoX, infoY);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
+      doc.text('NOMBRES:', margin + cardPadding + 1, currentY + 2);
+      
+      // Valor Nombres
+      doc.setTextColor(30, 41, 59); // #1e293b
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
       const nombres = qrData.nombres || '';
-      const nombresLines = doc.splitTextToSize(nombres, contentWidth - infoX - margin);
-      let nombresY = infoY + 5;
+      const nombresLines = doc.splitTextToSize(nombres, contentWidth - (cardPadding * 2) - 2);
       nombresLines.forEach((line, idx) => {
-        doc.text(line, infoX, nombresY + (idx * 4), { maxWidth: contentWidth - infoX - margin });
+        doc.text(line, margin + cardPadding, currentY + 4.5 + (idx * 3.5), { maxWidth: contentWidth - (cardPadding * 2) });
       });
-      const nombresHeight = nombresLines.length * 4;
+      currentY += 8 + cardSpacing;
 
+      // Card Apellidos
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(margin, currentY, contentWidth, 8, 1, 1, 'F');
+      doc.setDrawColor(224, 231, 255);
+      doc.roundedRect(margin, currentY, contentWidth, 8, 1, 1);
+      
+      doc.setFillColor(238, 242, 255);
+      doc.roundedRect(margin + cardPadding, currentY + 0.5, 13, 2.5, 0.5, 0.5, 'F');
+      doc.setTextColor(99, 102, 241);
+      doc.setFontSize(5);
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
-      const apellidosY = infoY + nombresHeight + lineSpacing;
-      doc.text('APELLIDOS:', infoX, apellidosY);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
+      doc.text('APELLIDOS:', margin + cardPadding + 1, currentY + 2);
+      
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'bold');
       const apellidos = qrData.apellidos || '';
-      const apellidosLines = doc.splitTextToSize(apellidos, contentWidth - infoX - margin);
+      const apellidosLines = doc.splitTextToSize(apellidos, contentWidth - (cardPadding * 2) - 2);
       apellidosLines.forEach((line, idx) => {
-        doc.text(line, infoX, apellidosY + 5 + (idx * 4), { maxWidth: contentWidth - infoX - margin });
+        doc.text(line, margin + cardPadding, currentY + 4.5 + (idx * 3.5), { maxWidth: contentWidth - (cardPadding * 2) });
       });
-      const apellidosHeight = apellidosLines.length * 4;
+      currentY += 8 + cardSpacing;
 
+      // Card Fecha Nacimiento (si existe)
       if (qrData.fecha_nacimiento) {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(margin, currentY, contentWidth, 8, 1, 1, 'F');
+        doc.setDrawColor(224, 231, 255);
+        doc.roundedRect(margin, currentY, contentWidth, 8, 1, 1);
+        
+        doc.setFillColor(238, 242, 255);
+        doc.roundedRect(margin + cardPadding, currentY + 0.5, 18, 2.5, 0.5, 0.5, 'F');
+        doc.setTextColor(99, 102, 241);
+        doc.setFontSize(5);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        const fechaY = apellidosY + apellidosHeight + lineSpacing;
-        doc.text('FECHA NACIMIENTO:', infoX, fechaY);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        const fechaLines = doc.splitTextToSize(qrData.fecha_nacimiento, contentWidth - infoX - margin);
+        doc.text('F. NACIMIENTO:', margin + cardPadding + 1, currentY + 2);
+        
+        doc.setTextColor(30, 41, 59);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
+        const fechaLines = doc.splitTextToSize(qrData.fecha_nacimiento, contentWidth - (cardPadding * 2) - 2);
         fechaLines.forEach((line, idx) => {
-          doc.text(line, infoX, fechaY + 5 + (idx * 4), { maxWidth: contentWidth - infoX - margin });
+          doc.text(line, margin + cardPadding, currentY + 4.5 + (idx * 3.5), { maxWidth: contentWidth - (cardPadding * 2) });
         });
       }
 
-      // Año
-      const anioY = height - 3;
-      doc.setFontSize(9);
+      // Footer con año - gradiente
+      const footerY = height - footerHeight;
+      doc.setFillColor(79, 70, 229); // #4f46e5
+      doc.rect(0, footerY, width, footerHeight, 'F');
+      doc.setFillColor(99, 102, 241); // #6366f1
+      doc.rect(0, footerY + footerHeight * 0.5, width, footerHeight * 0.5, 'F');
+      
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(37, 99, 235);
-      doc.text(qrData.anio?.toString() || '2026', width / 2, anioY, { align: 'center' });
+      doc.setTextColor(255, 255, 255);
+      doc.text(qrData.anio?.toString() || '2026', width / 2, footerY + 4, { align: 'center' });
 
       const nombreArchivo = `Fotocheck_${qrData.nombre_completo?.replace(/\s+/g, '_') || 'Docente'}_${new Date().getTime()}.pdf`;
       doc.save(nombreArchivo);
