@@ -4073,6 +4073,11 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
     const { hijoId } = req.params;
     const { colegio_id, usuario_id, personal_id } = req.user;
 
+    if (!personal_id) {
+      console.error('Error: personal_id no encontrado en req.user');
+      return res.status(400).json({ error: 'Información de usuario incompleta' });
+    }
+
     // Verificar que el docente es apoderado del alumno
     const personalData = await query(
       `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
@@ -4080,7 +4085,8 @@ router.get('/hijos/:hijoId/datos', authenticateToken, requireUserType(['DOCENTE'
     );
 
     if (!personalData || personalData.length === 0 || !personalData[0].nro_documento) {
-      return res.status(403).json({ error: 'No tienes permisos para ver estos datos' });
+      console.error(`Error: No se encontró nro_documento para personal_id ${personal_id}, colegio_id ${colegio_id}`);
+      return res.status(403).json({ error: 'No tienes permisos para ver estos datos. No se encontró tu número de documento.' });
     }
 
     const nroDocumento = personalData[0].nro_documento;

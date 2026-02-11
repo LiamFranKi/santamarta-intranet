@@ -183,10 +183,11 @@ function DocenteHijos() {
       setFotoFile(null);
     } catch (error) {
       console.error('Error cargando datos del hijo:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'No se pudieron cargar los datos del alumno';
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'No se pudieron cargar los datos del alumno',
+        text: errorMessage,
         confirmButtonText: 'Entendido'
       });
     }
