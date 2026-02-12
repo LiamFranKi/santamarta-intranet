@@ -423,7 +423,7 @@ router.post('/registrar', async (req, res) => {
     
     // ========== NOTIFICACIONES PARA ALUMNO ==========
     if (tipo_usuario === 'ALUMNO' && datosUsuario) {
-      console.log(`📧 [ASISTENCIA] Iniciando proceso de notificaciones para alumno: ${datosUsuario.nombre_completo}`);
+      console.log(`📧 [ASISTENCIA] Iniciando proceso de notificaciones para alumno: ${datosUsuario.nombre_completo}, tipo_registro: ${tipo_registro}`);
       try {
         // Obtener apoderados del alumno
         const apoderados = await query(
@@ -581,10 +581,13 @@ router.post('/registrar', async (req, res) => {
               }
             }
             
-            console.log(`✅ [ASISTENCIA] ${todosUsuarioIds.length} notificaciones creadas en BD (apoderados + docentes-apoderados)`);
+            console.log(`✅ [ASISTENCIA] ${todosUsuarioIds.length} notificaciones creadas en BD (apoderados + docentes-apoderados) para tipo_registro: ${tipo_registro}`);
+            console.log(`📋 [ASISTENCIA] Usuarios que recibirán notificación:`, todosUsuarioIds);
           } catch (error) {
-            console.error(`❌ [ASISTENCIA] Error creando notificaciones en BD para apoderados:`, error);
+            console.error(`❌ [ASISTENCIA] Error creando notificaciones en BD para apoderados (tipo_registro: ${tipo_registro}):`, error);
           }
+        } else {
+          console.log(`⚠️ [ASISTENCIA] No se encontraron apoderados para crear notificaciones (tipo_registro: ${tipo_registro})`);
         }
 
         const payloadPush = {
