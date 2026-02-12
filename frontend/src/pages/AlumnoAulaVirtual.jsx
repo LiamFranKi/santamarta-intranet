@@ -130,7 +130,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
           if (response.data && response.data.asignatura) {
             setCurso({
               curso_nombre: response.data.asignatura.curso_nombre,
-              docente_nombre: 'Docente', // Se puede obtener de otra manera si es necesario
+              docente_nombre: response.data.asignatura.docente_nombre || 'Docente',
               grado: response.data.asignatura.grado,
               seccion: response.data.asignatura.seccion,
               nivel_nombre: response.data.asignatura.nivel_nombre

@@ -19,9 +19,17 @@ function DocenteHijoAulaVirtual() {
 
   useEffect(() => {
     // Agregar interceptor para modificar las URLs de las llamadas API
+    // IMPORTANTE: Este interceptor se ejecuta DESPUÉS del interceptor principal que agrega el token
+    // Por lo tanto, el token ya está en config.headers.Authorization
     interceptorIdRef.current = api.interceptors.request.use(
       (config) => {
         const currentHijoId = hijoIdRef.current;
+        
+        // Asegurarse de que el token esté presente (debería estar por el interceptor principal)
+        const token = localStorage.getItem('token');
+        if (token && !config.headers.Authorization) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
         
         // Modificar URLs que empiecen con /alumno/aula-virtual
         if (config.url && config.url.startsWith('/alumno/aula-virtual')) {
@@ -36,6 +44,10 @@ function DocenteHijoAulaVirtual() {
           // No interceptar esta, se maneja en cargarDatosCurso
           // Pero podemos intentar obtener los datos de otra manera
         }
+        
+        console.log('🔵 [INTERCEPTOR] URL modificada:', config.url);
+        console.log('🔵 [INTERCEPTOR] Token presente:', !!config.headers.Authorization);
+        
         return config;
       },
       (error) => Promise.reject(error)
