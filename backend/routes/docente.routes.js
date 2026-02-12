@@ -4924,42 +4924,55 @@ router.get('/hijos/:hijoId/estrellas', async (req, res) => {
  * Helper: Verificar que el docente tiene permisos sobre el hijo y obtener usuario_id del hijo
  */
 async function verificarHijoYUsuario(req, hijoId) {
+  console.log(`\n🔵 [VERIFICAR-HIJO] Iniciando verificación para hijoId: ${hijoId}`);
   const { colegio_id, usuario_id, personal_id } = req.user;
+  console.log(`📋 [VERIFICAR-HIJO] User data:`, { colegio_id, usuario_id, personal_id });
   
   if (!hijoId || isNaN(parseInt(hijoId))) {
+    console.error(`❌ [VERIFICAR-HIJO] ID de alumno inválido: ${hijoId}`);
     throw new Error('ID de alumno inválido');
   }
 
   const hijoIdNum = parseInt(hijoId);
+  console.log(`📋 [VERIFICAR-HIJO] hijoIdNum: ${hijoIdNum}`);
 
   if (!personal_id) {
+    console.error(`❌ [VERIFICAR-HIJO] personal_id no encontrado`);
     throw new Error('Información de usuario incompleta. No se encontró personal_id.');
   }
 
   // Obtener nro_documento del personal
   let nroDocumento = null;
+  console.log(`📋 [VERIFICAR-HIJO] Buscando nro_documento en personal para personal_id=${personal_id}, colegio_id=${colegio_id}`);
   const personalData = await query(
     `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
     [personal_id, colegio_id]
   );
+  console.log(`📋 [VERIFICAR-HIJO] Resultado personalData:`, personalData);
 
   if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
     nroDocumento = personalData[0].nro_documento;
+    console.log(`✅ [VERIFICAR-HIJO] nro_documento encontrado en personal: ${nroDocumento}`);
   } else {
+    console.log(`📋 [VERIFICAR-HIJO] Buscando nro_documento en usuarios para usuario_id=${usuario_id}, personal_id=${personal_id}, colegio_id=${colegio_id}`);
     const usuarioData = await query(
       `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
       [usuario_id, colegio_id, personal_id]
     );
+    console.log(`📋 [VERIFICAR-HIJO] Resultado usuarioData:`, usuarioData);
     if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
       nroDocumento = usuarioData[0].usuario;
+      console.log(`✅ [VERIFICAR-HIJO] nro_documento encontrado en usuarios: ${nroDocumento}`);
     }
   }
 
   if (!nroDocumento) {
+    console.error(`❌ [VERIFICAR-HIJO] No se encontró nro_documento`);
     throw new Error('No se encontró tu número de documento. Contacta al administrador.');
   }
 
   // Verificar que el alumno es hijo del docente
+  console.log(`📋 [VERIFICAR-HIJO] Verificando si alumno ${hijoIdNum} es hijo del docente con nro_documento ${nroDocumento}, colegio_id ${colegio_id}`);
   const esHijo = await query(
     `SELECT COUNT(*) as count
      FROM apoderados ap
@@ -4971,12 +4984,15 @@ async function verificarHijoYUsuario(req, hijoId) {
        AND a.colegio_id = ?`,
     [colegio_id, nroDocumento, hijoIdNum, colegio_id]
   );
+  console.log(`📋 [VERIFICAR-HIJO] Resultado esHijo:`, esHijo);
 
   if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+    console.error(`❌ [VERIFICAR-HIJO] El alumno no está registrado como hijo. count: ${esHijo?.[0]?.count || 0}`);
     throw new Error('No tienes permisos. El alumno no está registrado como tu hijo.');
   }
 
   // Obtener usuario_id del hijo
+  console.log(`📋 [VERIFICAR-HIJO] Obteniendo usuario_id del hijo para alumno_id=${hijoIdNum}, colegio_id=${colegio_id}`);
   const usuarioHijo = await query(
     `SELECT u.id as usuario_id, a.id as alumno_id
      FROM alumnos a
@@ -4984,11 +5000,14 @@ async function verificarHijoYUsuario(req, hijoId) {
      WHERE a.id = ? AND a.colegio_id = ?`,
     [hijoIdNum, colegio_id]
   );
+  console.log(`📋 [VERIFICAR-HIJO] Resultado usuarioHijo:`, usuarioHijo);
 
   if (!usuarioHijo || usuarioHijo.length === 0) {
+    console.error(`❌ [VERIFICAR-HIJO] El alumno no tiene un usuario activo`);
     throw new Error('El alumno no tiene un usuario activo.');
   }
 
+  console.log(`✅ [VERIFICAR-HIJO] Verificación exitosa. alumnoId: ${usuarioHijo[0].alumno_id}, usuarioIdHijo: ${usuarioHijo[0].usuario_id}`);
   return {
     hijoId: hijoIdNum,
     usuarioIdHijo: usuarioHijo[0].usuario_id,
@@ -5216,6 +5235,7 @@ router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, r
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
     // Verificar acceso del hijo a la asignatura
+    console.log(`📋 [HIJOS-AULA-VIRTUAL-TAREAS] Verificando acceso a asignatura: asignatura_id=${asignatura_id}, alumnoId=${alumnoId}, colegio_id=${colegio_id}, anio_activo=${anio_activo}`);
     const asignatura = await query(
       `SELECT a.*, g.id as grupo_id
        FROM asignaturas a
@@ -5226,8 +5246,10 @@ router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, r
        LIMIT 1`,
       [asignatura_id, alumnoId, colegio_id, anio_activo]
     );
+    console.log(`📋 [HIJOS-AULA-VIRTUAL-TAREAS] Resultado verificación asignatura:`, asignatura.length > 0 ? '✅ Encontrada' : '❌ No encontrada');
 
     if (asignatura.length === 0) {
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-TAREAS] El alumno no tiene acceso a esta asignatura`);
       return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
     }
 
