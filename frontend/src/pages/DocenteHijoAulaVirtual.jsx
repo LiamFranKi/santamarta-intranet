@@ -39,6 +39,21 @@ function DocenteHijoAulaVirtual() {
         if (config.url && config.url.startsWith('/alumno/mensajes')) {
           config.url = config.url.replace('/alumno/mensajes', `/docente/hijos/${currentHijoId}/mensajes`);
         }
+        // Modificar URLs de exámenes (para ver resultados)
+        if (config.url && config.url.startsWith('/alumno/examenes')) {
+          // Interceptar rutas de exámenes y redirigirlas a las rutas proxy
+          // Ejemplo: /alumno/examenes/123/resultado -> /docente/hijos/799/aula-virtual/examenes/123/resultado
+          if (config.url.includes('/resultado')) {
+            // Extraer el examenId de la URL
+            const match = config.url.match(/\/alumno\/examenes\/(\d+)\/resultado/);
+            if (match) {
+              const examenId = match[1];
+              config.url = `/docente/hijos/${currentHijoId}/aula-virtual/examenes/${examenId}/resultado`;
+            }
+          }
+          // Para otras rutas de exámenes, mantenerlas como están por ahora
+          // (iniciar examen, guardar respuestas, etc. no se permiten en modo solo lectura)
+        }
         // Modificar URLs de cursos (para cargar datos del curso)
         if (config.url && config.url === '/alumno/cursos') {
           // No interceptar esta, se maneja en cargarDatosCurso
