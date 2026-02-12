@@ -6836,14 +6836,16 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     const alumno = alumnoInfo[0];
 
     // Obtener todas las asignaturas del grupo, agrupadas por área
+    // Usar la tabla intermedia areas_cursos como en el sistema anterior
     const areas = await query(
       `SELECT DISTINCT ar.id as area_id, ar.nombre as area_nombre
        FROM areas ar
-       INNER JOIN cursos c ON c.area_id = ar.id
+       INNER JOIN areas_cursos ac ON ac.area_id = ar.id
+       INNER JOIN cursos c ON c.id = ac.curso_id
        INNER JOIN asignaturas a ON a.curso_id = c.id
-       WHERE a.grupo_id = ? AND a.colegio_id = ?
+       WHERE a.grupo_id = ? AND a.colegio_id = ? AND ar.colegio_id = ?
        ORDER BY ar.nombre ASC`,
-      [grupoId, colegio_id]
+      [grupoId, colegio_id, colegio_id]
     );
 
     // Obtener todas las asignaturas
@@ -6856,10 +6858,11 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
               ar.nombre as area_nombre
        FROM asignaturas a
        INNER JOIN cursos c ON c.id = a.curso_id
-       LEFT JOIN areas ar ON ar.id = c.area_id
+       LEFT JOIN areas_cursos ac ON ac.curso_id = c.id
+       LEFT JOIN areas ar ON ar.id = ac.area_id AND ar.colegio_id = ?
        WHERE a.grupo_id = ? AND a.colegio_id = ?
        ORDER BY ar.nombre ASC, c.nombre ASC`,
-      [grupoId, colegio_id]
+      [colegio_id, grupoId, colegio_id]
     );
 
     // Obtener todos los promedios por bimestre de todas las asignaturas
