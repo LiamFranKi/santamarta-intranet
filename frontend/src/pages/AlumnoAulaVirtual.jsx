@@ -6,9 +6,11 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import './DocenteAulaVirtual-gamificado.css';
 
-function AlumnoAulaVirtual() {
-  const { cursoId } = useParams(); // asignatura_id
+function AlumnoAulaVirtual({ cursoId: cursoIdProp }) {
+  const { cursoId: cursoIdParam } = useParams(); // asignatura_id
   const navigate = useNavigate();
+  // Usar prop si está disponible, sino usar parámetro de la URL
+  const cursoId = cursoIdProp || cursoIdParam;
   const asignaturaId = parseInt(cursoId);
   
   const [loading, setLoading] = useState(true);
