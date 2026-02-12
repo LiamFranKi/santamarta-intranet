@@ -5198,11 +5198,14 @@ router.get('/hijos/:hijoId/aula-virtual/:asignaturaId', async (req, res) => {
  * Rechaza POST, PUT, DELETE para docentes/apoderados
  */
 const soloLecturaProxy = (req, res, next) => {
+  console.log(`🔵 [SOLO-LECTURA-PROXY] Método: ${req.method}, URL: ${req.originalUrl}`);
   if (req.method !== 'GET') {
+    console.error(`❌ [SOLO-LECTURA-PROXY] Método no permitido: ${req.method}`);
     return res.status(403).json({ 
       error: 'Solo lectura permitida. Los apoderados y docentes solo pueden ver el contenido, no realizar acciones.' 
     });
   }
+  console.log(`✅ [SOLO-LECTURA-PROXY] Método GET permitido, continuando...`);
   next();
 };
 
