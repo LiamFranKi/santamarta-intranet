@@ -415,6 +415,282 @@ function DocenteHijos() {
     }
   };
 
+  // Función para obtener mes y año de una fecha
+  const obtenerMesAnio = (fecha) => {
+    if (!fecha) return 'Sin fecha';
+    try {
+      const date = new Date(fecha);
+      return date.toLocaleDateString('es-PE', {
+        year: 'numeric',
+        month: 'long'
+      });
+    } catch (error) {
+      return 'Sin fecha';
+    }
+  };
+
+  // Función para agrupar incidencias por mes
+  const agruparIncidenciasPorMes = (incidencias) => {
+    const grupos = {};
+    incidencias.forEach(incidencia => {
+      const mesAnio = obtenerMesAnio(incidencia.created_at);
+      if (!grupos[mesAnio]) {
+        grupos[mesAnio] = [];
+      }
+      grupos[mesAnio].push(incidencia);
+    });
+    return grupos;
+  };
+
+  // Función para agrupar estrellas por mes
+  const agruparEstrellasPorMes = (estrellas) => {
+    const grupos = {};
+    estrellas.forEach(estrella => {
+      const mesAnio = obtenerMesAnio(estrella.created_at);
+      if (!grupos[mesAnio]) {
+        grupos[mesAnio] = [];
+      }
+      grupos[mesAnio].push(estrella);
+    });
+    return grupos;
+  };
+
+  // Función para exportar incidencias a PDF por mes
+  const handleExportarIncidenciasPDF = async (mesAnio, incidenciasMes) => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const margin = 15;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - (margin * 2);
+      let yPos = margin;
+
+      // Header
+      doc.setFillColor(79, 70, 229);
+      doc.rect(0, 0, pageWidth, 30, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('INCIDENCIAS', pageWidth / 2, 12, { align: 'center' });
+      doc.setFontSize(12);
+      doc.text(`${hijoSeleccionado?.nombres} ${hijoSeleccionado?.apellido_paterno}`, pageWidth / 2, 20, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text(mesAnio, pageWidth / 2, 26, { align: 'center' });
+
+      yPos = 40;
+
+      // Cards de incidencias
+      incidenciasMes.forEach((incidencia, index) => {
+        if (yPos > pageHeight - 50) {
+          doc.addPage();
+          yPos = margin;
+        }
+
+        const color = coloresPastel[index % coloresPastel.length];
+        const cardHeight = 35;
+
+        // Fondo del card
+        doc.setFillColor(
+          parseInt(color.bg.substring(1, 3), 16),
+          parseInt(color.bg.substring(3, 5), 16),
+          parseInt(color.bg.substring(5, 7), 16)
+        );
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
+
+        // Borde
+        doc.setDrawColor(
+          parseInt(color.border.substring(1, 3), 16),
+          parseInt(color.border.substring(3, 5), 16),
+          parseInt(color.border.substring(5, 7), 16)
+        );
+        doc.setLineWidth(1);
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
+
+        // Contenido
+        doc.setTextColor(30, 41, 59);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Fecha:', margin + 3, yPos + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(formatearFecha(incidencia.created_at), margin + 20, yPos + 6);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Docente:', margin + 3, yPos + 12);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(incidencia.docente_nombre || 'N/A', margin + 20, yPos + 12);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Curso:', margin + 3, yPos + 18);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(incidencia.curso_nombre || 'N/A', margin + 20, yPos + 18);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Descripción:', margin + 3, yPos + 24);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        const descLines = doc.splitTextToSize(incidencia.description || 'Sin descripción', contentWidth - 25);
+        descLines.forEach((line, idx) => {
+          doc.text(line, margin + 20, yPos + 30 + (idx * 4));
+        });
+
+        yPos += cardHeight + 8;
+      });
+
+      const nombreArchivo = `Incidencias_${hijoSeleccionado?.nombres?.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
+      doc.save(nombreArchivo);
+
+      Swal.fire({
+        title: '¡PDF Generado!',
+        text: 'Las incidencias se han exportado correctamente',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      Swal.fire({
+        title: 'Error',
+        text: 'No se pudo generar el PDF',
+        icon: 'error'
+      });
+    }
+  };
+
+  // Función para exportar estrellas a PDF por mes
+  const handleExportarEstrellasPDF = async (mesAnio, estrellasMes) => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const margin = 15;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - (margin * 2);
+      let yPos = margin;
+
+      // Header
+      doc.setFillColor(251, 191, 36);
+      doc.rect(0, 0, pageWidth, 30, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ESTRELLAS', pageWidth / 2, 12, { align: 'center' });
+      doc.setFontSize(12);
+      doc.text(`${hijoSeleccionado?.nombres} ${hijoSeleccionado?.apellido_paterno}`, pageWidth / 2, 20, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text(mesAnio, pageWidth / 2, 26, { align: 'center' });
+
+      // Total de estrellas del mes
+      const totalMes = estrellasMes.reduce((sum, e) => sum + (e.points || 0), 0);
+      yPos = 40;
+      doc.setFillColor(251, 191, 36);
+      doc.roundedRect(margin, yPos, contentWidth, 10, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Total del mes: ${totalMes} estrellas`, pageWidth / 2, yPos + 7, { align: 'center' });
+      yPos += 15;
+
+      // Cards de estrellas
+      estrellasMes.forEach((estrella, index) => {
+        if (yPos > pageHeight - 50) {
+          doc.addPage();
+          yPos = margin;
+        }
+
+        const color = coloresPastel[index % coloresPastel.length];
+        const cardHeight = 35;
+
+        // Fondo del card
+        doc.setFillColor(
+          parseInt(color.bg.substring(1, 3), 16),
+          parseInt(color.bg.substring(3, 5), 16),
+          parseInt(color.bg.substring(5, 7), 16)
+        );
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
+
+        // Borde
+        doc.setDrawColor(
+          parseInt(color.border.substring(1, 3), 16),
+          parseInt(color.border.substring(3, 5), 16),
+          parseInt(color.border.substring(5, 7), 16)
+        );
+        doc.setLineWidth(1);
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
+
+        // Contenido
+        doc.setTextColor(30, 41, 59);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Fecha:', margin + 3, yPos + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(formatearFecha(estrella.created_at), margin + 20, yPos + 6);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Estrellas:', margin + 3, yPos + 12);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text(`${estrella.points || 0} ⭐`, margin + 20, yPos + 12);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Docente:', margin + 3, yPos + 18);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(estrella.docente_nombre || 'N/A', margin + 20, yPos + 18);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Curso:', margin + 3, yPos + 24);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(estrella.curso_nombre || 'N/A', margin + 20, yPos + 24);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Descripción:', margin + 3, yPos + 30);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        const descLines = doc.splitTextToSize(estrella.description || 'Sin descripción', contentWidth - 25);
+        descLines.forEach((line, idx) => {
+          doc.text(line, margin + 20, yPos + 35 + (idx * 4));
+        });
+
+        yPos += cardHeight + 8;
+      });
+
+      const nombreArchivo = `Estrellas_${hijoSeleccionado?.nombres?.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
+      doc.save(nombreArchivo);
+
+      Swal.fire({
+        title: '¡PDF Generado!',
+        text: 'Las estrellas se han exportado correctamente',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      Swal.fire({
+        title: 'Error',
+        text: 'No se pudo generar el PDF',
+        icon: 'error'
+      });
+    }
+  };
+
   // Colores pastel para las cards
   const coloresPastel = [
     { bg: '#FFE5E5', border: '#FFB3B3', text: '#8B0000' }, // Rosa pastel
@@ -1281,45 +1557,73 @@ function DocenteHijos() {
                 <div className="empty-state">
                   <p>No hay incidencias registradas</p>
                 </div>
-              ) : (
-                <div className="cards-container">
-                  {incidencias.map((incidencia, index) => {
-                    const color = coloresPastel[index % coloresPastel.length];
-                    return (
-                      <div 
-                        key={incidencia.id} 
-                        className="incidencia-card"
-                        style={{
-                          backgroundColor: color.bg,
-                          borderColor: color.border,
-                          color: color.text
-                        }}
-                      >
-                        <div className="card-header-incidencia">
-                          <div className="card-fecha">
-                            <span className="icon">📅</span>
-                            <span>{formatearFecha(incidencia.created_at)}</span>
+              ) : (() => {
+                const gruposPorMes = agruparIncidenciasPorMes(incidencias);
+                const mesesOrdenados = Object.keys(gruposPorMes).sort((a, b) => {
+                  const dateA = new Date(gruposPorMes[a][0].created_at);
+                  const dateB = new Date(gruposPorMes[b][0].created_at);
+                  return dateB - dateA;
+                });
+
+                return (
+                  <div className="grupos-mes-container">
+                    {mesesOrdenados.map((mesAnio) => {
+                      const incidenciasMes = gruposPorMes[mesAnio];
+                      return (
+                        <div key={mesAnio} className="grupo-mes">
+                          <div className="grupo-mes-header">
+                            <h3 className="mes-titulo">{mesAnio}</h3>
+                            <button 
+                              className="btn-exportar-mes"
+                              onClick={() => handleExportarIncidenciasPDF(mesAnio, incidenciasMes)}
+                            >
+                              <span className="btn-icon">📄</span>
+                              <span>Exportar PDF</span>
+                            </button>
+                          </div>
+                          <div className="cards-container">
+                            {incidenciasMes.map((incidencia, index) => {
+                              const color = coloresPastel[index % coloresPastel.length];
+                              return (
+                                <div 
+                                  key={incidencia.id} 
+                                  className="incidencia-card"
+                                  style={{
+                                    backgroundColor: color.bg,
+                                    borderColor: color.border,
+                                    color: color.text
+                                  }}
+                                >
+                                  <div className="card-header-incidencia">
+                                    <div className="card-fecha">
+                                      <span className="icon">📅</span>
+                                      <span>{formatearFecha(incidencia.created_at)}</span>
+                                    </div>
+                                  </div>
+                                  <div className="card-body-incidencia">
+                                    <div className="card-info-row">
+                                      <span className="label">Docente:</span>
+                                      <span className="value">{incidencia.docente_nombre || 'N/A'}</span>
+                                    </div>
+                                    <div className="card-info-row">
+                                      <span className="label">Curso:</span>
+                                      <span className="value">{incidencia.curso_nombre || 'N/A'}</span>
+                                    </div>
+                                    <div className="card-info-row card-descripcion">
+                                      <span className="label">Descripción:</span>
+                                      <span className="value">{incidencia.description || 'Sin descripción'}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
-                        <div className="card-body-incidencia">
-                          <div className="card-info-row">
-                            <span className="label">Docente:</span>
-                            <span className="value">{incidencia.docente_nombre || 'N/A'}</span>
-                          </div>
-                          <div className="card-info-row">
-                            <span className="label">Curso:</span>
-                            <span className="value">{incidencia.curso_nombre || 'N/A'}</span>
-                          </div>
-                          <div className="card-info-row card-descripcion">
-                            <span className="label">Descripción:</span>
-                            <span className="value">{incidencia.description || 'Sin descripción'}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>,
@@ -1350,47 +1654,81 @@ function DocenteHijos() {
                     <span className="total-label">Total de Estrellas:</span>
                     <span className="total-value">{totalEstrellas}</span>
                   </div>
-                  <div className="cards-container">
-                    {estrellas.map((estrella, index) => {
-                      const color = coloresPastel[index % coloresPastel.length];
-                      return (
-                        <div 
-                          key={estrella.id} 
-                          className="estrella-card"
-                          style={{
-                            backgroundColor: color.bg,
-                            borderColor: color.border,
-                            color: color.text
-                          }}
-                        >
-                          <div className="card-header-estrella">
-                            <div className="card-fecha">
-                              <span className="icon">📅</span>
-                              <span>{formatearFecha(estrella.created_at)}</span>
+                  {(() => {
+                    const gruposPorMes = agruparEstrellasPorMes(estrellas);
+                    const mesesOrdenados = Object.keys(gruposPorMes).sort((a, b) => {
+                      const dateA = new Date(gruposPorMes[a][0].created_at);
+                      const dateB = new Date(gruposPorMes[b][0].created_at);
+                      return dateB - dateA;
+                    });
+
+                    return (
+                      <div className="grupos-mes-container">
+                        {mesesOrdenados.map((mesAnio) => {
+                          const estrellasMes = gruposPorMes[mesAnio];
+                          const totalMes = estrellasMes.reduce((sum, e) => sum + (e.points || 0), 0);
+                          return (
+                            <div key={mesAnio} className="grupo-mes">
+                              <div className="grupo-mes-header">
+                                <div>
+                                  <h3 className="mes-titulo">{mesAnio}</h3>
+                                  <span className="mes-total">Total: {totalMes} estrellas</span>
+                                </div>
+                                <button 
+                                  className="btn-exportar-mes"
+                                  onClick={() => handleExportarEstrellasPDF(mesAnio, estrellasMes)}
+                                >
+                                  <span className="btn-icon">📄</span>
+                                  <span>Exportar PDF</span>
+                                </button>
+                              </div>
+                              <div className="cards-container">
+                                {estrellasMes.map((estrella, index) => {
+                                  const color = coloresPastel[index % coloresPastel.length];
+                                  return (
+                                    <div 
+                                      key={estrella.id} 
+                                      className="estrella-card"
+                                      style={{
+                                        backgroundColor: color.bg,
+                                        borderColor: color.border,
+                                        color: color.text
+                                      }}
+                                    >
+                                      <div className="card-header-estrella">
+                                        <div className="card-fecha">
+                                          <span className="icon">📅</span>
+                                          <span>{formatearFecha(estrella.created_at)}</span>
+                                        </div>
+                                        <div className="card-estrellas-count">
+                                          <span className="icon">⭐</span>
+                                          <span className="count">{estrella.points || 0}</span>
+                                        </div>
+                                      </div>
+                                      <div className="card-body-estrella">
+                                        <div className="card-info-row">
+                                          <span className="label">Docente:</span>
+                                          <span className="value">{estrella.docente_nombre || 'N/A'}</span>
+                                        </div>
+                                        <div className="card-info-row">
+                                          <span className="label">Curso:</span>
+                                          <span className="value">{estrella.curso_nombre || 'N/A'}</span>
+                                        </div>
+                                        <div className="card-info-row card-descripcion">
+                                          <span className="label">Descripción:</span>
+                                          <span className="value">{estrella.description || 'Sin descripción'}</span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
                             </div>
-                            <div className="card-estrellas-count">
-                              <span className="icon">⭐</span>
-                              <span className="count">{estrella.points || 0}</span>
-                            </div>
-                          </div>
-                          <div className="card-body-estrella">
-                            <div className="card-info-row">
-                              <span className="label">Docente:</span>
-                              <span className="value">{estrella.docente_nombre || 'N/A'}</span>
-                            </div>
-                            <div className="card-info-row">
-                              <span className="label">Curso:</span>
-                              <span className="value">{estrella.curso_nombre || 'N/A'}</span>
-                            </div>
-                            <div className="card-info-row card-descripcion">
-                              <span className="label">Descripción:</span>
-                              <span className="value">{estrella.description || 'Sin descripción'}</span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </div>
