@@ -587,6 +587,38 @@
   transform: none;
 }
 
+/* Media query para Tablet (768px - 1024px) */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .hijo-card {
+    position: relative;
+    flex-direction: column;
+  }
+
+  .hijo-info {
+    width: 100%;
+    margin-bottom: 0.75rem;
+  }
+
+  .hijo-actions {
+    position: static !important;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: 0.75rem;
+    margin-bottom: 0;
+    order: 10; /* Mover después de los detalles */
+  }
+
+  .hijo-details {
+    order: 1; /* Mantener los detalles primero */
+  }
+
+  .btn-opciones-hijo {
+    width: auto;
+    margin: 0 auto;
+  }
+}
+
 @media (max-width: 768px) {
   .docente-hijos {
     padding: 1rem;
