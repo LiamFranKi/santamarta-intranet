@@ -1349,24 +1349,29 @@
   color: white;
 }
 
-.card-info-row-compact {
+.card-info-row-labels {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex-wrap: wrap;
   font-size: 0.85rem;
+  margin-bottom: 0.3rem;
 }
 
-.card-info-row-compact .label {
-  font-weight: 600;
-  margin-right: 0.25rem;
-}
-
-.card-info-row-compact .value {
+.card-info-row-values {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
   font-weight: 500;
 }
 
-.card-info-row-compact .separator {
+.card-info-row-labels .label,
+.card-info-row-values .label {
+  font-weight: 600;
+}
+
+.card-info-row-labels .separator,
+.card-info-row-values .separator {
   margin: 0 0.5rem;
   opacity: 0.5;
   font-weight: 300;

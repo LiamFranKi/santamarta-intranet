@@ -949,29 +949,63 @@ function DocenteHijos() {
 
       yPos = 40;
 
-      // Cards de asistencias (3 por fila)
-      const cardsPorFila = 3;
-      const cardWidth = (contentWidth - (10 * (cardsPorFila - 1))) / cardsPorFila;
-      const cardHeight = 25;
-      let filaActual = 0;
-      let columnaActual = 0;
-      let yPosInicialFila = yPos;
+      // Primero: Cards de estadísticas (3 cards horizontales)
+      const statCardWidth = (contentWidth - (10 * 2)) / 3;
+      const statCardHeight = 20;
+      const statYPos = yPos;
+      
+      // Card Presentes
+      doc.setFillColor(227, 242, 253);
+      doc.roundedRect(margin, statYPos, statCardWidth, statCardHeight, 3, 3, 'F');
+      doc.setDrawColor(33, 150, 243);
+      doc.setLineWidth(1);
+      doc.roundedRect(margin, statYPos, statCardWidth, statCardHeight, 3, 3);
+      doc.setTextColor(21, 101, 192);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Presentes:', margin + 5, statYPos + 7);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      const totalPresentes = asistenciasMes.filter(a => a.tipo === 'PRESENTE' || a.tipo === 'TARDANZA_JUSTIFICADA').length;
+      doc.text(totalPresentes.toString(), margin + 5, statYPos + 15);
+      
+      // Card Tardanzas
+      doc.setFillColor(255, 243, 224);
+      doc.roundedRect(margin + statCardWidth + 10, statYPos, statCardWidth, statCardHeight, 3, 3, 'F');
+      doc.setDrawColor(255, 152, 0);
+      doc.roundedRect(margin + statCardWidth + 10, statYPos, statCardWidth, statCardHeight, 3, 3);
+      doc.setTextColor(230, 81, 0);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Tardanzas:', margin + statCardWidth + 15, statYPos + 7);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      const totalTardanzas = asistenciasMes.filter(a => a.tipo === 'TARDANZA' || a.tipo === 'TARDANZA_JUSTIFICADA').length;
+      doc.text(totalTardanzas.toString(), margin + statCardWidth + 15, statYPos + 15);
+      
+      // Card Faltas
+      doc.setFillColor(255, 235, 238);
+      doc.roundedRect(margin + (statCardWidth + 10) * 2, statYPos, statCardWidth, statCardHeight, 3, 3, 'F');
+      doc.setDrawColor(244, 67, 54);
+      doc.roundedRect(margin + (statCardWidth + 10) * 2, statYPos, statCardWidth, statCardHeight, 3, 3);
+      doc.setTextColor(198, 40, 40);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Faltas:', margin + (statCardWidth + 10) * 2 + 5, statYPos + 7);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      const totalFaltas = asistenciasMes.filter(a => a.tipo === 'FALTA' || a.tipo === 'FALTA_JUSTIFICADA').length;
+      doc.text(totalFaltas.toString(), margin + (statCardWidth + 10) * 2 + 5, statYPos + 15);
 
+      yPos = statYPos + statCardHeight + 15;
+
+      // Luego: Lista de asistencias (formato igual al modal)
       asistenciasMes.forEach((asistencia, index) => {
-        // Si es el inicio de una nueva fila (primera columna)
-        if (columnaActual === 0 && index > 0) {
-          yPosInicialFila += cardHeight + 5;
-          // Si no cabe en la página actual, nueva página
-          if (yPosInicialFila + cardHeight > pageHeight - 20) {
-            doc.addPage();
-            yPosInicialFila = margin;
-            filaActual = 0;
-          }
+        // Si no cabe en la página actual, nueva página
+        if (yPos > pageHeight - 50) {
+          doc.addPage();
+          yPos = margin;
         }
-
-        // Calcular posición del card
-        const xPos = margin + (columnaActual * (cardWidth + 10));
-        const yPosCard = yPosInicialFila;
 
         const tipoColor = {
           'PRESENTE': { bg: [232, 245, 233], border: [76, 175, 80], text: [46, 125, 50] },
@@ -981,44 +1015,55 @@ function DocenteHijos() {
           'FALTA_JUSTIFICADA': { bg: [243, 229, 245], border: [156, 39, 176], text: [106, 27, 154] }
         }[asistencia.tipo] || { bg: [245, 245, 245], border: [158, 158, 158], text: [66, 66, 66] };
 
+        const cardHeight = 35;
+
         // Fondo del card
         doc.setFillColor(tipoColor.bg[0], tipoColor.bg[1], tipoColor.bg[2]);
-        doc.roundedRect(xPos, yPosCard, cardWidth, cardHeight, 3, 3, 'F');
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
 
         // Borde
         doc.setDrawColor(tipoColor.border[0], tipoColor.border[1], tipoColor.border[2]);
         doc.setLineWidth(1);
-        doc.roundedRect(xPos, yPosCard, cardWidth, cardHeight, 3, 3);
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
 
         // Contenido
         doc.setTextColor(tipoColor.text[0], tipoColor.text[1], tipoColor.text[2]);
-        doc.setFontSize(7);
+        
+        // Fecha y Estado en la misma fila
+        doc.setFontSize(8);
         doc.setFont('helvetica', 'bold');
         const fechaFormateada = new Date(asistencia.fecha).toLocaleDateString('es-PE', {
-          day: 'numeric',
-          month: 'short'
+          weekday: 'long',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
         });
-        doc.text(fechaFormateada, xPos + 2, yPosCard + 5);
-
+        doc.text(fechaFormateada, margin + 3, yPos + 7);
+        
+        // Estado al costado
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6);
+        doc.setFontSize(7);
         const tipoTexto = asistencia.tipo.replace('_', ' ');
-        doc.text(tipoTexto, xPos + 2, yPosCard + 10);
+        const estadoX = margin + contentWidth - 50;
+        doc.text(tipoTexto, estadoX, yPos + 7);
 
-        doc.setFontSize(6);
-        const horasTexto = asistencia.hora_entrada 
-          ? (asistencia.hora_salida 
-              ? `E: ${asistencia.hora_entrada} S: ${asistencia.hora_salida}`
-              : `E: ${asistencia.hora_entrada}`)
-          : 'N/A';
-        doc.text(horasTexto, xPos + 2, yPosCard + 15);
-
-        // Avanzar columna
-        columnaActual++;
-        if (columnaActual >= cardsPorFila) {
-          columnaActual = 0;
-          filaActual++;
+        // Labels "Entrada:" y "Salida:" en la misma fila
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Entrada:', margin + 3, yPos + 16);
+        if (asistencia.hora_salida) {
+          doc.text('Salida:', margin + 60, yPos + 16);
         }
+
+        // Horas en la siguiente fila
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(asistencia.hora_entrada || 'No registrada', margin + 3, yPos + 23);
+        if (asistencia.hora_salida) {
+          doc.text(asistencia.hora_salida, margin + 60, yPos + 23);
+        }
+
+        yPos += cardHeight + 5;
       });
 
       const nombreArchivo = `Asistencias_${hijoSeleccionado?.nombres?.replace(/\s+/g, '_')}_${hijoSeleccionado?.apellido_paterno?.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
@@ -2470,13 +2515,20 @@ function DocenteHijos() {
                                     </div>
                                   </div>
                                   <div className="card-body-estrella">
-                                    <div className="card-info-row-compact">
+                                    <div className="card-info-row-labels">
                                       <span className="label">Entrada:</span>
-                                      <span className="value">{asistencia.hora_entrada || 'N/A'}</span>
                                       {asistencia.hora_salida && (
                                         <>
                                           <span className="separator">|</span>
                                           <span className="label">Salida:</span>
+                                        </>
+                                      )}
+                                    </div>
+                                    <div className="card-info-row-values">
+                                      <span className="value">{asistencia.hora_entrada || 'N/A'}</span>
+                                      {asistencia.hora_salida && (
+                                        <>
+                                          <span className="separator">|</span>
                                           <span className="value">{asistencia.hora_salida}</span>
                                         </>
                                       )}
@@ -2524,13 +2576,20 @@ function DocenteHijos() {
                                 </div>
                               </div>
                               <div className="card-body-estrella">
-                                <div className="card-info-row-compact">
+                                <div className="card-info-row-labels">
                                   <span className="label">Entrada:</span>
-                                  <span className="value">{asistencia.hora_entrada || 'N/A'}</span>
                                   {asistencia.hora_salida && (
                                     <>
                                       <span className="separator">|</span>
                                       <span className="label">Salida:</span>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="card-info-row-values">
+                                  <span className="value">{asistencia.hora_entrada || 'N/A'}</span>
+                                  {asistencia.hora_salida && (
+                                    <>
+                                      <span className="separator">|</span>
                                       <span className="value">{asistencia.hora_salida}</span>
                                     </>
                                   )}
