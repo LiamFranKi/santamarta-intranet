@@ -176,8 +176,12 @@ function DocenteHijos() {
       case 'imprimir-qr':
         await handleImprimirQR(hijo);
         break;
+      case 'notas-detalladas':
+        console.log('Notas detalladas de:', hijo);
+        // Implementar después
+        break;
       case 'imprimir-notas':
-        console.log('Imprimir notas de:', hijo);
+        console.log('Ver libreta de:', hijo);
         // Implementar después
         break;
       case 'pagos-realizados':
@@ -1883,11 +1887,22 @@ function DocenteHijos() {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    handleOpcionClick('notas-detalladas', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">📊</span>
+                                  <span>Notas Detalladas</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     handleOpcionClick('imprimir-notas', hijo);
                                   }}
                                 >
                                   <span className="dropdown-icon">📄</span>
-                                  <span>Imprimir Notas</span>
+                                  <span>Ver Libreta</span>
                                 </button>
                                 <button
                                   className="dropdown-item"
