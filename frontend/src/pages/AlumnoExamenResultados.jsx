@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
@@ -9,11 +9,64 @@ import './DocenteAulaVirtual-gamificado.css';
 function AlumnoExamenResultados() {
   const { examenId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [examen, setExamen] = useState(null);
   const [resultado, setResultado] = useState(null);
   const [detalles, setDetalles] = useState(null);
   const [cargandoDetalles, setCargandoDetalles] = useState(false);
+  
+  // Detectar si viene de apoderado
+  const hijoId = location.state?.hijoId || null;
+  const isApoderado = location.state?.isApoderado || false;
+  const interceptorIdRef = useRef(null);
+  const hijoIdRef = useRef(hijoId);
+
+  // Actualizar la referencia cuando cambie hijoId
+  useEffect(() => {
+    hijoIdRef.current = hijoId;
+  }, [hijoId]);
+
+  // Configurar interceptor si es apoderado
+  useEffect(() => {
+    if (isApoderado && hijoId) {
+      interceptorIdRef.current = api.interceptors.request.use(
+        (config) => {
+          const currentHijoId = hijoIdRef.current;
+          
+          // Asegurarse de que el token esté presente
+          const token = localStorage.getItem('token');
+          if (token && !config.headers.Authorization) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
+          
+          // Modificar URLs de exámenes (para ver resultados)
+          if (config.url && (config.url.startsWith('/alumno/examenes') || config.url.startsWith('/alumno/examen'))) {
+            if (config.url.includes('/resultado')) {
+              const match = config.url.match(/\/alumno\/examen(es)?\/(\d+)\/resultado/);
+              if (match) {
+                const examenIdFromUrl = match[2];
+                if (config.url.includes('/detalles')) {
+                  config.url = `/docente/hijos/${currentHijoId}/aula-virtual/examenes/${examenIdFromUrl}/resultado/detalles`;
+                } else {
+                  config.url = `/docente/hijos/${currentHijoId}/aula-virtual/examenes/${examenIdFromUrl}/resultado`;
+                }
+              }
+            }
+          }
+          
+          return config;
+        },
+        (error) => Promise.reject(error)
+      );
+    }
+
+    return () => {
+      if (interceptorIdRef.current !== null) {
+        api.interceptors.request.eject(interceptorIdRef.current);
+      }
+    };
+  }, [isApoderado, hijoId]);
 
   useEffect(() => {
     cargarResultado();
@@ -61,7 +114,12 @@ function AlumnoExamenResultados() {
   };
 
   const handleVolver = () => {
-    navigate(-1);
+    // Si es apoderado, volver a la página de hijos
+    if (isApoderado && hijoId) {
+      navigate(`/docente/hijos`);
+    } else {
+      navigate(-1);
+    }
   };
 
   if (loading) {

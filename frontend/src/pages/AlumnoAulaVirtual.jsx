@@ -543,7 +543,9 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                         </button>
                       ) : examen.tiene_nota && examen.estado === 'INACTIVO' ? (
                         <button
-                          onClick={() => navigate(`/alumno/examen/${examen.id}/resultados`)}
+                          onClick={() => navigate(`/alumno/examen/${examen.id}/resultados`, {
+                            state: modoSoloLectura && hijoId ? { hijoId, isApoderado: true } : null
+                          })}
                           style={{
                             padding: '0.5rem 1.25rem',
                             background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
