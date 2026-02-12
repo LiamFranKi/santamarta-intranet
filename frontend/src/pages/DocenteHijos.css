@@ -657,3 +657,194 @@
   }
 }
 
+/* ============================================
+   MODAL QR DEL HIJO
+   ============================================ */
+
+.modal-overlay-qr {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+.modal-content-qr {
+  background: white;
+  border-radius: 16px;
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+
+.modal-header-qr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 2rem;
+  border-bottom: 2px solid #e5e7eb;
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.modal-header-qr h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0;
+}
+
+.modal-close-qr {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.modal-close-qr:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.modal-body-qr {
+  padding: 2rem;
+}
+
+.qr-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+}
+
+.qr-error {
+  text-align: center;
+  padding: 3rem;
+  color: #6b7280;
+}
+
+.qr-header-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 1.5rem;
+}
+
+.btn-exportar-qr {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-exportar-qr:hover {
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px);
+}
+
+.btn-exportar-qr .btn-icon {
+  font-size: 1.1rem;
+}
+
+.qr-card-container-modal {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  background: linear-gradient(145deg, #eef2ff 0%, #f0f9ff 50%, #ffffff 100%);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(74, 131, 193, 0.15);
+}
+
+.qr-card-modal {
+  width: 420px;
+  max-width: 90%;
+  height: auto;
+  min-height: 600px;
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 20px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  border: 3px solid #e0e7ff;
+  flex-shrink: 0;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.qr-card-modal:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2), 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* Responsive para modal QR */
+@media (max-width: 768px) {
+  .modal-overlay-qr {
+    padding: 1rem;
+  }
+
+  .modal-content-qr {
+    max-width: 100%;
+    max-height: 95vh;
+  }
+
+  .modal-header-qr {
+    padding: 1rem 1.5rem;
+  }
+
+  .modal-header-qr h2 {
+    font-size: 1.25rem;
+  }
+
+  .modal-body-qr {
+    padding: 1rem;
+  }
+
+  .qr-card-container-modal {
+    padding: 1rem;
+  }
+
+  .qr-card-modal {
+    width: 100%;
+    max-width: 100%;
+    min-height: auto;
+  }
+
+  .qr-header-actions {
+    margin-bottom: 1rem;
+  }
+
+  .btn-exportar-qr {
+    width: 100%;
+    justify-content: center;
+  }
+}
+

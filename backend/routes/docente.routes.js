@@ -4551,6 +4551,147 @@ router.post('/hijos/:hijoId/reiniciar-contrasena', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/hijos/:hijoId/qr
+ * Obtener datos del hijo para generar QR (fotocheck)
+ */
+router.get('/hijos/:hijoId/qr', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, usuario_id, personal_id, anio_activo } = req.user;
+
+    console.log(`\n🔵 ========== [HIJOS-QR] NUEVA PETICIÓN ==========`);
+    console.log(`📋 [HIJOS-QR] hijoId recibido: ${hijoId}`);
+
+    // Validar que hijoId sea un número válido
+    if (!hijoId || isNaN(parseInt(hijoId))) {
+      console.error(`❌ [HIJOS-QR] Error: hijoId inválido: ${hijoId}`);
+      return res.status(400).json({ error: 'ID de alumno inválido' });
+    }
+
+    const hijoIdNum = parseInt(hijoId);
+
+    if (!personal_id) {
+      console.error('❌ [HIJOS-QR] Error: personal_id no encontrado en req.user');
+      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
+    }
+
+    // Obtener nro_documento del personal (puede estar en personal.nro_documento o en usuarios.usuario)
+    let nroDocumento = null;
+    
+    const personalData = await query(
+      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [personal_id, colegio_id]
+    );
+
+    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+      nroDocumento = personalData[0].nro_documento;
+    } else {
+      const usuarioData = await query(
+        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+        [usuario_id, colegio_id, personal_id]
+      );
+      
+      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
+        nroDocumento = usuarioData[0].usuario;
+      }
+    }
+
+    if (!nroDocumento) {
+      console.error(`❌ [HIJOS-QR] Error: No se encontró nro_documento`);
+      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
+    }
+
+    // Verificar que el alumno es hijo del docente
+    const esHijo = await query(
+      `SELECT COUNT(*) as count
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE ap.colegio_id = ?
+         AND ap.nro_documento = ?
+         AND a.id = ?
+         AND a.colegio_id = ?`,
+      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
+    );
+
+    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+      console.error(`❌ [HIJOS-QR] Error: El alumno ${hijoIdNum} no es hijo del docente`);
+      return res.status(403).json({ error: 'No tienes permisos para ver este QR. El alumno no está registrado como tu hijo.' });
+    }
+
+    // Obtener datos del alumno
+    const alumno = await query(
+      `SELECT a.id, a.nombres, a.apellido_paterno, a.apellido_materno, u.usuario as nro_documento
+       FROM alumnos a
+       LEFT JOIN usuarios u ON u.alumno_id = a.id AND u.colegio_id = a.colegio_id AND u.estado = 'ACTIVO'
+       WHERE a.id = ? AND a.colegio_id = ?`,
+      [hijoIdNum, colegio_id]
+    );
+
+    if (!alumno || alumno.length === 0) {
+      console.error(`❌ [HIJOS-QR] Error: Alumno no encontrado`);
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    const alumnoData = alumno[0];
+
+    // Obtener matrícula actual del alumno
+    const matricula = await query(
+      `SELECT m.*, 
+              g.grado, 
+              g.seccion,
+              n.nombre as nivel_nombre
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [alumnoData.id, colegio_id, anio_activo]
+    );
+
+    // Obtener nombre del colegio
+    const colegio = await query(
+      `SELECT nombre FROM colegios WHERE id = ?`,
+      [colegio_id]
+    );
+
+    const colegioNombre = colegio.length > 0 ? colegio[0].nombre : 'Vanguard Schools';
+    const matriculaData = matricula.length > 0 ? matricula[0] : null;
+
+    // Construir texto del grupo
+    let grupoTexto = '';
+    if (matriculaData) {
+      const gradoTexto = matriculaData.grado ? `${matriculaData.grado}°` : '';
+      grupoTexto = `${matriculaData.nivel_nombre || ''} ${gradoTexto} ${matriculaData.seccion || ''}`.trim();
+    }
+
+    // Generar código QR (puede ser el DNI o un ID único)
+    const qrData = alumnoData.nro_documento || `ALUMNO-${alumnoData.id}`;
+
+    console.log(`✅ [HIJOS-QR] Datos QR obtenidos exitosamente para hijoId: ${hijoIdNum}`);
+    console.log(`🔵 ========== [HIJOS-QR] FIN DE PETICIÓN ==========\n`);
+
+    res.json({
+      nombres: alumnoData.nombres || '',
+      apellido_paterno: alumnoData.apellido_paterno || '',
+      apellido_materno: alumnoData.apellido_materno || '',
+      nombre_completo: `${alumnoData.nombres || ''} ${alumnoData.apellido_paterno || ''} ${alumnoData.apellido_materno || ''}`.trim(),
+      grupo: grupoTexto,
+      colegio_nombre: colegioNombre,
+      anio: anio_activo,
+      qr_data: qrData,
+      nro_documento: alumnoData.nro_documento || ''
+    });
+  } catch (error) {
+    console.error('❌ [HIJOS-QR] Error obteniendo datos para QR:', error);
+    console.error('❌ [HIJOS-QR] Stack trace:', error.stack);
+    console.error(`🔵 ========== [HIJOS-QR] FIN DE PETICIÓN (ERROR) ==========\n`);
+    res.status(500).json({ error: 'Error al obtener datos para QR', details: error.message });
+  }
+});
+
+/**
  * POST /api/docente/comunicados
  * Crear nuevo comunicado (solo ADMINISTRADOR puede crear)
  */
