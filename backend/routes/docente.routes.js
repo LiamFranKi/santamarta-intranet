@@ -4362,6 +4362,26 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
 
     // Actualizar datos
     console.log(`📋 [HIJOS-DATOS-PUT] Actualizando datos del alumno con id=${hijoIdNum}`);
+    
+    // Permitir email vacío (null o string vacío)
+    let emailFinal = null;
+    if (email !== undefined && email !== null && email.trim() !== '') {
+      emailFinal = email.trim();
+    } else if (alumnoData.email) {
+      emailFinal = alumnoData.email;
+    }
+    
+    // Manejar fecha de nacimiento
+    let fechaFinal = null;
+    if (fecha_nacimiento && fecha_nacimiento.trim() !== '') {
+      fechaFinal = fecha_nacimiento.trim();
+    } else if (alumnoData.fecha_nacimiento) {
+      fechaFinal = alumnoData.fecha_nacimiento;
+    }
+    
+    console.log(`📋 [HIJOS-DATOS-PUT] Email final:`, emailFinal);
+    console.log(`📋 [HIJOS-DATOS-PUT] Fecha final:`, fechaFinal);
+    
     await execute(
       `UPDATE alumnos SET
         nombres = ?,
@@ -4376,10 +4396,10 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
         nombres || alumnoData.nombres,
         apellido_paterno || alumnoData.apellido_paterno,
         apellido_materno || alumnoData.apellido_materno,
-        email || alumnoData.email || null,
+        emailFinal,
         sexo !== undefined ? sexo : (alumnoData.sexo !== undefined ? alumnoData.sexo : null),
         fotoPath,
-        fecha_nacimiento || alumnoData.fecha_nacimiento || null,
+        fechaFinal,
         hijoIdNum,
         colegio_id
       ]

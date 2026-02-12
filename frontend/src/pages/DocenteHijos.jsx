@@ -175,13 +175,34 @@ function DocenteHijos() {
       console.log('✅ [FRONTEND] Datos recibidos:', response.data);
       const datos = response.data;
       
+      // Formatear fecha de nacimiento para input type="date" (YYYY-MM-DD)
+      let fechaFormateada = '';
+      if (datos.fecha_nacimiento) {
+        try {
+          // Si viene como string en formato YYYY-MM-DD, usarlo directamente
+          // Si viene como Date object o otro formato, convertirlo
+          const fecha = new Date(datos.fecha_nacimiento);
+          if (!isNaN(fecha.getTime())) {
+            const año = fecha.getFullYear();
+            const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+            const dia = String(fecha.getDate()).padStart(2, '0');
+            fechaFormateada = `${año}-${mes}-${dia}`;
+          } else if (typeof datos.fecha_nacimiento === 'string' && datos.fecha_nacimiento.match(/^\d{4}-\d{2}-\d{2}/)) {
+            // Si ya está en formato YYYY-MM-DD, usarlo directamente
+            fechaFormateada = datos.fecha_nacimiento.split('T')[0]; // Remover hora si existe
+          }
+        } catch (error) {
+          console.error('Error formateando fecha:', error);
+        }
+      }
+      
       setFormData({
         nombres: datos.nombres || '',
         apellido_paterno: datos.apellido_paterno || '',
         apellido_materno: datos.apellido_materno || '',
         email: datos.email || '',
         sexo: datos.sexo !== undefined ? String(datos.sexo) : '',
-        fecha_nacimiento: datos.fecha_nacimiento || ''
+        fecha_nacimiento: fechaFormateada
       });
       
       // Guardar DNI
@@ -698,14 +719,13 @@ function DocenteHijos() {
                   </div>
 
                   <div className="form-group">
-                    <label htmlFor="email">Email *</label>
+                    <label htmlFor="email">Email</label>
                     <input
                       type="email"
                       id="email"
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      required
                       disabled={saving}
                     />
                   </div>
