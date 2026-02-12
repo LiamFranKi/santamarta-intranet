@@ -1199,14 +1199,14 @@ function DocenteHijos() {
 
       // Colores pastel para asignaturas
       const coloresPastelPDF = [
-        [232, 245, 233], [76, 175, 80], [46, 125, 50], // Verde
-        [227, 242, 253], [33, 150, 243], [21, 101, 192], // Azul
-        [255, 243, 224], [255, 152, 0], [230, 81, 0], // Naranja
-        [243, 229, 245], [156, 39, 176], [106, 27, 154], // Morado
-        [255, 235, 238], [244, 67, 54], [198, 40, 40], // Rojo
-        [255, 245, 238], [255, 183, 77], [230, 126, 34], // Amarillo
-        [224, 242, 241], [0, 150, 136], [0, 105, 92], // Turquesa
-        [251, 233, 231], [233, 30, 99], [194, 24, 91] // Rosa
+        { bg: [232, 245, 233], border: [76, 175, 80], text: [46, 125, 50] }, // Verde
+        { bg: [227, 242, 253], border: [33, 150, 243], text: [21, 101, 192] }, // Azul
+        { bg: [255, 243, 224], border: [255, 152, 0], text: [230, 81, 0] }, // Naranja
+        { bg: [243, 229, 245], border: [156, 39, 176], text: [106, 27, 154] }, // Morado
+        { bg: [255, 235, 238], border: [244, 67, 54], text: [198, 40, 40] }, // Rojo
+        { bg: [255, 245, 238], border: [255, 183, 77], text: [230, 126, 34] }, // Amarillo
+        { bg: [224, 242, 241], border: [0, 150, 136], text: [0, 105, 92] }, // Turquesa
+        { bg: [251, 233, 231], border: [233, 30, 99], text: [194, 24, 91] } // Rosa
       ];
 
       notasDetalladas.asignaturas.forEach((asignatura, index) => {
@@ -1216,24 +1216,20 @@ function DocenteHijos() {
           yPos = margin;
         }
 
-        const colorIndex = (index % (coloresPastelPDF.length / 3)) * 3;
-        const colorBg = [coloresPastelPDF[colorIndex], coloresPastelPDF[colorIndex + 1], coloresPastelPDF[colorIndex + 2]];
-        const colorBorder = [coloresPastelPDF[colorIndex + 1], coloresPastelPDF[colorIndex + 2], coloresPastelPDF[colorIndex]];
-        const colorText = [coloresPastelPDF[colorIndex + 2], coloresPastelPDF[colorIndex], coloresPastelPDF[colorIndex + 1]];
-
-        const cardHeight = 50 + (asignatura.criterios.length * 8);
+        const color = coloresPastelPDF[index % coloresPastelPDF.length];
+        const cardHeight = 50 + (asignatura.criterios.length * 8) + (asignatura.examen_mensual ? 8 : 0) + 8; // +8 para promedio
 
         // Fondo del card
-        doc.setFillColor(colorBg[0][0], colorBg[0][1], colorBg[0][2]);
+        doc.setFillColor(color.bg[0], color.bg[1], color.bg[2]);
         doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
 
         // Borde
-        doc.setDrawColor(colorBorder[0][0], colorBorder[0][1], colorBorder[0][2]);
+        doc.setDrawColor(color.border[0], color.border[1], color.border[2]);
         doc.setLineWidth(1);
         doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
 
         // Título del curso
-        doc.setTextColor(colorText[0][0], colorText[0][1], colorText[0][2]);
+        doc.setTextColor(color.text[0], color.text[1], color.text[2]);
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.text(asignatura.curso_nombre, margin + 5, yPos + 8);
@@ -1270,7 +1266,7 @@ function DocenteHijos() {
             if (notaCriterio) {
               doc.setFillColor(253, 233, 217);
               doc.roundedRect(margin + 180, yPosInterno - 3, 15, 5, 1, 1, 'F');
-              doc.setDrawColor(colorBorder[0][0], colorBorder[0][1], colorBorder[0][2]);
+              doc.setDrawColor(color.border[0], color.border[1], color.border[2]);
               doc.roundedRect(margin + 180, yPosInterno - 3, 15, 5, 1, 1);
               doc.setFont('helvetica', 'bold');
               doc.text(notaCriterio.toString(), margin + 187.5, yPosInterno, { align: 'center' });
@@ -1304,7 +1300,7 @@ function DocenteHijos() {
           if (promedioExamen) {
             doc.setFillColor(253, 233, 217);
             doc.roundedRect(margin + 180, yPosInterno - 3, 15, 5, 1, 1, 'F');
-            doc.setDrawColor(colorBorder[0][0], colorBorder[0][1], colorBorder[0][2]);
+            doc.setDrawColor(color.border[0], color.border[1], color.border[2]);
             doc.roundedRect(margin + 180, yPosInterno - 3, 15, 5, 1, 1);
             doc.setFont('helvetica', 'bold');
             doc.text(promedioExamen.toString(), margin + 187.5, yPosInterno, { align: 'center' });
@@ -1321,7 +1317,7 @@ function DocenteHijos() {
         if (promedioFinal) {
           doc.setFillColor(249, 249, 249);
           doc.roundedRect(margin + 100, yPosInterno - 3, 20, 6, 1, 1, 'F');
-          doc.setDrawColor(colorBorder[0][0], colorBorder[0][1], colorBorder[0][2]);
+          doc.setDrawColor(color.border[0], color.border[1], color.border[2]);
           doc.setLineWidth(1);
           doc.roundedRect(margin + 100, yPosInterno - 3, 20, 6, 1, 1);
           doc.text(promedioFinal.toString(), margin + 110, yPosInterno, { align: 'center' });
