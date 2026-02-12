@@ -5458,6 +5458,17 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
       return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
     }
 
+    // Obtener matrícula del hijo
+    const matricula = await query(
+      `SELECT m.id as matricula_id
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [alumnoId, colegio_id, anio_activo]
+    );
+
     // Obtener exámenes (misma lógica que alumno)
     const examenes = await query(
       `SELECT ae.*, 
@@ -5470,7 +5481,52 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
       [asignatura_id, cicloFiltro]
     );
 
-    res.json({ examenes: examenes || [] });
+    // Agregar información adicional para cada examen (tiene_nota, puede_iniciar, etc.)
+    const examenesConInfo = await Promise.all(examenes.map(async (examen) => {
+      let tiene_nota = false;
+      let intentos_usados = 0;
+      
+      if (matricula.length > 0) {
+        // Verificar si tiene nota en la tabla de pruebas
+        try {
+          const pruebaConNota = await query(
+            `SELECT puntaje FROM asignaturas_examenes_pruebas
+             WHERE examen_id = ? AND matricula_id = ? AND estado = 'FINALIZADA' AND puntaje IS NOT NULL
+             ORDER BY fecha_hora DESC
+             LIMIT 1`,
+            [examen.id, matricula[0].matricula_id]
+          );
+          
+          tiene_nota = pruebaConNota.length > 0 && pruebaConNota[0].puntaje !== null;
+        } catch (err) {
+          console.error('Error verificando nota en pruebas:', err);
+          tiene_nota = false;
+        }
+        
+        // Contar intentos usados
+        try {
+          const intentosData = await query(
+            `SELECT COUNT(*) as total FROM asignaturas_examenes_pruebas
+             WHERE examen_id = ? AND matricula_id = ? AND estado = 'FINALIZADA'`,
+            [examen.id, matricula[0].matricula_id]
+          );
+          
+          intentos_usados = intentosData[0]?.total || 0;
+        } catch (error) {
+          console.error('Error contando intentos:', error);
+          intentos_usados = 0;
+        }
+      }
+      
+      return {
+        ...examen,
+        tiene_nota,
+        intentos_usados,
+        puede_iniciar: examen.estado === 'ACTIVO' && !tiene_nota && (examen.intentos === 0 || intentos_usados < examen.intentos)
+      };
+    }));
+
+    res.json({ examenes: examenesConInfo || [] });
   } catch (error) {
     console.error('Error obteniendo exámenes:', error);
     res.status(500).json({ error: error.message || 'Error al obtener exámenes' });
