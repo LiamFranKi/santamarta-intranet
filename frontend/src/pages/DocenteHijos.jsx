@@ -1289,14 +1289,22 @@ function DocenteHijos() {
         // Examen Mensual (si aplica)
         if (asignatura.examen_mensual) {
           const examenes = asignatura.notas?.[cicloSeleccionadoNotas]?.examen_mensual || {};
-          const examen1 = examenes[1] || '-';
-          const examen2 = examenes[2] || '-';
-          const promedioExamen = asignatura.notas?.[cicloSeleccionadoNotas]?.promedio_examen_mensual || null;
+          const examen1 = examenes[1] || null;
+          const examen2 = examenes[2] || null;
+          // Calcular promedio del examen mensual
+          let promedioExamen = null;
+          if (examen1 && examen2) {
+            const e1 = parseFloat(examen1);
+            const e2 = parseFloat(examen2);
+            if (!isNaN(e1) && !isNaN(e2) && e1 > 0 && e2 > 0) {
+              promedioExamen = Math.round((e1 + e2) / 2);
+            }
+          }
 
           doc.setFontSize(8);
           doc.setFont('helvetica', 'normal');
           doc.text(`Examen Mensual (${asignatura.peso_examen_mensual}%)`, margin + 5, yPosInterno);
-          doc.text(`${examen1}  ${examen2}`, margin + 100, yPosInterno);
+          doc.text(`${examen1 || '-'}  ${examen2 || '-'}`, margin + 100, yPosInterno);
           if (promedioExamen) {
             doc.setFillColor(253, 233, 217);
             doc.roundedRect(margin + 180, yPosInterno - 3, 15, 5, 1, 1, 'F');
@@ -3003,7 +3011,7 @@ function DocenteHijos() {
                                       Examen Mensual ({asignatura.peso_examen_mensual}%)
                                     </th>
                                     <td className="criterio-notas">
-                                      <div className="indicadores-container">
+                                        <div className="indicadores-container">
                                         <div className="indicadores-notas">
                                           {(() => {
                                             const examenes = asignatura.notas?.[cicloSeleccionadoNotas]?.examen_mensual || {};
@@ -3015,11 +3023,24 @@ function DocenteHijos() {
                                             );
                                           })()}
                                         </div>
-                                        {asignatura.notas?.[cicloSeleccionadoNotas]?.promedio_examen_mensual && (
-                                          <span className="nota-promedio-criterio">
-                                            {asignatura.notas[cicloSeleccionadoNotas].promedio_examen_mensual}
-                                          </span>
-                                        )}
+                                        {(() => {
+                                          const examenes = asignatura.notas?.[cicloSeleccionadoNotas]?.examen_mensual || {};
+                                          const examen1 = examenes[1];
+                                          const examen2 = examenes[2];
+                                          if (examen1 && examen2) {
+                                            const e1 = parseFloat(examen1);
+                                            const e2 = parseFloat(examen2);
+                                            if (!isNaN(e1) && !isNaN(e2) && e1 > 0 && e2 > 0) {
+                                              const promedio = Math.round((e1 + e2) / 2);
+                                              return (
+                                                <span className="nota-promedio-criterio">
+                                                  {promedio}
+                                                </span>
+                                              );
+                                            }
+                                          }
+                                          return null;
+                                        })()}
                                       </div>
                                     </td>
                                   </tr>
