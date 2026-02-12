@@ -5607,6 +5607,250 @@ router.get('/hijos/:hijoId/aula-virtual/videos', soloLecturaProxy, async (req, r
   }
 });
 
+// Proxy para obtener resultado de examen del hijo (SOLO GET - solo lectura)
+// IMPORTANTE: Esta ruta debe estar ANTES de la ruta general /:asignaturaId
+router.get('/hijos/:hijoId/aula-virtual/examenes/:examenId/resultado', soloLecturaProxy, async (req, res) => {
+  try {
+    console.log(`\n🔵 [HIJOS-AULA-VIRTUAL-EXAMEN-RESULTADO] Nueva petición`);
+    console.log(`📋 Params:`, req.params);
+    console.log(`📋 User:`, { usuario_id: req.user?.usuario_id, tipo: req.user?.tipo, personal_id: req.user?.personal_id });
+    
+    const { hijoId, examenId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+
+    // Verificar permisos y obtener datos del hijo
+    let alumnoId;
+    let matriculaId;
+    try {
+      const resultado = await verificarHijoYUsuario(req, hijoId);
+      alumnoId = resultado.alumnoId;
+      console.log(`✅ [HIJOS-AULA-VIRTUAL-EXAMEN-RESULTADO] Permisos verificados, alumnoId: ${alumnoId}`);
+    } catch (error) {
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-EXAMEN-RESULTADO] Error verificando permisos:`, error.message);
+      return res.status(403).json({ error: error.message || 'No tienes permisos para acceder a este recurso' });
+    }
+
+    // Obtener matrícula del hijo
+    const matricula = await query(
+      `SELECT m.id FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [alumnoId, colegio_id, anio_activo]
+    );
+
+    if (matricula.length === 0) {
+      return res.status(404).json({ error: 'Matrícula no encontrada' });
+    }
+
+    matriculaId = matricula[0].id;
+
+    // Verificar que el examen existe y el hijo tiene acceso
+    const examen = await query(
+      `SELECT ae.*, a.grupo_id
+       FROM asignaturas_examenes ae
+       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE ae.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [examenId, alumnoId, colegio_id, anio_activo]
+    );
+
+    if (examen.length === 0) {
+      return res.status(404).json({ error: 'Examen no encontrado o sin acceso' });
+    }
+
+    // Obtener resultado del examen del hijo
+    const resultado = await query(
+      `SELECT * FROM asignaturas_examenes_pruebas
+       WHERE examen_id = ? AND matricula_id = ?
+       ORDER BY fecha_hora DESC
+       LIMIT 1`,
+      [examenId, matriculaId]
+    );
+
+    if (resultado.length === 0) {
+      return res.status(404).json({ error: 'No se encontró resultado para este examen' });
+    }
+
+    res.json({
+      resultado: resultado[0],
+      examen: examen[0]
+    });
+  } catch (error) {
+    console.error('Error obteniendo resultado del examen:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener resultado del examen' });
+  }
+});
+
+// Proxy para obtener detalles completos del resultado del examen del hijo (SOLO GET - solo lectura)
+// IMPORTANTE: Esta ruta debe estar ANTES de la ruta general /:asignaturaId
+router.get('/hijos/:hijoId/aula-virtual/resultados/:resultadoId/detalles', soloLecturaProxy, async (req, res) => {
+  try {
+    console.log(`\n🔵 [HIJOS-AULA-VIRTUAL-RESULTADO-DETALLES] Nueva petición`);
+    console.log(`📋 Params:`, req.params);
+    console.log(`📋 User:`, { usuario_id: req.user?.usuario_id, tipo: req.user?.tipo, personal_id: req.user?.personal_id });
+    
+    const { hijoId, resultadoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+
+    // Verificar permisos y obtener datos del hijo
+    let alumnoId;
+    try {
+      const resultado = await verificarHijoYUsuario(req, hijoId);
+      alumnoId = resultado.alumnoId;
+      console.log(`✅ [HIJOS-AULA-VIRTUAL-RESULTADO-DETALLES] Permisos verificados, alumnoId: ${alumnoId}`);
+    } catch (error) {
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-RESULTADO-DETALLES] Error verificando permisos:`, error.message);
+      return res.status(403).json({ error: error.message || 'No tienes permisos para acceder a este recurso' });
+    }
+
+    // Obtener el resultado y verificar que pertenece al hijo
+    const resultado = await query(
+      `SELECT 
+        aep.*,
+        ae.titulo as examen_titulo,
+        ae.tipo_puntaje,
+        ae.puntos_correcta,
+        m.alumno_id
+       FROM asignaturas_examenes_pruebas aep
+       INNER JOIN asignaturas_examenes ae ON ae.id = aep.examen_id
+       INNER JOIN matriculas m ON m.id = aep.matricula_id
+       WHERE aep.id = ? AND m.alumno_id = ? AND m.colegio_id = ?`,
+      [resultadoId, alumnoId, colegio_id]
+    );
+
+    if (resultado.length === 0) {
+      return res.status(404).json({ error: 'Resultado no encontrado o sin acceso' });
+    }
+
+    const resultadoInfo = resultado[0];
+    const examenId = resultadoInfo.examen_id;
+
+    // Obtener preguntas que vio el alumno (misma lógica que docente)
+    let preguntaIds = [];
+    try {
+      if (resultadoInfo.preguntas && resultadoInfo.preguntas.trim() !== '') {
+        try {
+          preguntaIds = JSON.parse(resultadoInfo.preguntas);
+        } catch (jsonError) {
+          try {
+            const phpSerialize = require('php-serialize');
+            const decoded = Buffer.from(resultadoInfo.preguntas, 'base64').toString('utf-8');
+            preguntaIds = phpSerialize.unserialize(decoded) || [];
+          } catch (phpError) {
+            console.warn('Error parseando preguntas:', phpError);
+            preguntaIds = [];
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Error obteniendo preguntaIds:', error);
+    }
+
+    let preguntas = [];
+    if (preguntaIds.length > 0) {
+      const placeholders = preguntaIds.map(() => '?').join(',');
+      preguntas = await query(
+        `SELECT 
+          aep.*,
+          GROUP_CONCAT(
+            CONCAT(aepa.id, ':', aepa.descripcion, ':', aepa.correcta, ':', COALESCE(aepa.orden_posicion, ''), ':', COALESCE(aepa.par_id, ''), ':', COALESCE(aepa.zona_drop, ''))
+            ORDER BY aepa.id ASC
+            SEPARATOR '||'
+          ) as alternativas_raw
+         FROM asignaturas_examenes_preguntas aep
+         LEFT JOIN asignaturas_examenes_preguntas_alternativas aepa ON aepa.pregunta_id = aep.id
+         WHERE aep.examen_id = ? AND aep.id IN (${placeholders})
+         GROUP BY aep.id
+         ORDER BY FIELD(aep.id, ${placeholders})`,
+        [examenId, ...preguntaIds, ...preguntaIds]
+      );
+    } else {
+      // Fallback: obtener todas las preguntas
+      preguntas = await query(
+        `SELECT 
+          aep.*,
+          GROUP_CONCAT(
+            CONCAT(aepa.id, ':', aepa.descripcion, ':', aepa.correcta, ':', COALESCE(aepa.orden_posicion, ''), ':', COALESCE(aepa.par_id, ''), ':', COALESCE(aepa.zona_drop, ''))
+            ORDER BY aepa.id ASC
+            SEPARATOR '||'
+          ) as alternativas_raw
+         FROM asignaturas_examenes_preguntas aep
+         LEFT JOIN asignaturas_examenes_preguntas_alternativas aepa ON aepa.pregunta_id = aep.id
+         WHERE aep.examen_id = ?
+         GROUP BY aep.id
+         ORDER BY aep.orden ASC`,
+        [examenId]
+      );
+    }
+
+    // Procesar alternativas
+    const preguntasConAlternativas = preguntas.map(pregunta => {
+      const alternativas = [];
+      if (pregunta.alternativas_raw) {
+        const alternativasRaw = pregunta.alternativas_raw.split('||');
+        alternativasRaw.forEach(alt => {
+          const [id, descripcion, correcta, orden_posicion, par_id, zona_drop] = alt.split(':');
+          alternativas.push({
+            id: parseInt(id),
+            descripcion: descripcion || '',
+            correcta: correcta === '1' || correcta === 'true',
+            orden_posicion: orden_posicion || null,
+            par_id: par_id || null,
+            zona_drop: zona_drop || null
+          });
+        });
+      }
+      return {
+        ...pregunta,
+        alternativas: alternativas
+      };
+    });
+
+    // Parsear respuestas del alumno
+    let respuestasAlumno = {};
+    try {
+      if (resultadoInfo.respuestas && resultadoInfo.respuestas.trim() !== '') {
+        try {
+          respuestasAlumno = JSON.parse(resultadoInfo.respuestas);
+        } catch (jsonError) {
+          try {
+            const phpSerialize = require('php-serialize');
+            const decoded = Buffer.from(resultadoInfo.respuestas, 'base64').toString('utf-8');
+            respuestasAlumno = phpSerialize.unserialize(decoded) || {};
+          } catch (phpError) {
+            console.warn('Error parseando respuestas:', phpError);
+            respuestasAlumno = {};
+          }
+        }
+        
+        // Normalizar claves a strings
+        const respuestasNormalizadas = {};
+        Object.keys(respuestasAlumno).forEach(key => {
+          respuestasNormalizadas[key.toString()] = respuestasAlumno[key];
+        });
+        respuestasAlumno = respuestasNormalizadas;
+      }
+    } catch (parseError) {
+      console.error('Error parseando respuestas del alumno:', parseError);
+      respuestasAlumno = {};
+    }
+
+    res.json({
+      resultado: resultadoInfo,
+      preguntas: preguntasConAlternativas,
+      respuestas: respuestasAlumno
+    });
+  } catch (error) {
+    console.error('Error obteniendo detalles del resultado:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener detalles del resultado' });
+  }
+});
+
 // Proxy para obtener enlaces (SOLO GET - solo lectura)
 router.get('/hijos/:hijoId/aula-virtual/enlaces', soloLecturaProxy, async (req, res) => {
   try {
