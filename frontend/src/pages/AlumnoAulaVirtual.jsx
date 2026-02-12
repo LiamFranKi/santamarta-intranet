@@ -471,18 +471,20 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false }) {
                         <button
                           onClick={() => handleIniciarExamen(examen)}
                           disabled={modoSoloLectura}
-                          style={modoSoloLectura ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                           style={{
                             padding: '0.5rem 1.25rem',
-                            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                            background: modoSoloLectura 
+                              ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)'
+                              : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '8px',
                             fontSize: '0.875rem',
                             fontWeight: '600',
-                            cursor: 'pointer',
+                            cursor: modoSoloLectura ? 'not-allowed' : 'pointer',
                             transition: 'all 0.2s',
-                            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)'
+                            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
+                            opacity: modoSoloLectura ? 0.6 : 1
                           }}
                           onMouseEnter={(e) => {
                             e.target.style.transform = 'scale(1.05)';
