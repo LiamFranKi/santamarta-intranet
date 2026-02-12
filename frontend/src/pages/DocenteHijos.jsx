@@ -1218,25 +1218,14 @@ function DocenteHijos() {
 
         const color = coloresPastelPDF[index % coloresPastelPDF.length];
         
-        // Calcular altura del card dinámicamente
-        let lineasNecesarias = 1; // Título
-        asignatura.criterios.forEach((criterio) => {
-          lineasNecesarias += 1; // Criterio
-          const tieneIndicadores = criterio.indicadores && criterio.indicadores.length > 0;
-          const notaCriterio = criterio.notas?.[cicloSeleccionadoNotas] || null;
-          if (tieneIndicadores && notaCriterio) {
-            lineasNecesarias += 0.5; // Promedio del criterio (media línea)
-          }
-        });
-        if (asignatura.examen_mensual) {
-          lineasNecesarias += 1; // Examen mensual
-          const examenes = asignatura.notas?.[cicloSeleccionadoNotas]?.examen_mensual || {};
-          if (examenes[1] && examenes[2]) {
-            lineasNecesarias += 0.5; // Promedio del examen (media línea)
-          }
-        }
-        lineasNecesarias += 1; // Promedio final
-        const cardHeight = 8 + (lineasNecesarias * 5.5); // 5.5mm por línea
+        // Calcular altura del card - diseño simple y seguro
+        let lineasTotales = 1; // Título
+        lineasTotales += asignatura.criterios.length; // Criterios
+        if (asignatura.examen_mensual) lineasTotales += 1; // Examen mensual
+        lineasTotales += 1; // Promedio final
+        
+        // Altura base + espacio por línea (más generoso para evitar desbordes)
+        const cardHeight = 10 + (lineasTotales * 7);
 
         // Fondo del card
         doc.setFillColor(color.bg[0], color.bg[1], color.bg[2]);
@@ -1251,25 +1240,31 @@ function DocenteHijos() {
         doc.setTextColor(color.text[0], color.text[1], color.text[2]);
         doc.setFontSize(11);
         doc.setFont('helvetica', 'bold');
-        doc.text(asignatura.curso_nombre, margin + 3, yPos + 5);
+        doc.text(asignatura.curso_nombre, margin + 3, yPos + 6);
 
-        let yPosInterno = yPos + 8;
+        let yPosInterno = yPos + 10;
 
-        // Tabla de criterios
+        // Tabla de criterios - diseño simple
         asignatura.criterios.forEach((criterio) => {
           const tieneIndicadores = criterio.indicadores && criterio.indicadores.length > 0;
           const notaCriterio = criterio.notas?.[cicloSeleccionadoNotas] || null;
 
-          // Nombre del criterio con peso
+          // Nombre del criterio con peso (izquierda)
           doc.setFontSize(7);
           doc.setFont('helvetica', 'normal');
           let criterioTexto = criterio.descripcion;
           if (asignatura.nivel.tipo_calificacion_final === 1) {
             criterioTexto += ` (${criterio.peso}%)`;
           }
-          doc.text(criterioTexto, margin + 3, yPosInterno);
+          // Limitar ancho del texto del criterio
+          const criterioMaxWidth = 70;
+          const criterioLines = doc.splitTextToSize(criterioTexto, criterioMaxWidth);
+          doc.text(criterioLines[0], margin + 3, yPosInterno);
 
-          // Notas de indicadores o nota directa
+          // Notas de indicadores o nota directa (derecha)
+          const notasX = margin + 75; // Posición fija para notas
+          const notasMaxWidth = contentWidth - 80; // Ancho máximo disponible
+          
           if (tieneIndicadores) {
             const notasIndicadores = [];
             criterio.indicadores.forEach((indicador) => {
@@ -1280,42 +1275,39 @@ function DocenteHijos() {
               }
             });
             const notasTexto = notasIndicadores.join('  ');
-            // Colocar notas a la derecha
-            const notasX = margin + 85;
             doc.setFontSize(7);
-            doc.text(notasTexto, notasX, yPosInterno, { maxWidth: contentWidth - 90 });
+            // Asegurar que las notas no se salgan
+            const notasLines = doc.splitTextToSize(notasTexto, notasMaxWidth);
+            doc.text(notasLines[0], notasX, yPosInterno);
             
-            // Promedio del criterio debajo de las notas
+            // Promedio del criterio en la misma línea, al final
             if (notaCriterio) {
-              yPosInterno += 3.5;
+              const promedioX = margin + contentWidth - 15; // Al final del card
               doc.setFillColor(253, 233, 217);
-              const promedioWidth = 10;
-              const promedioX = notasX;
-              doc.roundedRect(promedioX, yPosInterno - 2, promedioWidth, 3.5, 1, 1, 'F');
+              doc.roundedRect(promedioX, yPosInterno - 2.5, 10, 4, 1, 1, 'F');
               doc.setDrawColor(color.border[0], color.border[1], color.border[2]);
               doc.setLineWidth(0.5);
-              doc.roundedRect(promedioX, yPosInterno - 2, promedioWidth, 3.5, 1, 1);
+              doc.roundedRect(promedioX, yPosInterno - 2.5, 10, 4, 1, 1);
               doc.setFont('helvetica', 'bold');
               doc.setFontSize(7);
               doc.setTextColor(color.text[0], color.text[1], color.text[2]);
-              doc.text(notaCriterio.toString(), promedioX + promedioWidth / 2, yPosInterno, { align: 'center' });
+              doc.text(notaCriterio.toString(), promedioX + 5, yPosInterno, { align: 'center' });
               doc.setFont('helvetica', 'normal');
-              yPosInterno -= 3.5;
             }
           } else {
             // Nota directa
             if (notaCriterio) {
               doc.setFont('helvetica', 'bold');
               doc.setFontSize(8);
-              doc.text(notaCriterio.toString(), margin + 85, yPosInterno);
+              doc.text(notaCriterio.toString(), notasX, yPosInterno);
               doc.setFont('helvetica', 'normal');
             } else {
               doc.setFontSize(7);
-              doc.text('-', margin + 85, yPosInterno);
+              doc.text('-', notasX, yPosInterno);
             }
           }
 
-          yPosInterno += 5.5; // Espaciado entre líneas
+          yPosInterno += 7; // Espaciado entre líneas
         });
 
         // Examen Mensual (si aplica)
@@ -1336,26 +1328,23 @@ function DocenteHijos() {
           doc.setFontSize(7);
           doc.setFont('helvetica', 'normal');
           doc.text(`Examen Mensual (${asignatura.peso_examen_mensual}%)`, margin + 3, yPosInterno);
-          doc.text(`${examen1 || '-'}  ${examen2 || '-'}`, margin + 85, yPosInterno);
+          doc.text(`${examen1 || '-'}  ${examen2 || '-'}`, margin + 75, yPosInterno);
           
-          // Promedio del examen mensual debajo
+          // Promedio del examen mensual al final
           if (promedioExamen) {
-            yPosInterno += 3.5;
+            const promedioX = margin + contentWidth - 15;
             doc.setFillColor(253, 233, 217);
-            const promedioWidth = 10;
-            const promedioX = margin + 85;
-            doc.roundedRect(promedioX, yPosInterno - 2, promedioWidth, 3.5, 1, 1, 'F');
+            doc.roundedRect(promedioX, yPosInterno - 2.5, 10, 4, 1, 1, 'F');
             doc.setDrawColor(color.border[0], color.border[1], color.border[2]);
             doc.setLineWidth(0.5);
-            doc.roundedRect(promedioX, yPosInterno - 2, promedioWidth, 3.5, 1, 1);
+            doc.roundedRect(promedioX, yPosInterno - 2.5, 10, 4, 1, 1);
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(7);
             doc.setTextColor(color.text[0], color.text[1], color.text[2]);
-            doc.text(promedioExamen.toString(), promedioX + promedioWidth / 2, yPosInterno, { align: 'center' });
+            doc.text(promedioExamen.toString(), promedioX + 5, yPosInterno, { align: 'center' });
             doc.setFont('helvetica', 'normal');
-            yPosInterno -= 3.5;
           }
-          yPosInterno += 5.5;
+          yPosInterno += 7;
         }
 
         // Promedio Final
@@ -1364,19 +1353,18 @@ function DocenteHijos() {
         doc.setFont('helvetica', 'bold');
         doc.text('PROMEDIO', margin + 3, yPosInterno);
         if (promedioFinal) {
+          const promedioX = margin + 75;
           doc.setFillColor(249, 249, 249);
-          const promedioWidth = 12;
-          const promedioX = margin + 85;
-          doc.roundedRect(promedioX, yPosInterno - 2.5, promedioWidth, 4.5, 1, 1, 'F');
+          doc.roundedRect(promedioX, yPosInterno - 2.5, 12, 5, 1, 1, 'F');
           doc.setDrawColor(color.border[0], color.border[1], color.border[2]);
           doc.setLineWidth(1);
-          doc.roundedRect(promedioX, yPosInterno - 2.5, promedioWidth, 4.5, 1, 1);
+          doc.roundedRect(promedioX, yPosInterno - 2.5, 12, 5, 1, 1);
           doc.setFontSize(9);
           doc.setTextColor(color.text[0], color.text[1], color.text[2]);
-          doc.text(promedioFinal.toString(), promedioX + promedioWidth / 2, yPosInterno, { align: 'center' });
+          doc.text(promedioFinal.toString(), promedioX + 6, yPosInterno, { align: 'center' });
         } else {
           doc.setFontSize(7);
-          doc.text('-', margin + 85, yPosInterno);
+          doc.text('-', margin + 75, yPosInterno);
         }
 
         yPos += cardHeight + 8; // Espacio entre cards
