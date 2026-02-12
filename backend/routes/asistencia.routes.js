@@ -181,6 +181,9 @@ router.post('/registrar', async (req, res) => {
 
     const fechaHoy = moment().tz('America/Lima').format('YYYY-MM-DD');
     const horaActual = moment().tz('America/Lima').format('HH:mm:ss');
+    
+    // Variable para almacenar el tipo de asistencia (PRESENTE/TARDANZA) para usar en notificaciones
+    let tipoAsistenciaParaNotificacion = null;
 
     // Verificar registro existente
     const asistenciaExistente = await query(
@@ -256,9 +259,9 @@ router.post('/registrar', async (req, res) => {
         // Si es ALUMNO, determinar tipo de asistencia (PRESENTE/TARDANZA) y crear registro en matriculas_asistencias
         if (tipo_usuario === 'ALUMNO') {
           try {
-            // Obtener matrícula del alumno
+            // Obtener matrícula del alumno con nivel
             const matricula = await query(
-              `SELECT m.id as matricula_id, g.turno_id
+              `SELECT m.id as matricula_id, g.nivel_id
                FROM matriculas m
                INNER JOIN grupos g ON g.id = m.grupo_id
                WHERE m.alumno_id = (SELECT alumno_id FROM usuarios WHERE id = ?)
@@ -269,14 +272,14 @@ router.post('/registrar', async (req, res) => {
             );
             
             if (matricula.length > 0) {
-              // Obtener hora de entrada configurada del turno
-              const turno = await query(
-                `SELECT hora_entrada FROM turnos WHERE id = ? AND colegio_id = ?`,
-                [matricula[0].turno_id, colegio_id]
+              // Obtener hora de entrada configurada del nivel
+              const nivel = await query(
+                `SELECT hora_entrada FROM niveles WHERE id = ? AND colegio_id = ?`,
+                [matricula[0].nivel_id, colegio_id]
               );
               
-              const horaEntradaConfigurada = turno.length > 0 && turno[0].hora_entrada 
-                ? turno[0].hora_entrada 
+              const horaEntradaConfigurada = nivel.length > 0 && nivel[0].hora_entrada 
+                ? nivel[0].hora_entrada 
                 : '08:00:00'; // Hora por defecto
               
               // Comparar hora actual con hora configurada
@@ -285,9 +288,9 @@ router.post('/registrar', async (req, res) => {
               const minutosDiferencia = horaActualMoment.diff(horaConfiguradaMoment, 'minutes');
               
               // Determinar tipo: PRESENTE si llega antes o hasta 5 minutos después, TARDANZA si llega después
-              const tipoAsistencia = minutosDiferencia <= 5 ? 'PRESENTE' : 'TARDANZA';
+              tipoAsistenciaParaNotificacion = minutosDiferencia <= 5 ? 'PRESENTE' : 'TARDANZA';
               
-              console.log(`📋 [ASISTENCIA] Alumno - Hora configurada: ${horaEntradaConfigurada}, Hora real: ${horaActual}, Diferencia: ${minutosDiferencia} min, Tipo: ${tipoAsistencia}`);
+              console.log(`📋 [ASISTENCIA] Alumno - Hora configurada: ${horaEntradaConfigurada}, Hora real: ${horaActual}, Diferencia: ${minutosDiferencia} min, Tipo: ${tipoAsistenciaParaNotificacion}`);
               
               // Crear o actualizar registro en matriculas_asistencias
               const asistenciaExistente = await query(
@@ -302,18 +305,18 @@ router.post('/registrar', async (req, res) => {
                   `UPDATE matriculas_asistencias 
                    SET tipo = ?, hora_entrada = ?, created_at = NOW()
                    WHERE id = ?`,
-                  [tipoAsistencia, horaActual, asistenciaExistente[0].id]
+                  [tipoAsistenciaParaNotificacion, horaActual, asistenciaExistente[0].id]
                 );
-                console.log(`✅ [ASISTENCIA] Actualizado registro en matriculas_asistencias: ${tipoAsistencia}`);
+                console.log(`✅ [ASISTENCIA] Actualizado registro en matriculas_asistencias: ${tipoAsistenciaParaNotificacion}`);
               } else {
                 // Crear nuevo registro
                 await execute(
                   `INSERT INTO matriculas_asistencias 
                    (matricula_id, fecha, tipo, hora_entrada, created_at)
                    VALUES (?, ?, ?, ?, NOW())`,
-                  [matricula[0].matricula_id, fechaHoy, tipoAsistencia, horaActual]
+                  [matricula[0].matricula_id, fechaHoy, tipoAsistenciaParaNotificacion, horaActual]
                 );
-                console.log(`✅ [ASISTENCIA] Creado registro en matriculas_asistencias: ${tipoAsistencia}`);
+                console.log(`✅ [ASISTENCIA] Creado registro en matriculas_asistencias: ${tipoAsistenciaParaNotificacion}`);
               }
             }
           } catch (error) {
@@ -495,10 +498,16 @@ router.post('/registrar', async (req, res) => {
         // Preparar payload de notificación para APODERADOS
         const mensajeConfig = mensajesConfig.asistencia.alumno[tipo_registro.toLowerCase()];
         const tituloNotificacion = mensajeConfig.titulo;
-        const mensajeNotificacion = mensajeConfig.mensaje_corto
+        let mensajeNotificacion = mensajeConfig.mensaje_corto
           .replace('{nombreAlumno}', datosUsuario.nombre_completo)
           .replace('{hora}', horaFormateada)
           .replace('{fecha}', fechaFormateada);
+        
+        // Si es ENTRADA y tenemos el tipo de asistencia (PRESENTE/TARDANZA), agregarlo al mensaje
+        if (tipo_registro === 'ENTRADA' && tipoAsistenciaParaNotificacion) {
+          const tipoTexto = tipoAsistenciaParaNotificacion === 'PRESENTE' ? 'Presente' : 'Tardanza';
+          mensajeNotificacion += ` Estado: ${tipoTexto}.`;
+        }
 
         // Crear notificaciones en la BD para los apoderados
         if (apoderados.length > 0) {
@@ -562,7 +571,8 @@ router.post('/registrar', async (req, res) => {
                       hora: horaFormateada,
                       fecha: fechaFormateada,
                       tipo: tipo_registro,
-                      colegioNombre
+                      colegioNombre,
+                      tipoAsistencia: tipo_registro === 'ENTRADA' ? tipoAsistenciaParaNotificacion : null
                     });
                     if (resultadoCorreo.success) {
                       console.log(`✅ [ASISTENCIA] Correo enviado exitosamente a ${apoderado.email}`);

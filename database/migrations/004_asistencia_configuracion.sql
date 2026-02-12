@@ -1,11 +1,10 @@
 -- ============================================================
 -- MIGRACIÓN: Configuración de Asistencia
--- Descripción: Agrega hora_entrada a turnos y crea tabla matriculas_asistencias
+-- Descripción: Agrega hora_entrada a niveles y crea tabla matriculas_asistencias
+-- NOTA: Este archivo está obsoleto. Usar 004_asistencia_configuracion_MANUAL.sql
 -- ============================================================
 
--- Agregar campo hora_entrada a turnos (si no existe)
-ALTER TABLE `turnos` 
-ADD COLUMN IF NOT EXISTS `hora_entrada` time DEFAULT '08:00:00' COMMENT 'Hora de entrada para este turno';
+-- OBSOLETO: Ahora se usa hora_entrada en niveles, no en turnos
 
 -- Crear tabla matriculas_asistencias si no existe
 CREATE TABLE IF NOT EXISTS `matriculas_asistencias` (

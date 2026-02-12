@@ -38,7 +38,7 @@ transporter.verify(function (error, success) {
  * Generar template HTML para correo de asistencia
  */
 function generarTemplateAsistencia(datos) {
-  const { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente } = datos;
+  const { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia } = datos;
   
   const icono = tipo === 'ENTRADA' ? '✅' : '👋';
   const titulo = esDocente 
@@ -105,6 +105,12 @@ function generarTemplateAsistencia(datos) {
                     <td style="padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 600;">🕐 Hora:</td>
                     <td style="padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 700;">${hora}</td>
                   </tr>
+                  ${tipo === 'ENTRADA' && tipoAsistencia && !esDocente ? `
+                  <tr>
+                    <td style="padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 600;">📊 Estado:</td>
+                    <td style="padding: 8px 0; color: ${tipoAsistencia === 'PRESENTE' ? '#10b981' : '#f59e0b'}; font-size: 14px; font-weight: 700;">${tipoAsistencia === 'PRESENTE' ? '✅ Presente' : '⚠️ Tardanza'}</td>
+                  </tr>
+                  ` : ''}
                   <tr>
                     <td style="padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 600;">🏫 Colegio:</td>
                     <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${colegioNombre}</td>
@@ -148,10 +154,10 @@ async function enviarCorreoAsistencia(destinatario, datos) {
       return { success: false, error: 'Configuración de email incompleta' };
     }
 
-    const { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente } = datos;
+    const { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia } = datos;
     
     console.log(`📧 [EMAIL] Preparando correo para: ${destinatario}`);
-    console.log(`📧 [EMAIL] Datos:`, { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente });
+    console.log(`📧 [EMAIL] Datos:`, { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia });
     
     const template = generarTemplateAsistencia({
       nombreAlumno,
@@ -159,7 +165,8 @@ async function enviarCorreoAsistencia(destinatario, datos) {
       fecha,
       tipo,
       colegioNombre: colegioNombre || 'Vanguard Schools',
-      esDocente: esDocente || false
+      esDocente: esDocente || false,
+      tipoAsistencia: tipoAsistencia || null
     });
 
     const asunto = esDocente
