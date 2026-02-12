@@ -38,6 +38,13 @@ function DocenteHijos() {
   const [showModalQR, setShowModalQR] = useState(false);
   const [qrData, setQrData] = useState(null);
   const [loadingQR, setLoadingQR] = useState(false);
+  const [showModalIncidencias, setShowModalIncidencias] = useState(false);
+  const [incidencias, setIncidencias] = useState([]);
+  const [loadingIncidencias, setLoadingIncidencias] = useState(false);
+  const [showModalEstrellas, setShowModalEstrellas] = useState(false);
+  const [estrellas, setEstrellas] = useState([]);
+  const [totalEstrellas, setTotalEstrellas] = useState(0);
+  const [loadingEstrellas, setLoadingEstrellas] = useState(false);
 
   useEffect(() => {
     cargarHijos();
@@ -137,12 +144,10 @@ function DocenteHijos() {
         // Implementar después
         break;
       case 'incidencias':
-        console.log('Incidencias de:', hijo);
-        // Implementar después
+        await handleVerIncidencias(hijo);
         break;
       case 'estrellas':
-        console.log('Estrellas de:', hijo);
-        // Implementar después
+        await handleVerEstrellas(hijo);
         break;
       case 'asistencias':
         console.log('Asistencias de:', hijo);
@@ -347,6 +352,80 @@ function DocenteHijos() {
       setLoadingQR(false);
     }
   };
+
+  const handleVerIncidencias = async (hijo) => {
+    try {
+      setLoadingIncidencias(true);
+      setHijoSeleccionado(hijo);
+      
+      // Cargar incidencias del hijo
+      const response = await api.get(`/docente/hijos/${hijo.id}/incidencias`);
+      setIncidencias(response.data.incidencias || []);
+      setShowModalIncidencias(true);
+    } catch (error) {
+      console.error('Error cargando incidencias:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudieron cargar las incidencias',
+        confirmButtonText: 'Entendido'
+      });
+    } finally {
+      setLoadingIncidencias(false);
+    }
+  };
+
+  const handleVerEstrellas = async (hijo) => {
+    try {
+      setLoadingEstrellas(true);
+      setHijoSeleccionado(hijo);
+      
+      // Cargar estrellas del hijo
+      const response = await api.get(`/docente/hijos/${hijo.id}/estrellas`);
+      setEstrellas(response.data.estrellas || []);
+      setTotalEstrellas(response.data.total_estrellas || 0);
+      setShowModalEstrellas(true);
+    } catch (error) {
+      console.error('Error cargando estrellas:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudieron cargar las estrellas',
+        confirmButtonText: 'Entendido'
+      });
+    } finally {
+      setLoadingEstrellas(false);
+    }
+  };
+
+  // Función para formatear fecha
+  const formatearFecha = (fecha) => {
+    if (!fecha) return 'N/A';
+    try {
+      const date = new Date(fecha);
+      return date.toLocaleDateString('es-PE', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      return fecha;
+    }
+  };
+
+  // Colores pastel para las cards
+  const coloresPastel = [
+    { bg: '#FFE5E5', border: '#FFB3B3', text: '#8B0000' }, // Rosa pastel
+    { bg: '#E5F3FF', border: '#B3D9FF', text: '#003366' }, // Azul pastel
+    { bg: '#E5FFE5', border: '#B3FFB3', text: '#006600' }, // Verde pastel
+    { bg: '#FFF5E5', border: '#FFD9B3', text: '#8B4500' }, // Naranja pastel
+    { bg: '#F0E5FF', border: '#D9B3FF', text: '#4B0082' }, // Morado pastel
+    { bg: '#E5FFFF', border: '#B3FFFF', text: '#006666' }, // Cyan pastel
+    { bg: '#FFE5F0', border: '#FFB3D9', text: '#8B0040' }, // Rosa claro
+    { bg: '#E5FFE5', border: '#B3FFB3', text: '#004D00' }, // Verde claro
+  ];
 
   const handleExportarPDF = async () => {
     if (!qrData) {
@@ -1177,6 +1256,142 @@ function DocenteHijos() {
                 <div className="qr-error">
                   <p>No se pudieron cargar los datos del QR</p>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Incidencias */}
+      {showModalIncidencias && createPortal(
+        <div className="modal-overlay-qr" onClick={() => setShowModalIncidencias(false)}>
+          <div className="modal-content-incidencias" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-qr">
+              <h2>📋 Incidencias de {hijoSeleccionado?.nombres} {hijoSeleccionado?.apellido_paterno}</h2>
+              <button className="modal-close-qr" onClick={() => setShowModalIncidencias(false)}>×</button>
+            </div>
+
+            <div className="modal-body-incidencias">
+              {loadingIncidencias ? (
+                <div className="qr-loading">
+                  <div className="loading-spinner">Cargando incidencias...</div>
+                </div>
+              ) : incidencias.length === 0 ? (
+                <div className="empty-state">
+                  <p>No hay incidencias registradas</p>
+                </div>
+              ) : (
+                <div className="cards-container">
+                  {incidencias.map((incidencia, index) => {
+                    const color = coloresPastel[index % coloresPastel.length];
+                    return (
+                      <div 
+                        key={incidencia.id} 
+                        className="incidencia-card"
+                        style={{
+                          backgroundColor: color.bg,
+                          borderColor: color.border,
+                          color: color.text
+                        }}
+                      >
+                        <div className="card-header-incidencia">
+                          <div className="card-fecha">
+                            <span className="icon">📅</span>
+                            <span>{formatearFecha(incidencia.created_at)}</span>
+                          </div>
+                        </div>
+                        <div className="card-body-incidencia">
+                          <div className="card-info-row">
+                            <span className="label">Docente:</span>
+                            <span className="value">{incidencia.docente_nombre || 'N/A'}</span>
+                          </div>
+                          <div className="card-info-row">
+                            <span className="label">Curso:</span>
+                            <span className="value">{incidencia.curso_nombre || 'N/A'}</span>
+                          </div>
+                          <div className="card-info-row card-descripcion">
+                            <span className="label">Descripción:</span>
+                            <span className="value">{incidencia.description || 'Sin descripción'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Estrellas */}
+      {showModalEstrellas && createPortal(
+        <div className="modal-overlay-qr" onClick={() => setShowModalEstrellas(false)}>
+          <div className="modal-content-estrellas" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-qr">
+              <h2>⭐ Estrellas de {hijoSeleccionado?.nombres} {hijoSeleccionado?.apellido_paterno}</h2>
+              <button className="modal-close-qr" onClick={() => setShowModalEstrellas(false)}>×</button>
+            </div>
+
+            <div className="modal-body-estrellas">
+              {loadingEstrellas ? (
+                <div className="qr-loading">
+                  <div className="loading-spinner">Cargando estrellas...</div>
+                </div>
+              ) : estrellas.length === 0 ? (
+                <div className="empty-state">
+                  <p>No hay estrellas registradas</p>
+                </div>
+              ) : (
+                <>
+                  <div className="total-estrellas-badge">
+                    <span className="total-label">Total de Estrellas:</span>
+                    <span className="total-value">{totalEstrellas}</span>
+                  </div>
+                  <div className="cards-container">
+                    {estrellas.map((estrella, index) => {
+                      const color = coloresPastel[index % coloresPastel.length];
+                      return (
+                        <div 
+                          key={estrella.id} 
+                          className="estrella-card"
+                          style={{
+                            backgroundColor: color.bg,
+                            borderColor: color.border,
+                            color: color.text
+                          }}
+                        >
+                          <div className="card-header-estrella">
+                            <div className="card-fecha">
+                              <span className="icon">📅</span>
+                              <span>{formatearFecha(estrella.created_at)}</span>
+                            </div>
+                            <div className="card-estrellas-count">
+                              <span className="icon">⭐</span>
+                              <span className="count">{estrella.points || 0}</span>
+                            </div>
+                          </div>
+                          <div className="card-body-estrella">
+                            <div className="card-info-row">
+                              <span className="label">Docente:</span>
+                              <span className="value">{estrella.docente_nombre || 'N/A'}</span>
+                            </div>
+                            <div className="card-info-row">
+                              <span className="label">Curso:</span>
+                              <span className="value">{estrella.curso_nombre || 'N/A'}</span>
+                            </div>
+                            <div className="card-info-row card-descripcion">
+                              <span className="label">Descripción:</span>
+                              <span className="value">{estrella.description || 'Sin descripción'}</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
           </div>
