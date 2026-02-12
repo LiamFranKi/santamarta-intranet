@@ -5283,29 +5283,8 @@ router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, r
   }
 });
 
-/**
- * Rutas proxy para aula virtual del hijo - todas requieren verificación de permisos
- * Estas rutas actúan como proxy, verificando permisos y luego delegando a la lógica del alumno
- */
-
-/**
- * Middleware para verificar que las rutas proxy solo permitan GET (solo lectura)
- * Rechaza POST, PUT, DELETE para docentes/apoderados
- */
-const soloLecturaProxy = (req, res, next) => {
-  console.log(`🔵 [SOLO-LECTURA-PROXY] Método: ${req.method}, URL: ${req.originalUrl}`);
-  if (req.method !== 'GET') {
-    console.error(`❌ [SOLO-LECTURA-PROXY] Método no permitido: ${req.method}`);
-    return res.status(403).json({ 
-      error: 'Solo lectura permitida. Los apoderados y docentes solo pueden ver el contenido, no realizar acciones.' 
-    });
-  }
-  console.log(`✅ [SOLO-LECTURA-PROXY] Método GET permitido, continuando...`);
-  next();
-};
-
-// Proxy para obtener tareas (SOLO GET - solo lectura)
-router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, res) => {
+// Proxy para obtener exámenes (SOLO GET - solo lectura)
+router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req, res) => {
   try {
     console.log(`\n🔵 [HIJOS-AULA-VIRTUAL-TAREAS] Nueva petición`);
     console.log(`📋 Params:`, req.params);
