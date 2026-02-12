@@ -501,18 +501,27 @@ router.post('/registrar', async (req, res) => {
         }
 
         // Preparar payload de notificación para APODERADOS
+        console.log(`📧 [ASISTENCIA] Preparando notificaciones para tipo_registro: ${tipo_registro}`);
         const mensajeConfig = mensajesConfig.asistencia.alumno[tipo_registro.toLowerCase()];
-        const tituloNotificacion = mensajeConfig.titulo;
-        let mensajeNotificacion = mensajeConfig.mensaje_corto
-          .replace('{nombreAlumno}', datosUsuario.nombre_completo)
-          .replace('{hora}', horaFormateada)
-          .replace('{fecha}', fechaFormateada);
+        if (!mensajeConfig) {
+          console.error(`❌ [ASISTENCIA] No se encontró configuración de mensaje para tipo_registro: ${tipo_registro}`);
+        }
+        const tituloNotificacion = mensajeConfig?.titulo || `Asistencia ${tipo_registro}`;
+        let mensajeNotificacion = mensajeConfig?.mensaje_corto
+          ? mensajeConfig.mensaje_corto
+              .replace('{nombreAlumno}', datosUsuario.nombre_completo)
+              .replace('{hora}', horaFormateada)
+              .replace('{fecha}', fechaFormateada)
+          : `${datosUsuario.nombre_completo} registró ${tipo_registro.toLowerCase()} a las ${horaFormateada} el ${fechaFormateada}`;
         
         // Si es ENTRADA y tenemos el tipo de asistencia (PRESENTE/TARDANZA), agregarlo al mensaje
         if (tipo_registro === 'ENTRADA' && tipoAsistenciaParaNotificacion) {
           const tipoTexto = tipoAsistenciaParaNotificacion === 'PRESENTE' ? 'Presente' : 'Tardanza';
           mensajeNotificacion += ` Estado: ${tipoTexto}.`;
         }
+        
+        console.log(`📧 [ASISTENCIA] Título notificación: ${tituloNotificacion}`);
+        console.log(`📧 [ASISTENCIA] Mensaje notificación: ${mensajeNotificacion}`);
 
         // Crear notificaciones en la BD para los apoderados (incluyendo docentes que son apoderados)
         if (apoderados.length > 0) {
