@@ -5284,13 +5284,10 @@ router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, r
 });
 
 // Proxy para obtener exámenes (SOLO GET - solo lectura)
+// IMPORTANTE: Esta ruta debe estar ANTES de la ruta general /:asignaturaId
 router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req, res) => {
   try {
-    console.log(`\n🔵 [HIJOS-AULA-VIRTUAL-TAREAS] Nueva petición`);
-    console.log(`📋 Params:`, req.params);
-    console.log(`📋 Query:`, req.query);
-    console.log(`📋 User:`, { usuario_id: req.user?.usuario_id, tipo: req.user?.tipo, personal_id: req.user?.personal_id });
-    
+    console.log(`\n🔵 [HIJOS-AULA-VIRTUAL-EXAMENES] Nueva petición`);
     const { hijoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
     const { asignatura_id, ciclo } = req.query;
@@ -5303,19 +5300,16 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
     try {
       const resultado = await verificarHijoYUsuario(req, hijoId);
       alumnoId = resultado.alumnoId;
-      console.log(`✅ [HIJOS-AULA-VIRTUAL-TAREAS] Permisos verificados, alumnoId: ${alumnoId}`);
     } catch (error) {
-      console.error(`❌ [HIJOS-AULA-VIRTUAL-TAREAS] Error verificando permisos:`, error.message);
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-EXAMENES] Error verificando permisos:`, error.message);
       return res.status(403).json({ error: error.message || 'No tienes permisos para acceder a este recurso' });
     }
     
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
     // Verificar acceso del hijo a la asignatura
-    console.log(`📋 [HIJOS-AULA-VIRTUAL-TAREAS] Verificando acceso a asignatura: asignatura_id=${asignatura_id}, alumnoId=${alumnoId}, colegio_id=${colegio_id}, anio_activo=${anio_activo}`);
     const asignatura = await query(
-      `SELECT a.*, g.id as grupo_id
-       FROM asignaturas a
+      `SELECT a.* FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
@@ -5323,71 +5317,27 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
        LIMIT 1`,
       [asignatura_id, alumnoId, colegio_id, anio_activo]
     );
-    console.log(`📋 [HIJOS-AULA-VIRTUAL-TAREAS] Resultado verificación asignatura:`, asignatura.length > 0 ? '✅ Encontrada' : '❌ No encontrada');
 
     if (asignatura.length === 0) {
-      console.error(`❌ [HIJOS-AULA-VIRTUAL-TAREAS] El alumno no tiene acceso a esta asignatura`);
       return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
     }
 
-    // Obtener tareas (misma lógica que alumno)
-    const tareas = await query(
-      `SELECT t.*, 
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
-       FROM asignaturas_tareas t
-       INNER JOIN personal p ON p.id = t.trabajador_id
-       WHERE t.asignatura_id = ? AND t.ciclo = ?
-       ORDER BY t.id ASC`,
+    // Obtener exámenes (misma lógica que alumno)
+    const examenes = await query(
+      `SELECT ae.*, 
+              COUNT(DISTINCT ep.id) as total_preguntas
+       FROM asignaturas_examenes ae
+       LEFT JOIN asignaturas_examenes_preguntas ep ON ep.examen_id = ae.id
+       WHERE ae.asignatura_id = ? AND ae.ciclo = ?
+       GROUP BY ae.id
+       ORDER BY ae.id ASC`,
       [asignatura_id, cicloFiltro]
     );
 
-    // Construir URLs de archivos
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    const tareasConArchivos = await Promise.all(tareas.map(async (tarea) => {
-      const archivos = await query(
-        `SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`,
-        [tarea.id]
-      );
-
-      const archivosConUrls = archivos.map(archivo => {
-        let archivoUrl = null;
-        if (archivo.archivo && archivo.archivo !== '') {
-          if (archivo.archivo.startsWith('http')) {
-            archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl);
-          } else if (archivo.archivo.startsWith('/Static/')) {
-            const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
-            archivoUrl = isDevelopment
-              ? `http://localhost:5000/Static/Archivos/${nombreArchivo}`
-              : `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
-          } else {
-            archivoUrl = isDevelopment
-              ? `http://localhost:5000/Static/Archivos/${archivo.archivo}`
-              : `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
-          }
-        }
-        return {
-          ...archivo,
-          archivo_url: archivoUrl
-        };
-      });
-
-      let enlaceUrl = null;
-      if (tarea.enlace && tarea.enlace !== '') {
-        enlaceUrl = tarea.enlace.trim();
-      }
-
-      return {
-        ...tarea,
-        archivos: archivosConUrls,
-        enlace_url: enlaceUrl
-      };
-    }));
-
-    res.json({ tareas: tareasConArchivos || [] });
+    res.json({ examenes: examenes || [] });
   } catch (error) {
-    console.error('Error obteniendo tareas:', error);
-    res.status(500).json({ error: error.message || 'Error al obtener tareas' });
+    console.error('Error obteniendo exámenes:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener exámenes' });
   }
 });
 
