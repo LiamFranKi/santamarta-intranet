@@ -5283,6 +5283,142 @@ router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, r
   }
 });
 
+// Proxy para obtener detalles de una tarea específica (SOLO GET - solo lectura)
+// IMPORTANTE: Esta ruta debe estar ANTES de la ruta general /:asignaturaId
+router.get('/hijos/:hijoId/aula-virtual/tareas/:tareaId', soloLecturaProxy, async (req, res) => {
+  try {
+    console.log(`\n🔵 [HIJOS-AULA-VIRTUAL-TAREA-DETALLE] Nueva petición`);
+    console.log(`📋 Params:`, req.params);
+    console.log(`📋 User:`, { usuario_id: req.user?.usuario_id, tipo: req.user?.tipo, personal_id: req.user?.personal_id });
+    
+    const { hijoId, tareaId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+
+    // Verificar permisos y obtener datos del hijo
+    let alumnoId;
+    let alumnoUsuarioId;
+    try {
+      const resultado = await verificarHijoYUsuario(req, hijoId);
+      alumnoId = resultado.alumnoId;
+      alumnoUsuarioId = resultado.alumnoUsuarioId;
+      console.log(`✅ [HIJOS-AULA-VIRTUAL-TAREA-DETALLE] Permisos verificados, alumnoId: ${alumnoId}, usuarioId: ${alumnoUsuarioId}`);
+    } catch (error) {
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-TAREA-DETALLE] Error verificando permisos:`, error.message);
+      return res.status(403).json({ error: error.message || 'No tienes permisos para acceder a este recurso' });
+    }
+
+    // Verificar que el alumno tiene acceso a esta tarea
+    const tarea = await query(
+      `SELECT t.*, 
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
+              a.id as asignatura_id,
+              c.nombre as curso_nombre,
+              g.id as grupo_id
+       FROM asignaturas_tareas t
+       INNER JOIN personal p ON p.id = t.trabajador_id
+       INNER JOIN asignaturas a ON a.id = t.asignatura_id
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE t.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [tareaId, alumnoId, colegio_id, anio_activo]
+    );
+
+    if (tarea.length === 0) {
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-TAREA-DETALLE] Tarea no encontrada o sin acceso`);
+      return res.status(404).json({ error: 'Tarea no encontrada o sin acceso' });
+    }
+
+    const tareaData = tarea[0];
+
+    // Obtener archivos de la tarea
+    const archivos = await query(
+      `SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`,
+      [tareaId]
+    );
+
+    // Construir URLs de archivos
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const archivosConUrls = archivos.map(archivo => {
+      let archivoUrl = null;
+      if (archivo.archivo && archivo.archivo !== '') {
+        if (archivo.archivo.startsWith('http')) {
+          archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl);
+        } else if (archivo.archivo.startsWith('/Static/')) {
+          const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
+          archivoUrl = isDevelopment
+            ? `http://localhost:5000/Static/Archivos/${nombreArchivo}`
+            : `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
+        } else {
+          archivoUrl = isDevelopment
+            ? `http://localhost:5000/Static/Archivos/${archivo.archivo}`
+            : `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
+        }
+      }
+      return {
+        ...archivo,
+        archivo_url: archivoUrl
+      };
+    });
+
+    // Obtener entregas del alumno para esta tarea
+    const entregas = await query(
+      `SELECT * FROM asignaturas_tareas_entregas
+       WHERE tarea_id = ? AND alumno_id = ? AND tipo = 'ALUMNO'
+       ORDER BY fecha_hora DESC`,
+      [tareaId, alumnoId]
+    );
+
+    // Obtener nota del alumno para esta tarea
+    const nota = await query(
+      `SELECT nota FROM asignaturas_tareas_notas
+       WHERE tarea_id = ? AND matricula_id IN (
+         SELECT id FROM matriculas WHERE alumno_id = ? AND colegio_id = ? AND grupo_id = ?
+       )
+       LIMIT 1`,
+      [tareaId, alumnoId, colegio_id, tareaData.grupo_id]
+    );
+
+    // Deserializar campo "visto" (formato PHP serialized)
+    let vistos = [];
+    try {
+      if (tareaData.visto && tareaData.visto !== '') {
+        const phpSerialize = require('php-serialize');
+        const deserialized = phpSerialize.unserialize(tareaData.visto);
+        vistos = Array.isArray(deserialized) ? deserialized : [];
+      }
+    } catch (error) {
+      console.warn('Error deserializando campo visto:', error);
+      vistos = [];
+    }
+
+    const visto = vistos.includes(alumnoId) ? 'SI' : 'NO';
+
+    // Construir URL del enlace si existe
+    let enlaceUrl = null;
+    if (tareaData.enlace && tareaData.enlace !== '') {
+      enlaceUrl = tareaData.enlace.trim();
+    }
+
+    res.json({
+      tarea: {
+        ...tareaData,
+        archivos: archivosConUrls,
+        entregas: entregas || [],
+        nota: nota.length > 0 ? nota[0].nota : null,
+        visto: visto,
+        enlace_url: enlaceUrl
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo detalles de tarea:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener detalles de la tarea' });
+  }
+});
+
 // Proxy para obtener exámenes (SOLO GET - solo lectura)
 // IMPORTANTE: Esta ruta debe estar ANTES de la ruta general /:asignaturaId
 router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req, res) => {
