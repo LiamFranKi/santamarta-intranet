@@ -40,25 +40,19 @@ function DocenteHijoAulaVirtual() {
           config.url = config.url.replace('/alumno/mensajes', `/docente/hijos/${currentHijoId}/mensajes`);
         }
         // Modificar URLs de exámenes (para ver resultados)
-        if (config.url && config.url.startsWith('/alumno/examenes')) {
+        // Interceptar tanto /alumno/examenes como /alumno/examen (sin 's')
+        if (config.url && (config.url.startsWith('/alumno/examenes') || config.url.startsWith('/alumno/examen'))) {
           // Interceptar rutas de exámenes y redirigirlas a las rutas proxy
           // Ejemplo: /alumno/examenes/123/resultado -> /docente/hijos/799/aula-virtual/examenes/123/resultado
+          // Ejemplo: /alumno/examen/123/resultado -> /docente/hijos/799/aula-virtual/examenes/123/resultado
           if (config.url.includes('/resultado')) {
-            // Extraer el examenId de la URL
-            const match = config.url.match(/\/alumno\/examenes\/(\d+)\/resultado/);
+            // Extraer el examenId de la URL (puede ser /examenes o /examen)
+            const match = config.url.match(/\/alumno\/examen(es)?\/(\d+)\/resultado/);
             if (match) {
-              const examenId = match[1];
+              const examenId = match[2]; // El examenId está en el segundo grupo capturado
               // Si incluye /detalles, usar la ruta de detalles
               if (config.url.includes('/detalles')) {
-                // Extraer resultadoId de la URL si está presente, o usar el resultado del examen
-                const detallesMatch = config.url.match(/\/alumno\/examenes\/(\d+)\/resultado\/detalles/);
-                if (detallesMatch) {
-                  // Primero obtener el resultadoId llamando a /resultado
-                  // Pero como esto es asíncrono, mejor interceptar directamente
-                  // La ruta de detalles necesita el resultadoId, así que primero debemos obtenerlo
-                  // Por ahora, interceptamos la ruta y el backend manejará obtener el resultadoId
-                  config.url = `/docente/hijos/${currentHijoId}/aula-virtual/examenes/${examenId}/resultado/detalles`;
-                }
+                config.url = `/docente/hijos/${currentHijoId}/aula-virtual/examenes/${examenId}/resultado/detalles`;
               } else {
                 config.url = `/docente/hijos/${currentHijoId}/aula-virtual/examenes/${examenId}/resultado`;
               }
