@@ -5341,64 +5341,8 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
   }
 });
 
-// Proxy para obtener exámenes (SOLO GET - solo lectura)
-router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req, res) => {
-  try {
-    console.log(`\n🔵 [HIJOS-AULA-VIRTUAL-EXAMENES] Nueva petición`);
-    const { hijoId } = req.params;
-    const { colegio_id, anio_activo } = req.user;
-    const { asignatura_id, ciclo } = req.query;
-
-    if (!asignatura_id) {
-      return res.status(400).json({ error: 'asignatura_id es requerido' });
-    }
-
-    let alumnoId;
-    try {
-      const resultado = await verificarHijoYUsuario(req, hijoId);
-      alumnoId = resultado.alumnoId;
-    } catch (error) {
-      console.error(`❌ [HIJOS-AULA-VIRTUAL-EXAMENES] Error verificando permisos:`, error.message);
-      return res.status(403).json({ error: error.message || 'No tienes permisos para acceder a este recurso' });
-    }
-    
-    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
-
-    // Verificar acceso del hijo a la asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN matriculas m ON m.grupo_id = g.id
-       WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
-       LIMIT 1`,
-      [asignatura_id, alumnoId, colegio_id, anio_activo]
-    );
-
-    if (asignatura.length === 0) {
-      return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
-    }
-
-    // Obtener exámenes (misma lógica que alumno)
-    const examenes = await query(
-      `SELECT ae.*, 
-              COUNT(DISTINCT ep.id) as total_preguntas
-       FROM asignaturas_examenes ae
-       LEFT JOIN asignaturas_examenes_preguntas ep ON ep.examen_id = ae.id
-       WHERE ae.asignatura_id = ? AND ae.ciclo = ?
-       GROUP BY ae.id
-       ORDER BY ae.id ASC`,
-      [asignatura_id, cicloFiltro]
-    );
-
-    res.json({ examenes: examenes || [] });
-  } catch (error) {
-    console.error('Error obteniendo exámenes:', error);
-    res.status(500).json({ error: error.message || 'Error al obtener exámenes' });
-  }
-});
-
 // Proxy para obtener archivos (SOLO GET - solo lectura)
+// IMPORTANTE: Esta ruta debe estar ANTES de la ruta general /:asignaturaId
 router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req, res) => {
   try {
     const { hijoId } = req.params;
