@@ -10,7 +10,7 @@ const CACHE_NAME = `vanguard-intranet-${CACHE_VERSION}`;
 // Archivos críticos para cache inicial (estos se cachean en la instalación)
 const urlsToCache = [
   '/',
-  '/manifest/manifest.json'
+  '/manifest.json'
 ];
 
 // Instalación del Service Worker
