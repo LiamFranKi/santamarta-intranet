@@ -37,7 +37,8 @@ function DocenteHijoAulaVirtual() {
   }, [hijoId]);
 
   // Usar asignaturaId como cursoId para AlumnoAulaVirtual
-  return <AlumnoAulaVirtual cursoId={asignaturaId} />;
+  // Pasar isApoderado=true para deshabilitar acciones (solo lectura)
+  return <AlumnoAulaVirtual cursoId={asignaturaId} isApoderado={true} />;
 }
 
 export default DocenteHijoAulaVirtual;

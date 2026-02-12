@@ -5171,8 +5171,21 @@ router.get('/hijos/:hijoId/aula-virtual/:asignaturaId', async (req, res) => {
  * Estas rutas actúan como proxy, verificando permisos y luego delegando a la lógica del alumno
  */
 
-// Proxy para obtener tareas
-router.get('/hijos/:hijoId/aula-virtual/tareas', async (req, res) => {
+/**
+ * Middleware para verificar que las rutas proxy solo permitan GET (solo lectura)
+ * Rechaza POST, PUT, DELETE para docentes/apoderados
+ */
+const soloLecturaProxy = (req, res, next) => {
+  if (req.method !== 'GET') {
+    return res.status(403).json({ 
+      error: 'Solo lectura permitida. Los apoderados y docentes solo pueden ver el contenido, no realizar acciones.' 
+    });
+  }
+  next();
+};
+
+// Proxy para obtener tareas (SOLO GET - solo lectura)
+router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, res) => {
   try {
     const { hijoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
@@ -5262,8 +5275,8 @@ router.get('/hijos/:hijoId/aula-virtual/tareas', async (req, res) => {
   }
 });
 
-// Proxy para obtener exámenes
-router.get('/hijos/:hijoId/aula-virtual/examenes', async (req, res) => {
+// Proxy para obtener exámenes (SOLO GET - solo lectura)
+router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req, res) => {
   try {
     const { hijoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
@@ -5310,8 +5323,8 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', async (req, res) => {
   }
 });
 
-// Proxy para obtener archivos
-router.get('/hijos/:hijoId/aula-virtual/archivos', async (req, res) => {
+// Proxy para obtener archivos (SOLO GET - solo lectura)
+router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req, res) => {
   try {
     const { hijoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
@@ -5379,8 +5392,8 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', async (req, res) => {
   }
 });
 
-// Proxy para obtener videos
-router.get('/hijos/:hijoId/aula-virtual/videos', async (req, res) => {
+// Proxy para obtener videos (SOLO GET - solo lectura)
+router.get('/hijos/:hijos/:hijoId/aula-virtual/videos', soloLecturaProxy, async (req, res) => {
   try {
     const { hijoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
@@ -5423,8 +5436,8 @@ router.get('/hijos/:hijoId/aula-virtual/videos', async (req, res) => {
   }
 });
 
-// Proxy para obtener enlaces
-router.get('/hijos/:hijoId/aula-virtual/enlaces', async (req, res) => {
+// Proxy para obtener enlaces (SOLO GET - solo lectura)
+router.get('/hijos/:hijoId/aula-virtual/enlaces', soloLecturaProxy, async (req, res) => {
   try {
     const { hijoId } = req.params;
     const { colegio_id, anio_activo } = req.user;

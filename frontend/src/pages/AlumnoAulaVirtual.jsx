@@ -6,12 +6,15 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import './DocenteAulaVirtual-gamificado.css';
 
-function AlumnoAulaVirtual({ cursoId: cursoIdProp }) {
+function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false }) {
   const { cursoId: cursoIdParam } = useParams(); // asignatura_id
   const navigate = useNavigate();
   // Usar prop si está disponible, sino usar parámetro de la URL
   const cursoId = cursoIdProp || cursoIdParam;
   const asignaturaId = parseInt(cursoId);
+  
+  // Si es apoderado/docente viendo aula virtual del hijo, solo lectura
+  const modoSoloLectura = isApoderado;
   
   const [loading, setLoading] = useState(true);
   const [curso, setCurso] = useState(null);
@@ -44,11 +47,13 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp }) {
       setTareaDetalle(response.data.tarea);
       setMostrarModalTarea(true);
       
-      // Marcar como visto
-      try {
-        await api.post(`/alumno/aula-virtual/tareas/${tareaId}/marcar-visto`);
-      } catch (error) {
-        console.warn('Error marcando como visto:', error);
+      // Marcar como visto (solo si NO es modo solo lectura)
+      if (!modoSoloLectura) {
+        try {
+          await api.post(`/alumno/aula-virtual/tareas/${tareaId}/marcar-visto`);
+        } catch (error) {
+          console.warn('Error marcando como visto:', error);
+        }
       }
     } catch (error) {
       console.error('Error cargando detalles de tarea:', error);
@@ -69,6 +74,16 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp }) {
   const handleEnviarEntrega = async (e) => {
     e.preventDefault();
     
+    // Si es modo solo lectura, no permitir entregar
+    if (modoSoloLectura) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Solo lectura',
+        text: 'Como apoderado, solo puedes ver el contenido. El alumno debe entregar las tareas desde su cuenta.'
+      });
+      return;
+    }
+
     if (!urlEntrega.trim()) {
       Swal.fire({
         icon: 'warning',
@@ -455,6 +470,8 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp }) {
                       {puedeIniciar ? (
                         <button
                           onClick={() => handleIniciarExamen(examen)}
+                          disabled={modoSoloLectura}
+                          style={modoSoloLectura ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
                           style={{
                             padding: '0.5rem 1.25rem',
                             background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
@@ -1047,7 +1064,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp }) {
             </div>
             
             {/* Formulario para enviar trabajo */}
-            {tareaDetalle.fecha_entrega && new Date(tareaDetalle.fecha_entrega) >= new Date(new Date().setHours(0, 0, 0, 0)) && (
+            {tareaDetalle.fecha_entrega && new Date(tareaDetalle.fecha_entrega) >= new Date(new Date().setHours(0, 0, 0, 0)) && !modoSoloLectura && (
               <div style={{
                 marginTop: '2rem',
                 padding: '1.5rem',
