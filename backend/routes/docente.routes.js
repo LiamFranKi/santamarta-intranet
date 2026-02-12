@@ -4921,6 +4921,553 @@ router.get('/hijos/:hijoId/estrellas', async (req, res) => {
 });
 
 /**
+ * Helper: Verificar que el docente tiene permisos sobre el hijo y obtener usuario_id del hijo
+ */
+async function verificarHijoYUsuario(req, hijoId) {
+  const { colegio_id, usuario_id, personal_id } = req.user;
+  
+  if (!hijoId || isNaN(parseInt(hijoId))) {
+    throw new Error('ID de alumno inválido');
+  }
+
+  const hijoIdNum = parseInt(hijoId);
+
+  if (!personal_id) {
+    throw new Error('Información de usuario incompleta. No se encontró personal_id.');
+  }
+
+  // Obtener nro_documento del personal
+  let nroDocumento = null;
+  const personalData = await query(
+    `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+    [personal_id, colegio_id]
+  );
+
+  if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+    nroDocumento = personalData[0].nro_documento;
+  } else {
+    const usuarioData = await query(
+      `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+      [usuario_id, colegio_id, personal_id]
+    );
+    if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
+      nroDocumento = usuarioData[0].usuario;
+    }
+  }
+
+  if (!nroDocumento) {
+    throw new Error('No se encontró tu número de documento. Contacta al administrador.');
+  }
+
+  // Verificar que el alumno es hijo del docente
+  const esHijo = await query(
+    `SELECT COUNT(*) as count
+     FROM apoderados ap
+     INNER JOIN familias f ON f.apoderado_id = ap.id
+     INNER JOIN alumnos a ON a.id = f.alumno_id
+     WHERE ap.colegio_id = ?
+       AND ap.nro_documento = ?
+       AND a.id = ?
+       AND a.colegio_id = ?`,
+    [colegio_id, nroDocumento, hijoIdNum, colegio_id]
+  );
+
+  if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+    throw new Error('No tienes permisos. El alumno no está registrado como tu hijo.');
+  }
+
+  // Obtener usuario_id del hijo
+  const usuarioHijo = await query(
+    `SELECT u.id as usuario_id, a.id as alumno_id
+     FROM alumnos a
+     INNER JOIN usuarios u ON u.alumno_id = a.id AND u.estado = 'ACTIVO'
+     WHERE a.id = ? AND a.colegio_id = ?`,
+    [hijoIdNum, colegio_id]
+  );
+
+  if (!usuarioHijo || usuarioHijo.length === 0) {
+    throw new Error('El alumno no tiene un usuario activo.');
+  }
+
+  return {
+    hijoId: hijoIdNum,
+    usuarioIdHijo: usuarioHijo[0].usuario_id,
+    alumnoId: usuarioHijo[0].alumno_id
+  };
+}
+
+/**
+ * POST /api/docente/hijos/:hijoId/mensajes/enviar
+ * Enviar mensaje en nombre del hijo
+ */
+router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { destinatarios, asunto, mensaje } = req.body;
+
+    // Verificar permisos y obtener usuario_id del hijo
+    const { usuarioIdHijo } = await verificarHijoYUsuario(req, hijoId);
+
+    const destinatariosArray = typeof destinatarios === 'string' ? JSON.parse(destinatarios) : destinatarios;
+
+    if (!destinatariosArray || destinatariosArray.length === 0) {
+      return res.status(400).json({ error: 'Debe seleccionar al menos un destinatario' });
+    }
+
+    if (!asunto || !mensaje) {
+      return res.status(400).json({ error: 'Asunto y mensaje son requeridos' });
+    }
+
+    // Responder inmediatamente
+    res.json({
+      success: true,
+      message: 'Mensaje Enviado',
+      procesando: false
+    });
+
+    // Procesar en segundo plano usando el usuario_id del hijo como remitente
+    setImmediate(async () => {
+      try {
+        const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        let mensajesInsertados = 0;
+        const mensajesIds = [];
+
+        for (const destinatarioId of destinatariosArray) {
+          try {
+            // Mensaje para el remitente (tipo ENVIADO) - usando usuario_id del hijo
+            const resultEnviado = await execute(
+              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
+               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO')`,
+              [usuarioIdHijo, destinatarioId, asunto, mensaje, fechaHora]
+            );
+
+            // Mensaje para el destinatario (tipo RECIBIDO) - usando usuario_id del hijo
+            const resultRecibido = await execute(
+              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
+               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO')`,
+              [usuarioIdHijo, destinatarioId, asunto, mensaje, fechaHora]
+            );
+
+            mensajesIds.push(resultEnviado.insertId, resultRecibido.insertId);
+            mensajesInsertados += 2;
+          } catch (error) {
+            console.error(`Error insertando mensaje para destinatario ${destinatarioId}:`, error);
+          }
+        }
+
+        // Guardar archivos adjuntos si existen
+        if (req.files && req.files.length > 0) {
+          for (const file of req.files) {
+            try {
+              for (const mensajeId of mensajesIds) {
+                await execute(
+                  `INSERT INTO mensajes_archivos (mensaje_id, nombre_archivo, archivo)
+                   VALUES (?, ?, ?)`,
+                  [mensajeId, file.originalname, file.filename]
+                );
+              }
+            } catch (error) {
+              console.error(`Error guardando archivo ${file.originalname}:`, error);
+            }
+          }
+        }
+
+        console.log('✅ Mensaje enviado exitosamente en nombre del hijo');
+      } catch (bgError) {
+        console.error('Error en procesamiento en segundo plano:', bgError);
+      }
+    });
+  } catch (error) {
+    console.error('Error enviando mensaje:', error);
+    res.status(500).json({ error: error.message || 'Error al enviar mensaje' });
+  }
+});
+
+/**
+ * POST /api/docente/hijos/:hijoId/mensajes/subir-imagen
+ * Subir imagen desde el editor de texto enriquecido (en nombre del hijo)
+ */
+router.post('/hijos/:hijoId/mensajes/subir-imagen', uploadMensajes.single('imagen'), async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    
+    // Verificar permisos
+    await verificarHijoYUsuario(req, hijoId);
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
+    }
+
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    let imagenUrl;
+    if (isProduction) {
+      imagenUrl = `${phpSystemUrl}/Static/Archivos/${req.file.filename}`;
+    } else {
+      imagenUrl = `http://localhost:5000/Static/Archivos/${req.file.filename}`;
+    }
+    
+    res.json({ url: imagenUrl });
+  } catch (error) {
+    console.error('Error subiendo imagen:', error);
+    res.status(500).json({ error: error.message || 'Error al subir la imagen' });
+  }
+});
+
+/**
+ * GET /api/docente/hijos/:hijoId/aula-virtual/:asignaturaId
+ * Obtener datos del aula virtual de una asignatura (en nombre del hijo)
+ */
+router.get('/hijos/:hijoId/aula-virtual/:asignaturaId', async (req, res) => {
+  try {
+    const { hijoId, asignaturaId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+
+    // Verificar permisos y obtener datos del hijo
+    const { alumnoId } = await verificarHijoYUsuario(req, hijoId);
+
+    // Verificar que el hijo tiene acceso a esta asignatura
+    const asignatura = await query(
+      `SELECT a.*, g.id as grupo_id, c.nombre as curso_nombre,
+              g.grado, g.seccion, n.nombre as nivel_nombre
+       FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [asignaturaId, alumnoId, colegio_id, anio_activo]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
+    }
+
+    const asignaturaData = asignatura[0];
+
+    res.json({
+      asignatura: {
+        id: asignaturaData.id,
+        curso_nombre: asignaturaData.curso_nombre,
+        grado: asignaturaData.grado,
+        seccion: asignaturaData.seccion,
+        nivel_nombre: asignaturaData.nivel_nombre,
+        aula_virtual: asignaturaData.aula_virtual || '',
+        habilitar_aula: asignaturaData.habilitar_aula || 'NO'
+      },
+      alumno_id: alumnoId
+    });
+  } catch (error) {
+    console.error('Error obteniendo aula virtual:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener aula virtual' });
+  }
+});
+
+/**
+ * Rutas proxy para aula virtual del hijo - todas requieren verificación de permisos
+ * Estas rutas actúan como proxy, verificando permisos y luego delegando a la lógica del alumno
+ */
+
+// Proxy para obtener tareas
+router.get('/hijos/:hijoId/aula-virtual/tareas', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    const { alumnoId } = await verificarHijoYUsuario(req, hijoId);
+    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
+
+    // Verificar acceso del hijo a la asignatura
+    const asignatura = await query(
+      `SELECT a.*, g.id as grupo_id
+       FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [asignatura_id, alumnoId, colegio_id, anio_activo]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
+    }
+
+    // Obtener tareas (misma lógica que alumno)
+    const tareas = await query(
+      `SELECT t.*, 
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+       FROM asignaturas_tareas t
+       INNER JOIN personal p ON p.id = t.trabajador_id
+       WHERE t.asignatura_id = ? AND t.ciclo = ?
+       ORDER BY t.id ASC`,
+      [asignatura_id, cicloFiltro]
+    );
+
+    // Construir URLs de archivos
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const tareasConArchivos = await Promise.all(tareas.map(async (tarea) => {
+      const archivos = await query(
+        `SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`,
+        [tarea.id]
+      );
+
+      const archivosConUrls = archivos.map(archivo => {
+        let archivoUrl = null;
+        if (archivo.archivo && archivo.archivo !== '') {
+          if (archivo.archivo.startsWith('http')) {
+            archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl);
+          } else if (archivo.archivo.startsWith('/Static/')) {
+            const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
+            archivoUrl = isDevelopment
+              ? `http://localhost:5000/Static/Archivos/${nombreArchivo}`
+              : `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
+          } else {
+            archivoUrl = isDevelopment
+              ? `http://localhost:5000/Static/Archivos/${archivo.archivo}`
+              : `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
+          }
+        }
+        return {
+          ...archivo,
+          archivo_url: archivoUrl
+        };
+      });
+
+      let enlaceUrl = null;
+      if (tarea.enlace && tarea.enlace !== '') {
+        enlaceUrl = tarea.enlace.trim();
+      }
+
+      return {
+        ...tarea,
+        archivos: archivosConUrls,
+        enlace_url: enlaceUrl
+      };
+    }));
+
+    res.json({ tareas: tareasConArchivos || [] });
+  } catch (error) {
+    console.error('Error obteniendo tareas:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener tareas' });
+  }
+});
+
+// Proxy para obtener exámenes
+router.get('/hijos/:hijoId/aula-virtual/examenes', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    const { alumnoId } = await verificarHijoYUsuario(req, hijoId);
+    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
+
+    // Verificar acceso del hijo a la asignatura
+    const asignatura = await query(
+      `SELECT a.* FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [asignatura_id, alumnoId, colegio_id, anio_activo]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
+    }
+
+    // Obtener exámenes (misma lógica que alumno)
+    const examenes = await query(
+      `SELECT ae.*, 
+              COUNT(DISTINCT ep.id) as total_preguntas
+       FROM asignaturas_examenes ae
+       LEFT JOIN asignaturas_examenes_preguntas ep ON ep.examen_id = ae.id
+       WHERE ae.asignatura_id = ? AND ae.ciclo = ?
+       GROUP BY ae.id
+       ORDER BY ae.id ASC`,
+      [asignatura_id, cicloFiltro]
+    );
+
+    res.json({ examenes: examenes || [] });
+  } catch (error) {
+    console.error('Error obteniendo exámenes:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener exámenes' });
+  }
+});
+
+// Proxy para obtener archivos
+router.get('/hijos/:hijoId/aula-virtual/archivos', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    const { alumnoId } = await verificarHijoYUsuario(req, hijoId);
+    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
+
+    // Verificar acceso del hijo a la asignatura
+    const asignatura = await query(
+      `SELECT a.* FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [asignatura_id, alumnoId, colegio_id, anio_activo]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
+    }
+
+    // Obtener archivos (misma lógica que alumno)
+    const archivos = await query(
+      `SELECT * FROM asignaturas_archivos
+       WHERE asignatura_id = ? AND ciclo = ?
+       ORDER BY id ASC`,
+      [asignatura_id, cicloFiltro]
+    );
+
+    // Construir URLs
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const archivosConUrls = archivos.map(archivo => {
+      let archivoUrl = null;
+      if (archivo.archivo && archivo.archivo !== '') {
+        if (archivo.archivo.startsWith('http')) {
+          archivoUrl = archivo.archivo;
+        } else if (archivo.archivo.startsWith('/Static/')) {
+          const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
+          archivoUrl = isDevelopment
+            ? `http://localhost:5000/Static/Archivos/${nombreArchivo}`
+            : `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
+        } else {
+          archivoUrl = isDevelopment
+            ? `http://localhost:5000/Static/Archivos/${archivo.archivo}`
+            : `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
+        }
+      }
+      return {
+        ...archivo,
+        archivo_url: archivoUrl
+      };
+    });
+
+    res.json({ archivos: archivosConUrls || [] });
+  } catch (error) {
+    console.error('Error obteniendo archivos:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener archivos' });
+  }
+});
+
+// Proxy para obtener videos
+router.get('/hijos/:hijoId/aula-virtual/videos', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    const { alumnoId } = await verificarHijoYUsuario(req, hijoId);
+    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
+
+    // Verificar acceso del hijo a la asignatura
+    const asignatura = await query(
+      `SELECT a.* FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [asignatura_id, alumnoId, colegio_id, anio_activo]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
+    }
+
+    // Obtener videos
+    const videos = await query(
+      `SELECT * FROM asignaturas_videos
+       WHERE asignatura_id = ? AND ciclo = ?
+       ORDER BY id ASC`,
+      [asignatura_id, cicloFiltro]
+    );
+
+    res.json({ videos: videos || [] });
+  } catch (error) {
+    console.error('Error obteniendo videos:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener videos' });
+  }
+});
+
+// Proxy para obtener enlaces
+router.get('/hijos/:hijoId/aula-virtual/enlaces', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    const { alumnoId } = await verificarHijoYUsuario(req, hijoId);
+    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
+
+    // Verificar acceso del hijo a la asignatura
+    const asignatura = await query(
+      `SELECT a.* FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [asignatura_id, alumnoId, colegio_id, anio_activo]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
+    }
+
+    // Obtener enlaces
+    const enlaces = await query(
+      `SELECT * FROM asignaturas_enlaces
+       WHERE asignatura_id = ? AND ciclo = ?
+       ORDER BY id ASC`,
+      [asignatura_id, cicloFiltro]
+    );
+
+    res.json({ enlaces: enlaces || [] });
+  } catch (error) {
+    console.error('Error obteniendo enlaces:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener enlaces' });
+  }
+});
+
+/**
  * GET /api/docente/hijos/:hijoId/cursos
  * Obtener cursos asignados del hijo
  */

@@ -26,6 +26,7 @@ import AlumnoPerfil from './pages/AlumnoPerfil';
 import AlumnoQR from './pages/AlumnoQR';
 import AlumnoAvatar from './pages/AlumnoAvatar';
 import AlumnoAulaVirtual from './pages/AlumnoAulaVirtual';
+import DocenteHijoAulaVirtual from './pages/DocenteHijoAulaVirtual';
 import AlumnoComunicados from './pages/AlumnoComunicados';
 import AlumnoActividades from './pages/AlumnoActividades';
 import AlumnoMensajes from './pages/AlumnoMensajes';
@@ -255,6 +256,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <AlumnoAulaVirtual />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/hijos/:hijoId/aula-virtual/:asignaturaId"
+        element={
+          <PrivateRoute>
+            <DocenteHijoAulaVirtual />
           </PrivateRoute>
         }
       />

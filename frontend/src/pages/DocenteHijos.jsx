@@ -440,7 +440,17 @@ function DocenteHijos() {
   };
 
   const handleAulaVirtual = (curso) => {
-    navigate(`/alumno/aula-virtual/${curso.asignatura_id}`);
+    if (hijoSeleccionado) {
+      // Navegar a una ruta especial para docentes como apoderados
+      navigate(`/docente/hijos/${hijoSeleccionado.id}/aula-virtual/${curso.asignatura_id}`);
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se ha seleccionado un hijo',
+        confirmButtonText: 'Entendido'
+      });
+    }
   };
 
   const handleEnviarMensaje = (curso) => {
@@ -499,7 +509,8 @@ function DocenteHijos() {
         formData.append('archivos', archivo);
       });
 
-      const response = await api.post('/alumno/mensajes/enviar', formData, {
+      // Usar ruta proxy para docentes como apoderados
+      const response = await api.post(`/docente/hijos/${hijoSeleccionado.id}/mensajes/enviar`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -545,7 +556,8 @@ function DocenteHijos() {
             const formData = new FormData();
             formData.append('imagen', file);
             
-            const response = await api.post('/alumno/mensajes/subir-imagen', formData, {
+            // Usar ruta proxy para docentes como apoderados
+            const response = await api.post(`/docente/hijos/${hijoSeleccionado.id}/mensajes/subir-imagen`, formData, {
               headers: {
                 'Content-Type': 'multipart/form-data',
               },
