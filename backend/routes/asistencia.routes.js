@@ -272,9 +272,9 @@ router.post('/registrar', async (req, res) => {
             );
             
             if (matricula.length > 0) {
-              // Obtener hora de entrada configurada del nivel
+              // Obtener hora de entrada y tolerancia configuradas del nivel
               const nivel = await query(
-                `SELECT hora_entrada FROM niveles WHERE id = ? AND colegio_id = ?`,
+                `SELECT hora_entrada, tolerancia_minutos FROM niveles WHERE id = ? AND colegio_id = ?`,
                 [matricula[0].nivel_id, colegio_id]
               );
               
@@ -282,15 +282,20 @@ router.post('/registrar', async (req, res) => {
                 ? nivel[0].hora_entrada 
                 : '08:00:00'; // Hora por defecto
               
+              // Tolerancia en minutos (por defecto 5 minutos si no está configurada)
+              const toleranciaMinutos = nivel.length > 0 && nivel[0].tolerancia_minutos !== null
+                ? nivel[0].tolerancia_minutos
+                : 5; // Tolerancia por defecto: 5 minutos
+              
               // Comparar hora actual con hora configurada
               const horaActualMoment = moment(horaActual, 'HH:mm:ss');
               const horaConfiguradaMoment = moment(horaEntradaConfigurada, 'HH:mm:ss');
               const minutosDiferencia = horaActualMoment.diff(horaConfiguradaMoment, 'minutes');
               
-              // Determinar tipo: PRESENTE si llega antes o hasta 5 minutos después, TARDANZA si llega después
-              tipoAsistenciaParaNotificacion = minutosDiferencia <= 5 ? 'PRESENTE' : 'TARDANZA';
+              // Determinar tipo: PRESENTE si llega antes o hasta la tolerancia configurada, TARDANZA si llega después
+              tipoAsistenciaParaNotificacion = minutosDiferencia <= toleranciaMinutos ? 'PRESENTE' : 'TARDANZA';
               
-              console.log(`📋 [ASISTENCIA] Alumno - Hora configurada: ${horaEntradaConfigurada}, Hora real: ${horaActual}, Diferencia: ${minutosDiferencia} min, Tipo: ${tipoAsistenciaParaNotificacion}`);
+              console.log(`📋 [ASISTENCIA] Alumno - Hora configurada: ${horaEntradaConfigurada}, Tolerancia: ${toleranciaMinutos} min, Hora real: ${horaActual}, Diferencia: ${minutosDiferencia} min, Tipo: ${tipoAsistenciaParaNotificacion}`);
               
               // Crear o actualizar registro en matriculas_asistencias
               const asistenciaExistente = await query(

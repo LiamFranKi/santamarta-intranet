@@ -1,31 +1,36 @@
 -- ============================================================
 -- SQL PARA EJECUTAR MANUALMENTE EN phpMyAdmin
--- Configuración de Asistencia: Agregar hora_entrada a niveles
+-- Configuración de Asistencia: Agregar hora_entrada y tolerancia a niveles
+-- Agregar campos faltantes a matriculas_asistencias
 -- ============================================================
 
--- PASO 1: Agregar campo hora_entrada a niveles
+-- PASO 1: Agregar campo hora_entrada a niveles (si no existe)
 ALTER TABLE `niveles` 
 ADD COLUMN `hora_entrada` time DEFAULT '08:00:00' COMMENT 'Hora de entrada para este nivel';
 
--- PASO 2: Crear tabla matriculas_asistencias si no existe
-CREATE TABLE IF NOT EXISTS `matriculas_asistencias` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `matricula_id` int(11) NOT NULL COMMENT 'ID de la matrícula del alumno',
-  `fecha` date NOT NULL COMMENT 'Fecha de la asistencia',
-  `tipo` enum('PRESENTE','TARDANZA','TARDANZA_JUSTIFICADA','FALTA','FALTA_JUSTIFICADA') NOT NULL DEFAULT 'PRESENTE',
-  `hora_entrada` time DEFAULT NULL COMMENT 'Hora de entrada registrada',
-  `hora_salida` time DEFAULT NULL COMMENT 'Hora de salida registrada',
-  `observaciones` text DEFAULT NULL COMMENT 'Observaciones adicionales',
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `idx_matricula_fecha` (`matricula_id`, `fecha`),
-  KEY `idx_fecha` (`fecha`),
-  KEY `idx_matricula` (`matricula_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Asistencia global de alumnos (no por asignatura)';
+-- PASO 2: Agregar campo tolerancia a niveles (si no existe)
+-- Tolerancia en minutos: cuántos minutos después de la hora de entrada se considera PRESENTE
+ALTER TABLE `niveles` 
+ADD COLUMN `tolerancia_minutos` int(11) DEFAULT 5 COMMENT 'Tolerancia en minutos para considerar PRESENTE (por defecto 5 minutos)';
 
--- PASO 3: Configurar horas de entrada por nivel (AJUSTAR SEGÚN TU COLEGIO)
--- Ejemplo: PRIMARIA entra a las 07:20, INICIAL a las 08:00
--- UPDATE `niveles` SET `hora_entrada` = '07:20:00' WHERE `nombre` LIKE '%PRIMARIA%' OR `abreviatura` = 'PRIM';
--- UPDATE `niveles` SET `hora_entrada` = '08:00:00' WHERE `nombre` LIKE '%INICIAL%' OR `abreviatura` = 'INIC';
--- UPDATE `niveles` SET `hora_entrada` = '07:30:00' WHERE `nombre` LIKE '%SECUNDARIA%' OR `abreviatura` = 'SEC';
+-- PASO 3: Agregar campos faltantes a matriculas_asistencias (si no existen)
+-- Verificar si los campos ya existen antes de agregarlos
+ALTER TABLE `matriculas_asistencias` 
+ADD COLUMN `hora_entrada` time DEFAULT NULL COMMENT 'Hora de entrada registrada';
+
+ALTER TABLE `matriculas_asistencias` 
+ADD COLUMN `hora_salida` time DEFAULT NULL COMMENT 'Hora de salida registrada';
+
+ALTER TABLE `matriculas_asistencias` 
+ADD COLUMN `observaciones` text DEFAULT NULL COMMENT 'Observaciones adicionales';
+
+-- PASO 4: Configurar horas de entrada y tolerancia por nivel (AJUSTAR SEGÚN TU COLEGIO)
+-- Ejemplo: PRIMARIA entra a las 07:20 con 5 minutos de tolerancia
+-- UPDATE `niveles` SET `hora_entrada` = '07:20:00', `tolerancia_minutos` = 5 WHERE `nombre` LIKE '%PRIMARIA%' OR `abreviatura` = 'PRIM';
+-- 
+-- Ejemplo: INICIAL entra a las 08:00 con 5 minutos de tolerancia
+-- UPDATE `niveles` SET `hora_entrada` = '08:00:00', `tolerancia_minutos` = 5 WHERE `nombre` LIKE '%INICIAL%' OR `abreviatura` = 'INIC';
+-- 
+-- Ejemplo: SECUNDARIA entra a las 07:30 con 10 minutos de tolerancia
+-- UPDATE `niveles` SET `hora_entrada` = '07:30:00', `tolerancia_minutos` = 10 WHERE `nombre` LIKE '%SECUNDARIA%' OR `abreviatura` = 'SEC';
 
