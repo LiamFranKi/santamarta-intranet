@@ -377,14 +377,31 @@ const uploadMensajes = multer({
 router.use(authenticateToken);
 // Permitir DOCENTE y ADMINISTRADOR en todas las rutas
 router.use((req, res, next) => {
+  // Log para debugging - solo en rutas de hijos/aula-virtual
+  if (req.path.includes('/hijos/') && req.path.includes('/aula-virtual')) {
+    console.log(`🔵 [MIDDLEWARE-GLOBAL] Verificando acceso para: ${req.method} ${req.path}`);
+    console.log(`📋 [MIDDLEWARE-GLOBAL] User:`, { tipo: req.user?.tipo, usuario_id: req.user?.usuario_id, personal_id: req.user?.personal_id });
+  }
+  
   if (!req.user) {
+    if (req.path.includes('/hijos/') && req.path.includes('/aula-virtual')) {
+      console.error(`❌ [MIDDLEWARE-GLOBAL] Usuario no autenticado`);
+    }
     return res.status(401).json({ error: 'Usuario no autenticado' });
   }
   if (req.user.tipo !== 'DOCENTE' && req.user.tipo !== 'ADMINISTRADOR') {
+    if (req.path.includes('/hijos/') && req.path.includes('/aula-virtual')) {
+      console.error(`❌ [MIDDLEWARE-GLOBAL] Tipo de usuario no permitido: ${req.user.tipo}`);
+    }
     return res.status(403).json({ 
       error: 'No tienes permisos para acceder a este recurso' 
     });
   }
+  
+  if (req.path.includes('/hijos/') && req.path.includes('/aula-virtual')) {
+    console.log(`✅ [MIDDLEWARE-GLOBAL] Acceso permitido, continuando...`);
+  }
+  
   next();
 });
 
