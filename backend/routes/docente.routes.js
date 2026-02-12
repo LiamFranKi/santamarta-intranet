@@ -6719,6 +6719,481 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/hijos/:hijoId/libreta
+ * Obtener datos de la libreta del hijo (promedios por bimestre de todas las asignaturas)
+ */
+router.get('/hijos/:hijoId/libreta', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, usuario_id, personal_id, anio_activo } = req.user;
+
+    console.log(`\n🔵 ========== [HIJOS-LIBRETA] NUEVA PETICIÓN ==========`);
+    console.log(`📋 [HIJOS-LIBRETA] hijoId recibido: ${hijoId}`);
+
+    // Validar que hijoId sea un número válido
+    if (!hijoId || isNaN(parseInt(hijoId))) {
+      return res.status(400).json({ error: 'ID de alumno inválido' });
+    }
+
+    const hijoIdNum = parseInt(hijoId);
+
+    if (!personal_id) {
+      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
+    }
+
+    // Obtener nro_documento del personal
+    let nroDocumento = null;
+    const personalData = await query(
+      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [personal_id, colegio_id]
+    );
+
+    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+      nroDocumento = personalData[0].nro_documento;
+    } else {
+      const usuarioData = await query(
+        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+        [usuario_id, colegio_id, personal_id]
+      );
+      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
+        nroDocumento = usuarioData[0].usuario;
+      }
+    }
+
+    if (!nroDocumento) {
+      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
+    }
+
+    // Verificar que el alumno es hijo del docente
+    const esHijo = await query(
+      `SELECT COUNT(*) as count
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE ap.colegio_id = ?
+         AND ap.nro_documento = ?
+         AND a.id = ?
+         AND a.colegio_id = ?`,
+      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
+    );
+
+    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+      return res.status(403).json({ error: 'No tienes permisos para ver esta libreta. El alumno no está registrado como tu hijo.' });
+    }
+
+    // Obtener matrícula actual del alumno
+    const matricula = await query(
+      `SELECT m.id as matricula_id, m.grupo_id, m.alumno_id
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [hijoIdNum, colegio_id, anio_activo]
+    );
+
+    if (!matricula || matricula.length === 0) {
+      return res.json({ 
+        alumno: null,
+        asignaturas: [],
+        resumen: null
+      });
+    }
+
+    const matriculaId = matricula[0].matricula_id;
+    const grupoId = matricula[0].grupo_id;
+
+    // Obtener información del alumno y grupo
+    const alumnoInfo = await query(
+      `SELECT 
+              a.id,
+              a.nombres,
+              a.apellido_paterno,
+              a.apellido_materno,
+              CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
+              u.usuario as codigo,
+              g.grado,
+              g.seccion,
+              n.nombre as nivel_nombre,
+              t.nombre as turno_nombre,
+              g.anio,
+              CONCAT(p_tutor.nombres, ' ', p_tutor.apellidos) as tutor_nombre
+       FROM alumnos a
+       INNER JOIN matriculas m ON m.alumno_id = a.id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN turnos t ON t.id = g.turno_id
+       LEFT JOIN usuarios u ON u.alumno_id = a.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+       LEFT JOIN personal p_tutor ON p_tutor.id = g.tutor_id AND p_tutor.colegio_id = ?
+       WHERE m.id = ? AND m.colegio_id = ?`,
+      [colegio_id, colegio_id, matriculaId, colegio_id]
+    );
+
+    if (!alumnoInfo || alumnoInfo.length === 0) {
+      return res.status(404).json({ error: 'No se encontró información del alumno' });
+    }
+
+    const alumno = alumnoInfo[0];
+
+    // Obtener todas las asignaturas del grupo, agrupadas por área
+    const areas = await query(
+      `SELECT DISTINCT ar.id as area_id, ar.nombre as area_nombre
+       FROM areas ar
+       INNER JOIN cursos c ON c.area_id = ar.id
+       INNER JOIN asignaturas a ON a.curso_id = c.id
+       WHERE a.grupo_id = ? AND a.colegio_id = ?
+       ORDER BY ar.nombre ASC`,
+      [grupoId, colegio_id]
+    );
+
+    // Obtener todas las asignaturas
+    const asignaturas = await query(
+      `SELECT 
+              a.id as asignatura_id,
+              c.id as curso_id,
+              c.nombre as curso_nombre,
+              ar.id as area_id,
+              ar.nombre as area_nombre
+       FROM asignaturas a
+       INNER JOIN cursos c ON c.id = a.curso_id
+       LEFT JOIN areas ar ON ar.id = c.area_id
+       WHERE a.grupo_id = ? AND a.colegio_id = ?
+       ORDER BY ar.nombre ASC, c.nombre ASC`,
+      [grupoId, colegio_id]
+    );
+
+    // Obtener todos los promedios por bimestre de todas las asignaturas
+    const todosPromedios = await query(
+      `SELECT asignatura_id, ciclo, promedio
+       FROM promedios
+       WHERE matricula_id = ? AND ciclo IN (1, 2, 3, 4)
+       ORDER BY asignatura_id ASC, ciclo ASC`,
+      [matriculaId]
+    );
+
+    // Organizar promedios por asignatura
+    const promediosPorAsignatura = {};
+    todosPromedios.forEach(p => {
+      if (!promediosPorAsignatura[p.asignatura_id]) {
+        promediosPorAsignatura[p.asignatura_id] = {};
+      }
+      promediosPorAsignatura[p.asignatura_id][p.ciclo] = p.promedio;
+    });
+
+    // Agrupar asignaturas por área y calcular promedios
+    const areasConAsignaturas = [];
+    const asignaturasSinArea = [];
+
+    areas.forEach(area => {
+      const asignaturasArea = asignaturas.filter(a => a.area_id === area.area_id);
+      if (asignaturasArea.length > 0) {
+        const asignaturasConPromedios = asignaturasArea.map(asignatura => {
+          const promedios = promediosPorAsignatura[asignatura.asignatura_id] || {};
+          const promedioB1 = promedios[1] || null;
+          const promedioB2 = promedios[2] || null;
+          const promedioB3 = promedios[3] || null;
+          const promedioB4 = promedios[4] || null;
+          
+          // Calcular promedio final (promedio de los 4 bimestres)
+          let promedioFinal = null;
+          const promediosValidos = [promedioB1, promedioB2, promedioB3, promedioB4].filter(p => p !== null && p !== '' && p !== '-');
+          if (promediosValidos.length > 0) {
+            const suma = promediosValidos.reduce((sum, p) => {
+              const num = parseFloat(p);
+              return sum + (isNaN(num) ? 0 : num);
+            }, 0);
+            promedioFinal = Math.round(suma / promediosValidos.length);
+          }
+
+          return {
+            asignatura_id: asignatura.asignatura_id,
+            curso_id: asignatura.curso_id,
+            curso_nombre: asignatura.curso_nombre,
+            promedio_b1: promedioB1,
+            promedio_b2: promedioB2,
+            promedio_b3: promedioB3,
+            promedio_b4: promedioB4,
+            promedio_final: promedioFinal
+          };
+        });
+
+        // Calcular promedio del área por bimestre
+        const promedioAreaB1 = calcularPromedioArea(asignaturasConPromedios, 'promedio_b1');
+        const promedioAreaB2 = calcularPromedioArea(asignaturasConPromedios, 'promedio_b2');
+        const promedioAreaB3 = calcularPromedioArea(asignaturasConPromedios, 'promedio_b3');
+        const promedioAreaB4 = calcularPromedioArea(asignaturasConPromedios, 'promedio_b4');
+        const promedioAreaFinal = calcularPromedioArea(asignaturasConPromedios, 'promedio_final');
+
+        areasConAsignaturas.push({
+          area_id: area.area_id,
+          area_nombre: area.area_nombre,
+          promedio_b1: promedioAreaB1,
+          promedio_b2: promedioAreaB2,
+          promedio_b3: promedioAreaB3,
+          promedio_b4: promedioAreaB4,
+          promedio_final: promedioAreaFinal,
+          asignaturas: asignaturasConPromedios
+        });
+      }
+    });
+
+    // Asignaturas sin área
+    asignaturas.filter(a => !a.area_id).forEach(asignatura => {
+      const promedios = promediosPorAsignatura[asignatura.asignatura_id] || {};
+      const promedioB1 = promedios[1] || null;
+      const promedioB2 = promedios[2] || null;
+      const promedioB3 = promedios[3] || null;
+      const promedioB4 = promedios[4] || null;
+      
+      let promedioFinal = null;
+      const promediosValidos = [promedioB1, promedioB2, promedioB3, promedioB4].filter(p => p !== null && p !== '' && p !== '-');
+      if (promediosValidos.length > 0) {
+        const suma = promediosValidos.reduce((sum, p) => {
+          const num = parseFloat(p);
+          return sum + (isNaN(num) ? 0 : num);
+        }, 0);
+        promedioFinal = Math.round(suma / promediosValidos.length);
+      }
+
+      asignaturasSinArea.push({
+        asignatura_id: asignatura.asignatura_id,
+        curso_id: asignatura.curso_id,
+        curso_nombre: asignatura.curso_nombre,
+        promedio_b1: promedioB1,
+        promedio_b2: promedioB2,
+        promedio_b3: promedioB3,
+        promedio_b4: promedioB4,
+        promedio_final: promedioFinal
+      });
+    });
+
+    // Calcular cuadro resumen
+    const totalCursos = asignaturas.length;
+    const cantidadCursosB1 = asignaturas.filter(a => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      return promedios[1] !== null && promedios[1] !== '' && promedios[1] !== '-';
+    }).length;
+    const cantidadCursosB2 = asignaturas.filter(a => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      return promedios[2] !== null && promedios[2] !== '' && promedios[2] !== '-';
+    }).length;
+    const cantidadCursosB3 = asignaturas.filter(a => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      return promedios[3] !== null && promedios[3] !== '' && promedios[3] !== '-';
+    }).length;
+    const cantidadCursosB4 = asignaturas.filter(a => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      return promedios[4] !== null && promedios[4] !== '' && promedios[4] !== '-';
+    }).length;
+
+    // Suma de notas por bimestre
+    const sumaNotasB1 = asignaturas.reduce((sum, a) => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      const p = promedios[1];
+      if (p !== null && p !== '' && p !== '-') {
+        const num = parseFloat(p);
+        return sum + (isNaN(num) ? 0 : num);
+      }
+      return sum;
+    }, 0);
+    const sumaNotasB2 = asignaturas.reduce((sum, a) => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      const p = promedios[2];
+      if (p !== null && p !== '' && p !== '-') {
+        const num = parseFloat(p);
+        return sum + (isNaN(num) ? 0 : num);
+      }
+      return sum;
+    }, 0);
+    const sumaNotasB3 = asignaturas.reduce((sum, a) => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      const p = promedios[3];
+      if (p !== null && p !== '' && p !== '-') {
+        const num = parseFloat(p);
+        return sum + (isNaN(num) ? 0 : num);
+      }
+      return sum;
+    }, 0);
+    const sumaNotasB4 = asignaturas.reduce((sum, a) => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      const p = promedios[4];
+      if (p !== null && p !== '' && p !== '-') {
+        const num = parseFloat(p);
+        return sum + (isNaN(num) ? 0 : num);
+      }
+      return sum;
+    }, 0);
+
+    // Promedio general por bimestre
+    const promedioGeneralB1 = cantidadCursosB1 > 0 ? Math.round(sumaNotasB1 / cantidadCursosB1) : null;
+    const promedioGeneralB2 = cantidadCursosB2 > 0 ? Math.round(sumaNotasB2 / cantidadCursosB2) : null;
+    const promedioGeneralB3 = cantidadCursosB3 > 0 ? Math.round(sumaNotasB3 / cantidadCursosB3) : null;
+    const promedioGeneralB4 = cantidadCursosB4 > 0 ? Math.round(sumaNotasB4 / cantidadCursosB4) : null;
+    const promedioGeneralFinal = [promedioGeneralB1, promedioGeneralB2, promedioGeneralB3, promedioGeneralB4]
+      .filter(p => p !== null).length > 0
+      ? Math.round(([promedioGeneralB1, promedioGeneralB2, promedioGeneralB3, promedioGeneralB4]
+          .filter(p => p !== null)
+          .reduce((sum, p) => sum + p, 0)) / [promedioGeneralB1, promedioGeneralB2, promedioGeneralB3, promedioGeneralB4]
+          .filter(p => p !== null).length)
+      : null;
+
+    // Promedio conducta (buscar en notas con asignatura_id = -101 o similar)
+    const promedioConductaB1 = await obtenerPromedioConducta(matriculaId, 1);
+    const promedioConductaB2 = await obtenerPromedioConducta(matriculaId, 2);
+    const promedioConductaB3 = await obtenerPromedioConducta(matriculaId, 3);
+    const promedioConductaB4 = await obtenerPromedioConducta(matriculaId, 4);
+
+    // Orden de mérito (por ahora null, se puede implementar después)
+    const ordenMeritoB1 = null;
+    const ordenMeritoB2 = null;
+    const ordenMeritoB3 = null;
+    const ordenMeritoB4 = null;
+
+    // Inasistencias y tardanzas (usar datos de asistencia)
+    const inasistenciasB1 = await obtenerInasistencias(matriculaId, 1, anio_activo);
+    const inasistenciasB2 = await obtenerInasistencias(matriculaId, 2, anio_activo);
+    const inasistenciasB3 = await obtenerInasistencias(matriculaId, 3, anio_activo);
+    const inasistenciasB4 = await obtenerInasistencias(matriculaId, 4, anio_activo);
+
+    const tardanzasB1 = await obtenerTardanzas(matriculaId, 1, anio_activo);
+    const tardanzasB2 = await obtenerTardanzas(matriculaId, 2, anio_activo);
+    const tardanzasB3 = await obtenerTardanzas(matriculaId, 3, anio_activo);
+    const tardanzasB4 = await obtenerTardanzas(matriculaId, 4, anio_activo);
+
+    const resumen = {
+      cantidad_cursos: {
+        b1: cantidadCursosB1,
+        b2: cantidadCursosB2,
+        b3: cantidadCursosB3,
+        b4: cantidadCursosB4
+      },
+      suma_notas: {
+        b1: sumaNotasB1 > 0 ? sumaNotasB1 : null,
+        b2: sumaNotasB2 > 0 ? sumaNotasB2 : null,
+        b3: sumaNotasB3 > 0 ? sumaNotasB3 : null,
+        b4: sumaNotasB4 > 0 ? sumaNotasB4 : null
+      },
+      promedio: {
+        b1: promedioGeneralB1,
+        b2: promedioGeneralB2,
+        b3: promedioGeneralB3,
+        b4: promedioGeneralB4,
+        final: promedioGeneralFinal
+      },
+      promedio_conducta: {
+        b1: promedioConductaB1,
+        b2: promedioConductaB2,
+        b3: promedioConductaB3,
+        b4: promedioConductaB4
+      },
+      orden_merito: {
+        b1: ordenMeritoB1,
+        b2: ordenMeritoB2,
+        b3: ordenMeritoB3,
+        b4: ordenMeritoB4
+      },
+      inasistencias: {
+        b1: inasistenciasB1,
+        b2: inasistenciasB2,
+        b3: inasistenciasB3,
+        b4: inasistenciasB4
+      },
+      tardanzas: {
+        b1: tardanzasB1,
+        b2: tardanzasB2,
+        b3: tardanzasB3,
+        b4: tardanzasB4
+      }
+    };
+
+    console.log(`✅ [HIJOS-LIBRETA] Libreta obtenida exitosamente`);
+    console.log(`🔵 ========== [HIJOS-LIBRETA] FIN DE PETICIÓN ==========\n`);
+
+    res.json({
+      alumno,
+      areas: areasConAsignaturas,
+      asignaturas_sin_area: asignaturasSinArea,
+      resumen
+    });
+  } catch (error) {
+    console.error('❌ [HIJOS-LIBRETA] Error obteniendo libreta:', error);
+    console.error('❌ [HIJOS-LIBRETA] Stack trace:', error.stack);
+    res.status(500).json({ error: 'Error al obtener libreta', details: error.message });
+  }
+});
+
+// Función auxiliar para calcular promedio de área
+function calcularPromedioArea(asignaturas, campo) {
+  const promediosValidos = asignaturas
+    .map(a => a[campo])
+    .filter(p => p !== null && p !== '' && p !== '-');
+  
+  if (promediosValidos.length === 0) return null;
+  
+  const suma = promediosValidos.reduce((sum, p) => {
+    const num = parseFloat(p);
+    return sum + (isNaN(num) ? 0 : num);
+  }, 0);
+  
+  return Math.round(suma / promediosValidos.length);
+}
+
+// Función auxiliar para obtener promedio de conducta
+async function obtenerPromedioConducta(matriculaId, ciclo) {
+  try {
+    // Buscar en promedios con asignatura_id especial para conducta
+    // O buscar en alguna tabla específica de conducta
+    // Por ahora retornamos null, se puede implementar después
+    return null;
+  } catch (error) {
+    console.error('Error obteniendo promedio conducta:', error);
+    return null;
+  }
+}
+
+// Función auxiliar para obtener inasistencias por bimestre
+async function obtenerInasistencias(matriculaId, ciclo, anio) {
+  try {
+    // Obtener rango de fechas del bimestre (esto se puede obtener de configuración)
+    // Por ahora contamos todas las faltas del año
+    const faltas = await query(
+      `SELECT COUNT(*) as total
+       FROM matriculas_asistencias ma
+       INNER JOIN matriculas m ON m.id = ma.matricula_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE ma.matricula_id = ? 
+         AND ma.tipo = 'FALTA'
+         AND g.anio = ?`,
+      [matriculaId, anio]
+    );
+    return faltas.length > 0 ? faltas[0].total : 0;
+  } catch (error) {
+    console.error('Error obteniendo inasistencias:', error);
+    return 0;
+  }
+}
+
+// Función auxiliar para obtener tardanzas por bimestre
+async function obtenerTardanzas(matriculaId, ciclo, anio) {
+  try {
+    const tardanzas = await query(
+      `SELECT COUNT(*) as total
+       FROM matriculas_asistencias ma
+       INNER JOIN matriculas m ON m.id = ma.matricula_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE ma.matricula_id = ? 
+         AND ma.tipo = 'TARDANZA'
+         AND g.anio = ?`,
+      [matriculaId, anio]
+    );
+    return tardanzas.length > 0 ? tardanzas[0].total : 0;
+  } catch (error) {
+    console.error('Error obteniendo tardanzas:', error);
+    return 0;
+  }
+}
+
+/**
  * POST /api/docente/comunicados
  * Crear nuevo comunicado (solo ADMINISTRADOR puede crear)
  */

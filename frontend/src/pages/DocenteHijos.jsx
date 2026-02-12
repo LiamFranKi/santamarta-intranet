@@ -184,8 +184,7 @@ function DocenteHijos() {
         await handleVerNotasDetalladas(hijo);
         break;
       case 'imprimir-notas':
-        console.log('Ver libreta de:', hijo);
-        // Implementar después
+        await handleVerLibreta(hijo);
         break;
       case 'pagos-realizados':
         console.log('Pagos realizados de:', hijo);
@@ -1124,6 +1123,392 @@ function DocenteHijos() {
         text: 'No se pudo abrir el modal de notas detalladas',
         confirmButtonText: 'Entendido'
       });
+    }
+  };
+
+  const handleVerLibreta = async (hijo) => {
+    try {
+      setHijoSeleccionado(hijo);
+      await generarPDFLibreta(hijo.id);
+    } catch (error) {
+      console.error('Error generando libreta:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo generar la libreta',
+        confirmButtonText: 'Entendido'
+      });
+    }
+  };
+
+  const generarPDFLibreta = async (hijoId) => {
+    try {
+      setLoadingNotasDetalladas(true);
+      const response = await api.get(`/docente/hijos/${hijoId}/libreta`);
+      const datosLibreta = response.data;
+
+      if (!datosLibreta || !datosLibreta.alumno) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin datos',
+          text: 'No hay datos disponibles para generar la libreta',
+          confirmButtonText: 'Entendido'
+        });
+        return;
+      }
+
+      // Generar PDF
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 5;
+      const contentWidth = pageWidth - (margin * 2);
+      let yPos = margin;
+
+      // Header con logo (simulado con texto por ahora)
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.text('BOLETA DE INFORMACIÓN ACADÉMICA', pageWidth / 2, yPos + 10, { align: 'center' });
+      yPos += 5;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text('INTRANET VANGUARD', pageWidth / 2, yPos + 10, { align: 'center' });
+      yPos += 10;
+
+      // Datos del alumno
+      const headerHeight = 5;
+      doc.setFontSize(9);
+      doc.setFillColor(229, 229, 229);
+      
+      // Fila 1: ALUMNO y CÓDIGO
+      doc.rect(margin, yPos, 40, headerHeight, 'F');
+      doc.rect(margin + 40, yPos, 95, headerHeight, 'F');
+      doc.rect(margin + 135, yPos, 30, headerHeight, 'F');
+      doc.rect(margin + 165, yPos, 35, headerHeight, 'F');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('ALUMNO', margin + 20, yPos + 3.5, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.text(datosLibreta.alumno.nombre_completo || '-', margin + 87.5, yPos + 3.5, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.text('CÓDIGO', margin + 150, yPos + 3.5, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.text(datosLibreta.alumno.codigo || '-', margin + 182.5, yPos + 3.5, { align: 'center' });
+      yPos += headerHeight;
+
+      // Fila 2: GRADO/SECCIÓN, NIVEL, TURNO
+      doc.setFillColor(229, 229, 229);
+      doc.rect(margin, yPos, 40, headerHeight, 'F');
+      doc.rect(margin + 40, yPos, 30, headerHeight, 'F');
+      doc.rect(margin + 70, yPos, 30, headerHeight, 'F');
+      doc.rect(margin + 100, yPos, 35, headerHeight, 'F');
+      doc.rect(margin + 135, yPos, 30, headerHeight, 'F');
+      doc.rect(margin + 165, yPos, 35, headerHeight, 'F');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('GRADO / SECCIÓN', margin + 20, yPos + 3.5, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${datosLibreta.alumno.grado}° ${datosLibreta.alumno.seccion || ''}`, margin + 55, yPos + 3.5, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.text('NIVEL', margin + 85, yPos + 3.5, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.text(datosLibreta.alumno.nivel_nombre || '-', margin + 117.5, yPos + 3.5, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.text('TURNO', margin + 150, yPos + 3.5, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.text(datosLibreta.alumno.turno_nombre || '-', margin + 182.5, yPos + 3.5, { align: 'center' });
+      yPos += headerHeight;
+
+      // Fila 3: PROFESOR/TUTOR y AÑO
+      doc.setFillColor(229, 229, 229);
+      doc.rect(margin, yPos, 40, headerHeight, 'F');
+      doc.rect(margin + 40, yPos, 95, headerHeight, 'F');
+      doc.rect(margin + 135, yPos, 30, headerHeight, 'F');
+      doc.rect(margin + 165, yPos, 35, headerHeight, 'F');
+      
+      doc.setFont('helvetica', 'bold');
+      doc.text('PROFESOR / TUTOR', margin + 20, yPos + 3.5, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.text(datosLibreta.alumno.tutor_nombre || 'NO SE ASIGNÓ TUTOR', margin + 87.5, yPos + 3.5, { align: 'center' });
+      doc.setFont('helvetica', 'bold');
+      doc.text('AÑO', margin + 150, yPos + 3.5, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      doc.text(datosLibreta.alumno.anio?.toString() || '-', margin + 182.5, yPos + 3.5, { align: 'center' });
+      yPos += headerHeight + 6;
+
+      // Tabla de áreas curriculares
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setFillColor(229, 229, 229);
+      
+      const colAreaWidth = 80;
+      const colBimestreWidth = (contentWidth - colAreaWidth) / 5; // 4 bimestres + PF
+      
+      // Header de la tabla
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.text('ÁREAS CURRICULARES', margin + colAreaWidth / 2, yPos + 3.5, { align: 'center' });
+      
+      let xPos = margin + colAreaWidth;
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'F');
+      doc.text('B - 1', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+      xPos += colBimestreWidth;
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'F');
+      doc.text('B - 2', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+      xPos += colBimestreWidth;
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'F');
+      doc.text('B - 3', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+      xPos += colBimestreWidth;
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'F');
+      doc.text('B - 4', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+      xPos += colBimestreWidth;
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'F');
+      doc.text('PF', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+      
+      yPos += headerHeight;
+
+      // Áreas y asignaturas
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      
+      datosLibreta.areas.forEach(area => {
+        // Verificar si necesitamos nueva página
+        if (yPos > pageHeight - 60) {
+          doc.addPage();
+          yPos = margin;
+        }
+
+        // Fila del área (en negrita)
+        doc.setFont('helvetica', 'bold');
+        doc.setFillColor(229, 229, 229);
+        doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+        doc.text(area.area_nombre.toUpperCase(), margin + 2, yPos + 3.5);
+        
+        xPos = margin + colAreaWidth;
+        [area.promedio_b1, area.promedio_b2, area.promedio_b3, area.promedio_b4, area.promedio_final].forEach((promedio, index) => {
+          doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'F');
+          const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
+          doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+          xPos += colBimestreWidth;
+        });
+        
+        yPos += headerHeight;
+
+        // Asignaturas del área
+        doc.setFont('helvetica', 'normal');
+        area.asignaturas.forEach(asignatura => {
+          if (yPos > pageHeight - 60) {
+            doc.addPage();
+            yPos = margin;
+          }
+
+          doc.rect(margin, yPos, colAreaWidth, headerHeight);
+          doc.text(asignatura.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
+          
+          xPos = margin + colAreaWidth;
+          [asignatura.promedio_b1, asignatura.promedio_b2, asignatura.promedio_b3, asignatura.promedio_b4, asignatura.promedio_final].forEach((promedio, index) => {
+            doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+            const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
+            doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+            xPos += colBimestreWidth;
+          });
+          
+          yPos += headerHeight;
+        });
+      });
+
+      // Asignaturas sin área
+      if (datosLibreta.asignaturas_sin_area && datosLibreta.asignaturas_sin_area.length > 0) {
+        datosLibreta.asignaturas_sin_area.forEach(asignatura => {
+          if (yPos > pageHeight - 60) {
+            doc.addPage();
+            yPos = margin;
+          }
+
+          doc.rect(margin, yPos, colAreaWidth, headerHeight);
+          doc.text(asignatura.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
+          
+          xPos = margin + colAreaWidth;
+          [asignatura.promedio_b1, asignatura.promedio_b2, asignatura.promedio_b3, asignatura.promedio_b4, asignatura.promedio_final].forEach((promedio, index) => {
+            doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+            const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
+            doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+            xPos += colBimestreWidth;
+          });
+          
+          yPos += headerHeight;
+        });
+      }
+
+      yPos += 6;
+
+      // Cuadro Resumen
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setFillColor(229, 229, 229);
+      const resumenWidth = colAreaWidth + (colBimestreWidth * 4);
+      doc.rect(margin, yPos, resumenWidth, headerHeight, 'F');
+      doc.text('CUADRO RESUMEN', margin + resumenWidth / 2, yPos + 3.5, { align: 'center' });
+      yPos += headerHeight;
+
+      doc.setFont('helvetica', 'normal');
+      const resumen = datosLibreta.resumen;
+
+      // CANTIDAD DE CURSOS
+      doc.setFillColor(229, 229, 229);
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text('CANTIDAD DE CURSOS', margin + 2, yPos + 3.5);
+      doc.setFont('helvetica', 'normal');
+      xPos = margin + colAreaWidth;
+      [resumen.cantidad_cursos.b1, resumen.cantidad_cursos.b2, resumen.cantidad_cursos.b3, resumen.cantidad_cursos.b4].forEach((cantidad, index) => {
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.text(cantidad !== null ? cantidad.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        xPos += colBimestreWidth;
+      });
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+      yPos += headerHeight;
+
+      // SUMA DE NOTAS
+      doc.setFillColor(229, 229, 229);
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text('SUMA DE NOTAS', margin + 2, yPos + 3.5);
+      doc.setFont('helvetica', 'normal');
+      xPos = margin + colAreaWidth;
+      [resumen.suma_notas.b1, resumen.suma_notas.b2, resumen.suma_notas.b3, resumen.suma_notas.b4].forEach((suma, index) => {
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.text(suma !== null ? suma.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        xPos += colBimestreWidth;
+      });
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+      yPos += headerHeight;
+
+      // PROMEDIO
+      doc.setFillColor(229, 229, 229);
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text('PROMEDIO', margin + 2, yPos + 3.5);
+      doc.setFont('helvetica', 'normal');
+      xPos = margin + colAreaWidth;
+      [resumen.promedio.b1, resumen.promedio.b2, resumen.promedio.b3, resumen.promedio.b4].forEach((promedio, index) => {
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.text(promedio !== null ? promedio.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        xPos += colBimestreWidth;
+      });
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.text(resumen.promedio.final !== null ? resumen.promedio.final.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+      yPos += headerHeight;
+
+      // PROMEDIO CONDUCTA
+      doc.setFillColor(229, 229, 229);
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text('PROMEDIO CONDUCTA', margin + 2, yPos + 3.5);
+      doc.setFont('helvetica', 'normal');
+      xPos = margin + colAreaWidth;
+      [resumen.promedio_conducta.b1, resumen.promedio_conducta.b2, resumen.promedio_conducta.b3, resumen.promedio_conducta.b4].forEach((promedio, index) => {
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.text(promedio !== null ? promedio.toString() : '20', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        xPos += colBimestreWidth;
+      });
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.text('20', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+      yPos += headerHeight;
+
+      // ORDEN DE MÉRITO
+      doc.setFillColor(229, 229, 229);
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text('ORDEN DE MÉRITO', margin + 2, yPos + 3.5);
+      doc.setFont('helvetica', 'normal');
+      xPos = margin + colAreaWidth;
+      [resumen.orden_merito.b1, resumen.orden_merito.b2, resumen.orden_merito.b3, resumen.orden_merito.b4].forEach((orden, index) => {
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.text(orden !== null ? orden.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        xPos += colBimestreWidth;
+      });
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+      yPos += headerHeight;
+
+      // N° DE INASISTENCIAS
+      doc.setFillColor(229, 229, 229);
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text('N° DE INASISTENCIAS', margin + 2, yPos + 3.5);
+      doc.setFont('helvetica', 'normal');
+      xPos = margin + colAreaWidth;
+      [resumen.inasistencias.b1, resumen.inasistencias.b2, resumen.inasistencias.b3, resumen.inasistencias.b4].forEach((inasistencias, index) => {
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.text(inasistencias !== null ? inasistencias.toString() : '0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        xPos += colBimestreWidth;
+      });
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.text('0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+      yPos += headerHeight;
+
+      // N° DE TARDANZAS
+      doc.setFillColor(229, 229, 229);
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text('N° DE TARDANZAS', margin + 2, yPos + 3.5);
+      doc.setFont('helvetica', 'normal');
+      xPos = margin + colAreaWidth;
+      [resumen.tardanzas.b1, resumen.tardanzas.b2, resumen.tardanzas.b3, resumen.tardanzas.b4].forEach((tardanzas, index) => {
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.text(tardanzas !== null ? tardanzas.toString() : '0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        xPos += colBimestreWidth;
+      });
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.text('0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+      yPos += 6;
+
+      // Footer: Apreciaciones del Tutor
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text('Apreciaciones / Recomendaciones del Tutor', margin, yPos);
+      yPos += 5;
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text('', margin, yPos); // Espacio para recomendaciones
+      yPos += 15;
+
+      // Firmas
+      doc.setFontSize(8);
+      doc.text('_______________________________________', margin + 15, yPos);
+      doc.text('_______________________________________', margin + 95, yPos);
+      yPos += 5;
+
+      doc.text(`Profesor/Tutor: ${datosLibreta.alumno.tutor_nombre || ''}`, margin + 15, yPos, { align: 'center' });
+      doc.text('Dirección', margin + 95, yPos, { align: 'center' });
+
+      const nombreArchivo = `Libreta_${datosLibreta.alumno.apellido_paterno?.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
+      doc.save(nombreArchivo);
+
+      Swal.fire({
+        title: '¡PDF Generado!',
+        text: 'La libreta se ha exportado correctamente',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error generando PDF de libreta:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo generar la libreta',
+        confirmButtonText: 'Entendido'
+      });
+    } finally {
+      setLoadingNotasDetalladas(false);
     }
   };
 
