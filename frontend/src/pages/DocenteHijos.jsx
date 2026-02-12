@@ -537,17 +537,17 @@ function DocenteHijos() {
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
         const descY = yPos + 24;
-        doc.text('Descripción:', margin + 3, descY);
+        doc.text('Detalle:', margin + 3, descY);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
-        const descLines = doc.splitTextToSize(incidencia.description || 'Sin descripción', contentWidth - 25);
+        const descLines = doc.splitTextToSize(incidencia.description || 'Sin detalle', contentWidth - 25);
         descLines.forEach((line, idx) => {
           doc.text(line, margin + 20, descY + (idx * 4));
         });
 
         // Ajustar altura del card según el contenido
         const descHeight = descLines.length * 4;
-        yPos += Math.max(cardHeight, 24 + descHeight) + 8;
+        yPos += Math.max(cardHeight, descY + descHeight - yPos) + 8;
       });
 
       const nombreArchivo = `Incidencias_${hijoSeleccionado?.nombres?.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
@@ -665,18 +665,18 @@ function DocenteHijos() {
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
-        const descY = yPos + 24;
-        doc.text('Descripción:', margin + 3, descY);
+        const descY = yPos + 30;
+        doc.text('Detalle:', margin + 3, descY);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
-        const descLines = doc.splitTextToSize(estrella.description || 'Sin descripción', contentWidth - 25);
+        const descLines = doc.splitTextToSize(estrella.description || 'Sin detalle', contentWidth - 25);
         descLines.forEach((line, idx) => {
           doc.text(line, margin + 20, descY + (idx * 4));
         });
 
         // Ajustar altura del card según el contenido
         const descHeight = descLines.length * 4;
-        yPos += Math.max(cardHeight, 24 + descHeight) + 8;
+        yPos += Math.max(cardHeight, descY + descHeight - yPos) + 8;
       });
 
       const nombreArchivo = `Estrellas_${hijoSeleccionado?.nombres?.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
