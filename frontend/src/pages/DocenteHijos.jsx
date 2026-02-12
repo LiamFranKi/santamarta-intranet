@@ -999,13 +999,29 @@ function DocenteHijos() {
 
       yPos = statYPos + statCardHeight + 15;
 
-      // Luego: Lista de asistencias (formato igual al modal)
+      // Luego: Cards de asistencias en 3 columnas (formato igual al modal)
+      const cardsPorFila = 3;
+      const cardWidth = (contentWidth - (10 * (cardsPorFila - 1))) / cardsPorFila;
+      const cardHeight = 35;
+      let filaActual = 0;
+      let columnaActual = 0;
+      let yPosInicialFila = yPos;
+
       asistenciasMes.forEach((asistencia, index) => {
-        // Si no cabe en la página actual, nueva página
-        if (yPos > pageHeight - 50) {
-          doc.addPage();
-          yPos = margin;
+        // Si es el inicio de una nueva fila (primera columna)
+        if (columnaActual === 0 && index > 0) {
+          yPosInicialFila += cardHeight + 5;
+          // Si no cabe en la página actual, nueva página
+          if (yPosInicialFila + cardHeight > pageHeight - 20) {
+            doc.addPage();
+            yPosInicialFila = margin;
+            filaActual = 0;
+          }
         }
+
+        // Calcular posición del card
+        const xPos = margin + (columnaActual * (cardWidth + 10));
+        const yPosCard = yPosInicialFila;
 
         const tipoColor = {
           'PRESENTE': { bg: [232, 245, 233], border: [76, 175, 80], text: [46, 125, 50] },
@@ -1015,55 +1031,56 @@ function DocenteHijos() {
           'FALTA_JUSTIFICADA': { bg: [243, 229, 245], border: [156, 39, 176], text: [106, 27, 154] }
         }[asistencia.tipo] || { bg: [245, 245, 245], border: [158, 158, 158], text: [66, 66, 66] };
 
-        const cardHeight = 35;
-
         // Fondo del card
         doc.setFillColor(tipoColor.bg[0], tipoColor.bg[1], tipoColor.bg[2]);
-        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
+        doc.roundedRect(xPos, yPosCard, cardWidth, cardHeight, 3, 3, 'F');
 
         // Borde
         doc.setDrawColor(tipoColor.border[0], tipoColor.border[1], tipoColor.border[2]);
         doc.setLineWidth(1);
-        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
+        doc.roundedRect(xPos, yPosCard, cardWidth, cardHeight, 3, 3);
 
         // Contenido
         doc.setTextColor(tipoColor.text[0], tipoColor.text[1], tipoColor.text[2]);
         
-        // Fecha y Estado en la misma fila
-        doc.setFontSize(8);
+        // Fecha y Estado en la misma fila (arriba)
+        doc.setFontSize(7);
         doc.setFont('helvetica', 'bold');
         const fechaFormateada = new Date(asistencia.fecha).toLocaleDateString('es-PE', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
+          day: 'numeric',
+          month: 'short'
         });
-        doc.text(fechaFormateada, margin + 3, yPos + 7);
+        doc.text(fechaFormateada, xPos + 2, yPosCard + 5);
         
         // Estado al costado
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
+        doc.setFontSize(6);
         const tipoTexto = asistencia.tipo.replace('_', ' ');
-        const estadoX = margin + contentWidth - 50;
-        doc.text(tipoTexto, estadoX, yPos + 7);
+        const estadoX = xPos + cardWidth - 25;
+        doc.text(tipoTexto, estadoX, yPosCard + 5, { align: 'right' });
 
         // Labels "Entrada:" y "Salida:" en la misma fila
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('Entrada:', margin + 3, yPos + 16);
+        doc.setFontSize(6);
+        doc.text('Entrada:', xPos + 2, yPosCard + 12);
         if (asistencia.hora_salida) {
-          doc.text('Salida:', margin + 60, yPos + 16);
+          doc.text('Salida:', xPos + cardWidth / 2 + 2, yPosCard + 12);
         }
 
         // Horas en la siguiente fila
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
-        doc.text(asistencia.hora_entrada || 'No registrada', margin + 3, yPos + 23);
+        doc.text(asistencia.hora_entrada || 'N/A', xPos + 2, yPosCard + 19);
         if (asistencia.hora_salida) {
-          doc.text(asistencia.hora_salida, margin + 60, yPos + 23);
+          doc.text(asistencia.hora_salida, xPos + cardWidth / 2 + 2, yPosCard + 19);
         }
 
-        yPos += cardHeight + 5;
+        // Avanzar columna
+        columnaActual++;
+        if (columnaActual >= cardsPorFila) {
+          columnaActual = 0;
+          filaActual++;
+        }
       });
 
       const nombreArchivo = `Asistencias_${hijoSeleccionado?.nombres?.replace(/\s+/g, '_')}_${hijoSeleccionado?.apellido_paterno?.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
