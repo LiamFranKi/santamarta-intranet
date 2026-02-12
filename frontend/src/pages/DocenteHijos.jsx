@@ -57,6 +57,7 @@ function DocenteHijos() {
   const [totalTardanzas, setTotalTardanzas] = useState(0);
   const [totalFaltas, setTotalFaltas] = useState(0);
   const [loadingAsistencias, setLoadingAsistencias] = useState(false);
+  const [filtroMesAsistencias, setFiltroMesAsistencias] = useState('TODOS');
   const [mostrarCursos, setMostrarCursos] = useState(false);
   const [cursos, setCursos] = useState([]);
   const [loadingCursos, setLoadingCursos] = useState(false);
@@ -664,6 +665,19 @@ function DocenteHijos() {
     return grupos;
   };
 
+  // Función para agrupar asistencias por mes
+  const agruparAsistenciasPorMes = (asistencias) => {
+    const grupos = {};
+    asistencias.forEach(asistencia => {
+      const mesAnio = obtenerMesAnio(asistencia.fecha);
+      if (!grupos[mesAnio]) {
+        grupos[mesAnio] = [];
+      }
+      grupos[mesAnio].push(asistencia);
+    });
+    return grupos;
+  };
+
   // Función para exportar incidencias a PDF por mes
   const handleExportarIncidenciasPDF = async (mesAnio, incidenciasMes) => {
     try {
@@ -902,6 +916,120 @@ function DocenteHijos() {
         title: 'Error',
         text: 'No se pudo generar el PDF',
         icon: 'error'
+      });
+    }
+  };
+
+  // Función para exportar asistencias a PDF
+  const handleExportarAsistenciasPDF = async (mesAnio, asistenciasMes) => {
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const margin = 15;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - (margin * 2);
+      let yPos = margin;
+
+      // Header
+      doc.setFillColor(33, 150, 243);
+      doc.rect(0, 0, pageWidth, 30, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ASISTENCIAS', pageWidth / 2, 12, { align: 'center' });
+      doc.setFontSize(12);
+      doc.text(`${hijoSeleccionado?.nombres} ${hijoSeleccionado?.apellido_paterno}`, pageWidth / 2, 20, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text(mesAnio, pageWidth / 2, 26, { align: 'center' });
+
+      yPos = 40;
+
+      // Cards de asistencias
+      asistenciasMes.forEach((asistencia, index) => {
+        if (yPos > pageHeight - 50) {
+          doc.addPage();
+          yPos = margin;
+        }
+
+        const tipoColor = {
+          'PRESENTE': { bg: [232, 245, 233], border: [76, 175, 80], text: [46, 125, 50] },
+          'TARDANZA': { bg: [255, 243, 224], border: [255, 152, 0], text: [230, 81, 0] },
+          'TARDANZA_JUSTIFICADA': { bg: [227, 242, 253], border: [33, 150, 243], text: [21, 101, 192] },
+          'FALTA': { bg: [255, 235, 238], border: [244, 67, 54], text: [198, 40, 40] },
+          'FALTA_JUSTIFICADA': { bg: [243, 229, 245], border: [156, 39, 176], text: [106, 27, 154] }
+        }[asistencia.tipo] || { bg: [245, 245, 245], border: [158, 158, 158], text: [66, 66, 66] };
+
+        const cardHeight = 30;
+
+        // Fondo del card
+        doc.setFillColor(tipoColor.bg[0], tipoColor.bg[1], tipoColor.bg[2]);
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
+
+        // Borde
+        doc.setDrawColor(tipoColor.border[0], tipoColor.border[1], tipoColor.border[2]);
+        doc.setLineWidth(1);
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
+
+        // Contenido
+        doc.setTextColor(tipoColor.text[0], tipoColor.text[1], tipoColor.text[2]);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Fecha:', margin + 3, yPos + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        const fechaFormateada = new Date(asistencia.fecha).toLocaleDateString('es-PE', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+        doc.text(fechaFormateada, margin + 20, yPos + 6);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Tipo:', margin + 3, yPos + 12);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(asistencia.tipo.replace('_', ' '), margin + 20, yPos + 12);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Hora Entrada:', margin + 3, yPos + 18);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(asistencia.hora_entrada || 'No registrada', margin + 35, yPos + 18);
+
+        if (asistencia.hora_salida) {
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.text('Hora Salida:', margin + 3, yPos + 24);
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.text(asistencia.hora_salida, margin + 35, yPos + 24);
+        }
+
+        yPos += cardHeight + 5;
+      });
+
+      const nombreArchivo = `Asistencias_${hijoSeleccionado?.nombres?.replace(/\s+/g, '_')}_${hijoSeleccionado?.apellido_paterno?.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
+      doc.save(nombreArchivo);
+
+      Swal.fire({
+        title: '¡PDF Generado!',
+        text: 'Las asistencias se han exportado correctamente',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo exportar el PDF',
+        confirmButtonText: 'Entendido'
       });
     }
   };
@@ -2226,77 +2354,193 @@ function DocenteHijos() {
                 <div className="empty-state">
                   <p>No hay asistencias registradas</p>
                 </div>
-              ) : (
-                <>
-                  <div className="estadisticas-asistencias">
-                    <div className="stat-card" style={{ backgroundColor: '#e3f2fd', borderColor: '#2196f3' }}>
-                      <span className="stat-label">Presentes:</span>
-                      <span className="stat-value">{totalPresentes}</span>
+              ) : (() => {
+                const asistenciasPorMes = agruparAsistenciasPorMes(asistencias);
+                const meses = Object.keys(asistenciasPorMes).sort((a, b) => {
+                  const dateA = new Date(a);
+                  const dateB = new Date(b);
+                  return dateB - dateA;
+                });
+
+                const asistenciasFiltradas = filtroMesAsistencias === 'TODOS' 
+                  ? asistencias 
+                  : asistenciasPorMes[filtroMesAsistencias] || [];
+
+                return (
+                  <>
+                    <div className="estadisticas-asistencias">
+                      <div className="stat-card" style={{ backgroundColor: '#e3f2fd', borderColor: '#2196f3' }}>
+                        <span className="stat-label">Presentes:</span>
+                        <span className="stat-value">{totalPresentes}</span>
+                      </div>
+                      <div className="stat-card" style={{ backgroundColor: '#fff3e0', borderColor: '#ff9800' }}>
+                        <span className="stat-label">Tardanzas:</span>
+                        <span className="stat-value">{totalTardanzas}</span>
+                      </div>
+                      <div className="stat-card" style={{ backgroundColor: '#ffebee', borderColor: '#f44336' }}>
+                        <span className="stat-label">Faltas:</span>
+                        <span className="stat-value">{totalFaltas}</span>
+                      </div>
                     </div>
-                    <div className="stat-card" style={{ backgroundColor: '#fff3e0', borderColor: '#ff9800' }}>
-                      <span className="stat-label">Tardanzas:</span>
-                      <span className="stat-value">{totalTardanzas}</span>
-                    </div>
-                    <div className="stat-card" style={{ backgroundColor: '#ffebee', borderColor: '#f44336' }}>
-                      <span className="stat-label">Faltas:</span>
-                      <span className="stat-value">{totalFaltas}</span>
-                    </div>
-                  </div>
-                  <div className="asistencias-list">
-                    {asistencias.map((asistencia, index) => {
-                      const color = coloresPastel[index % coloresPastel.length];
-                      const tipoColor = {
-                        'PRESENTE': { bg: '#e8f5e9', border: '#4caf50', text: '#2e7d32' },
-                        'TARDANZA': { bg: '#fff3e0', border: '#ff9800', text: '#e65100' },
-                        'TARDANZA_JUSTIFICADA': { bg: '#e3f2fd', border: '#2196f3', text: '#1565c0' },
-                        'FALTA': { bg: '#ffebee', border: '#f44336', text: '#c62828' },
-                        'FALTA_JUSTIFICADA': { bg: '#f3e5f5', border: '#9c27b0', text: '#6a1b9a' }
-                      }[asistencia.tipo] || color;
-                      
-                      return (
-                        <div 
-                          key={asistencia.id} 
-                          className="asistencia-card"
-                          style={{
-                            backgroundColor: tipoColor.bg,
-                            borderColor: tipoColor.border,
-                            color: tipoColor.text
-                          }}
+
+                    {/* Filtros y botones de exportar */}
+                    <div className="filtros-exportar-container">
+                      <div className="filtros-mes">
+                        <label>Filtrar por mes:</label>
+                        <select 
+                          value={filtroMesAsistencias} 
+                          onChange={(e) => setFiltroMesAsistencias(e.target.value)}
+                          className="select-filtro-mes"
                         >
-                          <div className="card-header-incidencia">
-                            <div className="card-fecha">
-                              <span className="icon">📅</span>
-                              <span>{new Date(asistencia.fecha).toLocaleDateString('es-PE', { 
-                                weekday: 'long', 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric' 
-                              })}</span>
-                            </div>
-                            <div className="card-tipo-asistencia">
-                              <span className={`badge-tipo badge-${asistencia.tipo.toLowerCase()}`}>
-                                {asistencia.tipo.replace('_', ' ')}
-                              </span>
-                            </div>
+                          <option value="TODOS">Todos los meses</option>
+                          {meses.map(mes => (
+                            <option key={mes} value={mes}>{mes}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="botones-exportar">
+                        {filtroMesAsistencias === 'TODOS' ? (
+                          <button 
+                            className="btn-exportar-pdf"
+                            onClick={() => {
+                              meses.forEach(mes => {
+                                handleExportarAsistenciasPDF(mes, asistenciasPorMes[mes]);
+                              });
+                            }}
+                          >
+                            📄 Exportar Todo a PDF
+                          </button>
+                        ) : (
+                          <button 
+                            className="btn-exportar-pdf"
+                            onClick={() => handleExportarAsistenciasPDF(filtroMesAsistencias, asistenciasFiltradas)}
+                          >
+                            📄 Exportar {filtroMesAsistencias} a PDF
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Lista de asistencias agrupadas por mes */}
+                    {filtroMesAsistencias === 'TODOS' ? (
+                      meses.map(mes => (
+                        <div key={mes} className="mes-grupo">
+                          <div className="mes-header">
+                            <h3>{mes}</h3>
+                            <button 
+                              className="btn-exportar-mes"
+                              onClick={() => handleExportarAsistenciasPDF(mes, asistenciasPorMes[mes])}
+                            >
+                              📄 Exportar PDF
+                            </button>
                           </div>
-                          <div className="card-body-estrella">
-                            <div className="card-info-row">
-                              <span className="label">Hora de Entrada:</span>
-                              <span className="value">{asistencia.hora_entrada || 'No registrada'}</span>
-                            </div>
-                            {asistencia.hora_salida && (
-                              <div className="card-info-row">
-                                <span className="label">Hora de Salida:</span>
-                                <span className="value">{asistencia.hora_salida}</span>
-                              </div>
-                            )}
+                          <div className="asistencias-grid">
+                            {asistenciasPorMes[mes].map((asistencia, index) => {
+                              const tipoColor = {
+                                'PRESENTE': { bg: '#e8f5e9', border: '#4caf50', text: '#2e7d32' },
+                                'TARDANZA': { bg: '#fff3e0', border: '#ff9800', text: '#e65100' },
+                                'TARDANZA_JUSTIFICADA': { bg: '#e3f2fd', border: '#2196f3', text: '#1565c0' },
+                                'FALTA': { bg: '#ffebee', border: '#f44336', text: '#c62828' },
+                                'FALTA_JUSTIFICADA': { bg: '#f3e5f5', border: '#9c27b0', text: '#6a1b9a' }
+                              }[asistencia.tipo] || { bg: '#f5f5f5', border: '#9e9e9e', text: '#424242' };
+                              
+                              return (
+                                <div 
+                                  key={asistencia.id} 
+                                  className="asistencia-card"
+                                  style={{
+                                    backgroundColor: tipoColor.bg,
+                                    borderColor: tipoColor.border,
+                                    color: tipoColor.text
+                                  }}
+                                >
+                                  <div className="card-header-incidencia">
+                                    <div className="card-fecha">
+                                      <span className="icon">📅</span>
+                                      <span>{new Date(asistencia.fecha).toLocaleDateString('es-PE', { 
+                                        day: 'numeric',
+                                        month: 'short'
+                                      })}</span>
+                                    </div>
+                                    <div className="card-tipo-asistencia">
+                                      <span className={`badge-tipo badge-${asistencia.tipo.toLowerCase()}`}>
+                                        {asistencia.tipo.replace('_', ' ')}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="card-body-estrella">
+                                    <div className="card-info-row">
+                                      <span className="label">Entrada:</span>
+                                      <span className="value">{asistencia.hora_entrada || 'N/A'}</span>
+                                    </div>
+                                    {asistencia.hora_salida && (
+                                      <div className="card-info-row">
+                                        <span className="label">Salida:</span>
+                                        <span className="value">{asistencia.hora_salida}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
+                      ))
+                    ) : (
+                      <div className="asistencias-grid">
+                        {asistenciasFiltradas.map((asistencia, index) => {
+                          const tipoColor = {
+                            'PRESENTE': { bg: '#e8f5e9', border: '#4caf50', text: '#2e7d32' },
+                            'TARDANZA': { bg: '#fff3e0', border: '#ff9800', text: '#e65100' },
+                            'TARDANZA_JUSTIFICADA': { bg: '#e3f2fd', border: '#2196f3', text: '#1565c0' },
+                            'FALTA': { bg: '#ffebee', border: '#f44336', text: '#c62828' },
+                            'FALTA_JUSTIFICADA': { bg: '#f3e5f5', border: '#9c27b0', text: '#6a1b9a' }
+                          }[asistencia.tipo] || { bg: '#f5f5f5', border: '#9e9e9e', text: '#424242' };
+                          
+                          return (
+                            <div 
+                              key={asistencia.id} 
+                              className="asistencia-card"
+                              style={{
+                                backgroundColor: tipoColor.bg,
+                                borderColor: tipoColor.border,
+                                color: tipoColor.text
+                              }}
+                            >
+                              <div className="card-header-incidencia">
+                                <div className="card-fecha">
+                                  <span className="icon">📅</span>
+                                  <span>{new Date(asistencia.fecha).toLocaleDateString('es-PE', { 
+                                    day: 'numeric',
+                                    month: 'short'
+                                  })}</span>
+                                </div>
+                                <div className="card-tipo-asistencia">
+                                  <span className={`badge-tipo badge-${asistencia.tipo.toLowerCase()}`}>
+                                    {asistencia.tipo.replace('_', ' ')}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="card-body-estrella">
+                                <div className="card-info-row">
+                                  <span className="label">Entrada:</span>
+                                  <span className="value">{asistencia.hora_entrada || 'N/A'}</span>
+                                </div>
+                                {asistencia.hora_salida && (
+                                  <div className="card-info-row">
+                                    <span className="label">Salida:</span>
+                                    <span className="value">{asistencia.hora_salida}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>,
