@@ -230,6 +230,34 @@ router.post('/registrar', async (req, res) => {
           [horaActual, asistencia_usuario_id, registro.id]
         );
         resultado = { id: registro.id, tipo: 'SALIDA', hora: horaActual };
+        
+        // Actualizar hora_salida en matriculas_asistencias si es ALUMNO
+        if (tipo_usuario === 'ALUMNO') {
+          try {
+            const matricula = await query(
+              `SELECT m.id as matricula_id
+               FROM matriculas m
+               INNER JOIN grupos g ON g.id = m.grupo_id
+               WHERE m.alumno_id = (SELECT alumno_id FROM usuarios WHERE id = ?)
+                 AND m.colegio_id = ? AND g.anio = ?
+                 AND (m.estado = 0 OR m.estado = 4)
+               LIMIT 1`,
+              [usuario_id, colegio_id, anio_activo]
+            );
+            
+            if (matricula.length > 0) {
+              await execute(
+                `UPDATE matriculas_asistencias 
+                 SET hora_salida = ?
+                 WHERE matricula_id = ? AND fecha = ?`,
+                [horaActual, matricula[0].matricula_id, fechaHoy]
+              );
+              console.log(`✅ [ASISTENCIA] Actualizada hora_salida en matriculas_asistencias`);
+            }
+          } catch (error) {
+            console.error(`❌ [ASISTENCIA] Error actualizando hora_salida:`, error);
+          }
+        }
       } 
       // CASO 3: Intentar registrar SALIDA cuando ya tiene entrada Y salida
       else if (tipo_registro === 'SALIDA' && registro.hora_entrada && registro.hora_salida) {
@@ -334,34 +362,6 @@ router.post('/registrar', async (req, res) => {
       else {
         console.log(`❌ [ASISTENCIA] No se puede registrar salida sin entrada previa`);
         return res.status(400).json({ error: 'No se puede registrar salida sin entrada previa' });
-      }
-    } else if (asistenciaExistente.length > 0 && tipo_registro === 'SALIDA') {
-      // Actualizar hora_salida en matriculas_asistencias si es ALUMNO
-      if (tipo_usuario === 'ALUMNO') {
-        try {
-          const matricula = await query(
-            `SELECT m.id as matricula_id
-             FROM matriculas m
-             INNER JOIN grupos g ON g.id = m.grupo_id
-             WHERE m.alumno_id = (SELECT alumno_id FROM usuarios WHERE id = ?)
-               AND m.colegio_id = ? AND g.anio = ?
-               AND (m.estado = 0 OR m.estado = 4)
-             LIMIT 1`,
-            [usuario_id, colegio_id, anio_activo]
-          );
-          
-          if (matricula.length > 0) {
-            await execute(
-              `UPDATE matriculas_asistencias 
-               SET hora_salida = ?
-               WHERE matricula_id = ? AND fecha = ?`,
-              [horaActual, matricula[0].matricula_id, fechaHoy]
-            );
-            console.log(`✅ [ASISTENCIA] Actualizada hora_salida en matriculas_asistencias`);
-          }
-        } catch (error) {
-          console.error(`❌ [ASISTENCIA] Error actualizando hora_salida:`, error);
-        }
       }
     }
 
