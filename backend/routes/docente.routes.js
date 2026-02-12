@@ -5152,10 +5152,31 @@ router.post('/hijos/:hijoId/mensajes/subir-imagen', uploadMensajes.single('image
 });
 
 /**
- * GET /api/docente/hijos/:hijoId/aula-virtual/:asignaturaId
- * Obtener datos del aula virtual de una asignatura (en nombre del hijo)
+ * Rutas proxy para aula virtual del hijo - todas requieren verificación de permisos
+ * Estas rutas actúan como proxy, verificando permisos y luego delegando a la lógica del alumno
+ * IMPORTANTE: Las rutas específicas (tareas, examenes, etc.) deben estar ANTES de la ruta general (:asignaturaId)
+ * para que Express las capture correctamente.
  */
-router.get('/hijos/:hijoId/aula-virtual/:asignaturaId', async (req, res) => {
+
+/**
+ * Middleware para verificar que las rutas proxy solo permitan GET (solo lectura)
+ * Rechaza POST, PUT, DELETE para docentes/apoderados
+ */
+const soloLecturaProxy = (req, res, next) => {
+  console.log(`🔵 [SOLO-LECTURA-PROXY] Método: ${req.method}, URL: ${req.originalUrl}`);
+  if (req.method !== 'GET') {
+    console.error(`❌ [SOLO-LECTURA-PROXY] Método no permitido: ${req.method}`);
+    return res.status(403).json({ 
+      error: 'Solo lectura permitida. Los apoderados y docentes solo pueden ver el contenido, no realizar acciones.' 
+    });
+  }
+  console.log(`✅ [SOLO-LECTURA-PROXY] Método GET permitido, continuando...`);
+  next();
+};
+
+// Proxy para obtener tareas (SOLO GET - solo lectura)
+// IMPORTANTE: Esta ruta debe estar ANTES de la ruta general /:asignaturaId
+router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, res) => {
   try {
     const { hijoId, asignaturaId } = req.params;
     const { colegio_id, anio_activo } = req.user;
