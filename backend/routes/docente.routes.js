@@ -4932,6 +4932,131 @@ router.get('/hijos/:hijoId/estrellas', async (req, res) => {
       total_estrellas: totalEstrellas
     });
   } catch (error) {
+    console.error('Error obteniendo estrellas del hijo:', error);
+    res.status(500).json({ error: 'Error al obtener estrellas del alumno' });
+  }
+});
+
+/**
+ * GET /api/docente/hijos/:hijoId/asistencias
+ * Obtener todas las asistencias de un hijo
+ */
+router.get('/hijos/:hijoId/asistencias', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, usuario_id, personal_id, anio_activo } = req.user;
+
+    console.log(`\n🔵 ========== [HIJOS-ASISTENCIAS] NUEVA PETICIÓN ==========`);
+    console.log(`📋 [HIJOS-ASISTENCIAS] hijoId recibido: ${hijoId}`);
+
+    // Validar que hijoId sea un número válido
+    if (!hijoId || isNaN(parseInt(hijoId))) {
+      return res.status(400).json({ error: 'ID de alumno inválido' });
+    }
+
+    const hijoIdNum = parseInt(hijoId);
+
+    if (!personal_id) {
+      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
+    }
+
+    // Obtener nro_documento del personal
+    let nroDocumento = null;
+    const personalData = await query(
+      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [personal_id, colegio_id]
+    );
+
+    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+      nroDocumento = personalData[0].nro_documento;
+    } else {
+      const usuarioData = await query(
+        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+        [usuario_id, colegio_id, personal_id]
+      );
+      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
+        nroDocumento = usuarioData[0].usuario;
+      }
+    }
+
+    if (!nroDocumento) {
+      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
+    }
+
+    // Verificar que el alumno es hijo del docente
+    const esHijo = await query(
+      `SELECT COUNT(*) as count
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE ap.colegio_id = ?
+         AND ap.nro_documento = ?
+         AND a.id = ?
+         AND a.colegio_id = ?`,
+      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
+    );
+
+    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+      return res.status(403).json({ error: 'No tienes permisos para ver estas asistencias. El alumno no está registrado como tu hijo.' });
+    }
+
+    // Obtener matrícula del alumno para el año activo
+    const matricula = await query(
+      `SELECT m.id FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [hijoIdNum, colegio_id, anio_activo]
+    );
+
+    if (!matricula || matricula.length === 0) {
+      return res.json({
+        asistencias: [],
+        total_presentes: 0,
+        total_tardanzas: 0,
+        total_faltas: 0
+      });
+    }
+
+    const matriculaId = matricula[0].id;
+
+    // Obtener todas las asistencias del alumno del año activo
+    const asistencias = await query(
+      `SELECT ma.id, ma.fecha, ma.tipo, ma.hora_entrada, ma.hora_salida, ma.created_at
+       FROM matriculas_asistencias ma
+       WHERE ma.matricula_id = ?
+       ORDER BY ma.fecha DESC`,
+      [matriculaId]
+    );
+
+    // Calcular estadísticas
+    const totalPresentes = asistencias.filter(a => a.tipo === 'PRESENTE' || a.tipo === 'TARDANZA_JUSTIFICADA').length;
+    const totalTardanzas = asistencias.filter(a => a.tipo === 'TARDANZA' || a.tipo === 'TARDANZA_JUSTIFICADA').length;
+    const totalFaltas = asistencias.filter(a => a.tipo === 'FALTA' || a.tipo === 'FALTA_JUSTIFICADA').length;
+
+    console.log(`✅ [HIJOS-ASISTENCIAS] Asistencias obtenidas: ${asistencias.length}`);
+    console.log(`📊 [HIJOS-ASISTENCIAS] Presentes: ${totalPresentes}, Tardanzas: ${totalTardanzas}, Faltas: ${totalFaltas}`);
+    console.log(`🔵 ========== [HIJOS-ASISTENCIAS] FIN DE PETICIÓN ==========\n`);
+
+    res.json({
+      asistencias: asistencias || [],
+      total_presentes: totalPresentes,
+      total_tardanzas: totalTardanzas,
+      total_faltas: totalFaltas
+    });
+  } catch (error) {
+    console.error('Error obteniendo asistencias del hijo:', error);
+    res.status(500).json({ error: 'Error al obtener asistencias del alumno' });
+  }
+});
+    console.log(`🔵 ========== [HIJOS-ESTRELLAS] FIN DE PETICIÓN ==========\n`);
+
+    res.json({
+      estrellas: estrellas || [],
+      total_estrellas: totalEstrellas
+    });
+  } catch (error) {
     console.error('❌ [HIJOS-ESTRELLAS] Error obteniendo estrellas:', error);
     res.status(500).json({ error: 'Error al obtener estrellas', details: error.message });
   }

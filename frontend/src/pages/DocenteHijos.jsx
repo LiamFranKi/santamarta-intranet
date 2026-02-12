@@ -51,6 +51,12 @@ function DocenteHijos() {
   const [estrellas, setEstrellas] = useState([]);
   const [totalEstrellas, setTotalEstrellas] = useState(0);
   const [loadingEstrellas, setLoadingEstrellas] = useState(false);
+  const [showModalAsistencias, setShowModalAsistencias] = useState(false);
+  const [asistencias, setAsistencias] = useState([]);
+  const [totalPresentes, setTotalPresentes] = useState(0);
+  const [totalTardanzas, setTotalTardanzas] = useState(0);
+  const [totalFaltas, setTotalFaltas] = useState(0);
+  const [loadingAsistencias, setLoadingAsistencias] = useState(false);
   const [mostrarCursos, setMostrarCursos] = useState(false);
   const [cursos, setCursos] = useState([]);
   const [loadingCursos, setLoadingCursos] = useState(false);
@@ -164,8 +170,7 @@ function DocenteHijos() {
         await handleVerEstrellas(hijo);
         break;
       case 'asistencias':
-        console.log('Asistencias de:', hijo);
-        // Implementar después
+        await handleVerAsistencias(hijo);
         break;
       case 'imprimir-qr':
         await handleImprimirQR(hijo);
@@ -409,6 +414,31 @@ function DocenteHijos() {
       });
     } finally {
       setLoadingEstrellas(false);
+    }
+  };
+
+  const handleVerAsistencias = async (hijo) => {
+    try {
+      setLoadingAsistencias(true);
+      setHijoSeleccionado(hijo);
+      
+      // Cargar asistencias del hijo
+      const response = await api.get(`/docente/hijos/${hijo.id}/asistencias`);
+      setAsistencias(response.data.asistencias || []);
+      setTotalPresentes(response.data.total_presentes || 0);
+      setTotalTardanzas(response.data.total_tardanzas || 0);
+      setTotalFaltas(response.data.total_faltas || 0);
+      setShowModalAsistencias(true);
+    } catch (error) {
+      console.error('Error cargando asistencias:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudieron cargar las asistencias',
+        confirmButtonText: 'Entendido'
+      });
+    } finally {
+      setLoadingAsistencias(false);
     }
   };
 
@@ -2170,6 +2200,101 @@ function DocenteHijos() {
                       </div>
                     );
                   })()}
+                </>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Asistencias */}
+      {showModalAsistencias && createPortal(
+        <div className="modal-overlay-qr" onClick={() => setShowModalAsistencias(false)}>
+          <div className="modal-content-estrellas" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-qr">
+              <h2>📅 Asistencias de {hijoSeleccionado?.nombres} {hijoSeleccionado?.apellido_paterno}</h2>
+              <button className="modal-close-qr" onClick={() => setShowModalAsistencias(false)}>×</button>
+            </div>
+
+            <div className="modal-body-estrellas">
+              {loadingAsistencias ? (
+                <div className="qr-loading">
+                  <div className="loading-spinner">Cargando asistencias...</div>
+                </div>
+              ) : asistencias.length === 0 ? (
+                <div className="empty-state">
+                  <p>No hay asistencias registradas</p>
+                </div>
+              ) : (
+                <>
+                  <div className="estadisticas-asistencias">
+                    <div className="stat-card" style={{ backgroundColor: '#e3f2fd', borderColor: '#2196f3' }}>
+                      <span className="stat-label">Presentes:</span>
+                      <span className="stat-value">{totalPresentes}</span>
+                    </div>
+                    <div className="stat-card" style={{ backgroundColor: '#fff3e0', borderColor: '#ff9800' }}>
+                      <span className="stat-label">Tardanzas:</span>
+                      <span className="stat-value">{totalTardanzas}</span>
+                    </div>
+                    <div className="stat-card" style={{ backgroundColor: '#ffebee', borderColor: '#f44336' }}>
+                      <span className="stat-label">Faltas:</span>
+                      <span className="stat-value">{totalFaltas}</span>
+                    </div>
+                  </div>
+                  <div className="asistencias-list">
+                    {asistencias.map((asistencia, index) => {
+                      const color = coloresPastel[index % coloresPastel.length];
+                      const tipoColor = {
+                        'PRESENTE': { bg: '#e8f5e9', border: '#4caf50', text: '#2e7d32' },
+                        'TARDANZA': { bg: '#fff3e0', border: '#ff9800', text: '#e65100' },
+                        'TARDANZA_JUSTIFICADA': { bg: '#e3f2fd', border: '#2196f3', text: '#1565c0' },
+                        'FALTA': { bg: '#ffebee', border: '#f44336', text: '#c62828' },
+                        'FALTA_JUSTIFICADA': { bg: '#f3e5f5', border: '#9c27b0', text: '#6a1b9a' }
+                      }[asistencia.tipo] || color;
+                      
+                      return (
+                        <div 
+                          key={asistencia.id} 
+                          className="asistencia-card"
+                          style={{
+                            backgroundColor: tipoColor.bg,
+                            borderColor: tipoColor.border,
+                            color: tipoColor.text
+                          }}
+                        >
+                          <div className="card-header-incidencia">
+                            <div className="card-fecha">
+                              <span className="icon">📅</span>
+                              <span>{new Date(asistencia.fecha).toLocaleDateString('es-PE', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                              })}</span>
+                            </div>
+                            <div className="card-tipo-asistencia">
+                              <span className={`badge-tipo badge-${asistencia.tipo.toLowerCase()}`}>
+                                {asistencia.tipo.replace('_', ' ')}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="card-body-estrella">
+                            <div className="card-info-row">
+                              <span className="label">Hora de Entrada:</span>
+                              <span className="value">{asistencia.hora_entrada || 'No registrada'}</span>
+                            </div>
+                            {asistencia.hora_salida && (
+                              <div className="card-info-row">
+                                <span className="label">Hora de Salida:</span>
+                                <span className="value">{asistencia.hora_salida}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </>
               )}
             </div>
