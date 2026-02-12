@@ -5393,7 +5393,7 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
 });
 
 // Proxy para obtener videos (SOLO GET - solo lectura)
-router.get('/hijos/:hijos/:hijoId/aula-virtual/videos', soloLecturaProxy, async (req, res) => {
+router.get('/hijos/:hijoId/aula-virtual/videos', soloLecturaProxy, async (req, res) => {
   try {
     const { hijoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
