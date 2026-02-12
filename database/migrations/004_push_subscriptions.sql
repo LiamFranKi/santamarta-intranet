@@ -21,3 +21,4 @@ CREATE TABLE IF NOT EXISTS `push_subscriptions` (
   KEY `idx_activo` (`activo`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='Suscripciones de notificaciones push';
 
+
