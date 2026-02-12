@@ -160,8 +160,7 @@ function DocenteHijos() {
         // Implementar después
         break;
       case 'reiniciar-contrasena':
-        console.log('Reiniciar contraseña de:', hijo);
-        // Implementar después
+        await handleReiniciarContrasena(hijo);
         break;
       default:
         break;
@@ -271,6 +270,55 @@ function DocenteHijos() {
         setFotoPreview(reader.result);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleReiniciarContrasena = async (hijo) => {
+    try {
+      // Mostrar confirmación
+      const result = await Swal.fire({
+        icon: 'warning',
+        title: '¿Estás seguro?',
+        text: `¿Deseas reiniciar la contraseña de ${hijo.nombres} ${hijo.apellido_paterno}? Se establecerá su DNI como contraseña.`,
+        showCancelButton: true,
+        confirmButtonColor: '#3085d6',
+        cancelButtonColor: '#d33',
+        confirmButtonText: 'Sí, reiniciar',
+        cancelButtonText: 'Cancelar'
+      });
+
+      if (!result.isConfirmed) {
+        return;
+      }
+
+      // Mostrar loading
+      Swal.fire({
+        title: 'Reiniciando contraseña...',
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      // Llamar a la API
+      const response = await api.post(`/docente/hijos/${hijo.id}/reiniciar-contrasena`);
+
+      // Mostrar mensaje de éxito
+      Swal.fire({
+        icon: 'success',
+        title: '¡Contraseña reiniciada!',
+        text: 'Se volvió a poner el DNI del estudiante como contraseña',
+        confirmButtonText: 'Entendido'
+      });
+
+    } catch (error) {
+      console.error('Error reiniciando contraseña:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo reiniciar la contraseña',
+        confirmButtonText: 'Entendido'
+      });
     }
   };
 

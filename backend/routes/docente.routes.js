@@ -4433,6 +4433,124 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
 });
 
 /**
+ * POST /api/docente/hijos/:hijoId/reiniciar-contrasena
+ * Reiniciar contraseña de un hijo (solo si es apoderado)
+ * Establece la contraseña del alumno a su DNI
+ */
+router.post('/hijos/:hijoId/reiniciar-contrasena', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, usuario_id, personal_id } = req.user;
+
+    console.log(`\n🔵 ========== [HIJOS-REINICIAR-PASSWORD] NUEVA PETICIÓN ==========`);
+    console.log(`📋 [HIJOS-REINICIAR-PASSWORD] hijoId recibido: ${hijoId}`);
+    console.log(`📋 [HIJOS-REINICIAR-PASSWORD] Usuario: usuario_id=${usuario_id}, personal_id=${personal_id}, colegio_id=${colegio_id}`);
+
+    // Validar que hijoId sea un número válido
+    if (!hijoId || isNaN(parseInt(hijoId))) {
+      console.error(`❌ [HIJOS-REINICIAR-PASSWORD] Error: hijoId inválido: ${hijoId}`);
+      return res.status(400).json({ error: 'ID de alumno inválido' });
+    }
+
+    const hijoIdNum = parseInt(hijoId);
+
+    if (!personal_id) {
+      console.error('❌ [HIJOS-REINICIAR-PASSWORD] Error: personal_id no encontrado en req.user');
+      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
+    }
+
+    // Obtener nro_documento del personal (puede estar en personal.nro_documento o en usuarios.usuario)
+    let nroDocumento = null;
+    
+    const personalData = await query(
+      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [personal_id, colegio_id]
+    );
+
+    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+      nroDocumento = personalData[0].nro_documento;
+    } else {
+      const usuarioData = await query(
+        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+        [usuario_id, colegio_id, personal_id]
+      );
+      
+      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
+        nroDocumento = usuarioData[0].usuario;
+      }
+    }
+
+    if (!nroDocumento) {
+      console.error(`❌ [HIJOS-REINICIAR-PASSWORD] Error: No se encontró nro_documento`);
+      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
+    }
+
+    // Verificar que el alumno es hijo del docente
+    const esHijo = await query(
+      `SELECT COUNT(*) as count
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE ap.colegio_id = ?
+         AND ap.nro_documento = ?
+         AND a.id = ?
+         AND a.colegio_id = ?`,
+      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
+    );
+
+    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+      console.error(`❌ [HIJOS-REINICIAR-PASSWORD] Error: El alumno ${hijoIdNum} no es hijo del docente`);
+      return res.status(403).json({ error: 'No tienes permisos para realizar esta acción. El alumno no está registrado como tu hijo.' });
+    }
+
+    // Obtener el DNI del alumno (usuario.usuario es el DNI)
+    const usuarioAlumno = await query(
+      `SELECT u.id as usuario_id, u.usuario as dni
+       FROM usuarios u
+       WHERE u.alumno_id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+       LIMIT 1`,
+      [hijoIdNum, colegio_id]
+    );
+
+    if (!usuarioAlumno || usuarioAlumno.length === 0) {
+      console.error(`❌ [HIJOS-REINICIAR-PASSWORD] Error: No se encontró usuario del alumno`);
+      return res.status(404).json({ error: 'No se encontró el usuario del alumno' });
+    }
+
+    const dniAlumno = usuarioAlumno[0].dni;
+    const usuarioIdAlumno = usuarioAlumno[0].usuario_id;
+
+    if (!dniAlumno) {
+      console.error(`❌ [HIJOS-REINICIAR-PASSWORD] Error: El alumno no tiene DNI registrado`);
+      return res.status(400).json({ error: 'El alumno no tiene DNI registrado' });
+    }
+
+    // Generar hash SHA1 del DNI (igual que el sistema usa)
+    const crypto = require('crypto');
+    const passwordHash = crypto.createHash('sha1').update(String(dniAlumno)).digest('hex');
+
+    // Actualizar contraseña del alumno
+    await execute(
+      `UPDATE usuarios SET password = ? WHERE id = ? AND alumno_id = ? AND colegio_id = ?`,
+      [passwordHash, usuarioIdAlumno, hijoIdNum, colegio_id]
+    );
+
+    console.log(`✅ [HIJOS-REINICIAR-PASSWORD] Contraseña reiniciada exitosamente para hijoId: ${hijoIdNum}, DNI: ${dniAlumno}`);
+    console.log(`🔵 ========== [HIJOS-REINICIAR-PASSWORD] FIN DE PETICIÓN ==========\n`);
+
+    res.json({
+      success: true,
+      message: 'Se volvió a poner el DNI del estudiante como contraseña'
+    });
+  } catch (error) {
+    console.error('❌ [HIJOS-REINICIAR-PASSWORD] Error reiniciando contraseña:', error);
+    console.error('❌ [HIJOS-REINICIAR-PASSWORD] Stack trace:', error.stack);
+    console.error(`🔵 ========== [HIJOS-REINICIAR-PASSWORD] FIN DE PETICIÓN (ERROR) ==========\n`);
+    res.status(500).json({ error: 'Error al reiniciar la contraseña', details: error.message });
+  }
+});
+
+/**
  * POST /api/docente/comunicados
  * Crear nuevo comunicado (solo ADMINISTRADOR puede crear)
  */
