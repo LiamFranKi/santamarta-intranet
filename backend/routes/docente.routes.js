@@ -5130,11 +5130,13 @@ router.get('/hijos/:hijoId/aula-virtual/:asignaturaId', async (req, res) => {
     // Verificar que el hijo tiene acceso a esta asignatura
     const asignatura = await query(
       `SELECT a.*, g.id as grupo_id, c.nombre as curso_nombre,
-              g.grado, g.seccion, n.nombre as nivel_nombre
+              g.grado, g.seccion, n.nombre as nivel_nombre,
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
        FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN personal p ON p.id = a.personal_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
        AND (m.estado = 0 OR m.estado = 4)
@@ -5155,6 +5157,7 @@ router.get('/hijos/:hijoId/aula-virtual/:asignaturaId', async (req, res) => {
         grado: asignaturaData.grado,
         seccion: asignaturaData.seccion,
         nivel_nombre: asignaturaData.nivel_nombre,
+        docente_nombre: asignaturaData.docente_nombre || 'Docente',
         aula_virtual: asignaturaData.aula_virtual || '',
         habilitar_aula: asignaturaData.habilitar_aula || 'NO'
       },

@@ -10,18 +10,31 @@ import api from '../services/api';
 function DocenteHijoAulaVirtual() {
   const { hijoId, asignaturaId } = useParams();
   const interceptorIdRef = useRef(null);
+  const hijoIdRef = useRef(hijoId);
+
+  // Actualizar la referencia cuando cambie hijoId
+  useEffect(() => {
+    hijoIdRef.current = hijoId;
+  }, [hijoId]);
 
   useEffect(() => {
     // Agregar interceptor para modificar las URLs de las llamadas API
     interceptorIdRef.current = api.interceptors.request.use(
       (config) => {
+        const currentHijoId = hijoIdRef.current;
+        
         // Modificar URLs que empiecen con /alumno/aula-virtual
         if (config.url && config.url.startsWith('/alumno/aula-virtual')) {
-          config.url = config.url.replace('/alumno/aula-virtual', `/docente/hijos/${hijoId}/aula-virtual`);
+          config.url = config.url.replace('/alumno/aula-virtual', `/docente/hijos/${currentHijoId}/aula-virtual`);
         }
         // Modificar URLs de mensajes
         if (config.url && config.url.startsWith('/alumno/mensajes')) {
-          config.url = config.url.replace('/alumno/mensajes', `/docente/hijos/${hijoId}/mensajes`);
+          config.url = config.url.replace('/alumno/mensajes', `/docente/hijos/${currentHijoId}/mensajes`);
+        }
+        // Modificar URLs de cursos (para cargar datos del curso)
+        if (config.url && config.url === '/alumno/cursos') {
+          // No interceptar esta, se maneja en cargarDatosCurso
+          // Pero podemos intentar obtener los datos de otra manera
         }
         return config;
       },
@@ -34,11 +47,11 @@ function DocenteHijoAulaVirtual() {
         api.interceptors.request.eject(interceptorIdRef.current);
       }
     };
-  }, [hijoId]);
+  }, []); // Dependencias vacías porque usamos ref
 
   // Usar asignaturaId como cursoId para AlumnoAulaVirtual
-  // Pasar isApoderado=true para deshabilitar acciones (solo lectura)
-  return <AlumnoAulaVirtual cursoId={asignaturaId} isApoderado={true} />;
+  // Pasar isApoderado=true y hijoId para deshabilitar acciones (solo lectura)
+  return <AlumnoAulaVirtual cursoId={asignaturaId} isApoderado={true} hijoId={hijoId} />;
 }
 
 export default DocenteHijoAulaVirtual;
