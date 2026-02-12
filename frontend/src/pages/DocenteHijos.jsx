@@ -536,15 +536,18 @@ function DocenteHijos() {
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
-        doc.text('Descripción:', margin + 3, yPos + 24);
+        const descY = yPos + 24;
+        doc.text('Descripción:', margin + 3, descY);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
         const descLines = doc.splitTextToSize(incidencia.description || 'Sin descripción', contentWidth - 25);
         descLines.forEach((line, idx) => {
-          doc.text(line, margin + 20, yPos + 30 + (idx * 4));
+          doc.text(line, margin + 20, descY + (idx * 4));
         });
 
-        yPos += cardHeight + 8;
+        // Ajustar altura del card según el contenido
+        const descHeight = descLines.length * 4;
+        yPos += Math.max(cardHeight, 24 + descHeight) + 8;
       });
 
       const nombreArchivo = `Incidencias_${hijoSeleccionado?.nombres?.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
@@ -644,7 +647,7 @@ function DocenteHijos() {
         doc.text('Estrellas:', margin + 3, yPos + 12);
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
-        doc.text(`${estrella.points || 0} ⭐`, margin + 20, yPos + 12);
+        doc.text(`${estrella.points || 0}`, margin + 20, yPos + 12);
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
@@ -662,15 +665,18 @@ function DocenteHijos() {
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
-        doc.text('Descripción:', margin + 3, yPos + 30);
+        const descY = yPos + 24;
+        doc.text('Descripción:', margin + 3, descY);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
         const descLines = doc.splitTextToSize(estrella.description || 'Sin descripción', contentWidth - 25);
         descLines.forEach((line, idx) => {
-          doc.text(line, margin + 20, yPos + 35 + (idx * 4));
+          doc.text(line, margin + 20, descY + (idx * 4));
         });
 
-        yPos += cardHeight + 8;
+        // Ajustar altura del card según el contenido
+        const descHeight = descLines.length * 4;
+        yPos += Math.max(cardHeight, 24 + descHeight) + 8;
       });
 
       const nombreArchivo = `Estrellas_${hijoSeleccionado?.nombres?.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
