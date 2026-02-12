@@ -1349,8 +1349,8 @@ function DocenteHijos() {
 
         // Promedio Final - ajustado para que quepa dentro del card
         const promedioFinal = asignatura.notas?.[cicloSeleccionadoNotas]?.promedio_final || null;
-        // Reducir un poco la posición Y para que quepa mejor
-        yPosInterno -= 1; // Bajar un poco
+        // Reducir la posición Y para que quepa mejor dentro del card
+        yPosInterno -= 3; // Bajar 3mm
         doc.setFontSize(8);
         doc.setFont('helvetica', 'bold');
         doc.text('PROMEDIO', margin + 3, yPosInterno);
