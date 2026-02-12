@@ -5050,17 +5050,6 @@ router.get('/hijos/:hijoId/asistencias', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener asistencias del alumno' });
   }
 });
-    console.log(`🔵 ========== [HIJOS-ESTRELLAS] FIN DE PETICIÓN ==========\n`);
-
-    res.json({
-      estrellas: estrellas || [],
-      total_estrellas: totalEstrellas
-    });
-  } catch (error) {
-    console.error('❌ [HIJOS-ESTRELLAS] Error obteniendo estrellas:', error);
-    res.status(500).json({ error: 'Error al obtener estrellas', details: error.message });
-  }
-});
 
 /**
  * Helper: Verificar que el docente tiene permisos sobre el hijo y obtener usuario_id del hijo
