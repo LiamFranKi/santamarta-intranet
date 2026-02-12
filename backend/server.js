@@ -204,6 +204,9 @@ app.use('/api/docente', (req, res, next) => {
     console.log(`📋 [SERVER] Petición recibida: ${req.method} ${req.path}`);
     console.log(`📋 [SERVER] Query params:`, req.query);
     console.log(`📋 [SERVER] Params:`, req.params);
+    if (req.method === 'PUT' || req.method === 'POST') {
+      console.log(`📋 [SERVER] Body keys:`, Object.keys(req.body || {}));
+    }
   }
   next();
 });
