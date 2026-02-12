@@ -5190,6 +5190,11 @@ const soloLecturaProxy = (req, res, next) => {
 // Proxy para obtener tareas (SOLO GET - solo lectura)
 router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, res) => {
   try {
+    console.log(`\n🔵 [HIJOS-AULA-VIRTUAL-TAREAS] Nueva petición`);
+    console.log(`📋 Params:`, req.params);
+    console.log(`📋 Query:`, req.query);
+    console.log(`📋 User:`, { usuario_id: req.user?.usuario_id, tipo: req.user?.tipo, personal_id: req.user?.personal_id });
+    
     const { hijoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
     const { asignatura_id, ciclo } = req.query;
@@ -5198,7 +5203,16 @@ router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, r
       return res.status(400).json({ error: 'asignatura_id es requerido' });
     }
 
-    const { alumnoId } = await verificarHijoYUsuario(req, hijoId);
+    let alumnoId;
+    try {
+      const resultado = await verificarHijoYUsuario(req, hijoId);
+      alumnoId = resultado.alumnoId;
+      console.log(`✅ [HIJOS-AULA-VIRTUAL-TAREAS] Permisos verificados, alumnoId: ${alumnoId}`);
+    } catch (error) {
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-TAREAS] Error verificando permisos:`, error.message);
+      return res.status(403).json({ error: error.message || 'No tienes permisos para acceder a este recurso' });
+    }
+    
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
     // Verificar acceso del hijo a la asignatura
@@ -5281,6 +5295,7 @@ router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, r
 // Proxy para obtener exámenes (SOLO GET - solo lectura)
 router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req, res) => {
   try {
+    console.log(`\n🔵 [HIJOS-AULA-VIRTUAL-EXAMENES] Nueva petición`);
     const { hijoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
     const { asignatura_id, ciclo } = req.query;
@@ -5289,7 +5304,15 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
       return res.status(400).json({ error: 'asignatura_id es requerido' });
     }
 
-    const { alumnoId } = await verificarHijoYUsuario(req, hijoId);
+    let alumnoId;
+    try {
+      const resultado = await verificarHijoYUsuario(req, hijoId);
+      alumnoId = resultado.alumnoId;
+    } catch (error) {
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-EXAMENES] Error verificando permisos:`, error.message);
+      return res.status(403).json({ error: error.message || 'No tienes permisos para acceder a este recurso' });
+    }
+    
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
     // Verificar acceso del hijo a la asignatura
@@ -5337,7 +5360,15 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
       return res.status(400).json({ error: 'asignatura_id es requerido' });
     }
 
-    const { alumnoId } = await verificarHijoYUsuario(req, hijoId);
+    let alumnoId;
+    try {
+      const resultado = await verificarHijoYUsuario(req, hijoId);
+      alumnoId = resultado.alumnoId;
+    } catch (error) {
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-ARCHIVOS] Error verificando permisos:`, error.message);
+      return res.status(403).json({ error: error.message || 'No tienes permisos para acceder a este recurso' });
+    }
+    
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
     // Verificar acceso del hijo a la asignatura
@@ -5406,7 +5437,15 @@ router.get('/hijos/:hijoId/aula-virtual/videos', soloLecturaProxy, async (req, r
       return res.status(400).json({ error: 'asignatura_id es requerido' });
     }
 
-    const { alumnoId } = await verificarHijoYUsuario(req, hijoId);
+    let alumnoId;
+    try {
+      const resultado = await verificarHijoYUsuario(req, hijoId);
+      alumnoId = resultado.alumnoId;
+    } catch (error) {
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-VIDEOS] Error verificando permisos:`, error.message);
+      return res.status(403).json({ error: error.message || 'No tienes permisos para acceder a este recurso' });
+    }
+    
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
     // Verificar acceso del hijo a la asignatura
@@ -5450,7 +5489,15 @@ router.get('/hijos/:hijoId/aula-virtual/enlaces', soloLecturaProxy, async (req, 
       return res.status(400).json({ error: 'asignatura_id es requerido' });
     }
 
-    const { alumnoId } = await verificarHijoYUsuario(req, hijoId);
+    let alumnoId;
+    try {
+      const resultado = await verificarHijoYUsuario(req, hijoId);
+      alumnoId = resultado.alumnoId;
+    } catch (error) {
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-ENLACES] Error verificando permisos:`, error.message);
+      return res.status(403).json({ error: error.message || 'No tienes permisos para acceder a este recurso' });
+    }
+    
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
     // Verificar acceso del hijo a la asignatura
