@@ -5178,51 +5178,108 @@ const soloLecturaProxy = (req, res, next) => {
 // IMPORTANTE: Esta ruta debe estar ANTES de la ruta general /:asignaturaId
 router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, res) => {
   try {
-    const { hijoId, asignaturaId } = req.params;
+    console.log(`\n🔵 [HIJOS-AULA-VIRTUAL-TAREAS] Nueva petición`);
+    console.log(`📋 Params:`, req.params);
+    console.log(`📋 Query:`, req.query);
+    console.log(`📋 User:`, { usuario_id: req.user?.usuario_id, tipo: req.user?.tipo, personal_id: req.user?.personal_id });
+    
+    const { hijoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
+    const { asignatura_id, ciclo } = req.query;
 
-    // Verificar permisos y obtener datos del hijo
-    const { alumnoId } = await verificarHijoYUsuario(req, hijoId);
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
 
-    // Verificar que el hijo tiene acceso a esta asignatura
+    let alumnoId;
+    try {
+      const resultado = await verificarHijoYUsuario(req, hijoId);
+      alumnoId = resultado.alumnoId;
+      console.log(`✅ [HIJOS-AULA-VIRTUAL-TAREAS] Permisos verificados, alumnoId: ${alumnoId}`);
+    } catch (error) {
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-TAREAS] Error verificando permisos:`, error.message);
+      return res.status(403).json({ error: error.message || 'No tienes permisos para acceder a este recurso' });
+    }
+    
+    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
+
+    // Verificar acceso del hijo a la asignatura
+    console.log(`📋 [HIJOS-AULA-VIRTUAL-TAREAS] Verificando acceso a asignatura: asignatura_id=${asignatura_id}, alumnoId=${alumnoId}, colegio_id=${colegio_id}, anio_activo=${anio_activo}`);
     const asignatura = await query(
-      `SELECT a.*, g.id as grupo_id, c.nombre as curso_nombre,
-              g.grado, g.seccion, n.nombre as nivel_nombre,
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+      `SELECT a.*, g.id as grupo_id
        FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       INNER JOIN personal p ON p.id = a.personal_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
        AND (m.estado = 0 OR m.estado = 4)
        LIMIT 1`,
-      [asignaturaId, alumnoId, colegio_id, anio_activo]
+      [asignatura_id, alumnoId, colegio_id, anio_activo]
     );
+    console.log(`📋 [HIJOS-AULA-VIRTUAL-TAREAS] Resultado verificación asignatura:`, asignatura.length > 0 ? '✅ Encontrada' : '❌ No encontrada');
 
     if (asignatura.length === 0) {
+      console.error(`❌ [HIJOS-AULA-VIRTUAL-TAREAS] El alumno no tiene acceso a esta asignatura`);
       return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
     }
 
-    const asignaturaData = asignatura[0];
+    // Obtener tareas (misma lógica que alumno)
+    const tareas = await query(
+      `SELECT t.*, 
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+       FROM asignaturas_tareas t
+       INNER JOIN personal p ON p.id = t.trabajador_id
+       WHERE t.asignatura_id = ? AND t.ciclo = ?
+       ORDER BY t.id ASC`,
+      [asignatura_id, cicloFiltro]
+    );
 
-    res.json({
-      asignatura: {
-        id: asignaturaData.id,
-        curso_nombre: asignaturaData.curso_nombre,
-        grado: asignaturaData.grado,
-        seccion: asignaturaData.seccion,
-        nivel_nombre: asignaturaData.nivel_nombre,
-        docente_nombre: asignaturaData.docente_nombre || 'Docente',
-        aula_virtual: asignaturaData.aula_virtual || '',
-        habilitar_aula: asignaturaData.habilitar_aula || 'NO'
-      },
-      alumno_id: alumnoId
-    });
+    // Construir URLs de archivos
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const tareasConArchivos = await Promise.all(tareas.map(async (tarea) => {
+      const archivos = await query(
+        `SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`,
+        [tarea.id]
+      );
+
+      const archivosConUrls = archivos.map(archivo => {
+        let archivoUrl = null;
+        if (archivo.archivo && archivo.archivo !== '') {
+          if (archivo.archivo.startsWith('http')) {
+            archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl);
+          } else if (archivo.archivo.startsWith('/Static/')) {
+            const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
+            archivoUrl = isDevelopment
+              ? `http://localhost:5000/Static/Archivos/${nombreArchivo}`
+              : `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
+          } else {
+            archivoUrl = isDevelopment
+              ? `http://localhost:5000/Static/Archivos/${archivo.archivo}`
+              : `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
+          }
+        }
+        return {
+          ...archivo,
+          archivo_url: archivoUrl
+        };
+      });
+
+      let enlaceUrl = null;
+      if (tarea.enlace && tarea.enlace !== '') {
+        enlaceUrl = tarea.enlace.trim();
+      }
+
+      return {
+        ...tarea,
+        archivos: archivosConUrls,
+        enlace_url: enlaceUrl
+      };
+    }));
+
+    res.json({ tareas: tareasConArchivos || [] });
   } catch (error) {
-    console.error('Error obteniendo aula virtual:', error);
-    res.status(500).json({ error: error.message || 'Error al obtener aula virtual' });
+    console.error('Error obteniendo tareas:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener tareas' });
   }
 });
 
