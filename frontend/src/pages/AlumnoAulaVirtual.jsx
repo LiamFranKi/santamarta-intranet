@@ -389,6 +389,16 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false }) {
   };
 
   const handleIniciarExamen = async (examen) => {
+    // Si es modo solo lectura, no permitir iniciar examen
+    if (modoSoloLectura) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Solo lectura',
+        text: 'Como apoderado, solo puedes ver el contenido. El alumno debe realizar los exámenes desde su cuenta.'
+      });
+      return;
+    }
+
     const result = await Swal.fire({
       title: '¿Iniciar examen?',
       html: `
@@ -695,11 +705,24 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false }) {
     <DashboardLayout>
       <div className="docente-aula-virtual">
         <div className="page-header">
-          <button className="btn-back" onClick={() => navigate('/alumno/cursos')}>
-            ← Volver a Cursos
+          <button className="btn-back" onClick={() => navigate(modoSoloLectura ? '/docente/hijos' : '/alumno/cursos')}>
+            ← Volver {modoSoloLectura ? 'a Hijos' : 'a Cursos'}
           </button>
-          <h1>🎓 Aula Virtual</h1>
+          <h1>🎓 Aula Virtual {modoSoloLectura && <span style={{ fontSize: '0.7em', color: '#6b7280', fontWeight: 'normal' }}>(Solo Lectura)</span>}</h1>
           <p>{curso?.curso_nombre || 'Curso'} - {curso?.docente_nombre || 'Docente'}</p>
+          {modoSoloLectura && (
+            <div style={{
+              marginTop: '0.5rem',
+              padding: '0.75rem',
+              backgroundColor: '#fef3c7',
+              border: '1px solid #fbbf24',
+              borderRadius: '6px',
+              color: '#92400e',
+              fontSize: '0.875rem'
+            }}>
+              ⚠️ Modo solo lectura: Puedes ver todo el contenido, pero no puedes entregar tareas ni realizar exámenes. El alumno debe hacerlo desde su cuenta.
+            </div>
+          )}
         </div>
 
         {/* Selector Global de Bimestre */}
