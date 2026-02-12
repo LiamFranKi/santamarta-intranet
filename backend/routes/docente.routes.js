@@ -6459,6 +6459,266 @@ router.get('/hijos/:hijoId/cursos', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/hijos/:hijoId/notas-detalladas
+ * Obtener todas las notas detalladas del hijo agrupadas por curso
+ */
+router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, usuario_id, personal_id, anio_activo } = req.user;
+
+    console.log(`\n🔵 ========== [HIJOS-NOTAS-DETALLADAS] NUEVA PETICIÓN ==========`);
+    console.log(`📋 [HIJOS-NOTAS-DETALLADAS] hijoId recibido: ${hijoId}`);
+
+    // Validar que hijoId sea un número válido
+    if (!hijoId || isNaN(parseInt(hijoId))) {
+      return res.status(400).json({ error: 'ID de alumno inválido' });
+    }
+
+    const hijoIdNum = parseInt(hijoId);
+
+    if (!personal_id) {
+      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
+    }
+
+    // Obtener nro_documento del personal
+    let nroDocumento = null;
+    const personalData = await query(
+      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [personal_id, colegio_id]
+    );
+
+    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+      nroDocumento = personalData[0].nro_documento;
+    } else {
+      const usuarioData = await query(
+        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+        [usuario_id, colegio_id, personal_id]
+      );
+      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
+        nroDocumento = usuarioData[0].usuario;
+      }
+    }
+
+    if (!nroDocumento) {
+      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
+    }
+
+    // Verificar que el alumno es hijo del docente
+    const esHijo = await query(
+      `SELECT COUNT(*) as count
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE ap.colegio_id = ?
+         AND ap.nro_documento = ?
+         AND a.id = ?
+         AND a.colegio_id = ?`,
+      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
+    );
+
+    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+      return res.status(403).json({ error: 'No tienes permisos para ver estas notas. El alumno no está registrado como tu hijo.' });
+    }
+
+    // Obtener matrícula actual del alumno
+    const matricula = await query(
+      `SELECT m.id as matricula_id, m.grupo_id
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [hijoIdNum, colegio_id, anio_activo]
+    );
+
+    if (!matricula || matricula.length === 0) {
+      return res.json({ asignaturas: [] });
+    }
+
+    const matriculaId = matricula[0].matricula_id;
+    const grupoId = matricula[0].grupo_id;
+
+    // Obtener todas las asignaturas del grupo
+    const asignaturas = await query(
+      `SELECT DISTINCT
+              a.id as asignatura_id,
+              c.id as curso_id,
+              c.nombre as curso_nombre,
+              g.nivel_id,
+              n.tipo_calificacion,
+              n.tipo_calificacion_final,
+              n.nota_aprobatoria,
+              n.nota_maxima,
+              n.nota_minima,
+              c.peso_examen_mensual,
+              c.examen_mensual
+       FROM asignaturas a
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE a.grupo_id = ? AND a.colegio_id = ?
+       ORDER BY c.nombre ASC`,
+      [grupoId, colegio_id]
+    );
+
+    // Para cada asignatura, obtener las notas detalladas
+    const asignaturasConNotas = await Promise.all(
+      asignaturas.map(async (asignatura) => {
+        // Obtener criterios de la asignatura
+        const criterios = await query(
+          `SELECT * FROM asignaturas_criterios
+           WHERE asignatura_id = ? AND colegio_id = ?
+           ORDER BY orden ASC`,
+          [asignatura.asignatura_id, colegio_id]
+        );
+
+        // Obtener todos los indicadores
+        const criterioIds = criterios.map(c => c.id);
+        let todosIndicadores = [];
+        if (criterioIds.length > 0) {
+          todosIndicadores = await query(
+            `SELECT * FROM asignaturas_indicadores
+             WHERE criterio_id IN (${criterioIds.map(() => '?').join(',')})
+             ORDER BY criterio_id ASC, id ASC`,
+            criterioIds
+          );
+        }
+
+        // Agrupar indicadores por criterio
+        const indicadoresPorCriterio = {};
+        todosIndicadores.forEach(indicador => {
+          if (!indicadoresPorCriterio[indicador.criterio_id]) {
+            indicadoresPorCriterio[indicador.criterio_id] = [];
+          }
+          indicadoresPorCriterio[indicador.criterio_id].push(indicador);
+        });
+
+        // Agregar indicadores a cada criterio
+        const criteriosConIndicadores = criterios.map(criterio => ({
+          ...criterio,
+          indicadores: indicadoresPorCriterio[criterio.id] || []
+        }));
+
+        // Obtener todas las notas detalladas
+        const todasNotasDetalles = await query(
+          `SELECT ciclo, data FROM notas_detalles
+           WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1, 2, 3, 4)`,
+          [matriculaId, asignatura.asignatura_id]
+        );
+
+        // Obtener todas las notas de criterios
+        const todasNotasCriterios = await query(
+          `SELECT criterio_id, nota, ciclo
+           FROM notas n
+           WHERE n.matricula_id = ? AND n.asignatura_id = ? AND n.ciclo IN (1, 2, 3, 4)`,
+          [matriculaId, asignatura.asignatura_id]
+        );
+
+        // Obtener todos los exámenes mensuales
+        let todasExamenesMensuales = [];
+        if (asignatura.examen_mensual === 'SI') {
+          todasExamenesMensuales = await query(
+            `SELECT nro, nota, ciclo FROM notas_examen_mensual
+             WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1, 2, 3, 4)
+             ORDER BY ciclo ASC, nro ASC`,
+            [matriculaId, asignatura.asignatura_id]
+          );
+        }
+
+        // Obtener todos los promedios finales
+        const todosPromedios = await query(
+          `SELECT promedio, ciclo FROM promedios
+           WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1, 2, 3, 4)`,
+          [matriculaId, asignatura.asignatura_id]
+        );
+
+        // Organizar datos por ciclo
+        const notasDetalladas = {};
+        for (let ciclo = 1; ciclo <= 4; ciclo++) {
+          // Obtener notas detalladas del ciclo
+          const notaDetalle = todasNotasDetalles.find(nd => nd.ciclo === ciclo);
+          if (notaDetalle && notaDetalle.data) {
+            notasDetalladas[ciclo] = deserializarNotasDetalles(notaDetalle.data);
+          } else {
+            notasDetalladas[ciclo] = {};
+          }
+
+          // Crear mapa de notas por criterio para este ciclo
+          const notasMap = {};
+          todasNotasCriterios
+            .filter(n => n.ciclo === ciclo)
+            .forEach(nota => {
+              notasMap[nota.criterio_id] = nota.nota;
+            });
+
+          // Agregar notas de criterios a cada criterio
+          criteriosConIndicadores.forEach(criterio => {
+            if (!criterio.notas) criterio.notas = {};
+            criterio.notas[ciclo] = notasMap[criterio.id] || null;
+          });
+
+          // Agregar exámenes mensuales del ciclo
+          if (asignatura.examen_mensual === 'SI') {
+            const examenesCiclo = todasExamenesMensuales.filter(e => e.ciclo === ciclo);
+            if (examenesCiclo.length > 0) {
+              if (!notasDetalladas[ciclo].examen_mensual) {
+                notasDetalladas[ciclo].examen_mensual = {};
+              }
+              examenesCiclo.forEach(examen => {
+                notasDetalladas[ciclo].examen_mensual[examen.nro] = examen.nota;
+              });
+            }
+          }
+
+          // Agregar promedio final del ciclo
+          const promedioCiclo = todosPromedios.find(p => p.ciclo === ciclo);
+          notasDetalladas[ciclo].promedio_final = promedioCiclo ? promedioCiclo.promedio : null;
+        }
+
+        return {
+          asignatura_id: asignatura.asignatura_id,
+          curso_id: asignatura.curso_id,
+          curso_nombre: asignatura.curso_nombre,
+          nivel: {
+            tipo_calificacion: asignatura.tipo_calificacion,
+            tipo_calificacion_final: asignatura.tipo_calificacion_final,
+            nota_aprobatoria: asignatura.nota_aprobatoria,
+            nota_maxima: asignatura.nota_maxima,
+            nota_minima: asignatura.nota_minima
+          },
+          examen_mensual: asignatura.examen_mensual === 'SI',
+          peso_examen_mensual: asignatura.peso_examen_mensual || 0,
+          criterios: criteriosConIndicadores,
+          notas: notasDetalladas
+        };
+      })
+    );
+
+    // Obtener información del alumno
+    const alumno = await query(
+      `SELECT id, nombres, apellido_paterno, apellido_materno,
+              CONCAT(apellido_paterno, ' ', apellido_materno, ', ', nombres) as nombre_completo
+       FROM alumnos
+       WHERE id = ?`,
+      [hijoIdNum]
+    );
+
+    console.log(`✅ [HIJOS-NOTAS-DETALLADAS] Notas obtenidas para ${asignaturasConNotas.length} asignaturas`);
+    console.log(`🔵 ========== [HIJOS-NOTAS-DETALLADAS] FIN DE PETICIÓN ==========\n`);
+
+    res.json({
+      alumno: alumno[0] || null,
+      asignaturas: asignaturasConNotas
+    });
+  } catch (error) {
+    console.error('❌ [HIJOS-NOTAS-DETALLADAS] Error obteniendo notas detalladas:', error);
+    console.error('❌ [HIJOS-NOTAS-DETALLADAS] Stack trace:', error.stack);
+    res.status(500).json({ error: 'Error al obtener notas detalladas', details: error.message });
+  }
+});
+
+/**
  * POST /api/docente/comunicados
  * Crear nuevo comunicado (solo ADMINISTRADOR puede crear)
  */

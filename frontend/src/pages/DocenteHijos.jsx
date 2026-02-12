@@ -67,6 +67,10 @@ function DocenteHijos() {
   const [contenidoMensaje, setContenidoMensaje] = useState('');
   const [archivosAdjuntos, setArchivosAdjuntos] = useState([]);
   const [enviandoMensaje, setEnviandoMensaje] = useState(false);
+  const [showModalNotasDetalladas, setShowModalNotasDetalladas] = useState(false);
+  const [notasDetalladas, setNotasDetalladas] = useState(null);
+  const [loadingNotasDetalladas, setLoadingNotasDetalladas] = useState(false);
+  const [cicloSeleccionadoNotas, setCicloSeleccionadoNotas] = useState(1);
 
   useEffect(() => {
     cargarHijos();
@@ -177,8 +181,7 @@ function DocenteHijos() {
         await handleImprimirQR(hijo);
         break;
       case 'notas-detalladas':
-        console.log('Notas detalladas de:', hijo);
-        // Implementar después
+        await handleVerNotasDetalladas(hijo);
         break;
       case 'imprimir-notas':
         console.log('Ver libreta de:', hijo);
@@ -1093,6 +1096,248 @@ function DocenteHijos() {
       Swal.fire({
         title: '¡PDF Generado!',
         text: 'Las asistencias se han exportado correctamente',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo exportar el PDF',
+        confirmButtonText: 'Entendido'
+      });
+    }
+  };
+
+  const handleVerNotasDetalladas = async (hijo) => {
+    try {
+      setHijoSeleccionado(hijo);
+      setCicloSeleccionadoNotas(1);
+      setNotasDetalladas(null);
+      setShowModalNotasDetalladas(true);
+      await cargarNotasDetalladas(hijo.id);
+    } catch (error) {
+      console.error('Error abriendo modal de notas detalladas:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo abrir el modal de notas detalladas',
+        confirmButtonText: 'Entendido'
+      });
+    }
+  };
+
+  const cargarNotasDetalladas = async (hijoId) => {
+    try {
+      setLoadingNotasDetalladas(true);
+      const response = await api.get(`/docente/hijos/${hijoId}/notas-detalladas`);
+      setNotasDetalladas(response.data);
+    } catch (error) {
+      console.error('Error cargando notas detalladas:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudieron cargar las notas detalladas',
+        confirmButtonText: 'Entendido'
+      });
+    } finally {
+      setLoadingNotasDetalladas(false);
+    }
+  };
+
+  const handleExportarNotasDetalladasPDF = () => {
+    if (!notasDetalladas || !notasDetalladas.asignaturas || notasDetalladas.asignaturas.length === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Sin datos',
+        text: 'No hay notas para exportar',
+        confirmButtonText: 'Entendido'
+      });
+      return;
+    }
+
+    try {
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const margin = 15;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - (margin * 2);
+      let yPos = margin;
+
+      // Header
+      doc.setFillColor(33, 150, 243);
+      doc.rect(0, 0, pageWidth, 30, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('NOTAS REGISTRADAS', pageWidth / 2, 12, { align: 'center' });
+      doc.setFontSize(12);
+      doc.text(`${notasDetalladas.alumno?.nombre_completo || 'Alumno'}`, pageWidth / 2, 20, { align: 'center' });
+      doc.setFontSize(10);
+      const nombresBimestres = ['I', 'II', 'III', 'IV'];
+      doc.text(`Bimestre ${nombresBimestres[cicloSeleccionadoNotas - 1]}`, pageWidth / 2, 26, { align: 'center' });
+
+      yPos = 40;
+
+      // Advertencia
+      doc.setFillColor(255, 235, 238);
+      doc.roundedRect(margin, yPos, contentWidth, 10, 2, 2, 'F');
+      doc.setDrawColor(244, 67, 54);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(margin, yPos, contentWidth, 10, 2, 2);
+      doc.setTextColor(198, 40, 40);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text('La información mostrada puede no estar completa al 100%, para cualquier consulta comuníquese con el administrador.', margin + 2, yPos + 6, { maxWidth: contentWidth - 4 });
+
+      yPos += 15;
+
+      // Colores pastel para asignaturas
+      const coloresPastelPDF = [
+        [232, 245, 233], [76, 175, 80], [46, 125, 50], // Verde
+        [227, 242, 253], [33, 150, 243], [21, 101, 192], // Azul
+        [255, 243, 224], [255, 152, 0], [230, 81, 0], // Naranja
+        [243, 229, 245], [156, 39, 176], [106, 27, 154], // Morado
+        [255, 235, 238], [244, 67, 54], [198, 40, 40], // Rojo
+        [255, 245, 238], [255, 183, 77], [230, 126, 34], // Amarillo
+        [224, 242, 241], [0, 150, 136], [0, 105, 92], // Turquesa
+        [251, 233, 231], [233, 30, 99], [194, 24, 91] // Rosa
+      ];
+
+      notasDetalladas.asignaturas.forEach((asignatura, index) => {
+        // Verificar si necesitamos nueva página
+        if (yPos > pageHeight - 80) {
+          doc.addPage();
+          yPos = margin;
+        }
+
+        const colorIndex = (index % (coloresPastelPDF.length / 3)) * 3;
+        const colorBg = [coloresPastelPDF[colorIndex], coloresPastelPDF[colorIndex + 1], coloresPastelPDF[colorIndex + 2]];
+        const colorBorder = [coloresPastelPDF[colorIndex + 1], coloresPastelPDF[colorIndex + 2], coloresPastelPDF[colorIndex]];
+        const colorText = [coloresPastelPDF[colorIndex + 2], coloresPastelPDF[colorIndex], coloresPastelPDF[colorIndex + 1]];
+
+        const cardHeight = 50 + (asignatura.criterios.length * 8);
+
+        // Fondo del card
+        doc.setFillColor(colorBg[0][0], colorBg[0][1], colorBg[0][2]);
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
+
+        // Borde
+        doc.setDrawColor(colorBorder[0][0], colorBorder[0][1], colorBorder[0][2]);
+        doc.setLineWidth(1);
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
+
+        // Título del curso
+        doc.setTextColor(colorText[0][0], colorText[0][1], colorText[0][2]);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(asignatura.curso_nombre, margin + 5, yPos + 8);
+
+        let yPosInterno = yPos + 15;
+
+        // Tabla de criterios
+        asignatura.criterios.forEach((criterio) => {
+          const tieneIndicadores = criterio.indicadores && criterio.indicadores.length > 0;
+          const notaCriterio = criterio.notas?.[cicloSeleccionadoNotas] || null;
+
+          // Nombre del criterio con peso
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          let criterioTexto = criterio.descripcion;
+          if (asignatura.nivel.tipo_calificacion_final === 1) {
+            criterioTexto += ` (${criterio.peso}%)`;
+          }
+          doc.text(criterioTexto, margin + 5, yPosInterno);
+
+          // Notas de indicadores o nota directa
+          if (tieneIndicadores) {
+            const notasIndicadores = [];
+            criterio.indicadores.forEach((indicador) => {
+              const cuadros = indicador.cuadros || 1;
+              for (let i = 0; i < cuadros; i++) {
+                const nota = asignatura.notas?.[cicloSeleccionadoNotas]?.[criterio.id]?.[indicador.id]?.[i] || '-';
+                notasIndicadores.push(nota);
+              }
+            });
+            const notasTexto = notasIndicadores.join('  ');
+            doc.text(notasTexto, margin + 100, yPosInterno);
+            // Promedio del criterio
+            if (notaCriterio) {
+              doc.setFillColor(253, 233, 217);
+              doc.roundedRect(margin + 180, yPosInterno - 3, 15, 5, 1, 1, 'F');
+              doc.setDrawColor(colorBorder[0][0], colorBorder[0][1], colorBorder[0][2]);
+              doc.roundedRect(margin + 180, yPosInterno - 3, 15, 5, 1, 1);
+              doc.setFont('helvetica', 'bold');
+              doc.text(notaCriterio.toString(), margin + 187.5, yPosInterno, { align: 'center' });
+              doc.setFont('helvetica', 'normal');
+            }
+          } else {
+            // Nota directa
+            if (notaCriterio) {
+              doc.setFont('helvetica', 'bold');
+              doc.text(notaCriterio.toString(), margin + 100, yPosInterno);
+              doc.setFont('helvetica', 'normal');
+            } else {
+              doc.text('-', margin + 100, yPosInterno);
+            }
+          }
+
+          yPosInterno += 8;
+        });
+
+        // Examen Mensual (si aplica)
+        if (asignatura.examen_mensual) {
+          const examenes = asignatura.notas?.[cicloSeleccionadoNotas]?.examen_mensual || {};
+          const examen1 = examenes[1] || '-';
+          const examen2 = examenes[2] || '-';
+          const promedioExamen = asignatura.notas?.[cicloSeleccionadoNotas]?.promedio_examen_mensual || null;
+
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.text(`Examen Mensual (${asignatura.peso_examen_mensual}%)`, margin + 5, yPosInterno);
+          doc.text(`${examen1}  ${examen2}`, margin + 100, yPosInterno);
+          if (promedioExamen) {
+            doc.setFillColor(253, 233, 217);
+            doc.roundedRect(margin + 180, yPosInterno - 3, 15, 5, 1, 1, 'F');
+            doc.setDrawColor(colorBorder[0][0], colorBorder[0][1], colorBorder[0][2]);
+            doc.roundedRect(margin + 180, yPosInterno - 3, 15, 5, 1, 1);
+            doc.setFont('helvetica', 'bold');
+            doc.text(promedioExamen.toString(), margin + 187.5, yPosInterno, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+          }
+          yPosInterno += 8;
+        }
+
+        // Promedio Final
+        const promedioFinal = asignatura.notas?.[cicloSeleccionadoNotas]?.promedio_final || null;
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text('PROMEDIO', margin + 5, yPosInterno);
+        if (promedioFinal) {
+          doc.setFillColor(249, 249, 249);
+          doc.roundedRect(margin + 100, yPosInterno - 3, 20, 6, 1, 1, 'F');
+          doc.setDrawColor(colorBorder[0][0], colorBorder[0][1], colorBorder[0][2]);
+          doc.setLineWidth(1);
+          doc.roundedRect(margin + 100, yPosInterno - 3, 20, 6, 1, 1);
+          doc.text(promedioFinal.toString(), margin + 110, yPosInterno, { align: 'center' });
+        } else {
+          doc.text('-', margin + 100, yPosInterno);
+        }
+
+        yPos += cardHeight + 10;
+      });
+
+      const nombreArchivo = `Notas_Detalladas_${notasDetalladas.alumno?.apellido_paterno?.replace(/\s+/g, '_')}_${nombresBimestres[cicloSeleccionadoNotas - 1]}_${new Date().getTime()}.pdf`;
+      doc.save(nombreArchivo);
+
+      Swal.fire({
+        title: '¡PDF Generado!',
+        text: 'Las notas detalladas se han exportado correctamente',
         icon: 'success'
       });
     } catch (error) {
@@ -2635,6 +2880,171 @@ function DocenteHijos() {
                   </>
                 );
               })()}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Notas Detalladas */}
+      {showModalNotasDetalladas && createPortal(
+        <div className="modal-overlay-qr" onClick={() => setShowModalNotasDetalladas(false)}>
+          <div className="modal-content-notas-detalladas" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-qr">
+              <h2>📊 Notas Registradas - {hijoSeleccionado?.nombres} {hijoSeleccionado?.apellido_paterno}</h2>
+              <button className="modal-close-qr" onClick={() => setShowModalNotasDetalladas(false)}>×</button>
+            </div>
+
+            <div className="modal-body-notas-detalladas">
+              {loadingNotasDetalladas ? (
+                <div className="qr-loading">
+                  <div className="loading-spinner">Cargando notas...</div>
+                </div>
+              ) : !notasDetalladas || !notasDetalladas.asignaturas || notasDetalladas.asignaturas.length === 0 ? (
+                <div className="empty-state">
+                  <p>No hay notas registradas</p>
+                </div>
+              ) : (
+                <>
+                  <div className="notas-detalladas-controls">
+                    <div className="bimestre-selector">
+                      <label>Bimestre:</label>
+                      <select 
+                        value={cicloSeleccionadoNotas} 
+                        onChange={(e) => setCicloSeleccionadoNotas(parseInt(e.target.value))}
+                        className="select-bimestre"
+                      >
+                        <option value={1}>I Bimestre</option>
+                        <option value={2}>II Bimestre</option>
+                        <option value={3}>III Bimestre</option>
+                        <option value={4}>IV Bimestre</option>
+                      </select>
+                    </div>
+                    <button 
+                      className="btn-exportar-notas-detalladas"
+                      onClick={handleExportarNotasDetalladasPDF}
+                    >
+                      🖨️ Exportar Notas
+                    </button>
+                  </div>
+
+                  <div className="alert alert-danger text-center">
+                    La información mostrada puede no estar completa al 100%, para cualquier consulta comuníquese con el administrador.
+                  </div>
+
+                  <div className="asignaturas-notas-container">
+                    {notasDetalladas.asignaturas.map((asignatura, index) => {
+                      const coloresPastelNotas = [
+                        { bg: 'linear-gradient(145deg, #e8f5e9, #f1f8e9)', border: '#4caf50', text: '#2e7d32' }, // Verde
+                        { bg: 'linear-gradient(145deg, #e3f2fd, #e8f4fd)', border: '#2196f3', text: '#1565c0' }, // Azul
+                        { bg: 'linear-gradient(145deg, #fff3e0, #fff8e1)', border: '#ff9800', text: '#e65100' }, // Naranja
+                        { bg: 'linear-gradient(145deg, #f3e5f5, #f5e6f7)', border: '#9c27b0', text: '#6a1b9a' }, // Morado
+                        { bg: 'linear-gradient(145deg, #ffebee, #fce4ec)', border: '#f44336', text: '#c62828' }, // Rojo
+                        { bg: 'linear-gradient(145deg, #fff9e6, #fffde7)', border: '#ffc107', text: '#f57c00' }, // Amarillo
+                        { bg: 'linear-gradient(145deg, #e0f2f1, #e8f5f3)', border: '#009688', text: '#00695c' }, // Turquesa
+                        { bg: 'linear-gradient(145deg, #fce4ec, #fce8ed)', border: '#e91e63', text: '#c2185b' } // Rosa
+                      ];
+                      const color = coloresPastelNotas[index % coloresPastelNotas.length];
+
+                      return (
+                        <div 
+                          key={asignatura.asignatura_id} 
+                          className="asignatura-notas-card"
+                          style={{
+                            background: color.bg,
+                            borderColor: color.border,
+                            color: color.text
+                          }}
+                        >
+                          <div className="asignatura-notas-header">
+                            <h3>{asignatura.curso_nombre}</h3>
+                          </div>
+                          <div className="asignatura-notas-body">
+                            <table className="notas-detalladas-table">
+                              <tbody>
+                                {asignatura.criterios.map((criterio) => {
+                                  const tieneIndicadores = criterio.indicadores && criterio.indicadores.length > 0;
+                                  const notaCriterio = criterio.notas?.[cicloSeleccionadoNotas] || null;
+
+                                  return (
+                                    <tr key={criterio.id}>
+                                      <th className="criterio-label">
+                                        {criterio.descripcion}
+                                        {asignatura.nivel.tipo_calificacion_final === 1 && (
+                                          <span className="criterio-peso"> ({criterio.peso}%)</span>
+                                        )}
+                                      </th>
+                                      <td className="criterio-notas">
+                                        {tieneIndicadores ? (
+                                          <div className="indicadores-container">
+                                            <div className="indicadores-notas">
+                                              {criterio.indicadores.map((indicador) => {
+                                                const cuadros = indicador.cuadros || 1;
+                                                return Array.from({ length: cuadros }, (_, i) => {
+                                                  const nota = asignatura.notas?.[cicloSeleccionadoNotas]?.[criterio.id]?.[indicador.id]?.[i] || '-';
+                                                  return (
+                                                    <span key={`${indicador.id}-${i}`} className="nota-indicador">
+                                                      {nota}
+                                                    </span>
+                                                  );
+                                                });
+                                              })}
+                                            </div>
+                                            {notaCriterio && (
+                                              <span className="nota-promedio-criterio">{notaCriterio}</span>
+                                            )}
+                                          </div>
+                                        ) : (
+                                          <span className="nota-directa">{notaCriterio || '-'}</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                                {asignatura.examen_mensual && (
+                                  <tr>
+                                    <th className="criterio-label">
+                                      Examen Mensual ({asignatura.peso_examen_mensual}%)
+                                    </th>
+                                    <td className="criterio-notas">
+                                      <div className="indicadores-container">
+                                        <div className="indicadores-notas">
+                                          {(() => {
+                                            const examenes = asignatura.notas?.[cicloSeleccionadoNotas]?.examen_mensual || {};
+                                            return (
+                                              <>
+                                                <span className="nota-indicador">{examenes[1] || '-'}</span>
+                                                <span className="nota-indicador">{examenes[2] || '-'}</span>
+                                              </>
+                                            );
+                                          })()}
+                                        </div>
+                                        {asignatura.notas?.[cicloSeleccionadoNotas]?.promedio_examen_mensual && (
+                                          <span className="nota-promedio-criterio">
+                                            {asignatura.notas[cicloSeleccionadoNotas].promedio_examen_mensual}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                                <tr className="promedio-final-row">
+                                  <th className="criterio-label">PROMEDIO</th>
+                                  <td className="criterio-notas">
+                                    <span className="nota-promedio-final">
+                                      {asignatura.notas?.[cicloSeleccionadoNotas]?.promedio_final || '-'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>,
