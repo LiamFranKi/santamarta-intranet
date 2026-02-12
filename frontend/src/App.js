@@ -33,6 +33,7 @@ import AlumnoMensajes from './pages/AlumnoMensajes';
 import AlumnoCursos from './pages/AlumnoCursos';
 import AlumnoHorario from './pages/AlumnoHorario';
 import AlumnoExamen from './pages/AlumnoExamen';
+import AlumnoExamenResultados from './pages/AlumnoExamenResultados';
 import AsistenciaEscaneo from './pages/AsistenciaEscaneo';
 import './App.css';
 
@@ -272,6 +273,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <AlumnoExamen />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/alumno/examen/:examenId/resultados"
+        element={
+          <PrivateRoute>
+            <AlumnoExamenResultados />
           </PrivateRoute>
         }
       />

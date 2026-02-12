@@ -3252,6 +3252,236 @@ router.get('/aula-virtual/tareas/:tareaId', async (req, res) => {
 });
 
 /**
+ * GET /api/alumno/examenes/:examenId/resultado
+ * Obtener el resultado del examen del alumno
+ */
+router.get('/examenes/:examenId/resultado', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id, anio_activo, alumno_id } = req.user;
+    const { examenId } = req.params;
+
+    // Obtener matrícula del alumno
+    const matricula = await query(
+      `SELECT m.id as matricula_id
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [alumno_id, colegio_id, anio_activo]
+    );
+
+    if (matricula.length === 0) {
+      return res.status(404).json({ error: 'No se encontró la matrícula del alumno' });
+    }
+
+    // Verificar que el examen existe y el alumno tiene acceso
+    const examen = await query(
+      `SELECT ae.*, a.grupo_id
+       FROM asignaturas_examenes ae
+       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE ae.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [examenId, alumno_id, colegio_id, anio_activo]
+    );
+
+    if (examen.length === 0) {
+      return res.status(404).json({ error: 'Examen no encontrado o sin acceso' });
+    }
+
+    // Obtener resultado del examen del alumno
+    const resultado = await query(
+      `SELECT * FROM asignaturas_examenes_pruebas
+       WHERE examen_id = ? AND matricula_id = ?
+       ORDER BY fecha_hora DESC
+       LIMIT 1`,
+      [examenId, matricula[0].matricula_id]
+    );
+
+    if (resultado.length === 0) {
+      return res.status(404).json({ error: 'No se encontró resultado para este examen' });
+    }
+
+    res.json({
+      resultado: resultado[0],
+      examen: examen[0]
+    });
+  } catch (error) {
+    console.error('Error obteniendo resultado del examen:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener resultado del examen' });
+  }
+});
+
+/**
+ * GET /api/alumno/examenes/:examenId/resultado/detalles
+ * Obtener detalles completos del resultado del examen (preguntas y respuestas)
+ */
+router.get('/examenes/:examenId/resultado/detalles', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id, anio_activo, alumno_id } = req.user;
+    const { examenId } = req.params;
+
+    // Obtener matrícula del alumno
+    const matricula = await query(
+      `SELECT m.id as matricula_id
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [alumno_id, colegio_id, anio_activo]
+    );
+
+    if (matricula.length === 0) {
+      return res.status(404).json({ error: 'No se encontró la matrícula del alumno' });
+    }
+
+    // Obtener el resultado del examen
+    const resultado = await query(
+      `SELECT 
+        aep.*,
+        ae.titulo as examen_titulo,
+        ae.tipo_puntaje,
+        ae.puntos_correcta
+       FROM asignaturas_examenes_pruebas aep
+       INNER JOIN asignaturas_examenes ae ON ae.id = aep.examen_id
+       WHERE aep.examen_id = ? AND aep.matricula_id = ?
+       ORDER BY aep.fecha_hora DESC
+       LIMIT 1`,
+      [examenId, matricula[0].matricula_id]
+    );
+
+    if (resultado.length === 0) {
+      return res.status(404).json({ error: 'No se encontró resultado para este examen' });
+    }
+
+    const resultadoInfo = resultado[0];
+
+    // Obtener preguntas que vio el alumno (misma lógica que docente)
+    let preguntaIds = [];
+    try {
+      if (resultadoInfo.preguntas && resultadoInfo.preguntas.trim() !== '') {
+        try {
+          preguntaIds = JSON.parse(resultadoInfo.preguntas);
+        } catch (jsonError) {
+          try {
+            const phpSerialize = require('php-serialize');
+            const decoded = Buffer.from(resultadoInfo.preguntas, 'base64').toString('utf-8');
+            preguntaIds = phpSerialize.unserialize(decoded) || [];
+          } catch (phpError) {
+            console.warn('Error parseando preguntas:', phpError);
+            preguntaIds = [];
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Error obteniendo preguntaIds:', error);
+    }
+
+    let preguntas = [];
+    if (preguntaIds.length > 0) {
+      const placeholders = preguntaIds.map(() => '?').join(',');
+      preguntas = await query(
+        `SELECT 
+          aep.*,
+          GROUP_CONCAT(
+            CONCAT(aepa.id, ':', aepa.descripcion, ':', aepa.correcta, ':', COALESCE(aepa.orden_posicion, ''), ':', COALESCE(aepa.par_id, ''), ':', COALESCE(aepa.zona_drop, ''))
+            ORDER BY aepa.id ASC
+            SEPARATOR '||'
+          ) as alternativas_raw
+         FROM asignaturas_examenes_preguntas aep
+         LEFT JOIN asignaturas_examenes_preguntas_alternativas aepa ON aepa.pregunta_id = aep.id
+         WHERE aep.examen_id = ? AND aep.id IN (${placeholders})
+         GROUP BY aep.id
+         ORDER BY FIELD(aep.id, ${placeholders})`,
+        [examenId, ...preguntaIds, ...preguntaIds]
+      );
+    } else {
+      // Fallback: obtener todas las preguntas
+      preguntas = await query(
+        `SELECT 
+          aep.*,
+          GROUP_CONCAT(
+            CONCAT(aepa.id, ':', aepa.descripcion, ':', aepa.correcta, ':', COALESCE(aepa.orden_posicion, ''), ':', COALESCE(aepa.par_id, ''), ':', COALESCE(aepa.zona_drop, ''))
+            ORDER BY aepa.id ASC
+            SEPARATOR '||'
+          ) as alternativas_raw
+         FROM asignaturas_examenes_preguntas aep
+         LEFT JOIN asignaturas_examenes_preguntas_alternativas aepa ON aepa.pregunta_id = aep.id
+         WHERE aep.examen_id = ?
+         GROUP BY aep.id
+         ORDER BY aep.orden ASC`,
+        [examenId]
+      );
+    }
+
+    // Procesar alternativas
+    const preguntasConAlternativas = preguntas.map(pregunta => {
+      const alternativas = [];
+      if (pregunta.alternativas_raw) {
+        const alternativasRaw = pregunta.alternativas_raw.split('||');
+        alternativasRaw.forEach(alt => {
+          const [id, descripcion, correcta, orden_posicion, par_id, zona_drop] = alt.split(':');
+          alternativas.push({
+            id: parseInt(id),
+            descripcion: descripcion || '',
+            correcta: correcta === '1' || correcta === 'true' || correcta === 'SI',
+            orden_posicion: orden_posicion || null,
+            par_id: par_id || null,
+            zona_drop: zona_drop || null
+          });
+        });
+      }
+      return {
+        ...pregunta,
+        alternativas: alternativas
+      };
+    });
+
+    // Parsear respuestas del alumno
+    let respuestasAlumno = {};
+    try {
+      if (resultadoInfo.respuestas && resultadoInfo.respuestas.trim() !== '') {
+        try {
+          respuestasAlumno = JSON.parse(resultadoInfo.respuestas);
+        } catch (jsonError) {
+          try {
+            const phpSerialize = require('php-serialize');
+            const decoded = Buffer.from(resultadoInfo.respuestas, 'base64').toString('utf-8');
+            respuestasAlumno = phpSerialize.unserialize(decoded) || {};
+          } catch (phpError) {
+            console.warn('Error parseando respuestas:', phpError);
+            respuestasAlumno = {};
+          }
+        }
+        
+        // Normalizar claves a strings
+        const respuestasNormalizadas = {};
+        Object.keys(respuestasAlumno).forEach(key => {
+          respuestasNormalizadas[key.toString()] = respuestasAlumno[key];
+        });
+        respuestasAlumno = respuestasNormalizadas;
+      }
+    } catch (parseError) {
+      console.error('Error parseando respuestas del alumno:', parseError);
+      respuestasAlumno = {};
+    }
+
+    res.json({
+      resultado: resultadoInfo,
+      preguntas: preguntasConAlternativas,
+      respuestas: respuestasAlumno
+    });
+  } catch (error) {
+    console.error('Error obteniendo detalles del resultado:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener detalles del resultado' });
+  }
+});
+
+/**
  * POST /api/alumno/aula-virtual/tareas/:tareaId/entregar
  * Enviar la URL de la entrega del alumno
  */

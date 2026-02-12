@@ -48,7 +48,20 @@ function DocenteHijoAulaVirtual() {
             const match = config.url.match(/\/alumno\/examenes\/(\d+)\/resultado/);
             if (match) {
               const examenId = match[1];
-              config.url = `/docente/hijos/${currentHijoId}/aula-virtual/examenes/${examenId}/resultado`;
+              // Si incluye /detalles, usar la ruta de detalles
+              if (config.url.includes('/detalles')) {
+                // Extraer resultadoId de la URL si está presente, o usar el resultado del examen
+                const detallesMatch = config.url.match(/\/alumno\/examenes\/(\d+)\/resultado\/detalles/);
+                if (detallesMatch) {
+                  // Primero obtener el resultadoId llamando a /resultado
+                  // Pero como esto es asíncrono, mejor interceptar directamente
+                  // La ruta de detalles necesita el resultadoId, así que primero debemos obtenerlo
+                  // Por ahora, interceptamos la ruta y el backend manejará obtener el resultadoId
+                  config.url = `/docente/hijos/${currentHijoId}/aula-virtual/examenes/${examenId}/resultado/detalles`;
+                }
+              } else {
+                config.url = `/docente/hijos/${currentHijoId}/aula-virtual/examenes/${examenId}/resultado`;
+              }
             }
           }
           // Para otras rutas de exámenes, mantenerlas como están por ahora
