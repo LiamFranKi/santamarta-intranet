@@ -514,32 +514,65 @@ router.post('/registrar', async (req, res) => {
           mensajeNotificacion += ` Estado: ${tipoTexto}.`;
         }
 
-        // Crear notificaciones en la BD para los apoderados
+        // Crear notificaciones en la BD para los apoderados (incluyendo docentes que son apoderados)
         if (apoderados.length > 0) {
           try {
-            for (const apoderado of apoderados) {
-              // Obtener usuario_id del apoderado
-              const usuarioApoderado = await query(
-                `SELECT id FROM usuarios WHERE apoderado_id = ? AND colegio_id = ? AND estado = 'ACTIVO' LIMIT 1`,
-                [apoderado.id, colegio_id]
+            let todosUsuarioIds = [];
+            
+            // 1. Obtener usuarios con apoderado_id (caso normal: apoderado con usuario tipo APODERADO)
+            const apoderadoIds = apoderados.map(a => a.id);
+            if (apoderadoIds.length > 0) {
+              const usuariosApoderados = await query(
+                `SELECT id FROM usuarios 
+                 WHERE apoderado_id IN (${apoderadoIds.map(() => '?').join(',')}) 
+                   AND colegio_id = ? AND estado = 'ACTIVO'`,
+                [...apoderadoIds, colegio_id]
               );
-              
-              // Si el apoderado tiene usuario, crear notificación
-              if (usuarioApoderado.length > 0) {
+              todosUsuarioIds.push(...usuariosApoderados.map(u => u.id));
+            }
+            
+            // 2. Obtener usuarios DOCENTE que también son apoderados (mismo nro_documento)
+            const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
+            if (apoderadoDnis.length > 0) {
+              const usuariosDocentesApoderados = await query(
+                `SELECT DISTINCT u.id 
+                 FROM usuarios u
+                 INNER JOIN personal p ON p.id = u.personal_id
+                 WHERE u.colegio_id = ? 
+                   AND u.estado = 'ACTIVO'
+                   AND u.tipo = 'DOCENTE'
+                   AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
+                        OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))`,
+                [colegio_id, ...apoderadoDnis, ...apoderadoDnis]
+              );
+              todosUsuarioIds.push(...usuariosDocentesApoderados.map(u => u.id));
+              console.log(`📋 [ASISTENCIA] Encontrados ${usuariosDocentesApoderados.length} usuarios DOCENTE que también son apoderados para notificaciones en BD`);
+            }
+            
+            // Eliminar duplicados
+            todosUsuarioIds = [...new Set(todosUsuarioIds)];
+            
+            // Crear notificaciones para todos los usuarios encontrados
+            for (const usuarioId of todosUsuarioIds) {
+              try {
                 await execute(
                   `INSERT INTO notificaciones 
                    (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
                    VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'ENVIADO')`,
                   [
                     asistencia_usuario_id, // Usuario que registró (ASISTENCIA)
-                    usuarioApoderado[0].id, // Destinatario (apoderado)
+                    usuarioId, // Destinatario (apoderado o docente-apoderado)
                     tituloNotificacion, // TÍTULO (asunto)
                     mensajeNotificacion // MENSAJE (contenido)
                   ]
                 );
-                console.log(`✅ [ASISTENCIA] Notificación creada en BD para apoderado ID: ${usuarioApoderado[0].id}`);
+                console.log(`✅ [ASISTENCIA] Notificación creada en BD para usuario ID: ${usuarioId}`);
+              } catch (error) {
+                console.error(`❌ [ASISTENCIA] Error creando notificación para usuario ${usuarioId}:`, error);
               }
             }
+            
+            console.log(`✅ [ASISTENCIA] ${todosUsuarioIds.length} notificaciones creadas en BD (apoderados + docentes-apoderados)`);
           } catch (error) {
             console.error(`❌ [ASISTENCIA] Error creando notificaciones en BD para apoderados:`, error);
           }

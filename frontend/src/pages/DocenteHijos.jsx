@@ -949,12 +949,29 @@ function DocenteHijos() {
 
       yPos = 40;
 
-      // Cards de asistencias
+      // Cards de asistencias (3 por fila)
+      const cardsPorFila = 3;
+      const cardWidth = (contentWidth - (10 * (cardsPorFila - 1))) / cardsPorFila;
+      const cardHeight = 25;
+      let filaActual = 0;
+      let columnaActual = 0;
+      let yPosInicialFila = yPos;
+
       asistenciasMes.forEach((asistencia, index) => {
-        if (yPos > pageHeight - 50) {
-          doc.addPage();
-          yPos = margin;
+        // Si es el inicio de una nueva fila (primera columna)
+        if (columnaActual === 0 && index > 0) {
+          yPosInicialFila += cardHeight + 5;
+          // Si no cabe en la página actual, nueva página
+          if (yPosInicialFila + cardHeight > pageHeight - 20) {
+            doc.addPage();
+            yPosInicialFila = margin;
+            filaActual = 0;
+          }
         }
+
+        // Calcular posición del card
+        const xPos = margin + (columnaActual * (cardWidth + 10));
+        const yPosCard = yPosInicialFila;
 
         const tipoColor = {
           'PRESENTE': { bg: [232, 245, 233], border: [76, 175, 80], text: [46, 125, 50] },
@@ -964,55 +981,44 @@ function DocenteHijos() {
           'FALTA_JUSTIFICADA': { bg: [243, 229, 245], border: [156, 39, 176], text: [106, 27, 154] }
         }[asistencia.tipo] || { bg: [245, 245, 245], border: [158, 158, 158], text: [66, 66, 66] };
 
-        const cardHeight = 30;
-
         // Fondo del card
         doc.setFillColor(tipoColor.bg[0], tipoColor.bg[1], tipoColor.bg[2]);
-        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
+        doc.roundedRect(xPos, yPosCard, cardWidth, cardHeight, 3, 3, 'F');
 
         // Borde
         doc.setDrawColor(tipoColor.border[0], tipoColor.border[1], tipoColor.border[2]);
         doc.setLineWidth(1);
-        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
+        doc.roundedRect(xPos, yPosCard, cardWidth, cardHeight, 3, 3);
 
         // Contenido
         doc.setTextColor(tipoColor.text[0], tipoColor.text[1], tipoColor.text[2]);
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Fecha:', margin + 3, yPos + 6);
-        doc.setFont('helvetica', 'normal');
         doc.setFontSize(7);
+        doc.setFont('helvetica', 'bold');
         const fechaFormateada = new Date(asistencia.fecha).toLocaleDateString('es-PE', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
+          day: 'numeric',
+          month: 'short'
         });
-        doc.text(fechaFormateada, margin + 20, yPos + 6);
+        doc.text(fechaFormateada, xPos + 2, yPosCard + 5);
 
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('Tipo:', margin + 3, yPos + 12);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.text(asistencia.tipo.replace('_', ' '), margin + 20, yPos + 12);
+        doc.setFontSize(6);
+        const tipoTexto = asistencia.tipo.replace('_', ' ');
+        doc.text(tipoTexto, xPos + 2, yPosCard + 10);
 
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.text('Hora Entrada:', margin + 3, yPos + 18);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.text(asistencia.hora_entrada || 'No registrada', margin + 35, yPos + 18);
+        doc.setFontSize(6);
+        const horasTexto = asistencia.hora_entrada 
+          ? (asistencia.hora_salida 
+              ? `E: ${asistencia.hora_entrada} S: ${asistencia.hora_salida}`
+              : `E: ${asistencia.hora_entrada}`)
+          : 'N/A';
+        doc.text(horasTexto, xPos + 2, yPosCard + 15);
 
-        if (asistencia.hora_salida) {
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8);
-          doc.text('Hora Salida:', margin + 3, yPos + 24);
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(7);
-          doc.text(asistencia.hora_salida, margin + 35, yPos + 24);
+        // Avanzar columna
+        columnaActual++;
+        if (columnaActual >= cardsPorFila) {
+          columnaActual = 0;
+          filaActual++;
         }
-
-        yPos += cardHeight + 5;
       });
 
       const nombreArchivo = `Asistencias_${hijoSeleccionado?.nombres?.replace(/\s+/g, '_')}_${hijoSeleccionado?.apellido_paterno?.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
@@ -2399,25 +2405,20 @@ function DocenteHijos() {
                         </select>
                       </div>
                       <div className="botones-exportar">
-                        {filtroMesAsistencias === 'TODOS' ? (
-                          <button 
-                            className="btn-exportar-pdf"
-                            onClick={() => {
+                        <button 
+                          className="btn-exportar-pdf"
+                          onClick={() => {
+                            if (filtroMesAsistencias === 'TODOS') {
                               meses.forEach(mes => {
                                 handleExportarAsistenciasPDF(mes, asistenciasPorMes[mes]);
                               });
-                            }}
-                          >
-                            📄 Exportar Todo a PDF
-                          </button>
-                        ) : (
-                          <button 
-                            className="btn-exportar-pdf"
-                            onClick={() => handleExportarAsistenciasPDF(filtroMesAsistencias, asistenciasFiltradas)}
-                          >
-                            📄 Exportar {filtroMesAsistencias} a PDF
-                          </button>
-                        )}
+                            } else {
+                              handleExportarAsistenciasPDF(filtroMesAsistencias, asistenciasFiltradas);
+                            }
+                          }}
+                        >
+                          📄 {filtroMesAsistencias === 'TODOS' ? 'Exportar Todo a PDF' : `Exportar ${filtroMesAsistencias} a PDF`}
+                        </button>
                       </div>
                     </div>
 
@@ -2469,16 +2470,17 @@ function DocenteHijos() {
                                     </div>
                                   </div>
                                   <div className="card-body-estrella">
-                                    <div className="card-info-row">
+                                    <div className="card-info-row-compact">
                                       <span className="label">Entrada:</span>
                                       <span className="value">{asistencia.hora_entrada || 'N/A'}</span>
+                                      {asistencia.hora_salida && (
+                                        <>
+                                          <span className="separator">|</span>
+                                          <span className="label">Salida:</span>
+                                          <span className="value">{asistencia.hora_salida}</span>
+                                        </>
+                                      )}
                                     </div>
-                                    {asistencia.hora_salida && (
-                                      <div className="card-info-row">
-                                        <span className="label">Salida:</span>
-                                        <span className="value">{asistencia.hora_salida}</span>
-                                      </div>
-                                    )}
                                   </div>
                                 </div>
                               );
@@ -2522,16 +2524,17 @@ function DocenteHijos() {
                                 </div>
                               </div>
                               <div className="card-body-estrella">
-                                <div className="card-info-row">
+                                <div className="card-info-row-compact">
                                   <span className="label">Entrada:</span>
                                   <span className="value">{asistencia.hora_entrada || 'N/A'}</span>
+                                  {asistencia.hora_salida && (
+                                    <>
+                                      <span className="separator">|</span>
+                                      <span className="label">Salida:</span>
+                                      <span className="value">{asistencia.hora_salida}</span>
+                                    </>
+                                  )}
                                 </div>
-                                {asistencia.hora_salida && (
-                                  <div className="card-info-row">
-                                    <span className="label">Salida:</span>
-                                    <span className="value">{asistencia.hora_salida}</span>
-                                  </div>
-                                )}
                               </div>
                             </div>
                           );

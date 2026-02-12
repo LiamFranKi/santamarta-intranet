@@ -1276,6 +1276,8 @@
 .btn-exportar-mes:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: white;
 }
 
 .btn-exportar-pdf:active,
@@ -1345,6 +1347,29 @@
 .badge-falta_justificada {
   background-color: #9c27b0;
   color: white;
+}
+
+.card-info-row-compact {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
+.card-info-row-compact .label {
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+.card-info-row-compact .value {
+  font-weight: 500;
+}
+
+.card-info-row-compact .separator {
+  margin: 0 0.5rem;
+  opacity: 0.5;
+  font-weight: 300;
 }
 
 @media (max-width: 1024px) {
