@@ -1382,15 +1382,17 @@ function DocenteHijos() {
           yPos = margin;
         }
 
-        // Fila del área (en negrita) - área en azul, datos en blanco
+        // Fila del área (en negrita) - toda la fila en azul (área + columnas de notas)
         doc.setFont('helvetica', 'bold');
         doc.setFillColor(...colorLabel);
+        // Área en azul
         doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
         doc.text(area.area_nombre.toUpperCase(), margin + 2, yPos + 3.5);
         
+        // Columnas de notas también en azul
         xPos = margin + colAreaWidth;
         [area.promedio_b1, area.promedio_b2, area.promedio_b3, area.promedio_b4, area.promedio_final].forEach((promedio, index) => {
-          doc.setFillColor(...colorData); // Asegurar fondo blanco
+          doc.setFillColor(...colorLabel); // Fondo azul para toda la fila del área
           doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
           const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
           doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
