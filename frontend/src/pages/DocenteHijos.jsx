@@ -1546,7 +1546,7 @@ function DocenteHijos() {
       doc.text('0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       yPos += 5; // 5mm de espacio después del cuadro resumen
 
-      // Footer: Recomendaciones
+      // Footer: Recomendaciones (5mm después del cuadro)
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.text('Recomendaciones:', margin, yPos);
