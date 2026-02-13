@@ -5130,6 +5130,29 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
       return res.json({ matriculas: [] });
     }
 
+    // Obtener configuración del colegio para calcular meses
+    const colegioConfig = await query(
+      `SELECT ciclo_pensiones, inicio_pensiones FROM colegios WHERE id = ? LIMIT 1`,
+      [colegio_id]
+    );
+
+    const cicloPensiones = colegioConfig && colegioConfig.length > 0 ? colegioConfig[0].ciclo_pensiones : null;
+    const inicioPensiones = colegioConfig && colegioConfig.length > 0 ? (colegioConfig[0].inicio_pensiones || 1) : 1;
+
+    // Array de meses (índice 0 = Enero, 1 = Febrero, etc.)
+    const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+    // Función para obtener el nombre del mes según el número de pago
+    const getMesPension = (nroPago) => {
+      if (cicloPensiones === 0 || cicloPensiones === '0') { // 0 = Mes
+        const indiceMes = (nroPago + inicioPensiones - 1) - 1; // -1 porque el array es 0-indexed
+        if (indiceMes >= 0 && indiceMes < MESES.length) {
+          return MESES[indiceMes];
+        }
+      }
+      return null;
+    };
+
     // Para cada matrícula, obtener sus pagos
     const matriculasConPagos = await Promise.all(
       matriculas.map(async (matricula) => {
@@ -5161,12 +5184,23 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
             if (pago.tipo === 0) {
               tipoDescripcion = `MATRÍCULA ${matricula.anio}`;
             } else if (pago.tipo === 1) {
-              // Pensión - necesitaríamos el ciclo de pensiones del colegio, por ahora usamos el número
-              tipoDescripcion = `MENSUALIDAD ${pago.nro_pago} ${matricula.anio}`;
+              // Pensión - usar el nombre del mes si está configurado
+              const mesNombre = getMesPension(pago.nro_pago);
+              if (mesNombre) {
+                tipoDescripcion = `MENSUALIDAD ${mesNombre.toUpperCase()}`;
+              } else {
+                tipoDescripcion = `MENSUALIDAD ${pago.nro_pago}`;
+              }
             } else if (pago.tipo === 3) {
-              tipoDescripcion = `COMEDOR ${pago.nro_pago} ${matricula.anio}`;
+              // Comedor - usar el nombre del mes
+              const mesNombre = getMesPension(pago.nro_pago);
+              if (mesNombre) {
+                tipoDescripcion = `COMEDOR ${mesNombre.toUpperCase()}`;
+              } else {
+                tipoDescripcion = `COMEDOR ${pago.nro_pago}`;
+              }
             } else {
-              tipoDescripcion = pago.descripcion || `OTRO ${matricula.anio}`;
+              tipoDescripcion = pago.descripcion || `OTRO`;
             }
 
             return {

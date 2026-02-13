@@ -77,6 +77,7 @@ function DocenteHijos() {
   const [showModalPagos, setShowModalPagos] = useState(false);
   const [pagos, setPagos] = useState([]);
   const [loadingPagos, setLoadingPagos] = useState(false);
+  const [tabAnioActivo, setTabAnioActivo] = useState(null);
 
   useEffect(() => {
     cargarHijos();
@@ -1727,7 +1728,14 @@ function DocenteHijos() {
     try {
       setHijoSeleccionado(hijo);
       setShowModalPagos(true);
+      setTabAnioActivo(null);
       await cargarPagosHijo(hijo.id);
+      // Establecer el primer año como activo
+      const response = await api.get(`/docente/hijos/${hijo.id}/pagos`);
+      const matriculas = response.data.matriculas || [];
+      if (matriculas.length > 0) {
+        setTabAnioActivo(matriculas[0].anio);
+      }
     } catch (error) {
       console.error('Error abriendo modal de pagos:', error);
     }
@@ -4230,9 +4238,60 @@ function DocenteHijos() {
                   <p>No se encontraron pagos registrados</p>
                 </div>
               ) : (
-                <div className="pagos-container">
+                <div className="pagos-container" style={{ 
+                  backgroundColor: '#fff', 
+                  borderRadius: '8px', 
+                  border: '1px solid #dee2e6',
+                  overflow: 'hidden'
+                }}>
+                  {/* TABS por año */}
+                  <div className="pagos-tabs-container" style={{
+                    display: 'flex',
+                    borderBottom: '2px solid #dee2e6',
+                    backgroundColor: '#f8f9fa'
+                  }}>
+                    {pagos.map((matricula, matIndex) => (
+                      <button
+                        key={matricula.anio}
+                        onClick={() => setTabAnioActivo(matricula.anio)}
+                        style={{
+                          flex: 1,
+                          padding: '15px 20px',
+                          border: 'none',
+                          backgroundColor: tabAnioActivo === matricula.anio ? '#3b82f6' : 'transparent',
+                          color: tabAnioActivo === matricula.anio ? 'white' : '#495057',
+                          fontWeight: tabAnioActivo === matricula.anio ? 'bold' : 'normal',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          transition: 'all 0.2s',
+                          borderBottom: tabAnioActivo === matricula.anio ? '3px solid #2563eb' : '3px solid transparent'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (tabAnioActivo !== matricula.anio) {
+                            e.target.style.backgroundColor = '#e9ecef';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (tabAnioActivo !== matricula.anio) {
+                            e.target.style.backgroundColor = 'transparent';
+                          }
+                        }}
+                      >
+                        {matricula.anio}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Contenido de cada año */}
                   {pagos.map((matricula, matIndex) => (
-                    <div key={matricula.matricula_id} className="matricula-pagos-section" style={{ marginBottom: '30px' }}>
+                    <div 
+                      key={matricula.matricula_id} 
+                      className="matricula-pagos-section" 
+                      style={{ 
+                        display: tabAnioActivo === matricula.anio ? 'block' : 'none',
+                        padding: '20px'
+                      }}
+                    >
                       {/* Header de la matrícula */}
                       <div className="matricula-header" style={{
                         backgroundColor: '#3b82f6',
@@ -4331,27 +4390,12 @@ function DocenteHijos() {
                                 </div>
 
                                 <div className="pago-card-body" style={{ marginBottom: '12px' }}>
-                                  <div style={{ marginBottom: '8px' }}>
-                                    <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Monto: </span>
-                                    <span style={{ fontSize: '14px', color: colorCard.text }}>
-                                      {formatearMonto(pago.monto)}
-                                    </span>
-                                    {pago.mora > 0 && (
-                                      <div style={{ fontSize: '11px', color: colorCard.text, marginTop: '3px' }}>
-                                        Mora: {formatearMonto(pago.mora)}
-                                      </div>
-                                    )}
-                                  </div>
+                                  {/* Campos ocultos: Monto, Fecha, Fecha Emisión */}
+                                  {/* Solo mostramos: Total, Nº Operación, Serie/Número, Fecha Cancelado */}
                                   <div style={{ marginBottom: '8px' }}>
                                     <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Total: </span>
                                     <span style={{ fontSize: '16px', color: colorCard.text, fontWeight: 'bold' }}>
                                       {formatearMonto(pago.total)}
-                                    </span>
-                                  </div>
-                                  <div style={{ marginBottom: '8px' }}>
-                                    <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Fecha: </span>
-                                    <span style={{ fontSize: '12px', color: colorCard.text }}>
-                                      {formatearFechaPago(pago.fecha_hora)}
                                     </span>
                                   </div>
                                   {esCancelado && pago.nro_movimiento_banco && (
@@ -4363,22 +4407,12 @@ function DocenteHijos() {
                                     </div>
                                   )}
                                   {esCancelado && pago.boleta && (
-                                    <>
-                                      <div style={{ marginBottom: '8px' }}>
-                                        <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Serie/Número: </span>
-                                        <span style={{ fontSize: '12px', color: colorCard.text }}>
-                                          {pago.boleta.serie_numero}
-                                        </span>
-                                      </div>
-                                      {pago.boleta.fecha_impresion && (
-                                        <div style={{ marginBottom: '8px' }}>
-                                          <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Fecha Emisión: </span>
-                                          <span style={{ fontSize: '12px', color: colorCard.text }}>
-                                            {formatearFechaPago(pago.boleta.fecha_impresion)}
-                                          </span>
-                                        </div>
-                                      )}
-                                    </>
+                                    <div style={{ marginBottom: '8px' }}>
+                                      <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Serie/Número: </span>
+                                      <span style={{ fontSize: '12px', color: colorCard.text }}>
+                                        {pago.boleta.serie_numero}
+                                      </span>
+                                    </div>
                                   )}
                                   {esCancelado && pago.fecha_cancelado && (
                                     <div style={{ marginBottom: '8px' }}>
