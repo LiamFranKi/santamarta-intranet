@@ -1347,7 +1347,7 @@ function DocenteHijos() {
         
         xPos = margin + colAreaWidth;
         [area.promedio_b1, area.promedio_b2, area.promedio_b3, area.promedio_b4, area.promedio_final].forEach((promedio, index) => {
-          doc.setFillColor(...colorData); // Datos en blanco
+          doc.setFillColor(...colorData); // Asegurar fondo blanco
           doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
           const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
           doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
