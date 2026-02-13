@@ -1172,9 +1172,13 @@ function DocenteHijos() {
       let yPos = margin + paddingVertical;
 
       // Logo en la esquina superior izquierda
+      let logoData = null;
+      let logoImg = null;
+      let logoWidth = 0;
+      let logoHeight = 0;
       try {
         const logoUrl = 'https://sistema.vanguardschools.edu.pe/assets/logos/logo.png';
-        const logoImg = new Image();
+        logoImg = new Image();
         logoImg.crossOrigin = 'anonymous';
         await new Promise((resolve, reject) => {
           logoImg.onload = () => resolve();
@@ -1187,14 +1191,47 @@ function DocenteHijos() {
         canvas.height = logoImg.height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(logoImg, 0, 0);
-        const logoData = canvas.toDataURL('image/png');
+        logoData = canvas.toDataURL('image/png');
         
         // Logo de 20mm de ancho (proporcional en altura)
-        const logoWidth = 20;
-        const logoHeight = (logoImg.height / logoImg.width) * logoWidth;
+        logoWidth = 20;
+        logoHeight = (logoImg.height / logoImg.width) * logoWidth;
         doc.addImage(logoData, 'PNG', margin, margin, logoWidth, logoHeight);
       } catch (error) {
         console.log('No se pudo cargar el logo, continuando sin él');
+      }
+
+      // Título de la intranet en la esquina superior derecha
+      if (datosLibreta.titulo_intranet) {
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(0, 0, 0);
+        const tituloX = pageWidth - margin - 5; // 5mm desde el borde derecho
+        doc.text(datosLibreta.titulo_intranet.toUpperCase(), tituloX, margin + 5, { align: 'right' });
+      }
+
+      // Logo como watermark de fondo (opacidad 20%)
+      if (logoData && logoImg) {
+        try {
+          // Crear canvas con opacidad reducida
+          const watermarkCanvas = document.createElement('canvas');
+          watermarkCanvas.width = logoImg.width;
+          watermarkCanvas.height = logoImg.height;
+          const watermarkCtx = watermarkCanvas.getContext('2d');
+          watermarkCtx.globalAlpha = 0.2; // 20% de opacidad
+          watermarkCtx.drawImage(logoImg, 0, 0);
+          const watermarkData = watermarkCanvas.toDataURL('image/png');
+          
+          // Tamaño grande para el watermark (aproximadamente 150mm de ancho)
+          const watermarkWidth = 150;
+          const watermarkHeight = (logoImg.height / logoImg.width) * watermarkWidth;
+          const watermarkX = (pageWidth - watermarkWidth) / 2; // Centrado horizontal
+          const watermarkY = (pageHeight - watermarkHeight) / 2; // Centrado vertical
+          
+          doc.addImage(watermarkData, 'PNG', watermarkX, watermarkY, watermarkWidth, watermarkHeight);
+        } catch (error) {
+          console.log('No se pudo agregar el watermark del logo');
+        }
       }
 
       // Header con título

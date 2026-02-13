@@ -6835,6 +6835,13 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
 
     const alumno = alumnoInfo[0];
 
+    // Obtener título de la intranet desde la tabla colegios
+    const colegioInfo = await query(
+      `SELECT titulo_intranet FROM colegios WHERE id = ? LIMIT 1`,
+      [colegio_id]
+    );
+    const tituloIntranet = colegioInfo && colegioInfo.length > 0 ? colegioInfo[0].titulo_intranet : 'INTRANET VANGUARD';
+
     // Obtener todas las asignaturas del grupo, agrupadas por área
     // Usar la tabla intermedia areas_cursos como en el sistema anterior
     const areas = await query(
