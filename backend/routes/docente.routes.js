@@ -5161,11 +5161,29 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
       return null;
     };
 
+    // Obtener total_pensiones del colegio una sola vez
+    const colegioTotalPensiones = await query(
+      `SELECT total_pensiones FROM colegios WHERE id = ? LIMIT 1`,
+      [colegio_id]
+    );
+    const numPensiones = colegioTotalPensiones && colegioTotalPensiones.length > 0 
+      ? parseInt(colegioTotalPensiones[0].total_pensiones || 10) 
+      : 10;
+
     // Para cada matrícula, obtener sus pagos
     const matriculasConPagos = await Promise.all(
       matriculas.map(async (matricula) => {
-        // Obtener pagos de esta matrícula
-        const pagos = await query(
+        // Obtener el costo de la matrícula
+        const costoInfo = await query(
+          `SELECT c.pension, c.matricula 
+           FROM matriculas m
+           INNER JOIN costos c ON c.id = m.costo_id
+           WHERE m.id = ? AND m.colegio_id = ? LIMIT 1`,
+          [matricula.matricula_id, colegio_id]
+        );
+
+        // Obtener pagos existentes de esta matrícula
+        const pagosExistentes = await query(
           `SELECT p.id, p.nro_pago, p.monto, p.mora, p.fecha_hora, p.tipo, p.descripcion, 
                   p.estado_pago, p.fecha_cancelado, p.nro_movimiento_banco, p.nro_movimiento_importado,
                   p.forma_pago, p.lugar_pago
@@ -5175,17 +5193,74 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
           [matricula.matricula_id, colegio_id]
         );
 
+        // Crear lista completa de pagos (existentes + pendientes)
+        const pagosCompletos = [];
+        const pension = costoInfo && costoInfo.length > 0 ? parseFloat(costoInfo[0].pension || 0) : 0;
+        const matriculaCosto = costoInfo && costoInfo.length > 0 ? parseFloat(costoInfo[0].matricula || 0) : 0;
+
+        // 1. Matrícula (tipo = 0)
+        const matriculaPago = pagosExistentes.find(p => p.tipo === 0);
+        if (matriculaPago) {
+          pagosCompletos.push(matriculaPago);
+        } else {
+          // Crear pago pendiente de matrícula
+          pagosCompletos.push({
+            id: null,
+            nro_pago: 0,
+            monto: matriculaCosto,
+            mora: 0,
+            fecha_hora: null,
+            tipo: 0,
+            descripcion: '',
+            estado_pago: 'PENDIENTE',
+            fecha_cancelado: null,
+            nro_movimiento_banco: null,
+            nro_movimiento_importado: null,
+            forma_pago: null,
+            lugar_pago: null
+          });
+        }
+
+        // 2. Pensiones (tipo = 1, nro_pago de 1 a numPensiones)
+        for (let i = 1; i <= numPensiones; i++) {
+          const pensionPago = pagosExistentes.find(p => p.tipo === 1 && p.nro_pago === i);
+          if (pensionPago) {
+            pagosCompletos.push(pensionPago);
+          } else {
+            // Crear pago pendiente de pensión
+            pagosCompletos.push({
+              id: null,
+              nro_pago: i,
+              monto: pension,
+              mora: 0,
+              fecha_hora: null,
+              tipo: 1,
+              descripcion: '',
+              estado_pago: 'PENDIENTE',
+              fecha_cancelado: null,
+              nro_movimiento_banco: null,
+              nro_movimiento_importado: null,
+              forma_pago: null,
+              lugar_pago: null
+            });
+          }
+        }
+
         // Para cada pago, obtener la impresión (boleta) si existe
         const pagosConBoleta = await Promise.all(
-          pagosParaProcesar.map(async (pago) => {
-            const impresion = await query(
-              `SELECT id, numero, serie, fecha_impresion, impreso
-               FROM impresiones
-               WHERE pago_id = ? AND tipo = 'PAGO' AND tipo_documento = 'BOLETA' AND estado = 'ACTIVO'
-               ORDER BY id DESC
-               LIMIT 1`,
-              [pago.id]
-            );
+          pagosCompletos.map(async (pago) => {
+            // Solo buscar impresión si el pago tiene ID (existe en BD)
+            let impresion = null;
+            if (pago.id) {
+              impresion = await query(
+                `SELECT id, numero, serie, fecha_impresion, impreso
+                 FROM impresiones
+                 WHERE pago_id = ? AND tipo = 'PAGO' AND tipo_documento = 'BOLETA' AND estado = 'ACTIVO'
+                 ORDER BY id DESC
+                 LIMIT 1`,
+                [pago.id]
+              );
+            }
 
             // Determinar tipo de pago
             let tipoDescripcion = '';
@@ -5227,30 +5302,8 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
         );
 
         // Calcular totales para esta matrícula
-        // Obtener el costo de la matrícula y total_pensiones del colegio
-        const costoMatricula = await query(
-          `SELECT c.pension, c.matricula 
-           FROM matriculas m
-           INNER JOIN costos c ON c.id = m.costo_id
-           WHERE m.id = ? AND m.colegio_id = ? LIMIT 1`,
-          [matricula.matricula_id, colegio_id]
-        );
-
-        const colegioTotalPensiones = await query(
-          `SELECT total_pensiones FROM colegios WHERE id = ? LIMIT 1`,
-          [colegio_id]
-        );
-
-        let totalPagar = 0;
-        if (costoMatricula && costoMatricula.length > 0) {
-          const pension = parseFloat(costoMatricula[0].pension || 0);
-          const matriculaCosto = parseFloat(costoMatricula[0].matricula || 0);
-          // Total = Matrícula + (total_pensiones mensualidades)
-          const numPensiones = colegioTotalPensiones && colegioTotalPensiones.length > 0 
-            ? parseInt(colegioTotalPensiones[0].total_pensiones || 10) 
-            : 10; // Por defecto 10 (Marzo a Diciembre)
-          totalPagar = matriculaCosto + (pension * numPensiones);
-        }
+        // Ya tenemos pension y matriculaCosto de arriba
+        const totalPagar = matriculaCosto + (pension * numPensiones);
 
         // Total pagado: solo pagos cancelados de matrícula y mensualidades
         const totalPagado = pagosConBoleta
