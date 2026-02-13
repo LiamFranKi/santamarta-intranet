@@ -5143,21 +5143,25 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
     const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     // Función para obtener el nombre del mes según el número de pago
-    // IMPORTANTE: El usuario indica que si inicio_pensiones = 3 (Marzo en la BD), entonces:
-    //   - nro_pago = 1 debe ser Marzo (primera mensualidad)
-    //   - nro_pago = 2 debe ser Abril
+    // IMPORTANTE: El usuario indica que la lógica es:
+    //   - tipo = 0 → Matrícula (no usa nro_pago para mes)
+    //   - tipo = 1, nro_pago = 1 → Primera mensualidad = Marzo (si inicio_pensiones = 3 en BD)
+    //   - tipo = 1, nro_pago = 2 → Segunda mensualidad = Abril
     // Fórmula del sistema anterior: MESES[nro_pago + inicio_pensiones - 1]
     // MESES es 0-indexed: [0=Enero, 1=Febrero, 2=Marzo, 3=Abril, ...]
-    // inicio_pensiones es 1-indexed (1=Enero, 2=Febrero, 3=Marzo)
-    // Si inicio_pensiones = 3 (Marzo), nro_pago = 1 → debe ser Marzo (índice 2)
-    // Fórmula correcta: indice = (inicio_pensiones - 1) + (nro_pago - 1)
-    // Si inicio_pensiones = 3, nro_pago = 1: indice = (3-1) + (1-1) = 2 + 0 = 2 → Marzo ✓
+    // inicio_pensiones en BD es 1-indexed (1=Enero, 2=Febrero, 3=Marzo)
+    // El usuario dice que si inicio_pensiones = 3 (Marzo), nro_pago = 1 debe ser Marzo (índice 2)
+    // Si usamos la fórmula del sistema anterior: indice = nro_pago + inicio_pensiones - 1
+    //   Si inicio_pensiones = 3, nro_pago = 1: indice = 1 + 3 - 1 = 3 → Abril ✗
+    // Esto NO funciona. Necesitamos: indice = 2 (Marzo) cuando nro_pago = 1 e inicio_pensiones = 3
+    // Solución: indice = nro_pago + inicio_pensiones - 2
+    //   Si inicio_pensiones = 3, nro_pago = 1: indice = 1 + 3 - 2 = 2 → Marzo ✓
+    //   Si inicio_pensiones = 3, nro_pago = 2: indice = 2 + 3 - 2 = 3 → Abril ✓
     const getMesPension = (nroPago) => {
       if (cicloPensiones === 0 || cicloPensiones === '0') { // 0 = Mes
-        // inicio_pensiones es 1-indexed, convertir a 0-indexed: (inicio_pensiones - 1)
-        // nro_pago también es 1-indexed, convertir a 0-indexed: (nro_pago - 1)
-        // Fórmula: indice = (inicio_pensiones - 1) + (nro_pago - 1)
-        const indiceMes = (inicioPensiones - 1) + (nroPago - 1);
+        // Fórmula corregida: indice = nro_pago + inicio_pensiones - 2
+        // Esto asegura que si inicio_pensiones = 3 (Marzo), nro_pago = 1 sea Marzo
+        const indiceMes = nroPago + inicioPensiones - 2;
         if (indiceMes >= 0 && indiceMes < MESES.length) {
           return MESES[indiceMes];
         }

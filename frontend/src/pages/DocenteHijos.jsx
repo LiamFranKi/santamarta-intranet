@@ -4348,12 +4348,16 @@ function DocenteHijos() {
                           borderRadius: '0 0 8px 8px'
                         }}>
                           {matricula.pagos.map((pago, pagoIndex) => {
-                            const colorCard = coloresPastel[pagoIndex % coloresPastel.length];
                             const esCancelado = pago.estado_pago === 'CANCELADO';
+                            
+                            // Colores según estado: verde pastel para cancelados, rojo pastel para pendientes
+                            const colorCard = esCancelado 
+                              ? { bg: '#E8F5E9', border: '#4CAF50', text: '#2E7D32' } // Verde pastel
+                              : { bg: '#FFEBEE', border: '#F44336', text: '#C62828' }; // Rojo pastel
                             
                             return (
                               <div
-                                key={pago.id}
+                                key={pago.id || `pago-${pago.tipo}-${pago.nro_pago}`}
                                 className="pago-card"
                                 style={{
                                   backgroundColor: colorCard.bg,
@@ -4361,7 +4365,7 @@ function DocenteHijos() {
                                   borderRadius: '8px',
                                   padding: '15px',
                                   boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                  opacity: esCancelado ? 1 : 0.7
+                                  opacity: 1
                                 }}
                               >
                                 <div className="pago-card-header" style={{ marginBottom: '12px' }}>
