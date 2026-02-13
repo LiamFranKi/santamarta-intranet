@@ -1604,9 +1604,12 @@ function DocenteHijos() {
       doc.setFontSize(8);
       const firmaWidth = 70;
       const firmaX = (pageWidth - firmaWidth) / 2; // Centrar
-      doc.text('_______________________________________', firmaX, yPos);
+      doc.setLineWidth(0.5); // Grosor de línea de 0.5mm
+      doc.setDrawColor(0, 0, 0);
+      doc.line(firmaX, yPos, firmaX + firmaWidth, yPos); // Línea de firma con grosor 0.5mm
       yPos += 5;
 
+      doc.setFont('helvetica', 'bold'); // Texto en negrita
       doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
 
       const nombreArchivo = `Libreta_${datosLibreta.alumno.apellido_paterno?.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
