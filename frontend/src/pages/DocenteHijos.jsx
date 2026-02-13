@@ -4157,6 +4157,248 @@ function DocenteHijos() {
         document.body
       )}
 
+      {/* Modal Pagos Realizados */}
+      {showModalPagos && createPortal(
+        <div className="modal-overlay-qr" onClick={() => setShowModalPagos(false)}>
+          <div className="modal-content-pagos" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '95%', maxHeight: '95vh', overflow: 'auto' }}>
+            <div className="modal-header-qr">
+              <h2>💳 Pagos Realizados - {hijoSeleccionado?.nombres} {hijoSeleccionado?.apellido_paterno}</h2>
+              <button className="modal-close-qr" onClick={() => setShowModalPagos(false)}>×</button>
+            </div>
+
+            <div className="modal-body-pagos" style={{ padding: '20px' }}>
+              {loadingPagos ? (
+                <div className="qr-loading">
+                  <div className="loading-spinner">Cargando pagos...</div>
+                </div>
+              ) : !pagos || pagos.length === 0 ? (
+                <div className="empty-state">
+                  <p>No se encontraron pagos registrados</p>
+                </div>
+              ) : (
+                <div className="pagos-container">
+                  {pagos.map((matricula, matIndex) => (
+                    <div key={matricula.matricula_id} className="matricula-pagos-section" style={{ marginBottom: '30px' }}>
+                      {/* Header de la matrícula */}
+                      <div className="matricula-header" style={{
+                        backgroundColor: '#3b82f6',
+                        color: 'white',
+                        padding: '15px',
+                        borderRadius: '8px 8px 0 0',
+                        marginBottom: '0'
+                      }}>
+                        <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 'bold' }}>
+                          {matricula.grupo_texto}
+                        </h3>
+                      </div>
+
+                      {/* Resumen de la matrícula */}
+                      <div className="matricula-resumen" style={{
+                        backgroundColor: '#f8f9fa',
+                        padding: '15px',
+                        border: '1px solid #dee2e6',
+                        borderTop: 'none',
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                        gap: '15px'
+                      }}>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '5px' }}>Monto a Pagar</div>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#495057' }}>
+                            {formatearMonto(matricula.resumen.total_pagar)}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '5px' }}>Monto Pagado</div>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#28a745' }}>
+                            {formatearMonto(matricula.resumen.total_pagado)}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '5px' }}>Monto que Adeuda</div>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#dc3545' }}>
+                            {formatearMonto(matricula.resumen.total_adeuda)}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '5px' }}>Otros Pagos</div>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#495057' }}>
+                            {formatearMonto(matricula.resumen.otros_pagos)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Cards de pagos */}
+                      {matricula.pagos && matricula.pagos.length > 0 ? (
+                        <div className="pagos-cards-container" style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                          gap: '15px',
+                          padding: '15px',
+                          backgroundColor: '#fff',
+                          border: '1px solid #dee2e6',
+                          borderTop: 'none',
+                          borderRadius: '0 0 8px 8px'
+                        }}>
+                          {matricula.pagos.map((pago, pagoIndex) => {
+                            const colorCard = coloresPastel[pagoIndex % coloresPastel.length];
+                            const esCancelado = pago.estado_pago === 'CANCELADO';
+                            
+                            return (
+                              <div
+                                key={pago.id}
+                                className="pago-card"
+                                style={{
+                                  backgroundColor: colorCard.bg,
+                                  border: `2px solid ${colorCard.border}`,
+                                  borderRadius: '8px',
+                                  padding: '15px',
+                                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                  opacity: esCancelado ? 1 : 0.7
+                                }}
+                              >
+                                <div className="pago-card-header" style={{ marginBottom: '12px' }}>
+                                  <h4 style={{ 
+                                    margin: 0, 
+                                    fontSize: '16px', 
+                                    fontWeight: 'bold',
+                                    color: colorCard.text,
+                                    marginBottom: '5px'
+                                  }}>
+                                    {pago.tipo_descripcion}
+                                  </h4>
+                                  <div style={{ 
+                                    fontSize: '12px', 
+                                    color: esCancelado ? '#28a745' : '#dc3545',
+                                    fontWeight: 'bold'
+                                  }}>
+                                    {esCancelado ? '✓ CANCELADO' : '⏳ PENDIENTE'}
+                                  </div>
+                                </div>
+
+                                <div className="pago-card-body" style={{ marginBottom: '12px' }}>
+                                  <div style={{ marginBottom: '8px' }}>
+                                    <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Monto: </span>
+                                    <span style={{ fontSize: '14px', color: colorCard.text }}>
+                                      {formatearMonto(pago.monto)}
+                                    </span>
+                                    {pago.mora > 0 && (
+                                      <div style={{ fontSize: '11px', color: colorCard.text, marginTop: '3px' }}>
+                                        Mora: {formatearMonto(pago.mora)}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div style={{ marginBottom: '8px' }}>
+                                    <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Total: </span>
+                                    <span style={{ fontSize: '16px', color: colorCard.text, fontWeight: 'bold' }}>
+                                      {formatearMonto(pago.total)}
+                                    </span>
+                                  </div>
+                                  <div style={{ marginBottom: '8px' }}>
+                                    <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Fecha: </span>
+                                    <span style={{ fontSize: '12px', color: colorCard.text }}>
+                                      {formatearFechaPago(pago.fecha_hora)}
+                                    </span>
+                                  </div>
+                                  {esCancelado && pago.nro_movimiento_banco && (
+                                    <div style={{ marginBottom: '8px' }}>
+                                      <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Nº Operación: </span>
+                                      <span style={{ fontSize: '12px', color: colorCard.text }}>
+                                        {pago.nro_movimiento_banco}{pago.nro_movimiento_importado ? ` | ${pago.nro_movimiento_importado}` : ''}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {esCancelado && pago.boleta && (
+                                    <>
+                                      <div style={{ marginBottom: '8px' }}>
+                                        <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Serie/Número: </span>
+                                        <span style={{ fontSize: '12px', color: colorCard.text }}>
+                                          {pago.boleta.serie_numero}
+                                        </span>
+                                      </div>
+                                      {pago.boleta.fecha_impresion && (
+                                        <div style={{ marginBottom: '8px' }}>
+                                          <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Fecha Emisión: </span>
+                                          <span style={{ fontSize: '12px', color: colorCard.text }}>
+                                            {formatearFechaPago(pago.boleta.fecha_impresion)}
+                                          </span>
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                  {esCancelado && pago.fecha_cancelado && (
+                                    <div style={{ marginBottom: '8px' }}>
+                                      <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Fecha Cancelado: </span>
+                                      <span style={{ fontSize: '12px', color: colorCard.text }}>
+                                        {formatearFechaPago(pago.fecha_cancelado)}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {esCancelado && pago.boleta && (
+                                  <div className="pago-card-footer" style={{ marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${colorCard.border}` }}>
+                                    <button
+                                      className="btn-imprimir-boleta"
+                                      onClick={() => {
+                                        // TODO: Implementar impresión de boleta
+                                        Swal.fire({
+                                          icon: 'info',
+                                          title: 'Imprimir Boleta',
+                                          text: 'Funcionalidad de impresión próximamente',
+                                          confirmButtonText: 'Entendido'
+                                        });
+                                      }}
+                                      style={{
+                                        width: '100%',
+                                        padding: '8px 16px',
+                                        backgroundColor: '#3b82f6',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer',
+                                        fontSize: '14px',
+                                        fontWeight: 'bold',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        transition: 'background-color 0.2s'
+                                      }}
+                                      onMouseEnter={(e) => e.target.style.backgroundColor = '#2563eb'}
+                                      onMouseLeave={(e) => e.target.style.backgroundColor = '#3b82f6'}
+                                    >
+                                      <span>🖨️</span>
+                                      <span>Imprimir Boleta</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{
+                          padding: '20px',
+                          textAlign: 'center',
+                          backgroundColor: '#fff',
+                          border: '1px solid #dee2e6',
+                          borderTop: 'none',
+                          borderRadius: '0 0 8px 8px'
+                        }}>
+                          <p style={{ margin: 0, color: '#6c757d' }}>NO HA REGISTRADO NINGÚN PAGO</p>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* Modal Notas Detalladas */}
       {showModalNotasDetalladas && createPortal(
         <div className="modal-overlay-qr" onClick={() => setShowModalNotasDetalladas(false)}>
