@@ -1288,14 +1288,14 @@ function DocenteHijos() {
       doc.rect(margin + 165, yPos, 35, headerHeight, 'FD');
       
       doc.setFont('helvetica', 'bold');
-      doc.text('PROFESOR / TUTOR', margin + 20, yPos + 3.5, { align: 'center' });
+      doc.text('TUTOR', margin + 20, yPos + 3.5, { align: 'center' });
       doc.setFont('helvetica', 'normal');
       doc.text(datosLibreta.alumno.tutor_nombre || 'NO SE ASIGNÓ TUTOR', margin + 87.5, yPos + 3.5, { align: 'center' });
       doc.setFont('helvetica', 'bold');
       doc.text('AÑO', margin + 150, yPos + 3.5, { align: 'center' });
       doc.setFont('helvetica', 'normal');
       doc.text(datosLibreta.alumno.anio?.toString() || '-', margin + 182.5, yPos + 3.5, { align: 'center' });
-      yPos += headerHeight + paddingVertical; // Más espacio después del cuadro de datos
+      yPos += headerHeight + 5; // 5mm de espacio entre cuadros
 
       // Tabla de áreas curriculares
       doc.setFontSize(9);
@@ -1388,12 +1388,13 @@ function DocenteHijos() {
             yPos = margin + paddingVertical;
           }
 
-          doc.setFillColor(...colorData);
+          doc.setFillColor(...colorData); // Asegurar fondo blanco
           doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
           doc.text(asignatura.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
           
           xPos = margin + colAreaWidth;
           [asignatura.promedio_b1, asignatura.promedio_b2, asignatura.promedio_b3, asignatura.promedio_b4, asignatura.promedio_final].forEach((promedio, index) => {
+            doc.setFillColor(...colorData); // Asegurar fondo blanco en cada celda
             doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
             const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
             doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
@@ -1404,13 +1405,13 @@ function DocenteHijos() {
         });
       }
 
-      yPos += paddingVertical; // Más espacio antes del cuadro resumen
+      yPos += 5; // 5mm de espacio antes del cuadro resumen
 
       // Cuadro Resumen
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setFillColor(...colorLabel); // Azul cielo pastel
-      const resumenWidth = colAreaWidth + (colBimestreWidth * 4);
+      const resumenWidth = colAreaWidth + (colBimestreWidth * 5); // Incluir todas las columnas hasta PF
       doc.rect(margin, yPos, resumenWidth, headerHeight, 'FD');
       doc.text('CUADRO RESUMEN', margin + resumenWidth / 2, yPos + 3.5, { align: 'center' });
       yPos += headerHeight;
