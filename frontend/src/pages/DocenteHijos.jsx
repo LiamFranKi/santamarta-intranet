@@ -1703,6 +1703,60 @@ function DocenteHijos() {
     }
   };
 
+  // Cargar pagos del hijo
+  const cargarPagosHijo = async (hijoId) => {
+    try {
+      setLoadingPagos(true);
+      const response = await api.get(`/docente/hijos/${hijoId}/pagos`);
+      setPagos(response.data.matriculas || []);
+    } catch (error) {
+      console.error('Error cargando pagos:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudieron cargar los pagos',
+        confirmButtonText: 'Entendido'
+      });
+    } finally {
+      setLoadingPagos(false);
+    }
+  };
+
+  // Manejar ver pagos
+  const handleVerPagos = async (hijo) => {
+    try {
+      setHijoSeleccionado(hijo);
+      setShowModalPagos(true);
+      await cargarPagosHijo(hijo.id);
+    } catch (error) {
+      console.error('Error abriendo modal de pagos:', error);
+    }
+  };
+
+  // Formatear monto
+  const formatearMonto = (monto) => {
+    return new Intl.NumberFormat('es-PE', {
+      style: 'currency',
+      currency: 'PEN',
+      minimumFractionDigits: 2
+    }).format(monto);
+  };
+
+  // Formatear fecha
+  const formatearFechaPago = (fecha) => {
+    if (!fecha) return 'N/A';
+    try {
+      const date = new Date(fecha);
+      return date.toLocaleDateString('es-PE', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (error) {
+      return fecha;
+    }
+  };
+
   const generarPDFLibreta = async (hijoId) => {
     try {
       setLoadingNotasDetalladas(true);
