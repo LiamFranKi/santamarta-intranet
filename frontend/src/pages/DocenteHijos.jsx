@@ -971,15 +971,6 @@ function DocenteHijos() {
   };
 
   // Manejar ver horario
-  const handleVerHorario = async (hijo) => {
-    try {
-      setHijoSeleccionado(hijo);
-      setShowModalHorario(true);
-      await cargarHorarioHijo(hijo.id);
-    } catch (error) {
-      console.error('Error abriendo modal de horario:', error);
-    }
-  };
 
   // Exportar horario a PDF
   const handleExportarHorarioPDF = () => {
