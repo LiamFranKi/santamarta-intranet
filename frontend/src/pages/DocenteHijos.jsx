@@ -1202,13 +1202,12 @@ function DocenteHijos() {
       }
 
       // Título de la intranet en la esquina superior derecha
-      if (datosLibreta.titulo_intranet) {
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(0, 0, 0);
-        const tituloX = pageWidth - margin - 5; // 5mm desde el borde derecho
-        doc.text(datosLibreta.titulo_intranet.toUpperCase(), tituloX, margin + 5, { align: 'right' });
-      }
+      const tituloIntranet = datosLibreta.titulo_intranet || 'INTRANET VANGUARD SCHOOLS';
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0); // Color negro explícito
+      const tituloX = pageWidth - margin - 5; // 5mm desde el borde derecho
+      doc.text(tituloIntranet.toUpperCase(), tituloX, margin + 5, { align: 'right' });
 
       // Logo como watermark de fondo (opacidad 20%)
       if (logoData && logoImg) {
