@@ -74,6 +74,9 @@ function DocenteHijos() {
   const [showModalHorario, setShowModalHorario] = useState(false);
   const [horario, setHorario] = useState([]);
   const [loadingHorario, setLoadingHorario] = useState(false);
+  const [showModalPagos, setShowModalPagos] = useState(false);
+  const [pagos, setPagos] = useState([]);
+  const [loadingPagos, setLoadingPagos] = useState(false);
 
   useEffect(() => {
     cargarHijos();
@@ -193,8 +196,7 @@ function DocenteHijos() {
         await handleVerLibreta(hijo);
         break;
       case 'pagos-realizados':
-        console.log('Pagos realizados de:', hijo);
-        // Implementar después
+        await handleVerPagos(hijo);
         break;
       case 'psicologia':
         console.log('Psicología de:', hijo);

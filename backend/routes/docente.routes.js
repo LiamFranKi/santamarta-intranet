@@ -5052,6 +5052,177 @@ router.get('/hijos/:hijoId/asistencias', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/hijos/:hijoId/pagos
+ * Obtener pagos del hijo agrupados por matrícula/año
+ */
+router.get('/hijos/:hijoId/pagos', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, usuario_id, personal_id, anio_activo } = req.user;
+
+    console.log(`\n🔵 ========== [HIJOS-PAGOS] NUEVA PETICIÓN ==========`);
+    console.log(`📋 [HIJOS-PAGOS] hijoId recibido: ${hijoId}`);
+
+    // Validar que hijoId sea un número válido
+    if (!hijoId || isNaN(parseInt(hijoId))) {
+      return res.status(400).json({ error: 'ID de alumno inválido' });
+    }
+
+    const hijoIdNum = parseInt(hijoId);
+
+    if (!personal_id) {
+      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
+    }
+
+    // Obtener nro_documento del personal
+    let nroDocumento = null;
+    const personalData = await query(
+      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [personal_id, colegio_id]
+    );
+
+    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+      nroDocumento = personalData[0].nro_documento;
+    } else {
+      const usuarioData = await query(
+        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+        [usuario_id, colegio_id, personal_id]
+      );
+      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
+        nroDocumento = usuarioData[0].usuario;
+      }
+    }
+
+    if (!nroDocumento) {
+      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
+    }
+
+    // Verificar que el alumno es hijo del docente
+    const esHijo = await query(
+      `SELECT COUNT(*) as count
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE ap.colegio_id = ?
+         AND ap.nro_documento = ?
+         AND a.id = ?
+         AND a.colegio_id = ?`,
+      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
+    );
+
+    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+      return res.status(403).json({ error: 'No tienes permisos para ver estos pagos. El alumno no está registrado como tu hijo.' });
+    }
+
+    // Obtener todas las matrículas del alumno
+    const matriculas = await query(
+      `SELECT m.id as matricula_id, m.alumno_id, g.anio, g.grado, g.seccion, n.nombre as nivel_nombre
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ?
+       AND (m.estado = 0 OR m.estado = 4)
+       ORDER BY g.anio DESC, g.grado ASC`,
+      [hijoIdNum, colegio_id]
+    );
+
+    if (!matriculas || matriculas.length === 0) {
+      return res.json({ matriculas: [] });
+    }
+
+    // Para cada matrícula, obtener sus pagos
+    const matriculasConPagos = await Promise.all(
+      matriculas.map(async (matricula) => {
+        // Obtener pagos de esta matrícula
+        const pagos = await query(
+          `SELECT p.id, p.nro_pago, p.monto, p.mora, p.fecha_hora, p.tipo, p.descripcion, 
+                  p.estado_pago, p.fecha_cancelado, p.nro_movimiento_banco, p.nro_movimiento_importado,
+                  p.forma_pago, p.lugar_pago
+           FROM pagos p
+           WHERE p.matricula_id = ? AND p.estado = 'ACTIVO' AND p.colegio_id = ?
+           ORDER BY p.tipo ASC, p.nro_pago ASC`,
+          [matricula.matricula_id, colegio_id]
+        );
+
+        // Para cada pago, obtener la impresión (boleta) si existe
+        const pagosConBoleta = await Promise.all(
+          pagos.map(async (pago) => {
+            const impresion = await query(
+              `SELECT id, numero, serie, fecha_impresion, impreso
+               FROM impresiones
+               WHERE pago_id = ? AND tipo = 'PAGO' AND tipo_documento = 'BOLETA' AND estado = 'ACTIVO'
+               ORDER BY id DESC
+               LIMIT 1`,
+              [pago.id]
+            );
+
+            // Determinar tipo de pago
+            let tipoDescripcion = '';
+            if (pago.tipo === 0) {
+              tipoDescripcion = `MATRÍCULA ${matricula.anio}`;
+            } else if (pago.tipo === 1) {
+              // Pensión - necesitaríamos el ciclo de pensiones del colegio, por ahora usamos el número
+              tipoDescripcion = `MENSUALIDAD ${pago.nro_pago} ${matricula.anio}`;
+            } else if (pago.tipo === 3) {
+              tipoDescripcion = `COMEDOR ${pago.nro_pago} ${matricula.anio}`;
+            } else {
+              tipoDescripcion = pago.descripcion || `OTRO ${matricula.anio}`;
+            }
+
+            return {
+              ...pago,
+              tipo_descripcion: tipoDescripcion,
+              total: parseFloat(pago.monto) + parseFloat(pago.mora || 0),
+              boleta: impresion && impresion.length > 0 ? {
+                numero: impresion[0].numero,
+                serie: impresion[0].serie,
+                serie_numero: `${String(impresion[0].serie).padStart(3, '0')}-${String(impresion[0].numero).padStart(7, '0')}`,
+                fecha_impresion: impresion[0].fecha_impresion,
+                impreso: impresion[0].impreso
+              } : null
+            };
+          })
+        );
+
+        // Calcular totales para esta matrícula
+        const totalPagar = 0; // Esto requeriría obtener el costo de la matrícula
+        const totalPagado = pagosConBoleta
+          .filter(p => p.estado_pago === 'CANCELADO')
+          .reduce((sum, p) => sum + parseFloat(p.monto) + parseFloat(p.mora || 0), 0);
+        const totalAdeuda = totalPagar - totalPagado;
+        const otrosPagos = pagosConBoleta
+          .filter(p => p.tipo !== 0 && p.tipo !== 1)
+          .reduce((sum, p) => sum + parseFloat(p.monto) + parseFloat(p.mora || 0), 0);
+
+        return {
+          matricula_id: matricula.matricula_id,
+          anio: matricula.anio,
+          grado: matricula.grado,
+          seccion: matricula.seccion,
+          nivel_nombre: matricula.nivel_nombre,
+          grupo_texto: `${matricula.nivel_nombre} - ${matricula.grado}° ${matricula.seccion} - ${matricula.anio}`,
+          pagos: pagosConBoleta,
+          resumen: {
+            total_pagar: totalPagar,
+            total_pagado: totalPagado,
+            total_adeuda: totalAdeuda,
+            otros_pagos: otrosPagos
+          }
+        };
+      })
+    );
+
+    console.log(`✅ [HIJOS-PAGOS] Pagos obtenidos para ${matriculasConPagos.length} matrícula(s)`);
+    console.log(`🔵 ========== [HIJOS-PAGOS] FIN DE PETICIÓN ==========\n`);
+
+    res.json({ matriculas: matriculasConPagos });
+  } catch (error) {
+    console.error('❌ [HIJOS-PAGOS] Error obteniendo pagos del hijo:', error);
+    res.status(500).json({ error: 'Error al obtener pagos del hijo', details: error.message });
+  }
+});
+
+/**
  * GET /api/docente/hijos/:hijoId/horario
  * Obtener horario del hijo
  */
