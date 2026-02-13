@@ -5143,17 +5143,21 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
     const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     // Función para obtener el nombre del mes según el número de pago
-    // Según el sistema anterior: MESES[nro_pago + inicio_pensiones - 1]
-    // IMPORTANTE: nro_pago = 1 es la primera mensualidad (no la matrícula)
-    // inicio_pensiones es el número del mes (1=Enero, 2=Febrero, 3=Marzo, etc.)
-    // Si inicio_pensiones = 3 (Marzo), entonces nro_pago = 1 debe ser Marzo
+    // IMPORTANTE: El usuario indica que si inicio_pensiones = 3 (Marzo en la BD), entonces:
+    //   - nro_pago = 1 debe ser Marzo (primera mensualidad)
+    //   - nro_pago = 2 debe ser Abril
     // Fórmula del sistema anterior: MESES[nro_pago + inicio_pensiones - 1]
-    // Pero MESES es 0-indexed, así que: indice = (nro_pago + inicio_pensiones - 1) - 1
+    // MESES es 0-indexed: [0=Enero, 1=Febrero, 2=Marzo, 3=Abril, ...]
+    // inicio_pensiones es 1-indexed (1=Enero, 2=Febrero, 3=Marzo)
+    // Si inicio_pensiones = 3 (Marzo), nro_pago = 1 → debe ser Marzo (índice 2)
+    // Fórmula correcta: indice = (inicio_pensiones - 1) + (nro_pago - 1)
+    // Si inicio_pensiones = 3, nro_pago = 1: indice = (3-1) + (1-1) = 2 + 0 = 2 → Marzo ✓
     const getMesPension = (nroPago) => {
       if (cicloPensiones === 0 || cicloPensiones === '0') { // 0 = Mes
-        // Fórmula: indice = nro_pago + inicio_pensiones - 2
-        // Ejemplo: inicio_pensiones = 3 (Marzo), nro_pago = 1 → indice = 1 + 3 - 2 = 2 → Marzo ✓
-        const indiceMes = nroPago + inicioPensiones - 2;
+        // inicio_pensiones es 1-indexed, convertir a 0-indexed: (inicio_pensiones - 1)
+        // nro_pago también es 1-indexed, convertir a 0-indexed: (nro_pago - 1)
+        // Fórmula: indice = (inicio_pensiones - 1) + (nro_pago - 1)
+        const indiceMes = (inicioPensiones - 1) + (nroPago - 1);
         if (indiceMes >= 0 && indiceMes < MESES.length) {
           return MESES[indiceMes];
         }
