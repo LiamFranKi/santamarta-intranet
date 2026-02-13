@@ -5143,14 +5143,15 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
     const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     // Función para obtener el nombre del mes según el número de pago
+    // Según el sistema anterior: MESES[nro_pago + inicio_pensiones - 1]
     // inicio_pensiones es el número del mes (1=Enero, 2=Febrero, 3=Marzo, etc.)
     // Si inicio_pensiones = 3 (Marzo), entonces nro_pago = 1 debe ser Marzo
+    // Fórmula: indice = nro_pago + inicio_pensiones - 1 - 1 (último -1 porque array es 0-indexed)
     const getMesPension = (nroPago) => {
       if (cicloPensiones === 0 || cicloPensiones === '0') { // 0 = Mes
-        // inicio_pensiones es 1-indexed (1=Enero, 2=Febrero, 3=Marzo)
-        // Convertir a 0-indexed: inicio_pensiones - 1
-        // Luego sumar (nro_pago - 1) porque nro_pago también es 1-indexed
-        const indiceMes = (inicioPensiones - 1) + (nroPago - 1);
+        // Fórmula del sistema anterior: MESES[nro_pago + inicio_pensiones - 1]
+        // Pero MESES es 0-indexed, así que: indice = nro_pago + inicio_pensiones - 1 - 1
+        const indiceMes = nroPago + inicioPensiones - 2;
         if (indiceMes >= 0 && indiceMes < MESES.length) {
           return MESES[indiceMes];
         }
@@ -5224,7 +5225,7 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
         );
 
         // Calcular totales para esta matrícula
-        // Obtener el costo de la matrícula para calcular el total a pagar
+        // Obtener el costo de la matrícula y total_pensiones del colegio
         const costoMatricula = await query(
           `SELECT c.pension, c.matricula 
            FROM matriculas m
@@ -5233,12 +5234,20 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
           [matricula.matricula_id, colegio_id]
         );
 
+        const colegioTotalPensiones = await query(
+          `SELECT total_pensiones FROM colegios WHERE id = ? LIMIT 1`,
+          [colegio_id]
+        );
+
         let totalPagar = 0;
         if (costoMatricula && costoMatricula.length > 0) {
           const pension = parseFloat(costoMatricula[0].pension || 0);
           const matriculaCosto = parseFloat(costoMatricula[0].matricula || 0);
-          // Total = Matrícula + (10 mensualidades de Marzo a Diciembre)
-          totalPagar = matriculaCosto + (pension * 10);
+          // Total = Matrícula + (total_pensiones mensualidades)
+          const numPensiones = colegioTotalPensiones && colegioTotalPensiones.length > 0 
+            ? parseInt(colegioTotalPensiones[0].total_pensiones || 10) 
+            : 10; // Por defecto 10 (Marzo a Diciembre)
+          totalPagar = matriculaCosto + (pension * numPensiones);
         }
 
         // Total pagado: solo pagos cancelados de matrícula y mensualidades
