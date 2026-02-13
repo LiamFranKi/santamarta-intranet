@@ -1167,7 +1167,7 @@ function DocenteHijos() {
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 5;
-      const paddingVertical = 8; // Padding superior e inferior aumentado
+      const paddingVertical = 15; // Padding superior e inferior aumentado
       const contentWidth = pageWidth - (margin * 2);
       let yPos = margin + paddingVertical;
 
@@ -1175,16 +1175,16 @@ function DocenteHijos() {
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text('BOLETA DE INFORMACIÓN ACADÉMICA', pageWidth / 2, yPos + 10, { align: 'center' });
-      yPos += 10;
+      yPos += 20; // 10mm más de espacio entre título y cuadro
 
       // Datos del alumno
       const headerHeight = 5;
       doc.setFontSize(9);
-      // Azul pastel: RGB(227, 242, 253) - similar al usado en otros PDFs
-      doc.setFillColor(227, 242, 253);
+      // Azul pastel más visible: RGB(173, 216, 230) - azul cielo pastel
+      doc.setFillColor(173, 216, 230);
       
       // Fila 1: ALUMNO y CÓDIGO
-      doc.setFillColor(227, 242, 253); // Azul pastel
+      doc.setFillColor(173, 216, 230); // Azul cielo pastel
       doc.rect(margin, yPos, 40, headerHeight, 'F');
       doc.rect(margin + 40, yPos, 95, headerHeight, 'F');
       doc.rect(margin + 135, yPos, 30, headerHeight, 'F');
@@ -1201,7 +1201,7 @@ function DocenteHijos() {
       yPos += headerHeight;
 
       // Fila 2: GRADO/SECCIÓN, NIVEL, TURNO
-      doc.setFillColor(227, 242, 253); // Azul pastel
+      doc.setFillColor(173, 216, 230); // Azul cielo pastel
       doc.rect(margin, yPos, 40, headerHeight, 'F');
       doc.rect(margin + 40, yPos, 30, headerHeight, 'F');
       doc.rect(margin + 70, yPos, 30, headerHeight, 'F');
@@ -1224,7 +1224,7 @@ function DocenteHijos() {
       yPos += headerHeight;
 
       // Fila 3: PROFESOR/TUTOR y AÑO
-      doc.setFillColor(227, 242, 253); // Azul pastel
+      doc.setFillColor(173, 216, 230); // Azul cielo pastel
       doc.rect(margin, yPos, 40, headerHeight, 'F');
       doc.rect(margin + 40, yPos, 95, headerHeight, 'F');
       doc.rect(margin + 135, yPos, 30, headerHeight, 'F');
@@ -1238,12 +1238,12 @@ function DocenteHijos() {
       doc.text('AÑO', margin + 150, yPos + 3.5, { align: 'center' });
       doc.setFont('helvetica', 'normal');
       doc.text(datosLibreta.alumno.anio?.toString() || '-', margin + 182.5, yPos + 3.5, { align: 'center' });
-      yPos += headerHeight + 6;
+      yPos += headerHeight + paddingVertical; // Más espacio después del cuadro de datos
 
       // Tabla de áreas curriculares
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
-      doc.setFillColor(227, 242, 253); // Azul pastel
+      doc.setFillColor(173, 216, 230); // Azul cielo pastel
       
       const colAreaWidth = 80;
       const colBimestreWidth = (contentWidth - colAreaWidth) / 5; // 4 bimestres + PF
@@ -1283,7 +1283,7 @@ function DocenteHijos() {
 
         // Fila del área (en negrita)
         doc.setFont('helvetica', 'bold');
-        doc.setFillColor(227, 242, 253); // Azul pastel
+        doc.setFillColor(173, 216, 230); // Azul cielo pastel
         doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
         doc.text(area.area_nombre.toUpperCase(), margin + 2, yPos + 3.5);
         
@@ -1343,12 +1343,12 @@ function DocenteHijos() {
         });
       }
 
-      yPos += 6;
+      yPos += paddingVertical; // Más espacio antes del cuadro resumen
 
       // Cuadro Resumen
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.setFillColor(227, 242, 253); // Azul pastel
+      doc.setFillColor(173, 216, 230); // Azul cielo pastel
       const resumenWidth = colAreaWidth + (colBimestreWidth * 4);
       doc.rect(margin, yPos, resumenWidth, headerHeight, 'F');
       doc.text('CUADRO RESUMEN', margin + resumenWidth / 2, yPos + 3.5, { align: 'center' });
@@ -1358,7 +1358,7 @@ function DocenteHijos() {
       const resumen = datosLibreta.resumen;
 
       // CANTIDAD DE CURSOS
-      doc.setFillColor(227, 242, 253); // Azul pastel
+      doc.setFillColor(173, 216, 230); // Azul cielo pastel
       doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
       doc.setFont('helvetica', 'bold');
       doc.text('CANTIDAD DE CURSOS', margin + 2, yPos + 3.5);
@@ -1374,7 +1374,7 @@ function DocenteHijos() {
       yPos += headerHeight;
 
       // SUMA DE NOTAS
-      doc.setFillColor(227, 242, 253); // Azul pastel
+      doc.setFillColor(173, 216, 230); // Azul cielo pastel
       doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
       doc.setFont('helvetica', 'bold');
       doc.text('SUMA DE NOTAS', margin + 2, yPos + 3.5);
@@ -1390,7 +1390,7 @@ function DocenteHijos() {
       yPos += headerHeight;
 
       // PROMEDIO
-      doc.setFillColor(227, 242, 253); // Azul pastel
+      doc.setFillColor(173, 216, 230); // Azul cielo pastel
       doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
       doc.setFont('helvetica', 'bold');
       doc.text('PROMEDIO', margin + 2, yPos + 3.5);
@@ -1406,7 +1406,7 @@ function DocenteHijos() {
       yPos += headerHeight;
 
       // PROMEDIO CONDUCTA
-      doc.setFillColor(227, 242, 253); // Azul pastel
+      doc.setFillColor(173, 216, 230); // Azul cielo pastel
       doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
       doc.setFont('helvetica', 'bold');
       doc.text('PROMEDIO CONDUCTA', margin + 2, yPos + 3.5);
@@ -1422,7 +1422,7 @@ function DocenteHijos() {
       yPos += headerHeight;
 
       // ORDEN DE MÉRITO
-      doc.setFillColor(227, 242, 253); // Azul pastel
+      doc.setFillColor(173, 216, 230); // Azul cielo pastel
       doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
       doc.setFont('helvetica', 'bold');
       doc.text('ORDEN DE MÉRITO', margin + 2, yPos + 3.5);
@@ -1438,7 +1438,7 @@ function DocenteHijos() {
       yPos += headerHeight;
 
       // N° DE INASISTENCIAS
-      doc.setFillColor(227, 242, 253); // Azul pastel
+      doc.setFillColor(173, 216, 230); // Azul cielo pastel
       doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
       doc.setFont('helvetica', 'bold');
       doc.text('N° DE INASISTENCIAS', margin + 2, yPos + 3.5);
@@ -1454,7 +1454,7 @@ function DocenteHijos() {
       yPos += headerHeight;
 
       // N° DE TARDANZAS
-      doc.setFillColor(227, 242, 253); // Azul pastel
+      doc.setFillColor(173, 216, 230); // Azul cielo pastel
       doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
       doc.setFont('helvetica', 'bold');
       doc.text('N° DE TARDANZAS', margin + 2, yPos + 3.5);
