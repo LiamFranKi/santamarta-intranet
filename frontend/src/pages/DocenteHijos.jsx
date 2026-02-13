@@ -1311,18 +1311,24 @@ function DocenteHijos() {
       doc.text('ÁREAS CURRICULARES', margin + colAreaWidth / 2, yPos + 3.5, { align: 'center' });
       
       let xPos = margin + colAreaWidth;
+      // Asegurar que todas las columnas del header tengan fondo azul
+      doc.setFillColor(...colorLabel);
       doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('B - 1', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       xPos += colBimestreWidth;
+      doc.setFillColor(...colorLabel);
       doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('B - 2', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       xPos += colBimestreWidth;
+      doc.setFillColor(...colorLabel);
       doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('B - 3', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       xPos += colBimestreWidth;
+      doc.setFillColor(...colorLabel);
       doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('B - 4', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       xPos += colBimestreWidth;
+      doc.setFillColor(...colorLabel);
       doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('PF', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       
