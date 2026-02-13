@@ -1206,12 +1206,12 @@ function DocenteHijos() {
       // Datos del alumno
       const headerHeight = 5;
       doc.setFontSize(9);
-      const borderWidth = 2; // Borde de 2mm
+      const borderWidth = 0.5; // Borde de 0.5mm
       doc.setLineWidth(borderWidth);
       doc.setDrawColor(0, 0, 0); // Borde negro
       
-      // Azul pastel más visible: RGB(173, 216, 230) - azul cielo pastel para labels
-      const colorLabel = [173, 216, 230];
+      // Azul más puro para labels: RGB(100, 149, 237) - azul cornflower
+      const colorLabel = [100, 149, 237];
       const colorData = [255, 255, 255]; // Blanco para datos
       
       // Fila 1: ALUMNO y CÓDIGO
