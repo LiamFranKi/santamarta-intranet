@@ -71,6 +71,9 @@ function DocenteHijos() {
   const [notasDetalladas, setNotasDetalladas] = useState(null);
   const [loadingNotasDetalladas, setLoadingNotasDetalladas] = useState(false);
   const [cicloSeleccionadoNotas, setCicloSeleccionadoNotas] = useState(1);
+  const [showModalHorario, setShowModalHorario] = useState(false);
+  const [horario, setHorario] = useState([]);
+  const [loadingHorario, setLoadingHorario] = useState(false);
 
   useEffect(() => {
     cargarHijos();
@@ -167,6 +170,9 @@ function DocenteHijos() {
         break;
       case 'cursos-asignados':
         await handleVerCursos(hijo);
+        break;
+      case 'horario':
+        await handleVerHorario(hijo);
         break;
       case 'incidencias':
         await handleVerIncidencias(hijo);
@@ -684,6 +690,526 @@ function DocenteHijos() {
     return grupos;
   };
 
+  // ========== FUNCIONES PARA HORARIO ==========
+  const diasSemana = [
+    { id: 1, nombre: 'Lunes', abrev: 'LUNES' },
+    { id: 2, nombre: 'Martes', abrev: 'MARTES' },
+    { id: 3, nombre: 'Miércoles', abrev: 'MIÉRCOLES' },
+    { id: 4, nombre: 'Jueves', abrev: 'JUEVES' },
+    { id: 5, nombre: 'Viernes', abrev: 'VIERNES' }
+  ];
+
+  // Función para formatear hora
+  const formatearHora = (hora) => {
+    if (!hora) return '';
+    
+    const horaUpper = hora.toUpperCase().trim();
+    if (horaUpper.includes('AM') || horaUpper.includes('PM')) {
+      return hora.trim();
+    }
+    
+    const partes = hora.split(':');
+    if (partes.length < 2) return hora;
+    
+    const h = parseInt(partes[0], 10);
+    const m = partes[1] ? partes[1].split(' ')[0] : '00';
+    const minutos = m.padStart(2, '0');
+    
+    if (isNaN(h)) return hora;
+    
+    if (h === 0) return `12:${minutos} AM`;
+    if (h < 12) return `${h}:${minutos} AM`;
+    if (h === 12) return `12:${minutos} PM`;
+    return `${h - 12}:${minutos} PM`;
+  };
+
+  // Convertir hora a minutos para ordenar
+  const horaAMinutos = (hora) => {
+    if (!hora) return 0;
+    
+    const horaUpper = hora.toUpperCase().trim();
+    let hora24h = hora;
+    
+    if (horaUpper.includes('AM') || horaUpper.includes('PM')) {
+      const partes = hora.split(':');
+      if (partes.length < 2) return 0;
+      
+      let h = parseInt(partes[0], 10);
+      const m = parseInt(partes[1] ? partes[1].split(' ')[0] : 0, 10);
+      
+      if (horaUpper.includes('PM') && h !== 12) {
+        h += 12;
+      } else if (horaUpper.includes('AM') && h === 12) {
+        h = 0;
+      }
+      
+      return h * 60 + m;
+    } else {
+      const partes = hora.split(':');
+      if (partes.length < 2) return 0;
+      
+      const h = parseInt(partes[0], 10);
+      const m = parseInt(partes[1] ? partes[1].split(' ')[0] : 0, 10);
+      
+      if (isNaN(h) || isNaN(m)) return 0;
+      
+      return h * 60 + m;
+    }
+  };
+
+  // Obtener bloques de horarios únicos
+  const obtenerHorariosUnicos = (horarioData) => {
+    if (!horarioData || horarioData.length === 0) return [];
+    
+    const bloques = horarioData.map(c => ({
+      inicio: c.inicio || c.hora_inicio || '',
+      fin: c.fin || c.hora_final || ''
+    })).filter(b => b.inicio && b.fin);
+    
+    const unicos = {};
+    bloques.forEach(b => {
+      const key = `${b.inicio}-${b.fin}`;
+      if (!unicos[key]) {
+        unicos[key] = b;
+      }
+    });
+    
+    return Object.values(unicos).sort((a, b) => horaAMinutos(a.inicio) - horaAMinutos(b.inicio));
+  };
+
+  // Obtener clase en un día y bloque específico
+  const obtenerClase = (dia, horaInicio, horaFin, horarioData) => {
+    if (!horarioData || horarioData.length === 0) return null;
+    const clase = horarioData.find(c => {
+      const diaNormalizado = c.diaNormalizado || c.dia || 0;
+      if (diaNormalizado !== dia) return false;
+      
+      const inicioClase = c.inicio || c.hora_inicio || '';
+      const finClase = c.fin || c.hora_final || '';
+      
+      return inicioClase === horaInicio && finClase === horaFin;
+    });
+    
+    return clase;
+  };
+
+  // Formatear texto de la clase
+  const formatearClase = (clase) => {
+    if (!clase) return null;
+    const titulo = clase.titulo || clase.curso_nombre || '';
+    const docente = clase.docente_nombre || '';
+    
+    if (!titulo) return null;
+    if (!docente) return titulo;
+    
+    return `${titulo} - ${docente}`;
+  };
+
+  // Paleta de colores para cursos
+  const colorPalette = [
+    '#FFF9C4', '#BBDEFB', '#F3E5F5', '#C8E6C9', '#E0F7FA',
+    '#FFF3E0', '#FCE4EC', '#E1F5FE', '#F1F8E9', '#FFEBEE',
+    '#E8EAF6', '#E0F2F1', '#E1BEE7', '#FFE0B2', '#FFCCBC',
+    '#D1C4E9', '#F8BBD0', '#B2DFDB', '#C5E1A5', '#FFE082',
+    '#BCAAA4', '#90CAF9', '#A5D6A7', '#CE93D8', '#FFAB91',
+    '#80CBC4', '#FFCC80', '#B39DDB', '#81C784', '#64B5F6',
+  ];
+
+  // Hash para asignar colores consistentes
+  const hashString = (str) => {
+    let hash = 0;
+    const normalized = str.trim().toLowerCase();
+    
+    for (let i = 0; i < normalized.length; i++) {
+      const char = normalized.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash + (hash << 10);
+      hash = hash ^ (hash >> 6);
+    }
+    
+    hash = hash + (hash << 3);
+    hash = hash ^ (hash >> 11);
+    hash = hash + (hash << 15);
+    
+    return Math.abs(hash);
+  };
+
+  // Obtener color para curso
+  const getColorForCourse = (titulo) => {
+    if (!titulo || !titulo.trim()) return null;
+    
+    const tituloNormalizado = titulo.trim();
+    const hash = hashString(tituloNormalizado);
+    const index = hash % colorPalette.length;
+    
+    return colorPalette[index];
+  };
+
+  // Aclarar color
+  const aclararColor = (colorHex, factor = 0.4) => {
+    if (!colorHex) return '#ffffff';
+    
+    const r = parseInt(colorHex.slice(1, 3), 16);
+    const g = parseInt(colorHex.slice(3, 5), 16);
+    const b = parseInt(colorHex.slice(5, 7), 16);
+    
+    const rNuevo = Math.round(r + (255 - r) * factor);
+    const gNuevo = Math.round(g + (255 - g) * factor);
+    const bNuevo = Math.round(b + (255 - b) * factor);
+    
+    return `#${rNuevo.toString(16).padStart(2, '0')}${gNuevo.toString(16).padStart(2, '0')}${bNuevo.toString(16).padStart(2, '0')}`;
+  };
+
+  // Convertir hex a RGB
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  };
+
+  // Procesar horario para detalle
+  const procesarDetalleHorario = (horarioData) => {
+    if (!horarioData || horarioData.length === 0) return [];
+
+    const cursosMap = {};
+
+    horarioData.forEach((clase) => {
+      const titulo = (clase.titulo || clase.curso_nombre || '').trim();
+      if (!titulo) return;
+
+      const docente = clase.docente_nombre || '';
+      const clave = `${titulo}|||${docente}`;
+
+      if (!cursosMap[clave]) {
+        cursosMap[clave] = {
+          titulo,
+          docente,
+          horarios: []
+        };
+      }
+
+      const diaNormalizado = clase.diaNormalizado || clase.dia || 0;
+      const diaNombre = diasSemana.find(d => d.id === diaNormalizado)?.nombre || `Día ${diaNormalizado}`;
+      const inicio = clase.inicio || clase.hora_inicio || '';
+      const fin = clase.fin || clase.hora_final || '';
+
+      const existeHorario = cursosMap[clave].horarios.some(h => 
+        h.dia === diaNormalizado && h.inicio === inicio && h.fin === fin
+      );
+
+      if (!existeHorario && inicio && fin) {
+        cursosMap[clave].horarios.push({
+          dia: diaNormalizado,
+          diaNombre,
+          inicio,
+          fin
+        });
+      }
+    });
+
+    const cursosArray = Object.values(cursosMap).sort((a, b) => {
+      return a.titulo.localeCompare(b.titulo);
+    });
+
+    cursosArray.forEach(curso => {
+      curso.horarios.sort((a, b) => {
+        if (a.dia !== b.dia) {
+          return a.dia - b.dia;
+        }
+        return horaAMinutos(a.inicio) - horaAMinutos(b.inicio);
+      });
+    });
+
+    return cursosArray;
+  };
+
+  // Cargar horario del hijo
+  const cargarHorarioHijo = async (hijoId) => {
+    try {
+      setLoadingHorario(true);
+      const response = await api.get(`/docente/hijos/${hijoId}/horario`);
+      const horariosRecibidos = response.data.horario || [];
+      
+      // Normalizar días
+      const dias = horariosRecibidos
+        .map((c) => typeof c.dia === 'number' ? c.dia : null)
+        .filter((d) => d !== null);
+
+      if (dias.length > 0) {
+        const minDia = Math.min(...dias);
+        const maxDia = Math.max(...dias);
+        const usaCeroCuatroComoLunesViernes = minDia === 0 && maxDia <= 4;
+
+        const normalizado = horariosRecibidos.map((c) => ({
+          ...c,
+          titulo: c.curso_nombre || c.titulo,
+          inicio: c.hora_inicio || c.inicio,
+          fin: c.hora_final || c.fin,
+          diaNormalizado: usaCeroCuatroComoLunesViernes
+            ? (typeof c.dia === 'number' ? c.dia + 1 : c.dia)
+            : c.dia
+        }));
+
+        setHorario(normalizado);
+      } else {
+        setHorario(horariosRecibidos);
+      }
+    } catch (error) {
+      console.error('Error cargando horario:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo cargar el horario',
+        confirmButtonText: 'Entendido'
+      });
+    } finally {
+      setLoadingHorario(false);
+    }
+  };
+
+  // Manejar ver horario
+  const handleVerHorario = async (hijo) => {
+    try {
+      setHijoSeleccionado(hijo);
+      setShowModalHorario(true);
+      await cargarHorarioHijo(hijo.id);
+    } catch (error) {
+      console.error('Error abriendo modal de horario:', error);
+    }
+  };
+
+  // Exportar horario a PDF
+  const handleExportarHorarioPDF = () => {
+    if (!horario || horario.length === 0) {
+      Swal.fire({
+        title: 'Sin datos',
+        text: 'No hay horario para exportar',
+        icon: 'info'
+      });
+      return;
+    }
+
+    try {
+      const doc = new jsPDF('l', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      const contentWidth = pageWidth - (margin * 2);
+      let yPosition = margin;
+
+      const colorHeader = [59, 130, 246];
+      const colorBorder = [30, 64, 175];
+      const colorText = [30, 41, 59];
+
+      // Header
+      doc.setFillColor(...colorHeader);
+      doc.rect(margin, yPosition, contentWidth, 25, 'F');
+      doc.setDrawColor(...colorBorder);
+      doc.setLineWidth(0.5);
+      doc.rect(margin, yPosition, contentWidth, 25);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text('HORARIO DE CLASES', margin + contentWidth / 2, yPosition + 15, { align: 'center' });
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`${hijoSeleccionado?.nombres} ${hijoSeleccionado?.apellido_paterno}`, margin + contentWidth / 2, yPosition + 22, { align: 'center' });
+      yPosition += 30;
+
+      // Tabla de horario
+      const colWidth = contentWidth / 6;
+      const rowHeight = 15;
+      const headerHeight = 12;
+
+      // Encabezados
+      doc.setFillColor(...colorHeader);
+      doc.rect(margin, yPosition, colWidth, headerHeight, 'F');
+      doc.setDrawColor(...colorBorder);
+      doc.setLineWidth(0.3);
+      doc.rect(margin, yPosition, colWidth, headerHeight);
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('HORA', margin + colWidth / 2, yPosition + headerHeight / 2 + 3, { align: 'center' });
+
+      diasSemana.forEach((dia, idx) => {
+        const xPos = margin + colWidth + (idx * colWidth);
+        doc.setFillColor(...colorHeader);
+        doc.rect(xPos, yPosition, colWidth, headerHeight, 'F');
+        doc.setDrawColor(...colorBorder);
+        doc.rect(xPos, yPosition, colWidth, headerHeight);
+        doc.text(dia.abrev, xPos + colWidth / 2, yPosition + headerHeight / 2 + 3, { align: 'center' });
+      });
+
+      yPosition += headerHeight;
+
+      // Filas de horarios
+      const horariosUnicos = obtenerHorariosUnicos(horario);
+      horariosUnicos.forEach((bloque) => {
+        const claseLunes = obtenerClase(1, bloque.inicio, bloque.fin, horario);
+        const claseMartes = obtenerClase(2, bloque.inicio, bloque.fin, horario);
+        const claseMiercoles = obtenerClase(3, bloque.inicio, bloque.fin, horario);
+        const claseJueves = obtenerClase(4, bloque.inicio, bloque.fin, horario);
+        const claseViernes = obtenerClase(5, bloque.inicio, bloque.fin, horario);
+
+        const tieneClase = claseLunes || claseMartes || claseMiercoles || claseJueves || claseViernes;
+        if (!tieneClase) return;
+
+        if (yPosition + rowHeight > pageHeight - margin - 10) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        // Celda de hora
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.3);
+        doc.rect(margin, yPosition, colWidth, rowHeight);
+        doc.setTextColor(...colorText);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        const horaTexto = `${formatearHora(bloque.inicio)} - ${formatearHora(bloque.fin)}`;
+        doc.text(horaTexto, margin + colWidth / 2, yPosition + rowHeight / 2 + 3, { align: 'center', maxWidth: colWidth - 4 });
+
+        // Celdas de días
+        const clases = [claseLunes, claseMartes, claseMiercoles, claseJueves, claseViernes];
+        clases.forEach((clase, diaIdx) => {
+          const xPos = margin + colWidth + (diaIdx * colWidth);
+          doc.setDrawColor(200, 200, 200);
+          doc.setLineWidth(0.3);
+          doc.rect(xPos, yPosition, colWidth, rowHeight);
+          
+          if (clase) {
+            const colorCurso = getColorForCourse(clase.titulo || clase.curso_nombre || '');
+            const rgb = hexToRgb(colorCurso);
+            if (rgb) {
+              doc.setFillColor(rgb.r, rgb.g, rgb.b);
+              doc.rect(xPos + 0.5, yPosition + 0.5, colWidth - 1, rowHeight - 1, 'F');
+            }
+            
+            doc.setTextColor(...colorText);
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            const textoClase = formatearClase(clase);
+            if (textoClase) {
+              const lineas = doc.splitTextToSize(textoClase, colWidth - 6);
+              const numLineas = lineas.length;
+              const alturaTexto = numLineas * 4;
+              const yInicio = yPosition + (rowHeight - alturaTexto) / 2 + 3;
+              lineas.forEach((linea, lineIdx) => {
+                doc.text(linea, xPos + colWidth / 2, yInicio + (lineIdx * 4), { align: 'center', maxWidth: colWidth - 6 });
+              });
+            }
+          }
+        });
+
+        yPosition += rowHeight;
+      });
+
+      // Detalle de horario
+      const detalleHorario = procesarDetalleHorario(horario);
+      if (detalleHorario.length > 0) {
+        if (yPosition + 20 > pageHeight - margin - 10) {
+          doc.addPage();
+          yPosition = margin;
+        }
+
+        yPosition += 10;
+        doc.setDrawColor(...colorBorder);
+        doc.setLineWidth(0.5);
+        doc.line(margin, yPosition, margin + contentWidth, yPosition);
+        yPosition += 5;
+
+        doc.setTextColor(...colorText);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DETALLE DE HORARIO', margin, yPosition);
+        yPosition += 8;
+
+        detalleHorario.forEach((curso) => {
+          const cardHeight = 28;
+          
+          if (yPosition + cardHeight > pageHeight - margin - 10) {
+            doc.addPage();
+            yPosition = margin;
+          }
+
+          const colorCurso = getColorForCourse(curso.titulo);
+          const rgb = hexToRgb(colorCurso);
+          
+          if (rgb) {
+            doc.setFillColor(rgb.r, rgb.g, rgb.b);
+            doc.roundedRect(margin, yPosition, contentWidth, cardHeight, 3, 3, 'F');
+          }
+          
+          doc.setDrawColor(200, 200, 200);
+          doc.setLineWidth(0.3);
+          doc.roundedRect(margin, yPosition, contentWidth, cardHeight, 3, 3);
+          
+          const centroVertical = yPosition + cardHeight / 2;
+          
+          doc.setTextColor(...colorText);
+          doc.setFontSize(14);
+          doc.setFont('helvetica', 'bold');
+          const tituloLines = doc.splitTextToSize(curso.titulo, contentWidth - 20);
+          const tituloY = centroVertical - 8;
+          doc.text(tituloLines, margin + contentWidth / 2, tituloY, { align: 'center', maxWidth: contentWidth - 20 });
+          
+          if (curso.docente) {
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'normal');
+            const docenteY = centroVertical - 1;
+            doc.text(`Docente: ${curso.docente}`, margin + contentWidth / 2, docenteY, { align: 'center', maxWidth: contentWidth - 20 });
+          }
+          
+          if (curso.horarios && curso.horarios.length > 0) {
+            let horariosTexto = curso.horarios.map(h => 
+              `${h.diaNombre}: ${formatearHora(h.inicio)} - ${formatearHora(h.fin)}`
+            ).join(' | ');
+            
+            doc.setFontSize(10);
+            const horariosLines = doc.splitTextToSize(horariosTexto, contentWidth - 20);
+            const horariosY = centroVertical + 6;
+            doc.text(horariosLines, margin + contentWidth / 2, horariosY, { align: 'center', maxWidth: contentWidth - 20 });
+          }
+          
+          yPosition += cardHeight + 4;
+        });
+      }
+
+      // Pie de página
+      const fechaGeneracion = new Date().toLocaleDateString('es-PE', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      doc.setFontSize(8);
+      doc.setTextColor(100, 100, 100);
+      doc.setFont('helvetica', 'italic');
+      doc.text(`Generado el: ${fechaGeneracion}`, margin, pageHeight - 10);
+
+      const nombreArchivo = `Horario_${hijoSeleccionado?.nombres}_${hijoSeleccionado?.apellido_paterno}_${new Date().getTime()}.pdf`;
+      doc.save(nombreArchivo);
+
+      Swal.fire({
+        title: '¡PDF Generado!',
+        text: 'El horario se ha exportado correctamente',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      Swal.fire({
+        title: 'Error',
+        text: 'No se pudo generar el PDF',
+        icon: 'error'
+      });
+    }
+  };
+
   // Función para exportar incidencias a PDF por mes
   const handleExportarIncidenciasPDF = async (mesAnio, incidenciasMes) => {
     try {
@@ -1138,6 +1664,49 @@ function DocenteHijos() {
         text: 'No se pudo generar la libreta',
         confirmButtonText: 'Entendido'
       });
+    }
+  };
+
+  const handleVerHorario = async (hijo) => {
+    try {
+      setHijoSeleccionado(hijo);
+      setShowModalHorario(true);
+      setLoadingHorario(true);
+      setHorario([]);
+      
+      const response = await api.get(`/docente/hijos/${hijo.id}/horario`);
+      const horariosRecibidos = response.data.horario || [];
+      
+      // Normalizar días (igual que en AlumnoHorario)
+      const dias = horariosRecibidos
+        .map((c) => typeof c.dia === 'number' ? c.dia : null)
+        .filter((d) => d !== null);
+      
+      let horarioNormalizado = horariosRecibidos;
+      if (dias.length > 0) {
+        const minDia = Math.min(...dias);
+        const maxDia = Math.max(...dias);
+        const usaCeroCuatroComoLunesViernes = minDia === 0 && maxDia <= 4;
+        
+        horarioNormalizado = horariosRecibidos.map((c) => ({
+          ...c,
+          diaNormalizado: usaCeroCuatroComoLunesViernes
+            ? (typeof c.dia === 'number' ? c.dia + 1 : c.dia)
+            : c.dia
+        }));
+      }
+      
+      setHorario(horarioNormalizado);
+    } catch (error) {
+      console.error('Error cargando horario:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo cargar el horario',
+        confirmButtonText: 'Entendido'
+      });
+    } finally {
+      setLoadingHorario(false);
     }
   };
 
@@ -2635,6 +3204,17 @@ function DocenteHijos() {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    handleOpcionClick('horario', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">📅</span>
+                                  <span>Horario</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
                                     handleOpcionClick('incidencias', hijo);
                                   }}
                                 >
@@ -3427,6 +4007,157 @@ function DocenteHijos() {
                   </>
                 );
               })()}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Horario */}
+      {showModalHorario && createPortal(
+        <div className="modal-overlay-qr" onClick={() => setShowModalHorario(false)}>
+          <div className="modal-content-horario" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '95%', maxHeight: '95vh', overflow: 'auto' }}>
+            <div className="modal-header-qr">
+              <h2>📅 Horario de {hijoSeleccionado?.nombres} {hijoSeleccionado?.apellido_paterno}</h2>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                {horario && horario.length > 0 && (
+                  <button className="btn-imprimir" onClick={handleExportarHorarioPDF} style={{ padding: '8px 16px', fontSize: '14px' }}>
+                    <span className="btn-icon">📄</span>
+                    <span className="btn-text">Exportar</span>
+                  </button>
+                )}
+                <button className="modal-close-qr" onClick={() => setShowModalHorario(false)}>×</button>
+              </div>
+            </div>
+
+            <div className="modal-body-horario" style={{ padding: '20px' }}>
+              {loadingHorario ? (
+                <div className="qr-loading">
+                  <div className="loading-spinner">Cargando horario...</div>
+                </div>
+              ) : !horario || horario.length === 0 ? (
+                <div className="empty-state">
+                  <p>No se encontró horario para el año académico actual</p>
+                </div>
+              ) : (
+                <>
+                  <div className="horario-container" style={{ marginBottom: '30px' }}>
+                    <div className="horario-table-wrapper" style={{ overflowX: 'auto' }}>
+                      <table className="horario-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th className="horario-hora-col" style={{ backgroundColor: '#3b82f6', color: 'white', padding: '12px', textAlign: 'center', fontWeight: 'bold' }}>Hora</th>
+                            {diasSemana.map((dia) => (
+                              <th key={dia.id} className="horario-dia-col" style={{ backgroundColor: '#3b82f6', color: 'white', padding: '12px', textAlign: 'center', fontWeight: 'bold' }}>{dia.abrev}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {obtenerHorariosUnicos(horario).map((bloque, idx) => {
+                            const claseLunes = obtenerClase(1, bloque.inicio, bloque.fin, horario);
+                            const claseMartes = obtenerClase(2, bloque.inicio, bloque.fin, horario);
+                            const claseMiercoles = obtenerClase(3, bloque.inicio, bloque.fin, horario);
+                            const claseJueves = obtenerClase(4, bloque.inicio, bloque.fin, horario);
+                            const claseViernes = obtenerClase(5, bloque.inicio, bloque.fin, horario);
+                            
+                            const tieneClase = claseLunes || claseMartes || claseMiercoles || claseJueves || claseViernes;
+                            
+                            if (!tieneClase) return null;
+                            
+                            return (
+                              <tr key={idx}>
+                                <td className="horario-hora-cell" style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold', border: '1px solid #e5e7eb' }}>
+                                  {formatearHora(bloque.inicio)} - {formatearHora(bloque.fin)}
+                                </td>
+                                {[claseLunes, claseMartes, claseMiercoles, claseJueves, claseViernes].map((clase, diaIdx) => (
+                                  <td
+                                    key={diaIdx}
+                                    className={`horario-clase-cell ${!clase ? 'horario-cell-empty' : ''}`}
+                                    style={{
+                                      padding: '10px',
+                                      textAlign: 'center',
+                                      border: '1px solid #e5e7eb',
+                                      backgroundColor: clase ? aclararColor(getColorForCourse(clase.titulo || clase.curso_nombre || ''), 0.5) : 'transparent',
+                                      minHeight: '60px',
+                                      verticalAlign: 'middle'
+                                    }}
+                                  >
+                                    {formatearClase(clase) || ''}
+                                  </td>
+                                ))}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Detalle de Horario */}
+                  {procesarDetalleHorario(horario).length > 0 && (
+                    <div className="detalle-horario-container" style={{ marginTop: '30px' }}>
+                      <h2 className="detalle-horario-title" style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '20px', color: '#1e293b' }}>Detalle de Horario</h2>
+                      <div className="detalle-horario-list" style={{ display: 'grid', gap: '15px' }}>
+                        {procesarDetalleHorario(horario).map((curso, idx) => {
+                          const colorCurso = getColorForCourse(curso.titulo);
+                          const colorClaro = aclararColor(colorCurso, 0.5);
+                          
+                          return (
+                            <div 
+                              key={idx} 
+                              className="detalle-curso-card"
+                              style={{ 
+                                backgroundColor: colorClaro,
+                                padding: '20px',
+                                borderRadius: '8px',
+                                border: `2px solid ${colorCurso || '#e5e7eb'}`,
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                              }}
+                            >
+                              <div className="detalle-curso-header" style={{ display: 'flex', alignItems: 'center', marginBottom: '15px' }}>
+                                <div 
+                                  className="detalle-curso-color-indicator"
+                                  style={{ 
+                                    width: '20px', 
+                                    height: '20px', 
+                                    backgroundColor: getColorForCourse(curso.titulo) || '#ccc',
+                                    borderRadius: '4px',
+                                    marginRight: '12px'
+                                  }}
+                                ></div>
+                                <div className="detalle-curso-info">
+                                  <h3 className="detalle-curso-titulo" style={{ fontSize: '18px', fontWeight: 'bold', margin: 0, color: '#1e293b' }}>{curso.titulo}</h3>
+                                  {curso.docente && (
+                                    <p className="detalle-curso-docente" style={{ margin: '5px 0 0 0', color: '#64748b' }}>👨‍🏫 {curso.docente}</p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="detalle-curso-horarios" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                                {curso.horarios.map((horarioItem, hIdx) => (
+                                  <div key={hIdx} className="detalle-horario-item" style={{ 
+                                    backgroundColor: 'white',
+                                    padding: '8px 12px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #e5e7eb',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '8px'
+                                  }}>
+                                    <span className="detalle-horario-dia" style={{ fontWeight: 'bold', color: '#3b82f6' }}>{horarioItem.diaNombre}</span>
+                                    <span className="detalle-horario-hora" style={{ color: '#64748b' }}>
+                                      {formatearHora(horarioItem.inicio)} - {formatearHora(horarioItem.fin)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>,
