@@ -1370,6 +1370,7 @@ function DocenteHijos() {
           
           xPos = margin + colAreaWidth;
           [asignatura.promedio_b1, asignatura.promedio_b2, asignatura.promedio_b3, asignatura.promedio_b4, asignatura.promedio_final].forEach((promedio, index) => {
+            doc.setFillColor(...colorData); // Asegurar fondo blanco en cada celda
             doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
             const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
             doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
@@ -1543,12 +1544,12 @@ function DocenteHijos() {
       doc.setFillColor(...colorData);
       doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      yPos += paddingVertical; // Más espacio después del cuadro resumen
+      yPos += 5; // 5mm de espacio después del cuadro resumen
 
-      // Footer: Apreciaciones del Tutor
+      // Footer: Recomendaciones
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
-      doc.text('Apreciaciones / Recomendaciones del Tutor', margin, yPos);
+      doc.text('Recomendaciones:', margin, yPos);
       yPos += 5;
 
       doc.setFont('helvetica', 'normal');
@@ -1556,14 +1557,14 @@ function DocenteHijos() {
       doc.text('', margin, yPos); // Espacio para recomendaciones
       yPos += 15;
 
-      // Firmas
+      // Firma solo de Dirección (centrada)
       doc.setFontSize(8);
-      doc.text('_______________________________________', margin + 15, yPos);
-      doc.text('_______________________________________', margin + 95, yPos);
+      const firmaWidth = 70;
+      const firmaX = (pageWidth - firmaWidth) / 2; // Centrar
+      doc.text('_______________________________________', firmaX, yPos);
       yPos += 5;
 
-      doc.text(`Profesor/Tutor: ${datosLibreta.alumno.tutor_nombre || ''}`, margin + 15, yPos, { align: 'center' });
-      doc.text('Dirección', margin + 95, yPos, { align: 'center' });
+      doc.text('Dirección', firmaX + firmaWidth / 2, yPos, { align: 'center' });
 
       const nombreArchivo = `Libreta_${datosLibreta.alumno.apellido_paterno?.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
       doc.save(nombreArchivo);
