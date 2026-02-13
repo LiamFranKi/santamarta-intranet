@@ -5047,7 +5047,151 @@ router.get('/hijos/:hijoId/asistencias', async (req, res) => {
     });
   } catch (error) {
     console.error('Error obteniendo asistencias del hijo:', error);
-    res.status(500).json({ error: 'Error al obtener asistencias del alumno' });
+    res.status(500).json({ error: 'Error al obtener asistencias', details: error.message });
+  }
+});
+
+/**
+ * GET /api/docente/hijos/:hijoId/horario
+ * Obtener horario del hijo
+ */
+router.get('/hijos/:hijoId/horario', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, usuario_id, personal_id, anio_activo } = req.user;
+
+    console.log(`\n🔵 ========== [HIJOS-HORARIO] NUEVA PETICIÓN ==========`);
+    console.log(`📋 [HIJOS-HORARIO] hijoId recibido: ${hijoId}`);
+
+    // Validar que hijoId sea un número válido
+    if (!hijoId || isNaN(parseInt(hijoId))) {
+      return res.status(400).json({ error: 'ID de alumno inválido' });
+    }
+
+    const hijoIdNum = parseInt(hijoId);
+
+    if (!personal_id) {
+      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
+    }
+
+    // Obtener nro_documento del personal
+    let nroDocumento = null;
+    const personalData = await query(
+      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [personal_id, colegio_id]
+    );
+
+    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+      nroDocumento = personalData[0].nro_documento;
+    } else {
+      const usuarioData = await query(
+        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+        [usuario_id, colegio_id, personal_id]
+      );
+      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
+        nroDocumento = usuarioData[0].usuario;
+      }
+    }
+
+    if (!nroDocumento) {
+      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
+    }
+
+    // Verificar que el alumno es hijo del docente
+    const esHijo = await query(
+      `SELECT COUNT(*) as count
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE ap.colegio_id = ?
+         AND ap.nro_documento = ?
+         AND a.id = ?
+         AND a.colegio_id = ?`,
+      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
+    );
+
+    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+      return res.status(403).json({ error: 'No tienes permisos para ver este horario. El alumno no está registrado como tu hijo.' });
+    }
+
+    // Obtener matrícula actual del alumno para obtener su grupo
+    const matricula = await query(
+      `SELECT m.grupo_id FROM matriculas m 
+       INNER JOIN grupos g ON g.id = m.grupo_id 
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4) 
+       LIMIT 1`,
+      [hijoIdNum, colegio_id, anio_activo]
+    );
+
+    if (matricula.length === 0) {
+      console.log('📅 [HIJOS-HORARIO] No se encontró matrícula para el año activo');
+      return res.json({ horario: [] });
+    }
+
+    const grupoId = matricula[0].grupo_id;
+    console.log('📅 [HIJOS-HORARIO] Grupo encontrado:', grupoId);
+
+    const anioActivoInt = parseInt(anio_activo);
+
+    // Obtener horario del grupo del alumno (igual que en alumno.routes.js)
+    const horarioCrudo = await query(
+      `SELECT 
+         gh.id,
+         gh.dia,
+         gh.hora_inicio,
+         gh.hora_final,
+         gh.anio,
+         c.nombre AS curso_nombre,
+         gh.descripcion AS descripcion,
+         g.grado,
+         g.seccion,
+         n.nombre AS nivel_nombre,
+         CONCAT(p.nombres, ' ', p.apellidos) AS docente_nombre
+       FROM grupos_horarios gh
+       LEFT JOIN asignaturas a ON a.id = gh.asignatura_id AND a.colegio_id = ?
+       LEFT JOIN grupos g ON g.id = COALESCE(a.grupo_id, gh.grupo_id)
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN cursos c ON c.id = a.curso_id
+       LEFT JOIN personal p ON p.id = COALESCE(a.personal_id, gh.personal_id)
+       WHERE gh.anio = ? 
+         AND (
+           (a.grupo_id = ? AND a.colegio_id = ?) 
+           OR 
+           (gh.grupo_id = ? AND a.id IS NULL)
+         )
+       ORDER BY gh.dia, STR_TO_DATE(gh.hora_inicio, '%l:%i %p')`,
+      [colegio_id, anioActivoInt, grupoId, colegio_id, grupoId]
+    );
+
+    console.log(`📅 [HIJOS-HORARIO] Filas de horario encontradas: ${horarioCrudo ? horarioCrudo.length : 0}`);
+
+    // Mapear a un formato estándar para el frontend (igual que en alumno.routes.js)
+    const horario = (horarioCrudo || []).map((row) => {
+      const titulo = row.curso_nombre || row.descripcion || '';
+      const grupoTexto = row.nivel_nombre && row.grado && row.seccion
+        ? `${row.nivel_nombre} - ${row.grado}° ${row.seccion}`
+        : '';
+
+      return {
+        id: row.id,
+        dia: typeof row.dia === 'number' ? row.dia : parseInt(row.dia || 0, 10),
+        inicio: row.hora_inicio,
+        fin: row.hora_final,
+        anio: row.anio,
+        titulo,
+        grupo: grupoTexto,
+        docente_nombre: row.docente_nombre || ''
+      };
+    });
+
+    console.log(`✅ [HIJOS-HORARIO] Horario obtenido exitosamente: ${horario.length} registros`);
+    console.log(`🔵 ========== [HIJOS-HORARIO] FIN DE PETICIÓN ==========\n`);
+
+    res.json({ horario });
+  } catch (error) {
+    console.error('❌ [HIJOS-HORARIO] Error obteniendo horario del hijo:', error);
+    res.status(500).json({ error: 'Error al obtener horario del hijo', details: error.message });
   }
 });
 
