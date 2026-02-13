@@ -5144,13 +5144,15 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
 
     // Función para obtener el nombre del mes según el número de pago
     // Según el sistema anterior: MESES[nro_pago + inicio_pensiones - 1]
+    // IMPORTANTE: nro_pago = 1 es la primera mensualidad (no la matrícula)
     // inicio_pensiones es el número del mes (1=Enero, 2=Febrero, 3=Marzo, etc.)
     // Si inicio_pensiones = 3 (Marzo), entonces nro_pago = 1 debe ser Marzo
-    // Fórmula: indice = nro_pago + inicio_pensiones - 1 - 1 (último -1 porque array es 0-indexed)
+    // Fórmula del sistema anterior: MESES[nro_pago + inicio_pensiones - 1]
+    // Pero MESES es 0-indexed, así que: indice = (nro_pago + inicio_pensiones - 1) - 1
     const getMesPension = (nroPago) => {
       if (cicloPensiones === 0 || cicloPensiones === '0') { // 0 = Mes
-        // Fórmula del sistema anterior: MESES[nro_pago + inicio_pensiones - 1]
-        // Pero MESES es 0-indexed, así que: indice = nro_pago + inicio_pensiones - 1 - 1
+        // Fórmula: indice = nro_pago + inicio_pensiones - 2
+        // Ejemplo: inicio_pensiones = 3 (Marzo), nro_pago = 1 → indice = 1 + 3 - 2 = 2 → Marzo ✓
         const indiceMes = nroPago + inicioPensiones - 2;
         if (indiceMes >= 0 && indiceMes < MESES.length) {
           return MESES[indiceMes];
@@ -5175,7 +5177,7 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
 
         // Para cada pago, obtener la impresión (boleta) si existe
         const pagosConBoleta = await Promise.all(
-          pagos.map(async (pago) => {
+          pagosParaProcesar.map(async (pago) => {
             const impresion = await query(
               `SELECT id, numero, serie, fecha_impresion, impreso
                FROM impresiones
