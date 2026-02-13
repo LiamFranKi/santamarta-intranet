@@ -1550,9 +1550,9 @@ function DocenteHijos() {
       doc.setFillColor(...colorData);
       doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      yPos += 5; // 5mm de espacio después del cuadro resumen
+      yPos += 20; // 20mm de espacio después del cuadro resumen (5mm original + 15mm adicionales)
 
-      // Footer: Recomendaciones (5mm después del cuadro)
+      // Footer: Recomendaciones
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.text('Recomendaciones:', margin, yPos);
@@ -1563,14 +1563,14 @@ function DocenteHijos() {
       doc.text('', margin, yPos); // Espacio para recomendaciones
       yPos += 15;
 
-      // Firma solo de Dirección (centrada)
+      // Firma solo de Dirección Académica (centrada)
       doc.setFontSize(8);
       const firmaWidth = 70;
       const firmaX = (pageWidth - firmaWidth) / 2; // Centrar
       doc.text('_______________________________________', firmaX, yPos);
       yPos += 5;
 
-      doc.text('Dirección', firmaX + firmaWidth / 2, yPos, { align: 'center' });
+      doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
 
       const nombreArchivo = `Libreta_${datosLibreta.alumno.apellido_paterno?.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
       doc.save(nombreArchivo);
