@@ -1167,11 +1167,37 @@ function DocenteHijos() {
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 5;
-      const paddingVertical = 15; // Padding superior e inferior aumentado
+      const paddingVertical = 20; // Padding superior e inferior aumentado
       const contentWidth = pageWidth - (margin * 2);
       let yPos = margin + paddingVertical;
 
-      // Header con logo (simulado con texto por ahora)
+      // Logo en la esquina superior izquierda
+      try {
+        const logoUrl = 'https://sistema.vanguardschools.edu.pe/assets/logos/logo.png';
+        const logoImg = new Image();
+        logoImg.crossOrigin = 'anonymous';
+        await new Promise((resolve, reject) => {
+          logoImg.onload = () => resolve();
+          logoImg.onerror = () => reject();
+          logoImg.src = logoUrl;
+        });
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = logoImg.width;
+        canvas.height = logoImg.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(logoImg, 0, 0);
+        const logoData = canvas.toDataURL('image/png');
+        
+        // Logo de 20mm de ancho (proporcional en altura)
+        const logoWidth = 20;
+        const logoHeight = (logoImg.height / logoImg.width) * logoWidth;
+        doc.addImage(logoData, 'PNG', margin, margin, logoWidth, logoHeight);
+      } catch (error) {
+        console.log('No se pudo cargar el logo, continuando sin él');
+      }
+
+      // Header con título
       doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text('BOLETA DE INFORMACIÓN ACADÉMICA', pageWidth / 2, yPos + 10, { align: 'center' });
@@ -1180,17 +1206,30 @@ function DocenteHijos() {
       // Datos del alumno
       const headerHeight = 5;
       doc.setFontSize(9);
-      // Azul pastel más visible: RGB(173, 216, 230) - azul cielo pastel
-      doc.setFillColor(173, 216, 230);
+      const borderWidth = 2; // Borde de 2mm
+      doc.setLineWidth(borderWidth);
+      doc.setDrawColor(0, 0, 0); // Borde negro
+      
+      // Azul pastel más visible: RGB(173, 216, 230) - azul cielo pastel para labels
+      const colorLabel = [173, 216, 230];
+      const colorData = [255, 255, 255]; // Blanco para datos
       
       // Fila 1: ALUMNO y CÓDIGO
-      doc.setFillColor(173, 216, 230); // Azul cielo pastel
-      doc.rect(margin, yPos, 40, headerHeight, 'F');
-      doc.rect(margin + 40, yPos, 95, headerHeight, 'F');
-      doc.rect(margin + 135, yPos, 30, headerHeight, 'F');
-      doc.rect(margin + 165, yPos, 35, headerHeight, 'F');
+      // Label ALUMNO (azul)
+      doc.setFillColor(...colorLabel);
+      doc.rect(margin, yPos, 40, headerHeight, 'FD');
+      // Datos ALUMNO (blanco)
+      doc.setFillColor(...colorData);
+      doc.rect(margin + 40, yPos, 95, headerHeight, 'FD');
+      // Label CÓDIGO (azul)
+      doc.setFillColor(...colorLabel);
+      doc.rect(margin + 135, yPos, 30, headerHeight, 'FD');
+      // Datos CÓDIGO (blanco)
+      doc.setFillColor(...colorData);
+      doc.rect(margin + 165, yPos, 35, headerHeight, 'FD');
       
       doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
       doc.text('ALUMNO', margin + 20, yPos + 3.5, { align: 'center' });
       doc.setFont('helvetica', 'normal');
       doc.text(datosLibreta.alumno.nombre_completo || '-', margin + 87.5, yPos + 3.5, { align: 'center' });
@@ -1201,13 +1240,24 @@ function DocenteHijos() {
       yPos += headerHeight;
 
       // Fila 2: GRADO/SECCIÓN, NIVEL, TURNO
-      doc.setFillColor(173, 216, 230); // Azul cielo pastel
-      doc.rect(margin, yPos, 40, headerHeight, 'F');
-      doc.rect(margin + 40, yPos, 30, headerHeight, 'F');
-      doc.rect(margin + 70, yPos, 30, headerHeight, 'F');
-      doc.rect(margin + 100, yPos, 35, headerHeight, 'F');
-      doc.rect(margin + 135, yPos, 30, headerHeight, 'F');
-      doc.rect(margin + 165, yPos, 35, headerHeight, 'F');
+      // Label GRADO/SECCIÓN (azul)
+      doc.setFillColor(...colorLabel);
+      doc.rect(margin, yPos, 40, headerHeight, 'FD');
+      // Datos GRADO/SECCIÓN (blanco)
+      doc.setFillColor(...colorData);
+      doc.rect(margin + 40, yPos, 30, headerHeight, 'FD');
+      // Label NIVEL (azul)
+      doc.setFillColor(...colorLabel);
+      doc.rect(margin + 70, yPos, 30, headerHeight, 'FD');
+      // Datos NIVEL (blanco)
+      doc.setFillColor(...colorData);
+      doc.rect(margin + 100, yPos, 35, headerHeight, 'FD');
+      // Label TURNO (azul)
+      doc.setFillColor(...colorLabel);
+      doc.rect(margin + 135, yPos, 30, headerHeight, 'FD');
+      // Datos TURNO (blanco)
+      doc.setFillColor(...colorData);
+      doc.rect(margin + 165, yPos, 35, headerHeight, 'FD');
       
       doc.setFont('helvetica', 'bold');
       doc.text('GRADO / SECCIÓN', margin + 20, yPos + 3.5, { align: 'center' });
@@ -1224,11 +1274,18 @@ function DocenteHijos() {
       yPos += headerHeight;
 
       // Fila 3: PROFESOR/TUTOR y AÑO
-      doc.setFillColor(173, 216, 230); // Azul cielo pastel
-      doc.rect(margin, yPos, 40, headerHeight, 'F');
-      doc.rect(margin + 40, yPos, 95, headerHeight, 'F');
-      doc.rect(margin + 135, yPos, 30, headerHeight, 'F');
-      doc.rect(margin + 165, yPos, 35, headerHeight, 'F');
+      // Label PROFESOR/TUTOR (azul)
+      doc.setFillColor(...colorLabel);
+      doc.rect(margin, yPos, 40, headerHeight, 'FD');
+      // Datos PROFESOR/TUTOR (blanco)
+      doc.setFillColor(...colorData);
+      doc.rect(margin + 40, yPos, 95, headerHeight, 'FD');
+      // Label AÑO (azul)
+      doc.setFillColor(...colorLabel);
+      doc.rect(margin + 135, yPos, 30, headerHeight, 'FD');
+      // Datos AÑO (blanco)
+      doc.setFillColor(...colorData);
+      doc.rect(margin + 165, yPos, 35, headerHeight, 'FD');
       
       doc.setFont('helvetica', 'bold');
       doc.text('PROFESOR / TUTOR', margin + 20, yPos + 3.5, { align: 'center' });
@@ -1243,29 +1300,30 @@ function DocenteHijos() {
       // Tabla de áreas curriculares
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
-      doc.setFillColor(173, 216, 230); // Azul cielo pastel
+      doc.setLineWidth(borderWidth);
       
       const colAreaWidth = 80;
       const colBimestreWidth = (contentWidth - colAreaWidth) / 5; // 4 bimestres + PF
       
-      // Header de la tabla
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      // Header de la tabla (todos azules)
+      doc.setFillColor(...colorLabel);
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
       doc.text('ÁREAS CURRICULARES', margin + colAreaWidth / 2, yPos + 3.5, { align: 'center' });
       
       let xPos = margin + colAreaWidth;
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'F');
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('B - 1', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       xPos += colBimestreWidth;
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'F');
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('B - 2', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       xPos += colBimestreWidth;
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'F');
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('B - 3', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       xPos += colBimestreWidth;
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'F');
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('B - 4', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       xPos += colBimestreWidth;
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'F');
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('PF', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       
       yPos += headerHeight;
@@ -1281,15 +1339,16 @@ function DocenteHijos() {
           yPos = margin;
         }
 
-        // Fila del área (en negrita)
+        // Fila del área (en negrita) - área en azul, datos en blanco
         doc.setFont('helvetica', 'bold');
-        doc.setFillColor(173, 216, 230); // Azul cielo pastel
-        doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+        doc.setFillColor(...colorLabel);
+        doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
         doc.text(area.area_nombre.toUpperCase(), margin + 2, yPos + 3.5);
         
         xPos = margin + colAreaWidth;
         [area.promedio_b1, area.promedio_b2, area.promedio_b3, area.promedio_b4, area.promedio_final].forEach((promedio, index) => {
-          doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'F');
+          doc.setFillColor(...colorData); // Datos en blanco
+          doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
           const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
           doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
           xPos += colBimestreWidth;
@@ -1297,7 +1356,7 @@ function DocenteHijos() {
         
         yPos += headerHeight;
 
-        // Asignaturas del área
+        // Asignaturas del área - asignatura en blanco, datos en blanco
         doc.setFont('helvetica', 'normal');
         area.asignaturas.forEach(asignatura => {
           if (yPos > pageHeight - 60) {
@@ -1305,12 +1364,13 @@ function DocenteHijos() {
             yPos = margin + paddingVertical;
           }
 
-          doc.rect(margin, yPos, colAreaWidth, headerHeight);
+          doc.setFillColor(...colorData);
+          doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
           doc.text(asignatura.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
           
           xPos = margin + colAreaWidth;
           [asignatura.promedio_b1, asignatura.promedio_b2, asignatura.promedio_b3, asignatura.promedio_b4, asignatura.promedio_final].forEach((promedio, index) => {
-            doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+            doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
             const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
             doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
             xPos += colBimestreWidth;
@@ -1320,7 +1380,7 @@ function DocenteHijos() {
         });
       });
 
-      // Asignaturas sin área
+      // Asignaturas sin área - todas en blanco
       if (datosLibreta.asignaturas_sin_area && datosLibreta.asignaturas_sin_area.length > 0) {
         datosLibreta.asignaturas_sin_area.forEach(asignatura => {
           if (yPos > pageHeight - 60) {
@@ -1328,12 +1388,13 @@ function DocenteHijos() {
             yPos = margin + paddingVertical;
           }
 
-          doc.rect(margin, yPos, colAreaWidth, headerHeight);
+          doc.setFillColor(...colorData);
+          doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
           doc.text(asignatura.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
           
           xPos = margin + colAreaWidth;
           [asignatura.promedio_b1, asignatura.promedio_b2, asignatura.promedio_b3, asignatura.promedio_b4, asignatura.promedio_final].forEach((promedio, index) => {
-            doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+            doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
             const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
             doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
             xPos += colBimestreWidth;
@@ -1348,9 +1409,9 @@ function DocenteHijos() {
       // Cuadro Resumen
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.setFillColor(173, 216, 230); // Azul cielo pastel
+      doc.setFillColor(...colorLabel); // Azul cielo pastel
       const resumenWidth = colAreaWidth + (colBimestreWidth * 4);
-      doc.rect(margin, yPos, resumenWidth, headerHeight, 'F');
+      doc.rect(margin, yPos, resumenWidth, headerHeight, 'FD');
       doc.text('CUADRO RESUMEN', margin + resumenWidth / 2, yPos + 3.5, { align: 'center' });
       yPos += headerHeight;
 
@@ -1358,116 +1419,130 @@ function DocenteHijos() {
       const resumen = datosLibreta.resumen;
 
       // CANTIDAD DE CURSOS
-      doc.setFillColor(173, 216, 230); // Azul cielo pastel
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFillColor(...colorLabel); // Label en azul
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
       doc.setFont('helvetica', 'bold');
       doc.text('CANTIDAD DE CURSOS', margin + 2, yPos + 3.5);
       doc.setFont('helvetica', 'normal');
       xPos = margin + colAreaWidth;
       [resumen.cantidad_cursos.b1, resumen.cantidad_cursos.b2, resumen.cantidad_cursos.b3, resumen.cantidad_cursos.b4].forEach((cantidad, index) => {
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.setFillColor(...colorData); // Datos en blanco
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
         doc.text(cantidad !== null ? cantidad.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
         xPos += colBimestreWidth;
       });
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.setFillColor(...colorData);
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       yPos += headerHeight;
 
       // SUMA DE NOTAS
-      doc.setFillColor(173, 216, 230); // Azul cielo pastel
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFillColor(...colorLabel); // Label en azul
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
       doc.setFont('helvetica', 'bold');
       doc.text('SUMA DE NOTAS', margin + 2, yPos + 3.5);
       doc.setFont('helvetica', 'normal');
       xPos = margin + colAreaWidth;
       [resumen.suma_notas.b1, resumen.suma_notas.b2, resumen.suma_notas.b3, resumen.suma_notas.b4].forEach((suma, index) => {
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.setFillColor(...colorData); // Datos en blanco
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
         doc.text(suma !== null ? suma.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
         xPos += colBimestreWidth;
       });
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.setFillColor(...colorData);
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       yPos += headerHeight;
 
       // PROMEDIO
-      doc.setFillColor(173, 216, 230); // Azul cielo pastel
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFillColor(...colorLabel); // Label en azul
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
       doc.setFont('helvetica', 'bold');
       doc.text('PROMEDIO', margin + 2, yPos + 3.5);
       doc.setFont('helvetica', 'normal');
       xPos = margin + colAreaWidth;
       [resumen.promedio.b1, resumen.promedio.b2, resumen.promedio.b3, resumen.promedio.b4].forEach((promedio, index) => {
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.setFillColor(...colorData); // Datos en blanco
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
         doc.text(promedio !== null ? promedio.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
         xPos += colBimestreWidth;
       });
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.setFillColor(...colorData);
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text(resumen.promedio.final !== null ? resumen.promedio.final.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       yPos += headerHeight;
 
       // PROMEDIO CONDUCTA
-      doc.setFillColor(173, 216, 230); // Azul cielo pastel
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFillColor(...colorLabel); // Label en azul
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
       doc.setFont('helvetica', 'bold');
       doc.text('PROMEDIO CONDUCTA', margin + 2, yPos + 3.5);
       doc.setFont('helvetica', 'normal');
       xPos = margin + colAreaWidth;
       [resumen.promedio_conducta.b1, resumen.promedio_conducta.b2, resumen.promedio_conducta.b3, resumen.promedio_conducta.b4].forEach((promedio, index) => {
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.setFillColor(...colorData); // Datos en blanco
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
         doc.text(promedio !== null ? promedio.toString() : '20', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
         xPos += colBimestreWidth;
       });
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.setFillColor(...colorData);
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('20', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       yPos += headerHeight;
 
       // ORDEN DE MÉRITO
-      doc.setFillColor(173, 216, 230); // Azul cielo pastel
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFillColor(...colorLabel); // Label en azul
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
       doc.setFont('helvetica', 'bold');
       doc.text('ORDEN DE MÉRITO', margin + 2, yPos + 3.5);
       doc.setFont('helvetica', 'normal');
       xPos = margin + colAreaWidth;
       [resumen.orden_merito.b1, resumen.orden_merito.b2, resumen.orden_merito.b3, resumen.orden_merito.b4].forEach((orden, index) => {
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.setFillColor(...colorData); // Datos en blanco
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
         doc.text(orden !== null ? orden.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
         xPos += colBimestreWidth;
       });
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.setFillColor(...colorData);
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       yPos += headerHeight;
 
       // N° DE INASISTENCIAS
-      doc.setFillColor(173, 216, 230); // Azul cielo pastel
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFillColor(...colorLabel); // Label en azul
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
       doc.setFont('helvetica', 'bold');
       doc.text('N° DE INASISTENCIAS', margin + 2, yPos + 3.5);
       doc.setFont('helvetica', 'normal');
       xPos = margin + colAreaWidth;
       [resumen.inasistencias.b1, resumen.inasistencias.b2, resumen.inasistencias.b3, resumen.inasistencias.b4].forEach((inasistencias, index) => {
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.setFillColor(...colorData); // Datos en blanco
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
         doc.text(inasistencias !== null ? inasistencias.toString() : '0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
         xPos += colBimestreWidth;
       });
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.setFillColor(...colorData);
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
       yPos += headerHeight;
 
       // N° DE TARDANZAS
-      doc.setFillColor(173, 216, 230); // Azul cielo pastel
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'F');
+      doc.setFillColor(...colorLabel); // Label en azul
+      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
       doc.setFont('helvetica', 'bold');
       doc.text('N° DE TARDANZAS', margin + 2, yPos + 3.5);
       doc.setFont('helvetica', 'normal');
       xPos = margin + colAreaWidth;
       [resumen.tardanzas.b1, resumen.tardanzas.b2, resumen.tardanzas.b3, resumen.tardanzas.b4].forEach((tardanzas, index) => {
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+        doc.setFillColor(...colorData); // Datos en blanco
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
         doc.text(tardanzas !== null ? tardanzas.toString() : '0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
         xPos += colBimestreWidth;
       });
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight);
+      doc.setFillColor(...colorData);
+      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      yPos += 6;
+      yPos += paddingVertical; // Más espacio después del cuadro resumen
 
       // Footer: Apreciaciones del Tutor
       doc.setFont('helvetica', 'bold');
