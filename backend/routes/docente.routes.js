@@ -5143,9 +5143,14 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
     const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     // Función para obtener el nombre del mes según el número de pago
+    // inicio_pensiones es el número del mes (1=Enero, 2=Febrero, 3=Marzo, etc.)
+    // Si inicio_pensiones = 3 (Marzo), entonces nro_pago = 1 debe ser Marzo
     const getMesPension = (nroPago) => {
       if (cicloPensiones === 0 || cicloPensiones === '0') { // 0 = Mes
-        const indiceMes = (nroPago + inicioPensiones - 1) - 1; // -1 porque el array es 0-indexed
+        // inicio_pensiones es 1-indexed (1=Enero, 2=Febrero, 3=Marzo)
+        // Convertir a 0-indexed: inicio_pensiones - 1
+        // Luego sumar (nro_pago - 1) porque nro_pago también es 1-indexed
+        const indiceMes = (inicioPensiones - 1) + (nroPago - 1);
         if (indiceMes >= 0 && indiceMes < MESES.length) {
           return MESES[indiceMes];
         }
@@ -5219,14 +5224,30 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
         );
 
         // Calcular totales para esta matrícula
-        const totalPagar = 0; // Esto requeriría obtener el costo de la matrícula
+        // Obtener el costo de la matrícula para calcular el total a pagar
+        const costoMatricula = await query(
+          `SELECT c.pension, c.matricula 
+           FROM matriculas m
+           INNER JOIN costos c ON c.id = m.costo_id
+           WHERE m.id = ? AND m.colegio_id = ? LIMIT 1`,
+          [matricula.matricula_id, colegio_id]
+        );
+
+        let totalPagar = 0;
+        if (costoMatricula && costoMatricula.length > 0) {
+          const pension = parseFloat(costoMatricula[0].pension || 0);
+          const matriculaCosto = parseFloat(costoMatricula[0].matricula || 0);
+          // Total = Matrícula + (10 mensualidades de Marzo a Diciembre)
+          totalPagar = matriculaCosto + (pension * 10);
+        }
+
+        // Total pagado: solo pagos cancelados de matrícula y mensualidades
         const totalPagado = pagosConBoleta
-          .filter(p => p.estado_pago === 'CANCELADO')
+          .filter(p => p.estado_pago === 'CANCELADO' && (p.tipo === 0 || p.tipo === 1))
           .reduce((sum, p) => sum + parseFloat(p.monto) + parseFloat(p.mora || 0), 0);
-        const totalAdeuda = totalPagar - totalPagado;
-        const otrosPagos = pagosConBoleta
-          .filter(p => p.tipo !== 0 && p.tipo !== 1)
-          .reduce((sum, p) => sum + parseFloat(p.monto) + parseFloat(p.mora || 0), 0);
+        
+        // Total adeuda: no puede ser negativo, mínimo 0
+        const totalAdeuda = Math.max(0, totalPagar - totalPagado);
 
         return {
           matricula_id: matricula.matricula_id,
@@ -5239,8 +5260,7 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
           resumen: {
             total_pagar: totalPagar,
             total_pagado: totalPagado,
-            total_adeuda: totalAdeuda,
-            otros_pagos: otrosPagos
+            total_adeuda: totalAdeuda
           }
         };
       })

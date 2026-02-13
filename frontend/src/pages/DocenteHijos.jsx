@@ -4329,14 +4329,8 @@ function DocenteHijos() {
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '5px' }}>Monto que Adeuda</div>
-                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#dc3545' }}>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: matricula.resumen.total_adeuda > 0 ? '#dc3545' : '#28a745' }}>
                             {formatearMonto(matricula.resumen.total_adeuda)}
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'center' }}>
-                          <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '5px' }}>Otros Pagos</div>
-                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#495057' }}>
-                            {formatearMonto(matricula.resumen.otros_pagos)}
                           </div>
                         </div>
                       </div>
