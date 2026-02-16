@@ -546,6 +546,16 @@ function AlumnoDashboard() {
           )}
         </div>
 
+        {/* Card amarillo - Solo en móvil */}
+        <div className="dashboard-section card-amarillo-section">
+          <div className="card-amarillo-vacio">
+            <h3 className="card-amarillo-title">Publicaciones</h3>
+            <div className="card-amarillo-separator"></div>
+            <div className="card-amarillo-feed-container">
+              <PublicacionesCardFeed />
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Modal de detalle de evento */}
