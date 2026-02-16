@@ -5462,25 +5462,21 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
     const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
     // Función para obtener el nombre del mes según el número de pago
-    // IMPORTANTE: El usuario indica que la lógica es:
+    // IMPORTANTE: Según el sistema anterior y el usuario:
     //   - tipo = 0 → Matrícula (no usa nro_pago para mes)
-    //   - tipo = 1, nro_pago = 1 → Primera mensualidad = Marzo (si inicio_pensiones = 3 en BD)
-    //   - tipo = 1, nro_pago = 2 → Segunda mensualidad = Abril
-    // Fórmula del sistema anterior: MESES[nro_pago + inicio_pensiones - 1]
+    //   - La numeración es: 1 = Matrícula, 2 = Marzo, 3 = Abril, etc.
+    //   - Si inicio_pensiones = 2 (Marzo), nro_pago = 1 debe ser Marzo
+    // Fórmula del sistema anterior (Pago.php línea 190, 265): MESES[nro_pago + inicio_pensiones - 1]
     // MESES es 0-indexed: [0=Enero, 1=Febrero, 2=Marzo, 3=Abril, ...]
-    // inicio_pensiones en BD es 1-indexed (1=Enero, 2=Febrero, 3=Marzo)
-    // El usuario dice que si inicio_pensiones = 3 (Marzo), nro_pago = 1 debe ser Marzo (índice 2)
-    // Si usamos la fórmula del sistema anterior: indice = nro_pago + inicio_pensiones - 1
-    //   Si inicio_pensiones = 3, nro_pago = 1: indice = 1 + 3 - 1 = 3 → Abril ✗
-    // Esto NO funciona. Necesitamos: indice = 2 (Marzo) cuando nro_pago = 1 e inicio_pensiones = 3
-    // Solución: indice = nro_pago + inicio_pensiones - 2
-    //   Si inicio_pensiones = 3, nro_pago = 1: indice = 1 + 3 - 2 = 2 → Marzo ✓
-    //   Si inicio_pensiones = 3, nro_pago = 2: indice = 2 + 3 - 2 = 3 → Abril ✓
+    // inicio_pensiones en BD: 0=Enero, 1=Febrero, 2=Marzo (según AdminConfiguracion.jsx)
+    // Ejemplo: Si inicio_pensiones = 2 (Marzo), nro_pago = 1:
+    //   indice = 1 + 2 - 1 = 2 → Marzo ✓
+    // Ejemplo: Si inicio_pensiones = 2 (Marzo), nro_pago = 2:
+    //   indice = 2 + 2 - 1 = 3 → Abril ✓
     const getMesPension = (nroPago) => {
       if (cicloPensiones === 0 || cicloPensiones === '0') { // 0 = Mes
-        // Fórmula corregida: indice = nro_pago + inicio_pensiones - 2
-        // Esto asegura que si inicio_pensiones = 3 (Marzo), nro_pago = 1 sea Marzo
-        const indiceMes = nroPago + inicioPensiones - 2;
+        // Fórmula del sistema anterior: indice = nro_pago + inicio_pensiones - 1
+        const indiceMes = nroPago + inicioPensiones - 1;
         if (indiceMes >= 0 && indiceMes < MESES.length) {
           return MESES[indiceMes];
         }
