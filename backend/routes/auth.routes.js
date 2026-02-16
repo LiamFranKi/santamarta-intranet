@@ -297,8 +297,8 @@ async function verificarDeudas(usuario, anioActivo) {
       return false; // No bloquea deudores
     }
 
-    // Solo verificar para ALUMNOS y APODERADOS
-    if (usuario.tipo !== 'ALUMNO' && usuario.tipo !== 'APODERADO') {
+    // Verificar para ALUMNOS, APODERADOS y DOCENTES que también son APODERADOS
+    if (usuario.tipo !== 'ALUMNO' && usuario.tipo !== 'APODERADO' && usuario.tipo !== 'DOCENTE') {
       return false;
     }
 
@@ -438,6 +438,94 @@ async function verificarDeudas(usuario, anioActivo) {
          INNER JOIN grupos g ON g.id = m.grupo_id
          WHERE f.apoderado_id = ? AND m.colegio_id = ? AND m.estado = 0 AND g.anio = ?`,
         [usuario.apoderado_id, usuario.colegio_id, anioActivo]
+      );
+
+      if (matriculasHijos.length === 0) {
+        return false; // No hay hijos con matrícula activa
+      }
+
+      const inicioPensiones = colegio.inicio_pensiones || 2;
+
+      // Verificar deudas de cada hijo
+      for (const matricula of matriculasHijos) {
+        for (let i = 1; i <= nroPago; i++) {
+          const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
+          const fechaVencimiento = new Date(fechaVencimientoStr.split('-').reverse().join('-'));
+          
+          const fechaLimite = new Date(fechaVencimiento);
+          fechaLimite.setDate(fechaLimite.getDate() + diasTolerancia);
+          
+          const fechaActual = new Date();
+          fechaActual.setHours(0, 0, 0, 0);
+          fechaLimite.setHours(23, 59, 59, 999);
+
+          if (fechaActual > fechaLimite) {
+            const pagosCancelados = await query(
+              `SELECT COUNT(*) as total
+               FROM pagos p
+               WHERE p.matricula_id = ?
+                 AND p.tipo = 1
+                 AND p.nro_pago = ?
+                 AND p.estado_pago = 'CANCELADO'
+                 AND p.estado = 'ACTIVO'`,
+              [matricula.id, i]
+            );
+
+            if (pagosCancelados[0].total === 0) {
+              return true; // Al menos un hijo tiene deuda
+            }
+          }
+        }
+      }
+
+      return false; // Ningún hijo tiene deudas
+    }
+
+    // Verificar deudas para DOCENTE que también es APODERADO
+    if (usuario.tipo === 'DOCENTE') {
+      // Obtener DNI del docente desde la tabla personal
+      const docenteData = await query(
+        `SELECT p.nro_documento, p.id as personal_id
+         FROM personal p
+         INNER JOIN usuarios u ON u.personal_id = p.id
+         WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+         LIMIT 1`,
+        [usuario.id, usuario.colegio_id]
+      );
+
+      if (docenteData.length === 0) {
+        return false; // No se encontró el docente
+      }
+
+      const docenteDni = docenteData[0].nro_documento;
+      if (!docenteDni) {
+        return false; // No tiene DNI registrado
+      }
+
+      // Buscar si el docente es apoderado (mismo DNI en tabla apoderados)
+      const apoderadoData = await query(
+        `SELECT ap.id as apoderado_id
+         FROM apoderados ap
+         WHERE ap.nro_documento = ? AND ap.colegio_id = ? AND ap.estado = 'ACTIVO'
+         LIMIT 1`,
+        [docenteDni, usuario.colegio_id]
+      );
+
+      if (apoderadoData.length === 0) {
+        return false; // El docente no es apoderado
+      }
+
+      const apoderadoId = apoderadoData[0].apoderado_id;
+
+      // Obtener matrículas activas de los hijos del docente-apoderado
+      const matriculasHijos = await query(
+        `SELECT m.id, m.grupo_id, g.anio
+         FROM matriculas m
+         INNER JOIN alumnos a ON a.id = m.alumno_id
+         INNER JOIN familias f ON f.alumno_id = a.id
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND m.estado = 0 AND g.anio = ?`,
+        [apoderadoId, usuario.colegio_id, anioActivo]
       );
 
       if (matriculasHijos.length === 0) {

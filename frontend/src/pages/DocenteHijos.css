@@ -166,6 +166,23 @@
   background: #e5e7eb !important;
 }
 
+.dropdown-menu-hijo .dropdown-item.disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  pointer-events: auto !important; /* Permitir mostrar el tooltip */
+}
+
+.dropdown-menu-hijo .dropdown-item.disabled:hover {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
+.dropdown-menu-hijo .dropdown-item .bloqueado-badge {
+  margin-left: auto;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
 .dropdown-menu-hijo .dropdown-icon {
   font-size: 1rem;
   width: 20px;

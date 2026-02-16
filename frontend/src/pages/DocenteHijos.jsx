@@ -78,10 +78,23 @@ function DocenteHijos() {
   const [pagos, setPagos] = useState([]);
   const [loadingPagos, setLoadingPagos] = useState(false);
   const [tabAnioActivo, setTabAnioActivo] = useState(null);
+  const [tieneDeudasBloqueadas, setTieneDeudasBloqueadas] = useState(false);
 
   useEffect(() => {
     cargarHijos();
+    verificarDeudasBloqueadas();
   }, []);
+
+  // Verificar si el usuario tiene deudas bloqueadas
+  const verificarDeudasBloqueadas = async () => {
+    try {
+      const response = await api.get('/auth/verificar-deudas');
+      setTieneDeudasBloqueadas(response.data.tiene_deudas || false);
+    } catch (error) {
+      console.error('Error verificando deudas bloqueadas:', error);
+      setTieneDeudasBloqueadas(false); // En caso de error, no bloquear
+    }
+  };
 
   // Cerrar dropdown al hacer click fuera
   useEffect(() => {
@@ -191,12 +204,39 @@ function DocenteHijos() {
         await handleImprimirQR(hijo);
         break;
       case 'notas-detalladas':
+        if (tieneDeudasBloqueadas) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Acceso Bloqueado',
+            text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.',
+            confirmButtonText: 'Entendido'
+          });
+          return;
+        }
         await handleVerNotasDetalladas(hijo);
         break;
       case 'imprimir-notas':
+        if (tieneDeudasBloqueadas) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Acceso Bloqueado',
+            text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.',
+            confirmButtonText: 'Entendido'
+          });
+          return;
+        }
         await handleVerLibreta(hijo);
         break;
       case 'pagos-realizados':
+        if (tieneDeudasBloqueadas) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Acceso Bloqueado',
+            text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.',
+            confirmButtonText: 'Entendido'
+          });
+          return;
+        }
         await handleVerPagos(hijo);
         break;
       case 'psicologia':
@@ -3734,37 +3774,73 @@ function DocenteHijos() {
                                   <span>Imprimir QR</span>
                                 </button>
                                 <button
-                                  className="dropdown-item"
+                                  className={`dropdown-item ${tieneDeudasBloqueadas ? 'disabled' : ''}`}
                                   type="button"
+                                  disabled={tieneDeudasBloqueadas}
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    if (tieneDeudasBloqueadas) {
+                                      Swal.fire({
+                                        icon: 'warning',
+                                        title: 'Acceso Bloqueado',
+                                        text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.',
+                                        confirmButtonText: 'Entendido'
+                                      });
+                                      return;
+                                    }
                                     handleOpcionClick('notas-detalladas', hijo);
                                   }}
+                                  title={tieneDeudasBloqueadas ? 'Bloqueado por deudas pendientes' : ''}
                                 >
                                   <span className="dropdown-icon">📊</span>
                                   <span>Notas Detalladas</span>
+                                  {tieneDeudasBloqueadas && <span className="bloqueado-badge">🔒</span>}
                                 </button>
                                 <button
-                                  className="dropdown-item"
+                                  className={`dropdown-item ${tieneDeudasBloqueadas ? 'disabled' : ''}`}
                                   type="button"
+                                  disabled={tieneDeudasBloqueadas}
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    if (tieneDeudasBloqueadas) {
+                                      Swal.fire({
+                                        icon: 'warning',
+                                        title: 'Acceso Bloqueado',
+                                        text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.',
+                                        confirmButtonText: 'Entendido'
+                                      });
+                                      return;
+                                    }
                                     handleOpcionClick('imprimir-notas', hijo);
                                   }}
+                                  title={tieneDeudasBloqueadas ? 'Bloqueado por deudas pendientes' : ''}
                                 >
                                   <span className="dropdown-icon">📄</span>
                                   <span>Ver Libreta</span>
+                                  {tieneDeudasBloqueadas && <span className="bloqueado-badge">🔒</span>}
                                 </button>
                                 <button
-                                  className="dropdown-item"
+                                  className={`dropdown-item ${tieneDeudasBloqueadas ? 'disabled' : ''}`}
                                   type="button"
+                                  disabled={tieneDeudasBloqueadas}
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    if (tieneDeudasBloqueadas) {
+                                      Swal.fire({
+                                        icon: 'warning',
+                                        title: 'Acceso Bloqueado',
+                                        text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.',
+                                        confirmButtonText: 'Entendido'
+                                      });
+                                      return;
+                                    }
                                     handleOpcionClick('pagos-realizados', hijo);
                                   }}
+                                  title={tieneDeudasBloqueadas ? 'Bloqueado por deudas pendientes' : ''}
                                 >
                                   <span className="dropdown-icon">💳</span>
                                   <span>Pagos Realizados</span>
+                                  {tieneDeudasBloqueadas && <span className="bloqueado-badge">🔒</span>}
                                 </button>
                                 <button
                                   className="dropdown-item"
