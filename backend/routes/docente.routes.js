@@ -15975,6 +15975,8 @@ router.get('/tareas/verificar-vencimiento', async (req, res) => {
 });
 
 // Exportar la función para uso interno (verificación automática)
+// Exportar función helper para uso en otros módulos
 module.exports = router;
+module.exports.crearNotificacionesApoderados = crearNotificacionesApoderados;
 module.exports.verificarTareasPorVencer = verificarTareasPorVencer;
 

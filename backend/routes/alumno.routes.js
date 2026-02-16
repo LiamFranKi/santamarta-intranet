@@ -3042,66 +3042,24 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
             // Obtener DNI de apoderados para buscar docentes-apoderados
             const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
             
-            if (apoderadoDnis.length > 0) {
-              // Obtener usuarios DOCENTE que también son apoderados (mismo nro_documento)
-              const docentesApoderados = await query(
-                `SELECT DISTINCT u.id 
-                 FROM usuarios u
-                 INNER JOIN personal p ON p.id = u.personal_id
-                 WHERE u.colegio_id = ? 
-                   AND u.estado = 'ACTIVO'
-                   AND u.tipo = 'DOCENTE'
-                   AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
-                        OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))
-                   AND u.id NOT IN (?)`,
-                [colegio_id, ...apoderadoDnis, ...apoderadoDnis, ...apoderadoUsuarioIds]
-              );
-              
-              const docentesApoderadosIds = docentesApoderados.map(u => u.id);
-              apoderadoUsuarioIds = [...apoderadoUsuarioIds, ...docentesApoderadosIds];
-              
-              if (docentesApoderadosIds.length > 0) {
-                console.log(`📚 [EXAMEN FINALIZADO] Encontrados ${docentesApoderadosIds.length} docentes que también son apoderados`);
+            // Usar la función helper de docente.routes.js para crear notificaciones
+            const { crearNotificacionesApoderados } = require('./docente.routes');
+            
+            await crearNotificacionesApoderados({
+              alumno_id: parseInt(alumno_id),
+              usuario_id: usuario_id,
+              colegio_id: colegio_id,
+              anio_activo: anio_activo,
+              tituloNotificacion: '✅ Examen Finalizado',
+              mensajeNotificacion: `${alumno_nombre} finalizó el examen "${titulo}" con ${puntajeFinal} puntos (${correctas} correctas, ${incorrectas} incorrectas) - Curso: ${curso_nombre} - Docente: ${docente_nombre}`,
+              tipoNotificacion: 'examen_finalizado',
+              dataExtra: {
+                examen_id: parseInt(examenId),
+                puntaje: puntajeFinal,
+                correctas: correctas,
+                incorrectas: incorrectas
               }
-            }
-            
-            // Obtener usuario del alumno
-            const alumnoUsuario = await query(
-              `SELECT u.id as usuario_id
-               FROM alumnos a
-               INNER JOIN usuarios u ON u.alumno_id = a.id
-               WHERE a.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
-              [alumno_id, colegio_id]
-            );
-            
-            const todosDestinatarios = [...new Set([...(alumnoUsuario.length > 0 ? [alumnoUsuario[0].usuario_id] : []), ...apoderadoUsuarioIds])];
-            
-            if (todosDestinatarios.length > 0) {
-              // Crear notificaciones en la BD
-              const tituloNotificacion = '✅ Examen Finalizado';
-              const mensajeNotificacion = `${alumno_nombre} finalizó el examen "${titulo}" con ${puntajeFinal} puntos (${correctas} correctas, ${incorrectas} incorrectas) - Curso: ${curso_nombre} - Docente: ${docente_nombre}`;
-              
-              for (const destinatarioId of todosDestinatarios) {
-                try {
-                  await execute(
-                    `INSERT INTO notificaciones 
-                     (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
-                     VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
-                    [usuario_id, destinatarioId, tituloNotificacion, mensajeNotificacion]
-                  );
-                } catch (error) {
-                  console.error(`❌ [EXAMEN FINALIZADO] Error creando notificación para usuario ${destinatarioId}:`, error);
-                }
-              }
-              
-              // Enviar push notifications
-              const subscriptionsData = await query(
-                `SELECT endpoint, p256dh, auth 
-                 FROM push_subscriptions 
-                 WHERE usuario_id IN (${todosDestinatarios.map(() => '?').join(',')}) 
-                   AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
-                [...todosDestinatarios, colegio_id]
-              );
+            });
               
               const subscriptions = subscriptionsData.map(sub => ({
                 endpoint: sub.endpoint,
