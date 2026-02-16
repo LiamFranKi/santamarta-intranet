@@ -236,9 +236,9 @@ function DocenteAulaVirtual() {
     titulo: '',
     tipo: 'VIRTUAL',
     tipo_puntaje: 'GENERAL',
-    puntos_correcta: 1.0,
+    puntos_correcta: 1,
     penalizar_incorrecta: 'NO',
-    penalizacion_incorrecta: 0.0,
+    penalizacion_incorrecta: 0,
     tiempo: 60,
     intentos: 1,
     orden_preguntas: 'PREDETERMINADO',
@@ -1854,9 +1854,9 @@ function DocenteAulaVirtual() {
       titulo: examen.titulo || '',
       tipo: examen.tipo || 'VIRTUAL',
       tipo_puntaje: examen.tipo_puntaje || 'GENERAL',
-      puntos_correcta: examen.puntos_correcta || 1.0,
+      puntos_correcta: examen.puntos_correcta || 1,
       penalizar_incorrecta: examen.penalizar_incorrecta || 'NO',
-      penalizacion_incorrecta: examen.penalizacion_incorrecta || 0.0,
+      penalizacion_incorrecta: examen.penalizacion_incorrecta || 0,
       tiempo: examen.tiempo || 60,
       intentos: examen.intentos || 1,
       orden_preguntas: examen.orden_preguntas || 'PREDETERMINADO',
@@ -2969,9 +2969,9 @@ function DocenteAulaVirtual() {
                     titulo: '',
                     tipo: 'VIRTUAL',
                     tipo_puntaje: 'GENERAL',
-                    puntos_correcta: 1.0,
+                    puntos_correcta: 1,
                     penalizar_incorrecta: 'NO',
-                    penalizacion_incorrecta: 0.0,
+                    penalizacion_incorrecta: 0,
                     tiempo: 60,
                     intentos: 1,
                     orden_preguntas: 'PREDETERMINADO',
@@ -4034,9 +4034,9 @@ function DocenteAulaVirtual() {
               titulo: '',
               tipo: 'VIRTUAL',
               tipo_puntaje: 'GENERAL',
-              puntos_correcta: 1.0,
+              puntos_correcta: 1,
               penalizar_incorrecta: 'NO',
-              penalizacion_incorrecta: 0.0,
+              penalizacion_incorrecta: 0,
               tiempo: 60,
               intentos: 1,
               orden_preguntas: 'PREDETERMINADO',
@@ -4367,10 +4367,10 @@ function ExamenForm({ asignaturaId, formExamen, setFormExamen, onClose, onSucces
                 type="number"
                       id="examen-puntos-correcta"
                       className="form-input"
-                step="0.1"
+                step="1"
                 min="0"
                 value={formExamen.puntos_correcta}
-                      onChange={(e) => setFormExamen({ ...formExamen, puntos_correcta: parseFloat(e.target.value) || 1.0 })}
+                      onChange={(e) => setFormExamen({ ...formExamen, puntos_correcta: parseInt(e.target.value) || 1 })}
                 required
               />
             </div>
@@ -4399,10 +4399,10 @@ function ExamenForm({ asignaturaId, formExamen, setFormExamen, onClose, onSucces
                   type="number"
                           id="examen-penalizacion"
                           className="form-input"
-                  step="0.1"
+                  step="1"
                   min="0"
                   value={formExamen.penalizacion_incorrecta}
-                          onChange={(e) => setFormExamen({ ...formExamen, penalizacion_incorrecta: parseFloat(e.target.value) || 0 })}
+                          onChange={(e) => setFormExamen({ ...formExamen, penalizacion_incorrecta: parseInt(e.target.value) || 0 })}
                 />
               </div>
             )}
@@ -5425,9 +5425,9 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
                 type="number"
                   className="form-input"
                   value={formPregunta.puntos}
-                  onChange={(e) => setFormPregunta({ ...formPregunta, puntos: parseFloat(e.target.value) || 0 })}
+                  onChange={(e) => setFormPregunta({ ...formPregunta, puntos: parseInt(e.target.value) || 0 })}
                 min="0"
-                  step="0.1"
+                  step="1"
                   required
               />
             </div>
