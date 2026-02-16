@@ -2821,8 +2821,24 @@ function DocenteCursos() {
 
             {cursos.length > 0 ? (
           <div className="cursos-grid">
-            {cursos.map((curso) => (
-              <div key={curso.id} className="curso-card mundo-card">
+            {cursos.map((curso, index) => {
+              // Colores pasteles distintos para cada card de curso
+              const coloresPasteles = [
+                'linear-gradient(135deg, #ffe0f0 0%, #ffcce5 100%)', // Rosa pastel
+                'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%)', // Cyan pastel
+                'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)', // Verde pastel
+                'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)', // Naranja pastel
+                'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)', // Púrpura pastel
+                'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', // Azul pastel
+                'linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%)', // Rosa claro pastel
+                'linear-gradient(135deg, #f1f8e9 0%, #dcedc8 100%)', // Verde claro pastel
+                'linear-gradient(135deg, #fff9c4 0%, #fff59d 100%)', // Amarillo pastel
+                'linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%)', // Turquesa pastel
+              ];
+              const colorFondo = coloresPasteles[index % coloresPasteles.length];
+              
+              return (
+              <div key={curso.id} className="curso-card mundo-card" style={{ background: colorFondo }}>
                 <div className="curso-header">
                   <div className="curso-icon">
                     {curso.curso_imagen_url ? (
@@ -2910,7 +2926,8 @@ function DocenteCursos() {
                   </div>
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
             ) : (
               <div className="empty-state mundo-card">

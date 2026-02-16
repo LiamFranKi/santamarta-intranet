@@ -403,12 +403,23 @@ function AlumnoDashboard() {
     navigate('/alumno/mensajes');
   };
 
+  // Colores pasteles distintos para cada card del dashboard
+  const coloresPastelesDashboard = [
+    'linear-gradient(135deg, #ffe0f0 0%, #ffcce5 100%)', // Rosa pastel
+    'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%)', // Cyan pastel
+    'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)', // Verde pastel
+    'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)', // Naranja pastel
+    'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)', // Púrpura pastel
+    'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)', // Azul pastel
+    'linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%)', // Rosa claro pastel
+  ];
+
   return (
     <DashboardLayout>
       <div className="alumno-dashboard">
         {/* Tarjetas de estadísticas - 4 columnas */}
         <div className="stats-grid-4">
-          <div className="stat-card mundo-card" onClick={abrirModalCursos} style={{ cursor: 'pointer' }}>
+          <div className="stat-card mundo-card" onClick={abrirModalCursos} style={{ cursor: 'pointer', background: coloresPastelesDashboard[0] }}>
             <div className="stat-icon">📚</div>
             <div className="stat-content">
               <div className="stat-number">{estadisticas?.cursosAsignados || 0}</div>
@@ -416,7 +427,7 @@ function AlumnoDashboard() {
             </div>
           </div>
 
-          <div className="stat-card mundo-card" onClick={abrirModalDocentes} style={{ cursor: 'pointer' }}>
+          <div className="stat-card mundo-card" onClick={abrirModalDocentes} style={{ cursor: 'pointer', background: coloresPastelesDashboard[1] }}>
             <div className="stat-icon">👨‍🏫</div>
             <div className="stat-content">
               <div className="stat-number">{estadisticas?.totalDocentes || 0}</div>
@@ -424,7 +435,7 @@ function AlumnoDashboard() {
             </div>
           </div>
 
-          <div className="stat-card mundo-card" onClick={abrirModalMatriculas} style={{ cursor: 'pointer' }}>
+          <div className="stat-card mundo-card" onClick={abrirModalMatriculas} style={{ cursor: 'pointer', background: coloresPastelesDashboard[2] }}>
             <div className="stat-icon">📋</div>
             <div className="stat-content">
               <div className="stat-number">{estadisticas?.totalMatriculas || 0}</div>
@@ -432,7 +443,7 @@ function AlumnoDashboard() {
             </div>
           </div>
 
-          <div className="stat-card mundo-card" onClick={irAMensajes} style={{ cursor: 'pointer' }}>
+          <div className="stat-card mundo-card" onClick={irAMensajes} style={{ cursor: 'pointer', background: coloresPastelesDashboard[3] }}>
             <div className="stat-icon">✉️</div>
             <div className="stat-content">
               <div className="stat-number">{estadisticas?.mensajesNoLeidos || 0}</div>
