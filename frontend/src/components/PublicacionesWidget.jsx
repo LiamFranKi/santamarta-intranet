@@ -393,16 +393,16 @@ function PublicacionesWidget() {
     <div className="publicaciones-widget">
       <h3 className="widget-title">Publicaciones</h3>
       
-      {/* TEMPORALMENTE OCULTO: Solo mostrar botón de crear si es docente */}
-      {false && !esAlumno && !mostrarFormulario && (
+      {/* Solo mostrar botón de crear si es docente o administrador */}
+      {!esAlumno && !mostrarFormulario && (
         <button className="btn-nueva-publicacion btn-primary btn-block" onClick={() => setMostrarFormulario(true)}>
           <span className="btn-icon">📝</span>
           <span>¿Tienes algo que compartir?</span>
         </button>
       )}
       
-      {/* TEMPORALMENTE OCULTO: Formulario de creación */}
-      {false && !esAlumno && mostrarFormulario && (
+      {/* Formulario de creación */}
+      {!esAlumno && mostrarFormulario && (
         <form className="publicacion-form" onSubmit={handleSubmit}>
           <textarea
             placeholder="¿Tienes algo que compartir?"
