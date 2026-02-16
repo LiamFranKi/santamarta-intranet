@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import CalendarioWidget from './CalendarioWidget';
 import PublicacionesWidget from './PublicacionesWidget';
+import PublicacionFormCard from './PublicacionFormCard';
+import PublicacionesCardFeed from './PublicacionesCardFeed';
 import NotificacionesWidget from './NotificacionesWidget';
 import PWAInstallPrompt from './PWAInstallPrompt';
 import PWAUpdateNotification from './PWAUpdateNotification';
@@ -29,6 +31,7 @@ export default function DashboardLayout({ children }) {
     tiene_cursos: false
   });
   const [cargandoAsignaciones, setCargandoAsignaciones] = useState(false);
+  const [refreshPublicaciones, setRefreshPublicaciones] = useState(0);
   
   // Debug: verificar que el componente se monta
   React.useEffect(() => {
@@ -617,7 +620,21 @@ export default function DashboardLayout({ children }) {
           {(role === 'DOCENTE' || role === 'ALUMNO') && (
             <aside className="dashboard-sidebar-right">
               <CalendarioWidget />
-              {/* PublicacionesWidget oculto - reemplazado por card amarillo en dashboard */}
+              {/* Card amarillo de publicaciones - Solo en web/PC */}
+              <div className="dashboard-section card-amarillo-section card-amarillo-sidebar">
+                <div className="card-amarillo-vacio">
+                  <h3 className="card-amarillo-title">Publicaciones</h3>
+                  <div className="card-amarillo-separator"></div>
+                  {(role === 'DOCENTE' || role === 'ADMINISTRADOR') && (
+                    <div className="card-amarillo-form-container">
+                      <PublicacionFormCard onPublicacionCreada={() => setRefreshPublicaciones(prev => prev + 1)} />
+                    </div>
+                  )}
+                  <div className="card-amarillo-feed-container">
+                    <PublicacionesCardFeed refreshTrigger={refreshPublicaciones} />
+                  </div>
+                </div>
+              </div>
             </aside>
           )}
         </div>

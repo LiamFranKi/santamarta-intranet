@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
-import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './AlumnoDashboard.css';
 import './DocenteGrupos.css';
@@ -546,16 +545,6 @@ function AlumnoDashboard() {
           )}
         </div>
 
-        {/* Card amarillo - Visible en todos los tamaños */}
-        <div className="dashboard-section card-amarillo-section">
-          <div className="card-amarillo-vacio">
-            <h3 className="card-amarillo-title">Publicaciones</h3>
-            <div className="card-amarillo-separator"></div>
-            <div className="card-amarillo-feed-container">
-              <PublicacionesCardFeed />
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Modal de detalle de evento */}

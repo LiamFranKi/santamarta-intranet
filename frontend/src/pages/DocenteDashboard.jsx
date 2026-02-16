@@ -4,8 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
-import PublicacionFormCard from '../components/PublicacionFormCard';
-import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './DocenteDashboard.css';
 import './DocenteGrupos.css';
@@ -22,7 +20,6 @@ function DocenteDashboard() {
     tiene_grupos: true,
     tiene_cursos: true
   });
-  const [refreshPublicaciones, setRefreshPublicaciones] = useState(0);
 
   const cargarDashboard = async () => {
     try {
@@ -572,19 +569,6 @@ function DocenteDashboard() {
           )}
         </div>
 
-        {/* Card amarillo vacío - Solo en móvil */}
-        <div className="dashboard-section card-amarillo-section">
-          <div className="card-amarillo-vacio">
-            <h3 className="card-amarillo-title">Publicaciones</h3>
-            <div className="card-amarillo-separator"></div>
-            <div className="card-amarillo-form-container">
-              <PublicacionFormCard onPublicacionCreada={() => setRefreshPublicaciones(prev => prev + 1)} />
-            </div>
-            <div className="card-amarillo-feed-container">
-              <PublicacionesCardFeed refreshTrigger={refreshPublicaciones} />
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Modal de detalle de evento */}

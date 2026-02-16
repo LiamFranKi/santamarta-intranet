@@ -402,9 +402,15 @@
   position: relative;
 }
 
-/* Card amarillo - Visible en todos los tamaños */
+/* Card amarillo - Solo visible en móvil (en dashboard) */
 .card-amarillo-section {
-  display: block;
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .card-amarillo-section {
+    display: block;
+  }
 }
 
 .card-amarillo-vacio {
