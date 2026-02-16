@@ -407,6 +407,10 @@
   align-items: center;
   margin-bottom: 0.5rem;
   gap: 0.5rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .publicacion-autor {
@@ -417,6 +421,10 @@
   align-items: center;
   gap: 0.5rem;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .btn-eliminar-publicacion {
@@ -430,6 +438,10 @@
   opacity: 0.6;
   line-height: 1;
   flex-shrink: 0;
+  min-width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .btn-eliminar-publicacion:hover {
@@ -743,12 +755,45 @@
   .publicacion-item {
     width: 100% !important;
     max-width: 100% !important;
-    padding: 0.4rem !important;
+    padding: 0.75rem !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
-    margin-bottom: 0.35rem !important;
+    margin-bottom: 0.5rem !important;
     box-sizing: border-box !important;
-    overflow-x: hidden;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+  }
+
+  .publicacion-header-nombre {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding: 0 !important;
+    margin-bottom: 0.5rem !important;
+    gap: 0.5rem !important;
+    overflow: visible !important;
+  }
+
+  .publicacion-autor-container {
+    flex: 1 !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .publicacion-autor {
+    font-size: 0.75rem !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    max-width: 100% !important;
+  }
+
+  .btn-eliminar-publicacion {
+    font-size: 0.85rem !important;
+    padding: 0.3rem 0.4rem !important;
+    flex-shrink: 0 !important;
+    min-width: 36px !important;
+    opacity: 0.8 !important;
   }
 
   .publicacion-contenido {
@@ -833,8 +878,23 @@
   }
 
   .publicacion-item {
-    padding: 0.35rem !important;
-    margin-bottom: 0.3rem !important;
+    padding: 0.6rem !important;
+    margin-bottom: 0.4rem !important;
+  }
+
+  .publicacion-header-nombre {
+    gap: 0.4rem !important;
+    margin-bottom: 0.4rem !important;
+  }
+
+  .publicacion-autor {
+    font-size: 0.7rem !important;
+  }
+
+  .btn-eliminar-publicacion {
+    font-size: 0.8rem !important;
+    padding: 0.25rem 0.35rem !important;
+    min-width: 32px !important;
   }
 
   .form-icons {
@@ -915,8 +975,23 @@
   }
 
   .publicacion-item {
-    padding: 0.3rem !important;
-    margin-bottom: 0.25rem !important;
+    padding: 0.5rem !important;
+    margin-bottom: 0.35rem !important;
+  }
+
+  .publicacion-header-nombre {
+    gap: 0.3rem !important;
+    margin-bottom: 0.35rem !important;
+  }
+
+  .publicacion-autor {
+    font-size: 0.65rem !important;
+  }
+
+  .btn-eliminar-publicacion {
+    font-size: 0.75rem !important;
+    padding: 0.2rem 0.3rem !important;
+    min-width: 28px !important;
   }
 
   .publicacion-contenido {
