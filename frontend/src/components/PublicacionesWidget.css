@@ -708,26 +708,25 @@
   min-width: 120px;
 }
 
-/* Responsive para móviles - Reducir significativamente */
+/* Responsive para móviles - Mismo ancho y alineación que cards del dashboard */
 @media (max-width: 768px) {
   .publicaciones-widget {
-    width: 80% !important;
-    max-width: 80% !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
     margin-bottom: 0.75rem !important;
-    padding: 0 !important;
+    padding: 0.75rem !important;
     min-height: auto !important;
     box-sizing: border-box !important;
     overflow-x: hidden !important;
   }
 
   .widget-title {
-    font-size: 0.7rem !important;
-    margin-bottom: 0.3rem !important;
-    padding: 0.3rem 0.5rem !important;
-    padding-bottom: 0.25rem !important;
-    text-align: center !important;
+    font-size: 0.85rem !important;
+    margin-bottom: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+    text-align: left !important;
   }
 
   .publicacion-form {
@@ -786,12 +785,12 @@
   }
 
   .publicacion-item {
-    width: calc(100% - 0.5rem) !important;
-    max-width: calc(100% - 0.5rem) !important;
-    padding: 0.4rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0.75rem !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
-    margin-bottom: 0.35rem !important;
+    margin-bottom: 0.5rem !important;
     box-sizing: border-box !important;
     overflow-x: hidden !important;
     overflow-y: visible !important;
@@ -924,21 +923,20 @@
 
 @media (max-width: 640px) {
   .publicaciones-widget {
-    width: 80% !important;
-    max-width: 80% !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    padding: 0 !important;
-    margin-bottom: 0.4rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding: 0.75rem !important;
+    margin-bottom: 0.5rem !important;
     min-height: auto !important;
   }
 
   .widget-title {
-    font-size: 0.65rem !important;
-    margin-bottom: 0.25rem !important;
-    padding: 0.25rem 0.4rem !important;
-    padding-bottom: 0.2rem !important;
-    text-align: center !important;
+    font-size: 0.8rem !important;
+    margin-bottom: 0.5rem !important;
+    padding-bottom: 0.4rem !important;
+    text-align: left !important;
   }
 
   .publicacion-form textarea {
@@ -958,10 +956,10 @@
   }
 
   .publicacion-item {
-    width: calc(100% - 0.4rem) !important;
-    max-width: calc(100% - 0.4rem) !important;
-    padding: 0.35rem !important;
-    margin-bottom: 0.3rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0.75rem !important;
+    margin-bottom: 0.5rem !important;
   }
 
   .publicacion-header-nombre {
@@ -1043,21 +1041,20 @@
 
 @media (max-width: 480px) {
   .publicaciones-widget {
-    width: 80% !important;
-    max-width: 80% !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
-    padding: 0 !important;
-    margin-bottom: 0.3rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding: 0.75rem !important;
+    margin-bottom: 0.5rem !important;
     min-height: auto !important;
   }
 
   .widget-title {
-    font-size: 0.6rem !important;
-    margin-bottom: 0.2rem !important;
-    padding: 0.2rem 0.3rem !important;
-    padding-bottom: 0.15rem !important;
-    text-align: center !important;
+    font-size: 0.75rem !important;
+    margin-bottom: 0.5rem !important;
+    padding-bottom: 0.4rem !important;
+    text-align: left !important;
   }
 
   .publicacion-form textarea {
@@ -1081,10 +1078,10 @@
   }
 
   .publicacion-item {
-    width: calc(100% - 0.3rem) !important;
-    max-width: calc(100% - 0.3rem) !important;
-    padding: 0.3rem !important;
-    margin-bottom: 0.25rem !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0.75rem !important;
+    margin-bottom: 0.5rem !important;
   }
 
   .publicacion-header-nombre {
