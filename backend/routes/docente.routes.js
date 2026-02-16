@@ -334,7 +334,12 @@ async function crearNotificacionesApoderados(params) {
           queryParams.push(...apoderadoUsuarioIds);
         }
         
-        console.log(`🔍 [NOTIFICACIONES APODERADOS] Ejecutando consulta para docentes-apoderados con ${queryParams.length} parámetros`);
+        console.log(`🔍 [NOTIFICACIONES APODERADOS] Ejecutando consulta para docentes-apoderados`);
+        console.log(`🔍 [NOTIFICACIONES APODERADOS] Placeholders DNI: ${placeholdersDni}`);
+        console.log(`🔍 [NOTIFICACIONES APODERADOS] DNIs:`, apoderadoDnis);
+        console.log(`🔍 [NOTIFICACIONES APODERADOS] Total parámetros: ${queryParams.length}`);
+        console.log(`🔍 [NOTIFICACIONES APODERADOS] Parámetros:`, queryParams);
+        
         const docentesApoderados = await query(sqlQuery, queryParams);
         
         const docentesApoderadosIds = docentesApoderados.map(u => u.id);
@@ -347,6 +352,7 @@ async function crearNotificacionesApoderados(params) {
         console.error(`❌ [NOTIFICACIONES APODERADOS] Error buscando docentes-apoderados:`, error);
         console.error(`❌ [NOTIFICACIONES APODERADOS] Error details:`, error.message);
         console.error(`❌ [NOTIFICACIONES APODERADOS] Stack:`, error.stack);
+        // Continuar sin docentes-apoderados si hay error
       }
     }
     
@@ -358,35 +364,48 @@ async function crearNotificacionesApoderados(params) {
     
     // Crear notificaciones en la BD
     if (todosDestinatarios.length > 0) {
+      console.log(`📝 [NOTIFICACIONES APODERADOS] Creando ${todosDestinatarios.length} notificaciones en BD...`);
       for (const destinatarioId of todosDestinatarios) {
         try {
+          // Asegurar que todos los valores sean válidos
+          const usuarioIdNum = parseInt(usuario_id);
+          const destinatarioIdNum = parseInt(destinatarioId);
+          
+          if (isNaN(usuarioIdNum) || isNaN(destinatarioIdNum) || !tituloNotificacion || !mensajeNotificacion) {
+            console.error(`❌ [NOTIFICACIONES APODERADOS] Valores inválidos: usuario_id=${usuario_id}, destinatarioId=${destinatarioId}, titulo=${tituloNotificacion}, mensaje=${mensajeNotificacion}`);
+            continue;
+          }
+          
           await execute(
             `INSERT INTO notificaciones 
              (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
              VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
             [
-              usuario_id, // Usuario que crea (docente)
-              destinatarioId, // Destinatario
-              tituloNotificacion, // TÍTULO (asunto)
-              mensajeNotificacion // MENSAJE (contenido)
+              usuarioIdNum, // Usuario que crea (docente)
+              destinatarioIdNum, // Destinatario
+              String(tituloNotificacion), // TÍTULO (asunto)
+              String(mensajeNotificacion) // MENSAJE (contenido)
             ]
           );
         } catch (error) {
           console.error(`❌ [NOTIFICACIONES APODERADOS] Error creando notificación para usuario ${destinatarioId}:`, error);
+          console.error(`❌ [NOTIFICACIONES APODERADOS] Error details:`, error.message);
         }
       }
       
       console.log(`✅ [NOTIFICACIONES APODERADOS] ${todosDestinatarios.length} notificaciones creadas en BD`);
       
       // Enviar push notifications
-      const placeholdersDestinatarios = todosDestinatarios.map(() => '?').join(',');
-      const subscriptionsData = await query(
-        `SELECT endpoint, p256dh, auth 
-         FROM push_subscriptions 
-         WHERE usuario_id IN (${placeholdersDestinatarios}) 
-           AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
-        [...todosDestinatarios, colegio_id]
-      );
+      try {
+        const placeholdersDestinatarios = todosDestinatarios.map(() => '?').join(',');
+        console.log(`📱 [NOTIFICACIONES APODERADOS] Buscando suscripciones push para ${todosDestinatarios.length} usuarios...`);
+        const subscriptionsData = await query(
+          `SELECT endpoint, p256dh, auth 
+           FROM push_subscriptions 
+           WHERE usuario_id IN (${placeholdersDestinatarios}) 
+             AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+          [...todosDestinatarios.map(id => parseInt(id)), parseInt(colegio_id)]
+        );
       
       const subscriptions = subscriptionsData.map(sub => ({
         endpoint: sub.endpoint,
