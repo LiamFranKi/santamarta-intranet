@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
@@ -35,17 +35,7 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
   const [publicacionesMostradas, setPublicacionesMostradas] = useState(5);
   const [imagenModal, setImagenModal] = useState(null);
 
-  useEffect(() => {
-    cargarPublicaciones();
-  }, []);
-
-  useEffect(() => {
-    if (refreshTrigger) {
-      cargarPublicaciones();
-    }
-  }, [refreshTrigger]);
-
-  const cargarPublicaciones = async () => {
+  const cargarPublicaciones = useCallback(async () => {
     try {
       const ruta = esAlumno ? '/alumno/publicaciones' : '/docente/publicaciones';
       const response = await api.get(ruta);
@@ -57,7 +47,13 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
     } catch (error) {
       console.error('Error cargando publicaciones:', error);
     }
-  };
+  }, [esAlumno]);
+
+  useEffect(() => {
+    if (user) {
+      cargarPublicaciones();
+    }
+  }, [refreshTrigger, cargarPublicaciones, user]);
 
   const handleEliminar = async (publicacionId) => {
     const result = await Swal.fire({
