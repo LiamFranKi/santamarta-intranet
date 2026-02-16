@@ -3037,11 +3037,6 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
               [alumno_id, colegio_id, colegio_id]
             );
             
-            let apoderadoUsuarioIds = apoderados.map(a => a.usuario_id);
-            
-            // Obtener DNI de apoderados para buscar docentes-apoderados
-            const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
-            
             // Usar la función helper de docente.routes.js para crear notificaciones
             const { crearNotificacionesApoderados } = require('./docente.routes');
             
@@ -3056,47 +3051,11 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
               dataExtra: {
                 examen_id: parseInt(examenId),
                 puntaje: puntajeFinal,
+                puntos_total: puntosTotal,
                 correctas: correctas,
                 incorrectas: incorrectas
               }
             });
-              
-              const subscriptions = subscriptionsData.map(sub => ({
-                endpoint: sub.endpoint,
-                keys: { p256dh: sub.p256dh, auth: sub.auth }
-              }));
-              
-              if (subscriptions.length > 0) {
-                const payloadPush = {
-                  title: tituloNotificacion,
-                  body: mensajeNotificacion,
-                  icon: '/icons/icon-192x192.png',
-                  badge: '/icons/icon-192x192.png',
-                  vibrate: [200, 100, 200],
-                  tag: `examen-finalizado-${examenId}-${alumno_id}-${Date.now()}`,
-                  data: {
-                    url: '/alumno/dashboard',
-                    tipo: 'examen_finalizado',
-                    alumno_id: alumno_id,
-                    examen_id: parseInt(examenId),
-                    puntaje: puntajeFinal,
-                    puntos_total: puntosTotal,
-                    correctas: correctas,
-                    incorrectas: incorrectas
-                  }
-                };
-                
-                enviarPushNotificationMultiple(subscriptions, payloadPush)
-                  .then(resultadosPush => {
-                    const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
-                    const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
-                    console.log(`✅ [EXAMEN FINALIZADO] Push notifications: ${exitosas} exitosas, ${fallidas} fallidas`);
-                  })
-                  .catch(err => {
-                    console.error(`❌ [EXAMEN FINALIZADO] Error en envío de push notifications:`, err);
-                  });
-              }
-            }
           } else {
             console.log(`📝 [EXAMEN FINALIZADO] Examen no permite ver nota inmediatamente, no se enviará notificación`);
           }
