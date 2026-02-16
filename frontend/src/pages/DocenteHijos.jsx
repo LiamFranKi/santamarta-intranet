@@ -1931,19 +1931,24 @@ function DocenteHijos() {
       doc.setLineWidth(0.5);
       doc.roundedRect(boletaCajaX, boletaCajaY, boletaCajaW, boletaCajaH, 4, 4, 'FD');
       
+      // Centrar verticalmente: calcular posición centrada
+      const centroVertical = boletaCajaY + boletaCajaH / 2;
+      
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorPrimario);
       const boletaText = 'BOLETA DE VENTA';
       const boletaWidth = doc.getTextWidth(boletaText);
-      doc.text(boletaText, boletaCajaX + (boletaCajaW - boletaWidth) / 2, boletaCajaY + 8);
+      // Centrar horizontal y verticalmente (subir un poco para compensar el espacio entre líneas)
+      doc.text(boletaText, boletaCajaX + (boletaCajaW - boletaWidth) / 2, centroVertical - 4);
       
       const numeroBoleta = `${String(pagoData.boleta_serie || '001').padStart(3, '0')}-${String(pagoData.boleta_numero || '0000000').padStart(7, '0')}`;
-      doc.setFontSize(11); // Aumentado de 9 a 11
+      doc.setFontSize(13); // Aumentado de 11 a 13
       doc.setFont('helvetica', 'bold'); // En negrita
       doc.setTextColor(...colorRojo);
       const numWidth = doc.getTextWidth(`N°. ${numeroBoleta}`);
-      doc.text(`N°. ${numeroBoleta}`, boletaCajaX + (boletaCajaW - numWidth) / 2, boletaCajaY + 16);
+      // Centrar horizontal y verticalmente (bajar un poco para compensar el espacio entre líneas)
+      doc.text(`N°. ${numeroBoleta}`, boletaCajaX + (boletaCajaW - numWidth) / 2, centroVertical + 4);
 
       // ========== SECCIÓN DE INFORMACIÓN COMPACTA Y ELEGANTE ==========
       yPos = 42;
