@@ -402,9 +402,9 @@
   position: relative;
 }
 
-/* Card amarillo vacío - Solo visible en móvil */
+/* Card amarillo - Visible en todos los tamaños */
 .card-amarillo-section {
-  display: none;
+  display: block;
 }
 
 .card-amarillo-vacio {
@@ -420,6 +420,78 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+}
+
+/* Estilos para desktop/tablet */
+@media (min-width: 769px) {
+  .card-amarillo-vacio {
+    padding: 2rem;
+  }
+
+  .card-amarillo-title {
+    font-size: 1.25rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+  }
+
+  .card-amarillo-form-container .publicacion-form {
+    gap: 1rem;
+  }
+
+  .card-amarillo-form-container .publicacion-form textarea {
+    padding: 0.75rem;
+    font-size: 0.95rem;
+    min-height: 80px;
+  }
+
+  .card-amarillo-form-container .form-icons {
+    gap: 1rem;
+    padding: 0.5rem 0;
+  }
+
+  .card-amarillo-form-container .icon-btn {
+    padding: 0.5rem 1rem;
+    min-width: 80px;
+  }
+
+  .card-amarillo-form-container .form-actions {
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .card-amarillo-form-container .form-actions button {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.9rem;
+    min-height: 44px;
+  }
+
+  .card-amarillo-feed-container {
+    margin-top: 1.5rem;
+  }
+
+  .card-amarillo-publicacion-item {
+    padding: 1.25rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .card-amarillo-publicacion-item .publicacion-autor-foto,
+  .card-amarillo-publicacion-item .publicacion-autor-placeholder {
+    width: 40px !important;
+    height: 40px !important;
+  }
+
+  .card-amarillo-publicacion-item .publicacion-autor {
+    font-size: 0.9rem !important;
+  }
+
+  .card-amarillo-publicacion-item .publicacion-contenido {
+    font-size: 0.95rem !important;
+  }
+
+  .card-amarillo-publicacion-item .publicacion-imagenes .imagen-sola,
+  .card-amarillo-publicacion-item .publicacion-imagenes .imagen-multiple {
+    max-height: 300px !important;
+  }
 }
 
 .card-amarillo-form-container {
@@ -457,11 +529,6 @@
   .stat-card {
     flex-direction: column;
     text-align: center;
-  }
-
-  /* Mostrar card amarillo solo en móvil */
-  .card-amarillo-section {
-    display: block;
   }
 
   .card-amarillo-vacio {

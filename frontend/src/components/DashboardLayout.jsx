@@ -617,7 +617,7 @@ export default function DashboardLayout({ children }) {
           {(role === 'DOCENTE' || role === 'ALUMNO') && (
             <aside className="dashboard-sidebar-right">
               <CalendarioWidget />
-              <PublicacionesWidget />
+              {/* PublicacionesWidget oculto - reemplazado por card amarillo en dashboard */}
             </aside>
           )}
         </div>
