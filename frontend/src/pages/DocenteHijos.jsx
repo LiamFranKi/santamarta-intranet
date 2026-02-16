@@ -1879,11 +1879,11 @@ function DocenteHijos() {
       const colorNegro = [0, 0, 0];
 
       // ========== HEADER ELEGANTE CON FONDO AZUL ==========
-      // Barra superior azul
+      // Barra superior azul - más pequeña
       doc.setFillColor(...colorPrimario);
-      doc.rect(0, 0, pageWidth, 42, 'F');
+      doc.rect(0, 0, pageWidth, 36, 'F');
       
-      // Logo de alta calidad
+      // Logo de alta calidad - más pequeño
       try {
         const logoResponse = await fetch('/icons/logoboleta.png');
         if (logoResponse.ok) {
@@ -1892,8 +1892,8 @@ function DocenteHijos() {
           await new Promise((resolve) => {
             logoReader.onloadend = () => {
               try {
-                // Logo más grande y centrado verticalmente
-                doc.addImage(logoReader.result, 'PNG', 12, 6, 32, 32);
+                // Logo más pequeño
+                doc.addImage(logoReader.result, 'PNG', 12, 5, 26, 26);
                 resolve();
               } catch (err) {
                 console.warn('Error agregando logo:', err);
@@ -1912,19 +1912,19 @@ function DocenteHijos() {
       doc.setFontSize(17);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorBlanco);
-      doc.text(facturacion.razon_social || 'EMPRESA', 50, 18);
+      doc.text(facturacion.razon_social || 'EMPRESA', 45, 15);
 
       // RUC en header
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(240, 240, 240);
-      doc.text(`R.U.C. ${facturacion.ruc || 'N/A'}`, 50, 26);
+      doc.text(`R.U.C. ${facturacion.ruc || 'N/A'}`, 45, 22);
 
-      // BOLETA DE VENTA - Caja blanca elegante en header
+      // BOLETA DE VENTA - Caja blanca elegante en header - menos alto
       const boletaCajaX = pageWidth - 68;
-      const boletaCajaY = 4;
+      const boletaCajaY = 3;
       const boletaCajaW = 53;
-      const boletaCajaH = 34;
+      const boletaCajaH = 28; // Reducido de 34 a 28
       
       doc.setFillColor(...colorBlanco);
       doc.setDrawColor(220, 220, 220);
@@ -1936,23 +1936,23 @@ function DocenteHijos() {
       doc.setTextColor(...colorPrimario);
       const boletaText = 'BOLETA DE VENTA';
       const boletaWidth = doc.getTextWidth(boletaText);
-      doc.text(boletaText, boletaCajaX + (boletaCajaW - boletaWidth) / 2, boletaCajaY + 10);
+      doc.text(boletaText, boletaCajaX + (boletaCajaW - boletaWidth) / 2, boletaCajaY + 8);
       
       const numeroBoleta = `${String(pagoData.boleta_serie || '001').padStart(3, '0')}-${String(pagoData.boleta_numero || '0000000').padStart(7, '0')}`;
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(11); // Aumentado de 9 a 11
+      doc.setFont('helvetica', 'bold'); // En negrita
       doc.setTextColor(...colorRojo);
       const numWidth = doc.getTextWidth(`N°. ${numeroBoleta}`);
-      doc.text(`N°. ${numeroBoleta}`, boletaCajaX + (boletaCajaW - numWidth) / 2, boletaCajaY + 19);
+      doc.text(`N°. ${numeroBoleta}`, boletaCajaX + (boletaCajaW - numWidth) / 2, boletaCajaY + 16);
 
       // ========== SECCIÓN DE INFORMACIÓN COMPACTA Y ELEGANTE ==========
-      yPos = 48;
+      yPos = 42;
 
       // Card: Fecha - Color naranja elegante
       const fechaCardX = 15;
       const fechaCardY = yPos;
       const fechaCardW = 58;
-      const fechaCardH = 20;
+      const fechaCardH = 18;
       
       doc.setFillColor(255, 243, 224); // Naranja claro
       doc.setDrawColor(...colorAcento);
@@ -1969,17 +1969,17 @@ function DocenteHijos() {
       doc.setTextColor(...colorAcento);
       doc.text('FECHA DE PAGO', fechaCardX + fechaCardW / 2, fechaCardY + 6, { align: 'center' });
       
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
+      // Solo una fecha, más grande y en negrita
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorGrisOscuro);
-      doc.text(`${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${año}`, fechaCardX + fechaCardW / 2, fechaCardY + 12, { align: 'center' });
-      doc.text(`${String(dia).padStart(2, '0')} - ${String(mes).padStart(2, '0')} - ${año}`, fechaCardX + fechaCardW / 2, fechaCardY + 17, { align: 'center' });
+      doc.text(`${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${año}`, fechaCardX + fechaCardW / 2, fechaCardY + 14, { align: 'center' });
 
       // Card: Cliente - Color azul elegante
       const clienteCardX = 78;
       const clienteCardY = yPos;
       const clienteCardW = pageWidth - 93;
-      const clienteCardH = 20;
+      const clienteCardH = 18;
       
       doc.setFillColor(227, 242, 253); // Azul claro
       doc.setDrawColor(...colorPrimario);
@@ -2009,10 +2009,11 @@ function DocenteHijos() {
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorGrisOscuro);
-      doc.text(`DNI: ${alumno.dni || 'N/A'}`, clienteCardX + 3, clienteCardY + 17);
+      doc.text(`DNI: ${alumno.dni || 'N/A'}`, clienteCardX + 3, clienteCardY + 15);
 
       // ========== TABLA DE ITEMS ELEGANTE ==========
-      yPos += 26;
+      // Más espacio entre los cards y la tabla
+      yPos += 32;
       
       // Encabezado con fondo azul sólido
       doc.setFillColor(...colorPrimario);
@@ -2139,7 +2140,7 @@ function DocenteHijos() {
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.text('✓ CANCELADO', estadoCardX + estadoCardW / 2, estadoCardY + 8.5, { align: 'center' });
+      doc.text('CANCELADO', estadoCardX + estadoCardW / 2, estadoCardY + 8.5, { align: 'center' });
 
       // ========== FOOTER ELEGANTE ==========
       yPos = pageHeight - 16;
