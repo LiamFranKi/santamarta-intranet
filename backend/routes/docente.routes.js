@@ -406,16 +406,16 @@ async function crearNotificacionesApoderados(params) {
              AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
           [...todosDestinatarios.map(id => parseInt(id)), parseInt(colegio_id)]
         );
-      
-      const subscriptions = subscriptionsData.map(sub => ({
-        endpoint: sub.endpoint,
-        keys: {
-          p256dh: sub.p256dh,
-          auth: sub.auth
-        }
-      }));
-      
-      if (subscriptions.length > 0) {
+        
+        const subscriptions = subscriptionsData.map(sub => ({
+          endpoint: sub.endpoint,
+          keys: {
+            p256dh: sub.p256dh,
+            auth: sub.auth
+          }
+        }));
+        
+        if (subscriptions.length > 0) {
         const payloadPush = {
           title: tituloNotificacion,
           body: mensajeNotificacion,
