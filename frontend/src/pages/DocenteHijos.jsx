@@ -1865,33 +1865,35 @@ function DocenteHijos() {
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      let yPos = 10;
+      let yPos = 8;
 
-      // Paleta de colores profesional
+      // Paleta de colores profesional y moderna
       const colorPrimario = [33, 150, 243]; // Azul vibrante
       const colorSecundario = [76, 175, 80]; // Verde éxito
       const colorAcento = [255, 152, 0]; // Naranja
       const colorRojo = [244, 67, 54];
       const colorGrisOscuro = [66, 66, 66];
+      const colorGrisMedio = [158, 158, 158];
       const colorGrisClaro = [245, 245, 245];
       const colorBlanco = [255, 255, 255];
       const colorNegro = [0, 0, 0];
 
-      // ========== HEADER CON FONDO DEGRADADO ==========
-      // Barra superior con gradiente simulado
+      // ========== HEADER ELEGANTE CON FONDO AZUL ==========
+      // Barra superior azul
       doc.setFillColor(...colorPrimario);
-      doc.rect(0, 0, pageWidth, 45, 'F');
+      doc.rect(0, 0, pageWidth, 42, 'F');
       
-      // Logo
+      // Logo de alta calidad
       try {
-        const logoResponse = await fetch('/icons/icon-96x96.png');
+        const logoResponse = await fetch('/icons/logoboleta.png');
         if (logoResponse.ok) {
           const logoBlob = await logoResponse.blob();
           const logoReader = new FileReader();
           await new Promise((resolve) => {
             logoReader.onloadend = () => {
               try {
-                doc.addImage(logoReader.result, 'PNG', 15, 8, 28, 28);
+                // Logo más grande y centrado verticalmente
+                doc.addImage(logoReader.result, 'PNG', 12, 6, 32, 32);
                 resolve();
               } catch (err) {
                 console.warn('Error agregando logo:', err);
@@ -1906,25 +1908,26 @@ function DocenteHijos() {
         console.warn('Error cargando logo:', err);
       }
 
-      // Razón Social en header
-      doc.setFontSize(16);
+      // Razón Social en header - mejor posicionada
+      doc.setFontSize(17);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorBlanco);
-      doc.text(facturacion.razon_social || 'EMPRESA', 50, 20);
+      doc.text(facturacion.razon_social || 'EMPRESA', 50, 18);
 
       // RUC en header
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(`R.U.C. ${facturacion.ruc || 'N/A'}`, 50, 28);
+      doc.setTextColor(240, 240, 240);
+      doc.text(`R.U.C. ${facturacion.ruc || 'N/A'}`, 50, 26);
 
-      // BOLETA DE VENTA - Caja destacada en header
-      const boletaCajaX = pageWidth - 70;
-      const boletaCajaY = 5;
-      const boletaCajaW = 55;
-      const boletaCajaH = 35;
+      // BOLETA DE VENTA - Caja blanca elegante en header
+      const boletaCajaX = pageWidth - 68;
+      const boletaCajaY = 4;
+      const boletaCajaW = 53;
+      const boletaCajaH = 34;
       
       doc.setFillColor(...colorBlanco);
-      doc.setDrawColor(...colorBlanco);
+      doc.setDrawColor(220, 220, 220);
       doc.setLineWidth(0.5);
       doc.roundedRect(boletaCajaX, boletaCajaY, boletaCajaW, boletaCajaH, 4, 4, 'FD');
       
@@ -1940,20 +1943,20 @@ function DocenteHijos() {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...colorRojo);
       const numWidth = doc.getTextWidth(`N°. ${numeroBoleta}`);
-      doc.text(`N°. ${numeroBoleta}`, boletaCajaX + (boletaCajaW - numWidth) / 2, boletaCajaY + 18);
+      doc.text(`N°. ${numeroBoleta}`, boletaCajaX + (boletaCajaW - numWidth) / 2, boletaCajaY + 19);
 
-      // ========== SECCIÓN DE INFORMACIÓN COMPACTA ==========
-      yPos = 50;
+      // ========== SECCIÓN DE INFORMACIÓN COMPACTA Y ELEGANTE ==========
+      yPos = 48;
 
-      // Card: Fecha - Color naranja
+      // Card: Fecha - Color naranja elegante
       const fechaCardX = 15;
       const fechaCardY = yPos;
-      const fechaCardW = 55;
-      const fechaCardH = 22;
+      const fechaCardW = 58;
+      const fechaCardH = 20;
       
       doc.setFillColor(255, 243, 224); // Naranja claro
       doc.setDrawColor(...colorAcento);
-      doc.setLineWidth(1);
+      doc.setLineWidth(1.2);
       doc.roundedRect(fechaCardX, fechaCardY, fechaCardW, fechaCardH, 3, 3, 'FD');
       
       const fechaPago = pagoData.fecha_cancelado ? new Date(pagoData.fecha_cancelado) : new Date();
@@ -1969,18 +1972,18 @@ function DocenteHijos() {
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...colorGrisOscuro);
-      doc.text(`${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${año}`, fechaCardX + fechaCardW / 2, fechaCardY + 13, { align: 'center' });
-      doc.text(`${String(dia).padStart(2, '0')} - ${String(mes).padStart(2, '0')} - ${año}`, fechaCardX + fechaCardW / 2, fechaCardY + 18, { align: 'center' });
+      doc.text(`${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${año}`, fechaCardX + fechaCardW / 2, fechaCardY + 12, { align: 'center' });
+      doc.text(`${String(dia).padStart(2, '0')} - ${String(mes).padStart(2, '0')} - ${año}`, fechaCardX + fechaCardW / 2, fechaCardY + 17, { align: 'center' });
 
-      // Card: Cliente - Color azul
-      const clienteCardX = 75;
+      // Card: Cliente - Color azul elegante
+      const clienteCardX = 78;
       const clienteCardY = yPos;
-      const clienteCardW = pageWidth - 95;
-      const clienteCardH = 22;
+      const clienteCardW = pageWidth - 93;
+      const clienteCardH = 20;
       
       doc.setFillColor(227, 242, 253); // Azul claro
       doc.setDrawColor(...colorPrimario);
-      doc.setLineWidth(1);
+      doc.setLineWidth(1.2);
       doc.roundedRect(clienteCardX, clienteCardY, clienteCardW, clienteCardH, 3, 3, 'FD');
       
       doc.setFontSize(8);
@@ -1988,38 +1991,48 @@ function DocenteHijos() {
       doc.setTextColor(...colorPrimario);
       doc.text('CLIENTE', clienteCardX + 3, clienteCardY + 6);
       
-      doc.setFontSize(10);
+      doc.setFontSize(9.5);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorGrisOscuro);
-      doc.text(alumno.nombre_completo.toUpperCase(), clienteCardX + 3, clienteCardY + 12);
+      const nombreCliente = alumno.nombre_completo.toUpperCase();
+      // Truncar si es muy largo
+      const nombreMaxWidth = clienteCardW - 6;
+      let nombreDisplay = nombreCliente;
+      if (doc.getTextWidth(nombreDisplay) > nombreMaxWidth) {
+        while (doc.getTextWidth(nombreDisplay + '...') > nombreMaxWidth && nombreDisplay.length > 0) {
+          nombreDisplay = nombreDisplay.slice(0, -1);
+        }
+        nombreDisplay += '...';
+      }
+      doc.text(nombreDisplay, clienteCardX + 3, clienteCardY + 12);
       
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorGrisOscuro);
-      doc.text(`DNI: ${alumno.dni || 'N/A'}`, clienteCardX + 3, clienteCardY + 18);
+      doc.text(`DNI: ${alumno.dni || 'N/A'}`, clienteCardX + 3, clienteCardY + 17);
 
-      // ========== TABLA DE ITEMS ESTILIZADA ==========
-      yPos += 28;
+      // ========== TABLA DE ITEMS ELEGANTE ==========
+      yPos += 26;
       
-      // Encabezado con gradiente azul
+      // Encabezado con fondo azul sólido
       doc.setFillColor(...colorPrimario);
       doc.setDrawColor(...colorPrimario);
       doc.setLineWidth(0.5);
-      doc.roundedRect(15, yPos - 6, pageWidth - 30, 9, 2, 2, 'FD');
+      doc.roundedRect(15, yPos - 6, pageWidth - 30, 8, 2, 2, 'FD');
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorBlanco);
       doc.text('N°.', 18, yPos);
       doc.text('DESCRIPCIÓN', 35, yPos);
-      doc.text('IMPORTE', pageWidth - 25, yPos, { align: 'right' });
+      doc.text('IMPORTE', pageWidth - 22, yPos, { align: 'right' });
 
-      // Item con fondo alternado y borde
-      yPos += 9;
-      doc.setFillColor(250, 250, 250);
-      doc.setDrawColor(200, 200, 200);
+      // Item con fondo blanco y borde sutil
+      yPos += 8;
+      doc.setFillColor(...colorBlanco);
+      doc.setDrawColor(220, 220, 220);
       doc.setLineWidth(0.3);
-      doc.roundedRect(15, yPos - 5, pageWidth - 30, 8, 1, 1, 'FD');
+      doc.roundedRect(15, yPos - 5, pageWidth - 30, 7, 1, 1, 'FD');
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
@@ -2029,16 +2042,16 @@ function DocenteHijos() {
       const importe = pagoData.total.toFixed(2);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorPrimario);
-      doc.text(`S/ ${importe}`, pageWidth - 25, yPos, { align: 'right' });
+      doc.text(`S/ ${importe}`, pageWidth - 22, yPos, { align: 'right' });
 
-      // ========== SECCIÓN TOTAL COMPACTA ==========
+      // ========== SECCIÓN TOTAL ELEGANTE ==========
       yPos += 12;
       
-      // Card: Total en letras - Color verde claro
+      // Card: Total en letras - Color verde suave
       const letrasCardX = 15;
       const letrasCardY = yPos;
-      const letrasCardW = pageWidth - 95;
-      const letrasCardH = 12;
+      const letrasCardW = pageWidth - 98;
+      const letrasCardH = 10;
       
       doc.setFillColor(232, 245, 233); // Verde claro
       doc.setDrawColor(...colorSecundario);
@@ -2051,13 +2064,24 @@ function DocenteHijos() {
       const totalDecimal = Math.round((pagoData.total - totalEntero) * 100);
       const totalLetras = numeroALetras(totalEntero).toUpperCase() + ` CON ${String(totalDecimal).padStart(2, '0')}/100 SOLES`;
       doc.setTextColor(...colorGrisOscuro);
-      doc.text(totalLetras, letrasCardX + 3, letrasCardY + 7);
+      // Ajustar texto si es muy largo
+      const letrasMaxWidth = letrasCardW - 6;
+      let letrasDisplay = totalLetras;
+      if (doc.getTextWidth(letrasDisplay) > letrasMaxWidth) {
+        doc.setFontSize(8);
+        if (doc.getTextWidth(letrasDisplay) > letrasMaxWidth) {
+          while (doc.getTextWidth(letrasDisplay) > letrasMaxWidth && letrasDisplay.length > 0) {
+            letrasDisplay = letrasDisplay.slice(0, -1);
+          }
+        }
+      }
+      doc.text(letrasDisplay, letrasCardX + 3, letrasCardY + 6.5);
 
       // Card: Total numérico - Color azul destacado
-      const totalCardX = pageWidth - 75;
+      const totalCardX = pageWidth - 78;
       const totalCardY = yPos;
-      const totalCardW = 60;
-      const totalCardH = 12;
+      const totalCardW = 63;
+      const totalCardH = 10;
       
       doc.setFillColor(...colorPrimario);
       doc.setDrawColor(...colorPrimario);
@@ -2067,68 +2091,73 @@ function DocenteHijos() {
       doc.setFontSize(8);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorBlanco);
-      doc.text('TOTAL', totalCardX + totalCardW / 2, totalCardY + 5, { align: 'center' });
+      doc.text('TOTAL', totalCardX + totalCardW / 2, totalCardY + 4.5, { align: 'center' });
       
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text(`S/ ${importe}`, totalCardX + totalCardW / 2, totalCardY + 10, { align: 'center' });
+      doc.text(`S/ ${importe}`, totalCardX + totalCardW / 2, totalCardY + 8.5, { align: 'center' });
 
-      // ========== SECCIÓN PAGO Y ESTADO COMPACTA ==========
-      yPos += 18;
+      // ========== SECCIÓN PAGO Y ESTADO ELEGANTE ==========
+      yPos += 16;
       
-      // Card: Forma de pago - Color gris
+      // Card: Forma de pago - Color gris elegante
       const pagoCardX = 15;
       const pagoCardY = yPos;
-      const pagoCardW = 50;
-      const pagoCardH = 12;
+      const pagoCardW = 52;
+      const pagoCardH = 10;
       
       doc.setFillColor(...colorGrisClaro);
       doc.setDrawColor(200, 200, 200);
       doc.setLineWidth(1);
       doc.roundedRect(pagoCardX, pagoCardY, pagoCardW, pagoCardH, 2, 2, 'FD');
       
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorGrisOscuro);
-      doc.text('FORMA DE PAGO', pagoCardX + pagoCardW / 2, pagoCardY + 5, { align: 'center' });
+      doc.text('FORMA DE PAGO', pagoCardX + pagoCardW / 2, pagoCardY + 4.5, { align: 'center' });
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorGrisOscuro);
-      doc.text('EFECTIVO', pagoCardX + pagoCardW / 2, pagoCardY + 10, { align: 'center' });
+      doc.text('EFECTIVO', pagoCardX + pagoCardW / 2, pagoCardY + 8.5, { align: 'center' });
       
       // Card: Estado - Color verde vibrante
-      const estadoCardX = pageWidth - 75;
+      const estadoCardX = pageWidth - 78;
       const estadoCardY = yPos;
-      const estadoCardW = 60;
-      const estadoCardH = 12;
+      const estadoCardW = 63;
+      const estadoCardH = 10;
       
       doc.setFillColor(...colorSecundario);
       doc.setDrawColor(...colorSecundario);
       doc.setLineWidth(1);
       doc.roundedRect(estadoCardX, estadoCardY, estadoCardW, estadoCardH, 3, 3, 'FD');
       
-      doc.setFontSize(8);
+      doc.setFontSize(7.5);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorBlanco);
-      doc.text('ESTADO', estadoCardX + estadoCardW / 2, estadoCardY + 5, { align: 'center' });
+      doc.text('ESTADO', estadoCardX + estadoCardW / 2, estadoCardY + 4.5, { align: 'center' });
       
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
-      doc.text('✓ CANCELADO', estadoCardX + estadoCardW / 2, estadoCardY + 10, { align: 'center' });
+      doc.text('✓ CANCELADO', estadoCardX + estadoCardW / 2, estadoCardY + 8.5, { align: 'center' });
 
-      // ========== FOOTER COMPACTO ==========
-      yPos = pageHeight - 18;
+      // ========== FOOTER ELEGANTE ==========
+      yPos = pageHeight - 16;
       doc.setFillColor(250, 250, 250);
-      doc.rect(0, yPos - 5, pageWidth, 18, 'F');
+      doc.rect(0, yPos - 4, pageWidth, 16, 'F');
+      
+      // Línea separadora
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.3);
+      doc.line(15, yPos - 4, pageWidth - 15, yPos - 4);
       
       doc.setTextColor(120, 120, 120);
-      doc.setFontSize(7);
+      doc.setFontSize(6.5);
       doc.setFont('helvetica', 'normal');
       const footerText = 'NO ES VÁLIDO PARA CRÉDITO FISCAL. PUEDE SER CANJEADO POR BOLETA DE VENTA SI ES REQUERIDO.';
-      doc.text(footerText, pageWidth / 2, yPos, { align: 'center', maxWidth: pageWidth - 30 });
+      doc.text(footerText, pageWidth / 2, yPos + 2, { align: 'center', maxWidth: pageWidth - 30 });
       
-      yPos += 5;
+      yPos += 6;
       doc.setFontSize(7);
       doc.text(`${facturacion.razon_social || 'EMPRESA'} ©${new Date().getFullYear()}`, pageWidth / 2, yPos, { align: 'center' });
 
