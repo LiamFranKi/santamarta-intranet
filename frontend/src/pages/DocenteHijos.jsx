@@ -1765,6 +1765,264 @@ function DocenteHijos() {
     }
   };
 
+  // Función para convertir número a letras (basada en sistema anterior)
+  const numeroALetras = (num) => {
+    const matuni = {
+      1: 'uno', 2: 'dos', 3: 'tres', 4: 'cuatro', 5: 'cinco',
+      6: 'seis', 7: 'siete', 8: 'ocho', 9: 'nueve', 10: 'diez',
+      11: 'once', 12: 'doce', 13: 'trece', 14: 'catorce', 15: 'quince',
+      16: 'dieciséis', 17: 'diecisiete', 18: 'dieciocho', 19: 'diecinueve', 20: 'veinte'
+    };
+    const matdec = {
+      2: 'veinte', 3: 'treinta', 4: 'cuarenta', 5: 'cincuenta',
+      6: 'sesenta', 7: 'setenta', 8: 'ochenta', 9: 'noventa'
+    };
+    const matcent = {
+      1: 'ciento', 2: 'doscientos', 3: 'trescientos', 4: 'cuatrocientos',
+      5: 'quinientos', 6: 'seiscientos', 7: 'setecientos', 8: 'ochocientos', 9: 'novecientos'
+    };
+
+    if (num === 0) return 'cero';
+    if (num < 0) return 'menos ' + numeroALetras(-num);
+
+    let resultado = '';
+    const millones = Math.floor(num / 1000000);
+    const miles = Math.floor((num % 1000000) / 1000);
+    const unidades = num % 1000;
+
+    if (millones > 0) {
+      if (millones === 1) {
+        resultado += 'un millón ';
+      } else {
+        resultado += numeroALetras(millones) + ' millones ';
+      }
+    }
+
+    if (miles > 0) {
+      if (miles === 1) {
+        resultado += 'mil ';
+      } else {
+        resultado += numeroALetras(miles) + ' mil ';
+      }
+    }
+
+    if (unidades > 0) {
+      if (unidades === 100) {
+        resultado += 'cien';
+      } else if (unidades < 100) {
+        if (unidades <= 20) {
+          resultado += matuni[unidades];
+        } else {
+          const decenas = Math.floor(unidades / 10);
+          const unidadesNum = unidades % 10;
+          if (decenas === 2 && unidadesNum > 0) {
+            resultado += 'veinti' + matuni[unidadesNum];
+          } else {
+            resultado += matdec[decenas];
+            if (unidadesNum > 0) {
+              resultado += ' y ' + matuni[unidadesNum];
+            }
+          }
+        }
+      } else {
+        const centenas = Math.floor(unidades / 100);
+        const resto = unidades % 100;
+        resultado += matcent[centenas];
+        if (resto > 0) {
+          resultado += ' ' + numeroALetras(resto);
+        }
+      }
+    }
+
+    return resultado.trim();
+  };
+
+  // Función para generar PDF de boleta
+  const generarPDFBoleta = async (pago) => {
+    try {
+      if (!pago.id || !pago.boleta) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No se puede generar la boleta: el pago no tiene boleta asociada',
+          confirmButtonText: 'Entendido'
+        });
+        return;
+      }
+
+      // Obtener datos de la boleta desde el backend
+      const response = await api.get(`/docente/pagos/${pago.id}/boleta`);
+      const datosBoleta = response.data;
+
+      const { pago: pagoData, alumno, facturacion } = datosBoleta;
+
+      // Crear PDF
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      let yPos = 15;
+
+      // Colores
+      const colorVerde = [76, 175, 80];
+      const colorAzul = [33, 150, 243];
+      const colorGris = [128, 128, 128];
+      const colorNegro = [0, 0, 0];
+
+      // ========== HEADER ==========
+      // Logo (si existe)
+      if (facturacion.logo_url) {
+        try {
+          // Intentar cargar imagen desde URL
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.src = facturacion.logo_url;
+          
+          await new Promise((resolve, reject) => {
+            img.onload = () => {
+              try {
+                doc.addImage(img, 'PNG', 15, yPos, 20, 20);
+                resolve();
+              } catch (err) {
+                console.warn('Error agregando logo:', err);
+                resolve(); // Continuar sin logo
+              }
+            };
+            img.onerror = () => resolve(); // Continuar sin logo si falla
+            setTimeout(() => resolve(), 2000); // Timeout de 2 segundos
+          });
+        } catch (err) {
+          console.warn('Error cargando logo:', err);
+        }
+      }
+
+      // Razón Social
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colorNegro);
+      doc.text(facturacion.razon_social || 'EMPRESA', facturacion.logo_url ? 40 : 15, yPos + 10);
+
+      // RUC y BOLETA DE VENTA
+      yPos += 25;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`R.U.C. ${facturacion.ruc || 'N/A'}`, 15, yPos);
+      
+      // Caja derecha: BOLETA DE VENTA y Número
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text('BOLETA DE VENTA', pageWidth - 60, yPos - 8);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      const numeroBoleta = `${String(pagoData.boleta_serie || '001').padStart(3, '0')}-${String(pagoData.boleta_numero || '0000000').padStart(7, '0')}`;
+      doc.setTextColor(255, 0, 0); // Rojo
+      doc.text(`N°. ${numeroBoleta}`, pageWidth - 60, yPos);
+
+      // ========== DATOS DEL CLIENTE Y FECHA ==========
+      yPos += 15;
+      doc.setTextColor(...colorNegro);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`SEÑOR (A): ${alumno.nombre_completo.toUpperCase()}`, 15, yPos);
+      doc.text(`DNI: ${alumno.dni || 'N/A'}`, 15, yPos + 5);
+
+      // Fecha de pago
+      const fechaPago = pagoData.fecha_cancelado ? new Date(pagoData.fecha_cancelado) : new Date();
+      const dia = fechaPago.getDate();
+      const mes = fechaPago.getMonth() + 1;
+      const año = fechaPago.getFullYear();
+      
+      doc.text(`DÍA: ${String(dia).padStart(2, '0')}`, pageWidth - 60, yPos);
+      doc.text(`MES: ${String(mes).padStart(2, '0')}`, pageWidth - 60, yPos + 5);
+      doc.text(`AÑO: ${año}`, pageWidth - 60, yPos + 10);
+
+      // ========== TABLA DE ITEMS ==========
+      yPos += 20;
+      doc.setFontSize(9);
+      
+      // Encabezado de tabla
+      doc.setFillColor(240, 240, 240);
+      doc.rect(15, yPos - 5, pageWidth - 30, 8, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.text('N°.', 18, yPos);
+      doc.text('DESCRIPCIÓN', 30, yPos);
+      doc.text('IMPORTE S/', pageWidth - 25, yPos, { align: 'right' });
+
+      // Item
+      yPos += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.text('1', 18, yPos);
+      doc.text(pagoData.tipo_descripcion || 'PAGO', 30, yPos);
+      const importe = pagoData.total.toFixed(2);
+      doc.text(`S/ ${importe}`, pageWidth - 25, yPos, { align: 'right' });
+
+      // ========== TOTAL EN LETRAS ==========
+      yPos += 15;
+      doc.setFontSize(9);
+      const totalEntero = Math.floor(pagoData.total);
+      const totalDecimal = Math.round((pagoData.total - totalEntero) * 100);
+      const totalLetras = numeroALetras(totalEntero).toUpperCase() + ` CON ${String(totalDecimal).padStart(2, '0')}/100 SOLES`;
+      doc.text(totalLetras, 15, yPos);
+
+      // ========== TOTAL EN NÚMEROS ==========
+      yPos += 10;
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colorAzul);
+      doc.text(`TOTAL S/.`, pageWidth - 50, yPos);
+      doc.text(`S/ ${importe}`, pageWidth - 25, yPos, { align: 'right' });
+
+      // ========== ESTADO Y FORMA DE PAGO ==========
+      yPos += 10;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...colorNegro);
+      doc.text('EFECTIVO', 15, yPos);
+      
+      // Estado CANCELADO
+      doc.setFillColor(...colorVerde);
+      doc.roundedRect(pageWidth - 60, yPos - 5, 45, 8, 2, 2, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CANCELADO', pageWidth - 37, yPos);
+
+      // ========== FOOTER ==========
+      yPos = pageHeight - 20;
+      doc.setTextColor(...colorGris);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      const footerText = 'NO ES VÁLIDO PARA CRÉDITO FISCAL. PUEDE SER CANJEADO POR BOLETA DE VENTA SI ES REQUERIDO. ' + (facturacion.razon_social || 'EMPRESA');
+      doc.text(footerText, pageWidth / 2, yPos, { align: 'center', maxWidth: pageWidth - 30 });
+      
+      yPos += 5;
+      doc.text(`©${new Date().getFullYear()} / ${facturacion.razon_social || 'EMPRESA'}`, pageWidth / 2, yPos, { align: 'center' });
+
+      // Guardar PDF
+      const nombreArchivo = `Boleta_${numeroBoleta.replace(/-/g, '_')}_${alumno.dni || 'N/A'}.pdf`;
+      doc.save(nombreArchivo);
+
+      Swal.fire({
+        icon: 'success',
+        title: 'Boleta generada',
+        text: 'La boleta se ha generado correctamente',
+        timer: 2000,
+        showConfirmButton: false
+      });
+    } catch (error) {
+      console.error('Error generando boleta:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo generar la boleta. Por favor, intente nuevamente.',
+        confirmButtonText: 'Entendido'
+      });
+    }
+  };
+
   const generarPDFLibreta = async (hijoId) => {
     try {
       setLoadingNotasDetalladas(true);
@@ -4426,15 +4684,7 @@ function DocenteHijos() {
                                   <div className="pago-card-footer" style={{ marginTop: '12px', paddingTop: '12px', borderTop: `1px solid ${colorCard.border}` }}>
                                     <button
                                       className="btn-imprimir-boleta"
-                                      onClick={() => {
-                                        // TODO: Implementar impresión de boleta
-                                        Swal.fire({
-                                          icon: 'info',
-                                          title: 'Imprimir Boleta',
-                                          text: 'Funcionalidad de impresión próximamente',
-                                          confirmButtonText: 'Entendido'
-                                        });
-                                      }}
+                                      onClick={() => generarPDFBoleta(pago)}
                                       style={{
                                         width: '100%',
                                         padding: '8px 16px',

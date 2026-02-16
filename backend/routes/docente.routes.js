@@ -5664,6 +5664,135 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/pagos/:pagoId/boleta
+ * Obtener datos para generar boleta de pago
+ */
+router.get('/pagos/:pagoId/boleta', async (req, res) => {
+  try {
+    const { pagoId } = req.params;
+    const { colegio_id } = req.user;
+
+    // Obtener datos del pago con información del alumno y matrícula
+    const pagoData = await query(
+      `SELECT 
+        p.*,
+        m.id as matricula_id,
+        m.anio as matricula_anio,
+        a.nombres as alumno_nombres,
+        a.apellido_paterno as alumno_apellido_paterno,
+        a.apellido_materno as alumno_apellido_materno,
+        a.nro_documento as alumno_dni,
+        CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as alumno_nombre_completo,
+        i.numero as boleta_numero,
+        i.serie as boleta_serie,
+        i.fecha_impresion as boleta_fecha_impresion
+      FROM pagos p
+      INNER JOIN matriculas m ON m.id = p.matricula_id
+      INNER JOIN alumnos a ON a.id = m.alumno_id
+      LEFT JOIN impresiones i ON i.pago_id = p.id AND i.tipo = 'PAGO' AND i.tipo_documento = 'BOLETA' AND i.estado = 'ACTIVO'
+      WHERE p.id = ? AND p.colegio_id = ?
+      ORDER BY i.id DESC
+      LIMIT 1`,
+      [pagoId, colegio_id]
+    );
+
+    if (pagoData.length === 0) {
+      return res.status(404).json({ error: 'Pago no encontrado' });
+    }
+
+    const pago = pagoData[0];
+
+    // Obtener datos de facturación del colegio
+    const facturacionData = await query(
+      `SELECT ruc, razon_social, direccion FROM colegios WHERE id = ? LIMIT 1`,
+      [colegio_id]
+    );
+
+    // Obtener logo de boleta de la tabla config
+    const configLogo = await query(
+      `SELECT valor FROM config WHERE clave = 'boleta_logo' LIMIT 1`
+    );
+
+    const facturacion = facturacionData.length > 0 ? facturacionData[0] : {};
+    const logoFileName = configLogo.length > 0 ? configLogo[0].valor : null;
+
+    // Construir URL del logo si existe
+    let logoUrl = null;
+    if (logoFileName) {
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const isProduction = process.env.NODE_ENV === 'production';
+      if (isProduction) {
+        logoUrl = `${phpSystemUrl}/Static/Archivos/${logoFileName}`;
+      } else {
+        logoUrl = `http://localhost:5000/Static/Archivos/${logoFileName}`;
+      }
+    }
+
+    // Determinar descripción del pago
+    let descripcionPago = '';
+    if (pago.tipo === 0) {
+      descripcionPago = `MATRÍCULA ${pago.matricula_anio}`;
+    } else if (pago.tipo === 1) {
+      // Obtener mes de pensión
+      const colegioConfig = await query(
+        `SELECT ciclo_pensiones, inicio_pensiones FROM colegios WHERE id = ? LIMIT 1`,
+        [colegio_id]
+      );
+      const cicloPensiones = colegioConfig.length > 0 ? colegioConfig[0].ciclo_pensiones : null;
+      const inicioPensiones = colegioConfig.length > 0 ? (colegioConfig[0].inicio_pensiones || 1) : 1;
+      
+      if (cicloPensiones === 0 || cicloPensiones === '0') {
+        const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const indiceMes = pago.nro_pago + inicioPensiones - 1;
+        if (indiceMes >= 0 && indiceMes < MESES.length) {
+          descripcionPago = `MENSUALIDAD ${MESES[indiceMes].toUpperCase()}`;
+        } else {
+          descripcionPago = `MENSUALIDAD ${pago.nro_pago}`;
+        }
+      } else {
+        descripcionPago = `MENSUALIDAD ${pago.nro_pago}`;
+      }
+    } else if (pago.tipo === 3) {
+      descripcionPago = `COMEDOR ${pago.nro_pago}`;
+    } else {
+      descripcionPago = pago.descripcion || 'OTRO';
+    }
+
+    res.json({
+      pago: {
+        id: pago.id,
+        tipo: pago.tipo,
+        tipo_descripcion: descripcionPago,
+        monto: parseFloat(pago.monto) || 0,
+        mora: parseFloat(pago.mora) || 0,
+        total: parseFloat(pago.monto) + parseFloat(pago.mora || 0),
+        fecha_cancelado: pago.fecha_cancelado,
+        estado_pago: pago.estado_pago,
+        boleta_numero: pago.boleta_numero,
+        boleta_serie: pago.boleta_serie,
+        boleta_fecha_impresion: pago.boleta_fecha_impresion
+      },
+      alumno: {
+        nombres: pago.alumno_nombres,
+        apellido_paterno: pago.alumno_apellido_paterno,
+        apellido_materno: pago.alumno_apellido_materno,
+        nombre_completo: pago.alumno_nombre_completo,
+        dni: pago.alumno_dni
+      },
+      facturacion: {
+        ruc: facturacion.ruc || '',
+        razon_social: facturacion.razon_social || '',
+        direccion: facturacion.direccion || '',
+        logo_url: logoUrl
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo datos de boleta:', error);
+    res.status(500).json({ error: 'Error al obtener datos de boleta', details: error.message });
+  }
+});
+
+/**
  * GET /api/docente/hijos/:hijoId/horario
  * Obtener horario del hijo
  */
