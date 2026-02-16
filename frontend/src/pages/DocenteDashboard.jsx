@@ -5,6 +5,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionFormCard from '../components/PublicacionFormCard';
+import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './DocenteDashboard.css';
 import './DocenteGrupos.css';
@@ -577,6 +578,9 @@ function DocenteDashboard() {
             <div className="card-amarillo-separator"></div>
             <div className="card-amarillo-form-container">
               <PublicacionFormCard />
+            </div>
+            <div className="card-amarillo-feed-container">
+              <PublicacionesCardFeed />
             </div>
           </div>
         </div>
