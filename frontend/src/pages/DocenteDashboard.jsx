@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
+import PublicacionFormCard from '../components/PublicacionFormCard';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './DocenteDashboard.css';
 import './DocenteGrupos.css';
@@ -574,6 +575,9 @@ function DocenteDashboard() {
           <div className="card-amarillo-vacio">
             <h3 className="card-amarillo-title">Publicaciones</h3>
             <div className="card-amarillo-separator"></div>
+            <div className="card-amarillo-form-container">
+              <PublicacionFormCard />
+            </div>
           </div>
         </div>
       </div>

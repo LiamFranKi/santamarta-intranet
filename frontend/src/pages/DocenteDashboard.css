@@ -408,11 +408,11 @@
 }
 
 .card-amarillo-vacio {
-  background: linear-gradient(145deg, #fef3c7, #fde68a);
+  background: linear-gradient(145deg, #fefce8, #fef9c3);
   border-radius: 16px;
   padding: 1.5rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.15);
   min-height: 120px;
   width: 100%;
   max-width: 100%;
@@ -420,6 +420,11 @@
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+}
+
+.card-amarillo-form-container {
+  margin-top: 1rem;
+  width: 100%;
 }
 
 .card-amarillo-title {
@@ -465,6 +470,40 @@
     font-size: 0.95rem;
     margin-bottom: 0.75rem;
     padding-bottom: 0.5rem;
+  }
+
+  .card-amarillo-form-container {
+    margin-top: 0.75rem;
+  }
+
+  .card-amarillo-form-container .publicacion-form {
+    gap: 0.75rem;
+  }
+
+  .card-amarillo-form-container .publicacion-form textarea {
+    padding: 0.5rem;
+    font-size: 0.85rem;
+    border-radius: 8px;
+  }
+
+  .card-amarillo-form-container .form-icons {
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+  }
+
+  .card-amarillo-form-container .icon-btn {
+    padding: 0.4rem 0.6rem;
+    min-width: 60px;
+  }
+
+  .card-amarillo-form-container .form-actions {
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+
+  .card-amarillo-form-container .form-actions button {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
   }
 }
 
