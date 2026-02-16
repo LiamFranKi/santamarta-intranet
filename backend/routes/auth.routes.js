@@ -576,5 +576,26 @@ async function verificarDeudas(usuario, anioActivo) {
   }
 }
 
+/**
+ * GET /api/auth/verificar-deudas
+ * Endpoint para verificar si el usuario actual tiene deudas bloqueadas
+ */
+router.get('/verificar-deudas', authenticateToken, async (req, res) => {
+  try {
+    const { user } = req;
+    const anioActivo = req.user.anio_activo || new Date().getFullYear();
+    
+    const tieneDeudas = await verificarDeudas(user, anioActivo);
+    
+    res.json({
+      tiene_deudas: tieneDeudas,
+      bloqueado: tieneDeudas
+    });
+  } catch (error) {
+    console.error('Error verificando deudas en endpoint:', error);
+    res.status(500).json({ error: 'Error al verificar deudas', tiene_deudas: false, bloqueado: false });
+  }
+});
+
 module.exports = router;
 
