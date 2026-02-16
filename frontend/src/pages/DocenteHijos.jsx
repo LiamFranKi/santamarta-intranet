@@ -1865,140 +1865,212 @@ function DocenteHijos() {
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      let yPos = 15;
+      let yPos = 20;
 
       // Colores
       const colorVerde = [76, 175, 80];
       const colorAzul = [33, 150, 243];
       const colorGris = [128, 128, 128];
       const colorNegro = [0, 0, 0];
+      const colorGrisClaro = [245, 245, 245];
+      const colorAzulOscuro = [25, 118, 210];
 
       // ========== HEADER ==========
-      // Logo (si existe)
+      // Logo (si existe) - cargar desde Static/Archivos
+      let logoCargado = false;
       if (facturacion.logo_url) {
         try {
-          // Intentar cargar imagen desde URL
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          img.src = facturacion.logo_url;
-          
-          await new Promise((resolve, reject) => {
-            img.onload = () => {
-              try {
-                doc.addImage(img, 'PNG', 15, yPos, 20, 20);
-                resolve();
-              } catch (err) {
-                console.warn('Error agregando logo:', err);
-                resolve(); // Continuar sin logo
-              }
-            };
-            img.onerror = () => resolve(); // Continuar sin logo si falla
-            setTimeout(() => resolve(), 2000); // Timeout de 2 segundos
-          });
+          // Cargar imagen desde URL usando fetch y convertir a base64
+          const response = await fetch(facturacion.logo_url);
+          if (response.ok) {
+            const blob = await response.blob();
+            const reader = new FileReader();
+            await new Promise((resolve, reject) => {
+              reader.onloadend = () => {
+                try {
+                  const base64 = reader.result;
+                  // Detectar tipo de imagen
+                  const imgType = facturacion.logo_url.toLowerCase().includes('.jpg') || facturacion.logo_url.toLowerCase().includes('.jpeg') ? 'JPEG' : 'PNG';
+                  doc.addImage(base64, imgType, 15, yPos, 25, 25);
+                  logoCargado = true;
+                  resolve();
+                } catch (err) {
+                  console.warn('Error agregando logo:', err);
+                  resolve(); // Continuar sin logo
+                }
+              };
+              reader.onerror = () => resolve();
+              reader.readAsDataURL(blob);
+            });
+          }
         } catch (err) {
           console.warn('Error cargando logo:', err);
         }
       }
 
-      // Razón Social
-      doc.setFontSize(14);
+      // Razón Social - al lado del logo
+      doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...colorNegro);
-      doc.text(facturacion.razon_social || 'EMPRESA', facturacion.logo_url ? 40 : 15, yPos + 10);
+      const razonSocialX = logoCargado ? 45 : 15;
+      doc.text(facturacion.razon_social || 'EMPRESA', razonSocialX, yPos + 12);
 
-      // RUC y BOLETA DE VENTA
-      yPos += 25;
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`R.U.C. ${facturacion.ruc || 'N/A'}`, 15, yPos);
+      // Caja derecha: RUC, BOLETA DE VENTA y Número
+      const cajaDerechaX = pageWidth - 65;
+      const cajaDerechaY = yPos;
+      const cajaDerechaW = 50;
+      const cajaDerechaH = 30;
       
-      // Caja derecha: BOLETA DE VENTA y Número
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text('BOLETA DE VENTA', pageWidth - 60, yPos - 8);
+      // Fondo de la caja
+      doc.setFillColor(250, 250, 250);
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(cajaDerechaX, cajaDerechaY, cajaDerechaW, cajaDerechaH, 2, 2, 'FD');
+      
+      // RUC
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...colorNegro);
+      doc.text(`R.U.C.`, cajaDerechaX + 2, cajaDerechaY + 6);
       doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(facturacion.ruc || 'N/A', cajaDerechaX + 2, cajaDerechaY + 10);
+      
+      // BOLETA DE VENTA
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colorAzulOscuro);
+      doc.text('BOLETA DE VENTA', cajaDerechaX + 2, cajaDerechaY + 16);
+      
+      // Número de boleta
+      doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       const numeroBoleta = `${String(pagoData.boleta_serie || '001').padStart(3, '0')}-${String(pagoData.boleta_numero || '0000000').padStart(7, '0')}`;
       doc.setTextColor(255, 0, 0); // Rojo
-      doc.text(`N°. ${numeroBoleta}`, pageWidth - 60, yPos);
+      doc.text(`N°. ${numeroBoleta}`, cajaDerechaX + 2, cajaDerechaY + 22);
 
       // ========== DATOS DEL CLIENTE Y FECHA ==========
-      yPos += 15;
-      doc.setTextColor(...colorNegro);
+      yPos += 35;
+      
+      // Sección izquierda: Datos del cliente
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...colorNegro);
       doc.text(`SEÑOR (A): ${alumno.nombre_completo.toUpperCase()}`, 15, yPos);
-      doc.text(`DNI: ${alumno.dni || 'N/A'}`, 15, yPos + 5);
+      doc.text(`DNI: ${alumno.dni || 'N/A'}`, 15, yPos + 6);
 
-      // Fecha de pago
+      // Sección derecha: Fecha en caja
+      const fechaCajaX = pageWidth - 65;
+      const fechaCajaY = yPos - 5;
+      const fechaCajaW = 50;
+      const fechaCajaH = 20;
+      
+      doc.setFillColor(240, 248, 255);
+      doc.setDrawColor(200, 200, 200);
+      doc.roundedRect(fechaCajaX, fechaCajaY, fechaCajaW, fechaCajaH, 2, 2, 'FD');
+      
       const fechaPago = pagoData.fecha_cancelado ? new Date(pagoData.fecha_cancelado) : new Date();
       const dia = fechaPago.getDate();
       const mes = fechaPago.getMonth() + 1;
       const año = fechaPago.getFullYear();
       
-      doc.text(`DÍA: ${String(dia).padStart(2, '0')}`, pageWidth - 60, yPos);
-      doc.text(`MES: ${String(mes).padStart(2, '0')}`, pageWidth - 60, yPos + 5);
-      doc.text(`AÑO: ${año}`, pageWidth - 60, yPos + 10);
+      doc.setFontSize(9);
+      doc.setTextColor(...colorNegro);
+      doc.text(`DÍA: ${String(dia).padStart(2, '0')}`, fechaCajaX + 3, fechaCajaY + 6);
+      doc.text(`MES: ${String(mes).padStart(2, '0')}`, fechaCajaX + 3, fechaCajaY + 11);
+      doc.text(`AÑO: ${año}`, fechaCajaX + 3, fechaCajaY + 16);
 
       // ========== TABLA DE ITEMS ==========
-      yPos += 20;
-      doc.setFontSize(9);
+      yPos += 25;
       
-      // Encabezado de tabla
-      doc.setFillColor(240, 240, 240);
-      doc.rect(15, yPos - 5, pageWidth - 30, 8, 'F');
+      // Encabezado de tabla con fondo azul
+      doc.setFillColor(...colorAzulOscuro);
+      doc.setDrawColor(...colorAzulOscuro);
+      doc.setLineWidth(0.5);
+      doc.roundedRect(15, yPos - 7, pageWidth - 30, 10, 2, 2, 'FD');
+      
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
       doc.text('N°.', 18, yPos);
-      doc.text('DESCRIPCIÓN', 30, yPos);
-      doc.text('IMPORTE S/', pageWidth - 25, yPos, { align: 'right' });
+      doc.text('DESCRIPCIÓN', 35, yPos);
+      doc.text('IMPORTE S/', pageWidth - 20, yPos, { align: 'right' });
 
-      // Item
-      yPos += 8;
+      // Item con fondo alternado
+      yPos += 10;
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(220, 220, 220);
+      doc.roundedRect(15, yPos - 5, pageWidth - 30, 8, 1, 1, 'FD');
+      
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
+      doc.setTextColor(...colorNegro);
       doc.text('1', 18, yPos);
-      doc.text(pagoData.tipo_descripcion || 'PAGO', 30, yPos);
+      doc.text(pagoData.tipo_descripcion || 'PAGO', 35, yPos);
       const importe = pagoData.total.toFixed(2);
-      doc.text(`S/ ${importe}`, pageWidth - 25, yPos, { align: 'right' });
+      doc.setFont('helvetica', 'bold');
+      doc.text(`S/ ${importe}`, pageWidth - 20, yPos, { align: 'right' });
 
       // ========== TOTAL EN LETRAS ==========
       yPos += 15;
       doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
       const totalEntero = Math.floor(pagoData.total);
       const totalDecimal = Math.round((pagoData.total - totalEntero) * 100);
       const totalLetras = numeroALetras(totalEntero).toUpperCase() + ` CON ${String(totalDecimal).padStart(2, '0')}/100 SOLES`;
+      doc.setTextColor(...colorNegro);
       doc.text(totalLetras, 15, yPos);
 
       // ========== TOTAL EN NÚMEROS ==========
-      yPos += 10;
-      doc.setFontSize(12);
+      yPos += 12;
+      const totalCajaX = pageWidth - 65;
+      const totalCajaY = yPos - 8;
+      const totalCajaW = 50;
+      const totalCajaH = 12;
+      
+      doc.setFillColor(240, 248, 255);
+      doc.setDrawColor(...colorAzul);
+      doc.setLineWidth(1);
+      doc.roundedRect(totalCajaX, totalCajaY, totalCajaW, totalCajaH, 2, 2, 'FD');
+      
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...colorAzul);
-      doc.text(`TOTAL S/.`, pageWidth - 50, yPos);
-      doc.text(`S/ ${importe}`, pageWidth - 25, yPos, { align: 'right' });
+      doc.setTextColor(...colorAzulOscuro);
+      doc.text('TOTAL S/.', totalCajaX + 3, totalCajaY + 5);
+      doc.setFontSize(12);
+      doc.text(`S/ ${importe}`, totalCajaX + 3, totalCajaY + 10);
 
       // ========== ESTADO Y FORMA DE PAGO ==========
-      yPos += 10;
+      yPos += 15;
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(...colorNegro);
       doc.text('EFECTIVO', 15, yPos);
       
-      // Estado CANCELADO
+      // Estado CANCELADO con fondo verde
+      const estadoCajaX = pageWidth - 65;
+      const estadoCajaY = yPos - 6;
+      const estadoCajaW = 50;
+      const estadoCajaH = 10;
+      
       doc.setFillColor(...colorVerde);
-      doc.roundedRect(pageWidth - 60, yPos - 5, 45, 8, 2, 2, 'F');
+      doc.setDrawColor(...colorVerde);
+      doc.roundedRect(estadoCajaX, estadoCajaY, estadoCajaW, estadoCajaH, 3, 3, 'FD');
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
-      doc.text('CANCELADO', pageWidth - 37, yPos);
+      doc.setFontSize(10);
+      doc.text('CANCELADO', estadoCajaX + estadoCajaW / 2, estadoCajaY + 6, { align: 'center' });
 
       // ========== FOOTER ==========
-      yPos = pageHeight - 20;
+      yPos = pageHeight - 25;
       doc.setTextColor(...colorGris);
-      doc.setFontSize(8);
+      doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
       const footerText = 'NO ES VÁLIDO PARA CRÉDITO FISCAL. PUEDE SER CANJEADO POR BOLETA DE VENTA SI ES REQUERIDO. ' + (facturacion.razon_social || 'EMPRESA');
       doc.text(footerText, pageWidth / 2, yPos, { align: 'center', maxWidth: pageWidth - 30 });
       
       yPos += 5;
+      doc.setFontSize(8);
       doc.text(`©${new Date().getFullYear()} / ${facturacion.razon_social || 'EMPRESA'}`, pageWidth / 2, yPos, { align: 'center' });
 
       // Guardar PDF
