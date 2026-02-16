@@ -306,30 +306,35 @@ async function crearNotificacionesApoderados(params) {
     apoderadoUsuarioIds = apoderados.map(a => a.usuario_id);
     
     // Obtener DNI de apoderados para buscar docentes-apoderados
-    const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
+    const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni && dni !== null && dni !== undefined && dni !== '');
     console.log(`📋 [NOTIFICACIONES APODERADOS] DNIs de apoderados para buscar docentes: ${apoderadoDnis.length}`);
     
     if (apoderadoDnis.length > 0) {
       // Obtener usuarios DOCENTE que también son apoderados (mismo nro_documento)
       try {
         // Construir la consulta SQL dinámicamente
+        const placeholdersDni = apoderadoDnis.map(() => '?').join(',');
         let sqlQuery = `SELECT DISTINCT u.id 
          FROM usuarios u
          INNER JOIN personal p ON p.id = u.personal_id
          WHERE u.colegio_id = ? 
            AND u.estado = 'ACTIVO'
            AND u.tipo = 'DOCENTE'
-           AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
-                OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))`;
+           AND (p.nro_documento IN (${placeholdersDni}) 
+                OR u.usuario IN (${placeholdersDni}))`;
         
-        const queryParams = [colegio_id, ...apoderadoDnis, ...apoderadoDnis];
+        const queryParams = [colegio_id];
+        queryParams.push(...apoderadoDnis); // Para p.nro_documento IN
+        queryParams.push(...apoderadoDnis); // Para u.usuario IN
         
         // Solo agregar NOT IN si hay IDs para excluir
         if (apoderadoUsuarioIds.length > 0) {
-          sqlQuery += ` AND u.id NOT IN (${apoderadoUsuarioIds.map(() => '?').join(',')})`;
+          const placeholdersExclude = apoderadoUsuarioIds.map(() => '?').join(',');
+          sqlQuery += ` AND u.id NOT IN (${placeholdersExclude})`;
           queryParams.push(...apoderadoUsuarioIds);
         }
         
+        console.log(`🔍 [NOTIFICACIONES APODERADOS] Ejecutando consulta para docentes-apoderados con ${queryParams.length} parámetros`);
         const docentesApoderados = await query(sqlQuery, queryParams);
         
         const docentesApoderadosIds = docentesApoderados.map(u => u.id);
@@ -340,6 +345,8 @@ async function crearNotificacionesApoderados(params) {
         }
       } catch (error) {
         console.error(`❌ [NOTIFICACIONES APODERADOS] Error buscando docentes-apoderados:`, error);
+        console.error(`❌ [NOTIFICACIONES APODERADOS] Error details:`, error.message);
+        console.error(`❌ [NOTIFICACIONES APODERADOS] Stack:`, error.stack);
       }
     }
     
@@ -372,10 +379,11 @@ async function crearNotificacionesApoderados(params) {
       console.log(`✅ [NOTIFICACIONES APODERADOS] ${todosDestinatarios.length} notificaciones creadas en BD`);
       
       // Enviar push notifications
+      const placeholdersDestinatarios = todosDestinatarios.map(() => '?').join(',');
       const subscriptionsData = await query(
         `SELECT endpoint, p256dh, auth 
          FROM push_subscriptions 
-         WHERE usuario_id IN (${todosDestinatarios.map(() => '?').join(',')}) 
+         WHERE usuario_id IN (${placeholdersDestinatarios}) 
            AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
         [...todosDestinatarios, colegio_id]
       );
