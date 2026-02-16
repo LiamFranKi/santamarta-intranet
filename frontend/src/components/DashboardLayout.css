@@ -412,9 +412,14 @@
   }
 }
 
-/* Card amarillo en sidebar - Visible en web/tablet */
+/* PublicacionesWidget anterior - Visible solo en web/tablet */
+.publicaciones-widget-sidebar {
+  display: none;
+}
+
+/* Card amarillo en sidebar - Oculto por defecto, se mostrará solo en móvil */
 .card-amarillo-sidebar {
-  display: block;
+  display: none;
 }
 
 .card-amarillo-vacio {
@@ -570,42 +575,26 @@
   }
 }
 
-/* En tablet (768px-1024px) mostrar card en sidebar */
-@media (min-width: 769px) and (max-width: 1024px) {
-  .card-amarillo-sidebar {
+/* En web y tablet (≥769px) mostrar PublicacionesWidget y ocultar card amarillo */
+@media (min-width: 769px) {
+  .publicaciones-widget-sidebar {
     display: block;
   }
-}
-
-/* En móvil (≤768px) ocultar card del sidebar */
-@media (max-width: 768px) {
   .card-amarillo-sidebar {
     display: none;
   }
 }
 
+/* En móvil (≤768px) ocultar sidebar derecho completamente */
 @media (max-width: 768px) {
   .dashboard-sidebar-right {
-    width: 100% !important;
-    max-width: 100% !important;
-    padding: 0.4rem !important;
-    grid-template-columns: 1fr !important;
-    box-sizing: border-box !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    gap: 0.5rem !important;
-    overflow-x: hidden !important;
+    display: none !important;
   }
-
-  .calendario-widget,
-  .publicaciones-widget {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    padding: 0.5rem !important;
-    box-sizing: border-box !important;
-    overflow-x: hidden !important;
+  .card-amarillo-sidebar {
+    display: none;
+  }
+  .publicaciones-widget-sidebar {
+    display: none;
   }
 }
 
@@ -615,26 +604,7 @@
   }
 
   .dashboard-sidebar-right {
-    width: 100% !important;
-    max-width: 100% !important;
-    padding: 0.3rem !important;
-    grid-template-columns: 1fr !important;
-    box-sizing: border-box !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    gap: 0.4rem !important;
-    overflow-x: hidden !important;
-  }
-
-  .calendario-widget,
-  .publicaciones-widget {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    padding: 0.4rem !important;
-    box-sizing: border-box !important;
-    overflow-x: hidden !important;
+    display: none !important;
   }
 
   .user-info {
@@ -648,26 +618,7 @@
   }
 
   .dashboard-sidebar-right {
-    width: 100% !important;
-    max-width: 100% !important;
-    padding: 0.25rem !important;
-    grid-template-columns: 1fr !important;
-    box-sizing: border-box !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    gap: 0.3rem !important;
-    overflow-x: hidden !important;
-  }
-
-  .calendario-widget,
-  .publicaciones-widget {
-    width: 100% !important;
-    max-width: 100% !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    padding: 0.3rem !important;
-    box-sizing: border-box !important;
-    overflow-x: hidden !important;
+    display: none !important;
   }
 }
 

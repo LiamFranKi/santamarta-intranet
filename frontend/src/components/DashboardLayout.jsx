@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import CalendarioWidget from './CalendarioWidget';
+import PublicacionesWidget from './PublicacionesWidget';
 import PublicacionFormCard from './PublicacionFormCard';
 import PublicacionesCardFeed from './PublicacionesCardFeed';
 import NotificacionesWidget from './NotificacionesWidget';
@@ -619,7 +620,11 @@ export default function DashboardLayout({ children }) {
           {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'ADMINISTRADOR') && (
             <aside className="dashboard-sidebar-right">
               <CalendarioWidget />
-              {/* Card amarillo de publicaciones - Solo en web/PC */}
+              {/* PublicacionesWidget anterior - Solo en web/tablet */}
+              <div className="publicaciones-widget-sidebar">
+                <PublicacionesWidget />
+              </div>
+              {/* Card amarillo de publicaciones - Solo en móvil (oculto en web/tablet) */}
               <div className="dashboard-section card-amarillo-section card-amarillo-sidebar">
                 <div className="card-amarillo-vacio">
                   <h3 className="card-amarillo-title">Publicaciones</h3>
