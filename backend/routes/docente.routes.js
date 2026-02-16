@@ -445,6 +445,10 @@ async function crearNotificacionesApoderados(params) {
       } else {
         console.log('⚠️ [NOTIFICACIONES APODERADOS] No hay suscripciones push activas para enviar notificaciones');
       }
+      } catch (error) {
+        console.error(`❌ [NOTIFICACIONES APODERADOS] Error obteniendo suscripciones push:`, error);
+        console.error(`❌ [NOTIFICACIONES APODERADOS] Error details:`, error.message);
+      }
     } else {
       console.log('⚠️ [NOTIFICACIONES APODERADOS] No se encontraron destinatarios para notificar');
     }
