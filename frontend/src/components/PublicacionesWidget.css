@@ -381,7 +381,7 @@
   position: relative;
   width: 100%;
   max-width: 100%;
-  overflow: visible;
+  overflow: hidden;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -482,6 +482,11 @@
   background: #f9fafb;
   padding: 0.25rem 0.5rem;
   border-radius: 6px;
+  max-width: 100%;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  box-sizing: border-box;
 }
 
 .publicacion-contenido {
@@ -490,15 +495,23 @@
   line-height: 1.6;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  word-break: break-word;
   max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .publicacion-contenido p {
   margin: 0 0 0.75rem 0;
   word-wrap: break-word;
   overflow-wrap: break-word;
+  word-break: break-word;
   max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
   white-space: pre-wrap;
+  overflow: hidden;
 }
 
 .publicacion-imagenes {
@@ -766,6 +779,7 @@
     box-sizing: border-box !important;
     overflow-x: hidden !important;
     overflow-y: visible !important;
+    overflow: hidden !important;
   }
 
   .publicacion-header-nombre {
@@ -805,20 +819,38 @@
     padding: 0.25rem 0.3rem !important;
     flex-shrink: 0 !important;
     min-width: 30px !important;
-    opacity: 0.8 !important;
+    opacity: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    visibility: visible !important;
+    position: relative !important;
+    z-index: 10 !important;
   }
 
   .publicacion-contenido {
     max-width: 100% !important;
+    width: 100% !important;
     word-wrap: break-word !important;
     overflow-wrap: break-word !important;
+    word-break: break-word !important;
     font-size: 0.65rem !important;
     line-height: 1.3 !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   .publicacion-contenido p {
     font-size: 0.65rem !important;
     margin-bottom: 0.3rem !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
   }
 
   .publicacion-imagenes .imagen-sola,
@@ -847,6 +879,19 @@
   .publicacion-para {
     font-size: 0.6rem !important;
     padding: 0.2rem 0.4rem !important;
+    max-width: 100% !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    word-break: break-word !important;
+    box-sizing: border-box !important;
+    display: block !important;
+  }
+
+  .publicacion-para-container {
+    max-width: 100% !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
   }
 
   .form-actions {
@@ -909,6 +954,13 @@
     font-size: 0.7rem !important;
     padding: 0.2rem 0.25rem !important;
     min-width: 28px !important;
+    opacity: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    visibility: visible !important;
+    position: relative !important;
+    z-index: 10 !important;
   }
 
   .form-icons {
@@ -1012,6 +1064,13 @@
     font-size: 0.65rem !important;
     padding: 0.15rem 0.2rem !important;
     min-width: 26px !important;
+    opacity: 1 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    visibility: visible !important;
+    position: relative !important;
+    z-index: 10 !important;
   }
 
   .publicacion-contenido {
@@ -1033,10 +1092,29 @@
   .publicacion-contenido {
     font-size: 0.6rem !important;
     line-height: 1.3 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
   }
 
   .publicacion-contenido p {
     font-size: 0.6rem !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  .publicacion-para {
+    max-width: 100% !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    display: block !important;
   }
 
   .publicacion-autor {
