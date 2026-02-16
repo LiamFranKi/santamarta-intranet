@@ -384,6 +384,20 @@
   border: 2px dashed #e5e7eb;
 }
 
+/* Card amarillo vacío */
+.card-amarillo-vacio {
+  background: linear-gradient(145deg, #fef3c7, #fde68a);
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+  min-height: 120px;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
 @media (max-width: 768px) {
   .alumno-dashboard {
     padding: 1rem;

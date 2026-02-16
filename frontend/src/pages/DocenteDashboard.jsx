@@ -568,6 +568,11 @@ function DocenteDashboard() {
             </div>
           )}
         </div>
+
+        {/* Card amarillo vacío */}
+        <div className="dashboard-section">
+          <div className="card-amarillo-vacio"></div>
+        </div>
       </div>
 
       {/* Modal de detalle de evento */}
