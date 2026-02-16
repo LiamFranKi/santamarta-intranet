@@ -224,6 +224,166 @@ async function crearNotificacionesAulaVirtual(params) {
   }
 }
 
+/**
+ * Función auxiliar para crear notificaciones a apoderados de un alumno específico
+ * Incluye apoderados normales y docentes que también son apoderados
+ * @param {Object} params - Parámetros de la notificación
+ * @param {number} params.alumno_id - ID del alumno
+ * @param {number} params.usuario_id - ID del usuario que crea (docente)
+ * @param {number} params.colegio_id - ID del colegio
+ * @param {number} params.anio_activo - Año activo
+ * @param {string} params.tituloNotificacion - Título de la notificación
+ * @param {string} params.mensajeNotificacion - Mensaje de la notificación
+ * @param {string} params.tipoNotificacion - Tipo de notificación (para el tag y data)
+ * @param {Object} params.dataExtra - Datos extra para el payload push (opcional)
+ */
+async function crearNotificacionesApoderados(params) {
+  const { alumno_id, usuario_id, colegio_id, anio_activo, tituloNotificacion, mensajeNotificacion, tipoNotificacion, dataExtra = {} } = params;
+  
+  try {
+    console.log(`📢 [NOTIFICACIONES APODERADOS] Iniciando notificaciones para alumno ID: ${alumno_id}`);
+    
+    // Obtener usuario del alumno
+    const alumnoUsuario = await query(
+      `SELECT u.id as usuario_id, a.id as alumno_id
+       FROM alumnos a
+       INNER JOIN usuarios u ON u.alumno_id = a.id
+       WHERE a.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+      [alumno_id, colegio_id]
+    );
+    
+    if (alumnoUsuario.length === 0) {
+      console.log(`⚠️ [NOTIFICACIONES APODERADOS] No se encontró usuario activo para el alumno ID: ${alumno_id}`);
+      return;
+    }
+    
+    const alumnoUsuarioId = alumnoUsuario[0].usuario_id;
+    
+    // Obtener apoderados del alumno
+    let apoderadoUsuarioIds = [];
+    const apoderados = await query(
+      `SELECT DISTINCT u.id as usuario_id, ap.nro_documento
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN usuarios u ON u.apoderado_id = ap.id
+       WHERE f.alumno_id = ?
+         AND ap.colegio_id = ?
+         AND u.colegio_id = ?
+         AND u.estado = 'ACTIVO'`,
+      [alumno_id, colegio_id, colegio_id]
+    );
+    
+    apoderadoUsuarioIds = apoderados.map(a => a.usuario_id);
+    
+    // Obtener DNI de apoderados para buscar docentes-apoderados
+    const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
+    
+    if (apoderadoDnis.length > 0) {
+      // Obtener usuarios DOCENTE que también son apoderados (mismo nro_documento)
+      const docentesApoderados = await query(
+        `SELECT DISTINCT u.id 
+         FROM usuarios u
+         INNER JOIN personal p ON p.id = u.personal_id
+         WHERE u.colegio_id = ? 
+           AND u.estado = 'ACTIVO'
+           AND u.tipo = 'DOCENTE'
+           AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
+                OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))
+           AND u.id NOT IN (?)`, // Evitar duplicados con apoderadoUsuarioIds
+        [colegio_id, ...apoderadoDnis, ...apoderadoDnis, ...apoderadoUsuarioIds]
+      );
+      
+      const docentesApoderadosIds = docentesApoderados.map(u => u.id);
+      apoderadoUsuarioIds = [...apoderadoUsuarioIds, ...docentesApoderadosIds];
+      
+      if (docentesApoderadosIds.length > 0) {
+        console.log(`📚 [NOTIFICACIONES APODERADOS] Encontrados ${docentesApoderadosIds.length} docentes que también son apoderados`);
+      }
+    }
+    
+    // Combinar todos los destinatarios (alumno + apoderados + docentes-apoderados)
+    const todosDestinatarios = [...new Set([alumnoUsuarioId, ...apoderadoUsuarioIds])];
+    
+    console.log(`📢 [NOTIFICACIONES APODERADOS] Encontrados ${todosDestinatarios.length} destinatarios (1 alumno, ${apoderadoUsuarioIds.length} apoderados incluyendo docentes)`);
+    
+    // Crear notificaciones en la BD
+    if (todosDestinatarios.length > 0) {
+      for (const destinatarioId of todosDestinatarios) {
+        try {
+          await execute(
+            `INSERT INTO notificaciones 
+             (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
+             VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
+            [
+              usuario_id, // Usuario que crea (docente)
+              destinatarioId, // Destinatario
+              tituloNotificacion, // TÍTULO (asunto)
+              mensajeNotificacion // MENSAJE (contenido)
+            ]
+          );
+        } catch (error) {
+          console.error(`❌ [NOTIFICACIONES APODERADOS] Error creando notificación para usuario ${destinatarioId}:`, error);
+        }
+      }
+      
+      console.log(`✅ [NOTIFICACIONES APODERADOS] ${todosDestinatarios.length} notificaciones creadas en BD`);
+      
+      // Enviar push notifications
+      const subscriptionsData = await query(
+        `SELECT endpoint, p256dh, auth 
+         FROM push_subscriptions 
+         WHERE usuario_id IN (${todosDestinatarios.map(() => '?').join(',')}) 
+           AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+        [...todosDestinatarios, colegio_id]
+      );
+      
+      const subscriptions = subscriptionsData.map(sub => ({
+        endpoint: sub.endpoint,
+        keys: {
+          p256dh: sub.p256dh,
+          auth: sub.auth
+        }
+      }));
+      
+      if (subscriptions.length > 0) {
+        const payloadPush = {
+          title: tituloNotificacion,
+          body: mensajeNotificacion,
+          icon: '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          vibrate: [200, 100, 200],
+          tag: `${tipoNotificacion}-${alumno_id}-${Date.now()}`,
+          data: {
+            url: '/alumno/dashboard',
+            tipo: tipoNotificacion,
+            alumno_id: alumno_id,
+            ...dataExtra
+          }
+        };
+        
+        console.log(`📱 [NOTIFICACIONES APODERADOS] Enviando ${subscriptions.length} push notifications...`);
+        
+        enviarPushNotificationMultiple(subscriptions, payloadPush)
+          .then(resultadosPush => {
+            const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
+            const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
+            console.log(`✅ [NOTIFICACIONES APODERADOS] Push notifications: ${exitosas} exitosas, ${fallidas} fallidas`);
+          })
+          .catch(err => {
+            console.error(`❌ [NOTIFICACIONES APODERADOS] Error en envío de push notifications:`, err);
+          });
+      } else {
+        console.log('⚠️ [NOTIFICACIONES APODERADOS] No hay suscripciones push activas para enviar notificaciones');
+      }
+    } else {
+      console.log('⚠️ [NOTIFICACIONES APODERADOS] No se encontraron destinatarios para notificar');
+    }
+  } catch (error) {
+    console.error(`❌ [NOTIFICACIONES APODERADOS] Error en proceso de notificaciones:`, error);
+    console.error(`❌ [NOTIFICACIONES APODERADOS] Stack:`, error.stack);
+  }
+}
+
 // Configurar multer para subir fotos de personal
 const personalStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -1854,6 +2014,45 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/estrellas', async (req, res) => 
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
 
+    // Enviar notificaciones a apoderados de forma asíncrona
+    setImmediate(async () => {
+      try {
+        // Obtener información del alumno y curso para la notificación
+        const alumnoInfo = await query(
+          `SELECT a.id as alumno_id, CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', COALESCE(a.apellido_materno, '')) as alumno_nombre,
+                  c.nombre as curso_nombre,
+                  CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+           FROM alumnos a
+           INNER JOIN asignaturas asig ON asig.id = ?
+           INNER JOIN cursos c ON c.id = asig.curso_id
+           INNER JOIN personal p ON p.id = asig.personal_id
+           WHERE a.id = ?`,
+          [cursoId, alumnoId]
+        );
+
+        if (alumnoInfo.length > 0) {
+          const { alumno_nombre, curso_nombre, docente_nombre } = alumnoInfo[0];
+          
+          await crearNotificacionesApoderados({
+            alumno_id: alumnoId,
+            usuario_id: req.user.usuario_id,
+            colegio_id: colegio_id,
+            anio_activo: anio_activo,
+            tituloNotificacion: '⭐ Estrella Asignada',
+            mensajeNotificacion: `${alumno_nombre} recibió ${points} estrella(s) en ${curso_nombre} - Docente: ${docente_nombre}`,
+            tipoNotificacion: 'estrella',
+            dataExtra: {
+              curso_id: cursoId,
+              incident_id: result.insertId,
+              points: points
+            }
+          });
+        }
+      } catch (error) {
+        console.error(`❌ [ESTRELLAS] Error en proceso de notificaciones:`, error);
+      }
+    });
+
     res.json({
       success: true,
       message: `${points} estrella(s) asignada(s) correctamente`,
@@ -2099,6 +2298,44 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =
 
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
+
+    // Enviar notificaciones a apoderados de forma asíncrona
+    setImmediate(async () => {
+      try {
+        // Obtener información del alumno y curso para la notificación
+        const alumnoInfo = await query(
+          `SELECT a.id as alumno_id, CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', COALESCE(a.apellido_materno, '')) as alumno_nombre,
+                  c.nombre as curso_nombre,
+                  CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+           FROM alumnos a
+           INNER JOIN asignaturas asig ON asig.id = ?
+           INNER JOIN cursos c ON c.id = asig.curso_id
+           INNER JOIN personal p ON p.id = asig.personal_id
+           WHERE a.id = ?`,
+          [cursoId, alumnoId]
+        );
+
+        if (alumnoInfo.length > 0) {
+          const { alumno_nombre, curso_nombre, docente_nombre } = alumnoInfo[0];
+          
+          await crearNotificacionesApoderados({
+            alumno_id: alumnoId,
+            usuario_id: req.user.usuario_id,
+            colegio_id: colegio_id,
+            anio_activo: anio_activo,
+            tituloNotificacion: '⚠️ Incidencia Registrada',
+            mensajeNotificacion: `Se registró una incidencia para ${alumno_nombre} en ${curso_nombre} - Docente: ${docente_nombre}`,
+            tipoNotificacion: 'incidencia',
+            dataExtra: {
+              curso_id: cursoId,
+              incident_id: result.insertId
+            }
+          });
+        }
+      } catch (error) {
+        console.error(`❌ [INCIDENCIAS] Error en proceso de notificaciones:`, error);
+      }
+    });
 
     res.json({
       success: true,
@@ -10800,6 +11037,51 @@ router.put('/aula-virtual/tareas/:tareaId/entregas/:matriculaId/nota', async (re
 
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
+
+    // Enviar notificaciones a apoderados de forma asíncrona
+    if (nota && nota.trim() !== '') {
+      setImmediate(async () => {
+        try {
+          // Obtener información del alumno, tarea y curso
+          const infoNota = await query(
+            `SELECT a.id as alumno_id, 
+                    CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', COALESCE(a.apellido_materno, '')) as alumno_nombre,
+                    t.titulo as tarea_titulo,
+                    c.nombre as curso_nombre,
+                    CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+             FROM matriculas m
+             INNER JOIN alumnos a ON a.id = m.alumno_id
+             INNER JOIN asignaturas_tareas t ON t.id = ?
+             INNER JOIN asignaturas asig ON asig.id = t.asignatura_id
+             INNER JOIN cursos c ON c.id = asig.curso_id
+             INNER JOIN personal p ON p.id = asig.personal_id
+             WHERE m.id = ?`,
+            [tareaId, matriculaId]
+          );
+
+          if (infoNota.length > 0) {
+            const { alumno_id, alumno_nombre, tarea_titulo, curso_nombre, docente_nombre } = infoNota[0];
+            
+            await crearNotificacionesApoderados({
+              alumno_id: alumno_id,
+              usuario_id: usuario_id,
+              colegio_id: colegio_id,
+              anio_activo: anio_activo,
+              tituloNotificacion: '📝 Nota de Tarea Asignada',
+              mensajeNotificacion: `${alumno_nombre} recibió nota ${nota.trim()} en la tarea "${tarea_titulo}" - Curso: ${curso_nombre} - Docente: ${docente_nombre}`,
+              tipoNotificacion: 'nota_tarea',
+              dataExtra: {
+                tarea_id: parseInt(tareaId),
+                nota: nota.trim(),
+                curso_nombre: curso_nombre
+              }
+            });
+          }
+        } catch (error) {
+          console.error(`❌ [NOTA TAREA] Error en proceso de notificaciones:`, error);
+        }
+      });
+    }
 
     res.json({ message: 'Nota guardada correctamente' });
   } catch (error) {

@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
+const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
 const phpSerialize = require('php-serialize');
 
 // Configurar multer para subir archivos de mensajes
@@ -2992,6 +2993,160 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
        WHERE id = ?`,
       [puntajeFinal, correctas, incorrectas, prueba[0].id]
     );
+
+    // Enviar notificaciones a apoderados de forma asíncrona
+    // Solo si el examen permite ver la nota inmediatamente
+    setImmediate(async () => {
+      try {
+        // Obtener información del examen para verificar si se puede ver la nota
+        const examenInfo = await query(
+          `SELECT ae.*, a.grupo_id, c.nombre as curso_nombre,
+                  CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
+                  CONCAT(a2.nombres, ' ', a2.apellido_paterno, ' ', COALESCE(a2.apellido_materno, '')) as alumno_nombre
+           FROM asignaturas_examenes ae
+           INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+           INNER JOIN cursos c ON c.id = a.curso_id
+           INNER JOIN personal p ON p.id = a.personal_id
+           INNER JOIN matriculas m ON m.id = ?
+           INNER JOIN alumnos a2 ON a2.id = m.alumno_id
+           WHERE ae.id = ?`,
+          [matricula[0].matricula_id, examenId]
+        );
+
+        if (examenInfo.length > 0) {
+          const examenData = examenInfo[0];
+          const titulo = examenData.titulo;
+          const curso_nombre = examenData.curso_nombre;
+          const docente_nombre = examenData.docente_nombre;
+          const alumno_nombre = examenData.alumno_nombre;
+          const mostrar_nota = examenData.mostrar_nota; // Puede no existir en la tabla
+          
+          // Solo enviar notificación si el examen permite ver la nota
+          // Si mostrar_nota no existe o es NULL o 'SI', se puede ver la nota
+          if (mostrar_nota === undefined || mostrar_nota === null || mostrar_nota === 'SI') {
+            // Obtener apoderados del alumno (mismo patrón que en docente.routes.js)
+            const apoderados = await query(
+              `SELECT DISTINCT u.id as usuario_id, ap.nro_documento
+               FROM apoderados ap
+               INNER JOIN familias f ON f.apoderado_id = ap.id
+               INNER JOIN usuarios u ON u.apoderado_id = ap.id
+               WHERE f.alumno_id = ?
+                 AND ap.colegio_id = ?
+                 AND u.colegio_id = ?
+                 AND u.estado = 'ACTIVO'`,
+              [alumno_id, colegio_id, colegio_id]
+            );
+            
+            let apoderadoUsuarioIds = apoderados.map(a => a.usuario_id);
+            
+            // Obtener DNI de apoderados para buscar docentes-apoderados
+            const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
+            
+            if (apoderadoDnis.length > 0) {
+              // Obtener usuarios DOCENTE que también son apoderados (mismo nro_documento)
+              const docentesApoderados = await query(
+                `SELECT DISTINCT u.id 
+                 FROM usuarios u
+                 INNER JOIN personal p ON p.id = u.personal_id
+                 WHERE u.colegio_id = ? 
+                   AND u.estado = 'ACTIVO'
+                   AND u.tipo = 'DOCENTE'
+                   AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
+                        OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))
+                   AND u.id NOT IN (?)`,
+                [colegio_id, ...apoderadoDnis, ...apoderadoDnis, ...apoderadoUsuarioIds]
+              );
+              
+              const docentesApoderadosIds = docentesApoderados.map(u => u.id);
+              apoderadoUsuarioIds = [...apoderadoUsuarioIds, ...docentesApoderadosIds];
+              
+              if (docentesApoderadosIds.length > 0) {
+                console.log(`📚 [EXAMEN FINALIZADO] Encontrados ${docentesApoderadosIds.length} docentes que también son apoderados`);
+              }
+            }
+            
+            // Obtener usuario del alumno
+            const alumnoUsuario = await query(
+              `SELECT u.id as usuario_id
+               FROM alumnos a
+               INNER JOIN usuarios u ON u.alumno_id = a.id
+               WHERE a.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+              [alumno_id, colegio_id]
+            );
+            
+            const todosDestinatarios = [...new Set([...(alumnoUsuario.length > 0 ? [alumnoUsuario[0].usuario_id] : []), ...apoderadoUsuarioIds])];
+            
+            if (todosDestinatarios.length > 0) {
+              // Crear notificaciones en la BD
+              const tituloNotificacion = '✅ Examen Finalizado';
+              const mensajeNotificacion = `${alumno_nombre} finalizó el examen "${titulo}" con ${puntajeFinal} puntos (${correctas} correctas, ${incorrectas} incorrectas) - Curso: ${curso_nombre} - Docente: ${docente_nombre}`;
+              
+              for (const destinatarioId of todosDestinatarios) {
+                try {
+                  await execute(
+                    `INSERT INTO notificaciones 
+                     (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
+                     VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
+                    [usuario_id, destinatarioId, tituloNotificacion, mensajeNotificacion]
+                  );
+                } catch (error) {
+                  console.error(`❌ [EXAMEN FINALIZADO] Error creando notificación para usuario ${destinatarioId}:`, error);
+                }
+              }
+              
+              // Enviar push notifications
+              const subscriptionsData = await query(
+                `SELECT endpoint, p256dh, auth 
+                 FROM push_subscriptions 
+                 WHERE usuario_id IN (${todosDestinatarios.map(() => '?').join(',')}) 
+                   AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+                [...todosDestinatarios, colegio_id]
+              );
+              
+              const subscriptions = subscriptionsData.map(sub => ({
+                endpoint: sub.endpoint,
+                keys: { p256dh: sub.p256dh, auth: sub.auth }
+              }));
+              
+              if (subscriptions.length > 0) {
+                const payloadPush = {
+                  title: tituloNotificacion,
+                  body: mensajeNotificacion,
+                  icon: '/icons/icon-192x192.png',
+                  badge: '/icons/icon-192x192.png',
+                  vibrate: [200, 100, 200],
+                  tag: `examen-finalizado-${examenId}-${alumno_id}-${Date.now()}`,
+                  data: {
+                    url: '/alumno/dashboard',
+                    tipo: 'examen_finalizado',
+                    alumno_id: alumno_id,
+                    examen_id: parseInt(examenId),
+                    puntaje: puntajeFinal,
+                    puntos_total: puntosTotal,
+                    correctas: correctas,
+                    incorrectas: incorrectas
+                  }
+                };
+                
+                enviarPushNotificationMultiple(subscriptions, payloadPush)
+                  .then(resultadosPush => {
+                    const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
+                    const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
+                    console.log(`✅ [EXAMEN FINALIZADO] Push notifications: ${exitosas} exitosas, ${fallidas} fallidas`);
+                  })
+                  .catch(err => {
+                    console.error(`❌ [EXAMEN FINALIZADO] Error en envío de push notifications:`, err);
+                  });
+              }
+            }
+          } else {
+            console.log(`📝 [EXAMEN FINALIZADO] Examen no permite ver nota inmediatamente, no se enviará notificación`);
+          }
+        }
+      } catch (error) {
+        console.error(`❌ [EXAMEN FINALIZADO] Error en proceso de notificaciones:`, error);
+      }
+    });
 
     res.json({
       success: true,
