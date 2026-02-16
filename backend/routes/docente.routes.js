@@ -241,7 +241,15 @@ async function crearNotificacionesApoderados(params) {
   const { alumno_id, usuario_id, colegio_id, anio_activo, tituloNotificacion, mensajeNotificacion, tipoNotificacion, dataExtra = {} } = params;
   
   try {
-    console.log(`📢 [NOTIFICACIONES APODERADOS] Iniciando notificaciones para alumno ID: ${alumno_id}`);
+    // Asegurar que alumno_id sea un número
+    const alumnoIdNum = parseInt(alumno_id);
+    if (isNaN(alumnoIdNum)) {
+      console.error(`❌ [NOTIFICACIONES APODERADOS] alumno_id inválido: ${alumno_id}`);
+      return;
+    }
+    
+    console.log(`📢 [NOTIFICACIONES APODERADOS] Iniciando notificaciones para alumno ID: ${alumnoIdNum} (colegio: ${colegio_id})`);
+    console.log(`📢 [NOTIFICACIONES APODERADOS] Parámetros:`, { tituloNotificacion, tipoNotificacion });
     
     // Obtener usuario del alumno
     const alumnoUsuario = await query(
@@ -249,20 +257,21 @@ async function crearNotificacionesApoderados(params) {
        FROM alumnos a
        INNER JOIN usuarios u ON u.alumno_id = a.id
        WHERE a.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
-      [alumno_id, colegio_id]
+      [alumnoIdNum, colegio_id]
     );
     
     if (alumnoUsuario.length === 0) {
-      console.log(`⚠️ [NOTIFICACIONES APODERADOS] No se encontró usuario activo para el alumno ID: ${alumno_id}`);
+      console.log(`⚠️ [NOTIFICACIONES APODERADOS] No se encontró usuario activo para el alumno ID: ${alumnoIdNum}`);
       return;
     }
     
     const alumnoUsuarioId = alumnoUsuario[0].usuario_id;
+    console.log(`✅ [NOTIFICACIONES APODERADOS] Usuario del alumno encontrado: ${alumnoUsuarioId}`);
     
     // Obtener apoderados del alumno
     let apoderadoUsuarioIds = [];
     const apoderados = await query(
-      `SELECT DISTINCT u.id as usuario_id, ap.nro_documento
+      `SELECT DISTINCT u.id as usuario_id, ap.nro_documento, ap.nombres, ap.apellido_paterno
        FROM apoderados ap
        INNER JOIN familias f ON f.apoderado_id = ap.id
        INNER JOIN usuarios u ON u.apoderado_id = ap.id
@@ -270,34 +279,67 @@ async function crearNotificacionesApoderados(params) {
          AND ap.colegio_id = ?
          AND u.colegio_id = ?
          AND u.estado = 'ACTIVO'`,
-      [alumno_id, colegio_id, colegio_id]
+      [alumnoIdNum, colegio_id, colegio_id]
     );
+    
+    console.log(`📋 [NOTIFICACIONES APODERADOS] Apoderados encontrados: ${apoderados.length}`);
+    if (apoderados.length > 0) {
+      apoderados.forEach((ap, idx) => {
+        console.log(`   ${idx + 1}. Usuario ID: ${ap.usuario_id}, DNI: ${ap.nro_documento || 'N/A'}, Nombre: ${ap.nombres} ${ap.apellido_paterno}`);
+      });
+    } else {
+      console.log(`⚠️ [NOTIFICACIONES APODERADOS] No se encontraron apoderados para el alumno ID: ${alumnoIdNum}`);
+      console.log(`   Verificando si existe relación en familias...`);
+      // Verificar si hay familias relacionadas
+      const familiasCheck = await query(
+        `SELECT f.* FROM familias f WHERE f.alumno_id = ?`,
+        [alumnoIdNum]
+      );
+      console.log(`   Familias encontradas: ${familiasCheck.length}`);
+      if (familiasCheck.length > 0) {
+        familiasCheck.forEach((f, idx) => {
+          console.log(`   Familia ${idx + 1}: apoderado_id=${f.apoderado_id}`);
+        });
+      }
+    }
     
     apoderadoUsuarioIds = apoderados.map(a => a.usuario_id);
     
     // Obtener DNI de apoderados para buscar docentes-apoderados
     const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
+    console.log(`📋 [NOTIFICACIONES APODERADOS] DNIs de apoderados para buscar docentes: ${apoderadoDnis.length}`);
     
     if (apoderadoDnis.length > 0) {
       // Obtener usuarios DOCENTE que también son apoderados (mismo nro_documento)
-      const docentesApoderados = await query(
-        `SELECT DISTINCT u.id 
+      try {
+        // Construir la consulta SQL dinámicamente
+        let sqlQuery = `SELECT DISTINCT u.id 
          FROM usuarios u
          INNER JOIN personal p ON p.id = u.personal_id
          WHERE u.colegio_id = ? 
            AND u.estado = 'ACTIVO'
            AND u.tipo = 'DOCENTE'
            AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
-                OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))
-           AND u.id NOT IN (?)`, // Evitar duplicados con apoderadoUsuarioIds
-        [colegio_id, ...apoderadoDnis, ...apoderadoDnis, ...apoderadoUsuarioIds]
-      );
-      
-      const docentesApoderadosIds = docentesApoderados.map(u => u.id);
-      apoderadoUsuarioIds = [...apoderadoUsuarioIds, ...docentesApoderadosIds];
-      
-      if (docentesApoderadosIds.length > 0) {
-        console.log(`📚 [NOTIFICACIONES APODERADOS] Encontrados ${docentesApoderadosIds.length} docentes que también son apoderados`);
+                OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))`;
+        
+        const queryParams = [colegio_id, ...apoderadoDnis, ...apoderadoDnis];
+        
+        // Solo agregar NOT IN si hay IDs para excluir
+        if (apoderadoUsuarioIds.length > 0) {
+          sqlQuery += ` AND u.id NOT IN (${apoderadoUsuarioIds.map(() => '?').join(',')})`;
+          queryParams.push(...apoderadoUsuarioIds);
+        }
+        
+        const docentesApoderados = await query(sqlQuery, queryParams);
+        
+        const docentesApoderadosIds = docentesApoderados.map(u => u.id);
+        apoderadoUsuarioIds = [...apoderadoUsuarioIds, ...docentesApoderadosIds];
+        
+        if (docentesApoderadosIds.length > 0) {
+          console.log(`📚 [NOTIFICACIONES APODERADOS] Encontrados ${docentesApoderadosIds.length} docentes que también son apoderados`);
+        }
+      } catch (error) {
+        console.error(`❌ [NOTIFICACIONES APODERADOS] Error buscando docentes-apoderados:`, error);
       }
     }
     
@@ -305,6 +347,7 @@ async function crearNotificacionesApoderados(params) {
     const todosDestinatarios = [...new Set([alumnoUsuarioId, ...apoderadoUsuarioIds])];
     
     console.log(`📢 [NOTIFICACIONES APODERADOS] Encontrados ${todosDestinatarios.length} destinatarios (1 alumno, ${apoderadoUsuarioIds.length} apoderados incluyendo docentes)`);
+    console.log(`📋 [NOTIFICACIONES APODERADOS] IDs de destinatarios:`, todosDestinatarios);
     
     // Crear notificaciones en la BD
     if (todosDestinatarios.length > 0) {
@@ -2031,10 +2074,12 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/estrellas', async (req, res) => 
         );
 
         if (alumnoInfo.length > 0) {
-          const { alumno_nombre, curso_nombre, docente_nombre } = alumnoInfo[0];
+          const { alumno_id, alumno_nombre, curso_nombre, docente_nombre } = alumnoInfo[0];
+          
+          console.log(`⭐ [ESTRELLAS] Preparando notificación para alumno ID: ${alumno_id}`);
           
           await crearNotificacionesApoderados({
-            alumno_id: alumnoId,
+            alumno_id: parseInt(alumno_id), // Asegurar que sea número
             usuario_id: req.user.usuario_id,
             colegio_id: colegio_id,
             anio_activo: anio_activo,
@@ -2042,11 +2087,13 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/estrellas', async (req, res) => 
             mensajeNotificacion: `${alumno_nombre} recibió ${points} estrella(s) en ${curso_nombre} - Docente: ${docente_nombre}`,
             tipoNotificacion: 'estrella',
             dataExtra: {
-              curso_id: cursoId,
+              curso_id: parseInt(cursoId),
               incident_id: result.insertId,
               points: points
             }
           });
+        } else {
+          console.log(`⚠️ [ESTRELLAS] No se encontró información del alumno para crear notificación`);
         }
       } catch (error) {
         console.error(`❌ [ESTRELLAS] Error en proceso de notificaciones:`, error);
@@ -2316,10 +2363,12 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =
         );
 
         if (alumnoInfo.length > 0) {
-          const { alumno_nombre, curso_nombre, docente_nombre } = alumnoInfo[0];
+          const { alumno_id, alumno_nombre, curso_nombre, docente_nombre } = alumnoInfo[0];
+          
+          console.log(`⚠️ [INCIDENCIAS] Preparando notificación para alumno ID: ${alumno_id}`);
           
           await crearNotificacionesApoderados({
-            alumno_id: alumnoId,
+            alumno_id: parseInt(alumno_id), // Asegurar que sea número
             usuario_id: req.user.usuario_id,
             colegio_id: colegio_id,
             anio_activo: anio_activo,
@@ -2327,10 +2376,12 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =
             mensajeNotificacion: `Se registró una incidencia para ${alumno_nombre} en ${curso_nombre} - Docente: ${docente_nombre}`,
             tipoNotificacion: 'incidencia',
             dataExtra: {
-              curso_id: cursoId,
+              curso_id: parseInt(cursoId),
               incident_id: result.insertId
             }
           });
+        } else {
+          console.log(`⚠️ [INCIDENCIAS] No se encontró información del alumno para crear notificación`);
         }
       } catch (error) {
         console.error(`❌ [INCIDENCIAS] Error en proceso de notificaciones:`, error);
