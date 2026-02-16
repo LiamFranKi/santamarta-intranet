@@ -22,6 +22,7 @@ function DocenteDashboard() {
     tiene_grupos: true,
     tiene_cursos: true
   });
+  const [refreshPublicaciones, setRefreshPublicaciones] = useState(0);
 
   const cargarDashboard = async () => {
     try {
@@ -577,10 +578,10 @@ function DocenteDashboard() {
             <h3 className="card-amarillo-title">Publicaciones</h3>
             <div className="card-amarillo-separator"></div>
             <div className="card-amarillo-form-container">
-              <PublicacionFormCard />
+              <PublicacionFormCard onPublicacionCreada={() => setRefreshPublicaciones(prev => prev + 1)} />
             </div>
             <div className="card-amarillo-feed-container">
-              <PublicacionesCardFeed />
+              <PublicacionesCardFeed refreshTrigger={refreshPublicaciones} />
             </div>
           </div>
         </div>

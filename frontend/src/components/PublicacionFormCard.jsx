@@ -223,15 +223,11 @@ function PublicacionFormCard({ onPublicacionCreada }) {
       detenerCamara();
       
       if (onPublicacionCreada) {
-        onPublicacionCreada();
+        // Recargar publicaciones después de un delay
+        setTimeout(() => {
+          onPublicacionCreada();
+        }, 1000);
       }
-      
-      // Recargar publicaciones después de un delay
-      setTimeout(() => {
-        if (window.recargarPublicacionesCard) {
-          window.recargarPublicacionesCard();
-        }
-      }, 1000);
     } catch (error) {
       console.error('Error publicando:', error);
       Swal.fire({

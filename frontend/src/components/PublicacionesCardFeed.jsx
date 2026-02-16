@@ -28,7 +28,7 @@ function normalizeImageUrl(url) {
   return normalized;
 }
 
-function PublicacionesCardFeed({ onPublicacionEliminada }) {
+function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
   const { user } = useAuth();
   const esAlumno = user?.tipo === 'ALUMNO';
   const [publicaciones, setPublicaciones] = useState([]);
@@ -38,6 +38,12 @@ function PublicacionesCardFeed({ onPublicacionEliminada }) {
   useEffect(() => {
     cargarPublicaciones();
   }, []);
+
+  useEffect(() => {
+    if (refreshTrigger) {
+      cargarPublicaciones();
+    }
+  }, [refreshTrigger]);
 
   const cargarPublicaciones = async () => {
     try {
@@ -96,14 +102,6 @@ function PublicacionesCardFeed({ onPublicacionEliminada }) {
     }
   };
 
-  // Exponer función para recargar desde el componente padre
-  useEffect(() => {
-    if (window.recargarPublicacionesCard) {
-      window.recargarPublicacionesCard = cargarPublicaciones;
-    } else {
-      window.recargarPublicacionesCard = cargarPublicaciones;
-    }
-  }, []);
 
   return (
     <>
