@@ -560,21 +560,6 @@
     overflow-x: hidden !important;
   }
 
-  /* En tablet (768px-1024px) mostrar card en sidebar */
-  @media (min-width: 769px) {
-    .card-amarillo-sidebar {
-      display: block;
-    }
-  }
-
-  /* En móvil (≤768px) ocultar card del sidebar */
-  @media (max-width: 768px) {
-    .card-amarillo-sidebar {
-      display: none;
-    }
-  }
-}
-
   .calendario-widget,
   .publicaciones-widget {
     width: 100% !important;
@@ -582,6 +567,20 @@
     margin: 0 !important;
     padding: 0.75rem !important;
     box-sizing: border-box !important;
+  }
+}
+
+/* En tablet (768px-1024px) mostrar card en sidebar */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .card-amarillo-sidebar {
+    display: block;
+  }
+}
+
+/* En móvil (≤768px) ocultar card del sidebar */
+@media (max-width: 768px) {
+  .card-amarillo-sidebar {
+    display: none;
   }
 }
 
