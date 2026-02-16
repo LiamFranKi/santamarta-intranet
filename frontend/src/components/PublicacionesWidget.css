@@ -698,67 +698,71 @@
     max-width: 100% !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
-    margin-bottom: 1rem !important;
-    padding: 0.75rem !important;
-    min-height: 400px !important;
+    margin-bottom: 0.75rem !important;
+    padding: 0.5rem !important;
+    min-height: auto !important;
     box-sizing: border-box !important;
-    overflow-x: hidden;
+    overflow-x: hidden !important;
   }
 
   .widget-title {
-    font-size: 0.75rem !important;
-    margin-bottom: 0.4rem !important;
-    padding-bottom: 0.3rem !important;
+    font-size: 0.7rem !important;
+    margin-bottom: 0.3rem !important;
+    padding-bottom: 0.25rem !important;
   }
 
   .publicacion-form {
-    gap: 0.5rem !important;
+    gap: 0.4rem !important;
   }
 
   .publicacion-form textarea {
-    padding: 0.5rem !important;
-    font-size: 0.75rem !important;
-    border-radius: 8px !important;
+    padding: 0.4rem !important;
+    font-size: 0.7rem !important;
+    border-radius: 6px !important;
     width: 100% !important;
     max-width: 100% !important;
     box-sizing: border-box !important;
     resize: vertical;
+    min-height: 60px !important;
   }
 
   .btn-nueva-publicacion {
-    font-size: 0.75rem !important;
-    padding: 0.4rem 0.6rem !important;
+    font-size: 0.65rem !important;
+    padding: 0.35rem 0.5rem !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .btn-nueva-publicacion .btn-icon {
-    font-size: 1rem !important;
+    font-size: 0.9rem !important;
   }
 
   .form-icons {
-    gap: 0.4rem !important;
-    padding: 0.4rem 0 !important;
+    gap: 0.3rem !important;
+    padding: 0.3rem 0 !important;
   }
 
   .icon-btn {
-    padding: 0.4rem 0.6rem !important;
-    min-width: 60px !important;
+    padding: 0.3rem 0.4rem !important;
+    min-width: 50px !important;
+    flex: 1 !important;
   }
 
   .icon-text {
-    font-size: 1.2rem !important;
+    font-size: 1rem !important;
   }
 
   .icon-label {
-    font-size: 0.65rem !important;
+    font-size: 0.6rem !important;
   }
 
   .publicacion-item {
     width: 100% !important;
     max-width: 100% !important;
-    padding: 0.75rem !important;
+    padding: 0.5rem !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
-    margin-bottom: 0.5rem !important;
+    margin-bottom: 0.4rem !important;
     box-sizing: border-box !important;
     overflow-x: hidden !important;
     overflow-y: visible !important;
@@ -769,8 +773,8 @@
     max-width: 100% !important;
     box-sizing: border-box !important;
     padding: 0 !important;
-    margin-bottom: 0.5rem !important;
-    gap: 0.5rem !important;
+    margin-bottom: 0.35rem !important;
+    gap: 0.35rem !important;
     overflow: visible !important;
   }
 
@@ -778,35 +782,43 @@
     flex: 1 !important;
     min-width: 0 !important;
     overflow: hidden !important;
+    gap: 0.4rem !important;
   }
 
   .publicacion-autor {
-    font-size: 0.75rem !important;
+    font-size: 0.7rem !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
     max-width: 100% !important;
   }
 
-  .btn-eliminar-publicacion {
-    font-size: 0.85rem !important;
-    padding: 0.3rem 0.4rem !important;
+  .publicacion-autor-foto,
+  .publicacion-autor-placeholder {
+    width: 24px !important;
+    height: 24px !important;
     flex-shrink: 0 !important;
-    min-width: 36px !important;
+  }
+
+  .btn-eliminar-publicacion {
+    font-size: 0.75rem !important;
+    padding: 0.25rem 0.3rem !important;
+    flex-shrink: 0 !important;
+    min-width: 30px !important;
     opacity: 0.8 !important;
   }
 
   .publicacion-contenido {
     max-width: 100% !important;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    font-size: 0.7rem !important;
-    line-height: 1.4 !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+    font-size: 0.65rem !important;
+    line-height: 1.3 !important;
   }
 
   .publicacion-contenido p {
-    font-size: 0.7rem !important;
-    margin-bottom: 0.4rem !important;
+    font-size: 0.65rem !important;
+    margin-bottom: 0.3rem !important;
   }
 
   .publicacion-imagenes .imagen-sola,
@@ -814,87 +826,89 @@
     max-width: 100% !important;
     width: 100% !important;
     box-sizing: border-box !important;
-    max-height: 180px !important;
-  }
-
-  .publicacion-autor {
-    font-size: 0.65rem !important;
+    max-height: 150px !important;
   }
 
   .publicacion-fecha {
-    font-size: 0.6rem !important;
-  }
-
-  .publicacion-autor-foto,
-  .publicacion-autor-placeholder {
-    width: 26px !important;
-    height: 26px !important;
+    font-size: 0.55rem !important;
+    padding: 0.2rem 0.4rem !important;
   }
 
   .publicacion-fecha-container {
-    margin-bottom: 0.4rem !important;
-    padding-bottom: 0.4rem !important;
+    margin-bottom: 0.3rem !important;
+    padding-bottom: 0.3rem !important;
   }
 
   .publicacion-para-container {
-    margin-top: 0.4rem !important;
-    padding-top: 0.4rem !important;
+    margin-top: 0.3rem !important;
+    padding-top: 0.3rem !important;
+  }
+
+  .publicacion-para {
+    font-size: 0.6rem !important;
+    padding: 0.2rem 0.4rem !important;
   }
 
   .form-actions {
-    gap: 0.4rem !important;
-    margin-top: 0.5rem !important;
+    gap: 0.3rem !important;
+    margin-top: 0.4rem !important;
   }
 
   .form-actions button {
-    padding: 0.4rem 0.6rem !important;
-    font-size: 0.7rem !important;
+    padding: 0.35rem 0.5rem !important;
+    font-size: 0.65rem !important;
     min-width: auto !important;
   }
 }
 
 @media (max-width: 640px) {
   .publicaciones-widget {
-    padding: 0.6rem !important;
-    margin-bottom: 0.75rem !important;
-    min-height: 400px !important;
+    padding: 0.4rem !important;
+    margin-bottom: 0.5rem !important;
+    min-height: auto !important;
   }
 
   .widget-title {
-    font-size: 0.7rem !important;
-    margin-bottom: 0.35rem !important;
-    padding-bottom: 0.25rem !important;
+    font-size: 0.65rem !important;
+    margin-bottom: 0.25rem !important;
+    padding-bottom: 0.2rem !important;
   }
 
   .publicacion-form textarea {
-    padding: 0.4rem !important;
-    font-size: 0.7rem !important;
-    rows: 3 !important;
+    padding: 0.35rem !important;
+    font-size: 0.65rem !important;
+    min-height: 50px !important;
   }
 
   .btn-nueva-publicacion {
-    font-size: 0.7rem !important;
-    padding: 0.35rem 0.5rem !important;
+    font-size: 0.6rem !important;
+    padding: 0.3rem 0.4rem !important;
   }
 
   .publicacion-item {
-    padding: 0.6rem !important;
-    margin-bottom: 0.4rem !important;
+    padding: 0.4rem !important;
+    margin-bottom: 0.35rem !important;
   }
 
   .publicacion-header-nombre {
-    gap: 0.4rem !important;
-    margin-bottom: 0.4rem !important;
+    gap: 0.3rem !important;
+    margin-bottom: 0.3rem !important;
   }
 
   .publicacion-autor {
-    font-size: 0.7rem !important;
+    font-size: 0.65rem !important;
+  }
+
+  .publicacion-autor-foto,
+  .publicacion-autor-placeholder {
+    width: 22px !important;
+    height: 22px !important;
   }
 
   .btn-eliminar-publicacion {
-    font-size: 0.8rem !important;
-    padding: 0.25rem 0.35rem !important;
-    min-width: 32px !important;
+    font-size: 0.7rem !important;
+    padding: 0.2rem 0.25rem !important;
+    min-width: 28px !important;
   }
 
   .form-icons {
@@ -948,50 +962,72 @@
 
 @media (max-width: 480px) {
   .publicaciones-widget {
-    padding: 0.5rem !important;
-    margin-bottom: 0.5rem !important;
-    min-height: 400px !important;
+    padding: 0.35rem !important;
+    margin-bottom: 0.4rem !important;
+    min-height: auto !important;
   }
 
   .widget-title {
-    font-size: 0.65rem !important;
-    margin-bottom: 0.3rem !important;
-    padding-bottom: 0.2rem !important;
+    font-size: 0.6rem !important;
+    margin-bottom: 0.2rem !important;
+    padding-bottom: 0.15rem !important;
   }
 
   .publicacion-form textarea {
-    padding: 0.35rem !important;
-    font-size: 0.65rem !important;
-    rows: 3 !important;
+    padding: 0.3rem !important;
+    font-size: 0.6rem !important;
+    min-height: 45px !important;
   }
 
   .btn-nueva-publicacion {
-    font-size: 0.65rem !important;
-    padding: 0.3rem 0.4rem !important;
+    font-size: 0.55rem !important;
+    padding: 0.25rem 0.35rem !important;
   }
 
   .btn-nueva-publicacion .btn-icon {
-    font-size: 0.9rem !important;
+    font-size: 0.8rem !important;
   }
 
   .publicacion-item {
-    padding: 0.5rem !important;
-    margin-bottom: 0.35rem !important;
+    padding: 0.35rem !important;
+    margin-bottom: 0.3rem !important;
   }
 
   .publicacion-header-nombre {
-    gap: 0.3rem !important;
-    margin-bottom: 0.35rem !important;
+    gap: 0.25rem !important;
+    margin-bottom: 0.25rem !important;
   }
 
   .publicacion-autor {
-    font-size: 0.65rem !important;
+    font-size: 0.6rem !important;
+  }
+
+  .publicacion-autor-foto,
+  .publicacion-autor-placeholder {
+    width: 20px !important;
+    height: 20px !important;
   }
 
   .btn-eliminar-publicacion {
-    font-size: 0.75rem !important;
-    padding: 0.2rem 0.3rem !important;
-    min-width: 28px !important;
+    font-size: 0.65rem !important;
+    padding: 0.15rem 0.2rem !important;
+    min-width: 26px !important;
+  }
+
+  .publicacion-contenido {
+    font-size: 0.6rem !important;
+  }
+
+  .publicacion-contenido p {
+    font-size: 0.6rem !important;
+  }
+
+  .publicacion-fecha {
+    font-size: 0.5rem !important;
+  }
+
+  .publicacion-para {
+    font-size: 0.55rem !important;
   }
 
   .publicacion-contenido {
