@@ -5677,7 +5677,7 @@ router.get('/pagos/:pagoId/boleta', async (req, res) => {
       `SELECT 
         p.*,
         m.id as matricula_id,
-        m.anio as matricula_anio,
+        g.anio as matricula_anio,
         a.nombres as alumno_nombres,
         a.apellido_paterno as alumno_apellido_paterno,
         a.apellido_materno as alumno_apellido_materno,
@@ -5688,6 +5688,7 @@ router.get('/pagos/:pagoId/boleta', async (req, res) => {
         i.fecha_impresion as boleta_fecha_impresion
       FROM pagos p
       INNER JOIN matriculas m ON m.id = p.matricula_id
+      INNER JOIN grupos g ON g.id = m.grupo_id
       INNER JOIN alumnos a ON a.id = m.alumno_id
       LEFT JOIN impresiones i ON i.pago_id = p.id AND i.tipo = 'PAGO' AND i.tipo_documento = 'BOLETA' AND i.estado = 'ACTIVO'
       WHERE p.id = ? AND p.colegio_id = ?
