@@ -4395,6 +4395,14 @@ router.get('/roles-adicionales', async (req, res) => {
 
     const esTutor = gruposTutor.length > 0;
 
+    console.log(`📋 [ROLES-ADICIONALES] Preparando respuesta JSON:`);
+    console.log(`📋 [ROLES-ADICIONALES] - es_apoderado: ${tieneHijos}`);
+    console.log(`📋 [ROLES-ADICIONALES] - es_tutor: ${esTutor}`);
+    console.log(`📋 [ROLES-ADICIONALES] - hijos: ${hijos?.length || 0} hijos`);
+    if (hijos && hijos.length > 0) {
+      console.log(`📋 [ROLES-ADICIONALES] - Primer hijo en respuesta:`, JSON.stringify(hijos[0], null, 2));
+    }
+
     res.json({
       es_apoderado: tieneHijos,
       es_tutor: esTutor,
