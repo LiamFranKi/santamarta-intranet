@@ -57,3 +57,8 @@ frontend/public/icons/*.backup
 backend/public/assets/icons.backup/
 backend/.env.save
 
+# Archivos PNG que pueden ser subidos directamente (evitar conflictos en git pull)
+# Nota: Estos archivos pueden existir en el VPS pero no en GitHub
+frontend/public/icons/logoboleta.png
+frontend/public/icons/logo-original.png
+
