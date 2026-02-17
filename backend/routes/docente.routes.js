@@ -4251,10 +4251,15 @@ router.get('/tutoria/grupos/:grupoId/cursos', async (req, res) => {
           : `${process.env.URL_SISTEMA_ANTERIOR || 'https://sistema.vanguardschools.edu.pe'}/assets/cursos/${curso.curso_imagen}`;
       }
 
-      if (curso.docente_foto) {
-        docenteFotoUrl = curso.docente_foto.startsWith('http')
-          ? curso.docente_foto
-          : `${process.env.URL_SISTEMA_ANTERIOR || 'https://sistema.vanguardschools.edu.pe'}/assets/personal/${curso.docente_foto}`;
+      // Construir URL de foto del docente (igual que en /hijos/:hijoId/cursos)
+      if (curso.docente_foto && curso.docente_foto !== '') {
+        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+        const isProduction = process.env.NODE_ENV === 'production';
+        if (isProduction) {
+          docenteFotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${curso.docente_foto}`;
+        } else {
+          docenteFotoUrl = `http://localhost:5000/Static/Image/Fotos/${curso.docente_foto}`;
+        }
       }
 
       return {
