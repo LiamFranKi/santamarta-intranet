@@ -773,8 +773,16 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
     <DashboardLayout>
       <div className="docente-aula-virtual">
         <div className="page-header">
-          <button className="btn-back" onClick={() => navigate(modoSoloLectura ? '/docente/hijos' : '/alumno/cursos')}>
-            ← Volver {modoSoloLectura ? 'a Hijos' : 'a Cursos'}
+          <button className="btn-back" onClick={() => {
+            if (modoSoloLectura && hijoId) {
+              navigate('/docente/hijos');
+            } else if (modoSoloLectura && grupoId) {
+              navigate('/docente/tutoria');
+            } else {
+              navigate('/alumno/cursos');
+            }
+          }}>
+            ← Volver {modoSoloLectura ? (hijoId ? 'a Hijos' : 'a Tutoria') : 'a Cursos'}
           </button>
           <h1>🎓 Aula Virtual {modoSoloLectura && <span style={{ fontSize: '0.7em', color: '#6b7280', fontWeight: 'normal' }}>(Solo Lectura)</span>}</h1>
           <p>{curso?.curso_nombre || 'Curso'} - {curso?.docente_nombre || 'Docente'}</p>
