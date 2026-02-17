@@ -532,6 +532,8 @@ async function verificarDeudas(usuario, anioActivo) {
 
     // Verificar deudas para DOCENTE que también es APODERADO
     if (usuario.tipo === 'DOCENTE') {
+      console.log(`[VERIFICAR DEUDAS] Verificando deudas para DOCENTE ID: ${usuario.id}`);
+      
       // Obtener DNI del docente desde la tabla personal
       const docenteData = await query(
         `SELECT p.nro_documento, p.id as personal_id
@@ -542,12 +544,18 @@ async function verificarDeudas(usuario, anioActivo) {
         [usuario.id, usuario.colegio_id]
       );
 
+      console.log(`[VERIFICAR DEUDAS] Docente data encontrada: ${docenteData.length > 0 ? 'SÍ' : 'NO'}`);
+
       if (docenteData.length === 0) {
+        console.log(`[VERIFICAR DEUDAS] No se encontró el docente en tabla personal`);
         return false; // No se encontró el docente
       }
 
       const docenteDni = docenteData[0].nro_documento;
+      console.log(`[VERIFICAR DEUDAS] DNI del docente: ${docenteDni || 'NO TIENE'}`);
+      
       if (!docenteDni) {
+        console.log(`[VERIFICAR DEUDAS] Docente no tiene DNI registrado`);
         return false; // No tiene DNI registrado
       }
 
@@ -560,11 +568,15 @@ async function verificarDeudas(usuario, anioActivo) {
         [docenteDni, usuario.colegio_id]
       );
 
+      console.log(`[VERIFICAR DEUDAS] Apoderado encontrado con mismo DNI: ${apoderadoData.length > 0 ? 'SÍ' : 'NO'}`);
+
       if (apoderadoData.length === 0) {
+        console.log(`[VERIFICAR DEUDAS] El docente no es apoderado (no hay registro en tabla apoderados con ese DNI)`);
         return false; // El docente no es apoderado
       }
 
       const apoderadoId = apoderadoData[0].apoderado_id;
+      console.log(`[VERIFICAR DEUDAS] Apoderado ID encontrado: ${apoderadoId}`);
 
       // Obtener matrículas activas de los hijos del docente-apoderado
       const matriculasHijos = await query(
@@ -577,11 +589,15 @@ async function verificarDeudas(usuario, anioActivo) {
         [apoderadoId, usuario.colegio_id, anioActivo]
       );
 
+      console.log(`[VERIFICAR DEUDAS] Matrículas de hijos encontradas: ${matriculasHijos.length}`);
+
       if (matriculasHijos.length === 0) {
+        console.log(`[VERIFICAR DEUDAS] No hay hijos con matrícula activa para el docente-apoderado`);
         return false; // No hay hijos con matrícula activa
       }
 
       const inicioPensiones = colegio.inicio_pensiones || 2;
+      console.log(`[VERIFICAR DEUDAS] Inicio pensiones: ${inicioPensiones}, nroPago: ${nroPago}`);
 
       // Verificar deudas de cada hijo
       for (const matricula of matriculasHijos) {
