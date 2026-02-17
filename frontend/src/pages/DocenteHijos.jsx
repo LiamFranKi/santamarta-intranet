@@ -3931,6 +3931,19 @@ function DocenteHijos() {
                                   <span className="dropdown-icon">🧠</span>
                                   <span>Psicología</span>
                                 </button>
+                                <div className="dropdown-divider"></div>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('diagnostico-deudas', hijo);
+                                  }}
+                                  style={{ backgroundColor: '#fff3cd', color: '#856404', fontWeight: 'bold' }}
+                                >
+                                  <span className="dropdown-icon">🔍</span>
+                                  <span>Diagnosticar Deudas</span>
+                                </button>
                                 <button
                                   className="dropdown-item"
                                   type="button"
