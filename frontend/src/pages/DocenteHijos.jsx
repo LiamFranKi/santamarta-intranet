@@ -146,14 +146,18 @@ function DocenteHijos() {
 
   const handleOpcionesClick = (e, hijoId) => {
     e.stopPropagation();
+    console.log('[FRONTEND] handleOpcionesClick llamado para hijoId:', hijoId);
+    console.log('[FRONTEND] openDropdown actual:', openDropdown);
     const rect = e.currentTarget.getBoundingClientRect();
     
-    if (openDropdown === hijoId) {
+    if (openDropdown?.hijoId === hijoId) {
+      console.log('[FRONTEND] Cerrando dropdown');
       setOpenDropdown(null);
     } else {
+      console.log('[FRONTEND] Abriendo dropdown para hijoId:', hijoId);
       // Calcular posición del dropdown
       const dropdownWidth = 200;
-      const dropdownHeight = 390; // Aproximado para 10 opciones
+      const dropdownHeight = 450; // Aumentado para incluir el nuevo botón
       let left = rect.left;
       let top = rect.bottom + 2;
       
@@ -171,11 +175,13 @@ function DocenteHijos() {
         top = rect.top - dropdownHeight - 2;
       }
       
-      setOpenDropdown({
+      const newDropdown = {
         hijoId,
         top,
         left
-      });
+      };
+      console.log('[FRONTEND] Nuevo openDropdown:', newDropdown);
+      setOpenDropdown(newDropdown);
     }
   };
 
