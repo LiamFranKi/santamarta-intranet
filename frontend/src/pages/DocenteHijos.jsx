@@ -183,7 +183,21 @@ function DocenteHijos() {
   const diagnosticarDeudas = async (hijo) => {
     try {
       console.log('[FRONTEND] Iniciando diagnóstico de deudas para:', hijo);
-      const response = await api.get(`/auth/diagnostico-deudas/${hijo.dni}`);
+      console.log('[FRONTEND] DNI del hijo:', hijo.dni || hijo.nro_documento || 'NO DISPONIBLE');
+      
+      // Usar dni o nro_documento como fallback
+      const dniHijo = hijo.dni || hijo.nro_documento;
+      if (!dniHijo) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'No se pudo obtener el DNI del alumno. Por favor, contacte al administrador.',
+          confirmButtonText: 'Entendido'
+        });
+        return;
+      }
+      
+      const response = await api.get(`/auth/diagnostico-deudas/${dniHijo}`);
       console.log('[FRONTEND] Resultado del diagnóstico:', response.data);
       
       // Mostrar resultado en un modal

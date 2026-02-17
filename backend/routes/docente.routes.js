@@ -4348,6 +4348,7 @@ router.get('/roles-adicionales', async (req, res) => {
                     a.nombres,
                     a.apellido_paterno,
                     a.apellido_materno,
+                    a.nro_documento as dni,
                     a.foto,
                     g.grado,
                     g.seccion,
