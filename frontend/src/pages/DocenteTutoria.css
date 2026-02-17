@@ -1159,6 +1159,36 @@
   border-top: none;
 }
 
+/* Estilos para el editor de mensajes al docente en Cursos Asignados */
+#mensaje-editor-wrapper-docente-tutoria .quill {
+  background: white;
+  border-radius: 10px;
+}
+
+#mensaje-editor-wrapper-docente-tutoria .quill .ql-container {
+  min-height: 250px;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+  font-size: 0.95rem;
+}
+
+#mensaje-editor-wrapper-docente-tutoria .quill .ql-editor {
+  min-height: 250px;
+  padding: 1rem;
+}
+
+#mensaje-editor-wrapper-docente-tutoria .quill .ql-toolbar {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  border: 2px solid #e5e7eb;
+  border-bottom: none;
+}
+
+#mensaje-editor-wrapper-docente-tutoria .quill .ql-container {
+  border: 2px solid #e5e7eb;
+  border-top: none;
+}
+
 /* Archivos adjuntos */
 .modal-mensaje-body .archivos-container {
   display: flex;
