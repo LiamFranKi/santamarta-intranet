@@ -337,7 +337,9 @@ async function verificarDeudas(usuario, anioActivo) {
         // Usar php-serialize igual que en admin.routes.js
         const deserialized = phpSerialize.unserialize(Buffer.from(colegio.pensiones_vencimiento, 'base64'));
         vencimientosPensiones = deserialized || {};
-        console.log(`[VERIFICAR DEUDAS] pensiones_vencimiento deserializado:`, vencimientosPensiones);
+        console.log(`[VERIFICAR DEUDAS] pensiones_vencimiento deserializado:`, JSON.stringify(vencimientosPensiones, null, 2));
+        console.log(`[VERIFICAR DEUDAS] Claves en vencimientosPensiones:`, Object.keys(vencimientosPensiones));
+        console.log(`[VERIFICAR DEUDAS] Total pensiones configuradas:`, Object.keys(vencimientosPensiones).length);
       } catch (e) {
         console.warn('[VERIFICAR DEUDAS] No se pudo deserializar pensiones_vencimiento:', e.message);
         console.warn('[VERIFICAR DEUDAS] Stack:', e.stack);
@@ -537,14 +539,19 @@ async function verificarDeudas(usuario, anioActivo) {
 
       // Verificar todas las pensiones que tengan configuración de vencimiento
       // O si nroPago > 0, verificar desde 1 hasta nroPago
+      console.log(`[VERIFICAR DEUDAS] nroPago: ${nroPago}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
       const pensionesAVerificar = nroPago > 0 
         ? Array.from({ length: nroPago }, (_, i) => i + 1)
         : Object.keys(vencimientosPensiones)
             .map(k => parseInt(k))
             .filter(k => k > 0 && !isNaN(k)); // Solo pensiones (excluir -1 que es matrícula)
 
+      console.log(`[VERIFICAR DEUDAS] pensionesAVerificar calculado (APODERADO):`, pensionesAVerificar);
+      console.log(`[VERIFICAR DEUDAS] Total pensiones a verificar (APODERADO): ${pensionesAVerificar.length}`);
+
       if (pensionesAVerificar.length === 0) {
-        console.log(`[VERIFICAR DEUDAS] No hay pensiones para verificar (APODERADO)`);
+        console.log(`[VERIFICAR DEUDAS] ⚠️ No hay pensiones para verificar (APODERADO)`);
+        console.log(`[VERIFICAR DEUDAS] ⚠️ nroPago: ${nroPago}, vencimientosPensiones vacío: ${Object.keys(vencimientosPensiones).length === 0}`);
         return false;
       }
 
