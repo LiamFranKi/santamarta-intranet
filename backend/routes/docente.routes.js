@@ -4451,6 +4451,283 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/examenes
+ * Obtener lista de exámenes (para tutores - modo solo lectura)
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!personalId) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    // Verificar que el docente es tutor de este grupo
+    const grupoTutor = await query(
+      `SELECT g.*
+       FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+
+    if (grupoTutor.length === 0) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    // Verificar que la asignatura pertenece a este grupo
+    const asignatura = await query(
+      `SELECT a.*
+       FROM asignaturas a
+       WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ?`,
+      [asignatura_id, grupoId, colegio_id]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'La asignatura no pertenece a este grupo' });
+    }
+
+    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
+
+    // Obtener exámenes (solo lectura)
+    const examenes = await query(
+      `SELECT e.*, 
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+       FROM examenes e
+       INNER JOIN personal p ON p.id = e.personal_id
+       WHERE e.asignatura_id = ? AND e.ciclo = ? AND e.colegio_id = ?
+       ORDER BY e.fecha_inicio DESC`,
+      [asignatura_id, cicloFiltro, colegio_id]
+    );
+
+    res.json({ examenes: examenes || [] });
+  } catch (error) {
+    console.error('Error obteniendo exámenes (tutor):', error);
+    res.status(500).json({ error: 'Error al obtener los exámenes' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/archivos
+ * Obtener archivos del aula virtual (para tutores - modo solo lectura)
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/archivos', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!personalId) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    // Verificar que el docente es tutor de este grupo
+    const grupoTutor = await query(
+      `SELECT g.*
+       FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+
+    if (grupoTutor.length === 0) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    // Verificar que la asignatura pertenece a este grupo
+    const asignatura = await query(
+      `SELECT a.*
+       FROM asignaturas a
+       WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ?`,
+      [asignatura_id, grupoId, colegio_id]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'La asignatura no pertenece a este grupo' });
+    }
+
+    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
+
+    // Obtener archivos (solo lectura)
+    const archivos = await query(
+      `SELECT a.*, 
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+       FROM asignaturas_archivos a
+       INNER JOIN personal p ON p.id = a.personal_id
+       WHERE a.asignatura_id = ? AND a.ciclo = ? AND a.colegio_id = ?
+       ORDER BY a.id DESC`,
+      [asignatura_id, cicloFiltro, colegio_id]
+    );
+
+    // Construir URLs de archivos
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const archivosConUrls = archivos.map(archivo => {
+      let archivoUrl = null;
+      if (archivo.archivo && archivo.archivo !== '') {
+        if (archivo.archivo.startsWith('http')) {
+          archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl);
+        } else if (archivo.archivo.startsWith('/Static/')) {
+          const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
+          archivoUrl = isDevelopment
+            ? `http://localhost:5000/Static/Archivos/${nombreArchivo}`
+            : `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
+        } else {
+          archivoUrl = isDevelopment
+            ? `http://localhost:5000/Static/Archivos/${archivo.archivo}`
+            : `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
+        }
+      }
+      return {
+        ...archivo,
+        archivo_url: archivoUrl
+      };
+    });
+
+    res.json({ archivos: archivosConUrls || [] });
+  } catch (error) {
+    console.error('Error obteniendo archivos (tutor):', error);
+    res.status(500).json({ error: 'Error al obtener los archivos' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/videos
+ * Obtener videos del aula virtual (para tutores - modo solo lectura)
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/videos', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!personalId) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    // Verificar que el docente es tutor de este grupo
+    const grupoTutor = await query(
+      `SELECT g.*
+       FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+
+    if (grupoTutor.length === 0) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    // Verificar que la asignatura pertenece a este grupo
+    const asignatura = await query(
+      `SELECT a.*
+       FROM asignaturas a
+       WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ?`,
+      [asignatura_id, grupoId, colegio_id]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'La asignatura no pertenece a este grupo' });
+    }
+
+    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
+
+    // Obtener videos (solo lectura)
+    const videos = await query(
+      `SELECT v.*, 
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+       FROM asignaturas_videos v
+       INNER JOIN personal p ON p.id = v.personal_id
+       WHERE v.asignatura_id = ? AND v.ciclo = ? AND v.colegio_id = ?
+       ORDER BY v.id DESC`,
+      [asignatura_id, cicloFiltro, colegio_id]
+    );
+
+    res.json({ videos: videos || [] });
+  } catch (error) {
+    console.error('Error obteniendo videos (tutor):', error);
+    res.status(500).json({ error: 'Error al obtener los videos' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/enlaces
+ * Obtener enlaces del aula virtual (para tutores - modo solo lectura)
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/enlaces', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!personalId) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    // Verificar que el docente es tutor de este grupo
+    const grupoTutor = await query(
+      `SELECT g.*
+       FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+
+    if (grupoTutor.length === 0) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    // Verificar que la asignatura pertenece a este grupo
+    const asignatura = await query(
+      `SELECT a.*
+       FROM asignaturas a
+       WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ?`,
+      [asignatura_id, grupoId, colegio_id]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'La asignatura no pertenece a este grupo' });
+    }
+
+    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
+
+    // Obtener enlaces (solo lectura)
+    const enlaces = await query(
+      `SELECT e.*, 
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+       FROM asignaturas_enlaces e
+       INNER JOIN personal p ON p.id = e.personal_id
+       WHERE e.asignatura_id = ? AND e.ciclo = ? AND e.colegio_id = ?
+       ORDER BY e.id DESC`,
+      [asignatura_id, cicloFiltro, colegio_id]
+    );
+
+    res.json({ enlaces: enlaces || [] });
+  } catch (error) {
+    console.error('Error obteniendo enlaces (tutor):', error);
+    res.status(500).json({ error: 'Error al obtener los enlaces' });
+  }
+});
+
+/**
  * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado
  * Obtener resultado de un examen (para tutores - modo solo lectura)
  */

@@ -27,9 +27,9 @@ function DocenteTutorAulaVirtual() {
       (config) => {
         const currentGrupoId = grupoIdRef.current;
         
-        // Asegurarse de que el token esté presente (debería estar por el interceptor principal)
+        // Asegurarse de que el token esté presente SIEMPRE
         const token = localStorage.getItem('token');
-        if (token && !config.headers.Authorization) {
+        if (token) {
           config.headers.Authorization = `Bearer ${token}`;
         }
         
@@ -37,12 +37,17 @@ function DocenteTutorAulaVirtual() {
         if (config.url && config.url.startsWith('/alumno/aula-virtual')) {
           config.url = config.url.replace('/alumno/aula-virtual', `/docente/tutoria/grupos/${currentGrupoId}/aula-virtual`);
         }
+        // Modificar URLs de cursos (para cargar datos del curso)
+        if (config.url && config.url === '/alumno/cursos') {
+          // Interceptar y usar el endpoint de cursos del grupo
+          config.url = `/docente/tutoria/grupos/${currentGrupoId}/cursos`;
+        }
         // Modificar URLs de mensajes
         if (config.url && config.url.startsWith('/alumno/mensajes')) {
           // Los tutores pueden enviar mensajes, así que no interceptamos esto
           // O podemos interceptarlo si queremos que vaya a una ruta específica de tutores
         }
-        // Modificar URLs de exámenes (para ver resultados)
+        // Modificar URLs de exámenes (para ver resultados y listar)
         if (config.url && (config.url.startsWith('/alumno/examenes') || config.url.startsWith('/alumno/examen'))) {
           // Interceptar rutas de exámenes y redirigirlas a las rutas proxy
           if (config.url.includes('/resultado')) {
@@ -55,6 +60,10 @@ function DocenteTutorAulaVirtual() {
                 config.url = `/docente/tutoria/grupos/${currentGrupoId}/aula-virtual/examenes/${examenId}/resultado`;
               }
             }
+          } else {
+            // Para listar exámenes, interceptar también
+            config.url = config.url.replace('/alumno/examenes', `/docente/tutoria/grupos/${currentGrupoId}/aula-virtual/examenes`);
+            config.url = config.url.replace('/alumno/examen', `/docente/tutoria/grupos/${currentGrupoId}/aula-virtual/examenes`);
           }
         }
         
