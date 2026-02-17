@@ -1529,7 +1529,7 @@ function DocenteTutoria() {
 
               {/* Campo Archivos Adjuntos */}
               <div className="form-group">
-                <label>Archivos Adjuntos:</label>
+                <label htmlFor="archivos-input-grupo">Archivos Adjuntos:</label>
                 <div className="archivos-container">
                   <input
                     type="file"
