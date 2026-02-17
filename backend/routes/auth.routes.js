@@ -601,6 +601,7 @@ async function verificarDeudas(usuario, anioActivo) {
 
       // Verificar deudas de cada hijo
       for (const matricula of matriculasHijos) {
+        console.log(`[VERIFICAR DEUDAS] Verificando matrícula ID: ${matricula.id} del hijo (DOCENTE/APODERADO)`);
         for (let i = 1; i <= nroPago; i++) {
           const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
           
@@ -619,6 +620,8 @@ async function verificarDeudas(usuario, anioActivo) {
           fechaActual.setHours(0, 0, 0, 0);
           fechaLimite.setHours(23, 59, 59, 999);
 
+          console.log(`[VERIFICAR DEUDAS] Pensión ${i} (DOCENTE/APODERADO): fechaVencimiento=${fechaVencimientoStr}, fechaLimite=${fechaLimite.toISOString()}, fechaActual=${fechaActual.toISOString()}, ¿vencida?=${fechaActual > fechaLimite}`);
+
           if (fechaActual > fechaLimite) {
             const pagosCancelados = await query(
               `SELECT COUNT(*) as total
@@ -631,13 +634,17 @@ async function verificarDeudas(usuario, anioActivo) {
               [matricula.id, i]
             );
 
+            console.log(`[VERIFICAR DEUDAS] Pensión ${i} (DOCENTE/APODERADO): pagos cancelados = ${pagosCancelados[0].total}`);
+
             if (pagosCancelados[0].total === 0) {
+              console.log(`[VERIFICAR DEUDAS] ✅ DEUDA DETECTADA (DOCENTE/APODERADO): Pensión ${i} vencida y sin pago cancelado para matrícula ${matricula.id}`);
               return true; // Al menos un hijo tiene deuda
             }
           }
         }
       }
 
+      console.log(`[VERIFICAR DEUDAS] Ningún hijo tiene deudas (DOCENTE/APODERADO)`);
       return false; // Ningún hijo tiene deudas
     }
 
