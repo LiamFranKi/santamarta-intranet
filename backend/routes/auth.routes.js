@@ -681,6 +681,11 @@ async function verificarDeudas(usuario, anioActivo) {
       for (const matricula of matriculasHijos) {
         console.log(`[VERIFICAR DEUDAS] Verificando matrícula ID: ${matricula.id} del hijo (DOCENTE/APODERADO)`);
         for (const i of pensionesAVerificar) {
+          // Validar que i sea un número válido
+          if (!i || isNaN(i) || i <= 0) {
+            console.warn(`[VERIFICAR DEUDAS] Saltando pensión inválida: ${i}`);
+            continue;
+          }
           const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
           
           // Convertir dd-mm-yyyy a Date correctamente
