@@ -335,14 +335,25 @@ async function verificarDeudas(usuario, anioActivo) {
       console.log(`[VERIFICAR DEUDAS] pensiones_vencimiento está vacío o no existe`);
     }
 
-    // Calcular número de pensión que debería estar pagada (mes actual - 2)
+    // Calcular número de pensión que debería estar pagada
+    // IMPORTANTE: La fórmula debe considerar inicio_pensiones
+    // Si inicio_pensiones = 2 (Marzo), entonces:
+    //   - nro_pago = 1 corresponde a Marzo (mes 3)
+    //   - nro_pago = 2 corresponde a Abril (mes 4)
+    // Fórmula: nroPago = currentMonth - inicio_pensiones + 1
+    // Ejemplo: Si estamos en Marzo (mes 3) e inicio_pensiones = 2:
+    //   nroPago = 3 - 2 + 1 = 2 (debería verificar hasta la pensión 1, que es Marzo)
+    // Pero necesitamos verificar desde la pensión 1 hasta la pensión que corresponde al mes actual
+    // Mejor: nroPago = currentMonth - inicio_pensiones + 1
+    // Si nroPago <= 0, aún no hay pensiones vencidas
     const currentMonth = new Date().getMonth() + 1; // 1-12
-    const nroPago = currentMonth - 2; // Pensión que debería estar pagada
+    const inicioPensiones = colegio.inicio_pensiones || 2; // Por defecto 2 (Marzo)
+    const nroPago = currentMonth - inicioPensiones + 1; // Pensión que debería estar pagada
 
-    console.log(`[VERIFICAR DEUDAS] Mes actual: ${currentMonth}, nroPago calculado: ${nroPago}, anioActivo: ${anioActivo}`);
+    console.log(`[VERIFICAR DEUDAS] Mes actual: ${currentMonth}, inicio_pensiones: ${inicioPensiones}, nroPago calculado: ${nroPago}, anioActivo: ${anioActivo}`);
 
     if (nroPago <= 0) {
-      console.log(`[VERIFICAR DEUDAS] nroPago <= 0, aún no hay pensiones vencidas`);
+      console.log(`[VERIFICAR DEUDAS] nroPago <= 0, aún no hay pensiones vencidas (estamos antes del inicio de pensiones)`);
       return false; // Aún no hay pensiones vencidas
     }
 
@@ -758,10 +769,15 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
     const matricula = matriculas[0];
     
     // Calcular número de pensión que debería estar pagada
+    // IMPORTANTE: La fórmula debe considerar inicio_pensiones
+    // Si inicio_pensiones = 2 (Marzo), entonces:
+    //   - nro_pago = 1 corresponde a Marzo (mes 3)
+    //   - nro_pago = 2 corresponde a Abril (mes 4)
+    // Fórmula: nroPago = currentMonth - inicio_pensiones + 1
     const currentMonth = new Date().getMonth() + 1; // 1-12
-    const nroPago = currentMonth - 2; // Pensión que debería estar pagada
+    const nroPago = currentMonth - inicioPensiones + 1; // Pensión que debería estar pagada
     
-    console.log(`[DIAGNOSTICO] Mes actual: ${currentMonth}, nroPago calculado: ${nroPago}`);
+    console.log(`[DIAGNOSTICO] Mes actual: ${currentMonth}, inicio_pensiones: ${inicioPensiones}, nroPago calculado: ${nroPago}`);
     console.log(`[DIAGNOSTICO] Configuración: diasTolerancia=${diasTolerancia}, inicioPensiones=${inicioPensiones}`);
     
     // Función para calcular fecha de vencimiento (igual que en verificarDeudas)
