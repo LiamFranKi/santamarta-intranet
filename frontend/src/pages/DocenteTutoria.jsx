@@ -984,6 +984,7 @@ function DocenteTutoria() {
                     <input
                       type="text"
                       id="asunto-mensaje-docente-tutoria"
+                      name="asunto-mensaje-docente-tutoria"
                       className="form-input"
                       value={asuntoMensajeDocente}
                       onChange={(e) => setAsuntoMensajeDocente(e.target.value)}
@@ -1021,11 +1022,12 @@ function DocenteTutoria() {
                   </div>
 
                   <div className="form-group">
-                    <label>Archivos Adjuntos:</label>
+                    <label htmlFor="archivos-input-docente-tutoria">Archivos Adjuntos:</label>
                     <div className="archivos-container">
                       <input
                         type="file"
                         id="archivos-input-docente-tutoria"
+                        name="archivos-docente-tutoria"
                         multiple
                         onChange={handleArchivoChangeMensajeDocente}
                         style={{ display: 'none' }}
@@ -1314,7 +1316,7 @@ function DocenteTutoria() {
                                       }}
                                       onClick={(e) => e.stopPropagation()}
                                     >
-                                      <button
+                              <button
                                         className="dropdown-item"
                                         type="button"
                                         onClick={(e) => {
@@ -1331,7 +1333,7 @@ function DocenteTutoria() {
                                       >
                                         <span className="dropdown-icon">✉️</span>
                                         <span>Enviar Mensaje</span>
-                                      </button>
+                              </button>
                                       <button
                                         className="dropdown-item"
                                         onClick={(e) => {
@@ -1395,8 +1397,10 @@ function DocenteTutoria() {
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Recomendación</label>
+                    <label htmlFor="recomendacion-textarea">Recomendación</label>
                     <textarea
+                      id="recomendacion-textarea"
+                      name="recomendacion-textarea"
                       value={recomendacion}
                       onChange={(e) => setRecomendacion(e.target.value)}
                       rows="5"
@@ -1432,11 +1436,19 @@ function DocenteTutoria() {
 
       {/* Modal de Enviar Mensaje al Grupo */}
       {mostrarModalMensajeGrupo && grupoParaMensaje && createPortal(
-        <div 
-          className="modal-mensaje-overlay" 
-          onClick={() => setMostrarModalMensajeGrupo(false)}
-          style={{ zIndex: 100000 }}
-        >
+          <div 
+            className="modal-mensaje-overlay" 
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setMostrarModalMensajeGrupo(false);
+                setAsuntoMensajeGrupo('');
+                setContenidoMensajeGrupo('');
+                setArchivosAdjuntosMensajeGrupo([]);
+                setGrupoParaMensaje(null);
+              }
+            }}
+            style={{ zIndex: 100000 }}
+          >
           <div 
             className="modal-mensaje-container" 
             onClick={(e) => e.stopPropagation()}
@@ -1448,7 +1460,13 @@ function DocenteTutoria() {
               <h2 id="modal-mensaje-grupo-title">✉️ Enviar Mensaje al Grupo</h2>
               <button
                 className="modal-mensaje-close"
-                onClick={() => setMostrarModalMensajeGrupo(false)}
+                onClick={() => {
+                  setMostrarModalMensajeGrupo(false);
+                  setAsuntoMensajeGrupo('');
+                  setContenidoMensajeGrupo('');
+                  setArchivosAdjuntosMensajeGrupo([]);
+                  setGrupoParaMensaje(null);
+                }}
                 type="button"
                 aria-label="Cerrar modal"
               >
@@ -1471,6 +1489,7 @@ function DocenteTutoria() {
                 <input
                   type="text"
                   id="asunto-mensaje-grupo"
+                  name="asunto-mensaje-grupo"
                   className="form-input"
                   value={asuntoMensajeGrupo}
                   onChange={(e) => setAsuntoMensajeGrupo(e.target.value)}
@@ -1515,6 +1534,7 @@ function DocenteTutoria() {
                   <input
                     type="file"
                     id="archivos-input-grupo"
+                    name="archivos-input-grupo"
                     multiple
                     onChange={handleArchivoChangeMensajeGrupo}
                     style={{ display: 'none' }}
@@ -1912,6 +1932,7 @@ function DocenteTutoria() {
                 <input
                   type="text"
                   id="asunto-mensaje-alumno"
+                  name="asunto-mensaje-alumno"
                   className="form-input"
                   value={asuntoMensajeAlumno}
                   onChange={(e) => setAsuntoMensajeAlumno(e.target.value)}
