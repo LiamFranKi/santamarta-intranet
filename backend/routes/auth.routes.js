@@ -760,8 +760,13 @@ async function verificarDeudas(usuario, anioActivo) {
         }
       }
 
-      console.log(`[VERIFICAR DEUDAS] Ningún hijo tiene deudas (DOCENTE/APODERADO)`);
-      return false; // Ningún hijo tiene deudas
+        console.log(`[VERIFICAR DEUDAS] Ningún hijo tiene deudas (DOCENTE/APODERADO)`);
+        return false; // Ningún hijo tiene deudas
+      } catch (error) {
+        console.error(`[VERIFICAR DEUDAS] ❌ Error en verificación DOCENTE/APODERADO:`, error);
+        console.error(`[VERIFICAR DEUDAS] ❌ Stack:`, error.stack);
+        return false; // En caso de error, permitir acceso
+      }
     }
 
     return false;
