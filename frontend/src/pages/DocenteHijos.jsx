@@ -3683,65 +3683,6 @@ function DocenteHijos() {
     );
   }
 
-  // Función para diagnosticar deudas de un hijo
-  const diagnosticarDeudas = async (hijo) => {
-    try {
-      console.log('[FRONTEND] Iniciando diagnóstico de deudas para:', hijo);
-      const response = await api.get(`/auth/diagnostico-deudas/${hijo.dni}`);
-      console.log('[FRONTEND] Resultado del diagnóstico:', response.data);
-      
-      // Mostrar resultado en un modal
-      const resultado = response.data;
-      let mensaje = `<h3>Diagnóstico de Deudas - ${hijo.nombres} ${hijo.apellido_paterno}</h3>`;
-      mensaje += `<p><strong>DNI:</strong> ${resultado.alumno?.dni || 'N/A'}</p>`;
-      mensaje += `<p><strong>Configuración:</strong></p>`;
-      mensaje += `<ul>`;
-      mensaje += `<li>Bloquear Deudores: ${resultado.configuracion?.bloquear_deudores || 'N/A'}</li>`;
-      mensaje += `<li>Días Tolerancia: ${resultado.configuracion?.dias_tolerancia || 0}</li>`;
-      mensaje += `<li>Inicio Pensiones: ${resultado.configuracion?.inicio_pensiones || 'N/A'}</li>`;
-      mensaje += `</ul>`;
-      mensaje += `<p><strong>Resultado:</strong></p>`;
-      mensaje += `<ul>`;
-      mensaje += `<li>Tiene Deudas: ${resultado.resultado?.tiene_deudas ? '✅ SÍ' : '❌ NO'}</li>`;
-      mensaje += `<li>Debe Bloquear: ${resultado.resultado?.debe_bloquear ? '✅ SÍ' : '❌ NO'}</li>`;
-      mensaje += `</ul>`;
-      
-      if (resultado.pensiones && resultado.pensiones.length > 0) {
-        mensaje += `<p><strong>Detalles de Pensiones:</strong></p>`;
-        mensaje += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">`;
-        mensaje += `<tr style="background: #f0f0f0;"><th style="padding: 8px; border: 1px solid #ddd;">Pensión</th><th style="padding: 8px; border: 1px solid #ddd;">Fecha Vencimiento</th><th style="padding: 8px; border: 1px solid #ddd;">Vencida</th><th style="padding: 8px; border: 1px solid #ddd;">Tiene Pago</th><th style="padding: 8px; border: 1px solid #ddd;">Tiene Deuda</th></tr>`;
-        resultado.pensiones.forEach(p => {
-          mensaje += `<tr>`;
-          mensaje += `<td style="padding: 8px; border: 1px solid #ddd;">${p.nro_pension}</td>`;
-          mensaje += `<td style="padding: 8px; border: 1px solid #ddd;">${p.fecha_vencimiento}</td>`;
-          mensaje += `<td style="padding: 8px; border: 1px solid #ddd;">${p.esta_vencida ? '✅ SÍ' : '❌ NO'}</td>`;
-          mensaje += `<td style="padding: 8px; border: 1px solid #ddd;">${p.tiene_pago ? '✅ SÍ' : '❌ NO'}</td>`;
-          mensaje += `<td style="padding: 8px; border: 1px solid #ddd; ${p.tiene_deuda ? 'background: #ffcccc;' : ''}">${p.tiene_deuda ? '🔴 SÍ' : '✅ NO'}</td>`;
-          mensaje += `</tr>`;
-        });
-        mensaje += `</table>`;
-      }
-      
-      mensaje += `<p style="margin-top: 20px;"><strong>Datos completos en consola (F12)</strong></p>`;
-      
-      Swal.fire({
-        icon: resultado.resultado?.tiene_deudas ? 'warning' : 'success',
-        title: resultado.resultado?.tiene_deudas ? 'Tiene Deudas' : 'Sin Deudas',
-        html: mensaje,
-        width: '800px',
-        confirmButtonText: 'Entendido'
-      });
-    } catch (error) {
-      console.error('[FRONTEND] Error en diagnóstico:', error);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.response?.data?.error || 'Error al obtener diagnóstico',
-        confirmButtonText: 'Entendido'
-      });
-    }
-  };
-
   return (
     <DashboardLayout>
       <div className="docente-hijos">
