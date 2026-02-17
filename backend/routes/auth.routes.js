@@ -607,56 +607,62 @@ async function verificarDeudas(usuario, anioActivo) {
 
     // Verificar deudas para DOCENTE que también es APODERADO
     if (usuario.tipo === 'DOCENTE') {
-      // Asegurar que tenemos usuario_id (puede venir como id o usuario_id)
-      const docenteUsuarioId = usuario.usuario_id || usuario.id;
-      console.log(`[VERIFICAR DEUDAS] Verificando deudas para DOCENTE ID: ${docenteUsuarioId}`);
-      console.log(`[VERIFICAR DEUDAS] Usuario objeto completo:`, JSON.stringify(usuario, null, 2));
-      
-      if (!docenteUsuarioId) {
-        console.error(`[VERIFICAR DEUDAS] ❌ No se encontró usuario_id en el objeto usuario`);
-        return false;
-      }
-      
-      // Obtener DNI del docente desde la tabla personal
-      const docenteData = await query(
-        `SELECT p.nro_documento, p.id as personal_id
-         FROM personal p
-         INNER JOIN usuarios u ON u.personal_id = p.id
-         WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'
-         LIMIT 1`,
-        [docenteUsuarioId, usuario.colegio_id]
-      );
+      try {
+        // Asegurar que tenemos usuario_id (puede venir como id o usuario_id)
+        const docenteUsuarioId = usuario.usuario_id || usuario.id;
+        console.log(`[VERIFICAR DEUDAS] Verificando deudas para DOCENTE ID: ${docenteUsuarioId}`);
+        console.log(`[VERIFICAR DEUDAS] Usuario objeto completo:`, JSON.stringify(usuario, null, 2));
+        
+        if (!docenteUsuarioId) {
+          console.error(`[VERIFICAR DEUDAS] ❌ No se encontró usuario_id en el objeto usuario`);
+          return false;
+        }
+        
+        // Obtener DNI del docente desde la tabla personal
+        console.log(`[VERIFICAR DEUDAS] 🔍 Buscando DNI del docente en tabla personal...`);
+        const docenteData = await query(
+          `SELECT p.nro_documento, p.id as personal_id
+           FROM personal p
+           INNER JOIN usuarios u ON u.personal_id = p.id
+           WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+           LIMIT 1`,
+          [docenteUsuarioId, usuario.colegio_id]
+        );
 
-      console.log(`[VERIFICAR DEUDAS] Docente data encontrada: ${docenteData.length > 0 ? 'SÍ' : 'NO'}`);
+        console.log(`[VERIFICAR DEUDAS] Docente data encontrada: ${docenteData.length > 0 ? 'SÍ' : 'NO'}`);
 
-      if (docenteData.length === 0) {
-        console.log(`[VERIFICAR DEUDAS] ⚠️ No se encontró el docente en tabla personal`);
-        return false; // No se encontró el docente
-      }
+        if (docenteData.length === 0) {
+          console.log(`[VERIFICAR DEUDAS] ⚠️ No se encontró el docente en tabla personal`);
+          return false; // No se encontró el docente
+        }
 
-      const docenteDni = docenteData[0].nro_documento;
-      console.log(`[VERIFICAR DEUDAS] DNI del docente: ${docenteDni || 'NO TIENE'}`);
-      
-      if (!docenteDni) {
-        console.log(`[VERIFICAR DEUDAS] ⚠️ Docente no tiene DNI registrado`);
-        return false; // No tiene DNI registrado
-      }
+        const docenteDni = docenteData[0].nro_documento;
+        console.log(`[VERIFICAR DEUDAS] DNI del docente: ${docenteDni || 'NO TIENE'}`);
+        
+        if (!docenteDni) {
+          console.log(`[VERIFICAR DEUDAS] ⚠️ Docente no tiene DNI registrado`);
+          return false; // No tiene DNI registrado
+        }
 
-      // Buscar si el docente es apoderado (mismo DNI en tabla apoderados)
-      const apoderadoData = await query(
-        `SELECT ap.id as apoderado_id
-         FROM apoderados ap
-         WHERE ap.nro_documento = ? AND ap.colegio_id = ? AND ap.estado = 'ACTIVO'
-         LIMIT 1`,
-        [docenteDni, usuario.colegio_id]
-      );
+        // Buscar si el docente es apoderado (mismo DNI en tabla apoderados)
+        console.log(`[VERIFICAR DEUDAS] 🔍 Buscando si el docente es apoderado (DNI: ${docenteDni})...`);
+        const apoderadoData = await query(
+          `SELECT ap.id as apoderado_id
+           FROM apoderados ap
+           WHERE ap.nro_documento = ? AND ap.colegio_id = ? AND ap.estado = 'ACTIVO'
+           LIMIT 1`,
+          [docenteDni, usuario.colegio_id]
+        );
 
-      console.log(`[VERIFICAR DEUDAS] Apoderado encontrado con mismo DNI: ${apoderadoData.length > 0 ? 'SÍ' : 'NO'}`);
+        console.log(`[VERIFICAR DEUDAS] Apoderado encontrado con mismo DNI: ${apoderadoData.length > 0 ? 'SÍ' : 'NO'}`);
+        if (apoderadoData.length > 0) {
+          console.log(`[VERIFICAR DEUDAS] Apoderado ID: ${apoderadoData[0].apoderado_id}`);
+        }
 
-      if (apoderadoData.length === 0) {
-        console.log(`[VERIFICAR DEUDAS] ⚠️ El docente no es apoderado (no hay registro en tabla apoderados con ese DNI)`);
-        return false; // El docente no es apoderado
-      }
+        if (apoderadoData.length === 0) {
+          console.log(`[VERIFICAR DEUDAS] ⚠️ El docente no es apoderado (no hay registro en tabla apoderados con ese DNI)`);
+          return false; // El docente no es apoderado
+        }
 
       const apoderadoId = apoderadoData[0].apoderado_id;
       console.log(`[VERIFICAR DEUDAS] ✅ Apoderado ID encontrado: ${apoderadoId}`);
