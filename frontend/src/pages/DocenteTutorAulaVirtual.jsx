@@ -31,16 +31,23 @@ function DocenteTutorAulaVirtual() {
         const token = localStorage.getItem('token');
         if (token) {
           config.headers.Authorization = `Bearer ${token}`;
+          console.log('🔵 [TUTOR-INTERCEPTOR] Token agregado desde localStorage');
+        } else {
+          console.warn('⚠️ [TUTOR-INTERCEPTOR] No se encontró token en localStorage');
         }
         
         // Modificar URLs que empiecen con /alumno/aula-virtual
         if (config.url && config.url.startsWith('/alumno/aula-virtual')) {
-          config.url = config.url.replace('/alumno/aula-virtual', `/docente/tutoria/grupos/${currentGrupoId}/aula-virtual`);
+          const nuevaUrl = config.url.replace('/alumno/aula-virtual', `/docente/tutoria/grupos/${currentGrupoId}/aula-virtual`);
+          console.log('🔵 [TUTOR-INTERCEPTOR] URL modificada de /alumno/aula-virtual:', config.url, '->', nuevaUrl);
+          config.url = nuevaUrl;
         }
         // Modificar URLs de cursos (para cargar datos del curso)
         if (config.url && config.url === '/alumno/cursos') {
           // Interceptar y usar el endpoint de cursos del grupo
-          config.url = `/docente/tutoria/grupos/${currentGrupoId}/cursos`;
+          const nuevaUrl = `/docente/tutoria/grupos/${currentGrupoId}/cursos`;
+          console.log('🔵 [TUTOR-INTERCEPTOR] URL modificada de /alumno/cursos:', config.url, '->', nuevaUrl);
+          config.url = nuevaUrl;
         }
         // Modificar URLs de mensajes
         if (config.url && config.url.startsWith('/alumno/mensajes')) {
@@ -67,12 +74,16 @@ function DocenteTutorAulaVirtual() {
           }
         }
         
-        console.log('🔵 [TUTOR-INTERCEPTOR] URL modificada:', config.url);
+        console.log('🔵 [TUTOR-INTERCEPTOR] URL final:', config.url);
         console.log('🔵 [TUTOR-INTERCEPTOR] Token presente:', !!config.headers.Authorization);
+        console.log('🔵 [TUTOR-INTERCEPTOR] Headers:', JSON.stringify(config.headers));
         
         return config;
       },
-      (error) => Promise.reject(error)
+      (error) => {
+        console.error('❌ [TUTOR-INTERCEPTOR] Error en interceptor:', error);
+        return Promise.reject(error);
+      }
     );
 
     return () => {

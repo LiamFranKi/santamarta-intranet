@@ -330,7 +330,14 @@ function DocenteTutoria() {
 
   const handleOpcionClick = async (opcion, grupo) => {
     setOpenDropdown(null);
-    setSelectedGrupo(grupo);
+    
+    // Solo establecer selectedGrupo si realmente necesitamos cambiar la vista
+    // No establecerlo para modales que no cambian la vista principal
+    const opcionesQueCambianVista = ['lista-alumnos', 'apreciaciones-recomendaciones', 'cursos-asignados'];
+    
+    if (opcionesQueCambianVista.includes(opcion)) {
+      setSelectedGrupo(grupo);
+    }
 
     switch (opcion) {
       case 'lista-alumnos':
@@ -350,6 +357,7 @@ function DocenteTutoria() {
         break;
       case 'enviar-comunicado':
         // Abrir modal de mensaje al grupo
+        // NO cambiar selectedGrupo para mantener la vista de grupos
         setGrupoParaMensaje(grupo);
         setMostrarModalMensajeGrupo(true);
         setAsuntoMensajeGrupo('');
