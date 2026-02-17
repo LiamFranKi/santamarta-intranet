@@ -20,9 +20,8 @@ function DocenteTutorAulaVirtual() {
   }, [grupoId]);
 
   useEffect(() => {
-    // Agregar interceptor para modificar las URLs de las llamadas API
-    // IMPORTANTE: Este interceptor se ejecuta DESPUÉS del interceptor principal que agrega el token
-    // Por lo tanto, el token ya está en config.headers.Authorization
+    // IMPORTANTE: Configurar el interceptor ANTES de que AlumnoAulaVirtual haga cualquier petición
+    // Este interceptor debe estar activo desde el momento en que el componente se monta
     interceptorIdRef.current = api.interceptors.request.use(
       (config) => {
         const currentGrupoId = grupoIdRef.current;
@@ -86,13 +85,16 @@ function DocenteTutorAulaVirtual() {
       }
     );
 
+    console.log('✅ [TUTOR-INTERCEPTOR] Interceptor configurado para grupoId:', grupoId);
+
     return () => {
       // Limpiar interceptor al desmontar
       if (interceptorIdRef.current !== null) {
         api.interceptors.request.eject(interceptorIdRef.current);
+        console.log('🧹 [TUTOR-INTERCEPTOR] Interceptor limpiado');
       }
     };
-  }, []); // Dependencias vacías porque usamos ref
+  }, [grupoId]); // Agregar grupoId como dependencia para reconfigurar si cambia
 
   // Usar asignaturaId como cursoId para AlumnoAulaVirtual
   // Pasar isApoderado=true para deshabilitar acciones (solo lectura)
