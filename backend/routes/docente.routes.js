@@ -4303,6 +4303,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId', async (req, re
     }
 
     // Verificar que el docente es tutor de este grupo
+    // IMPORTANTE: Comparar con el endpoint de /tutoria que funciona correctamente
+    // El personalId debe coincidir exactamente con tutor_id en la tabla grupos
     const grupoTutor = await query(
       `SELECT g.*
        FROM grupos g
@@ -4313,7 +4315,10 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId', async (req, re
     console.log('🔵 [TUTOR-AULA-VIRTUAL] Resultado verificación tutor:', {
       grupoId,
       personalId,
-      grupoEncontrado: grupoTutor.length > 0
+      colegio_id,
+      anio_activo,
+      grupoEncontrado: grupoTutor.length > 0,
+      grupoData: grupoTutor[0] || null
     });
 
     if (grupoTutor.length === 0) {
@@ -4322,10 +4327,21 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId', async (req, re
         `SELECT g.* FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?`,
         [grupoId, personalId, colegio_id]
       );
+      
+      // También verificar si el grupo existe pero con otro tutor_id
+      const grupoExiste = await query(
+        `SELECT g.* FROM grupos g WHERE g.id = ? AND g.colegio_id = ? AND g.anio = ?`,
+        [grupoId, colegio_id, anio_activo]
+      );
+      
       console.error('❌ [TUTOR-AULA-VIRTUAL] No se encontró grupo como tutor. Debug:', {
         grupoSinAnio: grupoSinAnio.length > 0,
         anioEnGrupo: grupoSinAnio[0]?.anio,
-        anioEsperado: anio_activo
+        anioEsperado: anio_activo,
+        grupoExiste: grupoExiste.length > 0,
+        tutorIdEnGrupo: grupoExiste[0]?.tutor_id,
+        personalIdEsperado: personalId,
+        sonIguales: grupoExiste[0]?.tutor_id == personalId
       });
       return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
