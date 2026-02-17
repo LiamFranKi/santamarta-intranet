@@ -77,7 +77,8 @@ function DocenteTutoria() {
       const quill = quillRefMensajeGrupo.current.getEditor();
       const toolbar = quill.getModule('toolbar');
       
-      toolbar.addHandler('image', async () => {
+      // Handler para subir imágenes
+      const imageHandler = async () => {
         const input = document.createElement('input');
         input.setAttribute('type', 'file');
         input.setAttribute('accept', 'image/*');
@@ -112,18 +113,26 @@ function DocenteTutoria() {
             // El backend ya devuelve la URL completa (con dominio del sistema PHP)
             const imagenUrl = response.data.url;
             
-            console.log('✅ Imagen subida, URL:', imagenUrl);
+            console.log('✅ [TUTORIA-GRUPO] Imagen subida, URL:', imagenUrl);
             
             // Insertar la imagen en el editor
             const range = quill.getSelection(true);
             quill.insertEmbed(range.index, 'image', imagenUrl);
             quill.setSelection(range.index + 1);
           } catch (error) {
-            console.error('Error subiendo imagen:', error);
+            console.error('❌ [TUTORIA-GRUPO] Error subiendo imagen:', error);
             Swal.fire('Error', 'No se pudo subir la imagen', 'error');
           }
         };
-      });
+      };
+      
+      // Agregar el handler
+      toolbar.addHandler('image', imageHandler);
+      
+      // Cleanup: no hay forma directa de remover el handler, pero ReactQuill maneja esto internamente
+      return () => {
+        // El handler se mantiene mientras el editor existe
+      };
     }
   }, [mostrarModalMensajeGrupo]);
 
@@ -133,7 +142,8 @@ function DocenteTutoria() {
       const quill = quillRefMensajeAlumno.current.getEditor();
       const toolbar = quill.getModule('toolbar');
       
-      toolbar.addHandler('image', async () => {
+      // Handler para subir imágenes
+      const imageHandler = async () => {
         const input = document.createElement('input');
         input.setAttribute('type', 'file');
         input.setAttribute('accept', 'image/*');
@@ -168,18 +178,26 @@ function DocenteTutoria() {
             // El backend ya devuelve la URL completa (con dominio del sistema PHP)
             const imagenUrl = response.data.url;
             
-            console.log('✅ Imagen subida, URL:', imagenUrl);
+            console.log('✅ [TUTORIA-ALUMNO] Imagen subida, URL:', imagenUrl);
             
             // Insertar la imagen en el editor
             const range = quill.getSelection(true);
             quill.insertEmbed(range.index, 'image', imagenUrl);
             quill.setSelection(range.index + 1);
           } catch (error) {
-            console.error('Error subiendo imagen:', error);
+            console.error('❌ [TUTORIA-ALUMNO] Error subiendo imagen:', error);
             Swal.fire('Error', 'No se pudo subir la imagen', 'error');
           }
         };
-      });
+      };
+      
+      // Agregar el handler
+      toolbar.addHandler('image', imageHandler);
+      
+      // Cleanup: no hay forma directa de remover el handler, pero ReactQuill maneja esto internamente
+      return () => {
+        // El handler se mantiene mientras el editor existe
+      };
     }
   }, [mostrarModalMensajeAlumno]);
 
