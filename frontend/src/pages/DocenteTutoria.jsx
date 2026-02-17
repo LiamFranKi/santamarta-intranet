@@ -71,6 +71,118 @@ function DocenteTutoria() {
     };
   }, [openDropdown, openDropdownAlumno]);
 
+  // Configurar handler de imágenes para ReactQuill en modal de mensaje al grupo
+  useEffect(() => {
+    if (quillRefMensajeGrupo.current && mostrarModalMensajeGrupo) {
+      const quill = quillRefMensajeGrupo.current.getEditor();
+      const toolbar = quill.getModule('toolbar');
+      
+      toolbar.addHandler('image', async () => {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+
+        input.onchange = async () => {
+          const file = input.files[0];
+          if (!file) return;
+
+          // Validar tamaño (máximo 5MB)
+          if (file.size > 5 * 1024 * 1024) {
+            Swal.fire('Error', 'La imagen no puede ser mayor a 5MB', 'error');
+            return;
+          }
+
+          // Validar tipo
+          if (!file.type.startsWith('image/')) {
+            Swal.fire('Error', 'Solo se permiten archivos de imagen', 'error');
+            return;
+          }
+
+          try {
+            const formData = new FormData();
+            formData.append('imagen', file);
+
+            const response = await api.post('/docente/mensajes/subir-imagen', formData, {
+              headers: {
+                'Content-Type': 'multipart/form-data',
+              },
+            });
+
+            // El backend ya devuelve la URL completa (con dominio del sistema PHP)
+            const imagenUrl = response.data.url;
+            
+            console.log('✅ Imagen subida, URL:', imagenUrl);
+            
+            // Insertar la imagen en el editor
+            const range = quill.getSelection(true);
+            quill.insertEmbed(range.index, 'image', imagenUrl);
+            quill.setSelection(range.index + 1);
+          } catch (error) {
+            console.error('Error subiendo imagen:', error);
+            Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+          }
+        };
+      });
+    }
+  }, [mostrarModalMensajeGrupo]);
+
+  // Configurar handler de imágenes para ReactQuill en modal de mensaje a alumno
+  useEffect(() => {
+    if (quillRefMensajeAlumno.current && mostrarModalMensajeAlumno) {
+      const quill = quillRefMensajeAlumno.current.getEditor();
+      const toolbar = quill.getModule('toolbar');
+      
+      toolbar.addHandler('image', async () => {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+
+        input.onchange = async () => {
+          const file = input.files[0];
+          if (!file) return;
+
+          // Validar tamaño (máximo 5MB)
+          if (file.size > 5 * 1024 * 1024) {
+            Swal.fire('Error', 'La imagen no puede ser mayor a 5MB', 'error');
+            return;
+          }
+
+          // Validar tipo
+          if (!file.type.startsWith('image/')) {
+            Swal.fire('Error', 'Solo se permiten archivos de imagen', 'error');
+            return;
+          }
+
+          try {
+            const formData = new FormData();
+            formData.append('imagen', file);
+
+            const response = await api.post('/docente/mensajes/subir-imagen', formData, {
+              headers: {
+                'Content-Type': 'multipart/form-data',
+              },
+            });
+
+            // El backend ya devuelve la URL completa (con dominio del sistema PHP)
+            const imagenUrl = response.data.url;
+            
+            console.log('✅ Imagen subida, URL:', imagenUrl);
+            
+            // Insertar la imagen en el editor
+            const range = quill.getSelection(true);
+            quill.insertEmbed(range.index, 'image', imagenUrl);
+            quill.setSelection(range.index + 1);
+          } catch (error) {
+            console.error('Error subiendo imagen:', error);
+            Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+          }
+        };
+      });
+    }
+  }, [mostrarModalMensajeAlumno]);
+
   const cargarGruposTutor = async () => {
     try {
       setLoading(true);
