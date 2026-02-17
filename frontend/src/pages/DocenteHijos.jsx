@@ -314,7 +314,9 @@ function DocenteHijos() {
         await handleImprimirQR(hijo);
         break;
       case 'notas-detalladas':
+        console.log('[FRONTEND] handleOpcionClick - notas-detalladas, tieneDeudasBloqueadas:', tieneDeudasBloqueadas);
         if (tieneDeudasBloqueadas) {
+          console.log('[FRONTEND] BLOQUEANDO acceso a Notas Detalladas por deudas');
           Swal.fire({
             icon: 'warning',
             title: 'Acceso Bloqueado',
@@ -323,10 +325,13 @@ function DocenteHijos() {
           });
           return;
         }
+        console.log('[FRONTEND] PERMITIENDO acceso a Notas Detalladas');
         await handleVerNotasDetalladas(hijo);
         break;
       case 'imprimir-notas':
+        console.log('[FRONTEND] handleOpcionClick - imprimir-notas, tieneDeudasBloqueadas:', tieneDeudasBloqueadas);
         if (tieneDeudasBloqueadas) {
+          console.log('[FRONTEND] BLOQUEANDO acceso a Ver Libreta por deudas');
           Swal.fire({
             icon: 'warning',
             title: 'Acceso Bloqueado',
@@ -335,6 +340,7 @@ function DocenteHijos() {
           });
           return;
         }
+        console.log('[FRONTEND] PERMITIENDO acceso a Ver Libreta');
         await handleVerLibreta(hijo);
         break;
       case 'pagos-realizados':
