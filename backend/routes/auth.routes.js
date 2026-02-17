@@ -387,8 +387,16 @@ async function verificarDeudas(usuario, anioActivo) {
         console.log(`[VERIFICAR DEUDAS] Día-mes configurado (${vencimiento}), fecha calculada: ${fechaCalculada}`);
         return fechaCalculada;
       } else {
-        // Día-mes-año: "31-01-2026"
-        const fechaCalculada = `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${partes[2]}`;
+        // Día-mes-año: puede ser "31-01-2026" o "31-01-20" (año con 2 dígitos)
+        let añoFinal = partes[2];
+        // Si el año tiene solo 2 dígitos, usar el año del contexto (anio) para evitar problemas
+        // El sistema anterior guarda años con 2 dígitos, pero debemos usar el año activo
+        if (añoFinal.length === 2) {
+          // Usar el año del contexto (anio) en lugar de interpretar el año de 2 dígitos
+          añoFinal = String(anio);
+          console.log(`[VERIFICAR DEUDAS] Año de 2 dígitos detectado (${partes[2]}), usando año del contexto: ${añoFinal}`);
+        }
+        const fechaCalculada = `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${añoFinal}`;
         console.log(`[VERIFICAR DEUDAS] Fecha completa configurada (${vencimiento}), fecha final: ${fechaCalculada}`);
         return fechaCalculada;
       }
@@ -768,7 +776,13 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
       } else if (partes.length === 2) {
         return `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${anio}`;
       } else {
-        return `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${partes[2]}`;
+        // Día-mes-año: puede ser "31-01-2026" o "31-01-20" (año con 2 dígitos)
+        let añoFinal = partes[2];
+        // Si el año tiene solo 2 dígitos, usar el año del contexto (anio)
+        if (añoFinal.length === 2) {
+          añoFinal = String(anio);
+        }
+        return `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${añoFinal}`;
       }
     };
     
@@ -805,6 +819,16 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
       const tienePago = pagosCancelados[0].total > 0;
       const estaVencida = fechaActual > fechaLimite;
       const tieneDeuda = estaVencida && !tienePago;
+      
+      console.log(`[DIAGNOSTICO] Pensión ${i}:`);
+      console.log(`  - Fecha vencimiento configurada: ${fechaVencimientoStr}`);
+      console.log(`  - Fecha vencimiento Date: ${fechaVencimiento.toISOString()}`);
+      console.log(`  - Días tolerancia: ${diasTolerancia}`);
+      console.log(`  - Fecha límite (vencimiento + tolerancia): ${fechaLimite.toISOString()}`);
+      console.log(`  - Fecha actual: ${fechaActual.toISOString()}`);
+      console.log(`  - ¿Está vencida? (fechaActual > fechaLimite): ${estaVencida}`);
+      console.log(`  - ¿Tiene pago cancelado?: ${tienePago} (total: ${pagosCancelados[0].total})`);
+      console.log(`  - ¿Tiene deuda? (vencida && !tienePago): ${tieneDeuda}`);
       
       detallesPensiones.push({
         nro_pension: i,
