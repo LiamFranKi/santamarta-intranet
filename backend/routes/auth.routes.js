@@ -649,7 +649,7 @@ async function verificarDeudas(usuario, anioActivo) {
         const apoderadoData = await query(
           `SELECT ap.id as apoderado_id
            FROM apoderados ap
-           WHERE ap.nro_documento = ? AND ap.colegio_id = ? AND ap.estado = 'ACTIVO'
+           WHERE ap.nro_documento = ? AND ap.colegio_id = ?
            LIMIT 1`,
           [docenteDni, usuario.colegio_id]
         );
