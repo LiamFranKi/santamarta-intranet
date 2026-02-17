@@ -4389,19 +4389,61 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas', async (req, res) => {
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
     // Obtener tareas (solo lectura - no se pueden modificar)
+    // Usar la misma tabla que el endpoint de hijos
     const tareas = await query(
       `SELECT t.*, 
-              COUNT(DISTINCT te.id) as total_entregas,
-              COUNT(DISTINCT CASE WHEN te.estado = 'ENTREGADO' THEN te.id END) as entregas_completadas
-       FROM tareas t
-       LEFT JOIN tareas_entregas te ON te.tarea_id = t.id
-       WHERE t.asignatura_id = ? AND t.colegio_id = ? AND t.ciclo = ?
-       GROUP BY t.id
-       ORDER BY t.fecha_limite ASC, t.fecha_creacion DESC`,
-      [asignatura_id, colegio_id, cicloFiltro]
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+       FROM asignaturas_tareas t
+       INNER JOIN personal p ON p.id = t.trabajador_id
+       WHERE t.asignatura_id = ? AND t.ciclo = ?
+       ORDER BY t.id ASC`,
+      [asignatura_id, cicloFiltro]
     );
 
-    res.json({ tareas });
+    // Construir URLs de archivos (igual que en el endpoint de hijos)
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const tareasConArchivos = await Promise.all(tareas.map(async (tarea) => {
+      const archivos = await query(
+        `SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`,
+        [tarea.id]
+      );
+
+      const archivosConUrls = archivos.map(archivo => {
+        let archivoUrl = null;
+        if (archivo.archivo && archivo.archivo !== '') {
+          if (archivo.archivo.startsWith('http')) {
+            archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl);
+          } else if (archivo.archivo.startsWith('/Static/')) {
+            const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
+            archivoUrl = isDevelopment
+              ? `http://localhost:5000/Static/Archivos/${nombreArchivo}`
+              : `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
+          } else {
+            archivoUrl = isDevelopment
+              ? `http://localhost:5000/Static/Archivos/${archivo.archivo}`
+              : `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
+          }
+        }
+        return {
+          ...archivo,
+          archivo_url: archivoUrl
+        };
+      });
+
+      let enlaceUrl = null;
+      if (tarea.enlace && tarea.enlace !== '') {
+        enlaceUrl = tarea.enlace.trim();
+      }
+
+      return {
+        ...tarea,
+        archivos: archivosConUrls,
+        enlace_url: enlaceUrl
+      };
+    }));
+
+    res.json({ tareas: tareasConArchivos || [] });
   } catch (error) {
     console.error('Error obteniendo tareas (tutor):', error);
     res.status(500).json({ error: 'Error al obtener las tareas' });
