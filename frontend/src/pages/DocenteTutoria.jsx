@@ -844,21 +844,26 @@ function DocenteTutoria() {
               <button 
                 className="btn-volver"
                 onClick={() => {
+                  // Guardar el ID del grupo antes de limpiar el estado
+                  const grupoIdCursos = grupoSeleccionadoCursos?.id;
+                  
                   // Limpiar todos los estados relacionados con cursos
                   setMostrarCursos(false);
                   setGrupoSeleccionadoCursos(null);
                   setCursos([]);
                   setLoadingCursos(false);
+                  
                   // Limpiar selectedGrupo solo si corresponde al grupo de cursos
                   // Esto evita que se pierda el estado si hay otra vista activa
-                  const grupoIdCursos = grupoSeleccionadoCursos?.id;
-                  if (selectedGrupo && typeof selectedGrupo === 'object' && selectedGrupo.id === grupoIdCursos) {
-                    setSelectedGrupo(null);
-                    setGrupoInfo(null);
-                  } else if (selectedGrupo === grupoIdCursos) {
-                    // Si selectedGrupo es solo el ID
-                    setSelectedGrupo(null);
-                    setGrupoInfo(null);
+                  if (grupoIdCursos) {
+                    if (selectedGrupo && typeof selectedGrupo === 'object' && selectedGrupo.id === grupoIdCursos) {
+                      setSelectedGrupo(null);
+                      setGrupoInfo(null);
+                    } else if (selectedGrupo === grupoIdCursos) {
+                      // Si selectedGrupo es solo el ID
+                      setSelectedGrupo(null);
+                      setGrupoInfo(null);
+                    }
                   }
                 }}
                 type="button"
