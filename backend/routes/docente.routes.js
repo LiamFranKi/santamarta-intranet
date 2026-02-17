@@ -4370,6 +4370,12 @@ router.get('/roles-adicionales', async (req, res) => {
              ORDER BY n.nombre, g.grado, g.seccion, a.apellido_paterno, a.apellido_materno, a.nombres`,
             [colegio_id, nroDocumento, colegio_id, anio_activo]
           );
+          
+          console.log(`📋 [ROLES-ADICIONALES] Hijos encontrados: ${hijos.length}`);
+          if (hijos.length > 0) {
+            console.log(`📋 [ROLES-ADICIONALES] Primer hijo completo:`, JSON.stringify(hijos[0], null, 2));
+            console.log(`📋 [ROLES-ADICIONALES] DNI del primer hijo:`, hijos[0].dni || hijos[0].nro_documento || 'NO DISPONIBLE');
+          }
         }
       } catch (error) {
         console.error('Error obteniendo lista de hijos:', error);
