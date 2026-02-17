@@ -88,10 +88,14 @@ function DocenteHijos() {
   // Verificar si el usuario tiene deudas bloqueadas
   const verificarDeudasBloqueadas = async () => {
     try {
+      console.log('[FRONTEND] Llamando a /auth/verificar-deudas');
       const response = await api.get('/auth/verificar-deudas');
+      console.log('[FRONTEND] Respuesta de verificar-deudas:', response.data);
       setTieneDeudasBloqueadas(response.data.tiene_deudas || false);
+      console.log('[FRONTEND] tieneDeudasBloqueadas establecido a:', response.data.tiene_deudas || false);
     } catch (error) {
-      console.error('Error verificando deudas bloqueadas:', error);
+      console.error('[FRONTEND] Error verificando deudas bloqueadas:', error);
+      console.error('[FRONTEND] Error response:', error.response?.data);
       setTieneDeudasBloqueadas(false); // En caso de error, no bloquear
     }
   };

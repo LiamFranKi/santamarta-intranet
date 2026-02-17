@@ -286,6 +286,8 @@ router.get('/me', authenticateToken, async (req, res) => {
  */
 async function verificarDeudas(usuario, anioActivo) {
   try {
+    console.log(`[VERIFICAR DEUDAS] Iniciando verificación para usuario ID: ${usuario.id}, tipo: ${usuario.tipo}, colegio_id: ${usuario.colegio_id}`);
+    
     // Obtener configuración del colegio
     const colegios = await query(
       `SELECT bloquear_deudores, dias_tolerancia, pensiones_vencimiento, inicio_pensiones, anio_activo
@@ -293,14 +295,24 @@ async function verificarDeudas(usuario, anioActivo) {
       [usuario.colegio_id]
     );
 
+    console.log(`[VERIFICAR DEUDAS] Configuración del colegio:`, {
+      bloquear_deudores: colegios.length > 0 ? colegios[0].bloquear_deudores : 'NO ENCONTRADO',
+      dias_tolerancia: colegios.length > 0 ? colegios[0].dias_tolerancia : null,
+      inicio_pensiones: colegios.length > 0 ? colegios[0].inicio_pensiones : null
+    });
+
     if (colegios.length === 0 || colegios[0].bloquear_deudores !== 'SI') {
+      console.log(`[VERIFICAR DEUDAS] No se bloquea deudores - colegios.length: ${colegios.length}, bloquear_deudores: ${colegios.length > 0 ? colegios[0].bloquear_deudores : 'N/A'}`);
       return false; // No bloquea deudores
     }
 
     // Verificar para ALUMNOS, APODERADOS y DOCENTES que también son APODERADOS
     if (usuario.tipo !== 'ALUMNO' && usuario.tipo !== 'APODERADO' && usuario.tipo !== 'DOCENTE') {
+      console.log(`[VERIFICAR DEUDAS] Tipo de usuario no aplica para verificación: ${usuario.tipo}`);
       return false;
     }
+    
+    console.log(`[VERIFICAR DEUDAS] Tipo de usuario válido: ${usuario.tipo}`);
 
     const colegio = colegios[0];
     const diasTolerancia = colegio.dias_tolerancia || 0;
@@ -340,7 +352,10 @@ async function verificarDeudas(usuario, anioActivo) {
     const currentMonth = new Date().getMonth() + 1; // 1-12
     const nroPago = currentMonth - 2; // Pensión que debería estar pagada
 
+    console.log(`[VERIFICAR DEUDAS] Mes actual: ${currentMonth}, nroPago calculado: ${nroPago}, anioActivo: ${anioActivo}`);
+
     if (nroPago <= 0) {
+      console.log(`[VERIFICAR DEUDAS] nroPago <= 0, aún no hay pensiones vencidas`);
       return false; // Aún no hay pensiones vencidas
     }
 
