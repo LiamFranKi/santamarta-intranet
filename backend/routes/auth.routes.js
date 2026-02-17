@@ -393,7 +393,14 @@ async function verificarDeudas(usuario, anioActivo) {
       // Verificar cada pensión desde 1 hasta nroPago
       for (let i = 1; i <= nroPago; i++) {
         const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
-        const fechaVencimiento = new Date(fechaVencimientoStr.split('-').reverse().join('-')); // Convertir dd-mm-yyyy a Date
+        
+        // Convertir dd-mm-yyyy a Date correctamente
+        const partesFecha = fechaVencimientoStr.split('-');
+        const fechaVencimiento = new Date(
+          parseInt(partesFecha[2]), // año
+          parseInt(partesFecha[1]) - 1, // mes (0-indexed)
+          parseInt(partesFecha[0]) // día
+        );
         
         // Aplicar días de tolerancia
         const fechaLimite = new Date(fechaVencimiento);
@@ -402,6 +409,15 @@ async function verificarDeudas(usuario, anioActivo) {
         const fechaActual = new Date();
         fechaActual.setHours(0, 0, 0, 0);
         fechaLimite.setHours(23, 59, 59, 999);
+
+        // Debug logging
+        console.log(`[VERIFICAR DEUDAS] Pensión ${i}:`);
+        console.log(`  Fecha vencimiento configurada: ${fechaVencimientoStr}`);
+        console.log(`  Fecha vencimiento Date: ${fechaVencimiento.toISOString()}`);
+        console.log(`  Días tolerancia: ${diasTolerancia}`);
+        console.log(`  Fecha límite (vencimiento + tolerancia): ${fechaLimite.toISOString()}`);
+        console.log(`  Fecha actual: ${fechaActual.toISOString()}`);
+        console.log(`  ¿Fecha actual > fecha límite?: ${fechaActual > fechaLimite}`);
 
         // Verificar si la fecha actual supera el límite (vencimiento + tolerancia)
         if (fechaActual > fechaLimite) {
@@ -417,8 +433,11 @@ async function verificarDeudas(usuario, anioActivo) {
             [matricula.id, i]
           );
 
+          console.log(`  Pagos cancelados para pensión ${i}: ${pagosCancelados[0].total}`);
+
           if (pagosCancelados[0].total === 0) {
             // Tiene deuda: la pensión está vencida (considerando tolerancia) y no está cancelada
+            console.log(`  ✅ DEUDA DETECTADA: Pensión ${i} vencida y sin pago cancelado`);
             return true;
           }
         }
@@ -450,7 +469,14 @@ async function verificarDeudas(usuario, anioActivo) {
       for (const matricula of matriculasHijos) {
         for (let i = 1; i <= nroPago; i++) {
           const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
-          const fechaVencimiento = new Date(fechaVencimientoStr.split('-').reverse().join('-'));
+          
+          // Convertir dd-mm-yyyy a Date correctamente
+          const partesFecha = fechaVencimientoStr.split('-');
+          const fechaVencimiento = new Date(
+            parseInt(partesFecha[2]), // año
+            parseInt(partesFecha[1]) - 1, // mes (0-indexed)
+            parseInt(partesFecha[0]) // día
+          );
           
           const fechaLimite = new Date(fechaVencimiento);
           fechaLimite.setDate(fechaLimite.getDate() + diasTolerancia);
