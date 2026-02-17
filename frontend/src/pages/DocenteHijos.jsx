@@ -19,6 +19,7 @@ function getInitials(nombre) {
 }
 
 function DocenteHijos() {
+  console.log('[FRONTEND] ========== DOCENTEHIJOS COMPONENTE RENDERIZADO ==========');
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [hijos, setHijos] = useState([]);
