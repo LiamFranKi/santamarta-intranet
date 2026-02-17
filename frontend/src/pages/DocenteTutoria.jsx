@@ -844,10 +844,19 @@ function DocenteTutoria() {
               <button 
                 className="btn-volver"
                 onClick={() => {
+                  // Limpiar todos los estados relacionados con cursos
                   setMostrarCursos(false);
                   setGrupoSeleccionadoCursos(null);
                   setCursos([]);
+                  setLoadingCursos(false);
+                  // Asegurarse de que selectedGrupo también se limpie si estaba establecido
+                  // pero solo si no estamos en otra vista (como lista de alumnos)
+                  if (!selectedGrupo || (selectedGrupo && typeof selectedGrupo === 'object' && selectedGrupo.id === grupoSeleccionadoCursos?.id)) {
+                    setSelectedGrupo(null);
+                    setGrupoInfo(null);
+                  }
                 }}
+                type="button"
               >
                 ← Volver
               </button>
