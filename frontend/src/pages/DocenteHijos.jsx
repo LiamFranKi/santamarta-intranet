@@ -3788,6 +3788,7 @@ function DocenteHijos() {
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                               >
+                                {console.log('[FRONTEND] Renderizando dropdown para hijo:', hijo.id, 'DNI:', hijo.dni || hijo.nro_documento || 'NO DISPONIBLE')}
                                 <button
                                   className="dropdown-item"
                                   type="button"
