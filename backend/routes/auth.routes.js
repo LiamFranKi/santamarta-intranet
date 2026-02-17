@@ -839,12 +839,22 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
       }
     };
     
+    // Verificar todas las pensiones que tengan configuración de vencimiento
+    // O si nroPago > 0, verificar desde 1 hasta nroPago
+    const pensionesAVerificar = nroPago > 0 
+      ? Array.from({ length: nroPago }, (_, i) => i + 1)
+      : Object.keys(vencimientosPensiones)
+          .map(k => parseInt(k))
+          .filter(k => k > 0 && !isNaN(k)); // Solo pensiones (excluir -1 que es matrícula)
+
+    console.log(`[DIAGNOSTICO] Pensiones a verificar:`, pensionesAVerificar);
+
     // Verificar cada pensión
     const detallesPensiones = [];
     const fechaActual = new Date();
     fechaActual.setHours(0, 0, 0, 0);
     
-    for (let i = 1; i <= nroPago; i++) {
+    for (const i of pensionesAVerificar) {
       const fechaVencimientoStr = calcularFechaVencimiento(i, anio_activo, inicioPensiones);
       const partesFecha = fechaVencimientoStr.split('-');
       const fechaVencimiento = new Date(
