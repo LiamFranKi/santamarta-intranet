@@ -4193,6 +4193,85 @@ router.get('/tutoria', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/tutoria/grupos/:grupoId/cursos
+ * Obtener cursos (asignaturas) de un grupo específico del tutor
+ */
+router.get('/tutoria/grupos/:grupoId/cursos', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+
+    if (!personalId) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    // Verificar que el docente es tutor de este grupo
+    const grupoTutor = await query(
+      `SELECT g.*
+       FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+
+    if (grupoTutor.length === 0) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+
+    // Obtener asignaturas (cursos) del grupo
+    const cursos = await query(
+      `SELECT DISTINCT
+              a.id as asignatura_id,
+              c.id as curso_id,
+              c.nombre as curso_nombre,
+              c.imagen as curso_imagen,
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
+              p.id as docente_id,
+              p.foto as docente_foto,
+              (SELECT u.id FROM usuarios u 
+               WHERE u.personal_id = p.id AND u.estado = 'ACTIVO' 
+               LIMIT 1) as docente_usuario_id,
+              a.aula_virtual as link_aula_virtual
+       FROM asignaturas a
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN personal p ON p.id = a.personal_id
+       WHERE a.grupo_id = ? AND a.colegio_id = ?
+       ORDER BY c.nombre ASC`,
+      [grupoId, colegio_id]
+    );
+
+    // Construir URLs de imágenes
+    const cursosConImagenes = cursos.map(curso => {
+      let cursoImagenUrl = null;
+      let docenteFotoUrl = null;
+
+      if (curso.curso_imagen) {
+        cursoImagenUrl = curso.curso_imagen.startsWith('http') 
+          ? curso.curso_imagen 
+          : `${process.env.URL_SISTEMA_ANTERIOR || 'https://sistema.vanguardschools.edu.pe'}/assets/cursos/${curso.curso_imagen}`;
+      }
+
+      if (curso.docente_foto) {
+        docenteFotoUrl = curso.docente_foto.startsWith('http')
+          ? curso.docente_foto
+          : `${process.env.URL_SISTEMA_ANTERIOR || 'https://sistema.vanguardschools.edu.pe'}/assets/personal/${curso.docente_foto}`;
+      }
+
+      return {
+        ...curso,
+        curso_imagen_url: cursoImagenUrl,
+        docente_foto_url: docenteFotoUrl
+      };
+    });
+
+    res.json({ cursos: cursosConImagenes });
+  } catch (error) {
+    console.error('Error obteniendo cursos del grupo:', error);
+    res.status(500).json({ error: 'Error al obtener los cursos del grupo' });
+  }
+});
+
+/**
  * GET /api/docente/tutoria/grupos/:grupoId/alumnos
  * Obtener alumnos de un grupo específico del tutor
  */

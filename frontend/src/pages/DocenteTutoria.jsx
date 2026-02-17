@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
@@ -7,8 +8,10 @@ import Swal from 'sweetalert2';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './DocenteTutoria.css';
+import './AlumnoCursos.css';
 
 function DocenteTutoria() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [esTutor, setEsTutor] = useState(false);
   const [gruposTutor, setGruposTutor] = useState([]);
@@ -24,6 +27,21 @@ function DocenteTutoria() {
   const [alumnoSeleccionado, setAlumnoSeleccionado] = useState(null);
   const [recomendacion, setRecomendacion] = useState('');
   const dropdownRef = useRef(null);
+  
+  // Estados para Cursos Asignados
+  const [mostrarCursos, setMostrarCursos] = useState(false);
+  const [cursos, setCursos] = useState([]);
+  const [loadingCursos, setLoadingCursos] = useState(false);
+  const [grupoSeleccionadoCursos, setGrupoSeleccionadoCursos] = useState(null);
+  
+  // Estados para modal de mensaje al docente
+  const [mostrarModalMensajeDocente, setMostrarModalMensajeDocente] = useState(false);
+  const [docenteParaMensaje, setDocenteParaMensaje] = useState(null);
+  const [asuntoMensajeDocente, setAsuntoMensajeDocente] = useState('');
+  const [contenidoMensajeDocente, setContenidoMensajeDocente] = useState('');
+  const [archivosAdjuntosMensajeDocente, setArchivosAdjuntosMensajeDocente] = useState([]);
+  const [enviandoMensajeDocente, setEnviandoMensajeDocente] = useState(false);
+  const quillRefMensajeDocente = useRef(null);
   
   // Estados para modal de mensaje al grupo
   const [mostrarModalMensajeGrupo, setMostrarModalMensajeGrupo] = useState(false);
@@ -215,6 +233,78 @@ function DocenteTutoria() {
     }
   }, [mostrarModalMensajeAlumno]);
 
+  // Configurar handler de imágenes para ReactQuill en modal de mensaje al docente
+  useEffect(() => {
+    if (quillRefMensajeDocente.current && mostrarModalMensajeDocente) {
+      // Pequeño delay para asegurar que el editor esté completamente inicializado
+      const timeoutId = setTimeout(() => {
+        const quill = quillRefMensajeDocente.current?.getEditor();
+        if (!quill) return;
+        
+        const toolbar = quill.getModule('toolbar');
+        if (!toolbar) return;
+        
+        // Handler para subir imágenes
+        const imageHandler = async () => {
+          const input = document.createElement('input');
+          input.setAttribute('type', 'file');
+          input.setAttribute('accept', 'image/*');
+          input.click();
+
+          input.onchange = async () => {
+            const file = input.files[0];
+            if (!file) return;
+
+            // Validar tamaño (máximo 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+              Swal.fire('Error', 'La imagen no puede ser mayor a 5MB', 'error');
+              return;
+            }
+
+            // Validar tipo
+            if (!file.type.startsWith('image/')) {
+              Swal.fire('Error', 'Solo se permiten archivos de imagen', 'error');
+              return;
+            }
+
+            try {
+              const formData = new FormData();
+              formData.append('imagen', file);
+
+              const response = await api.post('/docente/mensajes/subir-imagen', formData, {
+                headers: {
+                  'Content-Type': 'multipart/form-data',
+                },
+              });
+
+              // El backend ya devuelve la URL completa (con dominio del sistema PHP)
+              const imagenUrl = response.data.url;
+              
+              console.log('✅ [TUTORIA-DOCENTE] Imagen subida, URL:', imagenUrl);
+              
+              // Insertar la imagen en el editor
+              const range = quill.getSelection(true);
+              quill.insertEmbed(range.index, 'image', imagenUrl);
+              quill.setSelection(range.index + 1);
+            } catch (error) {
+              console.error('❌ [TUTORIA-DOCENTE] Error subiendo imagen:', error);
+              Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+            }
+          };
+        };
+        
+        // Agregar el handler
+        toolbar.addHandler('image', imageHandler);
+        console.log('✅ [TUTORIA-DOCENTE] Handler de imágenes configurado');
+      }, 100);
+      
+      // Cleanup
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    }
+  }, [mostrarModalMensajeDocente]);
+
   const cargarGruposTutor = async () => {
     try {
       setLoading(true);
@@ -282,17 +372,8 @@ function DocenteTutoria() {
         await cargarAlumnos(grupo.id);
         setMostrarRecomendacion(true);
         break;
-      case 'lista-asignaturas':
-        // Implementar después
-        Swal.fire({
-          icon: 'info',
-          title: 'Próximamente',
-          text: 'Esta funcionalidad se implementará próximamente',
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
-          timer: 3000
-        });
+      case 'cursos-asignados':
+        await handleVerCursos(grupo);
         break;
       case 'registrar-conducta':
         // Implementar después
@@ -371,6 +452,132 @@ function DocenteTutoria() {
     setMostrarRecomendacion(false);
     setAlumnoSeleccionado(null);
     setRecomendacion('');
+  };
+
+  // Cargar cursos del grupo
+  const handleVerCursos = async (grupo) => {
+    try {
+      setLoadingCursos(true);
+      setGrupoSeleccionadoCursos(grupo);
+      
+      // Cargar cursos del grupo
+      const response = await api.get(`/docente/tutoria/grupos/${grupo.id}/cursos`);
+      const cursosOrdenados = (response.data.cursos || []).sort((a, b) => {
+        const nombreA = (a.curso_nombre || '').toLowerCase();
+        const nombreB = (b.curso_nombre || '').toLowerCase();
+        return nombreA.localeCompare(nombreB);
+      });
+      setCursos(cursosOrdenados);
+      setMostrarCursos(true);
+    } catch (error) {
+      console.error('Error cargando cursos:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudieron cargar los cursos',
+        confirmButtonText: 'Entendido'
+      });
+    } finally {
+      setLoadingCursos(false);
+    }
+  };
+
+  // Navegar al aula virtual (modo solo lectura para tutor)
+  const handleAulaVirtual = (curso) => {
+    if (grupoSeleccionadoCursos) {
+      // Navegar a una ruta especial para tutores (modo solo lectura)
+      navigate(`/docente/tutoria/grupos/${grupoSeleccionadoCursos.id}/aula-virtual/${curso.asignatura_id}?modo=solo-lectura`);
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se ha seleccionado un grupo',
+        confirmButtonText: 'Entendido'
+      });
+    }
+  };
+
+  // Abrir modal para enviar mensaje al docente
+  const handleEnviarMensajeDocente = (curso) => {
+    const docenteData = {
+      id: curso.docente_usuario_id || curso.docente_id,
+      nombre: curso.docente_nombre,
+      curso_nombre: curso.curso_nombre
+    };
+    setDocenteParaMensaje(docenteData);
+    setMostrarModalMensajeDocente(true);
+  };
+
+  // Manejar cambio de archivos adjuntos para mensaje al docente
+  const handleArchivoChangeMensajeDocente = (e) => {
+    const archivos = Array.from(e.target.files);
+    setArchivosAdjuntosMensajeDocente([...archivosAdjuntosMensajeDocente, ...archivos]);
+    e.target.value = '';
+  };
+
+  // Eliminar archivo adjunto
+  const eliminarArchivoMensajeDocente = (index) => {
+    setArchivosAdjuntosMensajeDocente(archivosAdjuntosMensajeDocente.filter((_, i) => i !== index));
+  };
+
+  // Enviar mensaje al docente
+  const enviarMensajeAlDocente = async () => {
+    if (!docenteParaMensaje) {
+      Swal.fire('Error', 'No se ha seleccionado un docente', 'error');
+      return;
+    }
+
+    if (!asuntoMensajeDocente.trim()) {
+      Swal.fire('Error', 'El asunto es requerido', 'error');
+      return;
+    }
+
+    const contenidoLimpio = contenidoMensajeDocente.replace(/<[^>]*>/g, '').trim();
+    if (!contenidoLimpio) {
+      Swal.fire('Error', 'El mensaje es requerido', 'error');
+      return;
+    }
+
+    if (enviandoMensajeDocente) {
+      return;
+    }
+
+    setEnviandoMensajeDocente(true);
+
+    try {
+      const formData = new FormData();
+      formData.append('destinatarios', JSON.stringify([docenteParaMensaje.id]));
+      formData.append('asunto', asuntoMensajeDocente.trim());
+      formData.append('mensaje', contenidoMensajeDocente);
+
+      archivosAdjuntosMensajeDocente.forEach((archivo) => {
+        formData.append('archivos', archivo);
+      });
+
+      const response = await api.post('/docente/mensajes/enviar', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      Swal.fire({
+        title: '¡Mensaje Enviado!',
+        text: response.data.message || 'Mensaje enviado correctamente',
+        icon: 'success',
+        confirmButtonText: 'Aceptar'
+      });
+      
+      setAsuntoMensajeDocente('');
+      setContenidoMensajeDocente('');
+      setArchivosAdjuntosMensajeDocente([]);
+      setMostrarModalMensajeDocente(false);
+      setDocenteParaMensaje(null);
+    } catch (error) {
+      console.error('Error enviando mensaje:', error);
+      Swal.fire('Error', error.response?.data?.error || 'Error al enviar el mensaje', 'error');
+    } finally {
+      setEnviandoMensajeDocente(false);
+    }
   };
 
   // Obtener usuario_id del alumno (necesario para enviar mensaje)
@@ -615,6 +822,269 @@ function DocenteTutoria() {
     );
   }
 
+  // Vista de Cursos Asignados
+  if (mostrarCursos) {
+    return (
+      <DashboardLayout>
+        <div className="alumno-cursos">
+          <div className="page-header">
+            <div className="header-content">
+              <div>
+                <h1>📚 Cursos Asignados</h1>
+                <p>Cursos del grupo {grupoSeleccionadoCursos?.nombre}</p>
+              </div>
+              <button 
+                className="btn-volver"
+                onClick={() => {
+                  setMostrarCursos(false);
+                  setGrupoSeleccionadoCursos(null);
+                  setCursos([]);
+                }}
+              >
+                ← Volver
+              </button>
+            </div>
+          </div>
+
+          {loadingCursos ? (
+            <div className="alumno-cursos-loading">
+              <div className="loading-spinner">Cargando cursos...</div>
+            </div>
+          ) : cursos.length > 0 ? (
+            <div className="cursos-grid">
+              {cursos.map((curso, index) => {
+                const coloresPastel = [
+                  'linear-gradient(145deg, #fef3f2, #fff5f5)', // Rosa pastel
+                  'linear-gradient(145deg, #f0fdf4, #f0fff4)', // Verde pastel
+                  'linear-gradient(145deg, #eff6ff, #f0f9ff)', // Azul pastel
+                  'linear-gradient(145deg, #faf5ff, #faf5ff)', // Púrpura pastel
+                  'linear-gradient(145deg, #fff7ed, #fffaf0)', // Naranja pastel
+                  'linear-gradient(145deg, #f0fdfa, #f0fffe)', // Turquesa pastel
+                  'linear-gradient(145deg, #fefce8, #fffff0)', // Amarillo pastel
+                  'linear-gradient(145deg, #fce7f3, #fdf2f8)', // Rosa claro pastel
+                ];
+                const colorFondo = coloresPastel[index % coloresPastel.length];
+                
+                return (
+                  <div 
+                    key={curso.asignatura_id} 
+                    className="curso-card-alumno mundo-card"
+                    style={{ background: colorFondo }}
+                  >
+                    <div className="curso-content">
+                      {/* Foto circular del docente arriba */}
+                      <div className="docente-foto-container">
+                        {curso.docente_foto_url ? (
+                          <img 
+                            src={curso.docente_foto_url} 
+                            alt={curso.docente_nombre}
+                            className="docente-foto-circular"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              if (e.target.nextSibling) {
+                                e.target.nextSibling.style.display = 'flex';
+                              }
+                            }}
+                          />
+                        ) : null}
+                        {!curso.docente_foto_url && (
+                          <div className="docente-foto-placeholder">
+                            <span className="docente-icon-placeholder">👨‍🏫</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Nombre del docente */}
+                      <div className="curso-docente-nombre">
+                        <span className="docente-nombre-text">{curso.docente_nombre || 'Sin docente asignado'}</span>
+                      </div>
+                      
+                      {/* Nombre del curso */}
+                      <h3 className="curso-nombre-alumno">{curso.curso_nombre}</h3>
+
+                      {/* Botones de acción */}
+                      <div className="curso-actions-alumno">
+                        <button
+                          className="btn-aula-virtual"
+                          onClick={() => handleAulaVirtual(curso)}
+                        >
+                          🎓 Aula Virtual
+                        </button>
+                        <button
+                          className="btn-enviar-mensaje"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleEnviarMensajeDocente(curso);
+                          }}
+                          type="button"
+                        >
+                          ✉️ Enviar Mensaje
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="empty-state mundo-card">
+              <div className="empty-icon">📚</div>
+              <p>No hay cursos asignados para este grupo</p>
+            </div>
+          )}
+
+          {/* Modal de Enviar Mensaje al Docente */}
+          {mostrarModalMensajeDocente && docenteParaMensaje && createPortal(
+            <div 
+              className="modal-mensaje-overlay" 
+              onClick={() => {
+                setMostrarModalMensajeDocente(false);
+                setAsuntoMensajeDocente('');
+                setContenidoMensajeDocente('');
+                setArchivosAdjuntosMensajeDocente([]);
+                setDocenteParaMensaje(null);
+              }}
+              style={{ zIndex: 100000 }}
+            >
+              <div 
+                className="modal-mensaje-container" 
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="modal-mensaje-docente-title"
+              >
+                <div className="modal-mensaje-header">
+                  <h2 id="modal-mensaje-docente-title">✉️ Enviar Mensaje al Docente</h2>
+                  <button
+                    className="modal-mensaje-close"
+                    onClick={() => {
+                      setMostrarModalMensajeDocente(false);
+                      setAsuntoMensajeDocente('');
+                      setContenidoMensajeDocente('');
+                      setArchivosAdjuntosMensajeDocente([]);
+                      setDocenteParaMensaje(null);
+                    }}
+                    type="button"
+                    aria-label="Cerrar modal"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="modal-mensaje-body">
+                  <div className="mensaje-grupo-info">
+                    <p><strong>Docente:</strong> {docenteParaMensaje.nombre}</p>
+                    <p><strong>Curso:</strong> {docenteParaMensaje.curso_nombre}</p>
+                    <p className="mensaje-info-text">El mensaje se enviará directamente al docente</p>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="asunto-mensaje-docente-tutoria">Asunto:</label>
+                    <input
+                      type="text"
+                      id="asunto-mensaje-docente-tutoria"
+                      className="form-input"
+                      value={asuntoMensajeDocente}
+                      onChange={(e) => setAsuntoMensajeDocente(e.target.value)}
+                      placeholder="Asunto del mensaje"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="mensaje-editor-docente-tutoria">Mensaje:</label>
+                    <div id="mensaje-editor-wrapper-docente-tutoria">
+                      <ReactQuill
+                        ref={quillRefMensajeDocente}
+                        theme="snow"
+                        value={contenidoMensajeDocente}
+                        onChange={setContenidoMensajeDocente}
+                        placeholder="Escribe tu mensaje aquí..."
+                        modules={{
+                          toolbar: [
+                            [{ 'header': [1, 2, 3, false] }],
+                            ['bold', 'italic', 'underline', 'strike'],
+                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                            [{ 'color': [] }, { 'background': [] }],
+                            [{ 'align': [] }],
+                            ['link', 'image'],
+                            ['clean']
+                          ]
+                        }}
+                        formats={[
+                          'header', 'bold', 'italic', 'underline', 'strike',
+                          'list', 'bullet', 'color', 'background', 'align',
+                          'link', 'image'
+                        ]}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Archivos Adjuntos:</label>
+                    <div className="archivos-container">
+                      <input
+                        type="file"
+                        id="archivos-input-docente-tutoria"
+                        multiple
+                        onChange={handleArchivoChangeMensajeDocente}
+                        style={{ display: 'none' }}
+                      />
+                      <label htmlFor="archivos-input-docente-tutoria" className="btn-adjuntar-archivo">
+                        📎 Adjuntar Archivos
+                      </label>
+                      {archivosAdjuntosMensajeDocente.length > 0 && (
+                        <div className="archivos-list">
+                          {archivosAdjuntosMensajeDocente.map((archivo, index) => (
+                            <div key={index} className="archivo-item">
+                              <span className="archivo-nombre">{archivo.name}</span>
+                              <button
+                                type="button"
+                                className="btn-eliminar-archivo"
+                                onClick={() => eliminarArchivoMensajeDocente(index)}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="modal-mensaje-footer">
+                    <button
+                      className="btn-cancelar"
+                      onClick={() => {
+                        setMostrarModalMensajeDocente(false);
+                        setAsuntoMensajeDocente('');
+                        setContenidoMensajeDocente('');
+                        setArchivosAdjuntosMensajeDocente([]);
+                        setDocenteParaMensaje(null);
+                      }}
+                      type="button"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      className="btn-enviar"
+                      onClick={enviarMensajeAlDocente}
+                      disabled={enviandoMensajeDocente}
+                      type="button"
+                    >
+                      {enviandoMensajeDocente ? 'Enviando...' : 'Enviar Mensaje'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
     <DashboardLayout>
       <div className="docente-tutoria">
@@ -704,7 +1174,7 @@ function DocenteTutoria() {
                       { id: 'enviar-comunicado', label: 'Enviar Mensaje', icon: '✉️' },
                       { id: 'registrar-asistencia', label: 'Asistencias', icon: '✅' },
                       { id: 'apreciaciones-recomendaciones', label: 'Recomendaciones', icon: '💬' },
-                      { id: 'lista-asignaturas', label: 'Lista de Asignaturas', icon: '📚' },
+                      { id: 'cursos-asignados', label: 'Cursos Asignados', icon: '📚' },
                       { id: 'registrar-conducta', label: 'Registrar Conducta', icon: '📝' }
                     ];
 
