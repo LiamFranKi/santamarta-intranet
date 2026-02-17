@@ -2048,28 +2048,42 @@ function DocenteHijos() {
       doc.rect(0, 0, pageWidth, 36, 'F');
       
       // Logo de alta calidad - más pequeño
+      // IMPORTANTE: El logo debe estar en frontend/public/icons/logoboleta.png
+      // Este archivo está en .gitignore para evitar conflictos, pero debe existir en el VPS
       try {
+        console.log('[PDF] 🔍 Intentando cargar logo desde /icons/logoboleta.png');
         const logoResponse = await fetch('/icons/logoboleta.png');
+        console.log('[PDF] 📥 Respuesta del logo - Status:', logoResponse.status, 'OK:', logoResponse.ok);
         if (logoResponse.ok) {
           const logoBlob = await logoResponse.blob();
+          console.log('[PDF] ✅ Logo blob obtenido, tamaño:', logoBlob.size, 'bytes');
           const logoReader = new FileReader();
           await new Promise((resolve) => {
             logoReader.onloadend = () => {
               try {
                 // Logo más pequeño
                 doc.addImage(logoReader.result, 'PNG', 12, 5, 26, 26);
+                console.log('[PDF] ✅ Logo agregado correctamente al PDF');
                 resolve();
               } catch (err) {
-                console.warn('Error agregando logo:', err);
+                console.error('[PDF] ❌ Error agregando logo al PDF:', err);
+                console.error('[PDF] ❌ Stack:', err.stack);
                 resolve();
               }
             };
-            logoReader.onerror = () => resolve();
+            logoReader.onerror = () => {
+              console.error('[PDF] ❌ Error en FileReader al leer logo');
+              resolve();
+            };
             logoReader.readAsDataURL(logoBlob);
           });
+        } else {
+          console.warn('[PDF] ⚠️ Logo no encontrado (status:', logoResponse.status, ')');
+          console.warn('[PDF] ⚠️ Verificar que logoboleta.png existe en frontend/public/icons/ en el VPS');
         }
       } catch (err) {
-        console.warn('Error cargando logo:', err);
+        console.error('[PDF] ❌ Error cargando logo:', err);
+        console.error('[PDF] ❌ Stack:', err.stack);
       }
 
       // Razón Social en header - mejor posicionada
