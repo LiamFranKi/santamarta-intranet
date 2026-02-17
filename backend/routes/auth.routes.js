@@ -314,10 +314,17 @@ async function verificarDeudas(usuario, anioActivo) {
       inicio_pensiones: colegios.length > 0 ? colegios[0].inicio_pensiones : null
     });
 
-    if (colegios.length === 0 || colegios[0].bloquear_deudores !== 'SI') {
-      console.log(`[VERIFICAR DEUDAS] No se bloquea deudores - colegios.length: ${colegios.length}, bloquear_deudores: ${colegios.length > 0 ? colegios[0].bloquear_deudores : 'N/A'}`);
-      return false; // No bloquea deudores
+    // IMPORTANTE: No retornar false si bloquear_deudores === 'NO'
+    // El bloqueo de submenús (Notas Detalladas, Ver Libreta) debe funcionar
+    // independientemente del valor de "Bloquear Deudores"
+    // "Bloquear Deudores" solo controla el acceso completo al sistema,
+    // pero los submenús deben bloquearse si hay pensiones vencidas
+    if (colegios.length === 0) {
+      console.log(`[VERIFICAR DEUDAS] ⚠️ No se encontró configuración del colegio`);
+      return false; // No hay configuración del colegio
     }
+    
+    console.log(`[VERIFICAR DEUDAS] Continuando verificación de deudas vencidas (bloquear_deudores: ${colegios[0].bloquear_deudores})`);
 
     // Verificar para ALUMNOS, APODERADOS y DOCENTES que también son APODERADOS
     if (usuario.tipo !== 'ALUMNO' && usuario.tipo !== 'APODERADO' && usuario.tipo !== 'DOCENTE') {
