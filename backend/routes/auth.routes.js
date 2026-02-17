@@ -347,29 +347,50 @@ async function verificarDeudas(usuario, anioActivo) {
     }
 
     // Función auxiliar para calcular fecha de vencimiento
+    // IMPORTANTE: Las claves en pensiones_vencimiento son:
+    //   -1 = Matrícula
+    //   1 = Primera pensión (Marzo si inicio_pensiones = 2)
+    //   2 = Segunda pensión (Abril), etc.
+    // Lógica del sistema anterior (Matricula.php línea 566-574):
+    //   - Si vencimiento tiene 1 parte (solo día): fecha = "dd-(nroPension+2)-anio"
+    //   - Si vencimiento tiene 2 partes (día-mes): fecha = "dd-mm-anio"
+    //   - Si vencimiento tiene 3 partes (día-mes-año): fecha = "dd-mm-yyyy"
     const calcularFechaVencimiento = (nroPension, anio, inicioPensiones) => {
       let vencimiento = vencimientosPensiones[nroPension];
       
-      if (!vencimiento) {
+      console.log(`[VERIFICAR DEUDAS] calcularFechaVencimiento: nroPension=${nroPension}, vencimiento configurado="${vencimiento || 'NO'}"`);
+      
+      if (!vencimiento || vencimiento === '') {
         // Si no hay configuración específica, usar el último día del mes correspondiente
-        const mesPension = inicioPensiones + nroPension;
+        // Fórmula del sistema anterior: mes = nroPension + 2 (pero esto parece incorrecto)
+        // Mejor usar: mes = inicio_pensiones + nroPension - 1
+        // Pero según el sistema anterior línea 569: mes = nroPension + 2
+        const mesPension = nroPension + 2; // Según sistema anterior
         const ultimoDia = new Date(anio, mesPension, 0).getDate();
-        return `${ultimoDia}-${String(mesPension).padStart(2, '0')}-${anio}`;
+        const fechaCalculada = `${ultimoDia}-${String(mesPension).padStart(2, '0')}-${anio}`;
+        console.log(`[VERIFICAR DEUDAS] No hay vencimiento configurado, usando último día del mes: ${fechaCalculada}`);
+        return fechaCalculada;
       }
 
       // Parsear el formato de vencimiento (puede ser: "dd", "dd-mm", o "dd-mm-yyyy")
-      const partes = String(vencimiento).split('-');
+      const partes = String(vencimiento).trim().split('-');
       
       if (partes.length === 1) {
-        // Solo día: "31" -> se asume mes = inicio_pensiones + nroPension
-        const mesPension = inicioPensiones + nroPension;
-        return `${partes[0].padStart(2, '0')}-${String(mesPension).padStart(2, '0')}-${anio}`;
+        // Solo día: "31" -> según sistema anterior: fecha = "dd-(nroPension+2)-anio"
+        const mesPension = nroPension + 2; // Según sistema anterior línea 569
+        const fechaCalculada = `${partes[0].padStart(2, '0')}-${String(mesPension).padStart(2, '0')}-${anio}`;
+        console.log(`[VERIFICAR DEUDAS] Solo día configurado (${partes[0]}), fecha calculada: ${fechaCalculada}`);
+        return fechaCalculada;
       } else if (partes.length === 2) {
-        // Día-mes: "31-03" -> se asume año = anio
-        return `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${anio}`;
+        // Día-mes: "31-01" -> según sistema anterior: fecha = "dd-mm-anio"
+        const fechaCalculada = `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${anio}`;
+        console.log(`[VERIFICAR DEUDAS] Día-mes configurado (${vencimiento}), fecha calculada: ${fechaCalculada}`);
+        return fechaCalculada;
       } else {
-        // Día-mes-año: "31-03-2025"
-        return vencimiento;
+        // Día-mes-año: "31-01-2026"
+        const fechaCalculada = `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${partes[2]}`;
+        console.log(`[VERIFICAR DEUDAS] Fecha completa configurada (${vencimiento}), fecha final: ${fechaCalculada}`);
+        return fechaCalculada;
       }
     };
 
