@@ -682,5 +682,179 @@ router.get('/verificar-deudas', authenticateToken, async (req, res) => {
   }
 });
 
+// Endpoint de diagnóstico para verificar deudas de un alumno por DNI
+router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
+  try {
+    const { dni } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    
+    console.log(`[DIAGNOSTICO] Verificando deudas para DNI: ${dni}, Colegio: ${colegio_id}, Año: ${anio_activo}`);
+    
+    // Obtener configuración del colegio
+    const colegios = await query(
+      `SELECT bloquear_deudores, dias_tolerancia, pensiones_vencimiento, inicio_pensiones, ciclo_pensiones
+       FROM colegios WHERE id = ?`,
+      [colegio_id]
+    );
+    
+    if (colegios.length === 0) {
+      return res.json({ error: 'Colegio no encontrado' });
+    }
+    
+    const colegio = colegios[0];
+    const diasTolerancia = colegio.dias_tolerancia || 0;
+    const inicioPensiones = colegio.inicio_pensiones || 2;
+    const cicloPensiones = colegio.ciclo_pensiones || 0;
+    
+    // Deserializar pensiones_vencimiento
+    let vencimientosPensiones = {};
+    if (colegio.pensiones_vencimiento && colegio.pensiones_vencimiento !== '') {
+      try {
+        const deserialized = phpSerialize.unserialize(Buffer.from(colegio.pensiones_vencimiento, 'base64'));
+        vencimientosPensiones = deserialized || {};
+      } catch (e) {
+        console.warn('[DIAGNOSTICO] Error deserializando pensiones_vencimiento:', e.message);
+      }
+    }
+    
+    // Buscar alumno por DNI
+    const alumnos = await query(
+      `SELECT a.id, a.nombres, a.apellido_paterno, a.apellido_materno, a.nro_documento
+       FROM alumnos a
+       WHERE a.nro_documento = ? AND a.colegio_id = ?`,
+      [dni, colegio_id]
+    );
+    
+    if (alumnos.length === 0) {
+      return res.json({ error: 'Alumno no encontrado con ese DNI' });
+    }
+    
+    const alumno = alumnos[0];
+    
+    // Obtener matrículas activas
+    const matriculas = await query(
+      `SELECT m.id, m.grupo_id, g.anio
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND m.estado = 0 AND g.anio = ?`,
+      [alumno.id, colegio_id, anio_activo]
+    );
+    
+    if (matriculas.length === 0) {
+      return res.json({ error: 'No hay matrícula activa para este alumno' });
+    }
+    
+    const matricula = matriculas[0];
+    
+    // Calcular número de pensión que debería estar pagada
+    const currentMonth = new Date().getMonth() + 1; // 1-12
+    const nroPago = currentMonth - 2; // Pensión que debería estar pagada
+    
+    // Función para calcular fecha de vencimiento (igual que en verificarDeudas)
+    const calcularFechaVencimiento = (nroPension, anio, inicioPensiones) => {
+      let vencimiento = vencimientosPensiones[nroPension];
+      
+      if (!vencimiento || vencimiento === '') {
+        const mesPension = nroPension + 2;
+        const ultimoDia = new Date(anio, mesPension, 0).getDate();
+        return `${ultimoDia}-${String(mesPension).padStart(2, '0')}-${anio}`;
+      }
+      
+      const partes = String(vencimiento).trim().split('-');
+      
+      if (partes.length === 1) {
+        const mesPension = nroPension + 2;
+        return `${partes[0].padStart(2, '0')}-${String(mesPension).padStart(2, '0')}-${anio}`;
+      } else if (partes.length === 2) {
+        return `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${anio}`;
+      } else {
+        return `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${partes[2]}`;
+      }
+    };
+    
+    // Verificar cada pensión
+    const detallesPensiones = [];
+    const fechaActual = new Date();
+    fechaActual.setHours(0, 0, 0, 0);
+    
+    for (let i = 1; i <= nroPago; i++) {
+      const fechaVencimientoStr = calcularFechaVencimiento(i, anio_activo, inicioPensiones);
+      const partesFecha = fechaVencimientoStr.split('-');
+      const fechaVencimiento = new Date(
+        parseInt(partesFecha[2]),
+        parseInt(partesFecha[1]) - 1,
+        parseInt(partesFecha[0])
+      );
+      
+      const fechaLimite = new Date(fechaVencimiento);
+      fechaLimite.setDate(fechaLimite.getDate() + diasTolerancia);
+      fechaLimite.setHours(23, 59, 59, 999);
+      
+      // Verificar pagos cancelados
+      const pagosCancelados = await query(
+        `SELECT COUNT(*) as total, GROUP_CONCAT(p.id) as pago_ids
+         FROM pagos p
+         WHERE p.matricula_id = ?
+           AND p.tipo = 1
+           AND p.nro_pago = ?
+           AND p.estado_pago = 'CANCELADO'
+           AND p.estado = 'ACTIVO'`,
+        [matricula.id, i]
+      );
+      
+      const tienePago = pagosCancelados[0].total > 0;
+      const estaVencida = fechaActual > fechaLimite;
+      const tieneDeuda = estaVencida && !tienePago;
+      
+      detallesPensiones.push({
+        nro_pension: i,
+        fecha_vencimiento: fechaVencimientoStr,
+        fecha_vencimiento_iso: fechaVencimiento.toISOString(),
+        fecha_limite: fechaLimite.toISOString(),
+        fecha_actual: fechaActual.toISOString(),
+        dias_tolerancia: diasTolerancia,
+        esta_vencida: estaVencida,
+        tiene_pago: tienePago,
+        tiene_deuda: tieneDeuda,
+        pago_ids: pagosCancelados[0].pago_ids || null
+      });
+    }
+    
+    const tieneDeudas = detallesPensiones.some(p => p.tiene_deuda);
+    
+    res.json({
+      alumno: {
+        id: alumno.id,
+        nombre_completo: `${alumno.nombres} ${alumno.apellido_paterno} ${alumno.apellido_materno}`,
+        dni: alumno.nro_documento
+      },
+      matricula: {
+        id: matricula.id,
+        anio: matricula.anio
+      },
+      configuracion: {
+        bloquear_deudores: colegio.bloquear_deudores,
+        dias_tolerancia: diasTolerancia,
+        inicio_pensiones: inicioPensiones,
+        ciclo_pensiones: cicloPensiones,
+        pensiones_vencimiento: vencimientosPensiones
+      },
+      calculos: {
+        mes_actual: currentMonth,
+        nro_pago_verificar: nroPago,
+        fecha_actual: fechaActual.toISOString()
+      },
+      pensiones: detallesPensiones,
+      resultado: {
+        tiene_deudas: tieneDeudas,
+        debe_bloquear: colegio.bloquear_deudores === 'SI' && tieneDeudas
+      }
+    });
+  } catch (error) {
+    console.error('[DIAGNOSTICO] Error:', error);
+    res.status(500).json({ error: 'Error en diagnóstico', details: error.message });
+  }
+});
+
 module.exports = router;
 
