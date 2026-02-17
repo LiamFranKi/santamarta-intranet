@@ -74,11 +74,16 @@ function DocenteTutoria() {
   // Configurar handler de imágenes para ReactQuill en modal de mensaje al grupo
   useEffect(() => {
     if (quillRefMensajeGrupo.current && mostrarModalMensajeGrupo) {
-      const quill = quillRefMensajeGrupo.current.getEditor();
-      const toolbar = quill.getModule('toolbar');
-      
-      // Handler para subir imágenes
-      const imageHandler = async () => {
+      // Pequeño delay para asegurar que el editor esté completamente inicializado
+      const timeoutId = setTimeout(() => {
+        const quill = quillRefMensajeGrupo.current?.getEditor();
+        if (!quill) return;
+        
+        const toolbar = quill.getModule('toolbar');
+        if (!toolbar) return;
+        
+        // Handler para subir imágenes
+        const imageHandler = async () => {
         const input = document.createElement('input');
         input.setAttribute('type', 'file');
         input.setAttribute('accept', 'image/*');
@@ -126,12 +131,14 @@ function DocenteTutoria() {
         };
       };
       
-      // Agregar el handler
-      toolbar.addHandler('image', imageHandler);
+        // Agregar el handler
+        toolbar.addHandler('image', imageHandler);
+        console.log('✅ [TUTORIA-GRUPO] Handler de imágenes configurado');
+      }, 100);
       
-      // Cleanup: no hay forma directa de remover el handler, pero ReactQuill maneja esto internamente
+      // Cleanup
       return () => {
-        // El handler se mantiene mientras el editor existe
+        clearTimeout(timeoutId);
       };
     }
   }, [mostrarModalMensajeGrupo]);
@@ -139,11 +146,16 @@ function DocenteTutoria() {
   // Configurar handler de imágenes para ReactQuill en modal de mensaje a alumno
   useEffect(() => {
     if (quillRefMensajeAlumno.current && mostrarModalMensajeAlumno) {
-      const quill = quillRefMensajeAlumno.current.getEditor();
-      const toolbar = quill.getModule('toolbar');
-      
-      // Handler para subir imágenes
-      const imageHandler = async () => {
+      // Pequeño delay para asegurar que el editor esté completamente inicializado
+      const timeoutId = setTimeout(() => {
+        const quill = quillRefMensajeAlumno.current?.getEditor();
+        if (!quill) return;
+        
+        const toolbar = quill.getModule('toolbar');
+        if (!toolbar) return;
+        
+        // Handler para subir imágenes
+        const imageHandler = async () => {
         const input = document.createElement('input');
         input.setAttribute('type', 'file');
         input.setAttribute('accept', 'image/*');
@@ -191,12 +203,14 @@ function DocenteTutoria() {
         };
       };
       
-      // Agregar el handler
-      toolbar.addHandler('image', imageHandler);
+        // Agregar el handler
+        toolbar.addHandler('image', imageHandler);
+        console.log('✅ [TUTORIA-ALUMNO] Handler de imágenes configurado');
+      }, 100);
       
-      // Cleanup: no hay forma directa de remover el handler, pero ReactQuill maneja esto internamente
+      // Cleanup
       return () => {
-        // El handler se mantiene mientras el editor existe
+        clearTimeout(timeoutId);
       };
     }
   }, [mostrarModalMensajeAlumno]);
