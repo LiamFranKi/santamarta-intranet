@@ -523,9 +523,22 @@ async function verificarDeudas(usuario, anioActivo) {
 
       const inicioPensiones = colegio.inicio_pensiones || 2;
 
+      // Verificar todas las pensiones que tengan configuración de vencimiento
+      // O si nroPago > 0, verificar desde 1 hasta nroPago
+      const pensionesAVerificar = nroPago > 0 
+        ? Array.from({ length: nroPago }, (_, i) => i + 1)
+        : Object.keys(vencimientosPensiones)
+            .map(k => parseInt(k))
+            .filter(k => k > 0 && !isNaN(k)); // Solo pensiones (excluir -1 que es matrícula)
+
+      if (pensionesAVerificar.length === 0) {
+        console.log(`[VERIFICAR DEUDAS] No hay pensiones para verificar (APODERADO)`);
+        return false;
+      }
+
       // Verificar deudas de cada hijo
       for (const matricula of matriculasHijos) {
-        for (let i = 1; i <= nroPago; i++) {
+        for (const i of pensionesAVerificar) {
           const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
           
           // Convertir dd-mm-yyyy a Date correctamente
@@ -634,10 +647,23 @@ async function verificarDeudas(usuario, anioActivo) {
       const inicioPensiones = colegio.inicio_pensiones || 2;
       console.log(`[VERIFICAR DEUDAS] Inicio pensiones: ${inicioPensiones}, nroPago: ${nroPago}`);
 
+      // Verificar todas las pensiones que tengan configuración de vencimiento
+      // O si nroPago > 0, verificar desde 1 hasta nroPago
+      const pensionesAVerificar = nroPago > 0 
+        ? Array.from({ length: nroPago }, (_, i) => i + 1)
+        : Object.keys(vencimientosPensiones)
+            .map(k => parseInt(k))
+            .filter(k => k > 0 && !isNaN(k)); // Solo pensiones (excluir -1 que es matrícula)
+
+      if (pensionesAVerificar.length === 0) {
+        console.log(`[VERIFICAR DEUDAS] No hay pensiones para verificar (DOCENTE/APODERADO)`);
+        return false;
+      }
+
       // Verificar deudas de cada hijo
       for (const matricula of matriculasHijos) {
         console.log(`[VERIFICAR DEUDAS] Verificando matrícula ID: ${matricula.id} del hijo (DOCENTE/APODERADO)`);
-        for (let i = 1; i <= nroPago; i++) {
+        for (const i of pensionesAVerificar) {
           const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
           
           // Convertir dd-mm-yyyy a Date correctamente
