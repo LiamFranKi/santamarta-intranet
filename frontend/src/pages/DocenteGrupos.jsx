@@ -361,6 +361,8 @@ function DocenteGrupos() {
         formData.append('archivos', archivo);
       });
 
+      console.log(`📎 [ENVIAR MENSAJE ALUMNO] Contenido HTML (primeros 500 caracteres):`, contenidoMensajeAlumno.substring(0, 500));
+      console.log(`📎 [ENVIAR MENSAJE ALUMNO] ¿Contiene imágenes?:`, contenidoMensajeAlumno.includes('<img'));
       const response = await api.post('/docente/mensajes/enviar', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -430,6 +432,8 @@ function DocenteGrupos() {
       });
 
       console.log(`📎 [ENVIAR MENSAJE GRUPO] Enviando mensaje al grupo ID: ${grupoParaMensaje.id}`);
+      console.log(`📎 [ENVIAR MENSAJE GRUPO] Contenido HTML (primeros 500 caracteres):`, contenidoMensajeGrupo.substring(0, 500));
+      console.log(`📎 [ENVIAR MENSAJE GRUPO] ¿Contiene imágenes?:`, contenidoMensajeGrupo.includes('<img'));
       const response = await api.post('/docente/mensajes/enviar', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
