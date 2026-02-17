@@ -4767,7 +4767,17 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/videos', async (req, res) => {
     const personalId = req.user.personal_id;
     const { asignatura_id, ciclo } = req.query;
 
+    console.log('🔵 [TUTOR-VIDEOS] Parámetros recibidos:', {
+      grupoId,
+      personalId,
+      colegio_id,
+      anio_activo,
+      asignatura_id,
+      ciclo
+    });
+
     if (!personalId) {
+      console.error('❌ [TUTOR-VIDEOS] personalId no encontrado en req.user');
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
@@ -4779,7 +4789,37 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/videos', async (req, res) => {
       [grupoId, personalId, colegio_id, anio_activo]
     );
 
+    console.log('🔵 [TUTOR-VIDEOS] Resultado verificación tutor:', {
+      grupoId,
+      personalId,
+      colegio_id,
+      anio_activo,
+      grupoEncontrado: grupoTutor.length > 0,
+      grupoData: grupoTutor[0] || null
+    });
+
     if (grupoTutor.length === 0) {
+      // Intentar verificar sin anio para debug
+      const grupoSinAnio = await query(
+        `SELECT g.* FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?`,
+        [grupoId, personalId, colegio_id]
+      );
+      
+      // También verificar si el grupo existe pero con otro tutor_id
+      const grupoExiste = await query(
+        `SELECT g.* FROM grupos g WHERE g.id = ? AND g.colegio_id = ? AND g.anio = ?`,
+        [grupoId, colegio_id, anio_activo]
+      );
+      
+      console.error('❌ [TUTOR-VIDEOS] No se encontró grupo como tutor. Debug:', {
+        grupoSinAnio: grupoSinAnio.length > 0,
+        anioEnGrupo: grupoSinAnio[0]?.anio,
+        anioEsperado: anio_activo,
+        grupoExiste: grupoExiste.length > 0,
+        tutorIdEnGrupo: grupoExiste[0]?.tutor_id,
+        personalIdEsperado: personalId,
+        sonIguales: grupoExiste[0]?.tutor_id == personalId
+      });
       return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
 
