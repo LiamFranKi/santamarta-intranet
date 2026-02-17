@@ -338,15 +338,8 @@ function DocenteHijos() {
         await handleVerLibreta(hijo);
         break;
       case 'pagos-realizados':
-        if (tieneDeudasBloqueadas) {
-          Swal.fire({
-            icon: 'warning',
-            title: 'Acceso Bloqueado',
-            text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.',
-            confirmButtonText: 'Entendido'
-          });
-          return;
-        }
+        // Permitir acceso a Pagos Realizados siempre (puede ver lo que pagó y lo que tiene pendiente)
+        // El botón "IMPRIMIR BOLETA" solo aparecerá si el pago está cancelado
         await handleVerPagos(hijo);
         break;
       case 'psicologia':
@@ -1993,11 +1986,23 @@ function DocenteHijos() {
   // Función para generar PDF de boleta
   const generarPDFBoleta = async (pago) => {
     try {
+      // IMPORTANTE: Solo se puede imprimir boleta si el pago está cancelado
       if (!pago.id || !pago.boleta) {
         Swal.fire({
           icon: 'error',
           title: 'Error',
           text: 'No se puede generar la boleta: el pago no tiene boleta asociada',
+          confirmButtonText: 'Entendido'
+        });
+        return;
+      }
+
+      // Verificar que el pago esté cancelado
+      if (pago.estado_pago !== 'CANCELADO') {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Pago No Cancelado',
+          text: 'Solo se puede imprimir la boleta de pagos que han sido cancelados. Este pago aún no ha sido cancelado.',
           confirmButtonText: 'Entendido'
         });
         return;
