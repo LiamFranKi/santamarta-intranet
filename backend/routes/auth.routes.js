@@ -287,7 +287,19 @@ router.get('/me', authenticateToken, async (req, res) => {
  */
 async function verificarDeudas(usuario, anioActivo) {
   try {
-    console.log(`[VERIFICAR DEUDAS] Iniciando verificación para usuario ID: ${usuario.id}, tipo: ${usuario.tipo}, colegio_id: ${usuario.colegio_id}`);
+    // Validar que anioActivo esté definido
+    if (!anioActivo || isNaN(anioActivo)) {
+      console.error(`[VERIFICAR DEUDAS] anioActivo inválido: ${anioActivo}`);
+      return false;
+    }
+    
+    // Validar que usuario tenga los campos necesarios
+    if (!usuario || !usuario.id || !usuario.colegio_id) {
+      console.error(`[VERIFICAR DEUDAS] Usuario inválido:`, usuario);
+      return false;
+    }
+    
+    console.log(`[VERIFICAR DEUDAS] Iniciando verificación para usuario ID: ${usuario.id}, tipo: ${usuario.tipo}, colegio_id: ${usuario.colegio_id}, anioActivo: ${anioActivo}`);
     
     // Obtener configuración del colegio
     const colegios = await query(
@@ -539,6 +551,11 @@ async function verificarDeudas(usuario, anioActivo) {
       // Verificar deudas de cada hijo
       for (const matricula of matriculasHijos) {
         for (const i of pensionesAVerificar) {
+          // Validar que i sea un número válido
+          if (!i || isNaN(i) || i <= 0) {
+            console.warn(`[VERIFICAR DEUDAS] Saltando pensión inválida: ${i}`);
+            continue;
+          }
           const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
           
           // Convertir dd-mm-yyyy a Date correctamente
