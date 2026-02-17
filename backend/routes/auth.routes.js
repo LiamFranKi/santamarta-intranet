@@ -607,7 +607,15 @@ async function verificarDeudas(usuario, anioActivo) {
 
     // Verificar deudas para DOCENTE que también es APODERADO
     if (usuario.tipo === 'DOCENTE') {
-      console.log(`[VERIFICAR DEUDAS] Verificando deudas para DOCENTE ID: ${usuario.usuario_id}`);
+      // Asegurar que tenemos usuario_id (puede venir como id o usuario_id)
+      const docenteUsuarioId = usuario.usuario_id || usuario.id;
+      console.log(`[VERIFICAR DEUDAS] Verificando deudas para DOCENTE ID: ${docenteUsuarioId}`);
+      console.log(`[VERIFICAR DEUDAS] Usuario objeto completo:`, JSON.stringify(usuario, null, 2));
+      
+      if (!docenteUsuarioId) {
+        console.error(`[VERIFICAR DEUDAS] ❌ No se encontró usuario_id en el objeto usuario`);
+        return false;
+      }
       
       // Obtener DNI del docente desde la tabla personal
       const docenteData = await query(
@@ -616,7 +624,7 @@ async function verificarDeudas(usuario, anioActivo) {
          INNER JOIN usuarios u ON u.personal_id = p.id
          WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'
          LIMIT 1`,
-        [usuario.usuario_id, usuario.colegio_id]
+        [docenteUsuarioId, usuario.colegio_id]
       );
 
       console.log(`[VERIFICAR DEUDAS] Docente data encontrada: ${docenteData.length > 0 ? 'SÍ' : 'NO'}`);
