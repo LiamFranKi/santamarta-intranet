@@ -455,10 +455,13 @@ async function verificarDeudas(usuario, anioActivo) {
             .map(k => parseInt(k))
             .filter(k => k > 0 && !isNaN(k)); // Solo pensiones (excluir -1 que es matrícula)
 
-      console.log(`[VERIFICAR DEUDAS] Pensiones a verificar:`, pensionesAVerificar);
+      console.log(`[VERIFICAR DEUDAS] nroPago: ${nroPago}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
+      console.log(`[VERIFICAR DEUDAS] pensionesAVerificar calculado (ALUMNO):`, pensionesAVerificar);
+      console.log(`[VERIFICAR DEUDAS] Total pensiones a verificar (ALUMNO): ${pensionesAVerificar.length}`);
 
       if (pensionesAVerificar.length === 0) {
-        console.log(`[VERIFICAR DEUDAS] No hay pensiones para verificar`);
+        console.log(`[VERIFICAR DEUDAS] ⚠️ No hay pensiones para verificar (ALUMNO)`);
+        console.log(`[VERIFICAR DEUDAS] ⚠️ nroPago: ${nroPago}, vencimientosPensiones vacío: ${Object.keys(vencimientosPensiones).length === 0}`);
         return false;
       }
 
@@ -673,14 +676,19 @@ async function verificarDeudas(usuario, anioActivo) {
 
       // Verificar todas las pensiones que tengan configuración de vencimiento
       // O si nroPago > 0, verificar desde 1 hasta nroPago
+      console.log(`[VERIFICAR DEUDAS] nroPago: ${nroPago}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
       const pensionesAVerificar = nroPago > 0 
         ? Array.from({ length: nroPago }, (_, i) => i + 1)
         : Object.keys(vencimientosPensiones)
             .map(k => parseInt(k))
             .filter(k => k > 0 && !isNaN(k)); // Solo pensiones (excluir -1 que es matrícula)
 
+      console.log(`[VERIFICAR DEUDAS] pensionesAVerificar calculado (DOCENTE/APODERADO):`, pensionesAVerificar);
+      console.log(`[VERIFICAR DEUDAS] Total pensiones a verificar (DOCENTE/APODERADO): ${pensionesAVerificar.length}`);
+
       if (pensionesAVerificar.length === 0) {
-        console.log(`[VERIFICAR DEUDAS] No hay pensiones para verificar (DOCENTE/APODERADO)`);
+        console.log(`[VERIFICAR DEUDAS] ⚠️ No hay pensiones para verificar (DOCENTE/APODERADO)`);
+        console.log(`[VERIFICAR DEUDAS] ⚠️ nroPago: ${nroPago}, vencimientosPensiones vacío: ${Object.keys(vencimientosPensiones).length === 0}`);
         return false;
       }
 
