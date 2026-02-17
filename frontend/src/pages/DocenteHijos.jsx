@@ -3685,6 +3685,7 @@ function DocenteHijos() {
   }
 
   if (!esApoderado) {
+    console.log('[FRONTEND] DocenteHijos: No es apoderado, mostrando mensaje');
     return (
       <DashboardLayout>
         <div className="docente-hijos">
@@ -3696,6 +3697,9 @@ function DocenteHijos() {
       </DashboardLayout>
     );
   }
+
+  console.log('[FRONTEND] DocenteHijos: Es apoderado, renderizando lista de hijos. Total hijos:', hijos.length);
+  console.log('[FRONTEND] DocenteHijos: Hijos data:', hijos);
 
   return (
     <DashboardLayout>
