@@ -744,23 +744,38 @@ async function verificarDeudas(usuario, anioActivo) {
  */
 router.get('/verificar-deudas', authenticateToken, async (req, res) => {
   try {
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] ========== INICIO ==========`);
     console.log(`[ENDPOINT VERIFICAR-DEUDAS] Llamado por usuario ID: ${req.user.id}, tipo: ${req.user.tipo}`);
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Usuario completo:`, {
+      id: req.user.id,
+      tipo: req.user.tipo,
+      colegio_id: req.user.colegio_id,
+      anio_activo: req.user.anio_activo
+    });
+    
     const { user } = req;
     const anioActivo = req.user.anio_activo || new Date().getFullYear();
     
     console.log(`[ENDPOINT VERIFICAR-DEUDAS] anioActivo: ${anioActivo}`);
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Llamando a verificarDeudas...`);
     
     const tieneDeudas = await verificarDeudas(user, anioActivo);
     
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Resultado: tieneDeudas = ${tieneDeudas}`);
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] ========== RESULTADO ==========`);
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] tieneDeudas retornado: ${tieneDeudas}`);
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Tipo de tieneDeudas: ${typeof tieneDeudas}`);
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] =============================`);
     
     res.json({
       tiene_deudas: tieneDeudas,
       bloqueado: tieneDeudas
     });
   } catch (error) {
+    console.error('[ENDPOINT VERIFICAR-DEUDAS] ========== ERROR ==========');
     console.error('[ENDPOINT VERIFICAR-DEUDAS] Error verificando deudas en endpoint:', error);
+    console.error('[ENDPOINT VERIFICAR-DEUDAS] Error message:', error.message);
     console.error('[ENDPOINT VERIFICAR-DEUDAS] Stack:', error.stack);
+    console.error('[ENDPOINT VERIFICAR-DEUDAS] ===========================');
     res.status(500).json({ error: 'Error al verificar deudas', tiene_deudas: false, bloqueado: false });
   }
 });
