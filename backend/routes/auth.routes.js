@@ -745,15 +745,22 @@ async function verificarDeudas(usuario, anioActivo) {
 router.get('/verificar-deudas', authenticateToken, async (req, res) => {
   try {
     console.log(`[ENDPOINT VERIFICAR-DEUDAS] ========== INICIO ==========`);
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Llamado por usuario ID: ${req.user.id}, tipo: ${req.user.tipo}`);
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Usuario completo:`, {
-      id: req.user.id,
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] req.user completo:`, req.user);
+    
+    // El token JWT tiene 'usuario_id', no 'id'
+    const user = {
+      id: req.user.usuario_id || req.user.id, // Intentar ambos campos
       tipo: req.user.tipo,
       colegio_id: req.user.colegio_id,
-      anio_activo: req.user.anio_activo
-    });
+      anio_activo: req.user.anio_activo,
+      alumno_id: req.user.alumno_id,
+      personal_id: req.user.personal_id,
+      apoderado_id: req.user.apoderado_id
+    };
     
-    const { user } = req;
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Usuario normalizado:`, user);
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Llamado por usuario ID: ${user.id}, tipo: ${user.tipo}`);
+    
     const anioActivo = req.user.anio_activo || new Date().getFullYear();
     
     console.log(`[ENDPOINT VERIFICAR-DEUDAS] anioActivo: ${anioActivo}`);
