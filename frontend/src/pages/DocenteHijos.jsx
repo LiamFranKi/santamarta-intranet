@@ -3915,7 +3915,9 @@ function DocenteHijos() {
                                   disabled={tieneDeudasBloqueadas}
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    console.log('[FRONTEND] onClick Notas Detalladas - tieneDeudasBloqueadas:', tieneDeudasBloqueadas);
                                     if (tieneDeudasBloqueadas) {
+                                      console.log('[FRONTEND] BLOQUEANDO en onClick - Notas Detalladas');
                                       Swal.fire({
                                         icon: 'warning',
                                         title: 'Acceso Bloqueado',
@@ -3924,6 +3926,7 @@ function DocenteHijos() {
                                       });
                                       return;
                                     }
+                                    console.log('[FRONTEND] PERMITIENDO en onClick - Notas Detalladas');
                                     handleOpcionClick('notas-detalladas', hijo);
                                   }}
                                   title={tieneDeudasBloqueadas ? 'Bloqueado por deudas pendientes' : ''}
@@ -3938,7 +3941,9 @@ function DocenteHijos() {
                                   disabled={tieneDeudasBloqueadas}
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    console.log('[FRONTEND] onClick Ver Libreta - tieneDeudasBloqueadas:', tieneDeudasBloqueadas);
                                     if (tieneDeudasBloqueadas) {
+                                      console.log('[FRONTEND] BLOQUEANDO en onClick - Ver Libreta');
                                       Swal.fire({
                                         icon: 'warning',
                                         title: 'Acceso Bloqueado',
@@ -3947,6 +3952,7 @@ function DocenteHijos() {
                                       });
                                       return;
                                     }
+                                    console.log('[FRONTEND] PERMITIENDO en onClick - Ver Libreta');
                                     handleOpcionClick('imprimir-notas', hijo);
                                   }}
                                   title={tieneDeudasBloqueadas ? 'Bloqueado por deudas pendientes' : ''}
