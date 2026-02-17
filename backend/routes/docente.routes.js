@@ -4493,7 +4493,17 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes', async (req, res) =>
     const personalId = req.user.personal_id;
     const { asignatura_id, ciclo } = req.query;
 
+    console.log('🔵 [TUTOR-EXAMENES] Parámetros recibidos:', {
+      grupoId,
+      personalId,
+      colegio_id,
+      anio_activo,
+      asignatura_id,
+      ciclo
+    });
+
     if (!personalId) {
+      console.error('❌ [TUTOR-EXAMENES] personalId no encontrado en req.user');
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
@@ -4505,7 +4515,23 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes', async (req, res) =>
       [grupoId, personalId, colegio_id, anio_activo]
     );
 
+    console.log('🔵 [TUTOR-EXAMENES] Resultado verificación tutor:', {
+      grupoId,
+      personalId,
+      grupoEncontrado: grupoTutor.length > 0
+    });
+
     if (grupoTutor.length === 0) {
+      // Intentar verificar sin anio para debug
+      const grupoSinAnio = await query(
+        `SELECT g.* FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?`,
+        [grupoId, personalId, colegio_id]
+      );
+      console.error('❌ [TUTOR-EXAMENES] No se encontró grupo como tutor. Debug:', {
+        grupoSinAnio: grupoSinAnio.length > 0,
+        anioEnGrupo: grupoSinAnio[0]?.anio,
+        anioEsperado: anio_activo
+      });
       return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
 
@@ -4764,6 +4790,16 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/enlaces', async (req, res) => 
     });
 
     if (grupoTutor.length === 0) {
+      // Intentar verificar sin anio para debug
+      const grupoSinAnio = await query(
+        `SELECT g.* FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?`,
+        [grupoId, personalId, colegio_id]
+      );
+      console.error('❌ [TUTOR-ENLACES] No se encontró grupo como tutor. Debug:', {
+        grupoSinAnio: grupoSinAnio.length > 0,
+        anioEnGrupo: grupoSinAnio[0]?.anio,
+        anioEsperado: anio_activo
+      });
       return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
 
