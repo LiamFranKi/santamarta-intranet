@@ -4287,7 +4287,18 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId', async (req, re
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
 
+    console.log('🔵 [TUTOR-AULA-VIRTUAL] Parámetros recibidos:', {
+      grupoId,
+      asignaturaId,
+      personalId,
+      colegio_id,
+      anio_activo,
+      usuario_id: req.user.usuario_id,
+      tipo: req.user.tipo
+    });
+
     if (!personalId) {
+      console.error('❌ [TUTOR-AULA-VIRTUAL] personalId no encontrado en req.user');
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
@@ -4299,7 +4310,23 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId', async (req, re
       [grupoId, personalId, colegio_id, anio_activo]
     );
 
+    console.log('🔵 [TUTOR-AULA-VIRTUAL] Resultado verificación tutor:', {
+      grupoId,
+      personalId,
+      grupoEncontrado: grupoTutor.length > 0
+    });
+
     if (grupoTutor.length === 0) {
+      // Intentar verificar sin anio para debug
+      const grupoSinAnio = await query(
+        `SELECT g.* FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?`,
+        [grupoId, personalId, colegio_id]
+      );
+      console.error('❌ [TUTOR-AULA-VIRTUAL] No se encontró grupo como tutor. Debug:', {
+        grupoSinAnio: grupoSinAnio.length > 0,
+        anioEnGrupo: grupoSinAnio[0]?.anio,
+        anioEsperado: anio_activo
+      });
       return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
 
