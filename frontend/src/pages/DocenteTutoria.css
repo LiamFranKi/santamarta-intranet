@@ -1189,6 +1189,49 @@
   border-top: none;
 }
 
+/* Estilos para header-content y btn-volver en Cursos Asignados */
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.btn-volver {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(107, 114, 128, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.btn-volver:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.4);
+  background: linear-gradient(135deg, #4b5563 0%, #6b7280 100%);
+}
+
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .btn-volver {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* Archivos adjuntos */
 .modal-mensaje-body .archivos-container {
   display: flex;
