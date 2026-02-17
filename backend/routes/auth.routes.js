@@ -768,27 +768,39 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
     const calcularFechaVencimiento = (nroPension, anio, inicioPensiones) => {
       let vencimiento = vencimientosPensiones[nroPension];
       
+      console.log(`[DIAGNOSTICO] calcularFechaVencimiento: nroPension=${nroPension}, vencimiento configurado="${vencimiento || 'NO'}"`);
+      
       if (!vencimiento || vencimiento === '') {
         const mesPension = nroPension + 2;
         const ultimoDia = new Date(anio, mesPension, 0).getDate();
-        return `${ultimoDia}-${String(mesPension).padStart(2, '0')}-${anio}`;
+        const fechaCalculada = `${ultimoDia}-${String(mesPension).padStart(2, '0')}-${anio}`;
+        console.log(`[DIAGNOSTICO] No hay vencimiento configurado, usando último día del mes: ${fechaCalculada}`);
+        return fechaCalculada;
       }
       
       const partes = String(vencimiento).trim().split('-');
+      console.log(`[DIAGNOSTICO] Partes del vencimiento:`, partes);
       
       if (partes.length === 1) {
         const mesPension = nroPension + 2;
-        return `${partes[0].padStart(2, '0')}-${String(mesPension).padStart(2, '0')}-${anio}`;
+        const fechaCalculada = `${partes[0].padStart(2, '0')}-${String(mesPension).padStart(2, '0')}-${anio}`;
+        console.log(`[DIAGNOSTICO] Solo día configurado (${partes[0]}), fecha calculada: ${fechaCalculada}`);
+        return fechaCalculada;
       } else if (partes.length === 2) {
-        return `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${anio}`;
+        const fechaCalculada = `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${anio}`;
+        console.log(`[DIAGNOSTICO] Día-mes configurado (${vencimiento}), fecha calculada: ${fechaCalculada}`);
+        return fechaCalculada;
       } else {
         // Día-mes-año: puede ser "31-01-2026" o "31-01-20" (año con 2 dígitos)
         let añoFinal = partes[2];
         // Si el año tiene solo 2 dígitos, usar el año del contexto (anio)
         if (añoFinal.length === 2) {
           añoFinal = String(anio);
+          console.log(`[DIAGNOSTICO] Año de 2 dígitos detectado (${partes[2]}), usando año del contexto: ${añoFinal}`);
         }
-        return `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${añoFinal}`;
+        const fechaCalculada = `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${añoFinal}`;
+        console.log(`[DIAGNOSTICO] Fecha completa configurada (${vencimiento}), fecha final: ${fechaCalculada}`);
+        return fechaCalculada;
       }
     };
     
@@ -851,6 +863,13 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
     }
     
     const tieneDeudas = detallesPensiones.some(p => p.tiene_deuda);
+    
+    console.log(`[DIAGNOSTICO] ========== RESUMEN FINAL ==========`);
+    console.log(`[DIAGNOSTICO] Total pensiones verificadas: ${detallesPensiones.length}`);
+    console.log(`[DIAGNOSTICO] Pensiones con deuda: ${detallesPensiones.filter(p => p.tiene_deuda).length}`);
+    console.log(`[DIAGNOSTICO] ¿Tiene deudas?: ${tieneDeudas}`);
+    console.log(`[DIAGNOSTICO] ¿Debe bloquear?: ${colegio.bloquear_deudores === 'SI' && tieneDeudas}`);
+    console.log(`[DIAGNOSTICO] ====================================`);
     
     res.json({
       alumno: {
