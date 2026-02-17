@@ -88,14 +88,24 @@ function DocenteHijos() {
   // Verificar si el usuario tiene deudas bloqueadas
   const verificarDeudasBloqueadas = async () => {
     try {
+      console.log('[FRONTEND] ========== VERIFICAR DEUDAS BLOQUEADAS ==========');
       console.log('[FRONTEND] Llamando a /auth/verificar-deudas');
       const response = await api.get('/auth/verificar-deudas');
+      console.log('[FRONTEND] Respuesta completa:', response);
       console.log('[FRONTEND] Respuesta de verificar-deudas:', response.data);
-      setTieneDeudasBloqueadas(response.data.tiene_deudas || false);
-      console.log('[FRONTEND] tieneDeudasBloqueadas establecido a:', response.data.tiene_deudas || false);
+      const tieneDeudas = response.data?.tiene_deudas || false;
+      console.log('[FRONTEND] tieneDeudas extraído:', tieneDeudas);
+      setTieneDeudasBloqueadas(tieneDeudas);
+      console.log('[FRONTEND] tieneDeudasBloqueadas establecido a:', tieneDeudas);
+      console.log('[FRONTEND] ========== FIN VERIFICAR DEUDAS ==========');
     } catch (error) {
-      console.error('[FRONTEND] Error verificando deudas bloqueadas:', error);
-      console.error('[FRONTEND] Error response:', error.response?.data);
+      console.error('[FRONTEND] ========== ERROR VERIFICAR DEUDAS ==========');
+      console.error('[FRONTEND] Error completo:', error);
+      console.error('[FRONTEND] Error message:', error.message);
+      console.error('[FRONTEND] Error response:', error.response);
+      console.error('[FRONTEND] Error response data:', error.response?.data);
+      console.error('[FRONTEND] Error response status:', error.response?.status);
+      console.error('[FRONTEND] ========== FIN ERROR ==========');
       setTieneDeudasBloqueadas(false); // En caso de error, no bloquear
     }
   };
