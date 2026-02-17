@@ -3816,6 +3816,7 @@ function DocenteHijos() {
                             console.log('[FRONTEND] Hijo ID:', hijo.id);
                             console.log('[FRONTEND] Hijo DNI:', hijo.dni || hijo.nro_documento || 'NO DISPONIBLE');
                             console.log('[FRONTEND] Hijo completo:', hijo);
+                            console.log('[FRONTEND] tieneDeudasBloqueadas en render:', tieneDeudasBloqueadas);
                             return null;
                           })()}
                           {openDropdown?.hijoId === hijo.id && openDropdown?.top && 
