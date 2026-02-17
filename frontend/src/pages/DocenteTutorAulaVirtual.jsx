@@ -85,8 +85,8 @@ function DocenteTutorAulaVirtual() {
 
   // Usar asignaturaId como cursoId para AlumnoAulaVirtual
   // Pasar isApoderado=true para deshabilitar acciones (solo lectura)
-  // No pasamos grupoId porque no lo necesita AlumnoAulaVirtual directamente
-  return <AlumnoAulaVirtual cursoId={asignaturaId} isApoderado={true} />;
+  // Pasar grupoId para que pueda obtener los datos del curso
+  return <AlumnoAulaVirtual cursoId={asignaturaId} isApoderado={true} grupoId={grupoId} />;
 }
 
 export default DocenteTutorAulaVirtual;

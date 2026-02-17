@@ -6,7 +6,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import './DocenteAulaVirtual-gamificado.css';
 
-function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId = null }) {
+function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId = null, grupoId = null }) {
   const { cursoId: cursoIdParam } = useParams(); // asignatura_id
   const navigate = useNavigate();
   // Usar prop si está disponible, sino usar parámetro de la URL
@@ -155,6 +155,38 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
             console.error('Error cargando cursos del hijo:', err2);
           }
         }
+      } else if (modoSoloLectura && grupoId) {
+        // Si es modo solo lectura (tutor), obtener datos del curso desde la ruta proxy
+        try {
+          const response = await api.get(`/docente/tutoria/grupos/${grupoId}/aula-virtual/${asignaturaId}`);
+          if (response.data && response.data.asignatura) {
+            setCurso({
+              curso_nombre: response.data.asignatura.curso_nombre,
+              docente_nombre: response.data.asignatura.docente_nombre || 'Docente',
+              grado: response.data.asignatura.grado,
+              seccion: response.data.asignatura.seccion,
+              nivel_nombre: response.data.asignatura.nivel_nombre
+            });
+          }
+        } catch (err) {
+          console.error('Error cargando datos del curso (modo tutor):', err);
+          // Si falla, intentar obtener desde los cursos del grupo
+          try {
+            const cursosResponse = await api.get(`/docente/tutoria/grupos/${grupoId}/cursos`);
+            const cursoEncontrado = cursosResponse.data.cursos.find(c => c.asignatura_id === asignaturaId);
+            if (cursoEncontrado) {
+              setCurso({
+                curso_nombre: cursoEncontrado.curso_nombre,
+                docente_nombre: cursoEncontrado.docente_nombre,
+                grado: null,
+                seccion: null,
+                nivel_nombre: null
+              });
+            }
+          } catch (err2) {
+            console.error('Error cargando cursos del grupo:', err2);
+          }
+        }
       } else {
         // Obtener información del curso desde la lista de cursos (modo normal alumno)
         const response = await api.get('/alumno/cursos');
@@ -165,7 +197,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
     } catch (error) {
       console.error('Error cargando curso:', error);
     }
-  }, [asignaturaId, modoSoloLectura, hijoId]);
+  }, [asignaturaId, modoSoloLectura, hijoId, grupoId]);
 
   const cargarArchivos = useCallback(async (ciclo) => {
     try {

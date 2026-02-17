@@ -4790,6 +4790,82 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado',
 });
 
 /**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado/detalles
+ * Obtener detalles de resultado de un examen (para tutores - modo solo lectura)
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado/detalles', async (req, res) => {
+  try {
+    const { grupoId, examenId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+
+    if (!personalId) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    // Verificar que el docente es tutor de este grupo
+    const grupoTutor = await query(
+      `SELECT g.*
+       FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+
+    if (grupoTutor.length === 0) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+
+    // Obtener el examen y verificar que pertenece a una asignatura del grupo
+    const examen = await query(
+      `SELECT e.*, a.grupo_id
+       FROM examenes e
+       INNER JOIN asignaturas a ON a.id = e.asignatura_id
+       WHERE e.id = ? AND a.grupo_id = ? AND e.colegio_id = ?`,
+      [examenId, grupoId, colegio_id]
+    );
+
+    if (examen.length === 0) {
+      return res.status(403).json({ error: 'El examen no pertenece a este grupo' });
+    }
+
+    // Obtener detalles de resultados del examen (para todos los alumnos del grupo)
+    const resultados = await query(
+      `SELECT er.*, 
+              a.nombres, a.apellido_paterno, a.apellido_materno,
+              m.id as matricula_id
+       FROM examenes_resultados er
+       INNER JOIN alumnos a ON a.id = er.alumno_id
+       INNER JOIN matriculas m ON m.alumno_id = a.id AND m.grupo_id = ?
+       WHERE er.examen_id = ? AND er.colegio_id = ?
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
+      [grupoId, examenId, colegio_id]
+    );
+
+    // Obtener respuestas detalladas para cada resultado
+    const resultadosConDetalles = await Promise.all(resultados.map(async (resultado) => {
+      const respuestas = await query(
+        `SELECT * FROM examenes_respuestas 
+         WHERE resultado_id = ? 
+         ORDER BY pregunta_id ASC`,
+        [resultado.id]
+      );
+      return {
+        ...resultado,
+        respuestas: respuestas || []
+      };
+    }));
+
+    res.json({
+      examen: examen[0],
+      resultados: resultadosConDetalles
+    });
+  } catch (error) {
+    console.error('Error obteniendo detalles de resultado de examen (tutor):', error);
+    res.status(500).json({ error: 'Error al obtener los detalles del resultado del examen' });
+  }
+});
+
+/**
  * GET /api/docente/tutoria/grupos/:grupoId/alumnos
  * Obtener alumnos de un grupo específico del tutor
  */
