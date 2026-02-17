@@ -630,17 +630,23 @@ async function verificarDeudas(usuario, anioActivo) {
  */
 router.get('/verificar-deudas', authenticateToken, async (req, res) => {
   try {
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Llamado por usuario ID: ${req.user.id}, tipo: ${req.user.tipo}`);
     const { user } = req;
     const anioActivo = req.user.anio_activo || new Date().getFullYear();
     
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] anioActivo: ${anioActivo}`);
+    
     const tieneDeudas = await verificarDeudas(user, anioActivo);
+    
+    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Resultado: tieneDeudas = ${tieneDeudas}`);
     
     res.json({
       tiene_deudas: tieneDeudas,
       bloqueado: tieneDeudas
     });
   } catch (error) {
-    console.error('Error verificando deudas en endpoint:', error);
+    console.error('[ENDPOINT VERIFICAR-DEUDAS] Error verificando deudas en endpoint:', error);
+    console.error('[ENDPOINT VERIFICAR-DEUDAS] Stack:', error.stack);
     res.status(500).json({ error: 'Error al verificar deudas', tiene_deudas: false, bloqueado: false });
   }
 });
