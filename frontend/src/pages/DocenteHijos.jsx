@@ -3949,27 +3949,15 @@ function DocenteHijos() {
                                   {tieneDeudasBloqueadas && <span className="bloqueado-badge">🔒</span>}
                                 </button>
                                 <button
-                                  className={`dropdown-item ${tieneDeudasBloqueadas ? 'disabled' : ''}`}
+                                  className="dropdown-item"
                                   type="button"
-                                  disabled={tieneDeudasBloqueadas}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if (tieneDeudasBloqueadas) {
-                                      Swal.fire({
-                                        icon: 'warning',
-                                        title: 'Acceso Bloqueado',
-                                        text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.',
-                                        confirmButtonText: 'Entendido'
-                                      });
-                                      return;
-                                    }
                                     handleOpcionClick('pagos-realizados', hijo);
                                   }}
-                                  title={tieneDeudasBloqueadas ? 'Bloqueado por deudas pendientes' : ''}
                                 >
                                   <span className="dropdown-icon">💳</span>
                                   <span>Pagos Realizados</span>
-                                  {tieneDeudasBloqueadas && <span className="bloqueado-badge">🔒</span>}
                                 </button>
                                 <button
                                   className="dropdown-item"
