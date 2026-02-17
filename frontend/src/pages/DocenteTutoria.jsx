@@ -1972,11 +1972,12 @@ function DocenteTutoria() {
 
               {/* Campo Archivos Adjuntos */}
               <div className="form-group">
-                <label>Archivos Adjuntos:</label>
+                <label htmlFor="archivos-input-alumno">Archivos Adjuntos:</label>
                 <div className="archivos-container">
                   <input
                     type="file"
                     id="archivos-input-alumno"
+                    name="archivos-input-alumno"
                     multiple
                     onChange={handleArchivoChangeMensajeAlumno}
                     style={{ display: 'none' }}
