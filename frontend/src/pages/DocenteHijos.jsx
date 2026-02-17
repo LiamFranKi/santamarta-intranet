@@ -135,6 +135,12 @@ function DocenteHijos() {
     try {
       setLoading(true);
       const response = await api.get('/docente/roles-adicionales');
+      console.log('[FRONTEND] Respuesta completa de roles-adicionales:', response.data);
+      console.log('[FRONTEND] Hijos recibidos:', response.data.hijos);
+      if (response.data.hijos && response.data.hijos.length > 0) {
+        console.log('[FRONTEND] Primer hijo completo:', response.data.hijos[0]);
+        console.log('[FRONTEND] DNI del primer hijo:', response.data.hijos[0].dni || response.data.hijos[0].nro_documento || 'NO DISPONIBLE');
+      }
       setEsApoderado(response.data.es_apoderado || false);
       setHijos(response.data.hijos || []);
     } catch (error) {
@@ -194,11 +200,15 @@ function DocenteHijos() {
   const diagnosticarDeudas = async (hijo) => {
     try {
       console.log('[FRONTEND] Iniciando diagnóstico de deudas para:', hijo);
-      console.log('[FRONTEND] DNI del hijo:', hijo.dni || hijo.nro_documento || 'NO DISPONIBLE');
+      console.log('[FRONTEND] Hijo completo (todas las propiedades):', Object.keys(hijo));
+      console.log('[FRONTEND] DNI del hijo (dni):', hijo.dni);
+      console.log('[FRONTEND] DNI del hijo (nro_documento):', hijo.nro_documento);
+      console.log('[FRONTEND] DNI del hijo (cualquiera):', hijo.dni || hijo.nro_documento || 'NO DISPONIBLE');
       
       // Usar dni o nro_documento como fallback
       const dniHijo = hijo.dni || hijo.nro_documento;
       if (!dniHijo) {
+        console.error('[FRONTEND] ERROR: No se pudo obtener el DNI del hijo. Objeto completo:', JSON.stringify(hijo, null, 2));
         Swal.fire({
           icon: 'error',
           title: 'Error',
