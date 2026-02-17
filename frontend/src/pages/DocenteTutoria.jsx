@@ -849,9 +849,14 @@ function DocenteTutoria() {
                   setGrupoSeleccionadoCursos(null);
                   setCursos([]);
                   setLoadingCursos(false);
-                  // Asegurarse de que selectedGrupo también se limpie si estaba establecido
-                  // pero solo si no estamos en otra vista (como lista de alumnos)
-                  if (!selectedGrupo || (selectedGrupo && typeof selectedGrupo === 'object' && selectedGrupo.id === grupoSeleccionadoCursos?.id)) {
+                  // Limpiar selectedGrupo solo si corresponde al grupo de cursos
+                  // Esto evita que se pierda el estado si hay otra vista activa
+                  const grupoIdCursos = grupoSeleccionadoCursos?.id;
+                  if (selectedGrupo && typeof selectedGrupo === 'object' && selectedGrupo.id === grupoIdCursos) {
+                    setSelectedGrupo(null);
+                    setGrupoInfo(null);
+                  } else if (selectedGrupo === grupoIdCursos) {
+                    // Si selectedGrupo es solo el ID
                     setSelectedGrupo(null);
                     setGrupoInfo(null);
                   }
