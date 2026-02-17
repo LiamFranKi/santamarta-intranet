@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const phpSerialize = require('php-serialize');
 const { query, getAnioActivo } = require('../utils/mysql');
 const { getColegioData } = require('../utils/colegio');
 const { registrarAccion } = require('../utils/auditoria');
@@ -321,31 +322,17 @@ async function verificarDeudas(usuario, anioActivo) {
     let vencimientosPensiones = {};
     if (colegio.pensiones_vencimiento && colegio.pensiones_vencimiento !== '') {
       try {
-        const decoded = Buffer.from(colegio.pensiones_vencimiento, 'base64').toString('utf-8');
-        
-        // El formato serialize de PHP para arrays es: a:N:{i:key1;s:len:"value1";i:key2;s:len:"value2";}
-        // Ejemplo: a:2:{i:1;s:5:"31-03";i:2;s:5:"30-04";}
-        if (decoded.startsWith('a:')) {
-          // Parsear formato serialize de PHP manualmente
-          const regex = /i:(\d+);s:\d+:"([^"]+)"/g;
-          let match;
-          while ((match = regex.exec(decoded)) !== null) {
-            const key = parseInt(match[1]);
-            const value = match[2];
-            vencimientosPensiones[key] = value;
-          }
-        } else {
-          // Intentar como JSON (por si acaso)
-          try {
-            vencimientosPensiones = JSON.parse(decoded);
-          } catch (e) {
-            vencimientosPensiones = {};
-          }
-        }
+        // Usar php-serialize igual que en admin.routes.js
+        const deserialized = phpSerialize.unserialize(Buffer.from(colegio.pensiones_vencimiento, 'base64'));
+        vencimientosPensiones = deserialized || {};
+        console.log(`[VERIFICAR DEUDAS] pensiones_vencimiento deserializado:`, vencimientosPensiones);
       } catch (e) {
-        console.warn('No se pudo deserializar pensiones_vencimiento:', e.message);
+        console.warn('[VERIFICAR DEUDAS] No se pudo deserializar pensiones_vencimiento:', e.message);
+        console.warn('[VERIFICAR DEUDAS] Stack:', e.stack);
         vencimientosPensiones = {};
       }
+    } else {
+      console.log(`[VERIFICAR DEUDAS] pensiones_vencimiento está vacío o no existe`);
     }
 
     // Calcular número de pensión que debería estar pagada (mes actual - 2)
