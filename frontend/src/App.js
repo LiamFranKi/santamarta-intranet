@@ -27,6 +27,7 @@ import AlumnoQR from './pages/AlumnoQR';
 import AlumnoAvatar from './pages/AlumnoAvatar';
 import AlumnoAulaVirtual from './pages/AlumnoAulaVirtual';
 import DocenteHijoAulaVirtual from './pages/DocenteHijoAulaVirtual';
+import DocenteTutorAulaVirtual from './pages/DocenteTutorAulaVirtual';
 import AlumnoComunicados from './pages/AlumnoComunicados';
 import AlumnoActividades from './pages/AlumnoActividades';
 import AlumnoMensajes from './pages/AlumnoMensajes';
@@ -265,6 +266,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <DocenteHijoAulaVirtual />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId"
+        element={
+          <PrivateRoute>
+            <DocenteTutorAulaVirtual />
           </PrivateRoute>
         }
       />
