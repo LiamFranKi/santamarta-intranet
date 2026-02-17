@@ -3775,6 +3775,13 @@ function DocenteHijos() {
                             Opciones {openDropdown?.hijoId === hijo.id ? '▲' : '▼'}
                           </button>
                           
+                          {openDropdown?.hijoId === hijo.id && openDropdown?.top && (() => {
+                            console.log('[FRONTEND] ========== RENDERIZANDO DROPDOWN ==========');
+                            console.log('[FRONTEND] Hijo ID:', hijo.id);
+                            console.log('[FRONTEND] Hijo DNI:', hijo.dni || hijo.nro_documento || 'NO DISPONIBLE');
+                            console.log('[FRONTEND] Hijo completo:', hijo);
+                            return null;
+                          })()}
                           {openDropdown?.hijoId === hijo.id && openDropdown?.top && 
                             createPortal(
                               <div 
@@ -3788,7 +3795,6 @@ function DocenteHijos() {
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                {console.log('[FRONTEND] Renderizando dropdown para hijo:', hijo.id, 'DNI:', hijo.dni || hijo.nro_documento || 'NO DISPONIBLE')}
                                 <button
                                   className="dropdown-item"
                                   type="button"
