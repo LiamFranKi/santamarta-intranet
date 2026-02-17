@@ -81,6 +81,7 @@ function DocenteHijos() {
   const [tieneDeudasBloqueadas, setTieneDeudasBloqueadas] = useState(false);
 
   useEffect(() => {
+    console.log('[FRONTEND] DocenteHijos useEffect ejecutado - Iniciando carga de hijos y verificación de deudas');
     cargarHijos();
     verificarDeudasBloqueadas();
   }, []);
