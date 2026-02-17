@@ -494,9 +494,8 @@ function DocenteTutoria() {
   const handleAulaVirtual = (curso) => {
     if (grupoSeleccionadoCursos && curso.asignatura_id) {
       // Navegar a una ruta especial para tutores (modo solo lectura)
-      // Usar replace en lugar de navigate para evitar que se agregue al historial
-      // y cause problemas de navegación
-      window.location.href = `/docente/tutoria/grupos/${grupoSeleccionadoCursos.id}/aula-virtual/${curso.asignatura_id}?modo=solo-lectura`;
+      // Usar navigate en lugar de window.location.href para mantener el estado
+      navigate(`/docente/tutoria/grupos/${grupoSeleccionadoCursos.id}/aula-virtual/${curso.asignatura_id}?modo=solo-lectura`);
     } else {
       Swal.fire({
         icon: 'error',
