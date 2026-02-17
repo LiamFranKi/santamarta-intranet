@@ -564,7 +564,14 @@ async function verificarDeudas(usuario, anioActivo) {
       for (const matricula of matriculasHijos) {
         for (let i = 1; i <= nroPago; i++) {
           const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
-          const fechaVencimiento = new Date(fechaVencimientoStr.split('-').reverse().join('-'));
+          
+          // Convertir dd-mm-yyyy a Date correctamente
+          const partesFecha = fechaVencimientoStr.split('-');
+          const fechaVencimiento = new Date(
+            parseInt(partesFecha[2]), // año
+            parseInt(partesFecha[1]) - 1, // mes (0-indexed)
+            parseInt(partesFecha[0]) // día
+          );
           
           const fechaLimite = new Date(fechaVencimiento);
           fechaLimite.setDate(fechaLimite.getDate() + diasTolerancia);
