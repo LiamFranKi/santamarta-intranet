@@ -720,9 +720,12 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
       try {
         const deserialized = phpSerialize.unserialize(Buffer.from(colegio.pensiones_vencimiento, 'base64'));
         vencimientosPensiones = deserialized || {};
+        console.log(`[DIAGNOSTICO] pensiones_vencimiento deserializado:`, JSON.stringify(vencimientosPensiones, null, 2));
       } catch (e) {
         console.warn('[DIAGNOSTICO] Error deserializando pensiones_vencimiento:', e.message);
       }
+    } else {
+      console.log(`[DIAGNOSTICO] pensiones_vencimiento está vacío o no existe`);
     }
     
     // Buscar alumno por DNI
@@ -757,6 +760,9 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
     // Calcular número de pensión que debería estar pagada
     const currentMonth = new Date().getMonth() + 1; // 1-12
     const nroPago = currentMonth - 2; // Pensión que debería estar pagada
+    
+    console.log(`[DIAGNOSTICO] Mes actual: ${currentMonth}, nroPago calculado: ${nroPago}`);
+    console.log(`[DIAGNOSTICO] Configuración: diasTolerancia=${diasTolerancia}, inicioPensiones=${inicioPensiones}`);
     
     // Función para calcular fecha de vencimiento (igual que en verificarDeudas)
     const calcularFechaVencimiento = (nroPension, anio, inicioPensiones) => {
