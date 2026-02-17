@@ -146,12 +146,16 @@ function DocenteHijos() {
 
   const handleOpcionesClick = (e, hijoId) => {
     e.stopPropagation();
+    console.log('[FRONTEND] ========== HANDLE OPCIONES CLICK ==========');
     console.log('[FRONTEND] handleOpcionesClick llamado para hijoId:', hijoId);
     console.log('[FRONTEND] openDropdown actual:', openDropdown);
+    console.log('[FRONTEND] openDropdown?.hijoId:', openDropdown?.hijoId);
     const rect = e.currentTarget.getBoundingClientRect();
+    console.log('[FRONTEND] Rect del botón:', rect);
     
+    // CORRECCIÓN: openDropdown es un objeto {hijoId, top, left}, no un número
     if (openDropdown?.hijoId === hijoId) {
-      console.log('[FRONTEND] Cerrando dropdown');
+      console.log('[FRONTEND] Cerrando dropdown (ya estaba abierto)');
       setOpenDropdown(null);
     } else {
       console.log('[FRONTEND] Abriendo dropdown para hijoId:', hijoId);
@@ -180,8 +184,9 @@ function DocenteHijos() {
         top,
         left
       };
-      console.log('[FRONTEND] Nuevo openDropdown:', newDropdown);
+      console.log('[FRONTEND] Nuevo openDropdown configurado:', newDropdown);
       setOpenDropdown(newDropdown);
+      console.log('[FRONTEND] ========== FIN HANDLE OPCIONES CLICK ==========');
     }
   };
 
