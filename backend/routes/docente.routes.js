@@ -5002,6 +5002,94 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado/d
 });
 
 /**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId
+ * Obtener datos del aula virtual de una asignatura (para tutores - modo solo lectura)
+ * IMPORTANTE: Esta ruta debe estar DESPUÉS de todas las rutas específicas (tareas, examenes, etc.)
+ * para que Express capture primero las rutas específicas.
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId', async (req, res) => {
+  try {
+    const { grupoId, asignaturaId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+
+    console.log('🔵 [TUTOR-AULA-VIRTUAL] Parámetros recibidos:', {
+      grupoId,
+      asignaturaId,
+      personalId,
+      colegio_id,
+      anio_activo,
+      usuario_id: req.user.usuario_id,
+      tipo: req.user.tipo
+    });
+
+    if (!personalId) {
+      console.error('❌ [TUTOR-AULA-VIRTUAL] personalId no encontrado en req.user');
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    // Verificar que el docente es tutor de este grupo
+    const grupoTutor = await query(
+      `SELECT g.*
+       FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+
+    console.log('🔵 [TUTOR-AULA-VIRTUAL] Resultado verificación tutor:', {
+      grupoId,
+      personalId,
+      colegio_id,
+      anio_activo,
+      grupoEncontrado: grupoTutor.length > 0,
+      grupoData: grupoTutor[0] || null
+    });
+
+    if (grupoTutor.length === 0) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+
+    // Verificar que la asignatura pertenece a este grupo
+    const asignatura = await query(
+      `SELECT a.*, g.id as grupo_id, c.nombre as curso_nombre,
+              g.grado, g.seccion, n.nombre as nivel_nombre,
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+       FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN personal p ON p.id = a.personal_id
+       WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ? 
+       LIMIT 1`,
+      [asignaturaId, grupoId, colegio_id, anio_activo]
+    );
+
+    if (asignatura.length === 0) {
+      return res.status(403).json({ error: 'La asignatura no pertenece a este grupo' });
+    }
+
+    const asignaturaData = asignatura[0];
+
+    res.json({
+      asignatura: {
+        id: asignaturaData.id,
+        curso_nombre: asignaturaData.curso_nombre,
+        grado: asignaturaData.grado,
+        seccion: asignaturaData.seccion,
+        nivel_nombre: asignaturaData.nivel_nombre,
+        docente_nombre: asignaturaData.docente_nombre || 'Docente',
+        aula_virtual: asignaturaData.aula_virtual || '',
+        habilitar_aula: asignaturaData.habilitar_aula || 'NO'
+      },
+      grupo_id: grupoId
+    });
+  } catch (error) {
+    console.error('Error obteniendo aula virtual (tutor):', error);
+    res.status(500).json({ error: error.message || 'Error al obtener aula virtual' });
+  }
+});
+
+/**
  * GET /api/docente/tutoria/grupos/:grupoId/alumnos
  * Obtener alumnos de un grupo específico del tutor
  */
