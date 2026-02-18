@@ -13843,9 +13843,6 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
                 console.error(`❌ [EXAMEN ACTIVADO] Error en proceso de envío de correos:`, error);
                 // No lanzar el error para no interrumpir el flujo principal
               }
-              } else {
-                console.log('⚠️ [EXAMEN ACTIVADO] No hay suscripciones push activas para enviar notificaciones');
-              }
             }
           }
         } catch (error) {
