@@ -249,24 +249,6 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               )}
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/comunicados">
-                  <span className="sidebar-icon">📢</span>
-                  <span className="sidebar-label">Comunicados</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/actividades">
-                  <span className="sidebar-icon">📆</span>
-                  <span className="sidebar-label">Actividades</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/mensajes">
-                  <span className="sidebar-icon">✉️</span>
-                  <span className="sidebar-label">Mensajes</span>
-                </NavLink>
-              </div>
 
               {/* Menú Hijos a Cargo (si es apoderado) */}
               {rolesAdicionales.es_apoderado && (
@@ -315,6 +297,25 @@ export default function DashboardLayout({ children }) {
                   </div>
                 </>
               )}
+
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/comunicados">
+                  <span className="sidebar-icon">📢</span>
+                  <span className="sidebar-label">Comunicados</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/actividades">
+                  <span className="sidebar-icon">📆</span>
+                  <span className="sidebar-label">Actividades</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/mensajes">
+                  <span className="sidebar-icon">✉️</span>
+                  <span className="sidebar-label">Mensajes</span>
+                </NavLink>
+              </div>
             </>
           ) : role === 'ALUMNO' ? (
             <>
