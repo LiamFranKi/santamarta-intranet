@@ -1375,7 +1375,7 @@ router.get('/tiene-asignaciones', async (req, res) => {
 
 /**
  * GET /api/docente/grupos
- * Obtener grupos asignados al docente
+ * Obtener grupos asignados al docente (como docente) Y grupos de tutoría (si no tiene grupos asignados como docente)
  */
 router.get('/grupos', async (req, res) => {
   try {
@@ -1388,10 +1388,8 @@ router.get('/grupos', async (req, res) => {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
-    // Obtener grupos asignados con conteo de alumnos
-    // asignaturas tiene grupo_id directamente, no area_curso_id
-    // El conteo de alumnos se hace igual que en el sistema anterior: estado = 0 OR estado = 4
-    const grupos = await query(
+    // Obtener grupos asignados como docente (con asignaturas)
+    const gruposAsignados = await query(
       `SELECT DISTINCT g.*, 
               n.nombre as nivel_nombre, 
               t.nombre as turno_nombre,
@@ -1399,15 +1397,39 @@ router.get('/grupos', async (req, res) => {
                FROM matriculas m 
                WHERE m.grupo_id = g.id 
                AND m.colegio_id = ? 
-               AND (m.estado = 0 OR m.estado = 4)) as total_alumnos
+               AND (m.estado = 0 OR m.estado = 4)) as total_alumnos,
+              'asignado' as tipo_grupo
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
        INNER JOIN asignaturas a ON a.grupo_id = g.id
-       WHERE a.personal_id = ? AND g.colegio_id = ? AND g.anio = ?
-       ORDER BY n.nombre, g.grado, g.seccion`,
+       WHERE a.personal_id = ? AND g.colegio_id = ? AND g.anio = ?`,
       [colegio_id, personalId, colegio_id, anio_activo]
     );
+
+    // Si no tiene grupos asignados como docente, obtener grupos de tutoría
+    let gruposTutoria = [];
+    if (gruposAsignados.length === 0) {
+      gruposTutoria = await query(
+        `SELECT g.*, 
+                n.nombre as nivel_nombre, 
+                t.nombre as turno_nombre,
+                (SELECT COUNT(*) 
+                 FROM matriculas m 
+                 WHERE m.grupo_id = g.id 
+                 AND m.colegio_id = ? 
+                 AND (m.estado = 0 OR m.estado = 4)) as total_alumnos,
+                'tutoria' as tipo_grupo
+         FROM grupos g
+         INNER JOIN niveles n ON n.id = g.nivel_id
+         INNER JOIN turnos t ON t.id = g.turno_id
+         WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+        [colegio_id, personalId, colegio_id, anio_activo]
+      );
+    }
+
+    // Combinar grupos (priorizar grupos asignados, luego grupos de tutoría)
+    const grupos = [...gruposAsignados, ...gruposTutoria];
 
     res.json({ grupos: grupos || [] });
   } catch (error) {
@@ -10672,14 +10694,42 @@ function decodePublicacionImages(imagesString) {
 /**
  * GET /api/docente/publicaciones
  * Obtener publicaciones (feed tipo Facebook)
+ * Filtra publicaciones según grupos asignados del docente o grupos de tutoría
  */
 router.get('/publicaciones', async (req, res) => {
   try {
-    const { colegio_id } = req.user;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
 
-    // Obtener publicaciones con nombre completo del autor y foto
-    // publicaciones NO tiene estado ni autor_id. Tiene usuario_id y fecha_hora
-    const publicaciones = await query(
+    // Obtener grupos asignados como docente
+    const gruposAsignados = await query(
+      `SELECT DISTINCT g.id
+       FROM grupos g
+       INNER JOIN asignaturas a ON a.grupo_id = g.id
+       WHERE a.personal_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [personalId, colegio_id, anio_activo]
+    );
+
+    // Si no tiene grupos asignados como docente, obtener grupos de tutoría
+    let gruposTutoria = [];
+    if (gruposAsignados.length === 0 && personalId) {
+      gruposTutoria = await query(
+        `SELECT g.id
+         FROM grupos g
+         WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+        [personalId, colegio_id, anio_activo]
+      );
+    }
+
+    // Combinar IDs de grupos (asignados + tutoría)
+    const gruposIds = [
+      ...gruposAsignados.map(g => g.id),
+      ...gruposTutoria.map(g => g.id)
+    ];
+
+    // Obtener TODAS las publicaciones del colegio (filtrar después en JavaScript)
+    // Esto es más simple y eficiente que construir una consulta SQL compleja
+    const todasPublicaciones = await query(
       `SELECT p.*, 
               u.usuario as autor_usuario,
               u.id as autor_id,
@@ -10696,9 +10746,32 @@ router.get('/publicaciones', async (req, res) => {
        LEFT JOIN alumnos al ON al.id = u.alumno_id
        WHERE p.colegio_id = ?
        ORDER BY p.fecha_hora DESC
-       LIMIT 50`,
+       LIMIT 100`,
       [colegio_id]
     );
+
+    // Filtrar publicaciones según privacidad y grupos del docente
+    const publicaciones = todasPublicaciones.filter(pub => {
+      // Si es pública (TODOS, '', '-1', NULL), siempre mostrar
+      if (!pub.privacidad || pub.privacidad === '' || pub.privacidad === 'TODOS' || pub.privacidad === '-1') {
+        return true;
+      }
+
+      // Si es para personal administrativo (-2), no mostrar (solo para admin)
+      if (pub.privacidad === '-2') {
+        return false;
+      }
+
+      // Si tiene grupos específicos, verificar si el docente tiene acceso
+      if (gruposIds.length > 0) {
+        const grupoIdsPub = pub.privacidad.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id) && id > 0);
+        // Si la publicación es para alguno de los grupos del docente, mostrarla
+        return grupoIdsPub.some(id => gruposIds.includes(id));
+      }
+
+      // Si no tiene grupos y la publicación es para grupos específicos, no mostrar
+      return false;
+    }).slice(0, 50); // Limitar a 50 después del filtro
 
     // Obtener todos los grupos del colegio para mapear IDs a nombres
     const gruposMap = {};
