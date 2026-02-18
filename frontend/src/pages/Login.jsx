@@ -59,7 +59,7 @@ function Login() {
       Swal.fire({
         icon: 'warning',
         title: 'Campos requeridos',
-        text: 'Por favor ingresa tu DNI y contraseña',
+        text: 'Por favor ingresa tu usuario y contraseña',
         toast: true,
         position: 'top-end',
         showConfirmButton: false,
@@ -189,14 +189,14 @@ function Login() {
 
             <form className="login-form" onSubmit={handleSubmit}>
               <div className="form-group">
-                <label htmlFor="dni">DNI</label>
+                <label htmlFor="usuario">Usuario</label>
                 <div className="input-wrapper">
                   <span className="input-icon">👤</span>
                   <input
-                    id="dni"
+                    id="usuario"
                     type="text"
-                    inputMode="numeric"
-                    placeholder="Ej: 12345678"
+                    inputMode="text"
+                    placeholder="Ingresa tu usuario"
                     value={usuario}
                     onChange={(e) => setUsuario(e.target.value)}
                     autoComplete="username"
