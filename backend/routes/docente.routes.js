@@ -4421,8 +4421,9 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas', async (req, res) => {
 
     res.json({ tareas: tareasConArchivos || [] });
   } catch (error) {
-    console.error('Error obteniendo tareas (tutor):', error);
-    res.status(500).json({ error: 'Error al obtener las tareas' });
+    console.error('❌ [TUTOR-TAREAS] Error obteniendo tareas:', error);
+    console.error('❌ [TUTOR-TAREAS] Stack:', error.stack);
+    res.status(500).json({ error: error.message || 'Error al obtener las tareas' });
   }
 });
 
@@ -4524,8 +4525,9 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes', async (req, res) =>
 
     res.json({ examenes: examenes || [] });
   } catch (error) {
-    console.error('Error obteniendo exámenes (tutor):', error);
-    res.status(500).json({ error: 'Error al obtener los exámenes' });
+    console.error('❌ [TUTOR-EXAMENES] Error obteniendo exámenes:', error);
+    console.error('❌ [TUTOR-EXAMENES] Stack:', error.stack);
+    res.status(500).json({ error: error.message || 'Error al obtener los exámenes' });
   }
 });
 
@@ -4652,8 +4654,9 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/archivos', async (req, res) =>
 
     res.json({ archivos: archivosConUrls || [] });
   } catch (error) {
-    console.error('Error obteniendo archivos (tutor):', error);
-    res.status(500).json({ error: 'Error al obtener los archivos' });
+    console.error('❌ [TUTOR-ARCHIVOS] Error obteniendo archivos:', error);
+    console.error('❌ [TUTOR-ARCHIVOS] Stack:', error.stack);
+    res.status(500).json({ error: error.message || 'Error al obtener los archivos' });
   }
 });
 
@@ -4755,8 +4758,9 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/videos', async (req, res) => {
 
     res.json({ videos: videos || [] });
   } catch (error) {
-    console.error('Error obteniendo videos (tutor):', error);
-    res.status(500).json({ error: 'Error al obtener los videos' });
+    console.error('❌ [TUTOR-VIDEOS] Error obteniendo videos:', error);
+    console.error('❌ [TUTOR-VIDEOS] Stack:', error.stack);
+    res.status(500).json({ error: error.message || 'Error al obtener los videos' });
   }
 });
 
@@ -4858,8 +4862,9 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/enlaces', async (req, res) => 
 
     res.json({ enlaces: enlaces || [] });
   } catch (error) {
-    console.error('Error obteniendo enlaces (tutor):', error);
-    res.status(500).json({ error: 'Error al obtener los enlaces' });
+    console.error('❌ [TUTOR-ENLACES] Error obteniendo enlaces:', error);
+    console.error('❌ [TUTOR-ENLACES] Stack:', error.stack);
+    res.status(500).json({ error: error.message || 'Error al obtener los enlaces' });
   }
 });
 
