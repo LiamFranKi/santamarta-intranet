@@ -300,21 +300,14 @@ async function enviarCorreoAsistencia(destinatario, datos) {
           ? `✅ ${nombreAlumno} llegó al colegio - ${hora}`
           : `👋 ${nombreAlumno} salió del colegio - ${hora}`);
 
-    // Usar EMAIL_FROM si está definido, sino usar EMAIL_USER
-    const emailFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER;
-    
-    // Usar EMAIL_FROM si está definido, sino usar EMAIL_USER
-    const emailFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER;
-    
     const mailOptions = {
-      from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`, // Gmail ignora 'from' si no coincide con autenticado
-      replyTo: emailFrom !== process.env.EMAIL_USER ? emailFrom : undefined, // Usar replyTo si EMAIL_FROM es diferente
+      from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`,
       to: destinatario,
       subject: asunto,
       html: template
     };
 
-    console.log(`📧 [EMAIL] Enviando correo desde: ${emailFrom} (autenticado con ${process.env.EMAIL_USER}) hacia: ${destinatario}`);
+    console.log(`📧 [EMAIL] Enviando correo desde: ${process.env.EMAIL_USER} hacia: ${destinatario}`);
     const info = await transporter.sendMail(mailOptions);
     console.log(`✅ [EMAIL] Correo enviado exitosamente. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
@@ -359,18 +352,14 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
       colegioNombre: colegioNombre || 'Vanguard Schools'
     });
 
-    // Usar EMAIL_FROM si está definido, sino usar EMAIL_USER
-    const emailFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER;
-    
     const mailOptions = {
-      from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`, // Gmail ignora 'from' si no coincide con autenticado
-      replyTo: emailFrom !== process.env.EMAIL_USER ? emailFrom : undefined, // Usar replyTo si EMAIL_FROM es diferente
+      from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`,
       to: destinatario,
       subject: tituloConIcono,
       html: template
     };
 
-    console.log(`📧 [EMAIL NOTIFICACION] Enviando correo desde: ${emailFrom} (autenticado con ${process.env.EMAIL_USER}) hacia: ${destinatario}`);
+    console.log(`📧 [EMAIL NOTIFICACION] Enviando correo desde: ${process.env.EMAIL_USER} hacia: ${destinatario}`);
     const info = await transporter.sendMail(mailOptions);
     console.log(`✅ [EMAIL NOTIFICACION] Correo enviado exitosamente. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
