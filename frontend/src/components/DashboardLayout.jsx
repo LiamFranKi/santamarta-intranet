@@ -9,6 +9,7 @@ import PublicacionesCardFeed from './PublicacionesCardFeed';
 import NotificacionesWidget from './NotificacionesWidget';
 import PWAInstallPrompt from './PWAInstallPrompt';
 import PWAUpdateNotification from './PWAUpdateNotification';
+import ModalAsistencias from './ModalAsistencias';
 import './DashboardLayout.css';
 
 function getInitials(nombre) {
@@ -32,6 +33,7 @@ export default function DashboardLayout({ children }) {
   });
   const [cargandoAsignaciones, setCargandoAsignaciones] = useState(false);
   const [refreshPublicaciones, setRefreshPublicaciones] = useState(0);
+  const [mostrarModalAsistencias, setMostrarModalAsistencias] = useState(false);
   
   // Debug: verificar que el componente se monta
   React.useEffect(() => {
@@ -249,6 +251,17 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               )}
+              {/* Mis Asistencias */}
+              <div className="sidebar-item">
+                <button 
+                  className="sidebar-link" 
+                  onClick={() => setMostrarModalAsistencias(true)}
+                  style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  <span className="sidebar-icon">⏰</span>
+                  <span className="sidebar-label">Mis Asistencias</span>
+                </button>
+              </div>
 
               {/* Menú Hijos a Cargo (si es apoderado) */}
               {rolesAdicionales.es_apoderado && (
@@ -649,6 +662,14 @@ export default function DashboardLayout({ children }) {
         
         {/* Notificación de actualización PWA */}
         <PWAUpdateNotification />
+
+        {/* Modal de Asistencias */}
+        {user?.tipo === 'DOCENTE' && (
+          <ModalAsistencias 
+            isOpen={mostrarModalAsistencias} 
+            onClose={() => setMostrarModalAsistencias(false)} 
+          />
+        )}
       </div>
     </div>
   );

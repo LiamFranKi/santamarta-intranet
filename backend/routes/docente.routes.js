@@ -1088,6 +1088,97 @@ router.get('/dashboard', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/asistencias
+ * Obtener asistencias del docente con filtro por mes y año
+ */
+router.get('/asistencias', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id, anio_activo } = req.user;
+    const { mes, anio } = req.query;
+
+    // Validar parámetros
+    const mesInt = mes ? parseInt(mes) : new Date().getMonth() + 1;
+    const anioInt = anio ? parseInt(anio) : new Date().getFullYear();
+
+    if (mesInt < 1 || mesInt > 12) {
+      return res.status(400).json({ error: 'Mes inválido' });
+    }
+
+    // Obtener datos del personal/docente
+    const personal = await query(
+      `SELECT p.*, u.tipo as tipo_usuario
+       FROM personal p
+       INNER JOIN usuarios u ON u.personal_id = p.id
+       WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+      [usuario_id, colegio_id]
+    );
+
+    if (personal.length === 0) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    const docente = personal[0];
+    const horaEntradaConfigurada = docente.hora_entrada;
+
+    // Obtener registros de asistencia del mes y año especificados
+    const registrosAsistencia = await query(
+      `SELECT ar.fecha, ar.hora_entrada, ar.hora_salida, ar.tipo_registro
+       FROM asistencia_registros ar
+       WHERE ar.usuario_id = ?
+         AND ar.colegio_id = ?
+         AND ar.anio = ?
+         AND YEAR(ar.fecha) = ?
+         AND MONTH(ar.fecha) = ?
+         AND ar.hora_entrada IS NOT NULL
+         AND (ar.tipo_registro = 'ENTRADA' OR ar.tipo_registro = 'ENTRADA_SALIDA')
+       ORDER BY ar.fecha DESC, ar.hora_entrada DESC`,
+      [usuario_id, colegio_id, anio_activo, anioInt, mesInt]
+    );
+
+    // Calcular minutos de tardanza y descuento para cada registro
+    let totalMinutosTardanza = 0;
+    const asistenciasConCalculos = registrosAsistencia.map((registro) => {
+      let minutosTardanza = 0;
+      
+      if (horaEntradaConfigurada && registro.hora_entrada) {
+        const [horaConfig, minutoConfig] = horaEntradaConfigurada.split(':').map(Number);
+        const [horaReg, minutoReg] = registro.hora_entrada.split(':').map(Number);
+        
+        const minutosConfigurados = horaConfig * 60 + minutoConfig;
+        const minutosRegistrados = horaReg * 60 + minutoReg;
+        
+        minutosTardanza = minutosRegistrados - minutosConfigurados;
+        if (minutosTardanza > 0) {
+          totalMinutosTardanza += minutosTardanza;
+        } else {
+          minutosTardanza = 0;
+        }
+      }
+
+      return {
+        ...registro,
+        minutos_tardanza: minutosTardanza
+      };
+    });
+
+    // Calcular descuento total: S/. 1.00 por minuto
+    const totalDescuento = totalMinutosTardanza * 1.00;
+
+    res.json({
+      asistencias: asistenciasConCalculos,
+      total_minutos_tardanza: totalMinutosTardanza,
+      total_descuento: totalDescuento,
+      hora_entrada_configurada: horaEntradaConfigurada,
+      mes: mesInt,
+      anio: anioInt
+    });
+  } catch (error) {
+    console.error('Error obteniendo asistencias:', error);
+    res.status(500).json({ error: 'Error al obtener asistencias' });
+  }
+});
+
+/**
  * GET /api/docente/perfil
  * Obtener perfil del docente
  */

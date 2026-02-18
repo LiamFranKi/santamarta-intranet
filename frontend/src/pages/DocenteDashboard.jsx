@@ -459,7 +459,7 @@ function DocenteDashboard() {
             <div className="stat-icon">⏰</div>
             <div className="stat-content">
               <div className="stat-number">{estadisticas?.tardanzasMesActual || 0}</div>
-              <div className="stat-label">Tardanzas del {mesActual} (min)</div>
+              <div className="stat-label">Tardanzas de {mesActual} (min)</div>
             </div>
           </div>
 
@@ -475,7 +475,7 @@ function DocenteDashboard() {
                     }).format(estadisticas.descuentoMesActual)
                   : 'S/. 0.00'}
               </div>
-              <div className="stat-label">Descuentos del {mesActual}</div>
+              <div className="stat-label">Descuento de {mesActual}</div>
               <div className="stat-label">Descuento de {mesActual}</div>
             </div>
           </div>
