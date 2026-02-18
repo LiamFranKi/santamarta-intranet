@@ -4512,15 +4512,16 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes', async (req, res) =>
 
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
-    // Obtener exámenes (solo lectura)
+    // Obtener exámenes (solo lectura) - usar asignaturas_examenes como en hijos
     const examenes = await query(
-      `SELECT e.*, 
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
-       FROM examenes e
-       INNER JOIN personal p ON p.id = e.personal_id
-       WHERE e.asignatura_id = ? AND e.ciclo = ? AND e.colegio_id = ?
-       ORDER BY e.fecha_inicio DESC`,
-      [asignatura_id, cicloFiltro, colegio_id]
+      `SELECT ae.*, 
+              COUNT(DISTINCT ep.id) as total_preguntas
+       FROM asignaturas_examenes ae
+       LEFT JOIN asignaturas_examenes_preguntas ep ON ep.examen_id = ae.id
+       WHERE ae.asignatura_id = ? AND ae.ciclo = ?
+       GROUP BY ae.id
+       ORDER BY ae.id ASC`,
+      [asignatura_id, cicloFiltro]
     );
 
     res.json({ examenes: examenes || [] });
@@ -4618,13 +4619,11 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/archivos', async (req, res) =>
 
     // Obtener archivos (solo lectura)
     const archivos = await query(
-      `SELECT a.*, 
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+      `SELECT a.*
        FROM asignaturas_archivos a
-       INNER JOIN personal p ON p.id = a.personal_id
-       WHERE a.asignatura_id = ? AND a.ciclo = ? AND a.colegio_id = ?
-       ORDER BY a.id DESC`,
-      [asignatura_id, cicloFiltro, colegio_id]
+       WHERE a.asignatura_id = ? AND a.ciclo = ?
+       ORDER BY a.id ASC`,
+      [asignatura_id, cicloFiltro]
     );
 
     // Construir URLs de archivos
@@ -4747,13 +4746,11 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/videos', async (req, res) => {
 
     // Obtener videos (solo lectura)
     const videos = await query(
-      `SELECT v.*, 
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+      `SELECT v.*
        FROM asignaturas_videos v
-       INNER JOIN personal p ON p.id = v.personal_id
-       WHERE v.asignatura_id = ? AND v.ciclo = ? AND v.colegio_id = ?
-       ORDER BY v.id DESC`,
-      [asignatura_id, cicloFiltro, colegio_id]
+       WHERE v.asignatura_id = ? AND v.ciclo = ?
+       ORDER BY v.id ASC`,
+      [asignatura_id, cicloFiltro]
     );
 
     res.json({ videos: videos || [] });
@@ -4851,13 +4848,11 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/enlaces', async (req, res) => 
 
     // Obtener enlaces (solo lectura)
     const enlaces = await query(
-      `SELECT e.*, 
-              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+      `SELECT e.*
        FROM asignaturas_enlaces e
-       INNER JOIN personal p ON p.id = e.personal_id
-       WHERE e.asignatura_id = ? AND e.ciclo = ? AND e.colegio_id = ?
-       ORDER BY e.id DESC`,
-      [asignatura_id, cicloFiltro, colegio_id]
+       WHERE e.asignatura_id = ? AND e.ciclo = ?
+       ORDER BY e.id ASC`,
+      [asignatura_id, cicloFiltro]
     );
 
     res.json({ enlaces: enlaces || [] });
