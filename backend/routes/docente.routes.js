@@ -4277,11 +4277,21 @@ router.get('/tutoria/grupos/:grupoId/cursos', async (req, res) => {
 });
 
 /**
- * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId
- * Obtener datos del aula virtual de una asignatura (para tutores - modo solo lectura)
- * IMPORTANTE: Esta ruta debe estar DESPUÉS de todas las rutas específicas (tareas, examenes, etc.)
+ * NOTA: La ruta general /tutoria/grupos/:grupoId/aula-virtual/:asignaturaId
+ * se movió al final del archivo (después de todas las rutas específicas)
+ * para evitar conflictos con rutas como /tareas, /archivos, etc.
+ * 
+ * Ver más abajo en el archivo para la implementación.
  */
-router.get('/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId', async (req, res) => {
+
+// ============================================
+// RUTAS ESPECÍFICAS (deben estar ANTES de la ruta general)
+// ============================================
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/tareas
+ * Obtener tareas del aula virtual (para tutores - modo solo lectura)
+ */
   try {
     const { grupoId, asignaturaId } = req.params;
     const { colegio_id, anio_activo } = req.user;
