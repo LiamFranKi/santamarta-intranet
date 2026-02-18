@@ -6523,6 +6523,9 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
     const anioActivo = colegioConfig && colegioConfig.length > 0 ? (colegioConfig[0].anio_activo || new Date().getFullYear()) : new Date().getFullYear();
     const pensionesVencimientoStr = colegioConfig && colegioConfig.length > 0 ? colegioConfig[0].pensiones_vencimiento : null;
     const diasTolerancia = colegioConfig && colegioConfig.length > 0 ? parseInt(colegioConfig[0].dias_tolerancia || 0) : 0;
+    
+    // Configuración de mora: S/. 1.00 por día (valor fijo según el usuario)
+    const moraPorDia = 1.00;
 
     // Parsear pensiones_vencimiento (formato PHP serialize)
     const phpSerialize = require('php-serialize');
@@ -6775,20 +6778,35 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
                       diasMora = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                     }
                   }
+                  
+                  // Calcular monto de mora: días de mora * mora por día
+                  // Si el pago ya tiene mora registrada en BD, usar ese valor
+                  // Si no, calcular según los días de mora
+                  let montoMoraCalculado = 0;
+                  if (huboMora && diasMora > 0) {
+                    montoMoraCalculado = diasMora * moraPorDia;
+                  }
                 }
               } catch (error) {
                 console.error(`Error calculando fecha de vencimiento para pago ${pago.id}:`, error);
               }
             }
 
+            // Determinar monto de mora: usar el que está en BD si existe, sino calcular
+            const montoMoraFinal = pago.mora && parseFloat(pago.mora) > 0 
+              ? parseFloat(pago.mora) 
+              : montoMoraCalculado;
+
             return {
               ...pago,
               tipo_descripcion: tipoDescripcion,
-              total: parseFloat(pago.monto) + parseFloat(pago.mora || 0),
+              total: parseFloat(pago.monto) + montoMoraFinal,
               fecha_vencimiento: fechaVencimiento ? fechaVencimiento.toISOString().split('T')[0] : null,
               fecha_vencimiento_formateada: fechaVencimientoFormateada,
               hubo_mora: huboMora,
               dias_mora: diasMora,
+              mora_calculada: montoMoraCalculado,
+              mora_final: montoMoraFinal,
               boleta: impresion && impresion.length > 0 ? {
                 numero: impresion[0].numero,
                 serie: impresion[0].serie,

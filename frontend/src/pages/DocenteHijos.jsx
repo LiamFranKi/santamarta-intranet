@@ -5069,9 +5069,9 @@ function DocenteHijos() {
                                       <span style={{ fontSize: '12px', color: '#c62828', fontWeight: 'bold' }}>
                                         {pago.dias_mora > 0 ? `${pago.dias_mora} día${pago.dias_mora > 1 ? 's' : ''} de mora` : 'Con mora'}
                                       </span>
-                                      {pago.mora > 0 && (
+                                      {(pago.mora_final > 0 || pago.mora_calculada > 0) && (
                                         <span style={{ fontSize: '12px', color: '#c62828', fontWeight: 'bold', marginLeft: '8px' }}>
-                                          ({formatearMonto(pago.mora)})
+                                          ({formatearMonto(pago.mora_final || pago.mora_calculada || 0)})
                                         </span>
                                       )}
                                     </div>
