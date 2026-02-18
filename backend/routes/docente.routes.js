@@ -6512,14 +6512,61 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
       return res.json({ matriculas: [] });
     }
 
-    // Obtener configuración del colegio para calcular meses
+    // Obtener configuración del colegio para calcular meses y fechas de vencimiento
     const colegioConfig = await query(
-      `SELECT ciclo_pensiones, inicio_pensiones FROM colegios WHERE id = ? LIMIT 1`,
+      `SELECT ciclo_pensiones, inicio_pensiones, pensiones_vencimiento, dias_tolerancia, anio_activo FROM colegios WHERE id = ? LIMIT 1`,
       [colegio_id]
     );
 
     const cicloPensiones = colegioConfig && colegioConfig.length > 0 ? colegioConfig[0].ciclo_pensiones : null;
     const inicioPensiones = colegioConfig && colegioConfig.length > 0 ? (colegioConfig[0].inicio_pensiones || 1) : 1;
+    const anioActivo = colegioConfig && colegioConfig.length > 0 ? (colegioConfig[0].anio_activo || new Date().getFullYear()) : new Date().getFullYear();
+    const pensionesVencimientoStr = colegioConfig && colegioConfig.length > 0 ? colegioConfig[0].pensiones_vencimiento : null;
+    const diasTolerancia = colegioConfig && colegioConfig.length > 0 ? parseInt(colegioConfig[0].dias_tolerancia || 0) : 0;
+
+    // Parsear pensiones_vencimiento (formato PHP serialize)
+    const phpSerialize = require('php-serialize');
+    let vencimientosPensiones = {};
+    if (pensionesVencimientoStr) {
+      try {
+        const vencimientosDeserializados = phpSerialize.unserialize(pensionesVencimientoStr);
+        vencimientosPensiones = vencimientosDeserializados || {};
+      } catch (error) {
+        console.error('Error deserializando pensiones_vencimiento:', error);
+        vencimientosPensiones = {};
+      }
+    }
+
+    // Función para calcular fecha de vencimiento (similar a auth.routes.js)
+    const calcularFechaVencimiento = (nroPension, anio, inicioPensiones) => {
+      let vencimiento = vencimientosPensiones[nroPension];
+      
+      if (!vencimiento || vencimiento === '') {
+        // Si no hay configuración específica, usar el último día del mes correspondiente
+        const mesPension = nroPension + 2; // Según sistema anterior
+        const ultimoDia = new Date(anio, mesPension, 0).getDate();
+        return `${ultimoDia}-${String(mesPension).padStart(2, '0')}-${anio}`;
+      }
+
+      // Parsear el formato de vencimiento (puede ser: "dd", "dd-mm", o "dd-mm-yyyy")
+      const partes = String(vencimiento).trim().split('-');
+      
+      if (partes.length === 1) {
+        // Solo día: "31" -> fecha = "dd-(nroPension+2)-anio"
+        const mesPension = nroPension + 2;
+        return `${partes[0].padStart(2, '0')}-${String(mesPension).padStart(2, '0')}-${anio}`;
+      } else if (partes.length === 2) {
+        // Día-mes: "31-01" -> fecha = "dd-mm-anio"
+        return `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${anio}`;
+      } else {
+        // Día-mes-año: puede ser "31-01-2026" o "31-01-20" (año con 2 dígitos)
+        let añoFinal = partes[2];
+        if (añoFinal.length === 2) {
+          añoFinal = String(anio);
+        }
+        return `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${añoFinal}`;
+      }
+    };
 
     // Array de meses (índice 0 = Enero, 1 = Febrero, etc.)
     const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -6632,7 +6679,7 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
           }
         }
 
-        // Para cada pago, obtener la impresión (boleta) si existe
+        // Para cada pago, obtener la impresión (boleta) si existe y calcular fecha de vencimiento y mora
         const pagosConBoleta = await Promise.all(
           pagosCompletos.map(async (pago) => {
             // Solo buscar impresión si el pago tiene ID (existe en BD)
@@ -6672,10 +6719,76 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
               tipoDescripcion = pago.descripcion || `OTRO`;
             }
 
+            // Calcular fecha de vencimiento y determinar si hubo mora
+            let fechaVencimiento = null;
+            let fechaVencimientoFormateada = null;
+            let huboMora = false;
+            let diasMora = 0;
+
+            // Solo calcular para pensiones (tipo = 1) y si tiene nro_pago válido
+            if (pago.tipo === 1 && pago.nro_pago && pago.nro_pago > 0) {
+              try {
+                // Calcular fecha de vencimiento
+                const fechaVencimientoStr = calcularFechaVencimiento(pago.nro_pago, matricula.anio, inicioPensiones);
+                
+                // Convertir dd-mm-yyyy a Date
+                const partesFecha = fechaVencimientoStr.split('-');
+                if (partesFecha.length === 3) {
+                  fechaVencimiento = new Date(
+                    parseInt(partesFecha[2]), // año
+                    parseInt(partesFecha[1]) - 1, // mes (0-indexed)
+                    parseInt(partesFecha[0]) // día
+                  );
+                  
+                  // Formatear fecha para mostrar
+                  fechaVencimientoFormateada = fechaVencimiento.toLocaleDateString('es-PE', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                  });
+
+                  // Calcular fecha límite (vencimiento + días de tolerancia)
+                  const fechaLimite = new Date(fechaVencimiento);
+                  fechaLimite.setDate(fechaLimite.getDate() + diasTolerancia);
+                  fechaLimite.setHours(23, 59, 59, 999);
+
+                  // Si el pago está cancelado, verificar si se pagó después de la fecha límite
+                  if (pago.estado_pago === 'CANCELADO' && pago.fecha_cancelado) {
+                    const fechaCancelado = new Date(pago.fecha_cancelado);
+                    fechaCancelado.setHours(0, 0, 0, 0);
+                    
+                    if (fechaCancelado > fechaLimite) {
+                      huboMora = true;
+                      // Calcular días de mora
+                      const diffTime = fechaCancelado - fechaLimite;
+                      diasMora = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    }
+                  } else if (pago.estado_pago === 'PENDIENTE') {
+                    // Si está pendiente, verificar si ya pasó la fecha límite
+                    const fechaActual = new Date();
+                    fechaActual.setHours(0, 0, 0, 0);
+                    
+                    if (fechaActual > fechaLimite) {
+                      huboMora = true;
+                      // Calcular días de mora desde la fecha límite hasta hoy
+                      const diffTime = fechaActual - fechaLimite;
+                      diasMora = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(`Error calculando fecha de vencimiento para pago ${pago.id}:`, error);
+              }
+            }
+
             return {
               ...pago,
               tipo_descripcion: tipoDescripcion,
               total: parseFloat(pago.monto) + parseFloat(pago.mora || 0),
+              fecha_vencimiento: fechaVencimiento ? fechaVencimiento.toISOString().split('T')[0] : null,
+              fecha_vencimiento_formateada: fechaVencimientoFormateada,
+              hubo_mora: huboMora,
+              dias_mora: diasMora,
               boleta: impresion && impresion.length > 0 ? {
                 numero: impresion[0].numero,
                 serie: impresion[0].serie,

@@ -5048,13 +5048,34 @@ function DocenteHijos() {
 
                                 <div className="pago-card-body" style={{ marginBottom: '12px' }}>
                                   {/* Campos ocultos: Monto, Fecha, Fecha Emisión */}
-                                  {/* Solo mostramos: Total, Nº Operación, Serie/Número, Fecha Cancelado */}
+                                  {/* Solo mostramos: Total, Nº Operación, Serie/Número, Fecha Cancelado, Fecha Vencimiento, Mora */}
                                   <div style={{ marginBottom: '8px' }}>
                                     <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Total: </span>
                                     <span style={{ fontSize: '16px', color: colorCard.text, fontWeight: 'bold' }}>
                                       {formatearMonto(pago.total)}
                                     </span>
                                   </div>
+                                  {pago.fecha_vencimiento_formateada && (
+                                    <div style={{ marginBottom: '8px' }}>
+                                      <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Fecha Vencimiento: </span>
+                                      <span style={{ fontSize: '12px', color: colorCard.text }}>
+                                        {pago.fecha_vencimiento_formateada}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {pago.hubo_mora && (
+                                    <div style={{ marginBottom: '8px', padding: '6px 10px', backgroundColor: '#ffebee', borderRadius: '4px', border: '1px solid #f44336' }}>
+                                      <span style={{ fontSize: '12px', color: '#c62828', fontWeight: 'bold' }}>⚠️ MORA: </span>
+                                      <span style={{ fontSize: '12px', color: '#c62828', fontWeight: 'bold' }}>
+                                        {pago.dias_mora > 0 ? `${pago.dias_mora} día${pago.dias_mora > 1 ? 's' : ''} de mora` : 'Con mora'}
+                                      </span>
+                                      {pago.mora > 0 && (
+                                        <span style={{ fontSize: '12px', color: '#c62828', fontWeight: 'bold', marginLeft: '8px' }}>
+                                          ({formatearMonto(pago.mora)})
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
                                   {esCancelado && pago.nro_movimiento_banco && (
                                     <div style={{ marginBottom: '8px' }}>
                                       <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Nº Operación: </span>
