@@ -908,6 +908,58 @@ router.get('/dashboard', async (req, res) => {
       [usuario_id]
     );
 
+    // Calcular tardanzas y descuentos del mes actual
+    // Obtener la hora de entrada configurada del personal
+    const horaEntradaConfigurada = docente.hora_entrada; // Formato TIME (HH:mm:ss)
+    
+    let totalMinutosTardanza = 0;
+    let totalDescuento = 0;
+    
+    if (horaEntradaConfigurada) {
+      // Obtener mes actual
+      const fechaActual = new Date();
+      const mesActual = fechaActual.getMonth() + 1; // 1-12
+      const añoActual = fechaActual.getFullYear();
+      
+      // Obtener registros de asistencia del mes actual donde hay entrada registrada
+      const registrosAsistencia = await query(
+        `SELECT ar.fecha, ar.hora_entrada
+         FROM asistencia_registros ar
+         WHERE ar.usuario_id = ?
+           AND ar.colegio_id = ?
+           AND ar.anio = ?
+           AND YEAR(ar.fecha) = ?
+           AND MONTH(ar.fecha) = ?
+           AND ar.hora_entrada IS NOT NULL
+           AND (ar.tipo_registro = 'ENTRADA' OR ar.tipo_registro = 'ENTRADA_SALIDA')
+         ORDER BY ar.fecha ASC`,
+        [usuario_id, colegio_id, anio_activo, añoActual, mesActual]
+      );
+      
+      // Calcular minutos de tardanza para cada registro
+      for (const registro of registrosAsistencia) {
+        if (registro.hora_entrada) {
+          // Convertir hora_entrada configurada a minutos desde medianoche
+          const [horaConfig, minutoConfig, segundoConfig] = horaEntradaConfigurada.split(':').map(Number);
+          const minutosConfigurados = horaConfig * 60 + minutoConfig;
+          
+          // Convertir hora_entrada registrada a minutos desde medianoche
+          const [horaReg, minutoReg, segundoReg] = registro.hora_entrada.split(':').map(Number);
+          const minutosRegistrados = horaReg * 60 + minutoReg;
+          
+          // Calcular diferencia (si es positiva, hay tardanza)
+          const minutosTardanza = minutosRegistrados - minutosConfigurados;
+          
+          if (minutosTardanza > 0) {
+            totalMinutosTardanza += minutosTardanza;
+          }
+        }
+      }
+      
+      // Calcular descuento: S/. 1.00 por minuto de tardanza
+      totalDescuento = totalMinutosTardanza * 1.00;
+    }
+
     // Obtener comunicado con show_in_home activo (más reciente)
     const comunicadoHome = await query(
       `SELECT c.*
@@ -1021,7 +1073,8 @@ router.get('/dashboard', async (req, res) => {
         cursosAsignados: cursosAsignados[0]?.total || 0,
         estudiantes: estudiantes[0]?.total || 0,
         mensajesNoLeidos: mensajesNoLeidos[0]?.total || 0,
-        descuentoMesActual: 0 // Por ahora 0, se implementará después
+        tardanzasMesActual: totalMinutosTardanza, // Minutos de tardanza del mes actual
+        descuentoMesActual: totalDescuento // Descuento en soles (S/. 1.00 por minuto)
       },
       proximosExamenes: proximosExamenes || [],
       proximasTareas: proximasTareas || [],

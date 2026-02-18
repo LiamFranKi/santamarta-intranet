@@ -458,15 +458,24 @@ function DocenteDashboard() {
           <div className="stat-card mundo-card" style={{ background: coloresPastelesDashboard[3] }}>
             <div className="stat-icon">⏰</div>
             <div className="stat-content">
-              <div className="stat-number">0</div>
-              <div className="stat-label">Tardanzas de {mesActual}</div>
+              <div className="stat-number">{estadisticas?.tardanzasMesActual || 0}</div>
+              <div className="stat-label">Tardanzas del {mesActual} (min)</div>
             </div>
           </div>
 
           <div className="stat-card mundo-card" style={{ background: coloresPastelesDashboard[4] }}>
             <div className="stat-icon">💰</div>
             <div className="stat-content">
-              <div className="stat-number">{estadisticas?.descuentoMesActual || 0}</div>
+              <div className="stat-number">
+                {estadisticas?.descuentoMesActual 
+                  ? new Intl.NumberFormat('es-PE', {
+                      style: 'currency',
+                      currency: 'PEN',
+                      minimumFractionDigits: 2
+                    }).format(estadisticas.descuentoMesActual)
+                  : 'S/. 0.00'}
+              </div>
+              <div className="stat-label">Descuentos del {mesActual}</div>
               <div className="stat-label">Descuento de {mesActual}</div>
             </div>
           </div>
