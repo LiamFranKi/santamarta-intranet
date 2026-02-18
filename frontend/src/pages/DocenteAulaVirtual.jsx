@@ -5377,7 +5377,6 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
                 <option value="ALTERNATIVAS">📋 ALTERNATIVAS (Opción Múltiple)</option>
                 <option value="COMPLETAR">✏️ COMPLETAR (Completar espacios)</option>
                 <option value="VERDADERO_FALSO">✅ VERDADERO_FALSO</option>
-                <option value="RESPUESTA_CORTA">💬 RESPUESTA_CORTA (Texto libre)</option>
                 <option value="ORDENAR">🔢 ORDENAR (Ordenar elementos)</option>
                 <option value="EMPAREJAR">🔗 EMPAREJAR (Emparejar elementos)</option>
                 <option value="ARRASTRAR_Y_SOLTAR">🎯 ARRASTRAR_Y_SOLTAR (Drag & Drop)</option>
