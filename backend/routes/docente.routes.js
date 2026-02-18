@@ -6532,11 +6532,23 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
     let vencimientosPensiones = {};
     if (pensionesVencimientoStr) {
       try {
+        // Intentar deserializar
         const vencimientosDeserializados = phpSerialize.unserialize(pensionesVencimientoStr);
         vencimientosPensiones = vencimientosDeserializados || {};
       } catch (error) {
         console.error('Error deserializando pensiones_vencimiento:', error);
-        vencimientosPensiones = {};
+        console.error('Contenido de pensiones_vencimiento:', pensionesVencimientoStr);
+        // Si falla la deserialización, intentar parsear como JSON
+        try {
+          if (typeof pensionesVencimientoStr === 'string' && pensionesVencimientoStr.startsWith('{')) {
+            vencimientosPensiones = JSON.parse(pensionesVencimientoStr);
+          } else {
+            vencimientosPensiones = {};
+          }
+        } catch (jsonError) {
+          console.error('Error parseando pensiones_vencimiento como JSON:', jsonError);
+          vencimientosPensiones = {};
+        }
       }
     }
 
@@ -6727,6 +6739,7 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
             let fechaVencimientoFormateada = null;
             let huboMora = false;
             let diasMora = 0;
+            let montoMoraCalculado = 0; // Inicializar siempre
 
             // Solo calcular para pensiones (tipo = 1) y si tiene nro_pago válido
             if (pago.tipo === 1 && pago.nro_pago && pago.nro_pago > 0) {
@@ -6780,9 +6793,6 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
                   }
                   
                   // Calcular monto de mora: días de mora * mora por día
-                  // Si el pago ya tiene mora registrada en BD, usar ese valor
-                  // Si no, calcular según los días de mora
-                  let montoMoraCalculado = 0;
                   if (huboMora && diasMora > 0) {
                     montoMoraCalculado = diasMora * moraPorDia;
                   }
