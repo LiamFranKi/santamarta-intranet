@@ -11257,7 +11257,7 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
             let apoderadosIds = [];
             if (alumnoIds.length > 0) {
               const apoderadosData = await query(
-                `SELECT DISTINCT u.id, u.tipo
+                `SELECT DISTINCT u.id, u.tipo, ap.nro_documento
                  FROM apoderados ap
                  INNER JOIN familias f ON f.apoderado_id = ap.id
                  INNER JOIN usuarios u ON u.apoderado_id = ap.id
@@ -11268,6 +11268,32 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
                 [...alumnoIds, colegio_id, colegio_id]
               );
               apoderadosIds = apoderadosData.map(a => ({ usuario_id: a.id, tipo: a.tipo }));
+              
+              // Obtener DNI de apoderados para buscar docentes-apoderados
+              const apoderadoDnis = apoderadosData.map(a => a.nro_documento).filter(dni => dni);
+              
+              if (apoderadoDnis.length > 0) {
+                // Obtener usuarios DOCENTE que también son apoderados (mismo nro_documento)
+                const docentesApoderados = await query(
+                  `SELECT DISTINCT u.id, u.tipo
+                   FROM usuarios u
+                   INNER JOIN personal p ON p.id = u.personal_id
+                   WHERE u.colegio_id = ? 
+                     AND u.estado = 'ACTIVO'
+                     AND u.tipo = 'DOCENTE'
+                     AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
+                          OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))
+                     AND u.id NOT IN (${[...alumnosGrupos.map(a => a.id), ...apoderadosIds.map(a => a.usuario_id)].map(() => '?').join(',')})`, // Evitar duplicados
+                  [colegio_id, ...apoderadoDnis, ...apoderadoDnis, ...alumnosGrupos.map(a => a.id), ...apoderadosIds.map(a => a.usuario_id)]
+                );
+                
+                const docentesApoderadosIds = docentesApoderados.map(d => ({ usuario_id: d.id, tipo: d.tipo }));
+                apoderadosIds = [...apoderadosIds, ...docentesApoderadosIds];
+                
+                if (docentesApoderadosIds.length > 0) {
+                  console.log(`📢 [PUBLICACIONES] Encontrados ${docentesApoderadosIds.length} docentes que también son apoderados`);
+                }
+              }
             }
             
             // 3. Obtener docentes que enseñan en esos grupos (a través de asignaturas)
@@ -11351,83 +11377,9 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
                 }
               }));
               
-              // Si es para grupos específicos, también incluir docentes que son apoderados
-              if (compartir_con === 'grupos' && grupos_ids) {
-                const gruposArray = typeof grupos_ids === 'string' ? JSON.parse(grupos_ids) : grupos_ids;
-                
-                if (gruposArray.length > 0) {
-                  // Obtener alumnos de los grupos
-                  const alumnosGrupos = await query(
-                    `SELECT DISTINCT a.id as alumno_id
-                     FROM alumnos a
-                     INNER JOIN matriculas m ON m.alumno_id = a.id
-                     WHERE m.grupo_id IN (${gruposArray.map(() => '?').join(',')})
-                       AND m.colegio_id = ?
-                       AND (m.estado = 0 OR m.estado = 4)`,
-                    [...gruposArray, colegio_id]
-                  );
-                  
-                  const alumnoIds = alumnosGrupos.map(a => a.alumno_id);
-                  
-                  if (alumnoIds.length > 0) {
-                    // Obtener apoderados de esos alumnos
-                    const apoderados = await query(
-                      `SELECT DISTINCT ap.nro_documento
-                       FROM apoderados ap
-                       INNER JOIN familias f ON f.apoderado_id = ap.id
-                       WHERE f.alumno_id IN (${alumnoIds.map(() => '?').join(',')})
-                         AND ap.colegio_id = ?
-                         AND ap.nro_documento IS NOT NULL
-                         AND ap.nro_documento != ''`,
-                      [...alumnoIds, colegio_id]
-                    );
-                    
-                    const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
-                    
-                    if (apoderadoDnis.length > 0) {
-                      // Obtener usuarios DOCENTE que también son apoderados (mismo nro_documento)
-                      const usuariosDocentesApoderados = await query(
-                        `SELECT DISTINCT u.id 
-                         FROM usuarios u
-                         INNER JOIN personal p ON p.id = u.personal_id
-                         WHERE u.colegio_id = ? 
-                           AND u.estado = 'ACTIVO'
-                           AND u.tipo = 'DOCENTE'
-                           AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
-                                OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))
-                           AND u.id NOT IN (${usuarioIds.map(() => '?').join(',')})`, // Evitar duplicados
-                        [colegio_id, ...apoderadoDnis, ...apoderadoDnis, ...usuarioIds]
-                      );
-                      
-                      const docentesApoderadosIds = usuariosDocentesApoderados.map(u => u.id);
-                      
-                      if (docentesApoderadosIds.length > 0) {
-                        console.log(`📱 [PUBLICACIONES] Encontrados ${docentesApoderadosIds.length} docentes que también son apoderados`);
-                        
-                        // Obtener suscripciones push de estos docentes-apoderados
-                        const subscriptionsDocentesApoderados = await query(
-                          `SELECT endpoint, p256dh, auth 
-                           FROM push_subscriptions 
-                           WHERE usuario_id IN (${docentesApoderadosIds.map(() => '?').join(',')}) 
-                             AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
-                          [...docentesApoderadosIds, colegio_id]
-                        );
-                        
-                        const subscriptionsAdicionales = subscriptionsDocentesApoderados.map(sub => ({
-                          endpoint: sub.endpoint,
-                          keys: {
-                            p256dh: sub.p256dh,
-                            auth: sub.auth
-                          }
-                        }));
-                        
-                        subscriptions = [...subscriptions, ...subscriptionsAdicionales];
-                        console.log(`📱 [PUBLICACIONES] Agregadas ${subscriptionsAdicionales.length} suscripciones push de docentes-apoderados`);
-                      }
-                    }
-                  }
-                }
-              }
+              // NOTA: Los docentes-apoderados ya están incluidos en 'destinatarios' desde la sección anterior,
+              // por lo que no es necesario buscarlos nuevamente aquí para evitar duplicados.
+              // Esta sección solo se mantiene para compatibilidad con código anterior, pero ya no es necesaria.
               
               // Enviar push notifications
               if (subscriptions.length > 0) {
