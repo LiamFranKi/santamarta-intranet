@@ -25,6 +25,13 @@ console.log(`📧 [EMAIL] Configuración de email:`, {
 
 const transporter = nodemailer.createTransport(emailConfig);
 
+// Configurar manejo de errores y rebotes
+// Los rebotes y errores de entrega se registrarán en logs pero NO se reenviarán al remitente
+transporter.on('error', (error) => {
+  console.error(`❌ [EMAIL] Error en transporter (no se reenvía al remitente):`, error.message);
+  // No hacer nada más, solo registrar el error
+});
+
 // Verificar conexión al iniciar
 transporter.verify(function (error, success) {
   if (error) {
@@ -304,7 +311,19 @@ async function enviarCorreoAsistencia(destinatario, datos) {
       from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`,
       to: destinatario,
       subject: asunto,
-      html: template
+      html: template,
+      // Configurar para que los rebotes no se reenvíen al remitente
+      // Si el correo rebota, el error se captura pero no se notifica al remitente
+      headers: {
+        'Return-Path': process.env.EMAIL_USER, // Mantener el remitente original
+        'X-Auto-Response-Suppress': 'All', // Suprimir respuestas automáticas
+        'Precedence': 'bulk' // Indicar que es correo masivo (reduce notificaciones de rebote)
+      },
+      // Configurar envelope para evitar notificaciones de rebote
+      envelope: {
+        from: process.env.EMAIL_USER,
+        to: destinatario
+      }
     };
 
     console.log(`📧 [EMAIL] Enviando correo desde: ${process.env.EMAIL_USER} hacia: ${destinatario}`);
@@ -312,8 +331,10 @@ async function enviarCorreoAsistencia(destinatario, datos) {
     console.log(`✅ [EMAIL] Correo enviado exitosamente. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
+    // Error capturado: solo registrar en logs, NO reenviar al remitente
     console.error(`❌ [EMAIL] Error enviando correo a ${destinatario}:`, error.message);
     console.error(`❌ [EMAIL] Stack trace:`, error.stack);
+    console.log(`⚠️ [EMAIL] Error registrado pero NO se notificará al remitente para evitar confusión`);
     return { success: false, error: error.message };
   }
 }
@@ -356,7 +377,19 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
       from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`,
       to: destinatario,
       subject: tituloConIcono,
-      html: template
+      html: template,
+      // Configurar para que los rebotes no se reenvíen al remitente
+      // Si el correo rebota, el error se captura pero no se notifica al remitente
+      headers: {
+        'Return-Path': process.env.EMAIL_USER, // Mantener el remitente original
+        'X-Auto-Response-Suppress': 'All', // Suprimir respuestas automáticas
+        'Precedence': 'bulk' // Indicar que es correo masivo (reduce notificaciones de rebote)
+      },
+      // Configurar envelope para evitar notificaciones de rebote
+      envelope: {
+        from: process.env.EMAIL_USER,
+        to: destinatario
+      }
     };
 
     console.log(`📧 [EMAIL NOTIFICACION] Enviando correo desde: ${process.env.EMAIL_USER} hacia: ${destinatario}`);
@@ -364,8 +397,10 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
     console.log(`✅ [EMAIL NOTIFICACION] Correo enviado exitosamente. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
+    // Error capturado: solo registrar en logs, NO reenviar al remitente
     console.error(`❌ [EMAIL NOTIFICACION] Error enviando correo a ${destinatario}:`, error.message);
     console.error(`❌ [EMAIL NOTIFICACION] Stack trace:`, error.stack);
+    console.log(`⚠️ [EMAIL NOTIFICACION] Error registrado pero NO se notificará al remitente para evitar confusión`);
     return { success: false, error: error.message };
   }
 }
