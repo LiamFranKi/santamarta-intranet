@@ -145,12 +145,55 @@ function generarTemplateAsistencia(datos) {
 }
 
 /**
+ * Obtener icono y color según el tipo de notificación
+ */
+function obtenerIconoYColor(titulo) {
+  const tituloLower = titulo.toLowerCase();
+  
+  // Detectar tipo por palabras clave o emojis
+  if (tituloLower.includes('nueva publicación') || tituloLower.includes('publicación')) {
+    return { icono: '📢', color: '#3b82f6' }; // Azul
+  } else if (tituloLower.includes('nueva tarea') || tituloLower.includes('tarea')) {
+    return { icono: '📝', color: '#10b981' }; // Verde
+  } else if (tituloLower.includes('examen activado') || tituloLower.includes('nuevo examen') || tituloLower.includes('examen finalizado')) {
+    return { icono: '📚', color: '#8b5cf6' }; // Morado
+  } else if (tituloLower.includes('nuevo tema')) {
+    return { icono: '📖', color: '#f59e0b' }; // Naranja
+  } else if (tituloLower.includes('nuevo video')) {
+    return { icono: '🎥', color: '#ef4444' }; // Rojo
+  } else if (tituloLower.includes('nuevo enlace')) {
+    return { icono: '🔗', color: '#06b6d4' }; // Cyan
+  } else if (tituloLower.includes('estrella')) {
+    return { icono: '⭐', color: '#fbbf24' }; // Amarillo
+  } else if (tituloLower.includes('incidencia')) {
+    return { icono: '⚠️', color: '#f59e0b' }; // Naranja
+  } else if (tituloLower.includes('nota de tarea')) {
+    return { icono: '📝', color: '#10b981' }; // Verde
+  } else if (tituloLower.includes('tarea se vence')) {
+    if (tituloLower.includes('hoy')) {
+      return { icono: '⚠️', color: '#ef4444' }; // Rojo
+    } else if (tituloLower.includes('mañana')) {
+      return { icono: '⏰', color: '#f59e0b' }; // Naranja
+    } else {
+      return { icono: '📅', color: '#3b82f6' }; // Azul
+    }
+  } else {
+    // Por defecto
+    return { icono: '🔔', color: '#3b82f6' }; // Azul
+  }
+}
+
+/**
  * Generar template HTML genérico para correo de notificación
  */
 function generarTemplateNotificacion(datos) {
   const { titulo, mensaje, colegioNombre } = datos;
   
-  const colorPrincipal = '#3b82f6'; // Azul por defecto
+  const { icono, color } = obtenerIconoYColor(titulo);
+  const colorPrincipal = color;
+  
+  // Extraer el icono del título si ya lo tiene, o usar el detectado
+  const tituloConIcono = titulo.includes(icono) ? titulo : `${icono} ${titulo}`;
   
   return `
 <!DOCTYPE html>
@@ -158,7 +201,7 @@ function generarTemplateNotificacion(datos) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${titulo} - ${colegioNombre}</title>
+  <title>${tituloConIcono} - ${colegioNombre}</title>
 </head>
 <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6;">
   <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f3f4f6; padding: 20px;">
@@ -168,8 +211,8 @@ function generarTemplateNotificacion(datos) {
           <!-- Header con color -->
           <tr>
             <td style="background: linear-gradient(135deg, ${colorPrincipal} 0%, ${colorPrincipal}dd 100%); padding: 30px 20px; text-align: center;">
-              <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">
-                ${titulo}
+              <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: 700;">
+                ${tituloConIcono}
               </h1>
             </td>
           </tr>
@@ -177,10 +220,25 @@ function generarTemplateNotificacion(datos) {
           <!-- Contenido principal -->
           <tr>
             <td style="padding: 40px 30px;">
+              <p style="margin: 0 0 20px 0; font-size: 18px; color: #1f2937; line-height: 1.6;">
+                ${mensaje}
+              </p>
+              
               <div style="background-color: #f9fafb; border-left: 4px solid ${colorPrincipal}; padding: 20px; margin: 25px 0; border-radius: 6px;">
-                <p style="margin: 0; font-size: 16px; color: #1f2937; line-height: 1.6;">
-                  ${mensaje}
-                </p>
+                <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 600;">🏫 Colegio:</td>
+                    <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${colegioNombre}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 600;">📅 Fecha:</td>
+                    <td style="padding: 8px 0; color: #1f2937; font-size: 14px;">${new Date().toLocaleDateString('es-PE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #6b7280; font-size: 14px; font-weight: 600;">🕐 Hora:</td>
+                    <td style="padding: 8px 0; color: #1f2937; font-size: 14px; font-weight: 700;">${new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}</td>
+                  </tr>
+                </table>
               </div>
               
               <p style="margin: 25px 0 0 0; font-size: 14px; color: #6b7280; line-height: 1.6;">
@@ -282,8 +340,14 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
     console.log(`📧 [EMAIL NOTIFICACION] Preparando correo para: ${destinatario}`);
     console.log(`📧 [EMAIL NOTIFICACION] Título: ${titulo}`);
     
+    // Obtener icono y color según el tipo
+    const { icono } = obtenerIconoYColor(titulo);
+    
+    // Asegurar que el título tenga el icono
+    const tituloConIcono = titulo.includes(icono) ? titulo : `${icono} ${titulo}`;
+    
     const template = generarTemplateNotificacion({
-      titulo,
+      titulo: tituloConIcono,
       mensaje,
       colegioNombre: colegioNombre || 'Vanguard Schools'
     });
@@ -291,7 +355,7 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
     const mailOptions = {
       from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`,
       to: destinatario,
-      subject: titulo,
+      subject: tituloConIcono,
       html: template
     };
 
@@ -310,6 +374,7 @@ module.exports = {
   enviarCorreoAsistencia,
   generarTemplateAsistencia,
   enviarCorreoNotificacion,
-  generarTemplateNotificacion
+  generarTemplateNotificacion,
+  obtenerIconoYColor
 };
 

@@ -55,28 +55,28 @@ async function crearNotificacionesAulaVirtual(params) {
     
     switch (tipo) {
       case 'tema':
-        tituloNotificacion = 'Nuevo Tema';
+        tituloNotificacion = '📖 Nuevo Tema';
         mensajeNotificacion = `Curso: ${curso_nombre} - Tema: ${nombre} - Docente: ${nombreDocente}`;
         break;
       case 'tarea':
-        tituloNotificacion = 'Nueva Tarea';
+        tituloNotificacion = '📝 Nueva Tarea';
         const fechaEntregaTexto = fecha_entrega ? ` - Fecha de entrega: ${fecha_entrega}` : '';
         mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}${fechaEntregaTexto}`;
         break;
       case 'examen':
-        tituloNotificacion = 'Nuevo Examen';
+        tituloNotificacion = '📚 Nuevo Examen';
         mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
         break;
       case 'video':
-        tituloNotificacion = 'Nuevo Video';
+        tituloNotificacion = '🎥 Nuevo Video';
         mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
         break;
       case 'enlace':
-        tituloNotificacion = 'Nuevo Enlace de Ayuda';
+        tituloNotificacion = '🔗 Nuevo Enlace de Ayuda';
         mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
         break;
       default:
-        tituloNotificacion = 'Nueva Actividad';
+        tituloNotificacion = '🔔 Nueva Actividad';
         mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
     }
     
@@ -11184,7 +11184,7 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
         const nombreDocente = docenteInfo.length > 0 ? docenteInfo[0].nombre_completo : 'Un docente';
         
         // Preparar título y mensaje de la notificación
-        const tituloNotificacion = 'Nueva Publicación';
+        const tituloNotificacion = '📢 Nueva Publicación';
         // Limpiar HTML del contenido para el mensaje (solo primeros 200 caracteres)
         const contenidoLimpio = contenido.replace(/<[^>]*>/g, '').trim();
         const mensajeCorto = contenidoLimpio.length > 200 
@@ -13718,7 +13718,7 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
             console.log(`📚 [EXAMEN ACTIVADO] Enviando notificaciones a ${todosDestinatarios.length} destinatarios (${alumnoUsuarioIds.length} alumnos, ${apoderadoUsuarioIds.length} apoderados incluyendo docentes)`);
             
             // Preparar notificación
-            const tituloNotificacion = 'Examen Activado';
+            const tituloNotificacion = '📚 Examen Activado';
             const mensajeNotificacion = `Examen: "${titulo}" - Curso: ${curso_nombre} - Docente: ${docente_nombre_completo}`;
             
             // Crear notificaciones en la BD
