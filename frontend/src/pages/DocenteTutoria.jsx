@@ -321,10 +321,34 @@ function DocenteTutoria() {
   const handleOpcionesClick = (e, grupoId) => {
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
+    const isMobile = window.innerWidth <= 768;
+    
+    let top = rect.bottom + 5;
+    let left = rect.left;
+    
+    if (isMobile) {
+      // En móvil, centrar el dropdown y ajustar la posición vertical
+      const dropdownHeight = 350; // Altura aproximada del dropdown
+      const viewportHeight = window.innerHeight;
+      const spaceBelow = viewportHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      
+      // Si no hay suficiente espacio abajo, mostrar arriba
+      if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+        top = rect.top - dropdownHeight - 5;
+      } else {
+        // Asegurar que no se corte al final
+        top = Math.min(rect.bottom + 5, viewportHeight - dropdownHeight - 10);
+      }
+      
+      // Centrar horizontalmente en móvil
+      left = 1rem; // Usar el padding del contenedor
+    }
+    
     setOpenDropdown({
       grupoId,
-      top: rect.bottom + 5,
-      left: rect.left
+      top: Math.max(10, top), // Mínimo 10px desde arriba
+      left: isMobile ? left : rect.left
     });
   };
 

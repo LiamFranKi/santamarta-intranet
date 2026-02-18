@@ -147,6 +147,8 @@
   min-width: 250px;
   padding: 0.5rem 0;
   z-index: 10000;
+  max-height: calc(100vh - 20px);
+  overflow-y: auto;
 }
 
 .dropdown-item {
@@ -574,6 +576,21 @@
   .btn-opciones {
     width: 100%;
     justify-content: center;
+  }
+
+  /* Dropdown Menu en móvil - ajustar posición para que no se corte */
+  .dropdown-menu {
+    min-width: calc(100vw - 2rem) !important;
+    max-width: calc(100vw - 2rem) !important;
+    max-height: calc(100vh - 20px) !important;
+    left: 1rem !important;
+    right: 1rem !important;
+    transform: none !important;
+  }
+
+  /* Si el dropdown está cerca del final de la pantalla, ajustarlo hacia arriba */
+  .dropdown-menu {
+    position: fixed !important;
   }
 
   .alumnos-grid {
