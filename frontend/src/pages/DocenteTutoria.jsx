@@ -341,8 +341,8 @@ function DocenteTutoria() {
         top = Math.min(rect.bottom + 5, viewportHeight - dropdownHeight - 10);
       }
       
-      // Centrar horizontalmente en móvil
-      left = 1rem; // Usar el padding del contenedor
+      // Centrar horizontalmente en móvil (16px = 1rem)
+      left = 16; // Usar el padding del contenedor en píxeles
     }
     
     setOpenDropdown({
