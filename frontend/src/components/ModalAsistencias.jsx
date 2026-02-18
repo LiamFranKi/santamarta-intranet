@@ -148,7 +148,6 @@ function ModalAsistencias({ isOpen, onClose }) {
                     <th>Fecha</th>
                     <th>Hora Entrada</th>
                     <th>Hora Salida</th>
-                    <th>Tipo</th>
                     <th>Minutos Tardanza</th>
                     <th>Descuento</th>
                   </tr>
@@ -156,7 +155,7 @@ function ModalAsistencias({ isOpen, onClose }) {
                 <tbody>
                   {asistencias.length === 0 ? (
                     <tr>
-                      <td colSpan="6" className="no-data">
+                      <td colSpan="5" className="no-data">
                         No hay registros de asistencia para este mes
                       </td>
                     </tr>
@@ -170,11 +169,6 @@ function ModalAsistencias({ isOpen, onClose }) {
                           <td>{formatearFecha(asistencia.fecha)}</td>
                           <td>{asistencia.hora_entrada || '-'}</td>
                           <td>{asistencia.hora_salida || '-'}</td>
-                          <td>
-                            <span className={`badge-tipo badge-${asistencia.tipo_registro?.toLowerCase()}`}>
-                              {asistencia.tipo_registro || '-'}
-                            </span>
-                          </td>
                           <td className={minutosTardanza > 0 ? 'text-tardanza' : ''}>
                             {minutosTardanza > 0 ? `${minutosTardanza} min` : '-'}
                           </td>
