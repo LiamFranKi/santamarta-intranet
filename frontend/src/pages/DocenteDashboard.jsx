@@ -476,7 +476,6 @@ function DocenteDashboard() {
                   : 'S/. 0.00'}
               </div>
               <div className="stat-label">Descuento de {mesActual}</div>
-              <div className="stat-label">Descuento de {mesActual}</div>
             </div>
           </div>
 
