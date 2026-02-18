@@ -241,10 +241,20 @@ async function crearNotificacionesAulaVirtual(params) {
             [...todosDestinatarios, colegio_id]
           );
           
-          console.log(`📧 [AULA VIRTUAL] Encontrados ${usuariosConEmail.length} usuarios con email para enviar correos`);
+          // Eliminar duplicados por email (evitar enviar el mismo correo dos veces)
+          const emailsUnicos = new Map();
+          usuariosConEmail.forEach(usuario => {
+            const emailLower = (usuario.email || '').toLowerCase().trim();
+            if (emailLower && !emailsUnicos.has(emailLower)) {
+              emailsUnicos.set(emailLower, usuario);
+            }
+          });
+          const usuariosSinDuplicados = Array.from(emailsUnicos.values());
+          
+          console.log(`📧 [AULA VIRTUAL] Encontrados ${usuariosConEmail.length} usuarios con email, ${usuariosSinDuplicados.length} únicos (sin duplicados)`);
           
           // Enviar correos en paralelo
-          const promesasCorreos = usuariosConEmail.map(async (usuario) => {
+          const promesasCorreos = usuariosSinDuplicados.map(async (usuario) => {
             try {
               const resultadoCorreo = await enviarCorreoNotificacion(
                 usuario.email,
@@ -526,10 +536,20 @@ async function crearNotificacionesApoderados(params) {
           [...todosDestinatarios.map(id => parseInt(id)), parseInt(colegio_id)]
         );
         
-        console.log(`📧 [NOTIFICACIONES APODERADOS] Encontrados ${usuariosConEmail.length} usuarios con email para enviar correos`);
+        // Eliminar duplicados por email (evitar enviar el mismo correo dos veces)
+        const emailsUnicos = new Map();
+        usuariosConEmail.forEach(usuario => {
+          const emailLower = (usuario.email || '').toLowerCase().trim();
+          if (emailLower && !emailsUnicos.has(emailLower)) {
+            emailsUnicos.set(emailLower, usuario);
+          }
+        });
+        const usuariosSinDuplicados = Array.from(emailsUnicos.values());
+        
+        console.log(`📧 [NOTIFICACIONES APODERADOS] Encontrados ${usuariosConEmail.length} usuarios con email, ${usuariosSinDuplicados.length} únicos (sin duplicados)`);
         
         // Enviar correos en paralelo
-        const promesasCorreos = usuariosConEmail.map(async (usuario) => {
+        const promesasCorreos = usuariosSinDuplicados.map(async (usuario) => {
           try {
             const resultadoCorreo = await enviarCorreoNotificacion(
               usuario.email,
@@ -11472,10 +11492,20 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
                   [...usuarioIds, colegio_id]
                 );
                 
-                console.log(`📧 [PUBLICACIONES] Encontrados ${usuariosConEmail.length} usuarios con email para enviar correos`);
+                // Eliminar duplicados por email (evitar enviar el mismo correo dos veces)
+                const emailsUnicos = new Map();
+                usuariosConEmail.forEach(usuario => {
+                  const emailLower = usuario.email.toLowerCase().trim();
+                  if (!emailsUnicos.has(emailLower)) {
+                    emailsUnicos.set(emailLower, usuario);
+                  }
+                });
+                const usuariosSinDuplicados = Array.from(emailsUnicos.values());
+                
+                console.log(`📧 [PUBLICACIONES] Encontrados ${usuariosConEmail.length} usuarios con email, ${usuariosSinDuplicados.length} únicos (sin duplicados)`);
                 
                 // Enviar correos en paralelo
-                const promesasCorreos = usuariosConEmail.map(async (usuario) => {
+                const promesasCorreos = usuariosSinDuplicados.map(async (usuario) => {
                   try {
                     const resultadoCorreo = await enviarCorreoNotificacion(
                       usuario.email,
@@ -13815,10 +13845,20 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
                   [...todosDestinatarios, colegio_id]
                 );
                 
-                console.log(`📧 [EXAMEN ACTIVADO] Encontrados ${usuariosConEmail.length} usuarios con email para enviar correos`);
+                // Eliminar duplicados por email (evitar enviar el mismo correo dos veces)
+                const emailsUnicos = new Map();
+                usuariosConEmail.forEach(usuario => {
+                  const emailLower = (usuario.email || '').toLowerCase().trim();
+                  if (emailLower && !emailsUnicos.has(emailLower)) {
+                    emailsUnicos.set(emailLower, usuario);
+                  }
+                });
+                const usuariosSinDuplicados = Array.from(emailsUnicos.values());
+                
+                console.log(`📧 [EXAMEN ACTIVADO] Encontrados ${usuariosConEmail.length} usuarios con email, ${usuariosSinDuplicados.length} únicos (sin duplicados)`);
                 
                 // Enviar correos en paralelo
-                const promesasCorreos = usuariosConEmail.map(async (usuario) => {
+                const promesasCorreos = usuariosSinDuplicados.map(async (usuario) => {
                   try {
                     const resultadoCorreo = await enviarCorreoNotificacion(
                       usuario.email,
@@ -17297,10 +17337,20 @@ async function verificarTareasPorVencer() {
             [...todosDestinatarios, tarea.colegio_id]
           );
           
-          console.log(`📧 [TAREAS POR VENCER] Encontrados ${usuariosConEmail.length} usuarios con email para tarea "${tarea.titulo}"`);
+          // Eliminar duplicados por email (evitar enviar el mismo correo dos veces)
+          const emailsUnicos = new Map();
+          usuariosConEmail.forEach(usuario => {
+            const emailLower = (usuario.email || '').toLowerCase().trim();
+            if (emailLower && !emailsUnicos.has(emailLower)) {
+              emailsUnicos.set(emailLower, usuario);
+            }
+          });
+          const usuariosSinDuplicados = Array.from(emailsUnicos.values());
+          
+          console.log(`📧 [TAREAS POR VENCER] Encontrados ${usuariosConEmail.length} usuarios con email, ${usuariosSinDuplicados.length} únicos (sin duplicados) para tarea "${tarea.titulo}"`);
           
           // Enviar correos en paralelo
-          const promesasCorreos = usuariosConEmail.map(async (usuario) => {
+          const promesasCorreos = usuariosSinDuplicados.map(async (usuario) => {
             try {
               const resultadoCorreo = await enviarCorreoNotificacion(
                 usuario.email,

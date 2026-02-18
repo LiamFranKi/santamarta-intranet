@@ -303,8 +303,12 @@ async function enviarCorreoAsistencia(destinatario, datos) {
     // Usar EMAIL_FROM si está definido, sino usar EMAIL_USER
     const emailFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER;
     
+    // Usar EMAIL_FROM si está definido, sino usar EMAIL_USER
+    const emailFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER;
+    
     const mailOptions = {
-      from: `"${colegioNombre || 'Vanguard Schools'}" <${emailFrom}>`,
+      from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`, // Gmail ignora 'from' si no coincide con autenticado
+      replyTo: emailFrom !== process.env.EMAIL_USER ? emailFrom : undefined, // Usar replyTo si EMAIL_FROM es diferente
       to: destinatario,
       subject: asunto,
       html: template
@@ -359,7 +363,8 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
     const emailFrom = process.env.EMAIL_FROM || process.env.EMAIL_USER;
     
     const mailOptions = {
-      from: `"${colegioNombre || 'Vanguard Schools'}" <${emailFrom}>`,
+      from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`, // Gmail ignora 'from' si no coincide con autenticado
+      replyTo: emailFrom !== process.env.EMAIL_USER ? emailFrom : undefined, // Usar replyTo si EMAIL_FROM es diferente
       to: destinatario,
       subject: tituloConIcono,
       html: template
