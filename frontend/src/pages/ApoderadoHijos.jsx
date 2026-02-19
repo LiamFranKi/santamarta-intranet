@@ -3726,20 +3726,6 @@ function ApoderadoHijos() {
     );
   }
 
-  if (!esApoderado) {
-    console.log('[FRONTEND] DocenteHijos: No es apoderado, mostrando mensaje');
-    return (
-      <DashboardLayout>
-        <div className="docente-hijos">
-          <div className="no-apoderado mundo-card">
-            <h2>No eres apoderado</h2>
-            <p>No tienes hijos registrados estudiando en el colegio en el año académico actual.</p>
-          </div>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
   console.log('[FRONTEND] DocenteHijos: Es apoderado, renderizando lista de hijos. Total hijos:', hijos.length);
   console.log('[FRONTEND] DocenteHijos: Hijos data:', hijos);
 
