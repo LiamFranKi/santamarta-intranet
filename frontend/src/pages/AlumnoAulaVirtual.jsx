@@ -4,17 +4,20 @@ import { createPortal } from 'react-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
+import { useAuth } from '../context/AuthContext';
 import './DocenteAulaVirtual-gamificado.css';
 
 function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId = null, grupoId = null }) {
   const { cursoId: cursoIdParam } = useParams(); // asignatura_id
   const navigate = useNavigate();
+  const { user } = useAuth();
   // Usar prop si está disponible, sino usar parámetro de la URL
   const cursoId = cursoIdProp || cursoIdParam;
   const asignaturaId = parseInt(cursoId);
   
   // Si es apoderado/docente viendo aula virtual del hijo, solo lectura
   const modoSoloLectura = isApoderado;
+  const esApoderadoPuro = user?.tipo === 'APODERADO';
   
   const [loading, setLoading] = useState(true);
   const [curso, setCurso] = useState(null);
@@ -125,8 +128,10 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
     try {
       if (modoSoloLectura && hijoId) {
         // Si es modo solo lectura (apoderado), obtener datos del curso desde la ruta proxy
+        // Usar /apoderado/hijos/... si el usuario es APODERADO, sino /docente/hijos/...
+        const basePath = esApoderadoPuro ? '/apoderado/hijos' : '/docente/hijos';
         try {
-          const response = await api.get(`/docente/hijos/${hijoId}/aula-virtual/${asignaturaId}`);
+          const response = await api.get(`${basePath}/${hijoId}/aula-virtual/${asignaturaId}`);
           if (response.data && response.data.asignatura) {
             setCurso({
               curso_nombre: response.data.asignatura.curso_nombre,
@@ -140,7 +145,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
           console.error('Error cargando datos del curso (modo apoderado):', err);
           // Si falla, intentar obtener desde los cursos del hijo
           try {
-            const cursosResponse = await api.get(`/docente/hijos/${hijoId}/cursos`);
+            const cursosResponse = await api.get(`${basePath}/${hijoId}/cursos`);
             const cursoEncontrado = cursosResponse.data.cursos.find(c => c.asignatura_id === asignaturaId);
             if (cursoEncontrado) {
               setCurso({
@@ -197,7 +202,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
     } catch (error) {
       console.error('Error cargando curso:', error);
     }
-  }, [asignaturaId, modoSoloLectura, hijoId, grupoId]);
+  }, [asignaturaId, modoSoloLectura, hijoId, grupoId, esApoderadoPuro]);
 
   const cargarArchivos = useCallback(async (ciclo) => {
     try {
@@ -775,7 +780,12 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
         <div className="page-header">
           <button className="btn-back" onClick={() => {
             if (modoSoloLectura && hijoId) {
-              navigate('/docente/hijos');
+              // Navegar a la ruta correcta según el tipo de usuario
+              if (esApoderadoPuro) {
+                navigate('/apoderado/hijos');
+              } else {
+                navigate('/docente/hijos');
+              }
             } else if (modoSoloLectura && grupoId) {
               navigate('/docente/tutoria');
             } else {
