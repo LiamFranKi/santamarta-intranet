@@ -742,28 +742,65 @@ router.get('/actividades', async (req, res) => {
 
 /**
  * GET /api/apoderado/notificaciones
- * Obtener notificaciones del apoderado
+ * Obtener notificaciones del apoderado (incluye notificaciones de sus hijos)
  */
 router.get('/notificaciones', async (req, res) => {
   try {
-    const { usuario_id, colegio_id } = req.user;
+    const { usuario_id, colegio_id, apoderado_id } = req.user;
 
-    // Obtener notificaciones para el apoderado
-    // NOTA: La tabla notificaciones NO tiene colegio_id, solo filtra por para y destinatario_id
-    const notificaciones = await query(
-      `SELECT 
-         n.id,
-         n.asunto as titulo,
-         n.contenido as mensaje,
-         n.fecha_hora,
-         n.estado,
-         'NOTIFICACION' as tipo_origen
-       FROM notificaciones n
-       WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
-       ORDER BY n.fecha_hora DESC
-       LIMIT 30`,
-      [usuario_id]
+    // Obtener usuario_id de todos los hijos del apoderado
+    const hijosUsuarios = await query(
+      `SELECT DISTINCT u.id as usuario_id
+       FROM alumnos a
+       INNER JOIN familias f ON f.alumno_id = a.id
+       INNER JOIN usuarios u ON u.alumno_id = a.id
+       WHERE f.apoderado_id = ?
+         AND a.colegio_id = ?
+         AND u.colegio_id = ?
+         AND u.estado = 'ACTIVO'`,
+      [apoderado_id, colegio_id, colegio_id]
     );
+
+    const hijosUsuarioIds = hijosUsuarios.map(h => h.usuario_id);
+    const todosDestinatariosIds = [usuario_id, ...hijosUsuarioIds];
+
+    // Obtener notificaciones para el apoderado Y para sus hijos
+    // NOTA: La tabla notificaciones NO tiene colegio_id, solo filtra por para y destinatario_id
+    let notificaciones = [];
+    
+    if (todosDestinatariosIds.length > 0) {
+      const placeholders = todosDestinatariosIds.map(() => '?').join(',');
+      notificaciones = await query(
+        `SELECT 
+           n.id,
+           n.asunto as titulo,
+           n.contenido as mensaje,
+           n.fecha_hora,
+           n.estado,
+           'NOTIFICACION' as tipo_origen
+         FROM notificaciones n
+         WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id IN (${placeholders})))
+         ORDER BY n.fecha_hora DESC
+         LIMIT 30`,
+        todosDestinatariosIds
+      );
+    } else {
+      // Si no tiene hijos, solo mostrar notificaciones directas al apoderado
+      notificaciones = await query(
+        `SELECT 
+           n.id,
+           n.asunto as titulo,
+           n.contenido as mensaje,
+           n.fecha_hora,
+           n.estado,
+           'NOTIFICACION' as tipo_origen
+         FROM notificaciones n
+         WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
+         ORDER BY n.fecha_hora DESC
+         LIMIT 30`,
+        [usuario_id]
+      );
+    }
 
     // Mapear campos para compatibilidad con el frontend
     const notificacionesMapeadas = (notificaciones || []).map(n => ({
