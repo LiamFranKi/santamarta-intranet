@@ -682,10 +682,12 @@ export default function DashboardLayout({ children }) {
           {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO' || role === 'ADMINISTRADOR') && (
             <aside className="dashboard-sidebar-right">
               <CalendarioWidget />
-              {/* PublicacionesWidget anterior - Solo en web/tablet */}
-              <div className="publicaciones-widget-sidebar">
-                <PublicacionesWidget />
-              </div>
+              {/* PublicacionesWidget anterior - Solo en web/tablet, oculto para APODERADO */}
+              {role !== 'APODERADO' && (
+                <div className="publicaciones-widget-sidebar">
+                  <PublicacionesWidget />
+                </div>
+              )}
               {/* Card amarillo de publicaciones - Solo en móvil (oculto en web/tablet) */}
               <div className="dashboard-section card-amarillo-section card-amarillo-sidebar">
                 <div className="card-amarillo-vacio">

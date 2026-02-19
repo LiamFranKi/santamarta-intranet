@@ -46,7 +46,14 @@ function CalendarioWidget() {
   const cargarActividades = async () => {
     try {
       // Usar ruta según el tipo de usuario
-      const ruta = user?.tipo === 'ALUMNO' ? '/alumno/actividades' : '/docente/actividades';
+      let ruta;
+      if (user?.tipo === 'ALUMNO') {
+        ruta = '/alumno/actividades';
+      } else if (user?.tipo === 'APODERADO') {
+        ruta = '/apoderado/actividades';
+      } else {
+        ruta = '/docente/actividades';
+      }
       const response = await api.get(ruta, {
         params: { anio: añoActual }
       });

@@ -23,7 +23,14 @@ function NotificacionesWidget() {
   const cargarNotificaciones = async () => {
     try {
       // Usar ruta según el tipo de usuario
-      const ruta = user?.tipo === 'ALUMNO' ? '/alumno/notificaciones' : '/docente/notificaciones';
+      let ruta;
+      if (user?.tipo === 'ALUMNO') {
+        ruta = '/alumno/notificaciones';
+      } else if (user?.tipo === 'APODERADO') {
+        ruta = '/apoderado/notificaciones';
+      } else {
+        ruta = '/docente/notificaciones';
+      }
       const response = await api.get(ruta);
       setNotificaciones(response.data.notificaciones || []);
     } catch (error) {

@@ -741,6 +741,48 @@ router.get('/actividades', async (req, res) => {
 });
 
 /**
+ * GET /api/apoderado/notificaciones
+ * Obtener notificaciones del apoderado
+ */
+router.get('/notificaciones', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id } = req.user;
+
+    // Obtener notificaciones para el apoderado
+    const notificaciones = await query(
+      `SELECT 
+         n.id,
+         n.asunto as titulo,
+         n.contenido as mensaje,
+         n.fecha_hora,
+         n.estado,
+         'NOTIFICACION' as tipo_origen
+       FROM notificaciones n
+       WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
+         AND n.colegio_id = ?
+       ORDER BY n.fecha_hora DESC
+       LIMIT 30`,
+      [usuario_id, colegio_id]
+    );
+
+    // Mapear campos para compatibilidad con el frontend
+    const notificacionesMapeadas = (notificaciones || []).map(n => ({
+      id: n.id,
+      titulo: n.titulo || 'Notificación del sistema',
+      mensaje: n.mensaje || n.contenido || '',
+      fecha_hora: n.fecha_hora,
+      estado: n.estado === 'NO ENVIADO' ? 'NO_LEIDO' : (n.estado === 'ENVIADO' ? 'LEIDO' : n.estado || 'NO_LEIDO'),
+      tipo_origen: n.tipo_origen || 'NOTIFICACION'
+    }));
+
+    res.json({ notificaciones: notificacionesMapeadas });
+  } catch (error) {
+    console.error('Error obteniendo notificaciones:', error);
+    res.status(500).json({ error: 'Error al obtener notificaciones' });
+  }
+});
+
+/**
  * Helper: Verificar que el apoderado tiene permisos sobre el hijo y obtener usuario_id del hijo
  */
 async function verificarHijoYUsuarioApoderado(req, hijoId) {
