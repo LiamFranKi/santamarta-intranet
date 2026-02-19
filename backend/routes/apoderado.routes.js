@@ -2954,12 +2954,14 @@ router.get('/publicaciones', async (req, res) => {
     const { usuario_id, colegio_id, anio_activo, apoderado_id } = req.user;
 
     // Obtener todos los grupos de los hijos del apoderado
+    // La relación entre alumnos y apoderados se hace a través de la tabla 'familias'
     const hijosGrupos = await query(
       `SELECT DISTINCT m.grupo_id
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN alumnos a ON a.id = m.alumno_id
-       WHERE a.apoderado_id = ? AND m.colegio_id = ? AND g.anio = ?
+       INNER JOIN familias f ON f.alumno_id = a.id
+       WHERE f.apoderado_id = ? AND m.colegio_id = ? AND g.anio = ?
        AND (m.estado = 0 OR m.estado = 4)`,
       [apoderado_id, colegio_id, anio_activo]
     );
