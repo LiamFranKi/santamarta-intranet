@@ -132,8 +132,11 @@ api.interceptors.response.use(
     );
     const isPublicacionesRoute = error.config?.url?.includes('/publicaciones');
     const isPushRoute = error.config?.url?.includes('/push/');
+    const isNotificacionesRoute = error.config?.url?.includes('/notificaciones');
+    const isActividadesRoute = error.config?.url?.includes('/actividades');
+    const isGruposRoute = error.config?.url?.includes('/grupos');
     
-    if (status && criticalErrors[status] && !isHijosRoute && !isHijosProxyRoute && !isTutoriaProxyRoute && !isPublicacionesRoute && !isPushRoute) {
+    if (status && criticalErrors[status] && !isHijosRoute && !isHijosProxyRoute && !isTutoriaProxyRoute && !isPublicacionesRoute && !isPushRoute && !isNotificacionesRoute && !isActividadesRoute && !isGruposRoute) {
       const errorInfo = criticalErrors[status];
       console.warn(`⚠️ Error crítico detectado (${status}):`, errorInfo.reason);
       
