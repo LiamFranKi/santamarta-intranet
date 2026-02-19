@@ -134,6 +134,7 @@ router.post('/login', async (req, res) => {
     } else if (usuarioDB.personal_id && usuarioDB.personal_foto) {
       // Es personal/docente
       fotoNombre = usuarioDB.personal_foto;
+    }
     // Los apoderados no tienen columna 'foto' en la tabla apoderados
     // Por lo tanto, no se puede obtener foto para apoderados
     
