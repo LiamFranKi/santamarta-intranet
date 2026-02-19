@@ -134,16 +134,8 @@ router.post('/login', async (req, res) => {
     } else if (usuarioDB.personal_id && usuarioDB.personal_foto) {
       // Es personal/docente
       fotoNombre = usuarioDB.personal_foto;
-    } else if (usuarioDB.apoderado_id) {
-      // Es apoderado: obtener foto de la tabla apoderados
-      const apoderados = await query(
-        `SELECT foto FROM apoderados WHERE id = ?`,
-        [usuarioDB.apoderado_id]
-      );
-      if (apoderados.length > 0 && apoderados[0].foto) {
-        fotoNombre = apoderados[0].foto;
-      }
-    }
+    // Los apoderados no tienen columna 'foto' en la tabla apoderados
+    // Por lo tanto, no se puede obtener foto para apoderados
     
     if (fotoNombre && fotoNombre !== '') {
       const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
