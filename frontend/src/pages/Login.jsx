@@ -42,6 +42,8 @@ function Login() {
         navigate('/docente/dashboard');
       } else if (user.tipo === 'ALUMNO') {
         navigate('/alumno/dashboard');
+      } else if (user.tipo === 'APODERADO') {
+        navigate('/apoderado/dashboard');
       } else if (user.tipo === 'ADMINISTRADOR') {
         navigate('/admin/dashboard');
       } else if (user.tipo === 'ASISTENCIA') {
@@ -102,6 +104,8 @@ function Login() {
         navigate('/docente/dashboard');
       } else if (result.user?.tipo === 'ALUMNO') {
         navigate('/alumno/dashboard');
+      } else if (result.user?.tipo === 'APODERADO') {
+        navigate('/apoderado/dashboard');
       } else if (result.user?.tipo === 'ADMINISTRADOR') {
         navigate('/admin/dashboard');
       } else if (result.user?.tipo === 'ASISTENCIA') {

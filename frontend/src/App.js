@@ -36,6 +36,13 @@ import AlumnoHorario from './pages/AlumnoHorario';
 import AlumnoExamen from './pages/AlumnoExamen';
 import AlumnoExamenResultados from './pages/AlumnoExamenResultados';
 import AsistenciaEscaneo from './pages/AsistenciaEscaneo';
+import ApoderadoDashboard from './pages/ApoderadoDashboard';
+import ApoderadoPerfil from './pages/ApoderadoPerfil';
+import ApoderadoHijos from './pages/ApoderadoHijos';
+import ApoderadoComunicados from './pages/ApoderadoComunicados';
+import ApoderadoActividades from './pages/ApoderadoActividades';
+import ApoderadoMensajes from './pages/ApoderadoMensajes';
+import ApoderadoHijoAulaVirtual from './pages/ApoderadoHijoAulaVirtual';
 import './App.css';
 
 // Configurar React Router para evitar warnings
@@ -59,14 +66,36 @@ const theme = createTheme({
 });
 
 // Componente para rutas protegidas
-function PrivateRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+function PrivateRoute({ children, requiredType = null }) {
+  const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
     return <div>Cargando...</div>;
   }
 
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+
+  // Si se especifica un tipo requerido, verificar que el usuario tenga ese tipo
+  if (requiredType && user?.tipo !== requiredType) {
+    // Redirigir al dashboard correspondiente según el tipo de usuario
+    if (user?.tipo === 'DOCENTE') {
+      return <Navigate to="/docente/dashboard" />;
+    } else if (user?.tipo === 'ALUMNO') {
+      return <Navigate to="/alumno/dashboard" />;
+    } else if (user?.tipo === 'APODERADO') {
+      return <Navigate to="/apoderado/dashboard" />;
+    } else if (user?.tipo === 'ASISTENCIA') {
+      return <Navigate to="/asistencia/escaneo" />;
+    } else if (user?.tipo === 'ADMINISTRADOR') {
+      return <Navigate to="/admin/dashboard" />;
+    }
+    // Si no tiene un tipo válido, redirigir al login
+    return <Navigate to="/login" />;
+  }
+
+  return children;
 }
 
 // Componente para hacer scroll al top cuando cambia la ruta
@@ -94,6 +123,8 @@ function NavigateToDashboard() {
     return <Navigate to="/docente/dashboard" />;
   } else if (tipo === 'ALUMNO') {
     return <Navigate to="/alumno/dashboard" />;
+  } else if (tipo === 'APODERADO') {
+    return <Navigate to="/apoderado/dashboard" />;
   } else if (tipo === 'ADMINISTRADOR') {
     return <Navigate to="/admin/dashboard" />;
   } else if (tipo === 'ASISTENCIA') {
@@ -110,7 +141,7 @@ function AppRoutes() {
       <Route
         path="/admin/dashboard"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -119,7 +150,7 @@ function AppRoutes() {
       <Route
         path="/auditoria"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -350,11 +381,68 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      {/* Rutas de Apoderado */}
+      <Route
+        path="/apoderado/dashboard"
+        element={
+          <PrivateRoute>
+            <ApoderadoDashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/apoderado/perfil"
+        element={
+          <PrivateRoute>
+            <ApoderadoPerfil />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/apoderado/hijos"
+        element={
+          <PrivateRoute>
+            <ApoderadoHijos />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/apoderado/comunicados"
+        element={
+          <PrivateRoute>
+            <ApoderadoComunicados />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/apoderado/actividades"
+        element={
+          <PrivateRoute>
+            <ApoderadoActividades />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/apoderado/mensajes"
+        element={
+          <PrivateRoute>
+            <ApoderadoMensajes />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/apoderado/hijos/:hijoId/aula-virtual/:asignaturaId"
+        element={
+          <PrivateRoute>
+            <ApoderadoHijoAulaVirtual />
+          </PrivateRoute>
+        }
+      />
       {/* Rutas de Administrador */}
       <Route
         path="/admin/matriculas"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -362,7 +450,7 @@ function AppRoutes() {
       <Route
         path="/admin/usuarios/administradores"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -370,7 +458,7 @@ function AppRoutes() {
       <Route
         path="/admin/usuarios/personal"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -378,7 +466,7 @@ function AppRoutes() {
       <Route
         path="/admin/usuarios/alumnos"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -386,7 +474,7 @@ function AppRoutes() {
       <Route
         path="/admin/usuarios/apoderados"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -394,7 +482,7 @@ function AppRoutes() {
       <Route
         path="/admin/academico/niveles"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -402,7 +490,7 @@ function AppRoutes() {
       <Route
         path="/admin/academico/grados"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -410,7 +498,7 @@ function AppRoutes() {
       <Route
         path="/admin/academico/cursos"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -418,7 +506,7 @@ function AppRoutes() {
       <Route
         path="/admin/academico/asignaturas"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -426,7 +514,7 @@ function AppRoutes() {
       <Route
         path="/admin/academico/areas"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -434,7 +522,7 @@ function AppRoutes() {
       <Route
         path="/admin/gamificacion/niveles"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -442,7 +530,7 @@ function AppRoutes() {
       <Route
         path="/admin/gamificacion/logros"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -450,7 +538,7 @@ function AppRoutes() {
       <Route
         path="/admin/gamificacion/avatares"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -458,7 +546,7 @@ function AppRoutes() {
       <Route
         path="/admin/gamificacion/ranking"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -466,7 +554,7 @@ function AppRoutes() {
       <Route
         path="/admin/actividades"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <AdminActividades />
           </PrivateRoute>
         }
@@ -474,7 +562,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicados"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <AdminComunicados />
           </PrivateRoute>
         }
@@ -482,7 +570,7 @@ function AppRoutes() {
       <Route
         path="/admin/notificaciones"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -490,7 +578,7 @@ function AppRoutes() {
       <Route
         path="/admin/vanguarcito"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -498,7 +586,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/asistencias"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -506,7 +594,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/notas"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -514,7 +602,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/estadisticas"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -522,7 +610,7 @@ function AppRoutes() {
       <Route
         path="/admin/config/anio-escolar"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -530,7 +618,7 @@ function AppRoutes() {
       <Route
         path="/admin/config/general"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <AdminConfiguracion />
           </PrivateRoute>
         }
@@ -538,7 +626,7 @@ function AppRoutes() {
       <Route
         path="/admin/config/temas"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -546,7 +634,7 @@ function AppRoutes() {
       <Route
         path="/admin/config/pwa"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
@@ -554,7 +642,7 @@ function AppRoutes() {
       <Route
         path="/admin/mensajes"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ADMINISTRADOR">
             <DocenteMensajes />
           </PrivateRoute>
         }
