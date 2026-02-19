@@ -118,6 +118,7 @@ api.interceptors.response.use(
     // EXCEPCIÓN: No cerrar sesión para errores 401/403 en rutas proxy de hijos (aula virtual, mensajes, etc.)
     // EXCEPCIÓN: No cerrar sesión para errores 401/403 en rutas proxy de tutores (aula virtual, mensajes, etc.)
     // EXCEPCIÓN: No cerrar sesión para errores 403 en publicaciones cuando el usuario es APODERADO (se resuelve con endpoint correcto)
+    // EXCEPCIÓN: No cerrar sesión para errores 401/403 en push notifications (es opcional y no crítico)
     const isHijosRoute = error.config?.url?.includes('/hijos/') && error.config?.url?.includes('/datos');
     const isHijosProxyRoute = error.config?.url?.includes('/docente/hijos/') && (
       error.config?.url?.includes('/aula-virtual/') ||
@@ -130,8 +131,9 @@ api.interceptors.response.use(
       error.config?.url?.includes('/cursos')
     );
     const isPublicacionesRoute = error.config?.url?.includes('/publicaciones');
+    const isPushRoute = error.config?.url?.includes('/push/');
     
-    if (status && criticalErrors[status] && !isHijosRoute && !isHijosProxyRoute && !isTutoriaProxyRoute && !isPublicacionesRoute) {
+    if (status && criticalErrors[status] && !isHijosRoute && !isHijosProxyRoute && !isTutoriaProxyRoute && !isPublicacionesRoute && !isPushRoute) {
       const errorInfo = criticalErrors[status];
       console.warn(`⚠️ Error crítico detectado (${status}):`, errorInfo.reason);
       
