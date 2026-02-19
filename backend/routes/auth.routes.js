@@ -36,8 +36,7 @@ router.post('/login', async (req, res) => {
               p.foto as personal_foto,
               ap.nombres as apoderado_nombres,
               ap.apellido_paterno as apoderado_apellido_paterno,
-              ap.apellido_materno as apoderado_apellido_materno,
-              ap.foto as apoderado_foto
+              ap.apellido_materno as apoderado_apellido_materno
        FROM usuarios u
        LEFT JOIN alumnos a ON a.id = u.alumno_id
        LEFT JOIN personal p ON p.id = u.personal_id
@@ -135,9 +134,15 @@ router.post('/login', async (req, res) => {
     } else if (usuarioDB.personal_id && usuarioDB.personal_foto) {
       // Es personal/docente
       fotoNombre = usuarioDB.personal_foto;
-    } else if (usuarioDB.apoderado_id && usuarioDB.apoderado_foto) {
-      // Es apoderado
-      fotoNombre = usuarioDB.apoderado_foto;
+    } else if (usuarioDB.apoderado_id) {
+      // Es apoderado: obtener foto de la tabla apoderados
+      const apoderados = await query(
+        `SELECT foto FROM apoderados WHERE id = ?`,
+        [usuarioDB.apoderado_id]
+      );
+      if (apoderados.length > 0 && apoderados[0].foto) {
+        fotoNombre = apoderados[0].foto;
+      }
     }
     
     if (fotoNombre && fotoNombre !== '') {
