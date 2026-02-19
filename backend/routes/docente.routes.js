@@ -3689,18 +3689,8 @@ router.get('/horario', async (req, res) => {
        WHERE gh.anio = ?
          AND (a.personal_id = ? OR gh.personal_id = ?)
        ORDER BY gh.dia, 
-         CASE 
-           WHEN gh.hora_inicio LIKE '%PM%' AND CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED) != 12 
-             THEN CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED) + 12
-           WHEN gh.hora_inicio LIKE '%AM%' AND CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED) = 12 
-             THEN 0
-           WHEN gh.hora_inicio LIKE '%AM%' 
-             THEN CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED)
-           WHEN gh.hora_inicio LIKE '%PM%' AND CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED) = 12 
-             THEN 12
-           ELSE CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED)
-         END,
-         CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(gh.hora_inicio, ':', 2), ':', -1) AS UNSIGNED)`,
+         TIME(STR_TO_DATE(gh.hora_inicio, '%l:%i %p')),
+         COALESCE(TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i:%s')), TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i')))`,
       [anioUsar, personalId, personalId]
     );
 
@@ -3801,18 +3791,8 @@ router.get('/cursos/:cursoId/horario', async (req, res) => {
          AND a.id = ?
          AND (a.personal_id = ? OR gh.personal_id = ?)
        ORDER BY gh.dia, 
-         CASE 
-           WHEN gh.hora_inicio LIKE '%PM%' AND CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED) != 12 
-             THEN CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED) + 12
-           WHEN gh.hora_inicio LIKE '%AM%' AND CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED) = 12 
-             THEN 0
-           WHEN gh.hora_inicio LIKE '%AM%' 
-             THEN CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED)
-           WHEN gh.hora_inicio LIKE '%PM%' AND CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED) = 12 
-             THEN 12
-           ELSE CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED)
-         END,
-         CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(gh.hora_inicio, ':', 2), ':', -1) AS UNSIGNED)`,
+         TIME(STR_TO_DATE(gh.hora_inicio, '%l:%i %p')),
+         COALESCE(TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i:%s')), TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i')))`,
       [anioActivoInt, cursoId, personalId, personalId]
     );
 
@@ -7275,18 +7255,8 @@ router.get('/hijos/:hijoId/horario', async (req, res) => {
            (gh.grupo_id = ? AND a.id IS NULL)
          )
        ORDER BY gh.dia, 
-         CASE 
-           WHEN gh.hora_inicio LIKE '%PM%' AND CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED) != 12 
-             THEN CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED) + 12
-           WHEN gh.hora_inicio LIKE '%AM%' AND CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED) = 12 
-             THEN 0
-           WHEN gh.hora_inicio LIKE '%AM%' 
-             THEN CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED)
-           WHEN gh.hora_inicio LIKE '%PM%' AND CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED) = 12 
-             THEN 12
-           ELSE CAST(SUBSTRING_INDEX(gh.hora_inicio, ':', 1) AS UNSIGNED)
-         END,
-         CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(gh.hora_inicio, ':', 2), ':', -1) AS UNSIGNED)`,
+         TIME(STR_TO_DATE(gh.hora_inicio, '%l:%i %p')),
+         COALESCE(TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i:%s')), TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i')))`,
       [colegio_id, anioActivoInt, grupoId, colegio_id, grupoId]
     );
 
