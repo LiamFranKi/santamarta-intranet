@@ -749,6 +749,7 @@ router.get('/notificaciones', async (req, res) => {
     const { usuario_id, colegio_id } = req.user;
 
     // Obtener notificaciones para el apoderado
+    // NOTA: La tabla notificaciones NO tiene colegio_id, solo filtra por para y destinatario_id
     const notificaciones = await query(
       `SELECT 
          n.id,
@@ -759,10 +760,9 @@ router.get('/notificaciones', async (req, res) => {
          'NOTIFICACION' as tipo_origen
        FROM notificaciones n
        WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
-         AND n.colegio_id = ?
        ORDER BY n.fecha_hora DESC
        LIMIT 30`,
-      [usuario_id, colegio_id]
+      [usuario_id]
     );
 
     // Mapear campos para compatibilidad con el frontend
