@@ -35,7 +35,8 @@ router.post('/login', async (req, res) => {
               p.apellidos as personal_apellidos,
               p.foto as personal_foto,
               ap.nombres as apoderado_nombres,
-              ap.apellidos as apoderado_apellidos,
+              ap.apellido_paterno as apoderado_apellido_paterno,
+              ap.apellido_materno as apoderado_apellido_materno,
               ap.foto as apoderado_foto
        FROM usuarios u
        LEFT JOIN alumnos a ON a.id = u.alumno_id
@@ -110,10 +111,11 @@ router.post('/login', async (req, res) => {
       nombres = usuarioDB.personal_nombres || '';
       apellidos = usuarioDB.personal_apellidos || '';
     }
-    // Si es apoderado: tiene apellidos (un solo campo)
+    // Si es apoderado: tiene apellido_paterno y apellido_materno separados (igual que alumnos)
     else if (usuarioDB.apoderado_id && usuarioDB.apoderado_nombres) {
       nombres = usuarioDB.apoderado_nombres || '';
-      apellidos = usuarioDB.apoderado_apellidos || '';
+      apellidos = (usuarioDB.apoderado_apellido_paterno || '') + 
+                  (usuarioDB.apoderado_apellido_materno ? ' ' + usuarioDB.apoderado_apellido_materno : '');
     }
     
     // Construir URL de la foto según el entorno (igual que en /docente/perfil y /alumno/perfil)
