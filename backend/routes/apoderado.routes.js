@@ -2945,6 +2945,231 @@ router.get('/hijos/:hijoId/aula-virtual/:asignaturaId', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/apoderado/publicaciones
+ * Obtener publicaciones (solo las de TODOS y las de los grupos de sus hijos)
+ */
+router.get('/publicaciones', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id, anio_activo, apoderado_id } = req.user;
+
+    // Obtener todos los grupos de los hijos del apoderado
+    const hijosGrupos = await query(
+      `SELECT DISTINCT m.grupo_id
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN alumnos a ON a.id = m.alumno_id
+       WHERE a.apoderado_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0 OR m.estado = 4)`,
+      [apoderado_id, colegio_id, anio_activo]
+    );
+
+    const gruposIds = hijosGrupos.map(hg => hg.grupo_id);
+
+    // Obtener publicaciones: solo las de TODOS y las de los grupos de sus hijos
+    let publicaciones = [];
+    try {
+      if (gruposIds.length > 0) {
+        // Construir condiciones para LIKE (buscar cada grupoId en privacidad)
+        const condicionesGrupos = gruposIds.map(grupoId => 
+          `(p.privacidad LIKE ? OR p.privacidad LIKE ? OR p.privacidad = ?)`
+        ).join(' OR ');
+        
+        const params = [colegio_id];
+        gruposIds.forEach(grupoId => {
+          params.push(`%,${grupoId},%`, `${grupoId},%`, String(grupoId));
+        });
+
+        publicaciones = await query(
+          `SELECT p.*,
+                  u.usuario as autor_usuario,
+                  u.id as autor_id,
+                  u.tipo as autor_tipo,
+                  COALESCE(
+                    CONCAT(pers.nombres, ' ', pers.apellidos),
+                    CONCAT(al.nombres, ' ', al.apellido_paterno, ' ', al.apellido_materno),
+                    u.usuario
+                  ) as autor_nombre_completo,
+                  COALESCE(pers.foto, al.foto) as autor_foto
+           FROM publicaciones p
+           LEFT JOIN usuarios u ON u.id = p.usuario_id
+           LEFT JOIN personal pers ON pers.id = u.personal_id
+           LEFT JOIN alumnos al ON al.id = u.alumno_id
+           WHERE p.colegio_id = ?
+           AND (p.privacidad = '-1' OR p.privacidad = '' OR p.privacidad IS NULL 
+                OR ${condicionesGrupos})
+           ORDER BY p.fecha_hora DESC
+           LIMIT 50`,
+          params
+        );
+      } else {
+        // Si no tiene hijos con grupos, solo mostrar publicaciones de TODOS
+        publicaciones = await query(
+          `SELECT p.*,
+                  u.usuario as autor_usuario,
+                  u.id as autor_id,
+                  u.tipo as autor_tipo,
+                  COALESCE(
+                    CONCAT(pers.nombres, ' ', pers.apellidos),
+                    CONCAT(al.nombres, ' ', al.apellido_paterno, ' ', al.apellido_materno),
+                    u.usuario
+                  ) as autor_nombre_completo,
+                  COALESCE(pers.foto, al.foto) as autor_foto
+           FROM publicaciones p
+           LEFT JOIN usuarios u ON u.id = p.usuario_id
+           LEFT JOIN personal pers ON pers.id = u.personal_id
+           LEFT JOIN alumnos al ON al.id = u.alumno_id
+           WHERE p.colegio_id = ?
+           AND (p.privacidad = '-1' OR p.privacidad = '' OR p.privacidad IS NULL)
+           ORDER BY p.fecha_hora DESC
+           LIMIT 50`,
+          [colegio_id]
+        );
+      }
+    } catch (error) {
+      console.error('Error obteniendo publicaciones:', error);
+      publicaciones = [];
+    }
+
+    // Obtener todos los grupos del colegio para mapear IDs a nombres
+    const gruposMap = {};
+    try {
+      const grupos = await query(
+        `SELECT g.id, n.nombre as nivel_nombre, g.grado, g.seccion
+         FROM grupos g
+         INNER JOIN niveles n ON n.id = g.nivel_id
+         WHERE g.colegio_id = ? AND g.anio = ?`,
+        [colegio_id, anio_activo]
+      );
+      grupos.forEach(g => {
+        gruposMap[g.id] = `${g.nivel_nombre} ${g.grado}° ${g.seccion}`;
+      });
+    } catch (error) {
+      console.warn('Error obteniendo grupos para mapeo:', error);
+    }
+
+    // Procesar publicaciones (igual que alumno)
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sistema.vanguardschools.edu.pe';
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    const publicacionesProcesadas = publicaciones.map(pub => {
+      // Decodificar imágenes
+      let images = [];
+      if (pub.images && pub.images.trim() !== '') {
+        try {
+          const decoded = Buffer.from(pub.images, 'base64').toString('utf-8');
+          const deserialized = phpSerialize.unserialize(decoded);
+          if (Array.isArray(deserialized)) {
+            images = deserialized.map(img => {
+              if (img.startsWith('http')) {
+                return img;
+              } else if (img.startsWith('/Static/')) {
+                return `${phpSystemUrl}${img}`;
+              } else {
+                return `${phpSystemUrl}/Static/Image/Publicaciones/${img}`;
+              }
+            });
+          }
+        } catch (error) {
+          console.warn('Error decodificando imágenes de publicación:', error);
+        }
+      }
+
+      // Decodificar archivos
+      let archivos = [];
+      if (pub.archivos && pub.archivos.trim() !== '') {
+        try {
+          let decoded = pub.archivos;
+          try {
+            const base64Decoded = Buffer.from(pub.archivos, 'base64').toString('utf-8');
+            if (base64Decoded.startsWith('a:')) {
+              decoded = base64Decoded;
+            }
+          } catch (e) {
+            decoded = pub.archivos;
+          }
+          
+          if (decoded.startsWith('a:')) {
+            const regex = /s:\d+:"([^"]+)"/g;
+            let match;
+            while ((match = regex.exec(decoded)) !== null) {
+              archivos.push(match[1]);
+            }
+          }
+        } catch (error) {
+          console.warn('Error decodificando archivos de publicación:', error);
+        }
+      }
+
+      // Construir URL completa de la foto del autor
+      let autorFotoUrl = null;
+      if (pub.autor_foto && pub.autor_foto !== '') {
+        if (pub.autor_foto.startsWith('http')) {
+          autorFotoUrl = pub.autor_foto;
+        } else if (pub.autor_foto.startsWith('/uploads/')) {
+          if (isProduction) {
+            autorFotoUrl = `${frontendUrl}${pub.autor_foto}`;
+          } else {
+            autorFotoUrl = `http://localhost:5000${pub.autor_foto}`;
+          }
+        } else {
+          const esPersonal = pub.autor_tipo === 'DOCENTE' || pub.autor_tipo === 'DIRECTOR' || pub.autor_tipo === 'ADMINISTRADOR';
+          if (isProduction) {
+            autorFotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${pub.autor_foto}`;
+          } else {
+            const uploadPath = esPersonal ? 'uploads/personal' : 'uploads/alumnos';
+            autorFotoUrl = `http://localhost:5000/${uploadPath}/${pub.autor_foto}`;
+          }
+        }
+      }
+
+      // Procesar grupos
+      let gruposNombres = [];
+      if (pub.privacidad && pub.privacidad !== '' && pub.privacidad !== '-1' && pub.privacidad !== '-2') {
+        const grupoIds = pub.privacidad.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id) && id > 0);
+        gruposNombres = grupoIds.map(id => gruposMap[id] || `Grupo ${id}`).filter(Boolean);
+      }
+      
+      // Determinar compartir_con basado en privacidad
+      let compartirCon = 'TODOS';
+      if (pub.privacidad === '-2') {
+        compartirCon = 'PERSONAL';
+      } else if (pub.privacidad && pub.privacidad !== '' && pub.privacidad !== '-1' && pub.privacidad !== '-2') {
+        compartirCon = 'GRUPO';
+      }
+
+      return {
+        id: pub.id,
+        contenido: pub.contenido || '',
+        images: images,
+        archivos: archivos,
+        compartir_con: compartirCon,
+        grupos: gruposNombres,
+        fecha_hora: pub.fecha_hora,
+        para_texto: compartirCon === 'TODOS' ? 'Todos' : (gruposNombres.length > 0 ? gruposNombres.join(', ') : 'Grupos específicos'),
+        autor_id: pub.autor_id,
+        autor_usuario: pub.autor_usuario,
+        autor_nombre_completo: pub.autor_nombre_completo || pub.autor_usuario || 'Usuario',
+        autor_foto_url: autorFotoUrl,
+        autor_tipo: pub.autor_tipo,
+        autor: {
+          id: pub.autor_id,
+          usuario: pub.autor_usuario,
+          nombre_completo: pub.autor_nombre_completo || pub.autor_usuario || 'Usuario',
+          foto: autorFotoUrl,
+          tipo: pub.autor_tipo
+        }
+      };
+    });
+
+    res.json({ publicaciones: publicacionesProcesadas || [] });
+  } catch (error) {
+    console.error('Error obteniendo publicaciones:', error);
+    res.status(500).json({ error: 'Error al obtener publicaciones' });
+  }
+});
+
 // Reutilizar endpoints de mensajes de alumno (misma lógica)
 // Los mensajes funcionan igual para apoderados
 const alumnoMensajesRoutes = require('./alumno.routes');

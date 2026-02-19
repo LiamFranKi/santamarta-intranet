@@ -37,7 +37,14 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
 
   const cargarPublicaciones = useCallback(async () => {
     try {
-      const ruta = esAlumno ? '/alumno/publicaciones' : '/docente/publicaciones';
+      let ruta;
+      if (esAlumno) {
+        ruta = '/alumno/publicaciones';
+      } else if (user?.tipo === 'APODERADO') {
+        ruta = '/apoderado/publicaciones';
+      } else {
+        ruta = '/docente/publicaciones';
+      }
       const response = await api.get(ruta);
       const publicacionesData = response.data.publicaciones || [];
       setPublicaciones(publicacionesData);
@@ -47,7 +54,7 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
     } catch (error) {
       console.error('Error cargando publicaciones:', error);
     }
-  }, [esAlumno]);
+  }, [esAlumno, user?.tipo]);
 
   useEffect(() => {
     if (user) {
