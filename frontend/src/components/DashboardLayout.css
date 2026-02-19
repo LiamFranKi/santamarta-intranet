@@ -414,7 +414,7 @@
 
 /* PublicacionesWidget anterior - Visible solo en web/tablet */
 .publicaciones-widget-sidebar {
-  display: none;
+  display: block; /* Mostrar en web/PC por defecto */
 }
 
 /* Card amarillo en sidebar - Oculto por defecto, se mostrará solo en móvil */

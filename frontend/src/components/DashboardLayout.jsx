@@ -116,12 +116,16 @@ export default function DashboardLayout({ children }) {
   // Logo blanco para el sidebar
   const logoUrl = useMemo(() => `${apiBaseUrl}/assets/logos/logoblanco.png`, [apiBaseUrl]);
 
-  // Manejar nombres para alumnos (tienen apellido_paterno y apellido_materno separados)
+  // Manejar nombres para alumnos y apoderados (tienen apellido_paterno y apellido_materno separados)
   let displayName = '';
   if (user?.tipo === 'ALUMNO') {
     displayName = user?.nombres && user?.apellido_paterno 
       ? `${user.nombres} ${user.apellido_paterno}${user.apellido_materno ? ' ' + user.apellido_materno : ''}`
       : user?.nombres || user?.usuario || 'Alumno';
+  } else if (user?.tipo === 'APODERADO') {
+    displayName = user?.nombres && user?.apellido_paterno 
+      ? `${user.nombres} ${user.apellido_paterno}${user.apellido_materno ? ' ' + user.apellido_materno : ''}`
+      : user?.nombres || user?.usuario || 'Apoderado';
   } else {
     displayName = user?.nombres && user?.apellidos 
       ? `${user.nombres} ${user.apellidos}` 
@@ -129,6 +133,11 @@ export default function DashboardLayout({ children }) {
   }
   const initials = getInitials(displayName);
   const role = user?.tipo || 'USUARIO';
+  
+  // Debug: verificar el role
+  React.useEffect(() => {
+    console.log('🔍 [DASHBOARD LAYOUT] Role detectado:', role, 'User tipo:', user?.tipo);
+  }, [role, user?.tipo]);
   
   // Construir URL de la foto del usuario
   // La foto debería venir como URL completa del backend, pero manejamos todos los casos por compatibilidad
@@ -189,7 +198,7 @@ export default function DashboardLayout({ children }) {
 
       <aside className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <div className="sidebar-logo" role="button" tabIndex={0} onClick={() => navigate(role === 'DOCENTE' ? '/docente/dashboard' : role === 'ALUMNO' ? '/alumno/dashboard' : role === 'ADMINISTRADOR' ? '/dashboard' : '/dashboard')}>
+          <div className="sidebar-logo" role="button" tabIndex={0} onClick={() => navigate(role === 'DOCENTE' ? '/docente/dashboard' : role === 'ALUMNO' ? '/alumno/dashboard' : role === 'APODERADO' ? '/apoderado/dashboard' : role === 'ADMINISTRADOR' ? '/dashboard' : '/dashboard')}>
             {logoUrl ? (
               <img className="sidebar-logo-image" src={logoUrl} alt="Logo" />
             ) : (
@@ -388,6 +397,45 @@ export default function DashboardLayout({ children }) {
               </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/mensajes">
+                  <span className="sidebar-icon">✉️</span>
+                  <span className="sidebar-label">Mensajes</span>
+                </NavLink>
+              </div>
+            </>
+          ) : role === 'APODERADO' ? (
+            <>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/dashboard" end>
+                  <span className="sidebar-icon">📊</span>
+                  <span className="sidebar-label">Dashboard</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/perfil">
+                  <span className="sidebar-icon">👤</span>
+                  <span className="sidebar-label">Mi Perfil</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/hijos">
+                  <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
+                  <span className="sidebar-label">Hijos a Cargo</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/comunicados">
+                  <span className="sidebar-icon">📢</span>
+                  <span className="sidebar-label">Comunicados</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/actividades">
+                  <span className="sidebar-icon">📆</span>
+                  <span className="sidebar-label">Actividades</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/mensajes">
                   <span className="sidebar-icon">✉️</span>
                   <span className="sidebar-label">Mensajes</span>
                 </NavLink>
@@ -615,8 +663,8 @@ export default function DashboardLayout({ children }) {
           </div>
 
           <div className="header-actions">
-            {(role === 'DOCENTE' || role === 'ALUMNO') && <NotificacionesWidget />}
-            <button className="header-btn" type="button" title="Mi Perfil" onClick={() => navigate(role === 'DOCENTE' ? '/docente/perfil' : role === 'ALUMNO' ? '/alumno/perfil' : '/perfil')}>
+            {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO') && <NotificacionesWidget />}
+            <button className="header-btn" type="button" title="Mi Perfil" onClick={() => navigate(role === 'DOCENTE' ? '/docente/perfil' : role === 'ALUMNO' ? '/alumno/perfil' : role === 'APODERADO' ? '/apoderado/perfil' : '/perfil')}>
               👤
             </button>
             <button className="header-btn header-btn-logout" type="button" title="Cerrar sesión" onClick={logout}>
@@ -631,7 +679,7 @@ export default function DashboardLayout({ children }) {
         <div className="dashboard-main-wrapper">
           <main className="dashboard-main">{children}</main>
           
-          {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'ADMINISTRADOR') && (
+          {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO' || role === 'ADMINISTRADOR') && (
             <aside className="dashboard-sidebar-right">
               <CalendarioWidget />
               {/* PublicacionesWidget anterior - Solo en web/tablet */}
