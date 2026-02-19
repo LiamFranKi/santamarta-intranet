@@ -98,12 +98,15 @@ router.post('/login', async (req, res) => {
     // Mapear nombres y apellidos según la estructura real de la base de datos
     let nombres = '';
     let apellidos = '';
+    let apellido_paterno = '';
+    let apellido_materno = '';
     
     // Si es alumno: tiene apellido_paterno, apellido_materno separados
     if (usuarioDB.alumno_id && usuarioDB.alumno_nombres) {
       nombres = usuarioDB.alumno_nombres || '';
-      apellidos = (usuarioDB.alumno_apellido_paterno || '') + 
-                  (usuarioDB.alumno_apellido_materno ? ' ' + usuarioDB.alumno_apellido_materno : '');
+      apellido_paterno = usuarioDB.alumno_apellido_paterno || '';
+      apellido_materno = usuarioDB.alumno_apellido_materno || '';
+      apellidos = (apellido_paterno || '') + (apellido_materno ? ' ' + apellido_materno : '');
     } 
     // Si es personal/docente: tiene apellidos (un solo campo)
     else if (usuarioDB.personal_id && usuarioDB.personal_nombres) {
@@ -113,8 +116,9 @@ router.post('/login', async (req, res) => {
     // Si es apoderado: tiene apellido_paterno y apellido_materno separados (igual que alumnos)
     else if (usuarioDB.apoderado_id && usuarioDB.apoderado_nombres) {
       nombres = usuarioDB.apoderado_nombres || '';
-      apellidos = (usuarioDB.apoderado_apellido_paterno || '') + 
-                  (usuarioDB.apoderado_apellido_materno ? ' ' + usuarioDB.apoderado_apellido_materno : '');
+      apellido_paterno = usuarioDB.apoderado_apellido_paterno || '';
+      apellido_materno = usuarioDB.apoderado_apellido_materno || '';
+      apellidos = (apellido_paterno || '') + (apellido_materno ? ' ' + apellido_materno : '');
     }
     
     // Construir URL de la foto según el entorno (igual que en /docente/perfil y /alumno/perfil)
@@ -158,6 +162,9 @@ router.post('/login', async (req, res) => {
       anio_activo: anioActivo,
       nombres: nombres.trim() || usuarioDB.usuario,
       apellidos: apellidos.trim(),
+      // Campos separados para alumnos y apoderados
+      apellido_paterno: apellido_paterno || null,
+      apellido_materno: apellido_materno || null,
       foto: fotoUrl, // URL completa en lugar de solo el nombre
       foto_nombre: fotoNombre || null, // Nombre del archivo para referencia
       colegio: colegioData
@@ -203,6 +210,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     // Estructura real según vanguard_intranet_2.sql:
     // - alumnos: apellido_paterno, apellido_materno, nombres
     // - personal: nombres, apellidos (un solo campo)
+    // - apoderados: apellido_paterno, apellido_materno, nombres
     const usuarios = await query(
       `SELECT u.*, 
               a.nombres as alumno_nombres, 
@@ -210,10 +218,14 @@ router.get('/me', authenticateToken, async (req, res) => {
               a.apellido_materno as alumno_apellido_materno,
               p.nombres as personal_nombres,
               p.apellidos as personal_apellidos,
-              p.foto as personal_foto
+              p.foto as personal_foto,
+              ap.nombres as apoderado_nombres,
+              ap.apellido_paterno as apoderado_apellido_paterno,
+              ap.apellido_materno as apoderado_apellido_materno
        FROM usuarios u
        LEFT JOIN alumnos a ON a.id = u.alumno_id
        LEFT JOIN personal p ON p.id = u.personal_id
+       LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
        WHERE u.id = ? AND u.estado = 'ACTIVO'`,
       [usuario_id]
     );
@@ -228,17 +240,36 @@ router.get('/me', authenticateToken, async (req, res) => {
     // Mapear nombres y apellidos según la estructura real de la base de datos
     let nombres = '';
     let apellidos = '';
+    let apellido_paterno = '';
+    let apellido_materno = '';
     
     // Si es alumno: tiene apellido_paterno, apellido_materno separados
     if (usuarioDB.alumno_id && usuarioDB.alumno_nombres) {
       nombres = usuarioDB.alumno_nombres || '';
-      apellidos = (usuarioDB.alumno_apellido_paterno || '') + 
-                  (usuarioDB.alumno_apellido_materno ? ' ' + usuarioDB.alumno_apellido_materno : '');
+      apellido_paterno = usuarioDB.alumno_apellido_paterno || '';
+      apellido_materno = usuarioDB.alumno_apellido_materno || '';
+      apellidos = (apellido_paterno || '') + (apellido_materno ? ' ' + apellido_materno : '');
     } 
     // Si es personal/docente: tiene apellidos (un solo campo)
     else if (usuarioDB.personal_id && usuarioDB.personal_nombres) {
       nombres = usuarioDB.personal_nombres || '';
       apellidos = usuarioDB.personal_apellidos || '';
+    }
+    // Si es apoderado: tiene apellido_paterno y apellido_materno separados (igual que alumnos)
+    else if (usuarioDB.apoderado_id) {
+      // Obtener datos del apoderado
+      const apoderados = await query(
+        `SELECT nombres, apellido_paterno, apellido_materno 
+         FROM apoderados 
+         WHERE id = ?`,
+        [usuarioDB.apoderado_id]
+      );
+      if (apoderados.length > 0) {
+        nombres = apoderados[0].nombres || '';
+        apellido_paterno = apoderados[0].apellido_paterno || '';
+        apellido_materno = apoderados[0].apellido_materno || '';
+        apellidos = (apellido_paterno || '') + (apellido_materno ? ' ' + apellido_materno : '');
+      }
     }
 
     // Construir URL de la foto según el entorno (igual que en /docente/perfil y /alumno/perfil)
@@ -280,6 +311,9 @@ router.get('/me', authenticateToken, async (req, res) => {
       anio_activo: anio_activo,
       nombres: nombres.trim() || usuarioDB.usuario,
       apellidos: apellidos.trim(),
+      // Campos separados para alumnos y apoderados
+      apellido_paterno: apellido_paterno || null,
+      apellido_materno: apellido_materno || null,
       foto: fotoUrl, // URL completa en lugar de solo el nombre
       foto_nombre: fotoNombre || null, // Nombre del archivo para referencia
       colegio: colegioData
