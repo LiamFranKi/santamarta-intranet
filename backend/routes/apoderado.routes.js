@@ -440,7 +440,7 @@ router.get('/perfil', async (req, res) => {
     const { usuario_id, colegio_id } = req.user;
 
     const apoderado = await query(
-      `SELECT ap.*, u.usuario as dni
+      `SELECT ap.*, u.usuario as dni, ap.nro_documento
        FROM apoderados ap
        INNER JOIN usuarios u ON u.apoderado_id = ap.id
        WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
@@ -453,21 +453,9 @@ router.get('/perfil', async (req, res) => {
 
     const apoderadoData = apoderado[0];
 
-    // Construir URL de foto
-    let fotoUrl = null;
-    if (apoderadoData.foto && apoderadoData.foto !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
-      const isProduction = process.env.NODE_ENV === 'production';
-      if (isProduction) {
-        fotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${apoderadoData.foto}`;
-      } else {
-        fotoUrl = `http://localhost:5000/Static/Image/Fotos/${apoderadoData.foto}`;
-      }
-    }
-
     res.json({
       ...apoderadoData,
-      foto: fotoUrl
+      nro_documento: apoderadoData.nro_documento || apoderadoData.dni
     });
   } catch (error) {
     console.error('Error obteniendo perfil:', error);
@@ -479,10 +467,10 @@ router.get('/perfil', async (req, res) => {
  * PUT /api/apoderado/perfil
  * Actualizar perfil del apoderado
  */
-router.put('/perfil', uploadPersonal.single('foto'), async (req, res) => {
+router.put('/perfil', async (req, res) => {
   try {
     const { usuario_id, colegio_id } = req.user;
-    const { email, sexo, fecha_nacimiento } = req.body;
+    const { nombres, apellido_paterno, apellido_materno, estado_civil, telefono_celular, direccion, fecha_nacimiento, email } = req.body;
 
     // Obtener apoderado_id
     const apoderado = await query(
@@ -503,14 +491,34 @@ router.put('/perfil', uploadPersonal.single('foto'), async (req, res) => {
     const updateFields = [];
     const updateValues = [];
 
-    if (email !== undefined) {
-      updateFields.push('email = ?');
-      updateValues.push(email);
+    if (nombres !== undefined && nombres !== '') {
+      updateFields.push('nombres = ?');
+      updateValues.push(nombres);
     }
 
-    if (sexo !== undefined && sexo !== '') {
-      updateFields.push('sexo = ?');
-      updateValues.push(sexo);
+    if (apellido_paterno !== undefined && apellido_paterno !== '') {
+      updateFields.push('apellido_paterno = ?');
+      updateValues.push(apellido_paterno);
+    }
+
+    if (apellido_materno !== undefined) {
+      updateFields.push('apellido_materno = ?');
+      updateValues.push(apellido_materno);
+    }
+
+    if (estado_civil !== undefined && estado_civil !== null && estado_civil !== '') {
+      updateFields.push('estado_civil = ?');
+      updateValues.push(parseInt(estado_civil));
+    }
+
+    if (telefono_celular !== undefined) {
+      updateFields.push('telefono_celular = ?');
+      updateValues.push(telefono_celular);
+    }
+
+    if (direccion !== undefined) {
+      updateFields.push('direccion = ?');
+      updateValues.push(direccion);
     }
 
     if (fecha_nacimiento !== undefined && fecha_nacimiento !== '') {
@@ -518,11 +526,9 @@ router.put('/perfil', uploadPersonal.single('foto'), async (req, res) => {
       updateValues.push(fecha_nacimiento);
     }
 
-    // Si hay foto nueva, actualizarla
-    if (req.file) {
-      const nombreArchivo = req.file.filename;
-      updateFields.push('foto = ?');
-      updateValues.push(nombreArchivo);
+    if (email !== undefined && email !== '') {
+      updateFields.push('email = ?');
+      updateValues.push(email);
     }
 
     if (updateFields.length === 0) {
@@ -541,28 +547,16 @@ router.put('/perfil', uploadPersonal.single('foto'), async (req, res) => {
 
     // Obtener apoderado actualizado
     const apoderadoActualizado = await query(
-      `SELECT ap.*, u.usuario as dni
+      `SELECT ap.*, u.usuario as dni, ap.nro_documento
        FROM apoderados ap
        INNER JOIN usuarios u ON u.apoderado_id = ap.id
        WHERE ap.id = ? AND ap.colegio_id = ?`,
       [apoderadoId, colegio_id]
     );
 
-    // Construir URL de foto
-    let fotoUrl = null;
-    if (apoderadoActualizado[0].foto && apoderadoActualizado[0].foto !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
-      const isProduction = process.env.NODE_ENV === 'production';
-      if (isProduction) {
-        fotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${apoderadoActualizado[0].foto}`;
-      } else {
-        fotoUrl = `http://localhost:5000/Static/Image/Fotos/${apoderadoActualizado[0].foto}`;
-      }
-    }
-
     res.json({
       ...apoderadoActualizado[0],
-      foto: fotoUrl
+      nro_documento: apoderadoActualizado[0].nro_documento || apoderadoActualizado[0].dni
     });
   } catch (error) {
     console.error('Error actualizando perfil:', error);

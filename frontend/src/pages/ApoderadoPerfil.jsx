@@ -24,13 +24,13 @@ function ApoderadoPerfil() {
     nombres: '',
     apellido_paterno: '',
     apellido_materno: '',
-    email: '',
-    sexo: '',
-    fecha_nacimiento: ''
+    nro_documento: '',
+    estado_civil: '',
+    telefono_celular: '',
+    direccion: '',
+    fecha_nacimiento: '',
+    email: ''
   });
-  const [fotoPreview, setFotoPreview] = useState(null);
-  const [fotoFile, setFotoFile] = useState(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showPasswordChange, setShowPasswordChange] = useState(false);
   const [passwordData, setPasswordData] = useState({
     password_actual: '',
@@ -92,27 +92,13 @@ function ApoderadoPerfil() {
         nombres: data.nombres || '',
         apellido_paterno: data.apellido_paterno || '',
         apellido_materno: data.apellido_materno || '',
-        email: data.email || '',
-        sexo: data.sexo !== undefined && data.sexo !== null ? String(data.sexo) : '',
-        fecha_nacimiento: formatearFechaParaInput(data.fecha_nacimiento)
+        nro_documento: data.nro_documento || data.dni || '',
+        estado_civil: data.estado_civil !== undefined && data.estado_civil !== null ? String(data.estado_civil) : '',
+        telefono_celular: data.telefono_celular || '',
+        direccion: data.direccion || '',
+        fecha_nacimiento: formatearFechaParaInput(data.fecha_nacimiento),
+        email: data.email || ''
       });
-      
-      // Cargar foto si existe
-      if (data.foto && data.foto !== '') {
-        let fotoUrl;
-        if (data.foto.startsWith('http')) {
-          fotoUrl = data.foto;
-        } else if (data.foto.startsWith('/Static/')) {
-          fotoUrl = `https://nuevo.vanguardschools.edu.pe${data.foto}`;
-        } else if (data.foto.startsWith('/uploads/')) {
-          const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-          const currentHost = window.location.hostname;
-          fotoUrl = `${currentProtocol}//${currentHost}${data.foto}`;
-        } else {
-          fotoUrl = `https://nuevo.vanguardschools.edu.pe/Static/Image/Fotos/${data.foto}`;
-        }
-        setFotoPreview(fotoUrl);
-      }
     } catch (error) {
       console.error('Error cargando perfil:', error);
       Swal.fire({
@@ -137,59 +123,6 @@ function ApoderadoPerfil() {
     }));
   };
 
-  const handleFotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Archivo muy grande',
-          text: 'La imagen no debe superar los 5MB',
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
-          timer: 3000
-        });
-        return;
-      }
-      
-      if (!file.type.startsWith('image/')) {
-        Swal.fire({
-          icon: 'warning',
-          title: 'Tipo de archivo inválido',
-          text: 'Por favor selecciona una imagen',
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
-          timer: 3000
-        });
-        return;
-      }
-      
-      setFotoFile(file);
-      const reader = new FileReader();
-      reader.onerror = () => {
-        console.error('Error leyendo archivo');
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'No se pudo leer el archivo',
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
-          timer: 3000
-        });
-      };
-      reader.onloadend = () => {
-        if (reader.result) {
-          setFotoPreview(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setFotoFile(null);
-    }
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -197,35 +130,21 @@ function ApoderadoPerfil() {
     try {
       setSaving(true);
       
-      if (fotoFile) {
-        setUploadingPhoto(true);
-      }
-      
-      const formDataToSend = new FormData();
-      formDataToSend.append('email', formData.email);
-      formDataToSend.append('sexo', formData.sexo || '');
-      formDataToSend.append('fecha_nacimiento', formData.fecha_nacimiento);
-      
-      if (fotoFile) {
-        formDataToSend.append('foto', fotoFile);
-      }
-
-      const response = await api.put('/apoderado/perfil', formDataToSend, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
+      const response = await api.put('/apoderado/perfil', {
+        nombres: formData.nombres,
+        apellido_paterno: formData.apellido_paterno,
+        apellido_materno: formData.apellido_materno,
+        estado_civil: formData.estado_civil ? parseInt(formData.estado_civil) : null,
+        telefono_celular: formData.telefono_celular,
+        direccion: formData.direccion,
+        fecha_nacimiento: formData.fecha_nacimiento,
+        email: formData.email
       });
-
-      if (fotoFile) {
-        setTimeout(() => {
-          setUploadingPhoto(false);
-        }, 2000);
-      }
 
       Swal.fire({
         icon: 'success',
         title: '¡Perfil actualizado!',
-        text: fotoFile ? 'Tu perfil se ha actualizado. La foto se está subiendo en segundo plano...' : 'Tu perfil se ha actualizado correctamente',
+        text: 'Tu perfil se ha actualizado correctamente',
         toast: true,
         position: 'top-end',
         showConfirmButton: false,
@@ -235,45 +154,20 @@ function ApoderadoPerfil() {
 
       await cargarPerfil();
       
-      if (response.data) {
+      if (response.data && user) {
         const perfilActualizado = response.data;
-        
-        if (user && perfilActualizado) {
-          let fotoUrlForContext = null;
-          if (perfilActualizado.foto) {
-            if (perfilActualizado.foto.startsWith('http')) {
-              fotoUrlForContext = perfilActualizado.foto;
-            } else if (perfilActualizado.foto.startsWith('/Static/')) {
-              fotoUrlForContext = `https://nuevo.vanguardschools.edu.pe${perfilActualizado.foto}`;
-            } else if (perfilActualizado.foto.startsWith('/uploads/')) {
-              const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-              const currentHost = window.location.hostname;
-              fotoUrlForContext = `${currentProtocol}//${currentHost}${perfilActualizado.foto}`;
-            } else {
-              fotoUrlForContext = `https://nuevo.vanguardschools.edu.pe/Static/Image/Fotos/${perfilActualizado.foto}`;
-            }
-          }
-          
-          const nombreCompleto = `${perfilActualizado.nombres || ''} ${perfilActualizado.apellido_paterno || ''} ${perfilActualizado.apellido_materno || ''}`.trim();
-          
-          const updatedUser = {
-            ...user,
-            foto: fotoUrlForContext || user.foto,
-            nombres: perfilActualizado.nombres || user.nombres,
-            apellido_paterno: perfilActualizado.apellido_paterno || user.apellido_paterno,
-            apellido_materno: perfilActualizado.apellido_materno || user.apellido_materno,
-            email: perfilActualizado.email || user.email,
-            sexo: perfilActualizado.sexo !== undefined ? perfilActualizado.sexo : (user.sexo !== undefined ? user.sexo : null)
-          };
-          setUser(updatedUser);
-          localStorage.setItem('user', JSON.stringify(updatedUser));
-        }
+        const updatedUser = {
+          ...user,
+          nombres: perfilActualizado.nombres || user.nombres,
+          apellido_paterno: perfilActualizado.apellido_paterno || user.apellido_paterno,
+          apellido_materno: perfilActualizado.apellido_materno || user.apellido_materno,
+          email: perfilActualizado.email || user.email
+        };
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
       }
-      
-      setFotoFile(null);
     } catch (error) {
       console.error('Error actualizando perfil:', error);
-      setUploadingPhoto(false);
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -439,52 +333,6 @@ function ApoderadoPerfil() {
         </div>
 
         <form className="perfil-form" onSubmit={handleSubmit}>
-          {/* Sección de Foto */}
-          <div className="perfil-section mundo-card">
-            <h2 className="section-title">Foto de Perfil</h2>
-            <div className="foto-upload-container">
-              <div className="foto-preview-wrapper">
-                <div className="foto-preview">
-                  {fotoPreview ? (
-                    <img 
-                      src={fotoPreview} 
-                      alt="Foto de perfil"
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        const placeholder = e.target.parentElement.querySelector('.foto-placeholder');
-                        if (placeholder) placeholder.style.display = 'flex';
-                      }}
-                    />
-                  ) : null}
-                  <div className="foto-placeholder" style={{ display: fotoPreview ? 'none' : 'flex' }}>
-                    {getInitials(nombreCompleto || 'Apoderado')}
-                  </div>
-                </div>
-                {uploadingPhoto && (
-                  <div className="photo-upload-overlay">
-                    <div className="upload-spinner">
-                      <div className="spinner-ring"></div>
-                      <div className="spinner-ring"></div>
-                      <div className="spinner-ring"></div>
-                    </div>
-                    <p className="upload-text">Subiendo foto...</p>
-                  </div>
-                )}
-              </div>
-              <label className="foto-upload-btn" style={{ opacity: uploadingPhoto ? 0.6 : 1, pointerEvents: uploadingPhoto ? 'none' : 'auto' }}>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFotoChange}
-                  style={{ display: 'none' }}
-                  disabled={uploadingPhoto}
-                />
-                📷 Cambiar Foto
-              </label>
-              <p className="foto-hint">Formatos: JPG, PNG, GIF, WEBP (máx. 5MB)</p>
-            </div>
-          </div>
-
           {/* Información Personal */}
           <div className="perfil-section mundo-card">
             <h2 className="section-title">Información Personal</h2>
@@ -496,9 +344,8 @@ function ApoderadoPerfil() {
                   id="nombres"
                   name="nombres"
                   value={formData.nombres}
-                  readOnly
-                  className="readonly-input"
-                  title="Este campo no se puede modificar"
+                  onChange={handleInputChange}
+                  required
                 />
               </div>
 
@@ -509,9 +356,8 @@ function ApoderadoPerfil() {
                   id="apellido_paterno"
                   name="apellido_paterno"
                   value={formData.apellido_paterno}
-                  readOnly
-                  className="readonly-input"
-                  title="Este campo no se puede modificar"
+                  onChange={handleInputChange}
+                  required
                 />
               </div>
 
@@ -522,9 +368,70 @@ function ApoderadoPerfil() {
                   id="apellido_materno"
                   name="apellido_materno"
                   value={formData.apellido_materno}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="nro_documento">DNI *</label>
+                <input
+                  type="text"
+                  id="nro_documento"
+                  name="nro_documento"
+                  value={formData.nro_documento}
                   readOnly
                   className="readonly-input"
                   title="Este campo no se puede modificar"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="estado_civil">Estado Civil</label>
+                <select
+                  id="estado_civil"
+                  name="estado_civil"
+                  value={formData.estado_civil}
+                  onChange={handleInputChange}
+                >
+                  <option value="">Seleccionar...</option>
+                  <option value="0">Soltero</option>
+                  <option value="1">Casado</option>
+                  <option value="2">Divorciado</option>
+                  <option value="3">Conviviente</option>
+                  <option value="4">Viudo</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="telefono_celular">Teléfono Celular</label>
+                <input
+                  type="tel"
+                  id="telefono_celular"
+                  name="telefono_celular"
+                  value={formData.telefono_celular}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="direccion">Dirección</label>
+                <input
+                  type="text"
+                  id="direccion"
+                  name="direccion"
+                  value={formData.direccion}
+                  onChange={handleInputChange}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="fecha_nacimiento">Fecha de Nacimiento</label>
+                <input
+                  type="date"
+                  id="fecha_nacimiento"
+                  name="fecha_nacimiento"
+                  value={formData.fecha_nacimiento}
+                  onChange={handleInputChange}
                 />
               </div>
 
@@ -539,46 +446,8 @@ function ApoderadoPerfil() {
                   required
                 />
               </div>
-
-              <div className="form-group">
-                <label htmlFor="sexo">Sexo</label>
-                <select
-                  id="sexo"
-                  name="sexo"
-                  value={formData.sexo}
-                  onChange={handleInputChange}
-                >
-                  <option value="">Seleccionar...</option>
-                  <option value="0">Masculino</option>
-                  <option value="1">Femenino</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="fecha_nacimiento">Fecha de Nacimiento</label>
-                <input
-                  type="date"
-                  id="fecha_nacimiento"
-                  name="fecha_nacimiento"
-                  value={formData.fecha_nacimiento}
-                  onChange={handleInputChange}
-                />
-              </div>
             </div>
           </div>
-
-          {/* Información de Solo Lectura */}
-          {perfil && (
-            <div className="perfil-section mundo-card">
-              <h2 className="section-title">Información del Sistema</h2>
-              <div className="info-grid" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                <div className="info-item" style={{ textAlign: 'center' }}>
-                  <span className="info-label">DNI:</span>
-                  <span className="info-value">{perfil.dni || 'N/A'}</span>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Botones */}
           <div className="form-actions">
