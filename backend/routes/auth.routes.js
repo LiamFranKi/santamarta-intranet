@@ -341,8 +341,9 @@ async function verificarDeudas(usuario, anioActivo) {
     let vencimientosPensiones = {};
     if (colegio.pensiones_vencimiento && colegio.pensiones_vencimiento !== '') {
       try {
-        // Usar php-serialize igual que en admin.routes.js
-        const deserialized = phpSerialize.unserialize(Buffer.from(colegio.pensiones_vencimiento, 'base64'));
+        // Decodificar base64 primero, luego deserializar
+        const decoded = Buffer.from(colegio.pensiones_vencimiento, 'base64').toString('utf-8');
+        const deserialized = phpSerialize.unserialize(decoded);
         vencimientosPensiones = deserialized || {};
         console.log(`[VERIFICAR DEUDAS] pensiones_vencimiento deserializado:`, JSON.stringify(vencimientosPensiones, null, 2));
         console.log(`[VERIFICAR DEUDAS] Claves en vencimientosPensiones:`, Object.keys(vencimientosPensiones));
@@ -861,7 +862,9 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
     let vencimientosPensiones = {};
     if (colegio.pensiones_vencimiento && colegio.pensiones_vencimiento !== '') {
       try {
-        const deserialized = phpSerialize.unserialize(Buffer.from(colegio.pensiones_vencimiento, 'base64'));
+        // Decodificar base64 primero, luego deserializar
+        const decoded = Buffer.from(colegio.pensiones_vencimiento, 'base64').toString('utf-8');
+        const deserialized = phpSerialize.unserialize(decoded);
         vencimientosPensiones = deserialized || {};
         console.log(`[DIAGNOSTICO] pensiones_vencimiento deserializado:`, JSON.stringify(vencimientosPensiones, null, 2));
       } catch (e) {

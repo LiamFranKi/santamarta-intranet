@@ -6675,13 +6675,24 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
     // Configuración de mora: S/. 1.00 por día (valor fijo según el usuario)
     const moraPorDia = 1.00;
 
-    // Parsear pensiones_vencimiento (formato PHP serialize)
+    // Parsear pensiones_vencimiento (formato PHP serialize en base64)
     const phpSerialize = require('php-serialize');
     let vencimientosPensiones = {};
     if (pensionesVencimientoStr) {
       try {
+        // El contenido viene en base64, primero decodificarlo
+        let contenidoDeserializar = pensionesVencimientoStr;
+        
+        // Intentar decodificar base64 primero
+        try {
+          contenidoDeserializar = Buffer.from(pensionesVencimientoStr, 'base64').toString('utf-8');
+        } catch (base64Error) {
+          // Si no es base64, usar el string directamente
+          console.log('No es base64, usando string directamente');
+        }
+        
         // Intentar deserializar
-        const vencimientosDeserializados = phpSerialize.unserialize(pensionesVencimientoStr);
+        const vencimientosDeserializados = phpSerialize.unserialize(contenidoDeserializar);
         vencimientosPensiones = vencimientosDeserializados || {};
       } catch (error) {
         console.error('Error deserializando pensiones_vencimiento:', error);
