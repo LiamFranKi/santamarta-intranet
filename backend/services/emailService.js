@@ -32,14 +32,28 @@ transporter.on('error', (error) => {
   // No hacer nada más, solo registrar el error
 });
 
-// Verificar conexión al iniciar
-transporter.verify(function (error, success) {
-  if (error) {
-    console.error(`❌ [EMAIL] Error verificando conexión SMTP:`, error);
-  } else {
-    console.log(`✅ [EMAIL] Servidor SMTP listo para enviar correos`);
+// Verificar conexión al iniciar (con delay y manejo de errores mejorado)
+// Se ejecuta después de 5 segundos para evitar conflictos con múltiples reinicios
+let verificacionEnProceso = false;
+setTimeout(() => {
+  if (!verificacionEnProceso) {
+    verificacionEnProceso = true;
+    transporter.verify(function (error, success) {
+      verificacionEnProceso = false;
+      if (error) {
+        // Solo mostrar error si no es un bloqueo temporal de Gmail
+        if (error.code === 'EAUTH' && error.responseCode === 454) {
+          console.warn(`⚠️ [EMAIL] Gmail bloqueó temporalmente el acceso (demasiados intentos). Se desbloqueará automáticamente en 1-2 horas.`);
+          console.warn(`⚠️ [EMAIL] El sistema seguirá funcionando, pero los emails pueden fallar temporalmente.`);
+        } else {
+          console.error(`❌ [EMAIL] Error verificando conexión SMTP:`, error.message);
+        }
+      } else {
+        console.log(`✅ [EMAIL] Servidor SMTP listo para enviar correos`);
+      }
+    });
   }
-});
+}, 5000); // Esperar 5 segundos antes de verificar
 
 /**
  * Generar template HTML para correo de asistencia
