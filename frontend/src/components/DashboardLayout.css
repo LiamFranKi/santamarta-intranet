@@ -415,6 +415,24 @@
 /* PublicacionesWidget anterior - Visible solo en web/tablet */
 .publicaciones-widget-sidebar {
   display: block; /* Mostrar en web/PC por defecto */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Asegurar que PublicacionesCardFeed tenga el mismo estilo que PublicacionesWidget en la sidebar */
+.publicaciones-widget-sidebar .publicaciones-feed {
+  background: white;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
+  width: 100%;
+  max-width: 100%;
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 /* Card amarillo en sidebar - Oculto por defecto, se mostrará solo en móvil */
