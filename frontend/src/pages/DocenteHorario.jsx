@@ -90,11 +90,42 @@ function DocenteHorario() {
     return `${h - 12}:${minutos} PM`;
   };
 
-  // Convertir hora HH:MM:SS a minutos para ordenar
+  // Convertir hora HH:MM:SS o HH:MM AM/PM a minutos para ordenar
   const horaAMinutos = (hora) => {
     if (!hora) return 0;
-    const [h, m] = hora.split(':');
-    return parseInt(h) * 60 + parseInt(m || 0);
+    
+    // Si la hora viene en formato AM/PM, convertirla primero
+    const horaUpper = hora.toUpperCase().trim();
+    let hora24h = hora;
+    
+    if (horaUpper.includes('AM') || horaUpper.includes('PM')) {
+      // Formato AM/PM: "1:25 PM" o "7:00 AM"
+      const partes = hora.split(':');
+      if (partes.length < 2) return 0;
+      
+      let h = parseInt(partes[0], 10);
+      const minutosStr = partes[1].replace(/[^0-9]/g, ''); // Remover AM/PM y espacios
+      const m = parseInt(minutosStr || 0, 10);
+      
+      if (horaUpper.includes('PM') && h !== 12) {
+        h += 12; // Convertir PM a 24h (excepto 12 PM)
+      } else if (horaUpper.includes('AM') && h === 12) {
+        h = 0; // 12 AM = 00:00
+      }
+      
+      return h * 60 + m;
+    } else {
+      // Formato 24h: "13:25" o "07:00"
+      const partes = hora.split(':');
+      if (partes.length < 2) return 0;
+      
+      const h = parseInt(partes[0], 10);
+      const m = parseInt(partes[1] ? partes[1].split(' ')[0] : 0, 10);
+      
+      if (isNaN(h) || isNaN(m)) return 0;
+      
+      return h * 60 + m;
+    }
   };
 
   // Obtener todos los bloques de horarios únicos ordenados
