@@ -3245,9 +3245,660 @@ router.get('/publicaciones', async (req, res) => {
   }
 });
 
-// Reutilizar endpoints de mensajes de alumno (misma lógica)
-// Los mensajes funcionan igual para apoderados
-const alumnoMensajesRoutes = require('./alumno.routes');
+/**
+ * GET /api/apoderado/mensajes/recibidos
+ * Obtener mensajes recibidos con información completa del remitente
+ */
+router.get('/mensajes/recibidos', async (req, res) => {
+  try {
+    console.log('📥 [APODERADO MENSAJES] GET /mensajes/recibidos - Iniciando');
+    const { usuario_id, colegio_id } = req.user;
+    const { page = 1, limit = 50 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const anioFiltro = req.query.anio ? parseInt(req.query.anio) : null;
+    
+    let querySQL = `SELECT m.*, 
+              CASE
+                WHEN p.id IS NOT NULL THEN CONCAT(p.nombres, ' ', p.apellidos)
+                WHEN a.id IS NOT NULL THEN CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', a.apellido_materno)
+                WHEN ap.id IS NOT NULL THEN CONCAT(ap.nombres, ' ', ap.apellido_paterno, ' ', ap.apellido_materno)
+                ELSE 'Usuario desconocido'
+              END as remitente_nombre_completo,
+              u1.tipo as remitente_tipo,
+              u1.usuario as remitente_usuario
+       FROM mensajes m
+       INNER JOIN usuarios u1 ON u1.id = m.remitente_id
+       LEFT JOIN personal p ON p.id = u1.personal_id
+       LEFT JOIN alumnos a ON a.id = u1.alumno_id
+       LEFT JOIN apoderados ap ON ap.id = u1.apoderado_id
+       WHERE m.destinatario_id = ? 
+         AND m.tipo = 'RECIBIDO'
+         AND m.borrado = 'NO'`;
+    
+    const queryParams = [usuario_id];
+    
+    if (anioFiltro) {
+      querySQL += ` AND YEAR(m.fecha_hora) = ?`;
+      queryParams.push(anioFiltro);
+    }
+    
+    querySQL += ` ORDER BY m.fecha_hora DESC LIMIT ? OFFSET ?`;
+    queryParams.push(parseInt(limit), offset);
+    
+    const mensajes = await query(querySQL, queryParams);
+
+    // Obtener archivos adjuntos para cada mensaje
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    for (const mensaje of mensajes) {
+      const archivos = await query(
+        `SELECT id, nombre_archivo, archivo
+         FROM mensajes_archivos
+         WHERE mensaje_id = ?`,
+        [mensaje.id]
+      );
+      
+      mensaje.archivos = (archivos || []).map(archivo => {
+        let archivoUrl;
+        if (isProduction) {
+          archivoUrl = `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
+        } else {
+          archivoUrl = `http://localhost:5000/Static/Archivos/${archivo.archivo}`;
+        }
+        return {
+          ...archivo,
+          archivo_url: archivoUrl
+        };
+      });
+    }
+
+    // Contar total
+    let countSQL = `SELECT COUNT(*) as count
+       FROM mensajes m
+       WHERE m.destinatario_id = ? 
+         AND m.tipo = 'RECIBIDO'
+         AND m.borrado = 'NO'`;
+    const countParams = [usuario_id];
+    
+    if (anioFiltro) {
+      countSQL += ` AND YEAR(m.fecha_hora) = ?`;
+      countParams.push(anioFiltro);
+    }
+    
+    const total = await query(countSQL, countParams);
+
+    res.json({ 
+      mensajes: mensajes || [],
+      pagination: {
+        total: total[0]?.count || 0,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil((total[0]?.count || 0) / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo mensajes recibidos:', error);
+    res.status(500).json({ error: 'Error al obtener mensajes recibidos' });
+  }
+});
+
+/**
+ * GET /api/apoderado/mensajes/enviados
+ * Obtener mensajes enviados con información completa del destinatario
+ */
+router.get('/mensajes/enviados', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id } = req.user;
+    const { page = 1, limit = 50 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+
+    const anioFiltro = req.query.anio ? parseInt(req.query.anio) : null;
+    
+    let querySQL = `SELECT m.*,
+              CASE
+                WHEN p.id IS NOT NULL THEN CONCAT(p.nombres, ' ', p.apellidos)
+                WHEN a.id IS NOT NULL THEN CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', a.apellido_materno)
+                WHEN ap.id IS NOT NULL THEN CONCAT(ap.nombres, ' ', ap.apellido_paterno, ' ', ap.apellido_materno)
+                ELSE 'Usuario desconocido'
+              END as destinatario_nombre_completo,
+              u2.tipo as destinatario_tipo,
+              u2.usuario as destinatario_usuario
+       FROM mensajes m
+       INNER JOIN usuarios u2 ON u2.id = m.destinatario_id
+       LEFT JOIN personal p ON p.id = u2.personal_id
+       LEFT JOIN alumnos a ON a.id = u2.alumno_id
+       LEFT JOIN apoderados ap ON ap.id = u2.apoderado_id
+       WHERE m.remitente_id = ? 
+         AND m.tipo = 'ENVIADO'
+         AND m.borrado = 'NO'`;
+    
+    const queryParams = [usuario_id];
+    
+    if (anioFiltro) {
+      querySQL += ` AND YEAR(m.fecha_hora) = ?`;
+      queryParams.push(anioFiltro);
+    }
+    
+    querySQL += ` ORDER BY m.fecha_hora DESC LIMIT ? OFFSET ?`;
+    queryParams.push(parseInt(limit), offset);
+    
+    const mensajes = await query(querySQL, queryParams);
+
+    // Obtener archivos adjuntos para cada mensaje
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    for (const mensaje of mensajes) {
+      const archivos = await query(
+        `SELECT id, nombre_archivo, archivo
+         FROM mensajes_archivos
+         WHERE mensaje_id = ?`,
+        [mensaje.id]
+      );
+      
+      mensaje.archivos = (archivos || []).map(archivo => {
+        let archivoUrl;
+        if (isProduction) {
+          archivoUrl = `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
+        } else {
+          archivoUrl = `http://localhost:5000/Static/Archivos/${archivo.archivo}`;
+        }
+        return {
+          ...archivo,
+          archivo_url: archivoUrl
+        };
+      });
+    }
+
+    // Contar total
+    let countSQL = `SELECT COUNT(*) as count
+       FROM mensajes m
+       WHERE m.remitente_id = ? 
+         AND m.tipo = 'ENVIADO'
+         AND m.borrado = 'NO'`;
+    const countParams = [usuario_id];
+    
+    if (anioFiltro) {
+      countSQL += ` AND YEAR(m.fecha_hora) = ?`;
+      countParams.push(anioFiltro);
+    }
+    
+    const total = await query(countSQL, countParams);
+
+    res.json({ 
+      mensajes: mensajes || [],
+      pagination: {
+        total: total[0]?.count || 0,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalPages: Math.ceil((total[0]?.count || 0) / parseInt(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo mensajes enviados:', error);
+    res.status(500).json({ error: 'Error al obtener mensajes enviados' });
+  }
+});
+
+/**
+ * GET /api/apoderado/mensajes/buscar-destinatarios
+ * Buscar destinatarios (docentes, personal administrativo, alumnos, otros apoderados)
+ */
+router.get('/mensajes/buscar-destinatarios', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const { q = '' } = req.query;
+
+    if (!q || q.trim().length < 2) {
+      return res.json({ resultados: [] });
+    }
+
+    const searchTerm = `%${q.trim()}%`;
+    const resultados = [];
+
+    // Buscar personal (docentes, directores, administradores)
+    const personal = await query(
+      `SELECT DISTINCT u.id as usuario_id,
+              CONCAT(p.nombres, ' ', p.apellidos) as nombre_completo,
+              u.tipo as tipo,
+              p.cargo as info_adicional
+       FROM personal p
+       INNER JOIN usuarios u ON u.personal_id = p.id AND u.estado = 'ACTIVO'
+       WHERE p.colegio_id = ?
+         AND (p.nombres LIKE ? OR p.apellidos LIKE ? OR u.usuario LIKE ?)
+       ORDER BY p.nombres, p.apellidos
+       LIMIT 20`,
+      [colegio_id, searchTerm, searchTerm, searchTerm]
+    );
+
+    personal.forEach(p => {
+      resultados.push({
+        usuario_id: p.usuario_id,
+        nombre_completo: p.nombre_completo,
+        tipo: p.tipo,
+        info_adicional: p.info_adicional || p.tipo
+      });
+    });
+
+    // Buscar alumnos
+    const alumnos = await query(
+      `SELECT DISTINCT u.id as usuario_id,
+              CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', a.apellido_materno) as nombre_completo,
+              u.tipo as tipo,
+              CONCAT('Alumno - ', g.nombre) as info_adicional
+       FROM alumnos a
+       INNER JOIN usuarios u ON u.alumno_id = a.id AND u.estado = 'ACTIVO'
+       LEFT JOIN matriculas m ON m.alumno_id = a.id AND m.anio = (SELECT anio FROM colegios WHERE id = ?)
+       LEFT JOIN grupos g ON g.id = m.grupo_id
+       WHERE a.colegio_id = ?
+         AND (a.nombres LIKE ? OR a.apellido_paterno LIKE ? OR a.apellido_materno LIKE ? OR u.usuario LIKE ?)
+       ORDER BY a.nombres, a.apellido_paterno
+       LIMIT 20`,
+      [colegio_id, colegio_id, searchTerm, searchTerm, searchTerm, searchTerm]
+    );
+
+    alumnos.forEach(a => {
+      resultados.push({
+        usuario_id: a.usuario_id,
+        nombre_completo: a.nombre_completo,
+        tipo: a.tipo,
+        info_adicional: a.info_adicional || 'Alumno'
+      });
+    });
+
+    // Buscar otros apoderados
+    const apoderados = await query(
+      `SELECT DISTINCT u.id as usuario_id,
+              CONCAT(ap.nombres, ' ', ap.apellido_paterno, ' ', ap.apellido_materno) as nombre_completo,
+              u.tipo as tipo,
+              'Apoderado' as info_adicional
+       FROM apoderados ap
+       INNER JOIN usuarios u ON u.apoderado_id = ap.id AND u.estado = 'ACTIVO'
+       WHERE ap.colegio_id = ?
+         AND (ap.nombres LIKE ? OR ap.apellido_paterno LIKE ? OR ap.apellido_materno LIKE ? OR u.usuario LIKE ?)
+       ORDER BY ap.nombres, ap.apellido_paterno
+       LIMIT 20`,
+      [colegio_id, searchTerm, searchTerm, searchTerm, searchTerm]
+    );
+
+    apoderados.forEach(ap => {
+      resultados.push({
+        usuario_id: ap.usuario_id,
+        nombre_completo: ap.nombre_completo,
+        tipo: ap.tipo,
+        info_adicional: ap.info_adicional
+      });
+    });
+
+    res.json({ resultados: resultados.slice(0, 20) });
+  } catch (error) {
+    console.error('Error buscando destinatarios:', error);
+    res.status(500).json({ error: 'Error al buscar destinatarios' });
+  }
+});
+
+/**
+ * POST /api/apoderado/mensajes/subir-imagen
+ * Subir imagen desde el editor de texto enriquecido
+ */
+router.post('/mensajes/subir-imagen', uploadMensajes.single('imagen'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
+    }
+
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    let imagenUrl;
+    if (isProduction) {
+      imagenUrl = `${phpSystemUrl}/Static/Archivos/${req.file.filename}`;
+    } else {
+      imagenUrl = `http://localhost:5000/Static/Archivos/${req.file.filename}`;
+    }
+    
+    res.json({ url: imagenUrl });
+  } catch (error) {
+    console.error('Error subiendo imagen:', error);
+    res.status(500).json({ error: 'Error al subir la imagen' });
+  }
+});
+
+/**
+ * POST /api/apoderado/mensajes/enviar
+ * Enviar mensaje
+ */
+router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req, res) => {
+  try {
+    const { usuario_id, colegio_id } = req.user;
+    const { destinatarios, grupos, asunto, mensaje } = req.body;
+
+    const destinatariosArray = typeof destinatarios === 'string' ? JSON.parse(destinatarios) : destinatarios;
+    const gruposArray = typeof grupos === 'string' ? JSON.parse(grupos || '[]') : (grupos || []);
+
+    if ((!destinatariosArray || destinatariosArray.length === 0) && (!gruposArray || gruposArray.length === 0)) {
+      return res.status(400).json({ error: 'Debe seleccionar al menos un destinatario o grupo' });
+    }
+
+    if (!asunto || !mensaje) {
+      return res.status(400).json({ error: 'Asunto y mensaje son requeridos' });
+    }
+
+    // Responder inmediatamente
+    res.json({
+      success: true,
+      message: 'Mensaje Enviado',
+      procesando: false
+    });
+
+    // Procesar en segundo plano
+    setImmediate(async () => {
+      try {
+        const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        let mensajesInsertados = 0;
+        const mensajesIds = [];
+        let alumnosEnGrupos = 0;
+        let destinatariosDirectos = 0;
+
+        // Obtener alumnos de los grupos seleccionados
+        const alumnosGrupos = new Set();
+        if (gruposArray && gruposArray.length > 0) {
+          const gruposIds = gruposArray.map(g => parseInt(g)).filter(g => !isNaN(g) && g > 0);
+          if (gruposIds.length > 0) {
+            const alumnos = await query(
+              `SELECT DISTINCT u.id as usuario_id
+               FROM matriculas m
+               INNER JOIN alumnos a ON a.id = m.alumno_id
+               INNER JOIN usuarios u ON u.alumno_id = a.id AND u.estado = 'ACTIVO'
+               WHERE m.grupo_id IN (${gruposIds.map(() => '?').join(',')})
+                 AND m.anio = (SELECT anio FROM colegios WHERE id = ?)`,
+              [...gruposIds, colegio_id]
+            );
+            alumnos.forEach(a => alumnosGrupos.add(a.usuario_id));
+            alumnosEnGrupos = alumnos.length;
+          }
+        }
+
+        // Combinar destinatarios directos y de grupos
+        const todosDestinatarios = new Set();
+        if (destinatariosArray && destinatariosArray.length > 0) {
+          destinatariosArray.forEach(d => todosDestinatarios.add(parseInt(d)));
+          destinatariosDirectos = destinatariosArray.length;
+        }
+        alumnosGrupos.forEach(a => todosDestinatarios.add(a));
+
+        for (const destinatarioId of todosDestinatarios) {
+          try {
+            // Mensaje para el remitente (tipo ENVIADO)
+            const resultEnviado = await execute(
+              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
+               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO')`,
+              [usuario_id, destinatarioId, asunto, mensaje, fechaHora]
+            );
+
+            // Mensaje para el destinatario (tipo RECIBIDO)
+            const resultRecibido = await execute(
+              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
+               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO')`,
+              [usuario_id, destinatarioId, asunto, mensaje, fechaHora]
+            );
+
+            mensajesIds.push(resultEnviado.insertId, resultRecibido.insertId);
+            mensajesInsertados += 2;
+          } catch (error) {
+            console.error(`Error insertando mensaje para destinatario ${destinatarioId}:`, error);
+          }
+        }
+
+        // Guardar archivos adjuntos si existen
+        if (req.files && req.files.length > 0) {
+          for (const file of req.files) {
+            try {
+              for (const mensajeId of mensajesIds) {
+                await execute(
+                  `INSERT INTO mensajes_archivos (mensaje_id, nombre_archivo, archivo)
+                   VALUES (?, ?, ?)`,
+                  [mensajeId, file.originalname, file.filename]
+                );
+              }
+            } catch (error) {
+              console.error(`Error guardando archivo ${file.originalname}:`, error);
+            }
+          }
+        }
+
+        console.log('✅ Mensaje enviado exitosamente');
+      } catch (bgError) {
+        console.error('Error en procesamiento en segundo plano:', bgError);
+      }
+    });
+  } catch (error) {
+    console.error('Error enviando mensaje:', error);
+    res.status(500).json({ error: 'Error al enviar mensaje' });
+  }
+});
+
+/**
+ * PUT /api/apoderado/mensajes/:mensajeId/marcar-leido
+ * Marcar un mensaje como leído
+ */
+router.put('/mensajes/:mensajeId/marcar-leido', async (req, res) => {
+  try {
+    const { mensajeId } = req.params;
+    const { usuario_id } = req.user;
+
+    const mensaje = await query(
+      `SELECT id, estado FROM mensajes 
+       WHERE id = ? AND destinatario_id = ? AND tipo = 'RECIBIDO' AND borrado = 'NO'`,
+      [mensajeId, usuario_id]
+    );
+
+    if (mensaje.length === 0) {
+      return res.status(404).json({ error: 'Mensaje no encontrado' });
+    }
+
+    if (mensaje[0].estado === 'LEIDO') {
+      return res.json({ success: true, message: 'Mensaje ya estaba marcado como leído' });
+    }
+
+    await execute(
+      `UPDATE mensajes SET estado = 'LEIDO' WHERE id = ?`,
+      [mensajeId]
+    );
+
+    res.json({ success: true, message: 'Mensaje marcado como leído' });
+  } catch (error) {
+    console.error('Error marcando mensaje como leído:', error);
+    res.status(500).json({ error: 'Error al marcar mensaje como leído' });
+  }
+});
+
+/**
+ * GET /api/apoderado/mensajes/anios-disponibles
+ * Obtener lista de años disponibles en mensajes
+ */
+router.get('/mensajes/anios-disponibles', async (req, res) => {
+  try {
+    console.log('📥 [APODERADO MENSAJES] GET /mensajes/anios-disponibles - Iniciando');
+    const { usuario_id } = req.user;
+
+    const aniosRecibidos = await query(
+      `SELECT DISTINCT YEAR(fecha_hora) as anio
+       FROM mensajes
+       WHERE destinatario_id = ? 
+         AND tipo = 'RECIBIDO'
+         AND borrado = 'NO'
+       ORDER BY anio DESC`,
+      [usuario_id]
+    );
+
+    const aniosEnviados = await query(
+      `SELECT DISTINCT YEAR(fecha_hora) as anio
+       FROM mensajes
+       WHERE remitente_id = ? 
+         AND tipo = 'ENVIADO'
+         AND borrado = 'NO'
+       ORDER BY anio DESC`,
+      [usuario_id]
+    );
+
+    const todosAnios = new Set();
+    aniosRecibidos.forEach(r => todosAnios.add(r.anio));
+    aniosEnviados.forEach(r => todosAnios.add(r.anio));
+
+    const aniosArray = Array.from(todosAnios).sort((a, b) => b - a);
+
+    res.json({ anios: aniosArray });
+  } catch (error) {
+    console.error('Error obteniendo años disponibles:', error);
+    res.status(500).json({ error: 'Error al obtener años disponibles' });
+  }
+});
+
+/**
+ * DELETE /api/apoderado/mensajes
+ * Eliminar múltiples mensajes
+ */
+router.delete('/mensajes', async (req, res) => {
+  try {
+    const { usuario_id } = req.user;
+    const { mensajesIds } = req.body;
+
+    if (!mensajesIds || !Array.isArray(mensajesIds) || mensajesIds.length === 0) {
+      return res.status(400).json({ error: 'Debe proporcionar al menos un ID de mensaje' });
+    }
+
+    const placeholders = mensajesIds.map(() => '?').join(',');
+    const mensajes = await query(
+      `SELECT id, remitente_id, destinatario_id, tipo 
+       FROM mensajes 
+       WHERE id IN (${placeholders}) AND borrado = 'NO'`,
+      mensajesIds
+    );
+
+    if (mensajes.length === 0) {
+      return res.status(404).json({ error: 'No se encontraron mensajes válidos' });
+    }
+
+    const mensajesAEliminar = mensajes.filter(m => 
+      (m.tipo === 'ENVIADO' && m.remitente_id === usuario_id) ||
+      (m.tipo === 'RECIBIDO' && m.destinatario_id === usuario_id)
+    );
+
+    if (mensajesAEliminar.length === 0) {
+      return res.status(403).json({ error: 'No tienes permiso para eliminar estos mensajes' });
+    }
+
+    const idsAEliminar = mensajesAEliminar.map(m => m.id);
+    const placeholdersEliminar = idsAEliminar.map(() => '?').join(',');
+
+    await execute(
+      `UPDATE mensajes SET borrado = 'SI' WHERE id IN (${placeholdersEliminar})`,
+      idsAEliminar
+    );
+
+    res.json({ 
+      success: true, 
+      message: `${idsAEliminar.length} mensaje(s) eliminado(s) correctamente`,
+      eliminados: idsAEliminar.length
+    });
+  } catch (error) {
+    console.error('Error eliminando mensajes:', error);
+    res.status(500).json({ error: 'Error al eliminar mensajes' });
+  }
+});
+
+/**
+ * POST /api/apoderado/hijos/:hijoId/reiniciar-contrasena
+ * Reiniciar contraseña de un hijo
+ * Establece la contraseña del alumno a su DNI
+ */
+router.post('/hijos/:hijoId/reiniciar-contrasena', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, usuario_id, apoderado_id } = req.user;
+
+    console.log(`\n🔵 ========== [APODERADO-REINICIAR-PASSWORD] NUEVA PETICIÓN ==========`);
+    console.log(`📋 [APODERADO-REINICIAR-PASSWORD] hijoId recibido: ${hijoId}`);
+    console.log(`📋 [APODERADO-REINICIAR-PASSWORD] Usuario: usuario_id=${usuario_id}, apoderado_id=${apoderado_id}, colegio_id=${colegio_id}`);
+
+    // Validar que hijoId sea un número válido
+    if (!hijoId || isNaN(parseInt(hijoId))) {
+      console.error(`❌ [APODERADO-REINICIAR-PASSWORD] Error: hijoId inválido: ${hijoId}`);
+      return res.status(400).json({ error: 'ID de alumno inválido' });
+    }
+
+    const hijoIdNum = parseInt(hijoId);
+
+    if (!apoderado_id) {
+      console.error('❌ [APODERADO-REINICIAR-PASSWORD] Error: apoderado_id no encontrado en req.user');
+      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró apoderado_id.' });
+    }
+
+    // Verificar que el alumno es hijo del apoderado
+    const esHijo = await query(
+      `SELECT COUNT(*) as count
+       FROM familias f
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE f.apoderado_id = ?
+         AND a.id = ?
+         AND a.colegio_id = ?`,
+      [apoderado_id, hijoIdNum, colegio_id]
+    );
+
+    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+      console.error(`❌ [APODERADO-REINICIAR-PASSWORD] Error: El alumno ${hijoIdNum} no es hijo del apoderado`);
+      return res.status(403).json({ error: 'No tienes permisos para realizar esta acción. El alumno no está registrado como tu hijo.' });
+    }
+
+    // Obtener el DNI del alumno (usuario.usuario es el DNI)
+    const usuarioAlumno = await query(
+      `SELECT u.id as usuario_id, u.usuario as dni
+       FROM usuarios u
+       WHERE u.alumno_id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+       LIMIT 1`,
+      [hijoIdNum, colegio_id]
+    );
+
+    if (!usuarioAlumno || usuarioAlumno.length === 0) {
+      console.error(`❌ [APODERADO-REINICIAR-PASSWORD] Error: No se encontró usuario del alumno`);
+      return res.status(404).json({ error: 'No se encontró el usuario del alumno' });
+    }
+
+    const dniAlumno = usuarioAlumno[0].dni;
+    const usuarioIdAlumno = usuarioAlumno[0].usuario_id;
+
+    if (!dniAlumno) {
+      console.error(`❌ [APODERADO-REINICIAR-PASSWORD] Error: El alumno no tiene DNI registrado`);
+      return res.status(400).json({ error: 'El alumno no tiene DNI registrado' });
+    }
+
+    // Generar hash SHA1 del DNI (igual que el sistema usa)
+    const crypto = require('crypto');
+    const passwordHash = crypto.createHash('sha1').update(String(dniAlumno)).digest('hex');
+
+    // Actualizar contraseña del alumno
+    await execute(
+      `UPDATE usuarios SET password = ? WHERE id = ? AND alumno_id = ? AND colegio_id = ?`,
+      [passwordHash, usuarioIdAlumno, hijoIdNum, colegio_id]
+    );
+
+    console.log(`✅ [APODERADO-REINICIAR-PASSWORD] Contraseña reiniciada exitosamente para hijoId: ${hijoIdNum}, DNI: ${dniAlumno}`);
+    console.log(`🔵 ========== [APODERADO-REINICIAR-PASSWORD] FIN DE PETICIÓN ==========\n`);
+
+    res.json({
+      success: true,
+      message: 'Se volvió a poner el DNI del estudiante como contraseña'
+    });
+  } catch (error) {
+    console.error('❌ [APODERADO-REINICIAR-PASSWORD] Error reiniciando contraseña:', error);
+    console.error('❌ [APODERADO-REINICIAR-PASSWORD] Stack trace:', error.stack);
+    console.error(`🔵 ========== [APODERADO-REINICIAR-PASSWORD] FIN DE PETICIÓN (ERROR) ==========\n`);
+    res.status(500).json({ error: 'Error al reiniciar la contraseña', details: error.message });
+  }
+});
 
 // Exportar router
 module.exports = router;

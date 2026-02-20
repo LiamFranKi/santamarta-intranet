@@ -486,20 +486,13 @@ function ApoderadoHijos() {
       });
 
       // Llamar a la API
-      // Apoderados no pueden reiniciar contraseñas
-      Swal.fire({
-        icon: 'info',
-        title: 'No disponible',
-        text: 'Los apoderados no pueden reiniciar contraseñas de los estudiantes.',
-        confirmButtonText: 'Entendido'
-      });
-      return;
+      const response = await api.post(`/apoderado/hijos/${hijo.id}/reiniciar-contrasena`);
 
       // Mostrar mensaje de éxito
       Swal.fire({
         icon: 'success',
         title: '¡Contraseña reiniciada!',
-        text: 'Se volvió a poner el DNI del estudiante como contraseña',
+        text: response.data?.message || 'Se volvió a poner el DNI del estudiante como contraseña',
         confirmButtonText: 'Entendido'
       });
 
@@ -3956,6 +3949,17 @@ function ApoderadoHijos() {
                                 >
                                   <span className="dropdown-icon">💳</span>
                                   <span>Pagos Realizados</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('reiniciar-contrasena', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">🔑</span>
+                                  <span>Reiniciar Contraseña</span>
                                 </button>
                                 <button
                                   className="dropdown-item"
