@@ -3966,12 +3966,17 @@ router.get('/cursos/:asignaturaId/notas-detalladas', async (req, res) => {
       );
     }
 
-    // Obtener todos los promedios finales
-    const todasPromediosFinales = await query(
-      `SELECT ciclo, promedio_final FROM notas_promedio_final
-       WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1, 2, 3, 4)`,
-      [matriculaId, asignaturaIdNum]
-    );
+    // Obtener todos los promedios finales (tabla 'promedios', no 'notas_promedio_final')
+    let todasPromediosFinales = [];
+    try {
+      todasPromediosFinales = await query(
+        `SELECT ciclo, promedio as promedio_final FROM promedios
+         WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1, 2, 3, 4)`,
+        [matriculaId, asignaturaIdNum]
+      );
+    } catch (errProm) {
+      console.warn('No se pudo obtener promedios (tabla promedios):', errProm.message);
+    }
 
     // Construir estructura de notas por ciclo
     const notasPorCiclo = { 1: {}, 2: {}, 3: {}, 4: {} };
