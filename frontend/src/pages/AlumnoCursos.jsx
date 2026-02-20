@@ -666,7 +666,9 @@ function AlumnoCursos() {
                             className="dropdown-menu"
                             style={{
                               top: `${openDropdown.top}px`,
-                              left: `${openDropdown.left}px`
+                              left: `${openDropdown.left}px`,
+                              position: 'fixed',
+                              zIndex: 99999
                             }}
                             onClick={(e) => e.stopPropagation()}
                           >
