@@ -370,7 +370,7 @@ function DocenteTutoria() {
     const opcionesQueCambianVista = ['lista-alumnos', 'apreciaciones-recomendaciones', 'cursos-asignados'];
     
     if (opcionesQueCambianVista.includes(opcion)) {
-      setSelectedGrupo(grupo);
+    setSelectedGrupo(grupo);
     }
 
     switch (opcion) {
@@ -1044,8 +1044,8 @@ function DocenteTutoria() {
 
   // Vista de Cursos Asignados
   if (mostrarCursos) {
-    return (
-      <DashboardLayout>
+  return (
+    <DashboardLayout>
         <div className="alumno-cursos">
           <div className="page-header">
             <div className="header-content">
@@ -1171,126 +1171,6 @@ function DocenteTutoria() {
               <div className="empty-icon">📚</div>
               <p>No hay cursos asignados para este grupo</p>
             </div>
-          )}
-
-          {/* Modal de Registro de Asistencia */}
-          {mostrarModalAsistencias && grupoParaAsistencias && createPortal(
-            <div
-              className="modal-mensaje-overlay"
-              onClick={() => {
-                setMostrarModalAsistencias(false);
-                setGrupoParaAsistencias(null);
-                setAsistenciaAlumnos([]);
-              }}
-              style={{ zIndex: 100000 }}
-            >
-              <div
-                className="modal-asistencia-container"
-                onClick={(e) => e.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="modal-asistencia-title"
-                style={{ maxWidth: '95vw', minWidth: 320, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-              >
-                <div className="modal-mensaje-header" style={{ flexShrink: 0 }}>
-                  <h2 id="modal-asistencia-title">REGISTRO DE ASISTENCIA</h2>
-                  <button
-                    className="modal-mensaje-close"
-                    onClick={() => {
-                      setMostrarModalAsistencias(false);
-                      setGrupoParaAsistencias(null);
-                      setAsistenciaAlumnos([]);
-                    }}
-                    type="button"
-                    aria-label="Cerrar modal"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div style={{ padding: '12px 20px', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', flexShrink: 0 }}>
-                  <label htmlFor="asistencia-fecha">Seleccione Fecha:</label>
-                  <input
-                    id="asistencia-fecha"
-                    type="date"
-                    value={asistenciaFecha}
-                    onChange={(e) => handleCambiarFechaAsistencia(e.target.value)}
-                    disabled={loadingAsistencias}
-                    style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={exportarPDFAsistencia}
-                    disabled={loadingAsistencias || !asistenciaAlumnos.length}
-                    style={{ padding: '6px 14px', background: '#6b7280', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                  >
-                    🖨️ Imprimir Asistencia
-                  </button>
-                </div>
-                <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px' }}>
-                  {loadingAsistencias ? (
-                    <div style={{ padding: 40, textAlign: 'center' }}>Cargando...</div>
-                  ) : (
-                    <table className="tabla-asistencia" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-                      <thead>
-                        <tr style={{ background: '#f0fdf4' }}>
-                          <th style={{ padding: '10px 8px', border: '1px solid #ddd', width: 50 }}>N°</th>
-                          <th style={{ padding: '10px 8px', border: '1px solid #ddd', textAlign: 'left' }}>APELLIDOS Y NOMBRES</th>
-                          <th style={{ padding: '8px 4px', border: '1px solid #ddd', textAlign: 'center' }}>
-                            <span style={{ fontSize: 12 }}>Presente / Tardanza / TJ / Falta / FJ</span>
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {asistenciaAlumnos.map((alumno) => (
-                          <tr key={alumno.matricula_id} style={{ background: '#fff' }}>
-                            <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{alumno.numero}</td>
-                            <td style={{ padding: '8px', border: '1px solid #ddd' }}>{alumno.nombre_completo}</td>
-                            <td style={{ padding: '6px 4px', border: '1px solid #ddd' }}>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
-                                {['PRESENTE', 'TARDANZA', 'TARDANZA_JUSTIFICADA', 'FALTA', 'FALTA_JUSTIFICADA'].map((tipo) => {
-                                  const isActive = alumno.tipo === tipo;
-                                  const colors = { PRESENTE: '#3b82f6', TARDANZA: '#0ea5e9', TARDANZA_JUSTIFICADA: '#64748b', FALTA: '#ef4444', FALTA_JUSTIFICADA: '#f97316' };
-                                  return (
-                                    <button
-                                      key={tipo}
-                                      type="button"
-                                      disabled={guardandoAsistencia === alumno.matricula_id}
-                                      onClick={() => handleAsistenciaClick(alumno.matricula_id, tipo)}
-                                      style={{
-                                        padding: '4px 10px',
-                                        border: '1px solid #ddd',
-                                        borderRadius: 4,
-                                        fontSize: 12,
-                                        cursor: guardandoAsistencia === alumno.matricula_id ? 'wait' : 'pointer',
-                                        background: isActive ? colors[tipo] : '#f9fafb',
-                                        color: isActive ? '#fff' : '#374151'
-                                      }}
-                                    >
-                                      {tipo === 'TARDANZA_JUSTIFICADA' ? 'TJ' : tipo === 'FALTA_JUSTIFICADA' ? 'FJ' : tipo}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
-                <div style={{ padding: '12px 20px', borderTop: '1px solid #eee', flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    onClick={handleGuardarAsistencias}
-                    disabled={loadingAsistencias}
-                    style={{ padding: '10px 24px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
-                  >
-                    {loadingAsistencias ? 'Guardando...' : 'Guardar (marcar sin registro como Falta)'}
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body
           )}
 
           {/* Modal de Enviar Mensaje al Docente */}
@@ -1448,6 +1328,126 @@ function DocenteTutoria() {
 
   return (
     <DashboardLayout>
+      {/* Modal de Registro de Asistencia - siempre disponible */}
+      {mostrarModalAsistencias && grupoParaAsistencias && createPortal(
+        <div
+          className="modal-mensaje-overlay"
+          onClick={() => {
+            setMostrarModalAsistencias(false);
+            setGrupoParaAsistencias(null);
+            setAsistenciaAlumnos([]);
+          }}
+          style={{ zIndex: 100000 }}
+        >
+          <div
+            className="modal-asistencia-container"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-asistencia-title"
+            style={{ maxWidth: '95vw', minWidth: 320, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'white', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
+          >
+            <div className="modal-mensaje-header" style={{ flexShrink: 0 }}>
+              <h2 id="modal-asistencia-title">REGISTRO DE ASISTENCIA</h2>
+              <button
+                className="modal-mensaje-close"
+                onClick={() => {
+                  setMostrarModalAsistencias(false);
+                  setGrupoParaAsistencias(null);
+                  setAsistenciaAlumnos([]);
+                }}
+                type="button"
+                aria-label="Cerrar modal"
+              >
+                ✕
+              </button>
+            </div>
+            <div style={{ padding: '12px 20px', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', flexShrink: 0 }}>
+              <label htmlFor="asistencia-fecha">Seleccione Fecha:</label>
+              <input
+                id="asistencia-fecha"
+                type="date"
+                value={asistenciaFecha}
+                onChange={(e) => handleCambiarFechaAsistencia(e.target.value)}
+                disabled={loadingAsistencias}
+                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc' }}
+              />
+              <button
+                type="button"
+                onClick={exportarPDFAsistencia}
+                disabled={loadingAsistencias || !asistenciaAlumnos.length}
+                style={{ padding: '6px 14px', background: '#6b7280', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                🖨️ Imprimir Asistencia
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px' }}>
+              {loadingAsistencias ? (
+                <div style={{ padding: 40, textAlign: 'center' }}>Cargando...</div>
+              ) : (
+                <table className="tabla-asistencia" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                  <thead>
+                    <tr style={{ background: '#f0fdf4' }}>
+                      <th style={{ padding: '10px 8px', border: '1px solid #ddd', width: 50 }}>N°</th>
+                      <th style={{ padding: '10px 8px', border: '1px solid #ddd', textAlign: 'left' }}>APELLIDOS Y NOMBRES</th>
+                      <th style={{ padding: '8px 4px', border: '1px solid #ddd', textAlign: 'center' }}>
+                        <span style={{ fontSize: 12 }}>Presente / Tardanza / TJ / Falta / FJ</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {asistenciaAlumnos.map((alumno) => (
+                      <tr key={alumno.matricula_id} style={{ background: '#fff' }}>
+                        <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{alumno.numero}</td>
+                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{alumno.nombre_completo}</td>
+                        <td style={{ padding: '6px 4px', border: '1px solid #ddd' }}>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
+                            {['PRESENTE', 'TARDANZA', 'TARDANZA_JUSTIFICADA', 'FALTA', 'FALTA_JUSTIFICADA'].map((tipo) => {
+                              const isActive = alumno.tipo === tipo;
+                              const colors = { PRESENTE: '#3b82f6', TARDANZA: '#0ea5e9', TARDANZA_JUSTIFICADA: '#64748b', FALTA: '#ef4444', FALTA_JUSTIFICADA: '#f97316' };
+                              return (
+                                <button
+                                  key={tipo}
+                                  type="button"
+                                  disabled={guardandoAsistencia === alumno.matricula_id}
+                                  onClick={() => handleAsistenciaClick(alumno.matricula_id, tipo)}
+                                  style={{
+                                    padding: '4px 10px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: 4,
+                                    fontSize: 12,
+                                    cursor: guardandoAsistencia === alumno.matricula_id ? 'wait' : 'pointer',
+                                    background: isActive ? colors[tipo] : '#f9fafb',
+                                    color: isActive ? '#fff' : '#374151'
+                                  }}
+                                >
+                                  {tipo === 'TARDANZA_JUSTIFICADA' ? 'TJ' : tipo === 'FALTA_JUSTIFICADA' ? 'FJ' : tipo}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #eee', flexShrink: 0 }}>
+              <button
+                type="button"
+                onClick={handleGuardarAsistencias}
+                disabled={loadingAsistencias}
+                style={{ padding: '10px 24px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
+              >
+                {loadingAsistencias ? 'Guardando...' : 'Guardar (marcar sin registro como Falta)'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       <div className="docente-tutoria">
         {!selectedGrupo ? (
           <>
