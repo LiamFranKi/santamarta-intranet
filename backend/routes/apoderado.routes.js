@@ -3807,29 +3807,40 @@ router.get('/mensajes/buscar-destinatarios', async (req, res) => {
       });
     });
 
-    // Buscar alumnos
+    // Buscar alumnos (del año activo)
+    const { anio_activo } = req.user;
     const alumnos = await query(
       `SELECT DISTINCT u.id as usuario_id,
               CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', a.apellido_materno) as nombre_completo,
-              u.tipo as tipo,
-              CONCAT('Alumno - ', g.nombre) as info_adicional
+              'ALUMNO' as tipo,
+              CONCAT(g.grado, '° ', g.seccion, ' - ', n.nombre) as info_adicional,
+              a.foto
        FROM alumnos a
        INNER JOIN usuarios u ON u.alumno_id = a.id AND u.estado = 'ACTIVO'
-       LEFT JOIN matriculas m ON m.alumno_id = a.id AND m.anio = (SELECT anio FROM colegios WHERE id = ?)
-       LEFT JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN matriculas m ON m.alumno_id = a.id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
        WHERE a.colegio_id = ?
-         AND (a.nombres LIKE ? OR a.apellido_paterno LIKE ? OR a.apellido_materno LIKE ? OR u.usuario LIKE ?)
-       ORDER BY a.nombres, a.apellido_paterno
+         AND g.anio = ?
+         AND (m.estado = 0 OR m.estado = 4)
+         AND (
+           a.nombres LIKE ? OR
+           a.apellido_paterno LIKE ? OR
+           a.apellido_materno LIKE ? OR
+           CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', a.apellido_materno) LIKE ?
+         )
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres
        LIMIT 20`,
-      [colegio_id, colegio_id, searchTerm, searchTerm, searchTerm, searchTerm]
+      [colegio_id, anio_activo, searchTerm, searchTerm, searchTerm, searchTerm]
     );
 
     alumnos.forEach(a => {
       resultados.push({
         usuario_id: a.usuario_id,
-        nombre_completo: a.nombre_completo,
+        nombre_completo: a.nombre_completo.trim(),
         tipo: a.tipo,
-        info_adicional: a.info_adicional || 'Alumno'
+        info_adicional: a.info_adicional,
+        foto: a.foto
       });
     });
 
