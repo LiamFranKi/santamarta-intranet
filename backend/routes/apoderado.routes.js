@@ -1998,49 +1998,163 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
       [grupoId, colegio_id]
     );
 
-    // Para cada asignatura, obtener las notas detalladas
+    // Función auxiliar para deserializar notas detalladas (igual que en docente.routes.js)
+    const deserializarNotasDetalles = (dataString) => {
+      if (!dataString || dataString === '') {
+        return {};
+      }
+
+      try {
+        // Intentar deserializar directamente
+        try {
+          const deserialized = phpSerialize.unserialize(dataString);
+          return deserialized || {};
+        } catch (e) {
+          // Si falla, intentar decodificar base64 primero
+          try {
+            const decoded = Buffer.from(dataString, 'base64').toString('utf-8');
+            const deserialized = phpSerialize.unserialize(decoded);
+            return deserialized || {};
+          } catch (e2) {
+            console.warn('Error deserializando notas_detalles:', e2);
+            return {};
+          }
+        }
+      } catch (error) {
+        console.warn('Error deserializando notas_detalles:', error);
+        return {};
+      }
+    };
+
+    // Para cada asignatura, obtener las notas detalladas (igual que en docente.routes.js)
     const asignaturasConNotas = await Promise.all(
       asignaturas.map(async (asignatura) => {
-        // Obtener promedios por ciclo
-        const promedios = await query(
-          `SELECT ciclo, promedio
-           FROM promedios
-           WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1, 2, 3, 4)
-           ORDER BY ciclo ASC`,
-          [matriculaId, asignatura.asignatura_id]
+        // Obtener criterios de la asignatura
+        const criterios = await query(
+          `SELECT * FROM asignaturas_criterios
+           WHERE asignatura_id = ? AND colegio_id = ?
+           ORDER BY orden ASC`,
+          [asignatura.asignatura_id, colegio_id]
         );
 
-        // Obtener notas detalladas por criterio y ciclo
-        const notasDetalladas = await query(
-          `SELECT nc.ciclo, nc.criterio, nc.nota
-           FROM notas_criterios nc
-           WHERE nc.matricula_id = ? AND nc.asignatura_id = ?
-           ORDER BY nc.ciclo ASC, nc.criterio ASC`,
-          [matriculaId, asignatura.asignatura_id]
-        );
+        // Obtener todos los indicadores
+        const criterioIds = criterios.map(c => c.id);
+        let todosIndicadores = [];
+        if (criterioIds.length > 0) {
+          todosIndicadores = await query(
+            `SELECT * FROM asignaturas_indicadores
+             WHERE criterio_id IN (${criterioIds.map(() => '?').join(',')})
+             ORDER BY criterio_id ASC, id ASC`,
+            criterioIds
+          );
+        }
 
-        // Organizar notas por ciclo
-        const notasPorCiclo = {};
-        notasDetalladas.forEach(nota => {
-          if (!notasPorCiclo[nota.ciclo]) {
-            notasPorCiclo[nota.ciclo] = {};
+        // Agrupar indicadores por criterio
+        const indicadoresPorCriterio = {};
+        todosIndicadores.forEach(indicador => {
+          if (!indicadoresPorCriterio[indicador.criterio_id]) {
+            indicadoresPorCriterio[indicador.criterio_id] = [];
           }
-          notasPorCiclo[nota.ciclo][nota.criterio] = nota.nota;
+          indicadoresPorCriterio[indicador.criterio_id].push(indicador);
         });
 
-        // Organizar promedios por ciclo
-        const promediosPorCiclo = {};
-        promedios.forEach(p => {
-          promediosPorCiclo[p.ciclo] = p.promedio;
-        });
+        // Agregar indicadores a cada criterio
+        const criteriosConIndicadores = criterios.map(criterio => ({
+          ...criterio,
+          indicadores: indicadoresPorCriterio[criterio.id] || []
+        }));
+
+        // Obtener todas las notas detalladas
+        const todasNotasDetalles = await query(
+          `SELECT ciclo, data FROM notas_detalles
+           WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1, 2, 3, 4)`,
+          [matriculaId, asignatura.asignatura_id]
+        );
+
+        // Obtener todas las notas de criterios (usar tabla 'notas', no 'notas_criterios')
+        const todasNotasCriterios = await query(
+          `SELECT criterio_id, nota, ciclo
+           FROM notas n
+           WHERE n.matricula_id = ? AND n.asignatura_id = ? AND n.ciclo IN (1, 2, 3, 4)`,
+          [matriculaId, asignatura.asignatura_id]
+        );
+
+        // Obtener todos los exámenes mensuales
+        let todasExamenesMensuales = [];
+        if (asignatura.examen_mensual === 'SI') {
+          todasExamenesMensuales = await query(
+            `SELECT nro, nota, ciclo FROM notas_examen_mensual
+             WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1, 2, 3, 4)
+             ORDER BY ciclo ASC, nro ASC`,
+            [matriculaId, asignatura.asignatura_id]
+          );
+        }
+
+        // Obtener todos los promedios finales
+        const todosPromedios = await query(
+          `SELECT promedio, ciclo FROM promedios
+           WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1, 2, 3, 4)`,
+          [matriculaId, asignatura.asignatura_id]
+        );
+
+        // Organizar datos por ciclo
+        const notasDetalladas = {};
+        for (let ciclo = 1; ciclo <= 4; ciclo++) {
+          // Obtener notas detalladas del ciclo
+          const notaDetalle = todasNotasDetalles.find(nd => nd.ciclo === ciclo);
+          if (notaDetalle && notaDetalle.data) {
+            notasDetalladas[ciclo] = deserializarNotasDetalles(notaDetalle.data);
+          } else {
+            notasDetalladas[ciclo] = {};
+          }
+
+          // Crear mapa de notas por criterio para este ciclo
+          const notasMap = {};
+          todasNotasCriterios
+            .filter(n => n.ciclo === ciclo)
+            .forEach(nota => {
+              notasMap[nota.criterio_id] = nota.nota;
+            });
+
+          // Agregar notas de criterios a cada criterio
+          criteriosConIndicadores.forEach(criterio => {
+            if (!criterio.notas) criterio.notas = {};
+            criterio.notas[ciclo] = notasMap[criterio.id] || null;
+          });
+
+          // Agregar exámenes mensuales del ciclo
+          if (asignatura.examen_mensual === 'SI') {
+            const examenesCiclo = todasExamenesMensuales.filter(e => e.ciclo === ciclo);
+            if (examenesCiclo.length > 0) {
+              if (!notasDetalladas[ciclo].examen_mensual) {
+                notasDetalladas[ciclo].examen_mensual = {};
+              }
+              examenesCiclo.forEach(examen => {
+                notasDetalladas[ciclo].examen_mensual[examen.nro] = examen.nota;
+              });
+            }
+          }
+
+          // Agregar promedio final del ciclo
+          const promedioCiclo = todosPromedios.find(p => p.ciclo === ciclo);
+          notasDetalladas[ciclo].promedio_final = promedioCiclo ? promedioCiclo.promedio : null;
+        }
 
         return {
           asignatura_id: asignatura.asignatura_id,
           curso_id: asignatura.curso_id,
           curso_nombre: asignatura.curso_nombre,
-          notas: notasPorCiclo,
-          promedios: promediosPorCiclo,
-          promedio_final: promediosPorCiclo[4] || null
+          nivel: {
+            tipo_calificacion: asignatura.tipo_calificacion,
+            tipo_calificacion_final: asignatura.tipo_calificacion_final,
+            nota_aprobatoria: asignatura.nota_aprobatoria,
+            nota_maxima: asignatura.nota_maxima,
+            nota_minima: asignatura.nota_minima
+          },
+          examen_mensual: asignatura.examen_mensual === 'SI',
+          peso_examen_mensual: asignatura.peso_examen_mensual || 0,
+          criterios: criteriosConIndicadores,
+          notas: notasDetalladas
         };
       })
     );
