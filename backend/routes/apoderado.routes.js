@@ -1868,23 +1868,29 @@ router.get('/pagos/:pagoId/boleta', async (req, res) => {
       [pagoIdNum]
     );
 
-    // Obtener datos del colegio para facturación
-    const colegio = await query(
-      `SELECT razon_social, ruc, logo FROM colegios WHERE id = ? LIMIT 1`,
+    // Obtener datos de facturación del colegio
+    const facturacionData = await query(
+      `SELECT ruc, razon_social, direccion FROM colegios WHERE id = ? LIMIT 1`,
       [colegio_id]
     );
 
-    const colegioData = colegio.length > 0 ? colegio[0] : null;
+    // Obtener logo de boleta de la tabla config
+    const configLogo = await query(
+      `SELECT valor FROM config WHERE clave = 'boleta_logo' LIMIT 1`
+    );
 
-    // Construir URL del logo
+    const facturacion = facturacionData.length > 0 ? facturacionData[0] : {};
+    const logoFileName = configLogo.length > 0 ? configLogo[0].valor : null;
+
+    // Construir URL del logo si existe
     let logoUrl = null;
-    if (colegioData && colegioData.logo) {
+    if (logoFileName) {
       const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       if (isProduction) {
-        logoUrl = `${phpSystemUrl}/Static/Image/Logos/${colegioData.logo}`;
+        logoUrl = `${phpSystemUrl}/Static/Archivos/${logoFileName}`;
       } else {
-        logoUrl = `http://localhost:5000/Static/Image/Logos/${colegioData.logo}`;
+        logoUrl = `http://localhost:5000/Static/Archivos/${logoFileName}`;
       }
     }
 
@@ -1911,8 +1917,8 @@ router.get('/pagos/:pagoId/boleta', async (req, res) => {
         serie_numero: `${String(impresion[0].serie).padStart(3, '0')}-${String(impresion[0].numero).padStart(7, '0')}`
       } : null,
       colegio: {
-        razon_social: colegioData?.razon_social || 'Vanguard Schools',
-        ruc: colegioData?.ruc || '',
+        razon_social: facturacion.razon_social || 'Vanguard Schools',
+        ruc: facturacion.ruc || '',
         logo_url: logoUrl
       }
     });
