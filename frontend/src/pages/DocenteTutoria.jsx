@@ -8,6 +8,7 @@ import Swal from 'sweetalert2';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { generarPDFNotasTutoria } from '../utils/pdfNotasTutoria';
+import jsPDF from 'jspdf';
 import './DocenteTutoria.css';
 import './AlumnoCursos.css';
 
@@ -53,6 +54,14 @@ function DocenteTutoria() {
   const [enviandoMensajeGrupo, setEnviandoMensajeGrupo] = useState(false);
   const quillRefMensajeGrupo = useRef(null);
   
+  // Estados para modal de asistencias (tutoría)
+  const [mostrarModalAsistencias, setMostrarModalAsistencias] = useState(false);
+  const [grupoParaAsistencias, setGrupoParaAsistencias] = useState(null);
+  const [asistenciaFecha, setAsistenciaFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [asistenciaAlumnos, setAsistenciaAlumnos] = useState([]);
+  const [loadingAsistencias, setLoadingAsistencias] = useState(false);
+  const [guardandoAsistencia, setGuardandoAsistencia] = useState(null);
+
   // Estados para modal de mensaje a alumno individual
   const [mostrarModalMensajeAlumno, setMostrarModalMensajeAlumno] = useState(false);
   const [alumnoParaMensaje, setAlumnoParaMensaje] = useState(null); // Alumno seleccionado para enviar mensaje
@@ -381,16 +390,7 @@ function DocenteTutoria() {
         setArchivosAdjuntosMensajeGrupo([]);
         break;
       case 'registrar-asistencia':
-        // Implementar después
-        Swal.fire({
-          icon: 'info',
-          title: 'Próximamente',
-          text: 'Esta funcionalidad se implementará próximamente',
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
-          timer: 3000
-        });
+        await handleAbrirAsistencias(grupo);
         break;
       case 'apreciaciones-recomendaciones':
         await cargarAlumnos(grupo.id);
@@ -533,6 +533,144 @@ function DocenteTutoria() {
         confirmButtonText: 'Entendido'
       });
     }
+  };
+
+  // Abrir modal de Asistencias
+  const handleAbrirAsistencias = async (grupo) => {
+    setGrupoParaAsistencias(grupo);
+    setMostrarModalAsistencias(true);
+    setAsistenciaFecha(new Date().toISOString().slice(0, 10));
+    await cargarAsistencias(grupo.id, new Date().toISOString().slice(0, 10));
+  };
+
+  const cargarAsistencias = async (grupoId, fecha) => {
+    if (!grupoId) return;
+    try {
+      setLoadingAsistencias(true);
+      const res = await api.get(`/docente/tutoria/grupos/${grupoId}/asistencia`, {
+        params: { fecha: fecha || asistenciaFecha }
+      });
+      setAsistenciaAlumnos(res.data.alumnos || []);
+    } catch (error) {
+      console.error('Error cargando asistencias:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudieron cargar las asistencias' });
+      setAsistenciaAlumnos([]);
+    } finally {
+      setLoadingAsistencias(false);
+    }
+  };
+
+  const handleCambiarFechaAsistencia = (nuevaFecha) => {
+    setAsistenciaFecha(nuevaFecha);
+    if (grupoParaAsistencias) cargarAsistencias(grupoParaAsistencias.id, nuevaFecha);
+  };
+
+  const handleAsistenciaClick = async (matriculaId, tipo) => {
+    if (!grupoParaAsistencias || guardandoAsistencia) return;
+    setGuardandoAsistencia(matriculaId);
+    try {
+      await api.post(`/docente/tutoria/grupos/${grupoParaAsistencias.id}/asistencia`, {
+        matricula_id: matriculaId,
+        fecha: asistenciaFecha,
+        tipo
+      });
+      setAsistenciaAlumnos(prev =>
+        prev.map(a =>
+          a.matricula_id === matriculaId ? { ...a, tipo } : a
+        )
+      );
+    } catch (error) {
+      console.error('Error guardando asistencia:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudo guardar' });
+    } finally {
+      setGuardandoAsistencia(null);
+    }
+  };
+
+  const handleGuardarAsistencias = async () => {
+    if (!grupoParaAsistencias) return;
+    try {
+      setLoadingAsistencias(true);
+      const res = await api.post(`/docente/tutoria/grupos/${grupoParaAsistencias.id}/asistencia/guardar-todo`, {
+        fecha: asistenciaFecha
+      });
+      await cargarAsistencias(grupoParaAsistencias.id, asistenciaFecha);
+      const n = res.data?.marcados_como_falta || 0;
+      if (n > 0) {
+        Swal.fire({ icon: 'success', title: 'Guardado', text: `${n} alumno(s) marcado(s) como falta. Se enviaron notificaciones.`, timer: 2500, showConfirmButton: false });
+      } else {
+        Swal.fire({ icon: 'success', title: 'Guardado', text: 'No había alumnos pendientes de marcar.', timer: 2000, showConfirmButton: false });
+      }
+    } catch (error) {
+      console.error('Error guardando asistencias:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudo guardar' });
+    } finally {
+      setLoadingAsistencias(false);
+    }
+  };
+
+  const exportarPDFAsistencia = () => {
+    if (!asistenciaAlumnos.length) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
+      return;
+    }
+    const doc = new jsPDF('l', 'mm', 'a4');
+    const margin = 15;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const grupoNombre = grupoParaAsistencias ? `${grupoParaAsistencias.grado}° ${grupoParaAsistencias.seccion} - ${grupoParaAsistencias.nivel_nombre}` : '';
+    let yPos = 15;
+
+    const dibujarHeader = () => {
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('REGISTRO DE ASISTENCIA', margin, yPos);
+      yPos += 8;
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Grupo: ${grupoNombre}  |  Fecha: ${asistenciaFecha}`, margin, yPos);
+      yPos += 10;
+      doc.setFillColor(234, 234, 234);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.rect(margin, yPos, 20, 8, 'F');
+      doc.rect(margin + 20, yPos, 120, 8, 'F');
+      doc.rect(margin + 140, yPos, 40, 8, 'F');
+      doc.text('Nº', margin + 10, yPos + 5.5, { align: 'center' });
+      doc.text('APELLIDOS Y NOMBRES', margin + 80, yPos + 5.5, { align: 'center' });
+      doc.text('REGISTRO', margin + 160, yPos + 5.5, { align: 'center' });
+      yPos += 8;
+    };
+
+    dibujarHeader();
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    asistenciaAlumnos.forEach((a, i) => {
+      if (yPos + 7 > pageHeight - 20) {
+        doc.addPage('l', 'a4');
+        yPos = 15;
+        dibujarHeader();
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+      }
+      doc.rect(margin, yPos, 20, 6, 'S');
+      doc.rect(margin + 20, yPos, 120, 6, 'S');
+      doc.rect(margin + 140, yPos, 40, 6, 'S');
+      doc.text(String(i + 1), margin + 10, yPos + 4, { align: 'center' });
+      doc.text((a.nombre_completo || '').slice(0, 50), margin + 22, yPos + 4);
+      const tipoTexto = a.tipo ? a.tipo.replace(/_/g, ' ') : '-';
+      if (a.tipo === 'FALTA' || a.tipo === 'FALTA_JUSTIFICADA') doc.setTextColor(200, 0, 0);
+      doc.text(tipoTexto, margin + 160, yPos + 4, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+      yPos += 7;
+    });
+
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generado: ${new Date().toLocaleString('es-PE')}`, margin, pageHeight - 10);
+    const fechaFormato = new Date(asistenciaFecha).toLocaleDateString('es-PE');
+    doc.save(`Asistencia_${grupoNombre.replace(/\s+/g, '_')}_${fechaFormato.replace(/\//g, '-')}.pdf`);
+    Swal.fire({ icon: 'success', title: 'PDF generado', text: 'El reporte se descargó correctamente', timer: 2000, showConfirmButton: false });
   };
 
   // Cargar cursos del grupo
@@ -1033,6 +1171,126 @@ function DocenteTutoria() {
               <div className="empty-icon">📚</div>
               <p>No hay cursos asignados para este grupo</p>
             </div>
+          )}
+
+          {/* Modal de Registro de Asistencia */}
+          {mostrarModalAsistencias && grupoParaAsistencias && createPortal(
+            <div
+              className="modal-mensaje-overlay"
+              onClick={() => {
+                setMostrarModalAsistencias(false);
+                setGrupoParaAsistencias(null);
+                setAsistenciaAlumnos([]);
+              }}
+              style={{ zIndex: 100000 }}
+            >
+              <div
+                className="modal-asistencia-container"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="modal-asistencia-title"
+                style={{ maxWidth: '95vw', minWidth: 320, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+              >
+                <div className="modal-mensaje-header" style={{ flexShrink: 0 }}>
+                  <h2 id="modal-asistencia-title">REGISTRO DE ASISTENCIA</h2>
+                  <button
+                    className="modal-mensaje-close"
+                    onClick={() => {
+                      setMostrarModalAsistencias(false);
+                      setGrupoParaAsistencias(null);
+                      setAsistenciaAlumnos([]);
+                    }}
+                    type="button"
+                    aria-label="Cerrar modal"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div style={{ padding: '12px 20px', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', flexShrink: 0 }}>
+                  <label htmlFor="asistencia-fecha">Seleccione Fecha:</label>
+                  <input
+                    id="asistencia-fecha"
+                    type="date"
+                    value={asistenciaFecha}
+                    onChange={(e) => handleCambiarFechaAsistencia(e.target.value)}
+                    disabled={loadingAsistencias}
+                    style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={exportarPDFAsistencia}
+                    disabled={loadingAsistencias || !asistenciaAlumnos.length}
+                    style={{ padding: '6px 14px', background: '#6b7280', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    🖨️ Imprimir Asistencia
+                  </button>
+                </div>
+                <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px' }}>
+                  {loadingAsistencias ? (
+                    <div style={{ padding: 40, textAlign: 'center' }}>Cargando...</div>
+                  ) : (
+                    <table className="tabla-asistencia" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                      <thead>
+                        <tr style={{ background: '#f0fdf4' }}>
+                          <th style={{ padding: '10px 8px', border: '1px solid #ddd', width: 50 }}>N°</th>
+                          <th style={{ padding: '10px 8px', border: '1px solid #ddd', textAlign: 'left' }}>APELLIDOS Y NOMBRES</th>
+                          <th style={{ padding: '8px 4px', border: '1px solid #ddd', textAlign: 'center' }}>
+                            <span style={{ fontSize: 12 }}>Presente / Tardanza / TJ / Falta / FJ</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {asistenciaAlumnos.map((alumno) => (
+                          <tr key={alumno.matricula_id} style={{ background: '#fff' }}>
+                            <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{alumno.numero}</td>
+                            <td style={{ padding: '8px', border: '1px solid #ddd' }}>{alumno.nombre_completo}</td>
+                            <td style={{ padding: '6px 4px', border: '1px solid #ddd' }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
+                                {['PRESENTE', 'TARDANZA', 'TARDANZA_JUSTIFICADA', 'FALTA', 'FALTA_JUSTIFICADA'].map((tipo) => {
+                                  const isActive = alumno.tipo === tipo;
+                                  const colors = { PRESENTE: '#3b82f6', TARDANZA: '#0ea5e9', TARDANZA_JUSTIFICADA: '#64748b', FALTA: '#ef4444', FALTA_JUSTIFICADA: '#f97316' };
+                                  return (
+                                    <button
+                                      key={tipo}
+                                      type="button"
+                                      disabled={guardandoAsistencia === alumno.matricula_id}
+                                      onClick={() => handleAsistenciaClick(alumno.matricula_id, tipo)}
+                                      style={{
+                                        padding: '4px 10px',
+                                        border: '1px solid #ddd',
+                                        borderRadius: 4,
+                                        fontSize: 12,
+                                        cursor: guardandoAsistencia === alumno.matricula_id ? 'wait' : 'pointer',
+                                        background: isActive ? colors[tipo] : '#f9fafb',
+                                        color: isActive ? '#fff' : '#374151'
+                                      }}
+                                    >
+                                      {tipo === 'TARDANZA_JUSTIFICADA' ? 'TJ' : tipo === 'FALTA_JUSTIFICADA' ? 'FJ' : tipo}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                <div style={{ padding: '12px 20px', borderTop: '1px solid #eee', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={handleGuardarAsistencias}
+                    disabled={loadingAsistencias}
+                    style={{ padding: '10px 24px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    {loadingAsistencias ? 'Guardando...' : 'Guardar (marcar sin registro como Falta)'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
           )}
 
           {/* Modal de Enviar Mensaje al Docente */}

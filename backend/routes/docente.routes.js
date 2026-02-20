@@ -10,6 +10,8 @@ const { registrarAccion } = require('../utils/auditoria');
 const { uploadToPHPServer } = require('../utils/ftpUpload');
 const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
 const { enviarCorreoNotificacion } = require('../services/emailService');
+const mensajesConfig = require('../config/mensajes.json');
+const moment = require('moment-timezone');
 
 /**
  * Función auxiliar para crear notificaciones de Aula Virtual
@@ -5666,9 +5668,230 @@ router.get('/tutoria/grupos/:grupoId/alumnos', async (req, res) => {
 });
 
 /**
- * GET /api/docente/roles-adicionales
- * Verificar roles adicionales del docente (apoderado y tutor)
+ * GET /api/docente/tutoria/grupos/:grupoId/asistencia?fecha=YYYY-MM-DD
+ * Obtener lista de alumnos del grupo con sus asistencias para una fecha
  */
+router.get('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    const { fecha } = req.query;
+
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    const grupoTutor = await query(
+      `SELECT g.*, n.nombre as nivel_nombre FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const fechaQuery = fecha ? moment(fecha).format('YYYY-MM-DD') : moment().tz('America/Lima').format('YYYY-MM-DD');
+
+    const matriculas = await query(
+      `SELECT m.id as matricula_id, a.id as alumno_id,
+              CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo
+       FROM matriculas m
+       INNER JOIN alumnos a ON a.id = m.alumno_id
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
+      [grupoId, colegio_id]
+    );
+
+    const asistencias = await query(
+      `SELECT matricula_id, tipo, hora_entrada, hora_salida
+       FROM matriculas_asistencias
+       WHERE matricula_id IN (${matriculas.map(() => '?').join(',')}) AND fecha = ?`,
+      [...matriculas.map(m => m.matricula_id), fechaQuery]
+    );
+    const mapaAsistencia = {};
+    asistencias.forEach(a => { mapaAsistencia[a.matricula_id] = a; });
+
+    const lista = matriculas.map((m, i) => ({
+      numero: i + 1,
+      matricula_id: m.matricula_id,
+      alumno_id: m.alumno_id,
+      nombre_completo: m.nombre_completo,
+      asistencia: mapaAsistencia[m.matricula_id] || null,
+      tipo: mapaAsistencia[m.matricula_id]?.tipo || null
+    }));
+
+    res.json({ grupo: grupoTutor[0], alumnos: lista, fecha: fechaQuery });
+  } catch (error) {
+    console.error('Error obteniendo asistencia:', error);
+    res.status(500).json({ error: 'Error al obtener asistencia' });
+  }
+});
+
+/**
+ * POST /api/docente/tutoria/grupos/:grupoId/asistencia
+ * Guardar asistencia de un alumno (al hacer clic en Presente, Tardanza, etc)
+ * Envía notificación push y correo solo cuando el tipo CAMBIA (no reenvía si ya se notificó)
+ */
+router.post('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo, usuario_id } = req.user;
+    const personalId = req.user.personal_id;
+    const { matricula_id, fecha, tipo } = req.body;
+
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!matricula_id || !fecha || !tipo) return res.status(400).json({ error: 'Datos incompletos' });
+    const tiposValidos = ['PRESENTE', 'TARDANZA', 'TARDANZA_JUSTIFICADA', 'FALTA', 'FALTA_JUSTIFICADA'];
+    if (!tiposValidos.includes(tipo)) return res.status(400).json({ error: 'Tipo inválido' });
+
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const fechaNorm = moment(fecha).format('YYYY-MM-DD');
+    const horaActual = moment().tz('America/Lima').format('HH:mm:ss');
+
+    const existente = await query(
+      `SELECT id, tipo FROM matriculas_asistencias WHERE matricula_id = ? AND fecha = ?`,
+      [matricula_id, fechaNorm]
+    );
+
+    let enviarNotificacion = false;
+    if (existente.length > 0) {
+      if (existente[0].tipo !== tipo) {
+        await execute(
+          `UPDATE matriculas_asistencias SET tipo = ?, hora_entrada = COALESCE(hora_entrada, ?) WHERE id = ?`,
+          [tipo, horaActual, existente[0].id]
+        );
+        enviarNotificacion = true;
+      }
+    } else {
+      await execute(
+        `INSERT INTO matriculas_asistencias (matricula_id, fecha, tipo, hora_entrada, created_at) VALUES (?, ?, ?, ?, NOW())`,
+        [matricula_id, fechaNorm, tipo, horaActual]
+      );
+      enviarNotificacion = true;
+    }
+
+    if (enviarNotificacion) {
+      const alumnoData = await query(
+        `SELECT a.id, a.nombres, a.apellido_paterno, a.apellido_materno
+         FROM alumnos a INNER JOIN matriculas m ON m.alumno_id = a.id
+         WHERE m.id = ? AND m.grupo_id = ?`,
+        [matricula_id, grupoId]
+      );
+      if (alumnoData.length > 0) {
+        const nombreAlumno = `${alumnoData[0].nombres} ${alumnoData[0].apellido_paterno} ${alumnoData[0].apellido_materno}`.trim();
+        const fechaForm = moment(fechaNorm).format('DD/MM/YYYY');
+        const cfg = mensajesConfig.asistencia?.manual?.[tipo];
+        const titulo = cfg?.titulo || `Asistencia: ${tipo}`;
+        const mensaje = (cfg?.mensaje_corto || '').replace('{nombreAlumno}', nombreAlumno).replace('{fecha}', fechaForm);
+        setImmediate(() => {
+          crearNotificacionesApoderados({
+            alumno_id: alumnoData[0].id,
+            usuario_id,
+            colegio_id,
+            anio_activo,
+            tituloNotificacion: titulo,
+            mensajeNotificacion: mensaje,
+            tipoNotificacion: `asistencia_manual_${tipo}`,
+            dataExtra: { fecha: fechaNorm, tipo }
+          }).catch(err => console.error('Error notificando asistencia:', err));
+        });
+      }
+    }
+
+    res.json({ success: true, tipo });
+  } catch (error) {
+    console.error('Error guardando asistencia:', error);
+    res.status(500).json({ error: 'Error al guardar asistencia' });
+  }
+});
+
+/**
+ * POST /api/docente/tutoria/grupos/:grupoId/asistencia/guardar-todo
+ * Marcar como FALTA a todos los que no tienen asistencia ni tardanza. Envía notificación solo a los newly marked.
+ */
+router.post('/tutoria/grupos/:grupoId/asistencia/guardar-todo', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo, usuario_id } = req.user;
+    const personalId = req.user.personal_id;
+    const { fecha } = req.body;
+
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const fechaNorm = fecha ? moment(fecha).format('YYYY-MM-DD') : moment().tz('America/Lima').format('YYYY-MM-DD');
+    const horaActual = moment().tz('America/Lima').format('HH:mm:ss');
+
+    const matriculas = await query(
+      `SELECT m.id as matricula_id, a.id as alumno_id, a.nombres, a.apellido_paterno, a.apellido_materno
+       FROM matriculas m INNER JOIN alumnos a ON a.id = m.alumno_id
+       WHERE m.grupo_id = ? AND (m.estado = 0 OR m.estado = 4)`,
+      [grupoId]
+    );
+
+    const asistenciasExistentes = await query(
+      `SELECT matricula_id, tipo FROM matriculas_asistencias WHERE matricula_id IN (${matriculas.map(() => '?').join(',')}) AND fecha = ?`,
+      [...matriculas.map(m => m.matricula_id), fechaNorm]
+    );
+    const mapa = {};
+    asistenciasExistentes.forEach(a => { mapa[a.matricula_id] = a.tipo; });
+
+    const considerarPresente = ['PRESENTE', 'TARDANZA', 'TARDANZA_JUSTIFICADA'];
+    const marcadosComoFalta = [];
+
+    for (const m of matriculas) {
+      const tipoActual = mapa[m.matricula_id];
+      const tienePresenteOTardanza = tipoActual && considerarPresente.includes(tipoActual);
+      if (!tienePresenteOTardanza) {
+        const existenteRow = await query(`SELECT id, tipo FROM matriculas_asistencias WHERE matricula_id = ? AND fecha = ?`, [m.matricula_id, fechaNorm]);
+        const yaTieneFalta = existenteRow.length > 0 && (existenteRow[0].tipo === 'FALTA' || existenteRow[0].tipo === 'FALTA_JUSTIFICADA');
+        if (yaTieneFalta) continue;
+        if (existenteRow.length > 0) {
+          await execute(`UPDATE matriculas_asistencias SET tipo = 'FALTA' WHERE id = ?`, [existenteRow[0].id]);
+        } else {
+          await execute(
+            `INSERT INTO matriculas_asistencias (matricula_id, fecha, tipo, hora_entrada, created_at) VALUES (?, ?, ?, ?, NOW())`,
+            [m.matricula_id, fechaNorm, 'FALTA', horaActual]
+          );
+        }
+        marcadosComoFalta.push({ alumno_id: m.alumno_id, nombre_completo: `${m.nombres} ${m.apellido_paterno} ${m.apellido_materno}`.trim() });
+      }
+    }
+
+    for (const item of marcadosComoFalta) {
+      const cfg = mensajesConfig.asistencia?.manual?.FALTA;
+      const titulo = cfg?.titulo || 'Falta Registrada';
+      const fechaForm = moment(fechaNorm).format('DD/MM/YYYY');
+      const mensaje = (cfg?.mensaje_corto || '').replace('{nombreAlumno}', item.nombre_completo).replace('{fecha}', fechaForm);
+      setImmediate(() => {
+        crearNotificacionesApoderados({
+          alumno_id: item.alumno_id,
+          usuario_id,
+          colegio_id,
+          anio_activo,
+          tituloNotificacion: titulo,
+          mensajeNotificacion: mensaje,
+          tipoNotificacion: 'asistencia_manual_FALTA',
+          dataExtra: { fecha: fechaNorm, tipo: 'FALTA' }
+        }).catch(err => console.error('Error notificando falta:', err));
+      });
+    }
+
+    res.json({ success: true, marcados_como_falta: marcadosComoFalta.length });
+  } catch (error) {
+    console.error('Error guardando asistencias:', error);
+    res.status(500).json({ error: 'Error al guardar asistencias' });
+  }
+});
+
 router.get('/roles-adicionales', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user;

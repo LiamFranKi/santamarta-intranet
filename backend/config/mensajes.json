@@ -15,6 +15,33 @@
         "icono": "👋",
         "color": "#3b82f6"
       }
+    },
+    "manual": {
+      "PRESENTE": {
+        "titulo": "Asistencia Registrada",
+        "mensaje_corto": "Tu hijo(a) {nombreAlumno} fue registrado(a) como PRESENTE el {fecha}.",
+        "mensaje_largo": "Estimado(a) apoderado(a), le informamos que su hijo(a) {nombreAlumno} fue registrado(a) como PRESENTE el día {fecha}. Este registro fue realizado manualmente por el tutor."
+      },
+      "TARDANZA": {
+        "titulo": "Tardanza Registrada",
+        "mensaje_corto": "Tu hijo(a) {nombreAlumno} fue registrado(a) con TARDANZA el {fecha}.",
+        "mensaje_largo": "Estimado(a) apoderado(a), le informamos que su hijo(a) {nombreAlumno} fue registrado(a) con TARDANZA el día {fecha}. Este registro fue realizado manualmente por el tutor."
+      },
+      "TARDANZA_JUSTIFICADA": {
+        "titulo": "Tardanza Justificada",
+        "mensaje_corto": "Tu hijo(a) {nombreAlumno} fue registrado(a) con TARDANZA JUSTIFICADA el {fecha}.",
+        "mensaje_largo": "Estimado(a) apoderado(a), le informamos que su hijo(a) {nombreAlumno} fue registrado(a) con TARDANZA JUSTIFICADA el día {fecha}. Este registro fue realizado manualmente por el tutor."
+      },
+      "FALTA": {
+        "titulo": "Falta Registrada",
+        "mensaje_corto": "Tu hijo(a) {nombreAlumno} fue registrado(a) con FALTA el {fecha}.",
+        "mensaje_largo": "Estimado(a) apoderado(a), le informamos que su hijo(a) {nombreAlumno} fue registrado(a) con FALTA el día {fecha}. Este registro fue realizado manualmente por el tutor."
+      },
+      "FALTA_JUSTIFICADA": {
+        "titulo": "Falta Justificada",
+        "mensaje_corto": "Tu hijo(a) {nombreAlumno} fue registrado(a) con FALTA JUSTIFICADA el {fecha}.",
+        "mensaje_largo": "Estimado(a) apoderado(a), le informamos que su hijo(a) {nombreAlumno} fue registrado(a) con FALTA JUSTIFICADA el día {fecha}. Este registro fue realizado manualmente por el tutor."
+      }
     }
   },
   "docente": {
