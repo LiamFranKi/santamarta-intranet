@@ -1636,26 +1636,44 @@ function DocenteCursos() {
               // Asegurar que notasIndicador sea un array
               let notasArray = [];
               if (Array.isArray(notasIndicador)) {
-                // Si es un array, convertir cada elemento a string (mantener valores numéricos como string)
+                // Si es un array, convertir cada elemento a string
                 notasArray = notasIndicador.map(nota => {
-                  // Si es null, undefined, o string vacío, usar string vacío
                   if (nota === null || nota === undefined || nota === '') {
                     return '';
                   }
-                  // Si es un objeto, no debería pasar, pero por seguridad retornar vacío
                   if (typeof nota === 'object') {
                     console.warn('Nota es un objeto inesperado:', nota);
                     return '';
                   }
-                  // Convertir a string manteniendo el valor numérico
                   return String(nota);
                 });
               } else if (notasIndicador !== null && notasIndicador !== undefined) {
-                // Si no es array pero tiene valor
                 if (typeof notasIndicador === 'object') {
-                  // Si es un objeto, intentar convertirlo a array o usar array vacío
-                  console.warn('notasIndicador no es array pero es objeto:', notasIndicador);
-                  notasArray = [];
+                  // Si es un objeto, puede ser un array asociativo deserializado de PHP
+                  // Intentar convertirlo a array verificando si tiene claves numéricas
+                  const claves = Object.keys(notasIndicador);
+                  const tieneClavesNumericas = claves.every(clave => /^\d+$/.test(clave));
+                  
+                  if (tieneClavesNumericas && claves.length > 0) {
+                    // Es un objeto con claves numéricas (array asociativo de PHP)
+                    // Convertir a array ordenado por índice
+                    const maxIndex = Math.max(...claves.map(Number));
+                    notasArray = [];
+                    for (let i = 0; i <= maxIndex; i++) {
+                      const valor = notasIndicador[i];
+                      if (valor === null || valor === undefined || valor === '') {
+                        notasArray.push('');
+                      } else if (typeof valor === 'object') {
+                        notasArray.push('');
+                      } else {
+                        notasArray.push(String(valor));
+                      }
+                    }
+                  } else {
+                    // Es un objeto pero no tiene estructura de array, usar array vacío
+                    console.warn('notasIndicador es objeto pero no tiene claves numéricas:', notasIndicador);
+                    notasArray = [];
+                  }
                 } else {
                   // Si es un valor primitivo, convertirlo a array con un elemento
                   notasArray = [String(notasIndicador)];
