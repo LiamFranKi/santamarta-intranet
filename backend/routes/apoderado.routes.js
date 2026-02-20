@@ -2159,7 +2159,19 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
       })
     );
 
-    res.json({ asignaturas: asignaturasConNotas });
+    // Obtener información del alumno
+    const alumno = await query(
+      `SELECT id, nombres, apellido_paterno, apellido_materno,
+              CONCAT(apellido_paterno, ' ', apellido_materno, ', ', nombres) as nombre_completo
+       FROM alumnos
+       WHERE id = ?`,
+      [hijoIdNum]
+    );
+
+    res.json({
+      alumno: alumno[0] || null,
+      asignaturas: asignaturasConNotas
+    });
   } catch (error) {
     console.error('Error obteniendo notas detalladas:', error);
     res.status(500).json({ error: 'Error al obtener notas detalladas', details: error.message });
