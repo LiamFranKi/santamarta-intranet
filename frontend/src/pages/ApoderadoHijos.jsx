@@ -1809,7 +1809,7 @@ function ApoderadoHijos() {
       setLoadingHorario(true);
       setHorario([]);
       
-      const response = await api.get(`/docente/hijos/${hijo.id}/horario`);
+      const response = await api.get(`/apoderado/hijos/${hijo.id}/horario`);
       const horariosRecibidos = response.data.horario || [];
       
       // Normalizar días (igual que en AlumnoHorario)
@@ -1837,7 +1837,7 @@ function ApoderadoHijos() {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'No se pudo cargar el horario',
+        text: error.response?.data?.error || 'No se pudo cargar el horario',
         confirmButtonText: 'Entendido'
       });
     } finally {
