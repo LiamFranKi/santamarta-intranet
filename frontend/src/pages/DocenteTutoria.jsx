@@ -609,65 +609,100 @@ function DocenteTutoria() {
     }
   };
 
-  const exportarPDFAsistencia = () => {
+  const exportarPDFAsistencia = async () => {
     if (!asistenciaAlumnos.length) {
       Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
       return;
     }
     const doc = new jsPDF('l', 'mm', 'a4');
-    const margin = 15;
+    const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
     const grupoNombre = grupoParaAsistencias ? `${grupoParaAsistencias.grado}° ${grupoParaAsistencias.seccion} - ${grupoParaAsistencias.nivel_nombre}` : '';
-    let yPos = 15;
+    let yPos = 0;
 
-    const dibujarHeader = () => {
-      doc.setFontSize(16);
+    const colorPrimario = [102, 126, 234];
+    const colorBlanco = [255, 255, 255];
+    const colorGrisOscuro = [55, 65, 81];
+
+    const dibujarHeader = async () => {
+      yPos = 0;
+      doc.setFillColor(...colorPrimario);
+      doc.rect(0, 0, pageWidth, 32, 'F');
+
+      try {
+        const logoResponse = await fetch('/icons/logoboleta.png');
+        if (logoResponse.ok) {
+          const logoBlob = await logoResponse.blob();
+          const logoReader = new FileReader();
+          await new Promise((resolve) => {
+            logoReader.onloadend = () => {
+              try {
+                doc.addImage(logoReader.result, 'PNG', margin, 4, 24, 24);
+              } catch (e) { /* ignorar si falla */ }
+              resolve();
+            };
+            logoReader.readAsDataURL(logoBlob);
+          });
+        }
+      } catch (e) { /* continuar sin logo */ }
+
+      doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
-      doc.text('REGISTRO DE ASISTENCIA', margin, yPos);
-      yPos += 8;
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`Grupo: ${grupoNombre}  |  Fecha: ${asistenciaFecha}`, margin, yPos);
-      yPos += 10;
-      doc.setFillColor(234, 234, 234);
-      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colorBlanco);
+      doc.text('REGISTRO DE ASISTENCIA', margin + 30, 14);
       doc.setFontSize(10);
-      doc.rect(margin, yPos, 20, 8, 'F');
-      doc.rect(margin + 20, yPos, 120, 8, 'F');
-      doc.rect(margin + 140, yPos, 40, 8, 'F');
-      doc.text('Nº', margin + 10, yPos + 5.5, { align: 'center' });
-      doc.text('APELLIDOS Y NOMBRES', margin + 80, yPos + 5.5, { align: 'center' });
-      doc.text('REGISTRO', margin + 160, yPos + 5.5, { align: 'center' });
-      yPos += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(240, 240, 240);
+      doc.text(`Grupo: ${grupoNombre}  |  Fecha: ${asistenciaFecha}`, margin + 30, 22);
+
+      yPos = 36;
+      doc.setFillColor(234, 234, 234);
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.3);
+      doc.rect(margin, yPos, 22, 10, 'FD');
+      doc.rect(margin + 22, yPos, 125, 10, 'FD');
+      doc.rect(margin + 147, yPos, 45, 10, 'FD');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colorGrisOscuro);
+      doc.text('N°', margin + 11, yPos + 6.5, { align: 'center' });
+      doc.text('APELLIDOS Y NOMBRES', margin + 84, yPos + 6.5, { align: 'center' });
+      doc.text('REGISTRO', margin + 169, yPos + 6.5, { align: 'center' });
+      yPos += 10;
     };
 
-    dibujarHeader();
+    await dibujarHeader();
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
 
-    asistenciaAlumnos.forEach((a, i) => {
-      if (yPos + 7 > pageHeight - 20) {
+    for (let i = 0; i < asistenciaAlumnos.length; i++) {
+      const a = asistenciaAlumnos[i];
+      if (yPos + 8 > pageHeight - 18) {
         doc.addPage('l', 'a4');
-        yPos = 15;
-        dibujarHeader();
+        await dibujarHeader();
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(9);
       }
-      doc.rect(margin, yPos, 20, 6, 'S');
-      doc.rect(margin + 20, yPos, 120, 6, 'S');
-      doc.rect(margin + 140, yPos, 40, 6, 'S');
-      doc.text(String(i + 1), margin + 10, yPos + 4, { align: 'center' });
-      doc.text((a.nombre_completo || '').slice(0, 50), margin + 22, yPos + 4);
+      doc.setDrawColor(220, 220, 220);
+      doc.rect(margin, yPos, 22, 7, 'S');
+      doc.rect(margin + 22, yPos, 125, 7, 'S');
+      doc.rect(margin + 147, yPos, 45, 7, 'S');
+      doc.setTextColor(...colorGrisOscuro);
+      doc.text(String(i + 1), margin + 11, yPos + 4.5, { align: 'center' });
+      doc.text((a.nombre_completo || '').slice(0, 55), margin + 24, yPos + 4.5);
       const tipoTexto = a.tipo ? a.tipo.replace(/_/g, ' ') : '-';
-      if (a.tipo === 'FALTA' || a.tipo === 'FALTA_JUSTIFICADA') doc.setTextColor(200, 0, 0);
-      doc.text(tipoTexto, margin + 160, yPos + 4, { align: 'center' });
-      doc.setTextColor(0, 0, 0);
+      if (a.tipo === 'FALTA' || a.tipo === 'FALTA_JUSTIFICADA') {
+        doc.setTextColor(185, 28, 28);
+      }
+      doc.text(tipoTexto, margin + 169, yPos + 4.5, { align: 'center' });
+      doc.setTextColor(...colorGrisOscuro);
       yPos += 7;
-    });
+    }
 
     doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Generado: ${new Date().toLocaleString('es-PE')}`, margin, pageHeight - 10);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Generado: ${new Date().toLocaleString('es-PE')}`, margin, pageHeight - 8);
     const fechaFormato = new Date(asistenciaFecha).toLocaleDateString('es-PE');
     doc.save(`Asistencia_${grupoNombre.replace(/\s+/g, '_')}_${fechaFormato.replace(/\//g, '-')}.pdf`);
     Swal.fire({ icon: 'success', title: 'PDF generado', text: 'El reporte se descargó correctamente', timer: 2000, showConfirmButton: false });
@@ -1331,26 +1366,24 @@ function DocenteTutoria() {
       {/* Modal de Registro de Asistencia - siempre disponible */}
       {mostrarModalAsistencias && grupoParaAsistencias && createPortal(
         <div
-          className="modal-mensaje-overlay"
+          className="modal-registro-asistencia-overlay"
           onClick={() => {
             setMostrarModalAsistencias(false);
             setGrupoParaAsistencias(null);
             setAsistenciaAlumnos([]);
           }}
-          style={{ zIndex: 100000 }}
         >
           <div
-            className="modal-asistencia-container"
+            className="modal-registro-asistencia-container"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-asistencia-title"
-            style={{ maxWidth: '95vw', minWidth: 320, maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', background: 'white', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}
           >
-            <div className="modal-mensaje-header" style={{ flexShrink: 0 }}>
-              <h2 id="modal-asistencia-title">REGISTRO DE ASISTENCIA</h2>
+            <div className="modal-registro-asistencia-header">
+              <h2 id="modal-asistencia-title">📋 Registro de Asistencia</h2>
               <button
-                className="modal-mensaje-close"
+                className="modal-registro-asistencia-close"
                 onClick={() => {
                   setMostrarModalAsistencias(false);
                   setGrupoParaAsistencias(null);
@@ -1362,7 +1395,7 @@ function DocenteTutoria() {
                 ✕
               </button>
             </div>
-            <div style={{ padding: '12px 20px', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', flexShrink: 0 }}>
+            <div className="modal-registro-asistencia-filters">
               <label htmlFor="asistencia-fecha">Seleccione Fecha:</label>
               <input
                 id="asistencia-fecha"
@@ -1370,58 +1403,55 @@ function DocenteTutoria() {
                 value={asistenciaFecha}
                 onChange={(e) => handleCambiarFechaAsistencia(e.target.value)}
                 disabled={loadingAsistencias}
-                style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #ccc' }}
               />
               <button
                 type="button"
+                className="btn-imprimir-asistencia"
                 onClick={exportarPDFAsistencia}
                 disabled={loadingAsistencias || !asistenciaAlumnos.length}
-                style={{ padding: '6px 14px', background: '#6b7280', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 🖨️ Imprimir Asistencia
               </button>
             </div>
-            <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px' }}>
+            <div className="modal-registro-asistencia-table-wrap">
               {loadingAsistencias ? (
-                <div style={{ padding: 40, textAlign: 'center' }}>Cargando...</div>
+                <div className="modal-registro-asistencia-loading">
+                  <div className="loading-spinner" />
+                  <p>Cargando asistencias...</p>
+                </div>
               ) : (
-                <table className="tabla-asistencia" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                <table className="tabla-registro-asistencia">
                   <thead>
-                    <tr style={{ background: '#f0fdf4' }}>
-                      <th style={{ padding: '10px 8px', border: '1px solid #ddd', width: 50 }}>N°</th>
-                      <th style={{ padding: '10px 8px', border: '1px solid #ddd', textAlign: 'left' }}>APELLIDOS Y NOMBRES</th>
-                      <th style={{ padding: '8px 4px', border: '1px solid #ddd', textAlign: 'center' }}>
-                        <span style={{ fontSize: 12 }}>Presente / Tardanza / TJ / Falta / FJ</span>
-                      </th>
+                    <tr>
+                      <th style={{ width: 50 }}>N°</th>
+                      <th>APELLIDOS Y NOMBRES</th>
+                      <th style={{ textAlign: 'center', minWidth: 380 }}>REGISTRO</th>
                     </tr>
                   </thead>
                   <tbody>
                     {asistenciaAlumnos.map((alumno) => (
-                      <tr key={alumno.matricula_id} style={{ background: '#fff' }}>
-                        <td style={{ padding: '8px', border: '1px solid #ddd', textAlign: 'center' }}>{alumno.numero}</td>
-                        <td style={{ padding: '8px', border: '1px solid #ddd' }}>{alumno.nombre_completo}</td>
-                        <td style={{ padding: '6px 4px', border: '1px solid #ddd' }}>
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, justifyContent: 'center' }}>
-                            {['PRESENTE', 'TARDANZA', 'TARDANZA_JUSTIFICADA', 'FALTA', 'FALTA_JUSTIFICADA'].map((tipo) => {
+                      <tr key={alumno.matricula_id}>
+                        <td style={{ textAlign: 'center', fontWeight: 600 }}>{alumno.numero}</td>
+                        <td>{alumno.nombre_completo}</td>
+                        <td>
+                          <div className="botones-asistencia-row">
+                            {[
+                              { tipo: 'PRESENTE', clase: 'btn-presente', label: 'Presente' },
+                              { tipo: 'TARDANZA', clase: 'btn-tardanza', label: 'Tardanza' },
+                              { tipo: 'TARDANZA_JUSTIFICADA', clase: 'btn-tj', label: 'TJ' },
+                              { tipo: 'FALTA', clase: 'btn-falta', label: 'Falta' },
+                              { tipo: 'FALTA_JUSTIFICADA', clase: 'btn-fj', label: 'FJ' }
+                            ].map(({ tipo, clase, label }) => {
                               const isActive = alumno.tipo === tipo;
-                              const colors = { PRESENTE: '#3b82f6', TARDANZA: '#0ea5e9', TARDANZA_JUSTIFICADA: '#64748b', FALTA: '#ef4444', FALTA_JUSTIFICADA: '#f97316' };
                               return (
                                 <button
                                   key={tipo}
                                   type="button"
+                                  className={`btn-asistencia-tipo ${clase} ${isActive ? 'active' : ''}`}
                                   disabled={guardandoAsistencia === alumno.matricula_id}
                                   onClick={() => handleAsistenciaClick(alumno.matricula_id, tipo)}
-                                  style={{
-                                    padding: '4px 10px',
-                                    border: '1px solid #ddd',
-                                    borderRadius: 4,
-                                    fontSize: 12,
-                                    cursor: guardandoAsistencia === alumno.matricula_id ? 'wait' : 'pointer',
-                                    background: isActive ? colors[tipo] : '#f9fafb',
-                                    color: isActive ? '#fff' : '#374151'
-                                  }}
                                 >
-                                  {tipo === 'TARDANZA_JUSTIFICADA' ? 'TJ' : tipo === 'FALTA_JUSTIFICADA' ? 'FJ' : tipo}
+                                  {label}
                                 </button>
                               );
                             })}
@@ -1433,12 +1463,12 @@ function DocenteTutoria() {
                 </table>
               )}
             </div>
-            <div style={{ padding: '12px 20px', borderTop: '1px solid #eee', flexShrink: 0 }}>
+            <div className="modal-registro-asistencia-footer">
               <button
                 type="button"
+                className="btn-guardar-asistencias"
                 onClick={handleGuardarAsistencias}
                 disabled={loadingAsistencias}
-                style={{ padding: '10px 24px', background: '#22c55e', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
               >
                 {loadingAsistencias ? 'Guardando...' : 'Guardar (marcar sin registro como Falta)'}
               </button>
