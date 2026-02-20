@@ -1620,7 +1620,24 @@ function DocenteCursos() {
             criterio.indicadores.forEach(indicador => {
               const notasIndicador = alumno.notas_detalladas?.[criterio.id]?.[indicador.id];
               // Asegurar que notasIndicador sea un array antes de hacer spread
-              const notasArray = Array.isArray(notasIndicador) ? notasIndicador : (notasIndicador ? [notasIndicador] : []);
+              let notasArray = [];
+              if (Array.isArray(notasIndicador)) {
+                // Si es un array, asegurar que cada elemento sea un valor primitivo
+                notasArray = notasIndicador.map(nota => {
+                  if (typeof nota === 'object' && nota !== null) {
+                    // Si es un objeto, intentar extraer un valor o usar string vacío
+                    return '';
+                  }
+                  return nota !== null && nota !== undefined ? String(nota) : '';
+                });
+              } else if (notasIndicador !== null && notasIndicador !== undefined) {
+                // Si no es array pero tiene valor, verificar si es objeto
+                if (typeof notasIndicador === 'object') {
+                  notasArray = [];
+                } else {
+                  notasArray = [String(notasIndicador)];
+                }
+              }
               notasIniciales[alumno.matricula_id][criterio.id][indicador.id] = [...notasArray];
             });
           }
