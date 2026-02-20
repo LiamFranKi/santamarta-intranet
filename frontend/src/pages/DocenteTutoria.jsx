@@ -7,6 +7,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
+import { generarPDFNotasTutoria } from '../utils/pdfNotasTutoria';
 import './DocenteTutoria.css';
 import './AlumnoCursos.css';
 
@@ -368,16 +369,7 @@ function DocenteTutoria() {
         await cargarAlumnos(grupo.id);
         break;
       case 'notas-asistencia':
-        // Implementar después
-        Swal.fire({
-          icon: 'info',
-          title: 'Próximamente',
-          text: 'Esta funcionalidad se implementará próximamente',
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
-          timer: 3000
-        });
+        await handleVerNotasPDF(grupo);
         break;
       case 'enviar-comunicado':
         // Abrir modal de mensaje al grupo
@@ -484,6 +476,63 @@ function DocenteTutoria() {
     setMostrarRecomendacion(false);
     setAlumnoSeleccionado(null);
     setRecomendacion('');
+  };
+
+  // Ver Notas PDF - descarga PDF con notas de todos los cursos del grupo (hoja por curso)
+  const handleVerNotasPDF = async (grupo) => {
+    try {
+      const { value: ciclo } = await Swal.fire({
+        title: 'Exportar Notas',
+        text: 'Seleccione el bimestre a exportar',
+        icon: 'question',
+        input: 'select',
+        inputOptions: { 1: 'I Bimestre', 2: 'II Bimestre', 3: 'III Bimestre', 4: 'IV Bimestre' },
+        inputValue: 1,
+        showCancelButton: true,
+        confirmButtonText: 'Generar PDF',
+        cancelButtonText: 'Cancelar'
+      });
+      if (!ciclo) return;
+
+      const cicloNum = parseInt(ciclo) || 1;
+      const response = await api.get(`/docente/tutoria/grupos/${grupo.id}/notas-todos`, {
+        params: { ciclo: cicloNum }
+      });
+
+      const cursosData = response.data?.cursos || [];
+      const grupoInfo = response.data?.grupo || grupo;
+
+      if (cursosData.length === 0) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin datos',
+          text: 'No hay cursos con notas para este grupo',
+          confirmButtonText: 'Entendido'
+        });
+        return;
+      }
+
+      const ok = generarPDFNotasTutoria(cursosData, grupoInfo);
+      if (ok) {
+        Swal.fire({
+          icon: 'success',
+          title: '¡PDF Generado!',
+          text: `Se descargó el reporte de notas de ${cursosData.length} curso(s)`,
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 3000
+        });
+      }
+    } catch (error) {
+      console.error('Error generando PDF de notas:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo generar el PDF de notas',
+        confirmButtonText: 'Entendido'
+      });
+    }
   };
 
   // Cargar cursos del grupo
