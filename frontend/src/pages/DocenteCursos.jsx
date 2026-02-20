@@ -4169,7 +4169,17 @@ function DocenteCursos() {
                                         {criterio.indicadores.map(indicador => {
                                           const cuadros = indicador.cuadros || 1;
                                           return Array.from({ length: cuadros }, (_, i) => {
-                                            const valor = notasEditadas[alumno.matricula_id]?.[criterio.id]?.[indicador.id]?.[i] || '';
+                                            const valorRaw = notasEditadas[alumno.matricula_id]?.[criterio.id]?.[indicador.id]?.[i];
+                                            // Asegurar que el valor sea un string o número, no un objeto
+                                            let valor = '';
+                                            if (valorRaw !== undefined && valorRaw !== null) {
+                                              if (typeof valorRaw === 'object') {
+                                                // Si es un objeto, intentar extraer un valor numérico o usar string vacío
+                                                valor = '';
+                                              } else {
+                                                valor = String(valorRaw);
+                                              }
+                                            }
                                             return (
                                               <input
                                                 key={`${indicador.id}-${i}`}
