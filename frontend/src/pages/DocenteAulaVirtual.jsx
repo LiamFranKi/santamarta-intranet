@@ -6341,13 +6341,14 @@ function DetallesResultadoModal({ resultado, detalles, cargando, onClose }) {
                           }
                         }
                         
-                        // Verificar si es correcta (comparar cada respuesta)
+                        // Verificar si es correcta (comparar cada respuesta - case insensitive)
                         let esCorrectaCompletar = false;
                         if (respuestasCompletarAlumno.length > 0) {
-                          const respuestasAlumnoArray = respuestasCompletarAlumno.map(r => r.valor.toLowerCase());
-                          if (respuestasAlumnoArray.length === respuestasCorrectasCompletar.length) {
+                          const respuestasAlumnoArray = respuestasCompletarAlumno.map(r => r.valor.toLowerCase().trim());
+                          const respuestasCorrectasArray = respuestasCorrectasCompletar.map(r => r.toLowerCase().trim());
+                          if (respuestasAlumnoArray.length === respuestasCorrectasArray.length) {
                             esCorrectaCompletar = respuestasAlumnoArray.every((resp) => 
-                              respuestasCorrectasCompletar.includes(resp)
+                              respuestasCorrectasArray.includes(resp)
                             );
                           }
                         }
