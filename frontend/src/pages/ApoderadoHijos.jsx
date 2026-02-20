@@ -2007,7 +2007,18 @@ function ApoderadoHijos() {
       const response = await api.get(`/apoderado/pagos/${pago.id}/boleta`);
       const datosBoleta = response.data;
 
-      const { pago: pagoData, alumno, facturacion } = datosBoleta;
+      const { pago: pagoData, alumno, facturacion, boleta } = datosBoleta;
+      
+      // Construir nombre completo si no viene del backend
+      if (!alumno.nombre_completo) {
+        alumno.nombre_completo = `${alumno.apellido_paterno || ''} ${alumno.apellido_materno || ''}, ${alumno.nombres || ''}`.trim().replace(/^,\s*|,\s*$/g, '');
+      }
+      
+      // Usar datos de boleta si están disponibles
+      if (boleta && boleta.numero && boleta.serie) {
+        pagoData.boleta_numero = boleta.numero;
+        pagoData.boleta_serie = boleta.serie;
+      }
 
       // Crear PDF
       const doc = new jsPDF({

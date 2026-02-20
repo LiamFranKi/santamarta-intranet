@@ -1894,21 +1894,56 @@ router.get('/pagos/:pagoId/boleta', async (req, res) => {
       }
     }
 
+    // Determinar descripción del pago
+    let descripcionPago = '';
+    if (pago.tipo === 0) {
+      descripcionPago = `MATRÍCULA ${pago.anio || new Date().getFullYear()}`;
+    } else if (pago.tipo === 1) {
+      // Obtener mes de pensión
+      const colegioConfig = await query(
+        `SELECT ciclo_pensiones, inicio_pensiones FROM colegios WHERE id = ? LIMIT 1`,
+        [colegio_id]
+      );
+      const cicloPensiones = colegioConfig.length > 0 ? colegioConfig[0].ciclo_pensiones : null;
+      const inicioPensiones = colegioConfig.length > 0 ? (colegioConfig[0].inicio_pensiones || 1) : 1;
+      
+      if (cicloPensiones === 0 || cicloPensiones === '0') {
+        const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+        const indiceMes = pago.nro_pago + inicioPensiones - 1;
+        if (indiceMes >= 0 && indiceMes < MESES.length) {
+          descripcionPago = `MENSUALIDAD ${MESES[indiceMes].toUpperCase()}`;
+        } else {
+          descripcionPago = `MENSUALIDAD ${pago.nro_pago}`;
+        }
+      } else {
+        descripcionPago = `MENSUALIDAD ${pago.nro_pago}`;
+      }
+    } else if (pago.tipo === 3) {
+      descripcionPago = `COMEDOR ${pago.nro_pago}`;
+    } else {
+      descripcionPago = pago.descripcion || 'OTRO';
+    }
+
     res.json({
       pago: {
         id: pago.id,
-        monto: pago.monto,
-        mora: pago.mora || 0,
+        tipo: pago.tipo,
+        tipo_descripcion: descripcionPago,
+        monto: parseFloat(pago.monto) || 0,
+        mora: parseFloat(pago.mora) || 0,
+        total: parseFloat(pago.monto) + parseFloat(pago.mora || 0),
         fecha_hora: pago.fecha_hora,
         fecha_cancelado: pago.fecha_cancelado,
         estado_pago: pago.estado_pago,
-        tipo: pago.tipo,
-        nro_pago: pago.nro_pago
+        boleta_numero: impresion && impresion.length > 0 ? impresion[0].numero : null,
+        boleta_serie: impresion && impresion.length > 0 ? impresion[0].serie : null,
+        boleta_fecha_impresion: impresion && impresion.length > 0 ? impresion[0].fecha_impresion : null
       },
       alumno: {
         nombres: alumno[0].nombres,
         apellido_paterno: alumno[0].apellido_paterno,
         apellido_materno: alumno[0].apellido_materno,
+        nombre_completo: `${alumno[0].apellido_paterno || ''} ${alumno[0].apellido_materno || ''}, ${alumno[0].nombres || ''}`.trim().replace(/^,\s*|,\s*$/g, ''),
         dni: alumno[0].dni
       },
       boleta: impresion && impresion.length > 0 ? {
