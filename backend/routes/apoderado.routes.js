@@ -2425,17 +2425,144 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       }));
     }
 
-    // Calcular resumen general
-    const todasAsignaturas = [...areasConAsignaturas.flatMap(a => a.asignaturas), ...asignaturasSinArea];
-    const promediosFinales = todasAsignaturas
-      .map(a => a.promedio_final)
-      .filter(p => p !== null && p !== '' && p !== '-');
-    
-    let promedioGeneral = null;
-    if (promediosFinales.length > 0) {
-      const suma = promediosFinales.reduce((sum, p) => sum + parseFloat(p), 0);
-      promedioGeneral = Math.round(suma / promediosFinales.length);
-    }
+    // Calcular cuadro resumen (igual que en docente.routes.js)
+    const totalCursos = asignaturas.length;
+    const cantidadCursosB1 = asignaturas.filter(a => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      return promedios[1] !== null && promedios[1] !== '' && promedios[1] !== '-';
+    }).length;
+    const cantidadCursosB2 = asignaturas.filter(a => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      return promedios[2] !== null && promedios[2] !== '' && promedios[2] !== '-';
+    }).length;
+    const cantidadCursosB3 = asignaturas.filter(a => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      return promedios[3] !== null && promedios[3] !== '' && promedios[3] !== '-';
+    }).length;
+    const cantidadCursosB4 = asignaturas.filter(a => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      return promedios[4] !== null && promedios[4] !== '' && promedios[4] !== '-';
+    }).length;
+
+    // Suma de notas por bimestre
+    const sumaNotasB1 = asignaturas.reduce((sum, a) => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      const p = promedios[1];
+      if (p !== null && p !== '' && p !== '-') {
+        const num = parseFloat(p);
+        return sum + (isNaN(num) ? 0 : num);
+      }
+      return sum;
+    }, 0);
+    const sumaNotasB2 = asignaturas.reduce((sum, a) => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      const p = promedios[2];
+      if (p !== null && p !== '' && p !== '-') {
+        const num = parseFloat(p);
+        return sum + (isNaN(num) ? 0 : num);
+      }
+      return sum;
+    }, 0);
+    const sumaNotasB3 = asignaturas.reduce((sum, a) => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      const p = promedios[3];
+      if (p !== null && p !== '' && p !== '-') {
+        const num = parseFloat(p);
+        return sum + (isNaN(num) ? 0 : num);
+      }
+      return sum;
+    }, 0);
+    const sumaNotasB4 = asignaturas.reduce((sum, a) => {
+      const promedios = promediosPorAsignatura[a.asignatura_id] || {};
+      const p = promedios[4];
+      if (p !== null && p !== '' && p !== '-') {
+        const num = parseFloat(p);
+        return sum + (isNaN(num) ? 0 : num);
+      }
+      return sum;
+    }, 0);
+
+    // Promedio general por bimestre
+    const promedioGeneralB1 = cantidadCursosB1 > 0 ? Math.round(sumaNotasB1 / cantidadCursosB1) : null;
+    const promedioGeneralB2 = cantidadCursosB2 > 0 ? Math.round(sumaNotasB2 / cantidadCursosB2) : null;
+    const promedioGeneralB3 = cantidadCursosB3 > 0 ? Math.round(sumaNotasB3 / cantidadCursosB3) : null;
+    const promedioGeneralB4 = cantidadCursosB4 > 0 ? Math.round(sumaNotasB4 / cantidadCursosB4) : null;
+    const promedioGeneralFinal = [promedioGeneralB1, promedioGeneralB2, promedioGeneralB3, promedioGeneralB4]
+      .filter(p => p !== null).length > 0
+      ? Math.round(([promedioGeneralB1, promedioGeneralB2, promedioGeneralB3, promedioGeneralB4]
+          .filter(p => p !== null)
+          .reduce((sum, p) => sum + p, 0)) / [promedioGeneralB1, promedioGeneralB2, promedioGeneralB3, promedioGeneralB4]
+          .filter(p => p !== null).length)
+      : null;
+
+    // Promedio conducta (por ahora null)
+    const promedioConductaB1 = null;
+    const promedioConductaB2 = null;
+    const promedioConductaB3 = null;
+    const promedioConductaB4 = null;
+
+    // Orden de mérito (por ahora null)
+    const ordenMeritoB1 = null;
+    const ordenMeritoB2 = null;
+    const ordenMeritoB3 = null;
+    const ordenMeritoB4 = null;
+
+    // Inasistencias y tardanzas (usar datos de asistencia)
+    const inasistenciasB1 = await obtenerInasistencias(matriculaId, 1, anio_activo);
+    const inasistenciasB2 = await obtenerInasistencias(matriculaId, 2, anio_activo);
+    const inasistenciasB3 = await obtenerInasistencias(matriculaId, 3, anio_activo);
+    const inasistenciasB4 = await obtenerInasistencias(matriculaId, 4, anio_activo);
+
+    const tardanzasB1 = await obtenerTardanzas(matriculaId, 1, anio_activo);
+    const tardanzasB2 = await obtenerTardanzas(matriculaId, 2, anio_activo);
+    const tardanzasB3 = await obtenerTardanzas(matriculaId, 3, anio_activo);
+    const tardanzasB4 = await obtenerTardanzas(matriculaId, 4, anio_activo);
+
+    const resumen = {
+      cantidad_cursos: {
+        b1: cantidadCursosB1,
+        b2: cantidadCursosB2,
+        b3: cantidadCursosB3,
+        b4: cantidadCursosB4
+      },
+      suma_notas: {
+        b1: sumaNotasB1 > 0 ? sumaNotasB1 : null,
+        b2: sumaNotasB2 > 0 ? sumaNotasB2 : null,
+        b3: sumaNotasB3 > 0 ? sumaNotasB3 : null,
+        b4: sumaNotasB4 > 0 ? sumaNotasB4 : null
+      },
+      promedio: {
+        b1: promedioGeneralB1,
+        b2: promedioGeneralB2,
+        b3: promedioGeneralB3,
+        b4: promedioGeneralB4,
+        final: promedioGeneralFinal
+      },
+      promedio_conducta: {
+        b1: promedioConductaB1,
+        b2: promedioConductaB2,
+        b3: promedioConductaB3,
+        b4: promedioConductaB4
+      },
+      orden_merito: {
+        b1: ordenMeritoB1,
+        b2: ordenMeritoB2,
+        b3: ordenMeritoB3,
+        b4: ordenMeritoB4
+      },
+      inasistencias: {
+        b1: inasistenciasB1,
+        b2: inasistenciasB2,
+        b3: inasistenciasB3,
+        b4: inasistenciasB4
+      },
+      tardanzas: {
+        b1: tardanzasB1,
+        b2: tardanzasB2,
+        b3: tardanzasB3,
+        b4: tardanzasB4
+      }
+    };
 
     res.json({
       alumno: {
@@ -2452,16 +2579,55 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       titulo_intranet: tituloIntranet,
       areas: areasConAsignaturas,
       asignaturas_sin_area: asignaturasSinArea,
-      resumen: {
-        promedio_general: promedioGeneral,
-        total_asignaturas: todasAsignaturas.length
-      }
+      resumen
     });
   } catch (error) {
     console.error('Error obteniendo libreta:', error);
     res.status(500).json({ error: 'Error al obtener libreta', details: error.message });
   }
 });
+
+// Función auxiliar para obtener inasistencias por bimestre
+async function obtenerInasistencias(matriculaId, ciclo, anio) {
+  try {
+    // Obtener rango de fechas del bimestre (esto se puede obtener de configuración)
+    // Por ahora contamos todas las faltas del año
+    const faltas = await query(
+      `SELECT COUNT(*) as total
+       FROM matriculas_asistencias ma
+       INNER JOIN matriculas m ON m.id = ma.matricula_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE ma.matricula_id = ? 
+         AND ma.tipo = 'FALTA'
+         AND g.anio = ?`,
+      [matriculaId, anio]
+    );
+    return faltas.length > 0 ? faltas[0].total : 0;
+  } catch (error) {
+    console.error('Error obteniendo inasistencias:', error);
+    return 0;
+  }
+}
+
+// Función auxiliar para obtener tardanzas por bimestre
+async function obtenerTardanzas(matriculaId, ciclo, anio) {
+  try {
+    const tardanzas = await query(
+      `SELECT COUNT(*) as total
+       FROM matriculas_asistencias ma
+       INNER JOIN matriculas m ON m.id = ma.matricula_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE ma.matricula_id = ? 
+         AND ma.tipo = 'TARDANZA'
+         AND g.anio = ?`,
+      [matriculaId, anio]
+    );
+    return tardanzas.length > 0 ? tardanzas[0].total : 0;
+  } catch (error) {
+    console.error('Error obteniendo tardanzas:', error);
+    return 0;
+  }
+}
 
 /**
  * POST /api/apoderado/hijos/:hijoId/mensajes/enviar
