@@ -2007,7 +2007,14 @@ function ApoderadoHijos() {
       const response = await api.get(`/apoderado/pagos/${pago.id}/boleta`);
       const datosBoleta = response.data;
 
-      const { pago: pagoData, alumno, facturacion } = datosBoleta;
+      const { pago: pagoData, alumno, colegio } = datosBoleta;
+      
+      // Mapear colegio a facturacion para mantener compatibilidad con el código existente
+      const facturacion = {
+        razon_social: colegio?.razon_social || 'Vanguard Schools',
+        ruc: colegio?.ruc || '',
+        logo_url: colegio?.logo_url || null
+      };
 
       // Crear PDF
       const doc = new jsPDF({
