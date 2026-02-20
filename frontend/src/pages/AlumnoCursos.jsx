@@ -85,7 +85,7 @@ function AlumnoCursos() {
     const dropdownWidth = 200;
     const dropdownHeight = 150; // Aproximadamente 3 items
     let left = rect.left;
-    let top = rect.bottom + 5;
+    let top = rect.bottom + 2;
     
     // Si el dropdown se sale por la derecha, ajustar
     if (left + dropdownWidth > window.innerWidth - 10) {
@@ -99,7 +99,7 @@ function AlumnoCursos() {
     
     // Si el dropdown se sale por abajo, mostrarlo arriba
     if (top + dropdownHeight > window.innerHeight - 10) {
-      top = rect.top - dropdownHeight - 5;
+      top = rect.top - dropdownHeight - 2;
       // Asegurar que no se salga por arriba
       if (top < 10) {
         top = 10;
@@ -108,13 +108,13 @@ function AlumnoCursos() {
     
     // Asegurar que top no sea negativo
     if (top < 0) {
-      top = rect.bottom + 5;
+      top = rect.bottom + 2;
     }
     
     setOpenDropdown({
       cursoId,
-      top: top + window.scrollY,
-      left: left + window.scrollX
+      top: top,
+      left: left
     });
   };
   
@@ -152,13 +152,8 @@ function AlumnoCursos() {
     };
     
     if (openDropdown) {
-      // Usar un pequeño delay para evitar que se cierre inmediatamente al abrir
-      const timeoutId = setTimeout(() => {
-        document.addEventListener('mousedown', handleClickOutside);
-      }, 100);
-      
+      document.addEventListener('mousedown', handleClickOutside);
       return () => {
-        clearTimeout(timeoutId);
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
