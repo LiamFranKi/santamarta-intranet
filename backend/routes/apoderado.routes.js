@@ -2360,9 +2360,33 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
           };
         });
 
+        // Calcular promedio del área por bimestre
+        const calcularPromedioArea = (asignaturas, campo) => {
+          const promediosValidos = asignaturas
+            .map(a => a[campo])
+            .filter(p => p !== null && p !== '' && p !== '-');
+          if (promediosValidos.length === 0) return null;
+          const suma = promediosValidos.reduce((sum, p) => {
+            const num = parseFloat(p);
+            return sum + (isNaN(num) ? 0 : num);
+          }, 0);
+          return Math.round(suma / promediosValidos.length);
+        };
+
+        const promedioAreaB1 = calcularPromedioArea(asignaturasConPromedios, 'promedio_b1');
+        const promedioAreaB2 = calcularPromedioArea(asignaturasConPromedios, 'promedio_b2');
+        const promedioAreaB3 = calcularPromedioArea(asignaturasConPromedios, 'promedio_b3');
+        const promedioAreaB4 = calcularPromedioArea(asignaturasConPromedios, 'promedio_b4');
+        const promedioAreaFinal = calcularPromedioArea(asignaturasConPromedios, 'promedio_final');
+
         areasConAsignaturas.push({
           area_id: area.area_id,
           area_nombre: area.area_nombre,
+          promedio_b1: promedioAreaB1,
+          promedio_b2: promedioAreaB2,
+          promedio_b3: promedioAreaB3,
+          promedio_b4: promedioAreaB4,
+          promedio_final: promedioAreaFinal,
           asignaturas: asignaturasConPromedios
         });
       }
