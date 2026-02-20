@@ -4210,7 +4210,17 @@ function DocenteCursos() {
                                         {criterio.indicadores.map(indicador => {
                                           const cuadros = indicador.cuadros || 1;
                                           return Array.from({ length: cuadros }, (_, i) => {
-                                            const valorRaw = notasEditadas[alumno.matricula_id]?.[criterio.id]?.[indicador.id]?.[i];
+                                            // Primero intentar obtener de notasEditadas (notas editadas pero no guardadas)
+                                            let valorRaw = notasEditadas[alumno.matricula_id]?.[criterio.id]?.[indicador.id]?.[i];
+                                            
+                                            // Si no hay en notasEditadas, obtener de notas_detalladas originales
+                                            if (valorRaw === undefined || valorRaw === null || valorRaw === '') {
+                                              const notasOriginales = alumno.notas_detalladas?.[criterio.id]?.[indicador.id];
+                                              if (Array.isArray(notasOriginales) && notasOriginales[i] !== undefined) {
+                                                valorRaw = notasOriginales[i];
+                                              }
+                                            }
+                                            
                                             // Asegurar que el valor sea un string, no un objeto
                                             let valor = '';
                                             if (valorRaw !== undefined && valorRaw !== null && valorRaw !== '') {
