@@ -1618,26 +1618,38 @@ function DocenteCursos() {
           
           if (criterio.indicadores && criterio.indicadores.length > 0) {
             criterio.indicadores.forEach(indicador => {
+              // La estructura de notas_detalladas es: { [criterio_id]: { [indicador_id]: [notas...] } }
               const notasIndicador = alumno.notas_detalladas?.[criterio.id]?.[indicador.id];
-              // Asegurar que notasIndicador sea un array antes de hacer spread
+              
+              // Asegurar que notasIndicador sea un array
               let notasArray = [];
               if (Array.isArray(notasIndicador)) {
-                // Si es un array, asegurar que cada elemento sea un valor primitivo
+                // Si es un array, convertir cada elemento a string (mantener valores numéricos como string)
                 notasArray = notasIndicador.map(nota => {
-                  if (typeof nota === 'object' && nota !== null) {
-                    // Si es un objeto, intentar extraer un valor o usar string vacío
+                  // Si es null, undefined, o string vacío, usar string vacío
+                  if (nota === null || nota === undefined || nota === '') {
                     return '';
                   }
-                  return nota !== null && nota !== undefined ? String(nota) : '';
+                  // Si es un objeto, no debería pasar, pero por seguridad retornar vacío
+                  if (typeof nota === 'object') {
+                    console.warn('Nota es un objeto inesperado:', nota);
+                    return '';
+                  }
+                  // Convertir a string manteniendo el valor numérico
+                  return String(nota);
                 });
               } else if (notasIndicador !== null && notasIndicador !== undefined) {
-                // Si no es array pero tiene valor, verificar si es objeto
+                // Si no es array pero tiene valor
                 if (typeof notasIndicador === 'object') {
+                  // Si es un objeto, intentar convertirlo a array o usar array vacío
+                  console.warn('notasIndicador no es array pero es objeto:', notasIndicador);
                   notasArray = [];
                 } else {
+                  // Si es un valor primitivo, convertirlo a array con un elemento
                   notasArray = [String(notasIndicador)];
                 }
               }
+              // Inicializar con el array (puede estar vacío)
               notasIniciales[alumno.matricula_id][criterio.id][indicador.id] = [...notasArray];
             });
           }
@@ -4187,13 +4199,15 @@ function DocenteCursos() {
                                           const cuadros = indicador.cuadros || 1;
                                           return Array.from({ length: cuadros }, (_, i) => {
                                             const valorRaw = notasEditadas[alumno.matricula_id]?.[criterio.id]?.[indicador.id]?.[i];
-                                            // Asegurar que el valor sea un string o número, no un objeto
+                                            // Asegurar que el valor sea un string, no un objeto
                                             let valor = '';
-                                            if (valorRaw !== undefined && valorRaw !== null) {
+                                            if (valorRaw !== undefined && valorRaw !== null && valorRaw !== '') {
                                               if (typeof valorRaw === 'object') {
-                                                // Si es un objeto, intentar extraer un valor numérico o usar string vacío
+                                                // Si es un objeto, no debería pasar, pero por seguridad usar string vacío
+                                                console.warn('Valor de nota es un objeto:', valorRaw);
                                                 valor = '';
                                               } else {
+                                                // Convertir a string
                                                 valor = String(valorRaw);
                                               }
                                             }
