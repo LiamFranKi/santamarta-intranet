@@ -78,10 +78,31 @@ function AlumnoCursos() {
     if (openDropdown?.cursoId === cursoId) {
       setOpenDropdown(null);
     } else {
+      // Calcular posición del dropdown debajo del botón
+      const dropdownWidth = 200;
+      let left = rect.left;
+      let top = rect.bottom + 5;
+      
+      // Si el dropdown se sale por la derecha, ajustar
+      if (left + dropdownWidth > window.innerWidth - 10) {
+        left = window.innerWidth - dropdownWidth - 10;
+      }
+      
+      // Asegurar que no se salga por la izquierda
+      if (left < 10) {
+        left = 10;
+      }
+      
+      // Si el dropdown se sale por abajo, mostrarlo arriba
+      const dropdownHeight = 150; // Aproximadamente 3 items
+      if (top + dropdownHeight > window.innerHeight - 10) {
+        top = rect.top - dropdownHeight - 5;
+      }
+      
       setOpenDropdown({
         cursoId,
-        top: rect.bottom + window.scrollY + 5,
-        left: rect.left + window.scrollX
+        top: top + window.scrollY,
+        left: left + window.scrollX
       });
     }
   };
@@ -607,7 +628,7 @@ function AlumnoCursos() {
                     >
                       🎓 Aula Virtual
                     </button>
-                    <div className="dropdown-container" style={{ position: 'relative' }}>
+                    <div className="dropdown-container">
                       <button
                         className="btn-opciones"
                         onClick={(e) => handleOpcionesClick(e, curso.asignatura_id)}
@@ -616,17 +637,14 @@ function AlumnoCursos() {
                         ⚙️ Opciones {openDropdown?.cursoId === curso.asignatura_id ? '▲' : '▼'}
                       </button>
                       
-                      {openDropdown?.cursoId === curso.asignatura_id && openDropdown?.top && 
+                      {openDropdown?.cursoId === curso.asignatura_id && openDropdown?.top !== undefined && openDropdown?.left !== undefined && 
                         createPortal(
                           <div 
                             ref={dropdownRef}
                             className="dropdown-menu"
                             style={{
                               top: `${openDropdown.top}px`,
-                              left: `${openDropdown.left}px`,
-                              position: 'fixed',
-                              zIndex: 99999,
-                              minWidth: '200px'
+                              left: `${openDropdown.left}px`
                             }}
                             onClick={(e) => e.stopPropagation()}
                           >
