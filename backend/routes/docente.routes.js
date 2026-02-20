@@ -15442,11 +15442,11 @@ router.get('/aula-virtual/archivos', async (req, res) => {
       return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
     }
 
-    // Obtener archivos de la asignatura filtrados por ciclo
+    // Obtener archivos de la asignatura filtrados por ciclo (ordenados según el orden establecido)
     const archivos = await query(
       `SELECT * FROM asignaturas_archivos
        WHERE asignatura_id = ? AND ciclo = ?
-       ORDER BY id ASC`,
+       ORDER BY orden ASC, id ASC`,
       [asignatura_id, cicloFiltro]
     );
 

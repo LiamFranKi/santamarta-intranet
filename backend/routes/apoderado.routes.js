@@ -2477,7 +2477,7 @@ router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, r
       return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
     }
 
-    // Obtener tareas
+    // Obtener tareas (ordenadas según el orden de creación - id ASC)
     const tareas = await query(
       `SELECT t.*, 
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
@@ -2663,14 +2663,17 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
       return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
     }
 
-    // Obtener exámenes
+    const { ciclo: cicloExamen } = req.query;
+    const cicloFiltroExamen = cicloExamen ? parseInt(cicloExamen) : 1;
+
+    // Obtener exámenes (ordenados según el orden de creación - id ASC)
     const examenes = await query(
       `SELECT ae.*,
               (SELECT COUNT(*) FROM asignaturas_examenes_preguntas WHERE examen_id = ae.id) as total_preguntas
        FROM asignaturas_examenes ae
-       WHERE ae.asignatura_id = ?
-       ORDER BY ae.fecha_desde ASC`,
-      [asignatura_id]
+       WHERE ae.asignatura_id = ? AND ae.ciclo = ?
+       ORDER BY ae.id ASC`,
+      [asignatura_id, cicloFiltroExamen]
     );
 
     res.json({ examenes: examenes || [] });
@@ -2823,15 +2826,18 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
       return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
     }
 
-    // Obtener archivos
+    const { ciclo } = req.query;
+    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
+
+    // Obtener archivos (ordenados según el orden establecido por el docente)
     const archivos = await query(
       `SELECT aa.*, 
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
        FROM asignaturas_archivos aa
        LEFT JOIN personal p ON p.id = aa.trabajador_id
-       WHERE aa.asignatura_id = ?
-       ORDER BY aa.id DESC`,
-      [asignatura_id]
+       WHERE aa.asignatura_id = ? AND aa.ciclo = ?
+       ORDER BY aa.orden ASC, aa.id ASC`,
+      [asignatura_id, cicloFiltro]
     );
 
     // Construir URLs
@@ -2897,15 +2903,18 @@ router.get('/hijos/:hijoId/aula-virtual/videos', soloLecturaProxy, async (req, r
       return res.status(403).json({ error: 'El alumno no tiene acceso a esta asignatura' });
     }
 
-    // Obtener videos
+    const { ciclo: cicloVideo } = req.query;
+    const cicloFiltroVideo = cicloVideo ? parseInt(cicloVideo) : 1;
+
+    // Obtener videos (ordenados según el orden de creación - id ASC)
     const videos = await query(
       `SELECT av.*, 
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
        FROM asignaturas_videos av
        LEFT JOIN personal p ON p.id = av.trabajador_id
-       WHERE av.asignatura_id = ?
-       ORDER BY av.id DESC`,
-      [asignatura_id]
+       WHERE av.asignatura_id = ? AND av.ciclo = ?
+       ORDER BY av.id ASC`,
+      [asignatura_id, cicloFiltroVideo]
     );
 
     res.json({ videos: videos || [] });
