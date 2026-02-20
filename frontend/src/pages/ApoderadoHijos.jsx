@@ -163,9 +163,9 @@ function ApoderadoHijos() {
       setOpenDropdown(null);
     } else {
       console.log('[FRONTEND] Abriendo dropdown para hijoId:', hijoId);
-      // Calcular posición del dropdown (12 opciones: Editar Datos, Cursos, Horario, etc.)
+      // Calcular posición del dropdown (12 opciones, igual que Docente Hijos a Cargo)
       const dropdownWidth = 220;
-      const dropdownMaxHeight = Math.min(420, window.innerHeight - 40); // Scroll si hay muchas opciones
+      const dropdownHeight = 520; // Suficiente para Editar Datos, Cursos, Horario... hasta Psicología y Reiniciar
       let left = rect.left;
       let top = rect.bottom + 2;
       
@@ -179,11 +179,11 @@ function ApoderadoHijos() {
       }
       
       // Si el dropdown se sale por abajo, mostrarlo arriba
-      if (top + dropdownMaxHeight > window.innerHeight - 10) {
-        top = rect.top - dropdownMaxHeight - 2;
+      if (top + dropdownHeight > window.innerHeight - 10) {
+        top = rect.top - dropdownHeight - 2;
       }
       
-      // CRÍTICO: Evitar que "Editar Datos" (primer ítem) quede cortado arriba
+      // Evitar que "Editar Datos" (primer ítem) quede cortado arriba
       if (top < 10) {
         top = 10;
       }
@@ -191,8 +191,7 @@ function ApoderadoHijos() {
       const newDropdown = {
         hijoId,
         top,
-        left,
-        maxHeight: dropdownMaxHeight
+        left
       };
       console.log('[FRONTEND] Nuevo openDropdown configurado:', newDropdown);
       setOpenDropdown(newDropdown);
@@ -3839,9 +3838,7 @@ function ApoderadoHijos() {
                                   top: `${openDropdown.top}px`,
                                   left: `${openDropdown.left}px`,
                                   position: 'fixed',
-                                  zIndex: 99999,
-                                  maxHeight: openDropdown.maxHeight ? `${openDropdown.maxHeight}px` : '420px',
-                                  overflowY: 'auto'
+                                  zIndex: 99999
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                               >
