@@ -334,14 +334,6 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/alumno/calificaciones"
-        element={
-          <PrivateRoute>
-            <AlumnoDashboard />
-          </PrivateRoute>
-        }
-      />
-      <Route
         path="/alumno/horario"
         element={
           <PrivateRoute>

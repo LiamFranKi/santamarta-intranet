@@ -3683,4 +3683,373 @@ router.post('/aula-virtual/tareas/:tareaId/marcar-visto', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/alumno/cursos/:asignaturaId/horario
+ * Obtener horario de un curso específico del alumno
+ */
+router.get('/cursos/:asignaturaId/horario', async (req, res) => {
+  try {
+    const { asignaturaId } = req.params;
+    const { usuario_id, colegio_id, anio_activo } = req.user;
+
+    if (!asignaturaId) {
+      return res.status(400).json({ error: 'ID de asignatura es requerido' });
+    }
+
+    // Obtener datos del alumno
+    const alumno = await query(
+      `SELECT a.id FROM alumnos a INNER JOIN usuarios u ON u.alumno_id = a.id WHERE u.id = ? AND u.colegio_id = ?`,
+      [usuario_id, colegio_id]
+    );
+
+    if (alumno.length === 0) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    const alumnoId = alumno[0].id;
+
+    // Obtener matrícula actual del alumno para obtener su grupo
+    const matricula = await query(
+      `SELECT m.grupo_id FROM matriculas m 
+       INNER JOIN grupos g ON g.id = m.grupo_id 
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4) 
+       LIMIT 1`,
+      [alumnoId, colegio_id, anio_activo]
+    );
+
+    if (matricula.length === 0) {
+      return res.json({ horario: [] });
+    }
+
+    const grupoId = matricula[0].grupo_id;
+
+    // Verificar que el alumno tiene acceso a esta asignatura (debe estar en su grupo)
+    const asignatura = await query(
+      `SELECT a.*, c.id as curso_id, c.nombre as curso_nombre,
+              g.id as grupo_id, g.grado, g.seccion, g.anio,
+              n.nombre as nivel_nombre
+       FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN cursos c ON c.id = a.curso_id
+       WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [asignaturaId, grupoId, colegio_id, anio_activo]
+    );
+
+    if (!asignatura || asignatura.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este curso' });
+    }
+
+    const cursoInfo = asignatura[0];
+    const anioActivoInt = parseInt(anio_activo);
+
+    // Obtener horario específico de este curso
+    const horarioCrudo = await query(
+      `SELECT 
+         gh.id,
+         gh.dia,
+         gh.hora_inicio,
+         gh.hora_final,
+         gh.anio,
+         c.nombre        AS curso_nombre,
+         gh.descripcion  AS descripcion,
+         g.grado,
+         g.seccion,
+         n.nombre        AS nivel_nombre,
+         CONCAT(p.nombres, ' ', p.apellidos) AS docente_nombre
+       FROM grupos_horarios gh
+       LEFT JOIN asignaturas a ON a.id = gh.asignatura_id
+       LEFT JOIN grupos g      ON g.id = a.grupo_id
+       LEFT JOIN niveles n     ON n.id = g.nivel_id
+       LEFT JOIN cursos c      ON c.id = a.curso_id
+       LEFT JOIN personal p    ON p.id = COALESCE(a.personal_id, gh.personal_id)
+       WHERE gh.anio = ?
+         AND a.id = ?
+         AND a.grupo_id = ?
+       ORDER BY gh.dia, 
+         TIME(STR_TO_DATE(gh.hora_inicio, '%l:%i %p')),
+         COALESCE(TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i:%s')), TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i')))`,
+      [anioActivoInt, asignaturaId, grupoId]
+    );
+
+    // Mapear a un formato estándar para el frontend
+    const horario = (horarioCrudo || []).map((row) => {
+      const titulo = row.curso_nombre || row.descripcion || '';
+
+      return {
+        id: row.id,
+        dia: typeof row.dia === 'number' ? row.dia : parseInt(row.dia || 0, 10),
+        inicio: row.hora_inicio,
+        fin: row.hora_final,
+        anio: row.anio,
+        titulo,
+        curso_nombre: row.curso_nombre,
+        docente_nombre: row.docente_nombre || ''
+      };
+    });
+
+    res.json({ 
+      horario,
+      curso: {
+        id: cursoInfo.id,
+        curso_nombre: cursoInfo.curso_nombre,
+        grado: cursoInfo.grado,
+        seccion: cursoInfo.seccion,
+        nivel_nombre: cursoInfo.nivel_nombre,
+        grupo_id: cursoInfo.grupo_id
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo horario del curso:', error);
+    res.status(500).json({ error: 'Error al obtener horario del curso' });
+  }
+});
+
+/**
+ * GET /api/alumno/cursos/:asignaturaId/notas-detalladas
+ * Obtener notas detalladas de un curso específico del alumno
+ */
+router.get('/cursos/:asignaturaId/notas-detalladas', async (req, res) => {
+  try {
+    const { asignaturaId } = req.params;
+    const { usuario_id, colegio_id, anio_activo } = req.user;
+
+    if (!asignaturaId || isNaN(parseInt(asignaturaId))) {
+      return res.status(400).json({ error: 'ID de asignatura inválido' });
+    }
+
+    const asignaturaIdNum = parseInt(asignaturaId);
+
+    // Obtener datos del alumno
+    const alumno = await query(
+      `SELECT a.id FROM alumnos a INNER JOIN usuarios u ON u.alumno_id = a.id WHERE u.id = ? AND u.colegio_id = ?`,
+      [usuario_id, colegio_id]
+    );
+
+    if (alumno.length === 0) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    const alumnoId = alumno[0].id;
+
+    // Obtener matrícula actual del alumno
+    const matricula = await query(
+      `SELECT m.id as matricula_id, m.grupo_id
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [alumnoId, colegio_id, anio_activo]
+    );
+
+    if (!matricula || matricula.length === 0) {
+      return res.json({ asignatura: null });
+    }
+
+    const matriculaId = matricula[0].matricula_id;
+    const grupoId = matricula[0].grupo_id;
+
+    // Verificar que el alumno tiene acceso a esta asignatura (debe estar en su grupo)
+    const asignatura = await query(
+      `SELECT DISTINCT
+              a.id as asignatura_id,
+              c.id as curso_id,
+              c.nombre as curso_nombre,
+              g.nivel_id,
+              n.tipo_calificacion,
+              n.tipo_calificacion_final,
+              n.nota_aprobatoria,
+              n.nota_maxima,
+              n.nota_minima,
+              c.peso_examen_mensual,
+              c.examen_mensual
+       FROM asignaturas a
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ?`,
+      [asignaturaIdNum, grupoId, colegio_id]
+    );
+
+    if (!asignatura || asignatura.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este curso' });
+    }
+
+    const asignaturaData = asignatura[0];
+
+    // Función auxiliar para deserializar notas detalladas
+    const deserializarNotasDetalles = (dataString) => {
+      if (!dataString || dataString === '') {
+        return {};
+      }
+
+      try {
+        try {
+          const deserialized = phpSerialize.unserialize(dataString);
+          return deserialized || {};
+        } catch (e) {
+          try {
+            const decoded = Buffer.from(dataString, 'base64').toString('utf-8');
+            const deserialized = phpSerialize.unserialize(decoded);
+            return deserialized || {};
+          } catch (e2) {
+            console.warn('Error deserializando notas_detalles:', e2);
+            return {};
+          }
+        }
+      } catch (error) {
+        console.warn('Error deserializando notas_detalles:', error);
+        return {};
+      }
+    };
+
+    // Obtener criterios de la asignatura
+    const criterios = await query(
+      `SELECT * FROM asignaturas_criterios
+       WHERE asignatura_id = ? AND colegio_id = ?
+       ORDER BY orden ASC`,
+      [asignaturaIdNum, colegio_id]
+    );
+
+    // Obtener todos los indicadores
+    const criterioIds = criterios.map(c => c.id);
+    let todosIndicadores = [];
+    if (criterioIds.length > 0) {
+      todosIndicadores = await query(
+        `SELECT * FROM asignaturas_indicadores
+         WHERE criterio_id IN (${criterioIds.map(() => '?').join(',')})
+         ORDER BY criterio_id ASC, id ASC`,
+        criterioIds
+      );
+    }
+
+    // Agrupar indicadores por criterio
+    const indicadoresPorCriterio = {};
+    todosIndicadores.forEach(indicador => {
+      if (!indicadoresPorCriterio[indicador.criterio_id]) {
+        indicadoresPorCriterio[indicador.criterio_id] = [];
+      }
+      indicadoresPorCriterio[indicador.criterio_id].push(indicador);
+    });
+
+    // Agregar indicadores a cada criterio
+    const criteriosConIndicadores = criterios.map(criterio => ({
+      ...criterio,
+      indicadores: indicadoresPorCriterio[criterio.id] || []
+    }));
+
+    // Obtener todas las notas detalladas
+    const todasNotasDetalles = await query(
+      `SELECT ciclo, data FROM notas_detalles
+       WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1, 2, 3, 4)`,
+      [matriculaId, asignaturaIdNum]
+    );
+
+    // Obtener todas las notas de criterios
+    const todasNotasCriterios = await query(
+      `SELECT criterio_id, nota, ciclo
+       FROM notas n
+       WHERE n.matricula_id = ? AND n.asignatura_id = ? AND n.ciclo IN (1, 2, 3, 4)`,
+      [matriculaId, asignaturaIdNum]
+    );
+
+    // Obtener todos los exámenes mensuales
+    let todasExamenesMensuales = [];
+    if (asignaturaData.examen_mensual === 'SI') {
+      todasExamenesMensuales = await query(
+        `SELECT nro, nota, ciclo FROM notas_examen_mensual
+         WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1, 2, 3, 4)
+         ORDER BY ciclo ASC, nro ASC`,
+        [matriculaId, asignaturaIdNum]
+      );
+    }
+
+    // Obtener todos los promedios finales
+    const todasPromediosFinales = await query(
+      `SELECT ciclo, promedio_final FROM notas_promedio_final
+       WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1, 2, 3, 4)`,
+      [matriculaId, asignaturaIdNum]
+    );
+
+    // Construir estructura de notas por ciclo
+    const notasPorCiclo = { 1: {}, 2: {}, 3: {}, 4: {} };
+
+    // Procesar notas detalladas
+    todasNotasDetalles.forEach(notaDetalle => {
+      const ciclo = notaDetalle.ciclo;
+      if (ciclo >= 1 && ciclo <= 4) {
+        const deserialized = deserializarNotasDetalles(notaDetalle.data);
+        notasPorCiclo[ciclo] = { ...notasPorCiclo[ciclo], ...deserialized };
+      }
+    });
+
+    // Procesar notas de criterios
+    todasNotasCriterios.forEach(notaCriterio => {
+      const ciclo = notaCriterio.ciclo;
+      if (ciclo >= 1 && ciclo <= 4) {
+        if (!notasPorCiclo[ciclo].criterios) {
+          notasPorCiclo[ciclo].criterios = {};
+        }
+        notasPorCiclo[ciclo].criterios[notaCriterio.criterio_id] = notaCriterio.nota;
+      }
+    });
+
+    // Procesar exámenes mensuales
+    todasExamenesMensuales.forEach(examen => {
+      const ciclo = examen.ciclo;
+      if (ciclo >= 1 && ciclo <= 4) {
+        if (!notasPorCiclo[ciclo].examen_mensual) {
+          notasPorCiclo[ciclo].examen_mensual = {};
+        }
+        notasPorCiclo[ciclo].examen_mensual[examen.nro] = examen.nota;
+      }
+    });
+
+    // Procesar promedios finales
+    todasPromediosFinales.forEach(promedio => {
+      const ciclo = promedio.ciclo;
+      if (ciclo >= 1 && ciclo <= 4) {
+        notasPorCiclo[ciclo].promedio_final = promedio.promedio_final;
+      }
+    });
+
+    // Construir respuesta
+    const criteriosConNotas = criteriosConIndicadores.map(criterio => {
+      const notasCriterio = {};
+      [1, 2, 3, 4].forEach(ciclo => {
+        notasCriterio[ciclo] = notasPorCiclo[ciclo].criterios?.[criterio.id] || null;
+      });
+
+      return {
+        ...criterio,
+        notas: notasCriterio
+      };
+    });
+
+    res.json({
+      asignatura: {
+        asignatura_id: asignaturaData.asignatura_id,
+        curso_id: asignaturaData.curso_id,
+        curso_nombre: asignaturaData.curso_nombre,
+        nivel: {
+          tipo_calificacion: asignaturaData.tipo_calificacion,
+          tipo_calificacion_final: asignaturaData.tipo_calificacion_final,
+          nota_aprobatoria: asignaturaData.nota_aprobatoria,
+          nota_maxima: asignaturaData.nota_maxima,
+          nota_minima: asignaturaData.nota_minima
+        },
+        peso_examen_mensual: asignaturaData.peso_examen_mensual,
+        examen_mensual: asignaturaData.examen_mensual === 'SI',
+        criterios: criteriosConNotas,
+        notas: notasPorCiclo
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo notas detalladas:', error);
+    res.status(500).json({ error: 'Error al obtener notas detalladas' });
+  }
+});
+
 module.exports = router;
