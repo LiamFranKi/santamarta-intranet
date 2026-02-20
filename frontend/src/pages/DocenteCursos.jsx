@@ -1618,8 +1618,10 @@ function DocenteCursos() {
           
           if (criterio.indicadores && criterio.indicadores.length > 0) {
             criterio.indicadores.forEach(indicador => {
-              const notasIndicador = alumno.notas_detalladas?.[criterio.id]?.[indicador.id] || [];
-              notasIniciales[alumno.matricula_id][criterio.id][indicador.id] = [...notasIndicador];
+              const notasIndicador = alumno.notas_detalladas?.[criterio.id]?.[indicador.id];
+              // Asegurar que notasIndicador sea un array antes de hacer spread
+              const notasArray = Array.isArray(notasIndicador) ? notasIndicador : (notasIndicador ? [notasIndicador] : []);
+              notasIniciales[alumno.matricula_id][criterio.id][indicador.id] = [...notasArray];
             });
           }
         });
