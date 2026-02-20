@@ -153,19 +153,9 @@ router.get('/dashboard', async (req, res) => {
       [apoderadoData.id, colegio_id, colegio_id, anio_activo]
     );
 
-    // Contar total de matrículas de todos los hijos
-    const totalMatriculas = await query(
-      `SELECT COUNT(DISTINCT g.anio) as total
-       FROM apoderados ap
-       INNER JOIN familias f ON f.apoderado_id = ap.id
-       INNER JOIN alumnos al ON al.id = f.alumno_id
-       INNER JOIN matriculas m ON m.alumno_id = al.id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE ap.id = ? 
-         AND ap.colegio_id = ?
-         AND m.colegio_id = ?`,
-      [apoderadoData.id, colegio_id, colegio_id]
-    );
+    // Contar total de matrículas de todos los hijos (debe ser igual a totalHijos ya que cada hijo tiene una matrícula en el año activo)
+    // Usar totalHijos directamente ya que la consulta de hijos ya filtra por matrículas activas del año actual
+    const totalMatriculas = [{ total: totalHijos }];
 
     // Contar mensajes no leídos
     const mensajesNoLeidos = await query(

@@ -313,7 +313,7 @@ function ApoderadoDashboard() {
             </div>
           </div>
 
-          <div className="stat-card mundo-card" onClick={abrirModalHijos} style={{ cursor: 'pointer', background: coloresPastelesDashboard[1] }}>
+          <div className="stat-card mundo-card" style={{ background: coloresPastelesDashboard[1] }}>
             <div className="stat-icon">📚</div>
             <div className="stat-content">
               <div className="stat-number">{estadisticas?.totalCursos || 0}</div>
