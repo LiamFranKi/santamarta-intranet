@@ -1872,7 +1872,7 @@ function ApoderadoHijos() {
       setTabAnioActivo(null);
       await cargarPagosHijo(hijo.id);
       // Establecer el primer año como activo
-      const response = await api.get(`/docente/hijos/${hijo.id}/pagos`);
+      const response = await api.get(`/apoderado/hijos/${hijo.id}/pagos`);
       const matriculas = response.data.matriculas || [];
       if (matriculas.length > 0) {
         setTabAnioActivo(matriculas[0].anio);
@@ -4761,19 +4761,19 @@ function ApoderadoHijos() {
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '5px' }}>Monto a Pagar</div>
                           <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#495057' }}>
-                            {formatearMonto(matricula.resumen.total_pagar)}
+                            {formatearMonto(matricula.total_pagar || 0)}
                           </div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '5px' }}>Monto Pagado</div>
                           <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#28a745' }}>
-                            {formatearMonto(matricula.resumen.total_pagado)}
+                            {formatearMonto(matricula.total_pagado || 0)}
                           </div>
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '5px' }}>Monto que Adeuda</div>
-                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: matricula.resumen.total_adeuda > 0 ? '#dc3545' : '#28a745' }}>
-                            {formatearMonto(matricula.resumen.total_adeuda)}
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: (matricula.total_pendiente || 0) > 0 ? '#dc3545' : '#28a745' }}>
+                            {formatearMonto(matricula.total_pendiente || 0)}
                           </div>
                         </div>
                       </div>
