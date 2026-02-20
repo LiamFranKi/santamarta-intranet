@@ -639,6 +639,7 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      <Route path="/dashboard" element={<NavigateToDashboard />} />
       <Route path="/" element={<NavigateToDashboard />} />
     </Routes>
   );
