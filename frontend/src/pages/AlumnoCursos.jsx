@@ -75,36 +75,47 @@ function AlumnoCursos() {
     const button = e.currentTarget;
     const rect = button.getBoundingClientRect();
     
+    // Si el dropdown ya está abierto para este curso, cerrarlo
     if (openDropdown?.cursoId === cursoId) {
       setOpenDropdown(null);
-    } else {
-      // Calcular posición del dropdown debajo del botón
-      const dropdownWidth = 200;
-      let left = rect.left;
-      let top = rect.bottom + 5;
-      
-      // Si el dropdown se sale por la derecha, ajustar
-      if (left + dropdownWidth > window.innerWidth - 10) {
-        left = window.innerWidth - dropdownWidth - 10;
-      }
-      
-      // Asegurar que no se salga por la izquierda
-      if (left < 10) {
-        left = 10;
-      }
-      
-      // Si el dropdown se sale por abajo, mostrarlo arriba
-      const dropdownHeight = 150; // Aproximadamente 3 items
-      if (top + dropdownHeight > window.innerHeight - 10) {
-        top = rect.top - dropdownHeight - 5;
-      }
-      
-      setOpenDropdown({
-        cursoId,
-        top: top + window.scrollY,
-        left: left + window.scrollX
-      });
+      return;
     }
+    
+    // Calcular posición del dropdown debajo del botón
+    const dropdownWidth = 200;
+    const dropdownHeight = 150; // Aproximadamente 3 items
+    let left = rect.left;
+    let top = rect.bottom + 5;
+    
+    // Si el dropdown se sale por la derecha, ajustar
+    if (left + dropdownWidth > window.innerWidth - 10) {
+      left = window.innerWidth - dropdownWidth - 10;
+    }
+    
+    // Asegurar que no se salga por la izquierda
+    if (left < 10) {
+      left = 10;
+    }
+    
+    // Si el dropdown se sale por abajo, mostrarlo arriba
+    if (top + dropdownHeight > window.innerHeight - 10) {
+      top = rect.top - dropdownHeight - 5;
+      // Asegurar que no se salga por arriba
+      if (top < 10) {
+        top = 10;
+      }
+    }
+    
+    // Asegurar que top no sea negativo
+    if (top < 0) {
+      top = rect.bottom + 5;
+    }
+    
+    setOpenDropdown({
+      cursoId,
+      top: top + window.scrollY,
+      left: left + window.scrollX
+    });
   };
   
   // Manejar click en opción del dropdown
@@ -129,14 +140,25 @@ function AlumnoCursos() {
   // Cerrar dropdown al hacer click fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+      // Verificar si el click fue en el botón de opciones
+      const isOpcionesButton = event.target.closest('.btn-opciones');
+      // Verificar si el click fue dentro del dropdown
+      const isInsideDropdown = dropdownRef.current && dropdownRef.current.contains(event.target);
+      
+      // Solo cerrar si el click NO fue en el botón de opciones ni dentro del dropdown
+      if (!isOpcionesButton && !isInsideDropdown) {
         setOpenDropdown(null);
       }
     };
     
     if (openDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
+      // Usar un pequeño delay para evitar que se cierre inmediatamente al abrir
+      const timeoutId = setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+      }, 100);
+      
       return () => {
+        clearTimeout(timeoutId);
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
