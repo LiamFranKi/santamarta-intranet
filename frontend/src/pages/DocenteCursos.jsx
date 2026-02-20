@@ -1609,6 +1609,13 @@ function DocenteCursos() {
       
       setDatosNotas(response.data);
       
+      // DEBUG: Ver estructura de datos recibidos
+      console.log('📊 [CARGAR NOTAS] Datos recibidos:', response.data);
+      if (response.data.alumnos && response.data.alumnos.length > 0) {
+        console.log('📊 [CARGAR NOTAS] Primer alumno:', response.data.alumnos[0]);
+        console.log('📊 [CARGAR NOTAS] notas_detalladas del primer alumno:', response.data.alumnos[0].notas_detalladas);
+      }
+      
       // Inicializar notasEditadas con los datos recibidos
       const notasIniciales = {};
       response.data.alumnos.forEach(alumno => {
@@ -1620,6 +1627,11 @@ function DocenteCursos() {
             criterio.indicadores.forEach(indicador => {
               // La estructura de notas_detalladas es: { [criterio_id]: { [indicador_id]: [notas...] } }
               const notasIndicador = alumno.notas_detalladas?.[criterio.id]?.[indicador.id];
+              
+              // DEBUG: Ver qué hay en notasIndicador
+              if (notasIndicador !== undefined && notasIndicador !== null) {
+                console.log(`📊 [CARGAR NOTAS] Alumno ${alumno.matricula_id}, Criterio ${criterio.id}, Indicador ${indicador.id}:`, notasIndicador, 'Tipo:', typeof notasIndicador, 'Es Array:', Array.isArray(notasIndicador));
+              }
               
               // Asegurar que notasIndicador sea un array
               let notasArray = [];
