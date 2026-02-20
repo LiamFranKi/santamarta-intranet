@@ -163,9 +163,9 @@ function ApoderadoHijos() {
       setOpenDropdown(null);
     } else {
       console.log('[FRONTEND] Abriendo dropdown para hijoId:', hijoId);
-      // Calcular posición del dropdown
-      const dropdownWidth = 200;
-      const dropdownHeight = 450; // Aumentado para incluir el nuevo botón
+      // Calcular posición del dropdown (12 opciones: Editar Datos, Cursos, Horario, etc.)
+      const dropdownWidth = 220;
+      const dropdownMaxHeight = Math.min(420, window.innerHeight - 40); // Scroll si hay muchas opciones
       let left = rect.left;
       let top = rect.bottom + 2;
       
@@ -179,14 +179,20 @@ function ApoderadoHijos() {
       }
       
       // Si el dropdown se sale por abajo, mostrarlo arriba
-      if (top + dropdownHeight > window.innerHeight - 10) {
-        top = rect.top - dropdownHeight - 2;
+      if (top + dropdownMaxHeight > window.innerHeight - 10) {
+        top = rect.top - dropdownMaxHeight - 2;
+      }
+      
+      // CRÍTICO: Evitar que "Editar Datos" (primer ítem) quede cortado arriba
+      if (top < 10) {
+        top = 10;
       }
       
       const newDropdown = {
         hijoId,
         top,
-        left
+        left,
+        maxHeight: dropdownMaxHeight
       };
       console.log('[FRONTEND] Nuevo openDropdown configurado:', newDropdown);
       setOpenDropdown(newDropdown);
@@ -276,13 +282,18 @@ function ApoderadoHijos() {
     
     switch (opcion) {
       case 'editar-datos':
-        // Apoderados no pueden editar datos de los hijos
+        if (!hijo || !hijo.id) {
           Swal.fire({
-          icon: 'info',
-          title: 'No disponible',
-          text: 'Los apoderados no pueden editar los datos de los estudiantes.',
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo obtener el ID del alumno',
             confirmButtonText: 'Entendido'
           });
+          return;
+        }
+        await cargarDatosHijo(hijo.id);
+        setHijoSeleccionado(hijo);
+        setShowModalEditar(true);
         break;
       case 'cursos-asignados':
         await handleVerCursos(hijo);
@@ -3828,10 +3839,23 @@ function ApoderadoHijos() {
                                   top: `${openDropdown.top}px`,
                                   left: `${openDropdown.left}px`,
                                   position: 'fixed',
-                                  zIndex: 99999
+                                  zIndex: 99999,
+                                  maxHeight: openDropdown.maxHeight ? `${openDropdown.maxHeight}px` : '420px',
+                                  overflowY: 'auto'
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                               >
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOpcionClick('editar-datos', hijo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">✏️</span>
+                                  <span>Editar Datos</span>
+                                </button>
                                 <button
                                   className="dropdown-item"
                                   type="button"
@@ -4018,6 +4042,186 @@ function ApoderadoHijos() {
           </div>
         )}
       </div>
+
+      {/* Modal Editar Datos */}
+      {showModalEditar && hijoSeleccionado && createPortal(
+        <div className="modal-overlay" onClick={() => !saving && setShowModalEditar(false)}>
+          <div className="modal-content modal-editar-hijo" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>✏️ Editar Datos del Alumno</h2>
+              <button 
+                className="modal-close-btn"
+                onClick={() => !saving && setShowModalEditar(false)}
+                disabled={saving}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleGuardarDatos} className="modal-form">
+              {/* Sección de Foto */}
+              <div className="modal-section">
+                <h3 className="section-title">Foto de Perfil</h3>
+                <div className="foto-upload-container">
+                  <div className="foto-preview-wrapper">
+                    <div className="foto-preview">
+                      {fotoPreview ? (
+                        <img 
+                          src={fotoPreview} 
+                          alt="Foto de perfil"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            const placeholder = e.target.parentElement.querySelector('.foto-placeholder');
+                            if (placeholder) placeholder.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <div className="foto-placeholder" style={{ display: fotoPreview ? 'none' : 'flex' }}>
+                        {getInitials(`${formData.nombres} ${formData.apellido_paterno}`)}
+                      </div>
+                    </div>
+                    {uploadingPhoto && (
+                      <div className="photo-upload-overlay">
+                        <div className="upload-spinner">
+                          <div className="spinner-ring"></div>
+                          <div className="spinner-ring"></div>
+                          <div className="spinner-ring"></div>
+                        </div>
+                        <p className="upload-text">Subiendo foto...</p>
+                      </div>
+                    )}
+                  </div>
+                  <label className="foto-upload-btn" style={{ opacity: uploadingPhoto ? 0.6 : 1, pointerEvents: uploadingPhoto ? 'none' : 'auto' }}>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFotoChange}
+                      style={{ display: 'none' }}
+                      disabled={uploadingPhoto || saving}
+                    />
+                    📷 Cambiar Foto
+                  </label>
+                  <p className="foto-hint">Formatos: JPG, PNG, GIF, WEBP (máx. 5MB)</p>
+                </div>
+              </div>
+
+              {/* Información Personal */}
+              <div className="modal-section">
+                <h3 className="section-title">Información Personal</h3>
+                <div className="form-grid">
+                  <div className="form-group">
+                    <label htmlFor="nombres">Nombres *</label>
+                    <input
+                      type="text"
+                      id="nombres"
+                      name="nombres"
+                      value={formData.nombres}
+                      onChange={handleInputChange}
+                      required
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="apellido_paterno">Apellido Paterno *</label>
+                    <input
+                      type="text"
+                      id="apellido_paterno"
+                      name="apellido_paterno"
+                      value={formData.apellido_paterno}
+                      onChange={handleInputChange}
+                      required
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="apellido_materno">Apellido Materno</label>
+                    <input
+                      type="text"
+                      id="apellido_materno"
+                      name="apellido_materno"
+                      value={formData.apellido_materno}
+                      onChange={handleInputChange}
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="email">Email</label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={handleInputChange}
+                      disabled={saving}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="sexo">Sexo</label>
+                    <select
+                      id="sexo"
+                      name="sexo"
+                      value={formData.sexo}
+                      onChange={handleInputChange}
+                      disabled={saving}
+                    >
+                      <option value="">Seleccionar...</option>
+                      <option value="0">Masculino</option>
+                      <option value="1">Femenino</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="fecha_nacimiento">Fecha de Nacimiento</label>
+                    <input
+                      type="date"
+                      id="fecha_nacimiento"
+                      name="fecha_nacimiento"
+                      value={formData.fecha_nacimiento}
+                      onChange={handleInputChange}
+                      disabled={saving}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Información de Solo Lectura */}
+              <div className="modal-section">
+                <h3 className="section-title">Información del Sistema</h3>
+                <div className="info-grid">
+                  <div className="info-item">
+                    <span className="info-label">DNI:</span>
+                    <span className="info-value">{dniHijo}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botones */}
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn-cancelar"
+                  onClick={() => !saving && setShowModalEditar(false)}
+                  disabled={saving}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="btn-guardar"
+                  disabled={saving}
+                >
+                  {saving ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Modal QR del Hijo */}
       {showModalQR && createPortal(
