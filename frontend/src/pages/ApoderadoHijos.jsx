@@ -277,12 +277,12 @@ function ApoderadoHijos() {
     switch (opcion) {
       case 'editar-datos':
         // Apoderados no pueden editar datos de los hijos
-        Swal.fire({
+          Swal.fire({
           icon: 'info',
           title: 'No disponible',
           text: 'Los apoderados no pueden editar los datos de los estudiantes.',
-          confirmButtonText: 'Entendido'
-        });
+            confirmButtonText: 'Entendido'
+          });
         break;
       case 'cursos-asignados':
         await handleVerCursos(hijo);
@@ -2007,14 +2007,7 @@ function ApoderadoHijos() {
       const response = await api.get(`/apoderado/pagos/${pago.id}/boleta`);
       const datosBoleta = response.data;
 
-      const { pago: pagoData, alumno, colegio } = datosBoleta;
-      
-      // Mapear colegio a facturacion para mantener compatibilidad con el código existente
-      const facturacion = {
-        razon_social: colegio?.razon_social || 'Vanguard Schools',
-        ruc: colegio?.ruc || '',
-        logo_url: colegio?.logo_url || null
-      };
+      const { pago: pagoData, alumno, facturacion } = datosBoleta;
 
       // Crear PDF
       const doc = new jsPDF({

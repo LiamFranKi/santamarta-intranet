@@ -1916,9 +1916,10 @@ router.get('/pagos/:pagoId/boleta', async (req, res) => {
         serie: impresion[0].serie,
         serie_numero: `${String(impresion[0].serie).padStart(3, '0')}-${String(impresion[0].numero).padStart(7, '0')}`
       } : null,
-      colegio: {
+      facturacion: {
         razon_social: facturacion.razon_social || 'Vanguard Schools',
         ruc: facturacion.ruc || '',
+        direccion: facturacion.direccion || '',
         logo_url: logoUrl
       }
     });
