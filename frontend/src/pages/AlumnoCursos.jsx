@@ -661,11 +661,10 @@ function AlumnoCursos() {
                             className="dropdown-menu"
                             style={{
                               top: `${openDropdown.top}px`,
-                              left: `${openDropdown.left}px`,
-                              position: 'fixed',
-                              zIndex: 99999
+                              left: `${openDropdown.left}px`
                             }}
                             onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
                           >
                             <button
                               className="dropdown-item"
