@@ -2824,8 +2824,13 @@ function DocenteHijos() {
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      doc.text('', margin, yPos); // Espacio para recomendaciones
-      yPos += 15;
+      const textoRecomendaciones = (datosLibreta.recomendaciones || '').trim() || '(Sin recomendaciones)';
+      const lineasRecomendaciones = doc.splitTextToSize(textoRecomendaciones, pageWidth - 2 * margin);
+      lineasRecomendaciones.forEach((linea) => {
+        doc.text(linea, margin, yPos);
+        yPos += 5;
+      });
+      yPos += 10;
 
       // Firma solo de Dirección Académica (centrada)
       doc.setFontSize(8);
