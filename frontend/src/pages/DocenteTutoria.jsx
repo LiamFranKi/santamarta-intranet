@@ -1831,11 +1831,11 @@ function DocenteTutoria() {
 
                     const opciones = [
                       { id: 'lista-alumnos', label: 'Lista de Alumnos', icon: '📋' },
+                      { id: 'cursos-asignados', label: 'Cursos Asignados', icon: '📚' },
                       { id: 'notas-asistencia', label: 'Ver Notas', icon: '📊' },
                       { id: 'enviar-comunicado', label: 'Enviar Mensaje', icon: '✉️' },
                       { id: 'registrar-asistencia', label: 'Asistencias', icon: '✅' },
                       { id: 'apreciaciones-recomendaciones', label: 'Recomendaciones', icon: '💬' },
-                      { id: 'cursos-asignados', label: 'Cursos Asignados', icon: '📚' },
                       { id: 'registrar-conducta', label: 'Registrar Conducta', icon: '📝' }
                     ];
 
