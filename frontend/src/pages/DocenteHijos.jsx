@@ -2572,14 +2572,14 @@ function DocenteHijos() {
       yPos += headerHeight + 5; // 5mm de espacio entre cuadros
 
       // Tabla de áreas curriculares - columnas dinámicas según bimestre seleccionado
-      const ciclo = datosLibreta.ciclo || 1;
-      const numCols = ciclo + 1; // B-1..B-N + PF
+      const cicloSel = datosLibreta.ciclo || ciclo || 1;
+      const numCols = cicloSel + 1;
       const colAreaWidth = 80;
       const colBimestreWidth = (contentWidth - colAreaWidth) / numCols;
 
       const getPromedioFinalHastaCiclo = (obj) => {
         const vals = [];
-        for (let c = 1; c <= ciclo; c++) {
+        for (let c = 1; c <= cicloSel; c++) {
           const v = obj[`promedio_b${c}`];
           if (v !== null && v !== '' && v !== '-') vals.push(parseFloat(v));
         }
@@ -2595,7 +2595,7 @@ function DocenteHijos() {
       doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
       doc.text('ÁREAS CURRICULARES', margin + colAreaWidth / 2, yPos + 3.5, { align: 'center' });
       let xPos = margin + colAreaWidth;
-      for (let c = 1; c <= ciclo; c++) {
+      for (let c = 1; c <= cicloSel; c++) {
         doc.setFillColor(...colorLabel);
         doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
         doc.text(`B - ${c}`, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
@@ -2616,7 +2616,7 @@ function DocenteHijos() {
           yPos = margin;
         }
         const areaValores = [];
-        for (let c = 1; c <= ciclo; c++) areaValores.push(area[`promedio_b${c}`]);
+        for (let c = 1; c <= cicloSel; c++) areaValores.push(area[`promedio_b${c}`]);
         areaValores.push(getPromedioFinalHastaCiclo(area));
 
         doc.setFont('helvetica', 'bold');
@@ -2640,7 +2640,7 @@ function DocenteHijos() {
             yPos = margin + paddingVertical;
           }
           const asigValores = [];
-          for (let c = 1; c <= ciclo; c++) asigValores.push(asignatura[`promedio_b${c}`]);
+          for (let c = 1; c <= cicloSel; c++) asigValores.push(asignatura[`promedio_b${c}`]);
           asigValores.push(getPromedioFinalHastaCiclo(asignatura));
 
           doc.setFillColor(...colorData);
@@ -2665,7 +2665,7 @@ function DocenteHijos() {
             yPos = margin + paddingVertical;
           }
           const asigValores = [];
-          for (let c = 1; c <= ciclo; c++) asigValores.push(asignatura[`promedio_b${c}`]);
+          for (let c = 1; c <= cicloSel; c++) asigValores.push(asignatura[`promedio_b${c}`]);
           asigValores.push(getPromedioFinalHastaCiclo(asignatura));
 
           doc.setFillColor(...colorData);
@@ -2696,13 +2696,13 @@ function DocenteHijos() {
       yPos += headerHeight;
 
       doc.setFont('helvetica', 'normal');
-      const cantB = []; for (let c = 1; c <= ciclo; c++) cantB.push(resumen.cantidad_cursos[`b${c}`]);
-      const sumaB = []; for (let c = 1; c <= ciclo; c++) sumaB.push(resumen.suma_notas[`b${c}`]);
-      const promB = []; for (let c = 1; c <= ciclo; c++) promB.push(resumen.promedio[`b${c}`]);
-      const condB = []; for (let c = 1; c <= ciclo; c++) condB.push(resumen.promedio_conducta[`b${c}`]);
-      const ordB = []; for (let c = 1; c <= ciclo; c++) ordB.push(resumen.orden_merito[`b${c}`]);
-      const inasB = []; for (let c = 1; c <= ciclo; c++) inasB.push(resumen.inasistencias[`b${c}`]);
-      const tardB = []; for (let c = 1; c <= ciclo; c++) tardB.push(resumen.tardanzas[`b${c}`]);
+      const cantB = []; for (let c = 1; c <= cicloSel; c++) cantB.push(resumen.cantidad_cursos[`b${c}`]);
+      const sumaB = []; for (let c = 1; c <= cicloSel; c++) sumaB.push(resumen.suma_notas[`b${c}`]);
+      const promB = []; for (let c = 1; c <= cicloSel; c++) promB.push(resumen.promedio[`b${c}`]);
+      const condB = []; for (let c = 1; c <= cicloSel; c++) condB.push(resumen.promedio_conducta[`b${c}`]);
+      const ordB = []; for (let c = 1; c <= cicloSel; c++) ordB.push(resumen.orden_merito[`b${c}`]);
+      const inasB = []; for (let c = 1; c <= cicloSel; c++) inasB.push(resumen.inasistencias[`b${c}`]);
+      const tardB = []; for (let c = 1; c <= cicloSel; c++) tardB.push(resumen.tardanzas[`b${c}`]);
 
       const dibFila = (label, arr, def = '-') => {
         doc.setFillColor(...colorLabel);
