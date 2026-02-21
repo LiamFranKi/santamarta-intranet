@@ -1732,9 +1732,14 @@ function DocenteCursos() {
     setForceUpdate(prev => prev + 1);
   };
 
-  // Calcular promedio de un indicador
+  // Calcular promedio de un indicador (usa notasEditadas si existe; si no, datos originales)
   const calcularPromedioIndicador = (matriculaId, criterioId, indicadorId) => {
-    const notas = notasEditadas[matriculaId]?.[criterioId]?.[indicadorId] || [];
+    let notas = notasEditadas[matriculaId]?.[criterioId]?.[indicadorId];
+    if (notas === undefined) {
+      const alumno = datosNotas?.alumnos?.find(a => a.matricula_id === matriculaId);
+      notas = alumno?.notas_detalladas?.[criterioId]?.[indicadorId];
+    }
+    if (!Array.isArray(notas)) notas = [];
     const notasValidas = notas
       .map(n => parseFloat(n))
       .filter(n => !isNaN(n) && n !== null && n !== '');
@@ -1762,7 +1767,7 @@ function DocenteCursos() {
     } else {
       // Si no hay indicadores, usar la nota directa
       // Si hay una entrada en notasEditadas (incluso vacía), usar solo esa
-      if (notasEditadas[matriculaId]?.[criterioId]?.hasOwnProperty('directa')) {
+      if (notasEditadas[matriculaId]?.[criterioId] && 'directa' in notasEditadas[matriculaId][criterioId]) {
         const notaDirecta = notasEditadas[matriculaId][criterioId].directa;
         if (notaDirecta && notaDirecta !== '') {
           const nota = parseFloat(notaDirecta);
@@ -4229,10 +4234,10 @@ function DocenteCursos() {
                                           const cuadros = indicador.cuadros || 1;
                                           return Array.from({ length: cuadros }, (_, i) => {
                                             // Primero intentar obtener de notasEditadas (notas editadas pero no guardadas)
-                                            let valorRaw = notasEditadas[alumno.matricula_id]?.[criterio.id]?.[indicador.id]?.[i];
-                                            
-                                            // Si no hay en notasEditadas, obtener de notas_detalladas originales
-                                            if (valorRaw === undefined || valorRaw === null || valorRaw === '') {
+                                            const arrEditado = notasEditadas[alumno.matricula_id]?.[criterio.id]?.[indicador.id];
+                                            let valorRaw = Array.isArray(arrEditado) && i < arrEditado.length ? arrEditado[i] : undefined;
+                                            // Solo si NO fue editado (undefined), usar datos originales. Si el usuario borró, valorRaw es ''
+                                            if (valorRaw === undefined) {
                                               const notasOriginales = alumno.notas_detalladas?.[criterio.id]?.[indicador.id];
                                               if (Array.isArray(notasOriginales) && notasOriginales[i] !== undefined) {
                                                 valorRaw = notasOriginales[i];
@@ -4290,8 +4295,11 @@ function DocenteCursos() {
                                         <input
                                           type="text"
                                           className="box"
-                                          value={notasEditadas[alumno.matricula_id]?.[criterio.id]?.directa || 
-                                                 alumno.notas_criterios?.[criterio.id] || ''}
+                                          value={
+                                            (notasEditadas[alumno.matricula_id]?.[criterio.id] && 'directa' in notasEditadas[alumno.matricula_id][criterio.id])
+                                              ? (notasEditadas[alumno.matricula_id][criterio.id].directa ?? '')
+                                              : (alumno.notas_criterios?.[criterio.id] || '')
+                                          }
                                           onChange={(e) => {
                                             const nuevoValor = e.target.value;
                                             if (nuevoValor === '' || 
@@ -4336,8 +4344,11 @@ function DocenteCursos() {
                                     <input
                                       type="text"
                                       className="box"
-                                      value={notasEditadas[alumno.matricula_id]?.examen_mensual?.[1] || 
-                                             alumno.examenes_mensuales?.[1] || ''}
+                                      value={
+                                        (notasEditadas[alumno.matricula_id]?.examen_mensual && '1' in notasEditadas[alumno.matricula_id].examen_mensual)
+                                          ? (notasEditadas[alumno.matricula_id].examen_mensual[1] ?? '')
+                                          : (alumno.examenes_mensuales?.[1] || '')
+                                      }
                                       onChange={(e) => {
                                         const nuevoValor = e.target.value;
                                         if (nuevoValor === '' || 
@@ -4360,8 +4371,11 @@ function DocenteCursos() {
                                     <input
                                       type="text"
                                       className="box"
-                                      value={notasEditadas[alumno.matricula_id]?.examen_mensual?.[2] || 
-                                             alumno.examenes_mensuales?.[2] || ''}
+                                      value={
+                                        (notasEditadas[alumno.matricula_id]?.examen_mensual && '2' in notasEditadas[alumno.matricula_id].examen_mensual)
+                                          ? (notasEditadas[alumno.matricula_id].examen_mensual[2] ?? '')
+                                          : (alumno.examenes_mensuales?.[2] || '')
+                                      }
                                       onChange={(e) => {
                                         const nuevoValor = e.target.value;
                                         if (nuevoValor === '' || 
