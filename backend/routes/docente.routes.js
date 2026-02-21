@@ -5892,6 +5892,199 @@ router.post('/tutoria/grupos/:grupoId/asistencia/guardar-todo', async (req, res)
   }
 });
 
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/recomendaciones?ciclo=1
+ * Obtener alumnos del grupo con sus recomendaciones por bimestre
+ */
+router.get('/tutoria/grupos/:grupoId/recomendaciones', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    const ciclo = parseInt(req.query.ciclo) || 1;
+
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    const grupoTutor = await query(
+      `SELECT g.*, n.nombre as nivel_nombre FROM grupos g INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const matriculas = await query(
+      `SELECT m.id as matricula_id, a.id as alumno_id,
+              CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
+              m.recomendaciones
+       FROM matriculas m INNER JOIN alumnos a ON a.id = m.alumno_id
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
+      [grupoId, colegio_id]
+    );
+
+    const phpSerialize = require('php-serialize');
+    const lista = matriculas.map((m, i) => {
+      let descripcion = '';
+      if (m.recomendaciones) {
+        try {
+          const decoded = Buffer.from(m.recomendaciones, 'base64').toString('binary');
+          const deserialized = phpSerialize.unserialize(decoded);
+          if (deserialized && deserialized[ciclo] && deserialized[ciclo].descripcion) {
+            descripcion = deserialized[ciclo].descripcion || '';
+          }
+        } catch (e) { /* ignore */ }
+      }
+      return { numero: i + 1, matricula_id: m.matricula_id, nombre_completo: m.nombre_completo, recomendacion: descripcion };
+    });
+
+    res.json({ grupo: grupoTutor[0], alumnos: lista, ciclo });
+  } catch (error) {
+    console.error('Error obteniendo recomendaciones:', error);
+    res.status(500).json({ error: 'Error al obtener recomendaciones' });
+  }
+});
+
+/**
+ * POST /api/docente/tutoria/grupos/:grupoId/recomendaciones
+ * Guardar recomendaciones por bimestre
+ */
+router.post('/tutoria/grupos/:grupoId/recomendaciones', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    const { ciclo, recomendaciones } = req.body; // recomendaciones: { matricula_id: texto }
+
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    const cicloInt = parseInt(ciclo) || 1;
+    if (cicloInt < 1 || cicloInt > 4) return res.status(400).json({ error: 'Ciclo inválido' });
+
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const phpSerialize = require('php-serialize');
+    for (const [matriculaId, descripcion] of Object.entries(recomendaciones || {})) {
+      const rows = await query(`SELECT id, recomendaciones FROM matriculas WHERE id = ? AND grupo_id = ?`, [matriculaId, grupoId]);
+      if (rows.length === 0) continue;
+
+      let rec = {};
+      if (rows[0].recomendaciones) {
+        try {
+          const decoded = Buffer.from(rows[0].recomendaciones, 'base64').toString('binary');
+          rec = phpSerialize.unserialize(decoded) || {};
+        } catch (e) { }
+      }
+      rec[cicloInt] = { descripcion: String(descripcion || '').trim(), personal: personalId };
+      const serialized = phpSerialize.serialize(rec);
+      const encoded = Buffer.from(serialized, 'binary').toString('base64');
+      await execute(`UPDATE matriculas SET recomendaciones = ? WHERE id = ?`, [encoded, matriculaId]);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error guardando recomendaciones:', error);
+    res.status(500).json({ error: 'Error al guardar recomendaciones' });
+  }
+});
+
+const ASIGNATURA_CONDUCTA = -101;
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/conducta?ciclo=1
+ * Obtener alumnos del grupo con nota de conducta por bimestre (default 20)
+ */
+router.get('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    const ciclo = parseInt(req.query.ciclo) || 1;
+
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    const grupoTutor = await query(
+      `SELECT g.*, n.nombre as nivel_nombre FROM grupos g INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const matriculas = await query(
+      `SELECT m.id as matricula_id, a.id as alumno_id,
+              CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo
+       FROM matriculas m INNER JOIN alumnos a ON a.id = m.alumno_id
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
+      [grupoId, colegio_id]
+    );
+
+    const promedios = await query(
+      `SELECT matricula_id, promedio FROM promedios WHERE asignatura_id = ? AND ciclo = ? AND matricula_id IN (${matriculas.map(() => '?').join(',')})`,
+      [ASIGNATURA_CONDUCTA, ciclo, ...matriculas.map(m => m.matricula_id)]
+    );
+    const mapaProm = {};
+    promedios.forEach(p => { mapaProm[p.matricula_id] = p.promedio; });
+
+    const lista = matriculas.map((m, i) => {
+      const nota = mapaProm[m.matricula_id];
+      return {
+        numero: i + 1,
+        matricula_id: m.matricula_id,
+        nombre_completo: m.nombre_completo,
+        nota_conducta: nota !== undefined && nota !== null && nota !== '' ? String(nota) : '20'
+      };
+    });
+
+    res.json({ grupo: grupoTutor[0], alumnos: lista, ciclo });
+  } catch (error) {
+    console.error('Error obteniendo conducta:', error);
+    res.status(500).json({ error: 'Error al obtener conducta' });
+  }
+});
+
+/**
+ * POST /api/docente/tutoria/grupos/:grupoId/conducta
+ * Guardar notas de conducta por bimestre
+ */
+router.post('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    const { ciclo, notas } = req.body; // notas: { matricula_id: nota }
+
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    const cicloInt = parseInt(ciclo) || 1;
+    if (cicloInt < 1 || cicloInt > 4) return res.status(400).json({ error: 'Ciclo inválido' });
+
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    for (const [matriculaId, nota] of Object.entries(notas || {})) {
+      const val = String(nota || '20').trim();
+      if (!/^\d{1,2}$/.test(val) || parseInt(val) < 0 || parseInt(val) > 20) continue;
+
+      await execute(
+        `DELETE FROM promedios WHERE matricula_id = ? AND asignatura_id = ? AND ciclo = ?`,
+        [matriculaId, ASIGNATURA_CONDUCTA, cicloInt]
+      );
+      await execute(
+        `INSERT INTO promedios (matricula_id, asignatura_id, ciclo, promedio) VALUES (?, ?, ?, ?)`,
+        [matriculaId, ASIGNATURA_CONDUCTA, cicloInt, val]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error guardando conducta:', error);
+    res.status(500).json({ error: 'Error al guardar conducta' });
+  }
+});
+
 router.get('/roles-adicionales', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user;
@@ -9782,14 +9975,36 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       }
     };
 
+    // Recomendaciones desde matriculas
+    let recomendacionesTexto = '';
+    const matriculaRow = await query(`SELECT recomendaciones FROM matriculas WHERE id = ?`, [matriculaId]);
+    if (matriculaRow && matriculaRow[0] && matriculaRow[0].recomendaciones) {
+      try {
+        const phpSerialize = require('php-serialize');
+        const decoded = Buffer.from(matriculaRow[0].recomendaciones, 'base64').toString('binary');
+        const deserialized = phpSerialize.unserialize(decoded);
+        if (deserialized && typeof deserialized === 'object') {
+          const partes = [];
+          for (let c = 1; c <= 4; c++) {
+            if (deserialized[c] && deserialized[c].descripcion && String(deserialized[c].descripcion).trim()) {
+              partes.push(`Bimestre ${c}: ${String(deserialized[c].descripcion).trim()}`);
+            }
+          }
+          if (partes.length > 0) recomendacionesTexto = partes.join('\n');
+        }
+      } catch (e) { /* ignore */ }
+    }
+
     console.log(`✅ [HIJOS-LIBRETA] Libreta obtenida exitosamente`);
     console.log(`🔵 ========== [HIJOS-LIBRETA] FIN DE PETICIÓN ==========\n`);
 
     res.json({
       alumno,
+      titulo_intranet: tituloIntranet,
       areas: areasConAsignaturas,
       asignaturas_sin_area: asignaturasSinArea,
-      resumen
+      resumen,
+      recomendaciones: recomendacionesTexto
     });
   } catch (error) {
     console.error('❌ [HIJOS-LIBRETA] Error obteniendo libreta:', error);
@@ -9814,16 +10029,20 @@ function calcularPromedioArea(asignaturas, campo) {
   return Math.round(suma / promediosValidos.length);
 }
 
-// Función auxiliar para obtener promedio de conducta
+// Función auxiliar para obtener promedio de conducta (asignatura_id = -101)
 async function obtenerPromedioConducta(matriculaId, ciclo) {
   try {
-    // Buscar en promedios con asignatura_id especial para conducta
-    // O buscar en alguna tabla específica de conducta
-    // Por ahora retornamos null, se puede implementar después
-    return null;
+    const rows = await query(
+      `SELECT promedio FROM promedios WHERE matricula_id = ? AND asignatura_id = -101 AND ciclo = ?`,
+      [matriculaId, ciclo]
+    );
+    if (rows && rows.length > 0 && rows[0].promedio !== null && rows[0].promedio !== '' && rows[0].promedio !== '-') {
+      return rows[0].promedio;
+    }
+    return '20'; // default
   } catch (error) {
     console.error('Error obteniendo promedio conducta:', error);
-    return null;
+    return '20';
   }
 }
 

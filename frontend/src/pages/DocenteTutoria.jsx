@@ -25,9 +25,6 @@ function DocenteTutoria() {
   const [openDropdownAlumno, setOpenDropdownAlumno] = useState(null); // { id, top, left } o null
   const [alumnoInfo, setAlumnoInfo] = useState(null); // Información completa del alumno seleccionado
   const [loadingAlumnoInfo, setLoadingAlumnoInfo] = useState(false);
-  const [mostrarRecomendacion, setMostrarRecomendacion] = useState(false);
-  const [alumnoSeleccionado, setAlumnoSeleccionado] = useState(null);
-  const [recomendacion, setRecomendacion] = useState('');
   const dropdownRef = useRef(null);
   
   // Estados para Cursos Asignados
@@ -61,6 +58,22 @@ function DocenteTutoria() {
   const [asistenciaAlumnos, setAsistenciaAlumnos] = useState([]);
   const [loadingAsistencias, setLoadingAsistencias] = useState(false);
   const [guardandoAsistencia, setGuardandoAsistencia] = useState(null);
+
+  // Estados para modal Recomendaciones
+  const [mostrarModalRecomendaciones, setMostrarModalRecomendaciones] = useState(false);
+  const [grupoParaRecomendaciones, setGrupoParaRecomendaciones] = useState(null);
+  const [recomendacionesCiclo, setRecomendacionesCiclo] = useState(1);
+  const [recomendacionesAlumnos, setRecomendacionesAlumnos] = useState([]);
+  const [loadingRecomendaciones, setLoadingRecomendaciones] = useState(false);
+  const [guardandoRecomendaciones, setGuardandoRecomendaciones] = useState(false);
+
+  // Estados para modal Conducta
+  const [mostrarModalConducta, setMostrarModalConducta] = useState(false);
+  const [grupoParaConducta, setGrupoParaConducta] = useState(null);
+  const [conductaCiclo, setConductaCiclo] = useState(1);
+  const [conductaAlumnos, setConductaAlumnos] = useState([]);
+  const [loadingConducta, setLoadingConducta] = useState(false);
+  const [guardandoConducta, setGuardandoConducta] = useState(false);
 
   // Estados para modal de mensaje a alumno individual
   const [mostrarModalMensajeAlumno, setMostrarModalMensajeAlumno] = useState(false);
@@ -366,9 +379,8 @@ function DocenteTutoria() {
     setOpenDropdown(null);
     
     // Solo establecer selectedGrupo si realmente necesitamos cambiar la vista
-    // No establecerlo para modales que no cambian la vista principal
-    const opcionesQueCambianVista = ['lista-alumnos', 'apreciaciones-recomendaciones', 'cursos-asignados'];
-    
+    const opcionesQueCambianVista = ['lista-alumnos', 'cursos-asignados'];
+
     if (opcionesQueCambianVista.includes(opcion)) {
     setSelectedGrupo(grupo);
     }
@@ -381,8 +393,6 @@ function DocenteTutoria() {
         await handleVerNotasPDF(grupo);
         break;
       case 'enviar-comunicado':
-        // Abrir modal de mensaje al grupo
-        // NO cambiar selectedGrupo para mantener la vista de grupos
         setGrupoParaMensaje(grupo);
         setMostrarModalMensajeGrupo(true);
         setAsuntoMensajeGrupo('');
@@ -393,23 +403,13 @@ function DocenteTutoria() {
         await handleAbrirAsistencias(grupo);
         break;
       case 'apreciaciones-recomendaciones':
-        await cargarAlumnos(grupo.id);
-        setMostrarRecomendacion(true);
+        await handleAbrirRecomendaciones(grupo);
         break;
       case 'cursos-asignados':
         await handleVerCursos(grupo);
         break;
       case 'registrar-conducta':
-        // Implementar después
-        Swal.fire({
-          icon: 'info',
-          title: 'Próximamente',
-          text: 'Esta funcionalidad se implementará próximamente',
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
-          timer: 3000
-        });
+        await handleAbrirConducta(grupo);
         break;
       default:
         break;
@@ -514,13 +514,13 @@ function DocenteTutoria() {
 
       const ok = generarPDFNotasTutoria(cursosData, grupoInfo);
       if (ok) {
-        Swal.fire({
-          icon: 'success',
+      Swal.fire({
+        icon: 'success',
           title: '¡PDF Generado!',
           text: `Se descargó el reporte de notas de ${cursosData.length} curso(s)`,
-          toast: true,
-          position: 'top-end',
-          showConfirmButton: false,
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
           timer: 3000
         });
       }
@@ -607,6 +607,237 @@ function DocenteTutoria() {
     } finally {
       setLoadingAsistencias(false);
     }
+  };
+
+  // Recomendaciones
+  const handleAbrirRecomendaciones = async (grupo) => {
+    setGrupoParaRecomendaciones(grupo);
+    setMostrarModalRecomendaciones(true);
+    setRecomendacionesCiclo(1);
+    await cargarRecomendaciones(grupo.id, 1);
+  };
+
+  const cargarRecomendaciones = async (grupoId, ciclo) => {
+    if (!grupoId) return;
+    try {
+      setLoadingRecomendaciones(true);
+      const res = await api.get(`/docente/tutoria/grupos/${grupoId}/recomendaciones`, { params: { ciclo } });
+      setRecomendacionesAlumnos(res.data.alumnos || []);
+    } catch (error) {
+      console.error('Error cargando recomendaciones:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudieron cargar' });
+      setRecomendacionesAlumnos([]);
+    } finally {
+      setLoadingRecomendaciones(false);
+    }
+  };
+
+  const handleCambiarCicloRecomendaciones = (ciclo) => {
+    setRecomendacionesCiclo(ciclo);
+    if (grupoParaRecomendaciones) cargarRecomendaciones(grupoParaRecomendaciones.id, ciclo);
+  };
+
+  const handleRecomendacionChange = (matriculaId, valor) => {
+    setRecomendacionesAlumnos(prev =>
+      prev.map(a => a.matricula_id === matriculaId ? { ...a, recomendacion: valor } : a)
+    );
+  };
+
+  const handleGuardarRecomendaciones = async () => {
+    if (!grupoParaRecomendaciones) return;
+    try {
+      setGuardandoRecomendaciones(true);
+      const rec = {};
+      recomendacionesAlumnos.forEach(a => { rec[a.matricula_id] = a.recomendacion || ''; });
+      await api.post(`/docente/tutoria/grupos/${grupoParaRecomendaciones.id}/recomendaciones`, {
+        ciclo: recomendacionesCiclo,
+        recomendaciones: rec
+      });
+      Swal.fire({ icon: 'success', title: 'Guardado', text: 'Recomendaciones guardadas correctamente', timer: 2000, showConfirmButton: false });
+    } catch (error) {
+      console.error('Error guardando recomendaciones:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudo guardar' });
+    } finally {
+      setGuardandoRecomendaciones(false);
+    }
+  };
+
+  const exportarPDFRecomendaciones = async () => {
+    if (!recomendacionesAlumnos.length) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
+      return;
+    }
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const grupoNombre = grupoParaRecomendaciones ? `${grupoParaRecomendaciones.grado}° ${grupoParaRecomendaciones.seccion} - ${grupoParaRecomendaciones.nivel_nombre}` : '';
+    let yPos = 0;
+    const colorPrimario = [102, 126, 234];
+    const colorBlanco = [255, 255, 255];
+
+    try {
+      const logoRes = await fetch('/icons/logoboleta.png');
+      if (logoRes.ok) {
+        const blob = await logoRes.blob();
+        const dataUrl = await new Promise((res) => { const r = new FileReader(); r.onloadend = () => res(r.result); r.readAsDataURL(blob); });
+        doc.addImage(dataUrl, 'PNG', margin, 4, 24, 24);
+      }
+    } catch (e) { /* ignore */ }
+
+    doc.setFillColor(...colorPrimario);
+    doc.rect(0, 0, pageWidth, 36, 'F');
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...colorBlanco);
+    doc.text('APRECIACIONES / RECOMENDACIONES', margin + 30, 14);
+    doc.setFontSize(10);
+    doc.setTextColor(240, 240, 240);
+    doc.text(`Grupo: ${grupoNombre}  |  Bimestre: ${recomendacionesCiclo}  |  Año: ${grupoParaRecomendaciones?.anio || ''}`, margin + 30, 24);
+    yPos = 42;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    recomendacionesAlumnos.forEach((a, i) => {
+      if (yPos > pageHeight - 35) { doc.addPage(); yPos = margin; }
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${a.numero}. ${a.nombre_completo}`, margin, yPos);
+      yPos += 5;
+      doc.setFont('helvetica', 'normal');
+      const texto = (a.recomendacion || '').trim() || '(Sin recomendación)';
+      const lineas = doc.splitTextToSize(texto, pageWidth - 2 * margin);
+      lineas.forEach(l => { doc.text(l, margin + 5, yPos); yPos += 5; });
+      yPos += 5;
+    });
+
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Generado: ${new Date().toLocaleString('es-PE')}`, margin, pageHeight - 8);
+    doc.save(`Recomendaciones_${grupoNombre.replace(/\s+/g, '_')}_B${recomendacionesCiclo}.pdf`);
+    Swal.fire({ icon: 'success', title: 'PDF generado', text: 'El reporte se descargó correctamente', timer: 2000, showConfirmButton: false });
+  };
+
+  // Conducta
+  const handleAbrirConducta = async (grupo) => {
+    setGrupoParaConducta(grupo);
+    setMostrarModalConducta(true);
+    setConductaCiclo(1);
+    await cargarConducta(grupo.id, 1);
+  };
+
+  const cargarConducta = async (grupoId, ciclo) => {
+    if (!grupoId) return;
+    try {
+      setLoadingConducta(true);
+      const res = await api.get(`/docente/tutoria/grupos/${grupoId}/conducta`, { params: { ciclo } });
+      setConductaAlumnos(res.data.alumnos || []);
+    } catch (error) {
+      console.error('Error cargando conducta:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudieron cargar' });
+      setConductaAlumnos([]);
+    } finally {
+      setLoadingConducta(false);
+    }
+  };
+
+  const handleCambiarCicloConducta = (ciclo) => {
+    setConductaCiclo(ciclo);
+    if (grupoParaConducta) cargarConducta(grupoParaConducta.id, ciclo);
+  };
+
+  const handleConductaChange = (matriculaId, valor) => {
+    const v = String(valor || '').replace(/[^0-9]/g, '').slice(0, 2);
+    const num = parseInt(v);
+    const finalVal = v === '' ? '' : (num >= 0 && num <= 20 ? v : (num > 20 ? '20' : v));
+    setConductaAlumnos(prev =>
+      prev.map(a => a.matricula_id === matriculaId ? { ...a, nota_conducta: finalVal } : a)
+    );
+  };
+
+  const handleGuardarConducta = async () => {
+    if (!grupoParaConducta) return;
+    try {
+      setGuardandoConducta(true);
+      const notas = {};
+      conductaAlumnos.forEach(a => { notas[a.matricula_id] = a.nota_conducta || '20'; });
+      await api.post(`/docente/tutoria/grupos/${grupoParaConducta.id}/conducta`, {
+        ciclo: conductaCiclo,
+        notas
+      });
+      Swal.fire({ icon: 'success', title: 'Guardado', text: 'Notas de conducta guardadas correctamente', timer: 2000, showConfirmButton: false });
+    } catch (error) {
+      console.error('Error guardando conducta:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudo guardar' });
+    } finally {
+      setGuardandoConducta(false);
+    }
+  };
+
+  const exportarPDFConducta = async () => {
+    if (!conductaAlumnos.length) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
+      return;
+    }
+    const doc = new jsPDF('l', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const grupoNombre = grupoParaConducta ? `${grupoParaConducta.grado}° ${grupoParaConducta.seccion} - ${grupoParaConducta.nivel_nombre}` : '';
+    let yPos = 0;
+    const colorPrimario = [102, 126, 234];
+    const colorBlanco = [255, 255, 255];
+
+    try {
+      const logoRes = await fetch('/icons/logoboleta.png');
+      if (logoRes.ok) {
+        const blob = await logoRes.blob();
+        const dataUrl = await new Promise((res) => { const r = new FileReader(); r.onloadend = () => res(r.result); r.readAsDataURL(blob); });
+        doc.addImage(dataUrl, 'PNG', margin, 4, 24, 24);
+      }
+    } catch (e) { /* ignore */ }
+
+    doc.setFillColor(...colorPrimario);
+    doc.rect(0, 0, pageWidth, 32, 'F');
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...colorBlanco);
+    doc.text('REGISTRO DE CONDUCTA', margin + 30, 14);
+    doc.setFontSize(10);
+    doc.setTextColor(240, 240, 240);
+    doc.text(`Grupo: ${grupoNombre}  |  Bimestre: ${conductaCiclo}  |  Año: ${grupoParaConducta?.anio || ''}`, margin + 30, 22);
+    yPos = 38;
+
+    doc.setDrawColor(200, 200, 200);
+    doc.setFillColor(234, 234, 234);
+    doc.rect(margin, yPos, 25, 8, 'FD');
+    doc.rect(margin + 25, yPos, pageWidth - 2 * margin - 60, 8, 'FD');
+    doc.rect(pageWidth - margin - 35, yPos, 35, 8, 'FD');
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.text('N°', margin + 12.5, yPos + 5.5, { align: 'center' });
+    doc.text('APELLIDOS Y NOMBRES', margin + (pageWidth - 2 * margin - 60) / 2 + 25, yPos + 5.5, { align: 'center' });
+    doc.text('NOTA', pageWidth - margin - 17.5, yPos + 5.5, { align: 'center' });
+    yPos += 8;
+
+    doc.setFont('helvetica', 'normal');
+    conductaAlumnos.forEach((a, i) => {
+      doc.setDrawColor(220, 220, 220);
+      doc.rect(margin, yPos, 25, 7, 'S');
+      doc.rect(margin + 25, yPos, pageWidth - 2 * margin - 60, 7, 'S');
+      doc.rect(pageWidth - margin - 35, yPos, 35, 7, 'S');
+      doc.text(String(i + 1), margin + 12.5, yPos + 4.5, { align: 'center' });
+      doc.text((a.nombre_completo || '').slice(0, 70), margin + 28, yPos + 4.5);
+      doc.text(a.nota_conducta || '20', pageWidth - margin - 17.5, yPos + 4.5, { align: 'center' });
+      yPos += 7;
+    });
+
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Generado: ${new Date().toLocaleString('es-PE')}`, margin, pageHeight - 8);
+    doc.save(`Conducta_${grupoNombre.replace(/\s+/g, '_')}_B${conductaCiclo}.pdf`);
+    Swal.fire({ icon: 'success', title: 'PDF generado', text: 'El reporte se descargó correctamente', timer: 2000, showConfirmButton: false });
   };
 
   const exportarPDFAsistencia = async () => {
@@ -1011,46 +1242,6 @@ function DocenteTutoria() {
       Swal.fire('Error', error.response?.data?.error || 'Error al enviar el mensaje', 'error');
     } finally {
       setEnviandoMensajeAlumno(false);
-    }
-  };
-
-  const handleEnviarRecomendacion = async () => {
-    if (!alumnoSeleccionado || !recomendacion.trim()) {
-      return;
-    }
-
-    try {
-      const matriculaId = alumnoSeleccionado.matricula_id || alumnoSeleccionado.id;
-      
-      await api.post('/docente/tutoria/recomendaciones', {
-        matricula_id: matriculaId,
-        recomendacion: recomendacion
-      });
-
-      Swal.fire({
-        icon: 'success',
-        title: '¡Recomendación enviada!',
-        text: 'La recomendación se ha enviado correctamente',
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true
-      });
-
-      setMostrarRecomendacion(false);
-      setAlumnoSeleccionado(null);
-      setRecomendacion('');
-    } catch (error) {
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.response?.data?.error || 'No se pudo enviar la recomendación',
-        toast: true,
-        position: 'top-end',
-        showConfirmButton: false,
-        timer: 3000
-      });
     }
   };
 
@@ -1478,6 +1669,88 @@ function DocenteTutoria() {
         document.body
       )}
 
+      {/* Modal Recomendaciones */}
+      {mostrarModalRecomendaciones && grupoParaRecomendaciones && createPortal(
+        <div className="modal-registro-asistencia-overlay" onClick={() => { setMostrarModalRecomendaciones(false); setGrupoParaRecomendaciones(null); setRecomendacionesAlumnos([]); }}>
+          <div className="modal-registro-asistencia-container" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="modal-registro-asistencia-header">
+              <h2>💬 Apreciaciones / Recomendaciones</h2>
+              <button className="modal-registro-asistencia-close" onClick={() => { setMostrarModalRecomendaciones(false); setGrupoParaRecomendaciones(null); setRecomendacionesAlumnos([]); }} type="button">✕</button>
+            </div>
+            <div className="modal-registro-asistencia-filters">
+              <label>Bimestre:</label>
+              <select value={recomendacionesCiclo} onChange={(e) => handleCambiarCicloRecomendaciones(parseInt(e.target.value))} disabled={loadingRecomendaciones} style={{ padding: '0.5rem 1rem', border: '2px solid #e5e7eb', borderRadius: 8, fontSize: '1rem', background: 'white', minWidth: 100 }}>
+                {[1, 2, 3, 4].map(b => <option key={b} value={b}>Bimestre {b}</option>)}
+              </select>
+              <button type="button" className="btn-imprimir-asistencia" onClick={exportarPDFRecomendaciones} disabled={loadingRecomendaciones || !recomendacionesAlumnos.length}>🖨️ Exportar PDF</button>
+            </div>
+            <div className="modal-registro-asistencia-table-wrap">
+              {loadingRecomendaciones ? (
+                <div className="modal-registro-asistencia-loading"><div className="loading-spinner" /><p>Cargando...</p></div>
+              ) : (
+                <table className="tabla-registro-asistencia">
+                  <thead><tr><th style={{ width: 50 }}>N°</th><th>APELLIDOS Y NOMBRES</th><th>RECOMENDACIÓN</th></tr></thead>
+                  <tbody>
+                    {recomendacionesAlumnos.map(a => (
+                      <tr key={a.matricula_id}>
+                        <td style={{ textAlign: 'center', fontWeight: 600 }}>{a.numero}</td>
+                        <td>{a.nombre_completo}</td>
+                        <td><textarea className="input-recomendacion" value={a.recomendacion || ''} onChange={(e) => handleRecomendacionChange(a.matricula_id, e.target.value)} rows={3} placeholder="Escribe la recomendación..." /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="modal-registro-asistencia-footer">
+              <button type="button" className="btn-guardar-asistencias" onClick={handleGuardarRecomendaciones} disabled={loadingRecomendaciones || guardandoRecomendaciones}>{guardandoRecomendaciones ? 'Guardando...' : 'Guardar Datos'}</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Conducta */}
+      {mostrarModalConducta && grupoParaConducta && createPortal(
+        <div className="modal-registro-asistencia-overlay" onClick={() => { setMostrarModalConducta(false); setGrupoParaConducta(null); setConductaAlumnos([]); }}>
+          <div className="modal-registro-asistencia-container" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="modal-registro-asistencia-header">
+              <h2>📝 Registrar Conducta</h2>
+              <button className="modal-registro-asistencia-close" onClick={() => { setMostrarModalConducta(false); setGrupoParaConducta(null); setConductaAlumnos([]); }} type="button">✕</button>
+            </div>
+            <div className="modal-registro-asistencia-filters">
+              <label>Bimestre:</label>
+              <select value={conductaCiclo} onChange={(e) => handleCambiarCicloConducta(parseInt(e.target.value))} disabled={loadingConducta} style={{ padding: '0.5rem 1rem', border: '2px solid #e5e7eb', borderRadius: 8, fontSize: '1rem', background: 'white', minWidth: 100 }}>
+                {[1, 2, 3, 4].map(b => <option key={b} value={b}>Bimestre {b}</option>)}
+              </select>
+              <button type="button" className="btn-imprimir-asistencia" onClick={exportarPDFConducta} disabled={loadingConducta || !conductaAlumnos.length}>🖨️ Exportar PDF</button>
+            </div>
+            <div className="modal-registro-asistencia-table-wrap">
+              {loadingConducta ? (
+                <div className="modal-registro-asistencia-loading"><div className="loading-spinner" /><p>Cargando...</p></div>
+              ) : (
+                <table className="tabla-registro-asistencia">
+                  <thead><tr><th style={{ width: 50 }}>N°</th><th>APELLIDOS Y NOMBRES</th><th style={{ width: 90, textAlign: 'center' }}>NOTA (0-20)</th></tr></thead>
+                  <tbody>
+                    {conductaAlumnos.map(a => (
+                      <tr key={a.matricula_id}>
+                        <td style={{ textAlign: 'center', fontWeight: 600 }}>{a.numero}</td>
+                        <td>{a.nombre_completo}</td>
+                        <td style={{ textAlign: 'center' }}><input type="text" className="input-conducta" value={a.nota_conducta || ''} onChange={(e) => handleConductaChange(a.matricula_id, e.target.value)} maxLength={2} placeholder="20" style={{ width: 50, textAlign: 'center', padding: '0.5rem' }} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="modal-registro-asistencia-footer">
+              <button type="button" className="btn-guardar-asistencias" onClick={handleGuardarConducta} disabled={loadingConducta || guardandoConducta}>{guardandoConducta ? 'Guardando...' : 'Guardar Datos'}</button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       <div className="docente-tutoria">
         {!selectedGrupo ? (
           <>
@@ -1752,73 +2025,6 @@ function DocenteTutoria() {
                 )}
               </div>
 
-              {/* Formulario de Recomendación */}
-              {mostrarRecomendacion && (
-                <div className="recomendacion-form mundo-card">
-                  <div className="recomendacion-header">
-                    <h3>Recomendaciones</h3>
-                    <button
-                      className="btn-cerrar-form"
-                      onClick={() => {
-                        setMostrarRecomendacion(false);
-                        setAlumnoSeleccionado(null);
-                        setRecomendacion('');
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  <div className="form-group">
-                    <label>Alumno</label>
-                    <select
-                      value={alumnoSeleccionado?.id || ''}
-                      onChange={(e) => {
-                        const alumno = alumnos.find(a => a.id === parseInt(e.target.value));
-                        setAlumnoSeleccionado(alumno);
-                      }}
-                    >
-                      <option value="">Selecciona un alumno</option>
-                      {alumnos.map((alumno) => (
-                        <option key={alumno.id} value={alumno.id}>
-                          {alumno.apellido_paterno} {alumno.apellido_materno}, {alumno.nombres}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="recomendacion-textarea">Recomendación</label>
-                    <textarea
-                      id="recomendacion-textarea"
-                      name="recomendacion-textarea"
-                      value={recomendacion}
-                      onChange={(e) => setRecomendacion(e.target.value)}
-                      rows="5"
-                      placeholder="Escribe la recomendación para el alumno..."
-                    />
-                  </div>
-                  <div className="form-actions">
-                    <button
-                      type="button"
-                      className="btn-cancelar"
-                      onClick={() => {
-                        setMostrarRecomendacion(false);
-                        setAlumnoSeleccionado(null);
-                        setRecomendacion('');
-                      }}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-guardar"
-                      onClick={handleEnviarRecomendacion}
-                      disabled={!alumnoSeleccionado || !recomendacion.trim()}
-                    >
-                      Enviar Recomendación
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
       </div>
@@ -1847,9 +2053,9 @@ function DocenteTutoria() {
           >
             <div className="modal-mensaje-header">
               <h2 id="modal-mensaje-grupo-title">✉️ Enviar Mensaje al Grupo</h2>
-              <button
+                    <button
                 className="modal-mensaje-close"
-                onClick={() => {
+                      onClick={() => {
                   setMostrarModalMensajeGrupo(false);
                   setAsuntoMensajeGrupo('');
                   setContenidoMensajeGrupo('');
@@ -1858,10 +2064,10 @@ function DocenteTutoria() {
                 }}
                 type="button"
                 aria-label="Cerrar modal"
-              >
-                ✕
-              </button>
-            </div>
+                    >
+                      ✕
+                    </button>
+                  </div>
 
             <div className="modal-mensaje-body">
               {/* Información del grupo */}
@@ -1873,7 +2079,7 @@ function DocenteTutoria() {
               </div>
 
               {/* Campo Asunto */}
-              <div className="form-group">
+                  <div className="form-group">
                 <label htmlFor="asunto-mensaje-grupo">Asunto:</label>
                 <input
                   type="text"
@@ -1913,11 +2119,11 @@ function DocenteTutoria() {
                       'link', 'image'
                     ]}
                   />
-                </div>
+                  </div>
               </div>
 
               {/* Campo Archivos Adjuntos */}
-              <div className="form-group">
+                  <div className="form-group">
                 <label htmlFor="archivos-input-grupo">Archivos Adjuntos:</label>
                 <div className="archivos-container">
                   <input
@@ -1946,7 +2152,7 @@ function DocenteTutoria() {
                           >
                             ×
                           </button>
-                        </div>
+                  </div>
                       ))}
                     </div>
                   )}
@@ -1954,10 +2160,10 @@ function DocenteTutoria() {
               </div>
 
               {/* Botones */}
-              <div className="form-actions">
-                <button
-                  className="btn-cancelar"
-                  onClick={() => {
+                  <div className="form-actions">
+                    <button
+                      className="btn-cancelar"
+                      onClick={() => {
                     setMostrarModalMensajeGrupo(false);
                     setAsuntoMensajeGrupo('');
                     setContenidoMensajeGrupo('');
@@ -1965,19 +2171,19 @@ function DocenteTutoria() {
                     setGrupoParaMensaje(null);
                   }}
                   type="button"
-                >
-                  Cancelar
-                </button>
-                <button
+                    >
+                      Cancelar
+                    </button>
+                    <button
                   className="btn-enviar"
                   onClick={enviarMensajeAlGrupo}
                   disabled={enviandoMensajeGrupo}
-                  type="button"
-                >
+                      type="button"
+                    >
                   {enviandoMensajeGrupo ? '⏳ Enviando...' : '✉️ Enviar Mensaje'}
-                </button>
-              </div>
-            </div>
+                    </button>
+                  </div>
+                </div>
           </div>
         </div>,
         document.body
@@ -1990,7 +2196,7 @@ function DocenteTutoria() {
             {loadingAlumnoInfo ? (
               <div className="alumno-info-loading">
                 <div className="loading-spinner">Cargando información...</div>
-              </div>
+            </div>
             ) : (
               <>
                 <div className="alumno-info-header">
@@ -2060,7 +2266,7 @@ function DocenteTutoria() {
                         )}
                       </tbody>
                     </table>
-                  </div>
+      </div>
 
                   {/* 3 Círculos medianos: Foto, Avatar y QR horizontalmente */}
                   <div className="alumno-medios-container">
