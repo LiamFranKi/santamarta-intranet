@@ -2582,7 +2582,7 @@ function ApoderadoHijos() {
       yPos += headerHeight + 5; // 5mm de espacio entre cuadros
 
       const cicloSel = datosLibreta.ciclo || ciclo || 1;
-      const numCols = cicloSel + 1;
+      const numCols = 5; // Siempre B-1, B-2, B-3, B-4, PF
       const colAreaWidth = 80;
       const colBimestreWidth = (contentWidth - colAreaWidth) / numCols;
 
@@ -2604,7 +2604,7 @@ function ApoderadoHijos() {
       doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
       doc.text('ÁREAS CURRICULARES', margin + colAreaWidth / 2, yPos + 3.5, { align: 'center' });
       let xPos = margin + colAreaWidth;
-      for (let c = 1; c <= cicloSel; c++) {
+      for (let c = 1; c <= 4; c++) {
         doc.setFillColor(...colorLabel);
         doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
         doc.text(`B - ${c}`, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
@@ -2625,7 +2625,7 @@ function ApoderadoHijos() {
           yPos = margin;
         }
         const areaValores = [];
-        for (let c = 1; c <= cicloSel; c++) areaValores.push(area[`promedio_b${c}`]);
+        for (let c = 1; c <= 4; c++) areaValores.push(c <= cicloSel ? area[`promedio_b${c}`] : null);
         areaValores.push(getPromedioFinalHastaCiclo(area));
 
         doc.setFont('helvetica', 'bold');
@@ -2649,7 +2649,7 @@ function ApoderadoHijos() {
             yPos = margin + paddingVertical;
           }
           const asigValores = [];
-          for (let c = 1; c <= cicloSel; c++) asigValores.push(asignatura[`promedio_b${c}`]);
+          for (let c = 1; c <= 4; c++) asigValores.push(c <= cicloSel ? asignatura[`promedio_b${c}`] : null);
           asigValores.push(getPromedioFinalHastaCiclo(asignatura));
 
           doc.setFillColor(...colorData);
@@ -2674,7 +2674,7 @@ function ApoderadoHijos() {
             yPos = margin + paddingVertical;
           }
           const asigValores = [];
-          for (let c = 1; c <= cicloSel; c++) asigValores.push(asignatura[`promedio_b${c}`]);
+          for (let c = 1; c <= 4; c++) asigValores.push(c <= cicloSel ? asignatura[`promedio_b${c}`] : null);
           asigValores.push(getPromedioFinalHastaCiclo(asignatura));
 
           doc.setFillColor(...colorData);
@@ -2705,13 +2705,13 @@ function ApoderadoHijos() {
       yPos += headerHeight;
 
       doc.setFont('helvetica', 'normal');
-      const cantB = []; for (let c = 1; c <= cicloSel; c++) cantB.push(resumen.cantidad_cursos[`b${c}`]);
-      const sumaB = []; for (let c = 1; c <= cicloSel; c++) sumaB.push(resumen.suma_notas[`b${c}`]);
-      const promB = []; for (let c = 1; c <= cicloSel; c++) promB.push(resumen.promedio[`b${c}`]);
-      const condB = []; for (let c = 1; c <= cicloSel; c++) condB.push(resumen.promedio_conducta[`b${c}`]);
-      const ordB = []; for (let c = 1; c <= cicloSel; c++) ordB.push(resumen.orden_merito[`b${c}`]);
-      const inasB = []; for (let c = 1; c <= cicloSel; c++) inasB.push(resumen.inasistencias[`b${c}`]);
-      const tardB = []; for (let c = 1; c <= cicloSel; c++) tardB.push(resumen.tardanzas[`b${c}`]);
+      const cantB = []; for (let c = 1; c <= 4; c++) cantB.push(c <= cicloSel ? resumen.cantidad_cursos[`b${c}`] : null);
+      const sumaB = []; for (let c = 1; c <= 4; c++) sumaB.push(c <= cicloSel ? resumen.suma_notas[`b${c}`] : null);
+      const promB = []; for (let c = 1; c <= 4; c++) promB.push(c <= cicloSel ? resumen.promedio[`b${c}`] : null);
+      const condB = []; for (let c = 1; c <= 4; c++) condB.push(c <= cicloSel ? resumen.promedio_conducta[`b${c}`] : null);
+      const ordB = []; for (let c = 1; c <= 4; c++) ordB.push(c <= cicloSel ? resumen.orden_merito[`b${c}`] : null);
+      const inasB = []; for (let c = 1; c <= 4; c++) inasB.push(c <= cicloSel ? resumen.inasistencias[`b${c}`] : null);
+      const tardB = []; for (let c = 1; c <= 4; c++) tardB.push(c <= cicloSel ? resumen.tardanzas[`b${c}`] : null);
 
       const dibFila = (label, arr, def = '-') => {
         doc.setFillColor(...colorLabel);
@@ -2763,7 +2763,7 @@ function ApoderadoHijos() {
         doc.text(linea, margin, yPos);
         yPos += 5;
       });
-      yPos += 10;
+      yPos += 25; // Más espacio entre Recomendaciones y la firma
 
       // Firma solo de Dirección Académica (centrada)
       doc.setFontSize(8);
@@ -2771,8 +2771,8 @@ function ApoderadoHijos() {
       const firmaX = (pageWidth - firmaWidth) / 2; // Centrar
       doc.setLineWidth(0.5); // Grosor de línea de 0.5mm
       doc.setDrawColor(0, 0, 0);
-      doc.line(firmaX, yPos, firmaX + firmaWidth, yPos); // Línea de firma con grosor 0.5mm
-      yPos += 5;
+      doc.line(firmaX, yPos, firmaX + firmaWidth, yPos); // Línea de firma
+      yPos += 12; // Más espacio entre línea y texto "Dirección Académica"
 
       doc.setFont('helvetica', 'bold'); // Texto en negrita
       doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
