@@ -473,9 +473,6 @@ function DocenteTutoria() {
     setGrupoInfo(null);
     setAlumnos([]);
     setOpenDropdownAlumno(null);
-    setMostrarRecomendacion(false);
-    setAlumnoSeleccionado(null);
-    setRecomendacion('');
   };
 
   // Ver Notas PDF - descarga PDF con notas de todos los cursos del grupo (hoja por curso)
