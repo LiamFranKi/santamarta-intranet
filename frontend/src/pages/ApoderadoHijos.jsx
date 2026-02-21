@@ -1799,8 +1799,20 @@ function ApoderadoHijos() {
 
   const handleVerLibreta = async (hijo) => {
     try {
+      const { value: ciclo } = await Swal.fire({
+        title: 'Exportar Libreta',
+        text: 'Seleccione el bimestre hasta el cual desea ver datos',
+        icon: 'question',
+        input: 'select',
+        inputOptions: { 1: 'Bimestre 1', 2: 'Bimestre 2', 3: 'Bimestre 3', 4: 'Bimestre 4' },
+        inputValue: 1,
+        showCancelButton: true,
+        confirmButtonText: 'Descargar',
+        cancelButtonText: 'Cancelar'
+      });
+      if (!ciclo) return;
       setHijoSeleccionado(hijo);
-      await generarPDFLibreta(hijo.id);
+      await generarPDFLibreta(hijo.id, parseInt(ciclo));
     } catch (error) {
       console.error('Error generando libreta:', error);
       Swal.fire({
@@ -2377,10 +2389,10 @@ function ApoderadoHijos() {
     }
   };
 
-  const generarPDFLibreta = async (hijoId) => {
+  const generarPDFLibreta = async (hijoId, ciclo = 1) => {
     try {
       setLoadingNotasDetalladas(true);
-      const response = await api.get(`/apoderado/hijos/${hijoId}/libreta`);
+      const response = await api.get(`/apoderado/hijos/${hijoId}/libreta`, { params: { ciclo } });
       const datosLibreta = response.data;
 
       if (!datosLibreta || !datosLibreta.alumno) {
@@ -2569,41 +2581,38 @@ function ApoderadoHijos() {
       doc.text(datosLibreta.alumno.anio?.toString() || '-', margin + 182.5, yPos + 3.5, { align: 'center' });
       yPos += headerHeight + 5; // 5mm de espacio entre cuadros
 
-      // Tabla de áreas curriculares
+      const ciclo = datosLibreta.ciclo || 1;
+      const numCols = ciclo + 1;
+      const colAreaWidth = 80;
+      const colBimestreWidth = (contentWidth - colAreaWidth) / numCols;
+
+      const getPromedioFinalHastaCiclo = (obj) => {
+        const vals = [];
+        for (let c = 1; c <= ciclo; c++) {
+          const v = obj[`promedio_b${c}`];
+          if (v !== null && v !== '' && v !== '-') vals.push(parseFloat(v));
+        }
+        if (vals.length === 0) return null;
+        return Math.round(vals.reduce((s, n) => s + (isNaN(n) ? 0 : n), 0) / vals.length);
+      };
+
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.setLineWidth(borderWidth);
       
-      const colAreaWidth = 80;
-      const colBimestreWidth = (contentWidth - colAreaWidth) / 5; // 4 bimestres + PF
-      
-      // Header de la tabla (todos azules)
       doc.setFillColor(...colorLabel);
       doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
       doc.text('ÁREAS CURRICULARES', margin + colAreaWidth / 2, yPos + 3.5, { align: 'center' });
-      
       let xPos = margin + colAreaWidth;
-      // Asegurar que todas las columnas del header tengan fondo azul
-      doc.setFillColor(...colorLabel);
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-      doc.text('B - 1', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      xPos += colBimestreWidth;
-      doc.setFillColor(...colorLabel);
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-      doc.text('B - 2', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      xPos += colBimestreWidth;
-      doc.setFillColor(...colorLabel);
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-      doc.text('B - 3', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      xPos += colBimestreWidth;
-      doc.setFillColor(...colorLabel);
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-      doc.text('B - 4', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      xPos += colBimestreWidth;
+      for (let c = 1; c <= ciclo; c++) {
+        doc.setFillColor(...colorLabel);
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
+        doc.text(`B - ${c}`, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        xPos += colBimestreWidth;
+      }
       doc.setFillColor(...colorLabel);
       doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
       doc.text('PF', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      
       yPos += headerHeight;
 
       // Áreas y asignaturas
@@ -2611,220 +2620,130 @@ function ApoderadoHijos() {
       doc.setFontSize(8);
       
       datosLibreta.areas.forEach(area => {
-        // Verificar si necesitamos nueva página
         if (yPos > pageHeight - 60) {
           doc.addPage();
           yPos = margin;
         }
+        const areaValores = [];
+        for (let c = 1; c <= ciclo; c++) areaValores.push(area[`promedio_b${c}`]);
+        areaValores.push(getPromedioFinalHastaCiclo(area));
 
-        // Fila del área (en negrita) - toda la fila en azul (área + columnas de notas)
         doc.setFont('helvetica', 'bold');
         doc.setFillColor(...colorLabel);
-        // Área en azul
         doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
         doc.text(area.area_nombre.toUpperCase(), margin + 2, yPos + 3.5);
-        
-        // Columnas de notas también en azul
         xPos = margin + colAreaWidth;
-        [area.promedio_b1, area.promedio_b2, area.promedio_b3, area.promedio_b4, area.promedio_final].forEach((promedio, index) => {
-          doc.setFillColor(...colorLabel); // Fondo azul para toda la fila del área
+        areaValores.forEach((promedio) => {
+          doc.setFillColor(...colorLabel);
           doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
           const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
           doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
           xPos += colBimestreWidth;
         });
-        
         yPos += headerHeight;
 
-        // Asignaturas del área - asignatura en blanco, datos en blanco
         doc.setFont('helvetica', 'normal');
         area.asignaturas.forEach(asignatura => {
           if (yPos > pageHeight - 60) {
             doc.addPage();
             yPos = margin + paddingVertical;
           }
+          const asigValores = [];
+          for (let c = 1; c <= ciclo; c++) asigValores.push(asignatura[`promedio_b${c}`]);
+          asigValores.push(getPromedioFinalHastaCiclo(asignatura));
 
           doc.setFillColor(...colorData);
           doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
           doc.text(asignatura.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
-          
           xPos = margin + colAreaWidth;
-          [asignatura.promedio_b1, asignatura.promedio_b2, asignatura.promedio_b3, asignatura.promedio_b4, asignatura.promedio_final].forEach((promedio, index) => {
-            doc.setFillColor(...colorData); // Asegurar fondo blanco en cada celda
+          asigValores.forEach((promedio) => {
+            doc.setFillColor(...colorData);
             doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
             const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
             doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
             xPos += colBimestreWidth;
           });
-          
           yPos += headerHeight;
         });
       });
 
-      // Asignaturas sin área - todas en blanco
       if (datosLibreta.asignaturas_sin_area && datosLibreta.asignaturas_sin_area.length > 0) {
         datosLibreta.asignaturas_sin_area.forEach(asignatura => {
           if (yPos > pageHeight - 60) {
             doc.addPage();
             yPos = margin + paddingVertical;
           }
+          const asigValores = [];
+          for (let c = 1; c <= ciclo; c++) asigValores.push(asignatura[`promedio_b${c}`]);
+          asigValores.push(getPromedioFinalHastaCiclo(asignatura));
 
-          doc.setFillColor(...colorData); // Asegurar fondo blanco
+          doc.setFillColor(...colorData);
           doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
           doc.text(asignatura.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
-          
           xPos = margin + colAreaWidth;
-          [asignatura.promedio_b1, asignatura.promedio_b2, asignatura.promedio_b3, asignatura.promedio_b4, asignatura.promedio_final].forEach((promedio, index) => {
-            doc.setFillColor(...colorData); // Asegurar fondo blanco en cada celda
+          asigValores.forEach((promedio) => {
+            doc.setFillColor(...colorData);
             doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
             const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
             doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
             xPos += colBimestreWidth;
           });
-          
           yPos += headerHeight;
         });
       }
 
-      yPos += 5; // 5mm de espacio antes del cuadro resumen
+      yPos += 5;
 
-      // Cuadro Resumen
+      const resumen = datosLibreta.resumen;
+      const resumenWidth = colAreaWidth + (colBimestreWidth * numCols);
+
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
-      doc.setFillColor(...colorLabel); // Azul cielo pastel
-      const resumenWidth = colAreaWidth + (colBimestreWidth * 5); // Incluir todas las columnas hasta PF
+      doc.setFillColor(...colorLabel);
       doc.rect(margin, yPos, resumenWidth, headerHeight, 'FD');
       doc.text('CUADRO RESUMEN', margin + resumenWidth / 2, yPos + 3.5, { align: 'center' });
       yPos += headerHeight;
 
       doc.setFont('helvetica', 'normal');
-      const resumen = datosLibreta.resumen;
+      const cantB = []; for (let c = 1; c <= ciclo; c++) cantB.push(resumen.cantidad_cursos[`b${c}`]);
+      const sumaB = []; for (let c = 1; c <= ciclo; c++) sumaB.push(resumen.suma_notas[`b${c}`]);
+      const promB = []; for (let c = 1; c <= ciclo; c++) promB.push(resumen.promedio[`b${c}`]);
+      const condB = []; for (let c = 1; c <= ciclo; c++) condB.push(resumen.promedio_conducta[`b${c}`]);
+      const ordB = []; for (let c = 1; c <= ciclo; c++) ordB.push(resumen.orden_merito[`b${c}`]);
+      const inasB = []; for (let c = 1; c <= ciclo; c++) inasB.push(resumen.inasistencias[`b${c}`]);
+      const tardB = []; for (let c = 1; c <= ciclo; c++) tardB.push(resumen.tardanzas[`b${c}`]);
 
-      // CANTIDAD DE CURSOS
-      doc.setFillColor(...colorLabel); // Label en azul
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
-      doc.setFont('helvetica', 'bold');
-      doc.text('CANTIDAD DE CURSOS', margin + 2, yPos + 3.5);
-      doc.setFont('helvetica', 'normal');
-      xPos = margin + colAreaWidth;
-      [resumen.cantidad_cursos.b1, resumen.cantidad_cursos.b2, resumen.cantidad_cursos.b3, resumen.cantidad_cursos.b4].forEach((cantidad, index) => {
-        doc.setFillColor(...colorData); // Datos en blanco
+      const dibFila = (label, arr, def = '-') => {
+        doc.setFillColor(...colorLabel);
+        doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
+        doc.setFont('helvetica', 'bold');
+        doc.text(label, margin + 2, yPos + 3.5);
+        doc.setFont('helvetica', 'normal');
+        xPos = margin + colAreaWidth;
+        arr.forEach((v) => {
+          doc.setFillColor(...colorData);
+          doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
+          doc.text(v !== null && v !== undefined && v !== '' ? String(v) : def, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+          xPos += colBimestreWidth;
+        });
+        const promFinal = label === 'PROMEDIO' && promB.filter(p => p != null && p !== '').length > 0
+          ? Math.round(promB.filter(p => p != null && p !== '').map(Number).reduce((a, b) => a + (isNaN(b) ? 0 : b), 0) / promB.filter(p => p != null && p !== '').length)
+          : (label === 'PROMEDIO' ? resumen.promedio.final : def);
+        doc.setFillColor(...colorData);
         doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-        doc.text(cantidad !== null ? cantidad.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-        xPos += colBimestreWidth;
-      });
-      doc.setFillColor(...colorData);
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-      doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      yPos += headerHeight;
+        doc.text(label === 'PROMEDIO' && promFinal != null ? String(promFinal) : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        yPos += headerHeight;
+      };
 
-      // SUMA DE NOTAS
-      doc.setFillColor(...colorLabel); // Label en azul
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
-      doc.setFont('helvetica', 'bold');
-      doc.text('SUMA DE NOTAS', margin + 2, yPos + 3.5);
-      doc.setFont('helvetica', 'normal');
-      xPos = margin + colAreaWidth;
-      [resumen.suma_notas.b1, resumen.suma_notas.b2, resumen.suma_notas.b3, resumen.suma_notas.b4].forEach((suma, index) => {
-        doc.setFillColor(...colorData); // Datos en blanco
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-        doc.text(suma !== null ? suma.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-        xPos += colBimestreWidth;
-      });
-      doc.setFillColor(...colorData);
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-      doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      yPos += headerHeight;
+      dibFila('CANTIDAD DE CURSOS', cantB);
+      dibFila('SUMA DE NOTAS', sumaB);
+      dibFila('PROMEDIO', promB, '-');
+      dibFila('PROMEDIO CONDUCTA', condB, '20');
+      dibFila('ORDEN DE MÉRITO', ordB);
+      dibFila('N° DE INASISTENCIAS', inasB, '0');
+      dibFila('N° DE TARDANZAS', tardB, '0');
 
-      // PROMEDIO
-      doc.setFillColor(...colorLabel); // Label en azul
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
-      doc.setFont('helvetica', 'bold');
-      doc.text('PROMEDIO', margin + 2, yPos + 3.5);
-      doc.setFont('helvetica', 'normal');
-      xPos = margin + colAreaWidth;
-      [resumen.promedio.b1, resumen.promedio.b2, resumen.promedio.b3, resumen.promedio.b4].forEach((promedio, index) => {
-        doc.setFillColor(...colorData); // Datos en blanco
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-        doc.text(promedio !== null ? promedio.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-        xPos += colBimestreWidth;
-      });
-      doc.setFillColor(...colorData);
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-      doc.text(resumen.promedio.final !== null ? resumen.promedio.final.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      yPos += headerHeight;
-
-      // PROMEDIO CONDUCTA
-      doc.setFillColor(...colorLabel); // Label en azul
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
-      doc.setFont('helvetica', 'bold');
-      doc.text('PROMEDIO CONDUCTA', margin + 2, yPos + 3.5);
-      doc.setFont('helvetica', 'normal');
-      xPos = margin + colAreaWidth;
-      [resumen.promedio_conducta.b1, resumen.promedio_conducta.b2, resumen.promedio_conducta.b3, resumen.promedio_conducta.b4].forEach((promedio, index) => {
-        doc.setFillColor(...colorData); // Datos en blanco
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-        doc.text(promedio !== null ? promedio.toString() : '20', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-        xPos += colBimestreWidth;
-      });
-      doc.setFillColor(...colorData);
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-      doc.text('20', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      yPos += headerHeight;
-
-      // ORDEN DE MÉRITO
-      doc.setFillColor(...colorLabel); // Label en azul
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
-      doc.setFont('helvetica', 'bold');
-      doc.text('ORDEN DE MÉRITO', margin + 2, yPos + 3.5);
-      doc.setFont('helvetica', 'normal');
-      xPos = margin + colAreaWidth;
-      [resumen.orden_merito.b1, resumen.orden_merito.b2, resumen.orden_merito.b3, resumen.orden_merito.b4].forEach((orden, index) => {
-        doc.setFillColor(...colorData); // Datos en blanco
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-        doc.text(orden !== null ? orden.toString() : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-        xPos += colBimestreWidth;
-      });
-      doc.setFillColor(...colorData);
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-      doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      yPos += headerHeight;
-
-      // N° DE INASISTENCIAS
-      doc.setFillColor(...colorLabel); // Label en azul
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
-      doc.setFont('helvetica', 'bold');
-      doc.text('N° DE INASISTENCIAS', margin + 2, yPos + 3.5);
-      doc.setFont('helvetica', 'normal');
-      xPos = margin + colAreaWidth;
-      [resumen.inasistencias.b1, resumen.inasistencias.b2, resumen.inasistencias.b3, resumen.inasistencias.b4].forEach((inasistencias, index) => {
-        doc.setFillColor(...colorData); // Datos en blanco
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-        doc.text(inasistencias !== null ? inasistencias.toString() : '0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-        xPos += colBimestreWidth;
-      });
-      doc.setFillColor(...colorData);
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-      doc.text('0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      yPos += headerHeight;
-
-      // N° DE TARDANZAS
-      doc.setFillColor(...colorLabel); // Label en azul
-      doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
-      doc.setFont('helvetica', 'bold');
-      doc.text('N° DE TARDANZAS', margin + 2, yPos + 3.5);
-      doc.setFont('helvetica', 'normal');
-      xPos = margin + colAreaWidth;
-      [resumen.tardanzas.b1, resumen.tardanzas.b2, resumen.tardanzas.b3, resumen.tardanzas.b4].forEach((tardanzas, index) => {
-        doc.setFillColor(...colorData); // Datos en blanco
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-        doc.text(tardanzas !== null ? tardanzas.toString() : '0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-        xPos += colBimestreWidth;
-      });
-      doc.setFillColor(...colorData);
-      doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-      doc.text('0', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-      yPos += 20; // 20mm de espacio después del cuadro resumen (5mm original + 15mm adicionales)
+      yPos += 20;
 
       // Footer: Recomendaciones
       doc.setFont('helvetica', 'bold');
@@ -2834,8 +2753,17 @@ function ApoderadoHijos() {
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      doc.text('', margin, yPos); // Espacio para recomendaciones
-      yPos += 15;
+      const textoRecomendaciones = (datosLibreta.recomendaciones || '').trim() || '(Sin recomendaciones)';
+      const lineasRecom = doc.splitTextToSize(textoRecomendaciones, pageWidth - 2 * margin);
+      lineasRecom.forEach((linea) => {
+        if (yPos > pageHeight - 25) {
+          doc.addPage();
+          yPos = margin;
+        }
+        doc.text(linea, margin, yPos);
+        yPos += 5;
+      });
+      yPos += 10;
 
       // Firma solo de Dirección Académica (centrada)
       doc.setFontSize(8);

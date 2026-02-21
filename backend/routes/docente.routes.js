@@ -9582,9 +9582,10 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
 router.get('/hijos/:hijoId/libreta', async (req, res) => {
   try {
     const { hijoId } = req.params;
+    const ciclo = Math.max(1, Math.min(4, parseInt(req.query.ciclo) || 1));
     const { colegio_id, usuario_id, personal_id, anio_activo } = req.user;
 
-    console.log(`\n🔵 ========== [HIJOS-LIBRETA] NUEVA PETICIÓN ==========`);
+    console.log(`\n🔵 ========== [HIJOS-LIBRETA] NUEVA PETICIÓN ========== (ciclo=${ciclo})`);
     console.log(`📋 [HIJOS-LIBRETA] hijoId recibido: ${hijoId}`);
 
     // Validar que hijoId sea un número válido
@@ -9975,7 +9976,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       }
     };
 
-    // Recomendaciones desde matriculas
+    // Recomendaciones: solo la del bimestre seleccionado (sin prefijo "Bimestre X:")
     let recomendacionesTexto = '';
     const matriculaRow = await query(`SELECT recomendaciones FROM matriculas WHERE id = ?`, [matriculaId]);
     if (matriculaRow && matriculaRow[0] && matriculaRow[0].recomendaciones) {
@@ -9983,14 +9984,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         const phpSerialize = require('php-serialize');
         const decoded = Buffer.from(matriculaRow[0].recomendaciones, 'base64').toString('binary');
         const deserialized = phpSerialize.unserialize(decoded);
-        if (deserialized && typeof deserialized === 'object') {
-          const partes = [];
-          for (let c = 1; c <= 4; c++) {
-            if (deserialized[c] && deserialized[c].descripcion && String(deserialized[c].descripcion).trim()) {
-              partes.push(`Bimestre ${c}: ${String(deserialized[c].descripcion).trim()}`);
-            }
-          }
-          if (partes.length > 0) recomendacionesTexto = partes.join('\n');
+        if (deserialized && typeof deserialized === 'object' && deserialized[ciclo] && deserialized[ciclo].descripcion) {
+          recomendacionesTexto = String(deserialized[ciclo].descripcion).trim();
         }
       } catch (e) { /* ignore */ }
     }
@@ -10004,7 +9999,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       areas: areasConAsignaturas,
       asignaturas_sin_area: asignaturasSinArea,
       resumen,
-      recomendaciones: recomendacionesTexto
+      recomendaciones: recomendacionesTexto,
+      ciclo
     });
   } catch (error) {
     console.error('❌ [HIJOS-LIBRETA] Error obteniendo libreta:', error);

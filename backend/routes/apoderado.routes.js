@@ -2238,6 +2238,7 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
 router.get('/hijos/:hijoId/libreta', async (req, res) => {
   try {
     const { hijoId } = req.params;
+    const ciclo = Math.max(1, Math.min(4, parseInt(req.query.ciclo) || 1));
     const { colegio_id, apoderado_id, anio_activo } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
@@ -2367,7 +2368,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       [matriculaId]
     );
 
-    // Organizar promedios por asignatura
+    // Organizar promedios por asignatura (incluye conducta: asignatura_id = -101)
     const promediosPorAsignatura = {};
     todosPromedios.forEach(p => {
       if (!promediosPorAsignatura[p.asignatura_id]) {
@@ -2375,6 +2376,26 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       }
       promediosPorAsignatura[p.asignatura_id][p.ciclo] = p.promedio;
     });
+
+    // Promedio conducta (asignatura_id = -101), default 20
+    const conductaProm = promediosPorAsignatura[-101] || {};
+    const promedioConductaB1 = (conductaProm[1] !== null && conductaProm[1] !== '' && conductaProm[1] !== '-') ? conductaProm[1] : '20';
+    const promedioConductaB2 = (conductaProm[2] !== null && conductaProm[2] !== '' && conductaProm[2] !== '-') ? conductaProm[2] : '20';
+    const promedioConductaB3 = (conductaProm[3] !== null && conductaProm[3] !== '' && conductaProm[3] !== '-') ? conductaProm[3] : '20';
+    const promedioConductaB4 = (conductaProm[4] !== null && conductaProm[4] !== '' && conductaProm[4] !== '-') ? conductaProm[4] : '20';
+
+    // Recomendaciones: solo la del bimestre seleccionado (sin prefijo "Bimestre X:")
+    let recomendacionesTexto = '';
+    const matriculaRow = await query(`SELECT recomendaciones FROM matriculas WHERE id = ?`, [matriculaId]);
+    if (matriculaRow && matriculaRow[0] && matriculaRow[0].recomendaciones) {
+      try {
+        const decoded = Buffer.from(matriculaRow[0].recomendaciones, 'base64').toString('binary');
+        const deserialized = phpSerialize.unserialize(decoded);
+        if (deserialized && typeof deserialized === 'object' && deserialized[ciclo] && deserialized[ciclo].descripcion) {
+          recomendacionesTexto = String(deserialized[ciclo].descripcion).trim();
+        }
+      } catch (e) { /* ignore */ }
+    }
 
     // Agrupar asignaturas por área y calcular promedios
     const areasConAsignaturas = [];
@@ -2548,11 +2569,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
           .filter(p => p !== null).length)
       : null;
 
-    // Promedio conducta (por ahora null)
-    const promedioConductaB1 = null;
-    const promedioConductaB2 = null;
-    const promedioConductaB3 = null;
-    const promedioConductaB4 = null;
+    // Promedio conducta ya calculado arriba
 
     // Orden de mérito (por ahora null)
     const ordenMeritoB1 = null;
@@ -2632,7 +2649,9 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       titulo_intranet: tituloIntranet,
       areas: areasConAsignaturas,
       asignaturas_sin_area: asignaturasSinArea,
-      resumen
+      resumen,
+      recomendaciones: recomendacionesTexto,
+      ciclo
     });
   } catch (error) {
     console.error('Error obteniendo libreta:', error);
