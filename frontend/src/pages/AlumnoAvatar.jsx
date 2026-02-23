@@ -66,15 +66,24 @@ function AlumnoAvatar() {
   return (
     <DashboardLayout>
       <div className="alumno-avatar">
-        <div className="avatar-page-header">
-          <h1>Tienda de Avatares</h1>
-          <p>Desbloquea avatares con las estrellas que ganaste en clase</p>
-          <div className="avatar-estrellas-badge">
-            <span className="avatar-estrellas-icon">⭐</span>
-            <span className="avatar-estrellas-count">{totalEstrellas}</span>
-            <span className="avatar-estrellas-label">estrellas</span>
+        {/* Sección superior: Avatar actual + Estrellas */}
+        <div className="avatar-seccion-actual">
+          <div className="avatar-actual-container">
+            {avatarActual?.image_url ? (
+              <img src={avatarActual.image_url} alt={avatarActual.name || 'Mi avatar'} className="avatar-actual-imagen" />
+            ) : (
+              <div className="avatar-actual-placeholder">🎭</div>
+            )}
+          </div>
+          <p className="avatar-actual-nombre">{avatarActual ? avatarActual.name : 'Sin avatar'}</p>
+          <div className="avatar-actual-estrellas">
+            <span className="avatar-actual-estrellas-icon">⭐</span>
+            <span className="avatar-actual-estrellas-count">{totalEstrellas}</span>
+            <span>estrellas</span>
           </div>
         </div>
+
+        <h2 className="avatar-tienda-titulo">Tienda de Avatares</h2>
 
         {loading ? (
           <div className="avatar-loading">
@@ -101,7 +110,7 @@ function AlumnoAvatar() {
                 key={item.id}
                 className={`avatar-card ${item.ya_comprado ? 'avatar-card-owned' : ''} ${item.puede_comprar && !item.ya_comprado ? 'avatar-card-can-buy' : ''}`}
               >
-                <div className="avatar-card-image">
+                <div className="avatar-card-imagen">
                   {item.image_url ? (
                     <img src={item.image_url} alt={item.name} />
                   ) : (
@@ -114,29 +123,21 @@ function AlumnoAvatar() {
                     <span className="avatar-card-badge-free">Gratis</span>
                   )}
                 </div>
-                <div className="avatar-card-body">
-                  <h3>{item.name}</h3>
-                  {item.description && <p>{item.description}</p>}
-                  <div className="avatar-card-price">
-                    {item.price === 0 ? (
-                      <span>0 estrellas</span>
-                    ) : (
-                      <span>⭐ {item.price} estrellas</span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className={`btn-avatar-comprar ${item.ya_comprado ? 'btn-avatar-owned' : item.puede_comprar ? 'btn-avatar-can-buy' : 'btn-avatar-locked'}`}
-                    onClick={() => handleComprar(item)}
-                    disabled={item.ya_comprado || !item.puede_comprar || comprando === item.id}
-                  >
-                    {item.ya_comprado
-                      ? 'Adquirido'
-                      : item.puede_comprar
-                        ? comprando === item.id ? 'Procesando...' : 'Desbloquear'
-                        : `Necesitas ${item.price} ⭐`}
-                  </button>
-                </div>
+                <h3 className="avatar-card-nombre">{item.name}</h3>
+                {item.description && <p className="avatar-card-descripcion">{item.description}</p>}
+                <div className="avatar-card-precio">⭐ {item.price} estrellas</div>
+                <button
+                  type="button"
+                  className={`btn-avatar-comprar ${item.ya_comprado ? 'btn-avatar-owned' : item.puede_comprar ? 'btn-avatar-can-buy' : 'btn-avatar-locked'}`}
+                  onClick={() => handleComprar(item)}
+                  disabled={item.ya_comprado || !item.puede_comprar || comprando === item.id}
+                >
+                  {item.ya_comprado
+                    ? 'Adquirido'
+                    : item.puede_comprar
+                      ? comprando === item.id ? 'Procesando...' : 'Escoger'
+                      : `Necesitas ${item.price} ⭐`}
+                </button>
               </div>
             ))}
           </div>

@@ -8,13 +8,79 @@
   overflow: visible;
 }
 
+/* Sección superior: Avatar actual + Estrellas */
+.avatar-seccion-actual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.avatar-actual-container {
+  width: 140px;
+  height: 140px;
+  background: #f3f4f6;
+  border: 2px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.avatar-actual-imagen {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-actual-placeholder {
+  font-size: 4rem;
+  opacity: 0.6;
+}
+
+.avatar-actual-nombre {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.avatar-actual-estrellas {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #92400e;
+}
+
+.avatar-actual-estrellas-icon {
+  font-size: 1.25rem;
+}
+
+.avatar-actual-estrellas-count {
+  font-size: 1.25rem;
+}
+
+/* Título tienda */
+.avatar-tienda-titulo {
+  margin: 0 0 1.5rem 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
 .btn-reintentar {
   margin-top: 1rem;
   padding: 0.5rem 1.5rem;
   background: linear-gradient(135deg, #4a83c1, #3b6ea5);
   color: white;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -22,51 +88,6 @@
 
 .btn-reintentar:hover {
   transform: scale(1.05);
-}
-
-.avatar-page-header {
-  text-align: center;
-  margin-bottom: 2rem;
-  padding: 1.5rem;
-  background: linear-gradient(135deg, #fefce8 0%, #fef9c3 50%, #fef08a 100%);
-  border-radius: 16px;
-  border: 1px solid rgba(234, 179, 8, 0.3);
-  box-shadow: 0 4px 12px rgba(234, 179, 8, 0.15);
-  flex-shrink: 0;
-  width: 100%;
-}
-
-.avatar-page-header h1 {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.75rem;
-  font-weight: 800;
-  color: #854d0e;
-}
-
-.avatar-page-header p {
-  margin: 0 0 1rem 0;
-  color: #a16207;
-  font-size: 1rem;
-}
-
-.avatar-estrellas-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1.25rem;
-  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
-  border-radius: 9999px;
-  color: #422006;
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
-}
-
-.avatar-estrellas-icon {
-  font-size: 1.25rem;
-}
-
-.avatar-estrellas-count {
-  font-size: 1.25rem;
 }
 
 .avatar-loading {
@@ -83,7 +104,7 @@
   height: 48px;
   border: 4px solid #e5e7eb;
   border-top-color: #4a83c1;
-  border-radius: 50%;
+  border-radius: 8px;
   animation: avatar-spin 0.8s linear infinite;
 }
 
@@ -97,8 +118,8 @@
   align-items: center;
   justify-content: center;
   min-height: 400px;
-  background: linear-gradient(145deg, #ffffff, #f9fafb);
-  border-radius: 16px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
   padding: 3rem;
   text-align: center;
 }
@@ -117,53 +138,59 @@
   color: #dc2626;
 }
 
+/* Grid: 4 columnas */
 .avatar-tienda-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 1.5rem;
   width: 100%;
 }
 
+/* Cards - rectangulares, sin círculos */
 .avatar-card {
-  background: white;
-  border-radius: 16px;
+  background: #ffffff;
+  border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border: 2px solid #e5e7eb;
-  transition: all 0.25s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
 }
 
 .avatar-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
 }
 
 .avatar-card-owned {
   border-color: #4ade80;
-  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 40%);
+  background: #f0fdf4;
 }
 
 .avatar-card-can-buy {
   border-color: #93c5fd;
 }
 
-.avatar-card-image {
+.avatar-card-imagen {
   position: relative;
-  aspect-ratio: 1;
-  background: linear-gradient(145deg, #f3f4f6, #e5e7eb);
+  width: 100%;
+  height: 140px;
+  background: #f3f4f6;
   display: flex;
   align-items: center;
   justify-content: center;
+  margin-bottom: 0.75rem;
 }
 
-.avatar-card-image img {
+.avatar-card-imagen img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
 .avatar-card-placeholder {
-  font-size: 4rem;
+  font-size: 3rem;
   opacity: 0.6;
 }
 
@@ -172,8 +199,8 @@
   position: absolute;
   top: 8px;
   right: 8px;
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
   font-size: 0.7rem;
   font-weight: 700;
 }
@@ -188,27 +215,24 @@
   color: #0c4a6e;
 }
 
-.avatar-card-body {
-  padding: 1rem;
-}
-
-.avatar-card-body h3 {
+.avatar-card-nombre {
   margin: 0 0 0.25rem 0;
   font-size: 1rem;
   font-weight: 700;
   color: #1f2937;
 }
 
-.avatar-card-body p {
-  margin: 0 0 0.75rem 0;
-  font-size: 0.8rem;
+.avatar-card-descripcion {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.85rem;
   color: #6b7280;
   line-height: 1.3;
+  flex: 1;
 }
 
-.avatar-card-price {
+.avatar-card-precio {
   margin-bottom: 0.75rem;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   font-weight: 600;
   color: #92400e;
 }
@@ -217,7 +241,7 @@
   width: 100%;
   padding: 0.6rem 1rem;
   border: none;
-  border-radius: 10px;
+  border-radius: 8px;
   font-weight: 600;
   font-size: 0.9rem;
   cursor: pointer;
@@ -246,21 +270,38 @@
   cursor: not-allowed;
 }
 
-@media (max-width: 640px) {
-  .alumno-avatar {
-    padding: 1rem;
+@media (max-width: 1024px) {
+  .avatar-tienda-grid {
+    grid-template-columns: repeat(3, 1fr);
   }
+}
 
+@media (max-width: 768px) {
   .avatar-tienda-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
   }
 
-  .avatar-card-body h3 {
-    font-size: 0.9rem;
+  .avatar-seccion-actual {
+    padding: 1.5rem;
   }
 
-  .btn-avatar-comprar {
-    font-size: 0.8rem;
+  .avatar-actual-container {
+    width: 100px;
+    height: 100px;
+  }
+}
+
+@media (max-width: 480px) {
+  .alumno-avatar {
+    padding: 1rem;
+  }
+
+  .avatar-tienda-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .avatar-card-imagen {
+    height: 120px;
   }
 }
