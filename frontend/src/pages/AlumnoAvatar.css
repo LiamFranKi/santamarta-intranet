@@ -279,6 +279,13 @@
   min-height: 2.6em;
 }
 
+.avatar-tienda-nivel {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #92400e;
+}
+
 .avatar-tienda-precio {
   margin: 0 0 1rem 0;
   font-size: 0.95rem;
