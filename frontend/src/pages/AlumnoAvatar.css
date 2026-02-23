@@ -5,6 +5,7 @@
   margin: 0 auto;
   min-height: 400px;
   box-sizing: border-box;
+  overflow: visible;
 }
 
 .btn-reintentar {
