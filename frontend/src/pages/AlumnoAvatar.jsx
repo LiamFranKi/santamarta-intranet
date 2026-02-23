@@ -17,7 +17,7 @@ function AlumnoAvatar() {
         setError(null);
         const res = await api.get('/alumno/avatares/tienda');
         setAvatarActual(res.data.avatar_actual || null);
-        setTotalEstrellas(res.data.total_estrellas || 0);
+        setTotalEstrellas(res.data.total_estrellas ?? 0);
       } catch (err) {
         console.error('Error cargando avatar:', err);
         setError(err.response?.data?.error || err.message || 'No se pudo cargar');
@@ -58,10 +58,13 @@ function AlumnoAvatar() {
   }
 
   const avatar = avatarActual || { name: 'Sin avatar', description: 'Aún no tienes un avatar asignado', price: 0 };
+  const precio = avatar.price != null ? avatar.price : 0;
+  const descripcion = avatar.description || '—';
 
   return (
     <DashboardLayout>
       <div className="avatar-pagina">
+        <h1 className="avatar-titulo-principal">Tu Avatar</h1>
         <div className="avatar-tarjeta-centro">
           <div className="avatar-tarjeta-contenido">
             <div className="avatar-imagen-container">
@@ -72,16 +75,16 @@ function AlumnoAvatar() {
               )}
             </div>
             <div className="avatar-info">
-              <h1 className="avatar-nombre">{avatar.name}</h1>
-              <p className="avatar-descripcion">{avatar.description || '—'}</p>
-              <p className="avatar-precio">
+              <h2 className="avatar-nombre">{avatar.name}</h2>
+              <p className="avatar-descripcion">{descripcion}</p>
+              <div className="avatar-precio">
                 <span className="avatar-precio-label">Precio:</span>{' '}
-                {avatar.price === 0 ? 'Gratis' : `${avatar.price} estrellas`}
-              </p>
-              <p className="avatar-estrellas">
+                {precio === 0 ? 'Gratis' : `${precio} estrellas`}
+              </div>
+              <div className="avatar-estrellas">
                 <span className="avatar-estrellas-label">Tus estrellas:</span>{' '}
                 <strong>{totalEstrellas}</strong>
-              </p>
+              </div>
             </div>
           </div>
         </div>

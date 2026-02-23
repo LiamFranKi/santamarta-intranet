@@ -295,7 +295,7 @@ router.get('/dashboard', async (req, res) => {
 
     // Avatar actual (el de mayor nivel que tenga comprado)
     const sexoAlumno = alumnoData.sexo;
-    const sexoAvatarBuscado = sexoAlumno === 0 ? 1 : (sexoAlumno === 1 ? 0 : null);
+    const sexoAvatarBuscado = sexoAlumno;
     let avatarActual = [];
     try {
       if (sexoAvatarBuscado !== null) {
@@ -901,7 +901,7 @@ router.get('/avatares/resumen', async (req, res) => {
     }
 
     const sexoAlumno = alumno[0].sexo;
-    const sexoAvatar = sexoAlumno === 0 ? 1 : (sexoAlumno === 1 ? 0 : null);
+    const sexoAvatar = sexoAlumno;
     let avatarActual = [];
     try {
       if (sexoAvatar !== null) {
@@ -946,6 +946,8 @@ router.get('/avatares/resumen', async (req, res) => {
       avatar_actual = {
         id: a.id,
         name: a.name,
+        description: a.description || '',
+        price: a.price != null ? a.price : 0,
         image: a.image,
         image_url: a.image ? `${baseUrl}${a.image}` : null,
         level: a.level
@@ -977,7 +979,8 @@ router.get('/avatares/tienda', async (req, res) => {
 
     const alumnoId = alumno[0].id;
     const sexoAlumno = alumno[0].sexo;
-    const sexoAvatar = sexoAlumno === 0 ? 1 : (sexoAlumno === 1 ? 0 : null);
+    // sexo: 0=Femenino, 1=Masculino - mostrar avatares del mismo género
+    const sexoAvatar = sexoAlumno;
 
     // Total estrellas acumulativas
     const matriculas = await query(
@@ -1037,20 +1040,34 @@ router.get('/avatares/tienda', async (req, res) => {
       puede_comprar: it.price === 0 || totalEstrellas >= (it.price || 0)
     }));
 
-    // Avatar actual (mayor level comprado)
-    const avatarActual = await query(
-      `SELECT asi.* FROM avatar_shop_sales ass
-       INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
-       WHERE ass.student_id = ?
-       ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
-      [alumnoId]
-    );
+    // Avatar actual (mayor level comprado, mismo género que el alumno)
+    let avatarActual = [];
+    if (sexoAvatar !== null && sexoAvatar !== undefined) {
+      avatarActual = await query(
+        `SELECT asi.* FROM avatar_shop_sales ass
+         INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+         WHERE ass.student_id = ? AND (asi.sexo = ? OR asi.sexo IS NULL)
+         ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+        [alumnoId, sexoAvatar]
+      );
+    }
+    if (avatarActual.length === 0) {
+      avatarActual = await query(
+        `SELECT asi.* FROM avatar_shop_sales ass
+         INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+         WHERE ass.student_id = ?
+         ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+        [alumnoId]
+      );
+    }
     let avatarActualData = null;
     if (avatarActual.length > 0) {
       const a = avatarActual[0];
       avatarActualData = {
         id: a.id,
         name: a.name,
+        description: a.description || '',
+        price: a.price != null ? a.price : 0,
         image: a.image,
         image_url: a.image ? `${baseAvatarUrl}${a.image}` : null,
         level: a.level
@@ -1091,7 +1108,7 @@ router.post('/avatares/comprar/:itemId', async (req, res) => {
 
     const alumnoId = alumno[0].id;
     const sexoAlumno = alumno[0].sexo;
-    const sexoAvatar = sexoAlumno === 0 ? 1 : (sexoAlumno === 1 ? 0 : null);
+    const sexoAvatar = sexoAlumno;
 
     const item = await query(
       `SELECT * FROM avatar_shop_items WHERE id = ?`,
