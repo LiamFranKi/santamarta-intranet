@@ -7,27 +7,43 @@ import './AlumnoAvatar.css';
 function AlumnoAvatar() {
   const [loading, setLoading] = useState(true);
   const [avatarActual, setAvatarActual] = useState(null);
+  const [items, setItems] = useState([]);
   const [totalEstrellas, setTotalEstrellas] = useState(0);
+  const [comprando, setComprando] = useState(null);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const cargar = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await api.get('/alumno/avatares/tienda');
-        setAvatarActual(res.data.avatar_actual || null);
-        setTotalEstrellas(res.data.total_estrellas ?? 0);
-      } catch (err) {
-        console.error('Error cargando avatar:', err);
-        setError(err.response?.data?.error || err.message || 'No se pudo cargar');
-        Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || err.message });
-      } finally {
-        setLoading(false);
-      }
-    };
-    cargar();
-  }, []);
+  const cargar = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await api.get('/alumno/avatares/tienda');
+      setAvatarActual(res.data.avatar_actual || null);
+      setItems(res.data.items || []);
+      setTotalEstrellas(res.data.total_estrellas ?? 0);
+    } catch (err) {
+      console.error('Error cargando avatar:', err);
+      setError(err.response?.data?.error || err.message || 'No se pudo cargar');
+      Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { cargar(); }, []);
+
+  const handleComprar = async (item) => {
+    if (item.ya_comprado || !item.puede_comprar) return;
+    try {
+      setComprando(item.id);
+      await api.post(`/alumno/avatares/comprar/${item.id}`);
+      await cargar();
+      Swal.fire({ icon: 'success', title: '¡Avatar desbloqueado!', timer: 2000, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudo desbloquear' });
+    } finally {
+      setComprando(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -48,7 +64,7 @@ function AlumnoAvatar() {
         <div className="avatar-pagina">
           <div className="avatar-error">
             <p>{error}</p>
-            <button type="button" className="avatar-btn-reintentar" onClick={() => window.location.reload()}>
+            <button type="button" className="avatar-btn-reintentar" onClick={cargar}>
               Reintentar
             </button>
           </div>
@@ -88,6 +104,37 @@ function AlumnoAvatar() {
             </div>
           </div>
         </div>
+
+        <h2 className="avatar-tienda-titulo">Tienda de Avatares</h2>
+        {items.length > 0 ? (
+          <div className="avatar-tienda-grid">
+            {items.map((item) => (
+              <div key={item.id} className={`avatar-tienda-card ${item.ya_comprado ? 'avatar-tienda-card-comprado' : ''}`}>
+                <div className="avatar-tienda-imagen">
+                  {item.image_url ? (
+                    <img src={item.image_url} alt={item.name} />
+                  ) : (
+                    <div className="avatar-tienda-placeholder">🎭</div>
+                  )}
+                  {item.ya_comprado && <span className="avatar-tienda-badge">✓ Adquirido</span>}
+                </div>
+                <h3 className="avatar-tienda-nombre">{item.name}</h3>
+                <p className="avatar-tienda-descripcion">{item.description || '—'}</p>
+                <p className="avatar-tienda-precio">⭐ {item.price ?? 0} estrellas</p>
+                <button
+                  type="button"
+                  className={`avatar-tienda-btn ${item.ya_comprado ? 'avatar-tienda-btn-comprado' : item.puede_comprar ? 'avatar-tienda-btn-comprar' : 'avatar-tienda-btn-bloqueado'}`}
+                  onClick={() => handleComprar(item)}
+                  disabled={item.ya_comprado || !item.puede_comprar || comprando === item.id}
+                >
+                  {item.ya_comprado ? 'Adquirido' : item.puede_comprar ? (comprando === item.id ? 'Procesando...' : 'Comprar') : `Necesitas ${item.price ?? 0} ⭐`}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="avatar-tienda-vacio">No hay avatares disponibles.</p>
+        )}
       </div>
     </DashboardLayout>
   );
