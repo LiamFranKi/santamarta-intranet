@@ -1719,7 +1719,7 @@
 
 @media (max-width: 768px) {
   .docente-cursos {
-    padding: 1rem;
+    padding: 1rem 1rem 7.5rem 1rem;
   }
 
   .cursos-grid {
