@@ -16301,6 +16301,315 @@ router.post('/aula-virtual/copiar-temas-biblioteca', async (req, res) => {
   }
 });
 
+// Helper: obtener asignaturas del mismo curso/grado, años 2024 a anio_activo-1
+async function obtenerAsignaturasBiblioteca(asignatura_id, personal_id, colegio_id, anio_activo) {
+  const asignaturaActual = await query(
+    `SELECT a.*, c.nombre as curso_nombre, g.grado, g.seccion, g.anio
+     FROM asignaturas a
+     INNER JOIN cursos c ON c.id = a.curso_id
+     INNER JOIN grupos g ON g.id = a.grupo_id
+     WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+    [asignatura_id, personal_id, colegio_id, anio_activo]
+  );
+  if (asignaturaActual.length === 0) return null;
+  const { curso_id, grado } = asignaturaActual[0];
+  const anioMin = 2024;
+  const anioMax = Math.max(anioMin, anio_activo - 1);
+  if (anio_activo <= 2024) return { asignaturas: [], curso_id, grado };
+  const asignaturas = await query(
+    `SELECT a.id as asignatura_id, g.anio, c.nombre as curso_nombre, g.grado, g.seccion,
+            CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) as docente_nombre
+     FROM asignaturas a
+     INNER JOIN cursos c ON c.id = a.curso_id
+     INNER JOIN grupos g ON g.id = a.grupo_id
+     LEFT JOIN personal p ON p.id = a.personal_id
+     WHERE a.curso_id = ? AND g.grado = ? AND a.colegio_id = ?
+       AND g.anio >= ? AND g.anio <= ?
+     ORDER BY g.anio DESC, g.seccion ASC`,
+    [curso_id, grado, colegio_id, anioMin, anioMax]
+  );
+  return { asignaturas };
+}
+
+/**
+ * GET /api/docente/aula-virtual/biblioteca-tareas
+ */
+router.get('/aula-virtual/biblioteca-tareas', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { asignatura_id } = req.query;
+    if (!asignatura_id) return res.status(400).json({ error: 'asignatura_id es requerido' });
+    const data = await obtenerAsignaturasBiblioteca(asignatura_id, personal_id, colegio_id, anio_activo);
+    if (!data) return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
+    const porAnio = {};
+    const añosSet = new Set();
+    for (const asig of data.asignaturas) {
+      const items = await query(
+        `SELECT id, titulo, descripcion, ciclo, fecha_entrega FROM asignaturas_tareas WHERE asignatura_id = ? ORDER BY ciclo ASC, id ASC`,
+        [asig.asignatura_id]
+      );
+      const mapped = items.map(t => ({
+        ...t,
+        asignatura_id: asig.asignatura_id,
+        asignatura_label: `${asig.curso_nombre} - ${asig.grado}° ${asig.seccion} (${asig.anio})`,
+        docente_nombre: asig.docente_nombre || 'Docente'
+      }));
+      if (mapped.length > 0) {
+        if (!porAnio[asig.anio]) porAnio[asig.anio] = [];
+        porAnio[asig.anio].push(...mapped);
+        añosSet.add(asig.anio);
+      }
+    }
+    res.json({ porAnio, años: Array.from(añosSet).sort((a, b) => b - a) });
+  } catch (error) {
+    console.error('Error biblioteca tareas:', error);
+    res.status(500).json({ error: 'Error al obtener biblioteca de tareas' });
+  }
+});
+
+/**
+ * GET /api/docente/aula-virtual/biblioteca-examenes
+ */
+router.get('/aula-virtual/biblioteca-examenes', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { asignatura_id } = req.query;
+    if (!asignatura_id) return res.status(400).json({ error: 'asignatura_id es requerido' });
+    const data = await obtenerAsignaturasBiblioteca(asignatura_id, personal_id, colegio_id, anio_activo);
+    if (!data) return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
+    const porAnio = {};
+    const añosSet = new Set();
+    for (const asig of data.asignaturas) {
+      const items = await query(
+        `SELECT id, titulo, ciclo FROM asignaturas_examenes WHERE asignatura_id = ? ORDER BY ciclo ASC, id ASC`,
+        [asig.asignatura_id]
+      );
+      const mapped = items.map(e => ({
+        ...e,
+        asignatura_id: asig.asignatura_id,
+        asignatura_label: `${asig.curso_nombre} - ${asig.grado}° ${asig.seccion} (${asig.anio})`,
+        docente_nombre: asig.docente_nombre || 'Docente'
+      }));
+      if (mapped.length > 0) {
+        if (!porAnio[asig.anio]) porAnio[asig.anio] = [];
+        porAnio[asig.anio].push(...mapped);
+        añosSet.add(asig.anio);
+      }
+    }
+    res.json({ porAnio, años: Array.from(añosSet).sort((a, b) => b - a) });
+  } catch (error) {
+    console.error('Error biblioteca examenes:', error);
+    res.status(500).json({ error: 'Error al obtener biblioteca de exámenes' });
+  }
+});
+
+/**
+ * GET /api/docente/aula-virtual/biblioteca-videos
+ */
+router.get('/aula-virtual/biblioteca-videos', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { asignatura_id } = req.query;
+    if (!asignatura_id) return res.status(400).json({ error: 'asignatura_id es requerido' });
+    const data = await obtenerAsignaturasBiblioteca(asignatura_id, personal_id, colegio_id, anio_activo);
+    if (!data) return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
+    const porAnio = {};
+    const añosSet = new Set();
+    for (const asig of data.asignaturas) {
+      const items = await query(
+        `SELECT id, descripcion, enlace, ciclo FROM asignaturas_videos WHERE asignatura_id = ? ORDER BY ciclo ASC, id ASC`,
+        [asig.asignatura_id]
+      );
+      const mapped = items.map(v => ({
+        ...v,
+        asignatura_id: asig.asignatura_id,
+        asignatura_label: `${asig.curso_nombre} - ${asig.grado}° ${asig.seccion} (${asig.anio})`,
+        docente_nombre: asig.docente_nombre || 'Docente',
+        enlace_url: v.enlace && v.enlace.trim() ? v.enlace.trim() : null
+      }));
+      if (mapped.length > 0) {
+        if (!porAnio[asig.anio]) porAnio[asig.anio] = [];
+        porAnio[asig.anio].push(...mapped);
+        añosSet.add(asig.anio);
+      }
+    }
+    res.json({ porAnio, años: Array.from(añosSet).sort((a, b) => b - a) });
+  } catch (error) {
+    console.error('Error biblioteca videos:', error);
+    res.status(500).json({ error: 'Error al obtener biblioteca de videos' });
+  }
+});
+
+/**
+ * GET /api/docente/aula-virtual/biblioteca-enlaces
+ */
+router.get('/aula-virtual/biblioteca-enlaces', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { asignatura_id } = req.query;
+    if (!asignatura_id) return res.status(400).json({ error: 'asignatura_id es requerido' });
+    const data = await obtenerAsignaturasBiblioteca(asignatura_id, personal_id, colegio_id, anio_activo);
+    if (!data) return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
+    const porAnio = {};
+    const añosSet = new Set();
+    for (const asig of data.asignaturas) {
+      const items = await query(
+        `SELECT id, descripcion, enlace, ciclo FROM asignaturas_enlaces WHERE asignatura_id = ? ORDER BY ciclo ASC, id ASC`,
+        [asig.asignatura_id]
+      );
+      const mapped = items.map(e => ({
+        ...e,
+        asignatura_id: asig.asignatura_id,
+        asignatura_label: `${asig.curso_nombre} - ${asig.grado}° ${asig.seccion} (${asig.anio})`,
+        docente_nombre: asig.docente_nombre || 'Docente',
+        enlace_url: e.enlace && e.enlace.trim() ? e.enlace.trim() : null
+      }));
+      if (mapped.length > 0) {
+        if (!porAnio[asig.anio]) porAnio[asig.anio] = [];
+        porAnio[asig.anio].push(...mapped);
+        añosSet.add(asig.anio);
+      }
+    }
+    res.json({ porAnio, años: Array.from(añosSet).sort((a, b) => b - a) });
+  } catch (error) {
+    console.error('Error biblioteca enlaces:', error);
+    res.status(500).json({ error: 'Error al obtener biblioteca de enlaces' });
+  }
+});
+
+/**
+ * POST /api/docente/aula-virtual/copiar-biblioteca
+ * Copiar items desde biblioteca al año actual (tareas, examenes, videos, enlaces)
+ * Body: { asignatura_id, tipo: 'tareas'|'examenes'|'videos'|'enlaces', items: [{ asignatura_origen_id, item_id }] }
+ * Nota: El ciclo/bimestre se conserva al copiar
+ */
+router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
+  try {
+    const { personal_id, colegio_id, anio_activo } = req.user;
+    const { asignatura_id, tipo, items } = req.body;
+
+    if (!asignatura_id || !tipo || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'asignatura_id, tipo e items son requeridos' });
+    }
+
+    const tiposValidos = ['tareas', 'examenes', 'videos', 'enlaces'];
+    if (!tiposValidos.includes(tipo)) {
+      return res.status(400).json({ error: 'tipo debe ser: tareas, examenes, videos o enlaces' });
+    }
+
+    const asignaturaDestino = await query(
+      `SELECT a.* FROM asignaturas a INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [asignatura_id, personal_id, colegio_id, anio_activo]
+    );
+
+    if (asignaturaDestino.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a la asignatura destino' });
+    }
+
+    let copiados = 0;
+
+    if (tipo === 'tareas') {
+      for (const item of items) {
+        const { asignatura_origen_id, item_id } = item;
+        if (!asignatura_origen_id || !item_id) continue;
+        const tarea = await query(`SELECT * FROM asignaturas_tareas WHERE id = ? AND asignatura_id = ?`, [item_id, asignatura_origen_id]);
+        if (tarea.length === 0) continue;
+        const t = tarea[0];
+        const resultado = await execute(
+          `INSERT INTO asignaturas_tareas (titulo, descripcion, fecha_hora, fecha_entrega, trabajador_id, asignatura_id, ciclo)
+           VALUES (?, ?, NOW(), ?, ?, ?, ?)`,
+          [t.titulo, t.descripcion || '', t.fecha_entrega || new Date(), personal_id, asignatura_id, t.ciclo]
+        );
+        const nuevaTareaId = resultado.insertId;
+        const archivosTarea = await query(`SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`, [item_id]);
+        for (const arch of archivosTarea) {
+          await execute(`INSERT INTO asignaturas_tareas_archivos (tarea_id, nombre, archivo) VALUES (?, ?, ?)`, [nuevaTareaId, arch.nombre, arch.archivo]);
+        }
+        copiados++;
+      }
+    } else if (tipo === 'examenes') {
+      for (const item of items) {
+        const { asignatura_origen_id, item_id } = item;
+        if (!asignatura_origen_id || !item_id) continue;
+        const examen = await query(`SELECT * FROM asignaturas_examenes WHERE id = ? AND asignatura_id = ?`, [item_id, asignatura_origen_id]);
+        if (examen.length === 0) continue;
+        const ex = examen[0];
+        const resultado = await execute(
+          `INSERT INTO asignaturas_examenes (trabajador_id, titulo, tipo, archivo_pdf, fecha_desde, fecha_hasta, hora_desde, hora_hasta, asignatura_id, ciclo, preguntas_max, tipo_puntaje, puntos_correcta, penalizar_incorrecta, penalizacion_incorrecta, tiempo, intentos, estado, orden_preguntas)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [personal_id, ex.titulo, ex.tipo || 'VIRTUAL', ex.archivo_pdf || '', ex.fecha_desde || new Date(), ex.fecha_hasta || new Date(), ex.hora_desde || '08:00', ex.hora_hasta || '20:00', asignatura_id, ex.ciclo, ex.preguntas_max || 1, ex.tipo_puntaje || 'GENERAL', ex.puntos_correcta || 1, ex.penalizar_incorrecta || 'NO', ex.penalizacion_incorrecta || 0, ex.tiempo || 60, ex.intentos || 1, ex.estado || 'INACTIVO', ex.orden_preguntas || 'PREDETERMINADO']
+        );
+        const nuevoExamenId = resultado.insertId;
+        const preguntas = await query(`SELECT * FROM asignaturas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC`, [item_id]);
+        const mapeoAlt = {};
+        for (const p of preguntas) {
+          const resP = await execute(
+            `INSERT INTO asignaturas_examenes_preguntas (examen_id, descripcion, puntos, orden, tipo, imagen_puzzle, datos_adicionales) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [nuevoExamenId, p.descripcion, p.puntos || 1, p.orden, p.tipo || 'ALTERNATIVAS', p.imagen_puzzle || '', p.datos_adicionales]
+          );
+          const nuevaPregId = resP.insertId;
+          const alts = await query(`SELECT * FROM asignaturas_examenes_preguntas_alternativas WHERE pregunta_id = ? ORDER BY id ASC`, [p.id]);
+          for (const alt of alts) {
+            const resAlt = await execute(
+              `INSERT INTO asignaturas_examenes_preguntas_alternativas (pregunta_id, descripcion, correcta, orden_posicion, par_id, zona_drop) VALUES (?, ?, ?, ?, ?, ?)`,
+              [nuevaPregId, alt.descripcion, alt.correcta || 'NO', alt.orden_posicion, null, alt.zona_drop]
+            );
+            mapeoAlt[alt.id] = resAlt.insertId;
+          }
+        }
+        for (const p of preguntas) {
+          const alts = await query(`SELECT * FROM asignaturas_examenes_preguntas_alternativas WHERE pregunta_id = ? ORDER BY id ASC`, [p.id]);
+          const nuevasPreguntas = await query(`SELECT id FROM asignaturas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC`, [nuevoExamenId]);
+          const idx = preguntas.findIndex(x => x.id === p.id);
+          const nuevaPregId = nuevasPreguntas[idx]?.id;
+          if (!nuevaPregId) continue;
+          const nuevasAlts = await query(`SELECT id FROM asignaturas_examenes_preguntas_alternativas WHERE pregunta_id = ? ORDER BY id ASC`, [nuevaPregId]);
+          for (let i = 0; i < alts.length; i++) {
+            const alt = alts[i];
+            const nuevaAltId = nuevasAlts[i]?.id;
+            if (alt.par_id && mapeoAlt[alt.par_id] && nuevaAltId) {
+              await execute(`UPDATE asignaturas_examenes_preguntas_alternativas SET par_id = ? WHERE id = ?`, [mapeoAlt[alt.par_id], nuevaAltId]);
+            }
+          }
+        }
+        copiados++;
+      }
+    } else if (tipo === 'videos') {
+      for (const item of items) {
+        const { asignatura_origen_id, item_id } = item;
+        if (!asignatura_origen_id || !item_id) continue;
+        const video = await query(`SELECT * FROM asignaturas_videos WHERE id = ? AND asignatura_id = ?`, [item_id, asignatura_origen_id]);
+        if (video.length === 0) continue;
+        const v = video[0];
+        await execute(
+          `INSERT INTO asignaturas_videos (asignatura_id, trabajador_id, descripcion, enlace, ciclo, fecha_hora) VALUES (?, ?, ?, ?, ?, NOW())`,
+          [asignatura_id, personal_id, v.descripcion || '', v.enlace || '', v.ciclo]
+        );
+        copiados++;
+      }
+    } else if (tipo === 'enlaces') {
+      for (const item of items) {
+        const { asignatura_origen_id, item_id } = item;
+        if (!asignatura_origen_id || !item_id) continue;
+        const enlace = await query(`SELECT * FROM asignaturas_enlaces WHERE id = ? AND asignatura_id = ?`, [item_id, asignatura_origen_id]);
+        if (enlace.length === 0) continue;
+        const e = enlace[0];
+        await execute(
+          `INSERT INTO asignaturas_enlaces (asignatura_id, trabajador_id, descripcion, enlace, ciclo, fecha_hora) VALUES (?, ?, ?, ?, ?, NOW())`,
+          [asignatura_id, personal_id, e.descripcion || '', e.enlace || '', e.ciclo]
+        );
+        copiados++;
+      }
+    }
+
+    res.json({ success: true, copiados });
+  } catch (error) {
+    console.error('Error copiando desde biblioteca:', error);
+    res.status(500).json({ error: 'Error al copiar desde biblioteca' });
+  }
+});
+
 /**
  * PUT /api/docente/aula-virtual/archivos/ordenar
  * Actualizar el orden de los temas

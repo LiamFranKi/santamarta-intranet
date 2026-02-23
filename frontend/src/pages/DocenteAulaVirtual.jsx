@@ -213,13 +213,22 @@ function DocenteAulaVirtual() {
   const [notasTemporales, setNotasTemporales] = useState({});
   const [loadingEntregas, setLoadingEntregas] = useState(false);
   
-  // Estado para modal Biblioteca de Temas (años anteriores)
+  // Estado para modal Biblioteca (temas, tareas, examenes, videos, enlaces)
   const [mostrarModalBiblioteca, setMostrarModalBiblioteca] = useState(false);
+  const [tipoBiblioteca, setTipoBiblioteca] = useState('temas');
   const [loadingBiblioteca, setLoadingBiblioteca] = useState(false);
   const [datosBiblioteca, setDatosBiblioteca] = useState({ porAnio: {}, años: [] });
   const [bibliotecaSeleccionados, setBibliotecaSeleccionados] = useState([]);
   const [añoFiltroBiblioteca, setAñoFiltroBiblioteca] = useState(null);
   const [guardandoBiblioteca, setGuardandoBiblioteca] = useState(false);
+
+  const BIBLIOTECA_CONFIG = {
+    temas: { api: 'biblioteca-temas', copyApi: 'copiar-temas-biblioteca', titulo: 'Biblioteca de Temas', labelItem: 'nombre', useCopyTemas: true },
+    tareas: { api: 'biblioteca-tareas', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Tareas', labelItem: 'titulo', useCopyTemas: false },
+    examenes: { api: 'biblioteca-examenes', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Exámenes', labelItem: 'titulo', useCopyTemas: false },
+    videos: { api: 'biblioteca-videos', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Videos', labelItem: 'descripcion', useCopyTemas: false },
+    enlaces: { api: 'biblioteca-enlaces', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Enlaces', labelItem: 'descripcion', useCopyTemas: false }
+  };
 
   // Estado para modal de Asignar a Registro (Tareas)
   const [mostrarModalAsignarRegistro, setMostrarModalAsignarRegistro] = useState(false);
@@ -489,15 +498,17 @@ function DocenteAulaVirtual() {
     }
   };
 
-  // Biblioteca de Temas: abrir modal y cargar datos
-  const abrirModalBiblioteca = async () => {
+  // Biblioteca: abrir modal y cargar datos (temas, tareas, examenes, videos, enlaces)
+  const abrirModalBiblioteca = async (tipo = 'temas') => {
+    setTipoBiblioteca(tipo);
     setMostrarModalBiblioteca(true);
     setBibliotecaSeleccionados([]);
     setAñoFiltroBiblioteca(null);
     setLoadingBiblioteca(true);
     setDatosBiblioteca({ porAnio: {}, años: [] });
+    const cfg = BIBLIOTECA_CONFIG[tipo] || BIBLIOTECA_CONFIG.temas;
     try {
-      const res = await api.get('/docente/aula-virtual/biblioteca-temas', {
+      const res = await api.get(`/docente/aula-virtual/${cfg.api}`, {
         params: { asignatura_id: asignaturaId }
       });
       setDatosBiblioteca(res.data);
@@ -505,7 +516,7 @@ function DocenteAulaVirtual() {
         setAñoFiltroBiblioteca(res.data.años[0]);
       }
     } catch (err) {
-      console.error('Error cargando biblioteca:', err);
+      console.error('[Biblioteca] Error cargando:', err);
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -516,37 +527,38 @@ function DocenteAulaVirtual() {
     }
   };
 
-  const toggleBibliotecaTema = (asignatura_origen_id, tema_id) => {
+  const toggleBibliotecaItem = (asignatura_origen_id, item_id) => {
     setBibliotecaSeleccionados(prev => {
-      const key = `${asignatura_origen_id}-${tema_id}`;
-      const exists = prev.some(p => p.asignatura_origen_id === asignatura_origen_id && p.tema_id === tema_id);
+      const exists = prev.some(p => p.asignatura_origen_id === asignatura_origen_id && (p.tema_id === item_id || p.item_id === item_id));
       if (exists) {
-        return prev.filter(p => !(p.asignatura_origen_id === asignatura_origen_id && p.tema_id === tema_id));
+        return prev.filter(p => !(p.asignatura_origen_id === asignatura_origen_id && (p.tema_id === item_id || p.item_id === item_id)));
       }
-      return [...prev, { asignatura_origen_id, tema_id }];
+      const item = tipoBiblioteca === 'temas' ? { asignatura_origen_id, tema_id: item_id } : { asignatura_origen_id, item_id };
+      return [...prev, item];
     });
   };
 
-  const isBibliotecaTemaSeleccionado = (asignatura_origen_id, tema_id) => {
+  const isBibliotecaItemSeleccionado = (asignatura_origen_id, item_id) => {
     return bibliotecaSeleccionados.some(
-      p => p.asignatura_origen_id === asignatura_origen_id && p.tema_id === tema_id
+      p => p.asignatura_origen_id === asignatura_origen_id && (p.tema_id === item_id || p.item_id === item_id)
     );
   };
 
-  const seleccionarTodosBiblioteca = (temas, select) => {
+  const seleccionarTodosBiblioteca = (items, select) => {
+    const isTemas = tipoBiblioteca === 'temas';
     if (select) {
-      const nuevos = temas.map(t => ({ asignatura_origen_id: t.asignatura_id, tema_id: t.id }));
+      const nuevos = items.map(t => isTemas ? { asignatura_origen_id: t.asignatura_id, tema_id: t.id } : { asignatura_origen_id: t.asignatura_id, item_id: t.id });
       setBibliotecaSeleccionados(prev => {
-        const set = new Set(prev.map(p => `${p.asignatura_origen_id}-${p.tema_id}`));
-        nuevos.forEach(n => set.add(`${n.asignatura_origen_id}-${n.tema_id}`));
-        return Array.from(set).map(s => {
-          const [a, b] = s.split('-').map(Number);
-          return { asignatura_origen_id: a, tema_id: b };
-        });
+        const merged = [...prev];
+        for (const n of nuevos) {
+          const key = `${n.asignatura_origen_id}-${n.tema_id ?? n.item_id}`;
+          if (!merged.some(p => `${p.asignatura_origen_id}-${p.tema_id ?? p.item_id}` === key)) merged.push(n);
+        }
+        return merged;
       });
     } else {
-      const ids = new Set(temas.map(t => `${t.asignatura_id}-${t.id}`));
-      setBibliotecaSeleccionados(prev => prev.filter(p => !ids.has(`${p.asignatura_origen_id}-${p.tema_id}`)));
+      const ids = new Set(items.map(t => `${t.asignatura_id}-${t.id}`));
+      setBibliotecaSeleccionados(prev => prev.filter(p => !ids.has(`${p.asignatura_origen_id}-${p.tema_id ?? p.item_id}`)));
     }
   };
 
@@ -554,27 +566,34 @@ function DocenteAulaVirtual() {
     if (bibliotecaSeleccionados.length === 0) {
       Swal.fire({
         icon: 'warning',
-        title: 'Seleccione temas',
-        text: 'Debe seleccionar al menos un tema para copiar'
+        title: 'Seleccione elementos',
+        text: 'Debe seleccionar al menos un elemento para copiar'
       });
       return;
     }
     setGuardandoBiblioteca(true);
+    const cfg = BIBLIOTECA_CONFIG[tipoBiblioteca] || BIBLIOTECA_CONFIG.temas;
     try {
-      const res = await api.post('/docente/aula-virtual/copiar-temas-biblioteca', {
-        asignatura_id: asignaturaId,
-        items: bibliotecaSeleccionados
-      });
+      const payload = cfg.useCopyTemas
+        ? { asignatura_id: asignaturaId, items: bibliotecaSeleccionados }
+        : { asignatura_id: asignaturaId, tipo: tipoBiblioteca, items: bibliotecaSeleccionados.map(p => ({ asignatura_origen_id: p.asignatura_origen_id, item_id: p.item_id })) };
+      const res = cfg.useCopyTemas
+        ? await api.post('/docente/aula-virtual/copiar-temas-biblioteca', payload)
+        : await api.post('/docente/aula-virtual/copiar-biblioteca', payload);
       Swal.fire({
         icon: 'success',
         title: '¡Copiado!',
-        text: `Se copiaron ${res.data.copiados} tema(s) al año actual`
+        text: `Se copiaron ${res.data.copiados} elemento(s) al año actual (conservando su bimestre)`
       });
       setMostrarModalBiblioteca(false);
       setBibliotecaSeleccionados([]);
-      cargarArchivos(bimestreGlobal);
+      if (tipoBiblioteca === 'temas') cargarArchivos(bimestreGlobal);
+      else if (tipoBiblioteca === 'tareas') cargarTareas(bimestreGlobal);
+      else if (tipoBiblioteca === 'examenes') cargarExamenes(bimestreGlobal);
+      else if (tipoBiblioteca === 'videos') cargarVideos(bimestreGlobal);
+      else if (tipoBiblioteca === 'enlaces') cargarEnlaces(bimestreGlobal);
     } catch (err) {
-      console.error('Error copiando temas:', err);
+      console.error('[Biblioteca] Error copiando:', err);
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -1515,6 +1534,11 @@ function DocenteAulaVirtual() {
 
   const renderTareasContent = () => (
     <div className="card-content-expanded">
+      <div className="temas-toolbar">
+        <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('tareas'); }}>
+          📖 Biblioteca de tareas
+        </button>
+      </div>
       {/* Modal de Detalles de Tarea */}
       {mostrarDetallesTarea && tareaDetalle && createPortal(
         <div 
@@ -1705,6 +1729,11 @@ function DocenteAulaVirtual() {
 
   const renderExamenesContent = () => (
     <div className="card-content-expanded">
+      <div className="temas-toolbar">
+        <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('examenes'); }}>
+          📖 Biblioteca de exámenes
+        </button>
+      </div>
       {examenes.length > 0 ? (
         <table>
           <thead>
@@ -2605,6 +2634,11 @@ function DocenteAulaVirtual() {
     
     return (
     <div className="card-content-expanded">
+        <div className="temas-toolbar">
+          <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('videos'); }}>
+            📖 Biblioteca de videos
+          </button>
+        </div>
         {/* Modal de Formulario de Video */}
         {mostrarFormVideo && createPortal(
           <div 
@@ -2799,6 +2833,11 @@ function DocenteAulaVirtual() {
     
     return (
     <div className="card-content-expanded">
+        <div className="temas-toolbar">
+          <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('enlaces'); }}>
+            📖 Biblioteca de enlaces
+          </button>
+        </div>
         {/* Modal de Formulario de Enlace */}
         {mostrarFormEnlace && createPortal(
           <div 
@@ -3030,7 +3069,7 @@ function DocenteAulaVirtual() {
                   className="card-action-btn card-action-btn-secondary"
                   onClick={(e) => { 
                     e.stopPropagation(); 
-                    abrirModalBiblioteca(); 
+                    abrirModalBiblioteca('temas'); 
                   }}
                   title="Ver temas de años anteriores"
                 >
@@ -3064,12 +3103,14 @@ function DocenteAulaVirtual() {
                 <p className="card-count">{tareas.length}</p>
                 <p className="card-subtitle">Tareas asignadas</p>
               </div>
-              <button 
-                className="card-action-btn"
-                onClick={(e) => { e.stopPropagation(); setMostrarFormTarea(true); }}
-              >
-                + Nuevo
-              </button>
+              <div className="card-action-btns">
+                <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('tareas'); }} title="Ver tareas de años anteriores">
+                  📖 Biblioteca
+                </button>
+                <button className="card-action-btn" onClick={(e) => { e.stopPropagation(); setMostrarFormTarea(true); }}>
+                  + Nuevo
+                </button>
+              </div>
             </div>
             {expandedCard === 'tareas' && renderCardContent('tareas')}
           </div>
@@ -3086,8 +3127,12 @@ function DocenteAulaVirtual() {
                 <p className="card-count">{examenes.length}</p>
                 <p className="card-subtitle">Exámenes creados</p>
               </div>
-              <button 
-                className="card-action-btn"
+              <div className="card-action-btns">
+                <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('examenes'); }} title="Ver exámenes de años anteriores">
+                  📖 Biblioteca
+                </button>
+                <button 
+                  className="card-action-btn"
                 onClick={(e) => { 
                   e.stopPropagation(); 
                   setFormExamen({
@@ -3116,6 +3161,7 @@ function DocenteAulaVirtual() {
               >
                 + Nuevo
               </button>
+              </div>
             </div>
             {expandedCard === 'examenes' && renderCardContent('examenes')}
           </div>
@@ -3132,20 +3178,23 @@ function DocenteAulaVirtual() {
                 <p className="card-count">{videos.length}</p>
                 <p className="card-subtitle">Videos disponibles</p>
               </div>
-              <button 
-                className="card-action-btn"
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  if (expandedCard !== 'videos') {
-                    toggleCard('videos');
-                  }
-                  setVideoEditando(null);
-                  setFormVideo({ descripcion: '', enlace: '', ciclo: bimestreGlobal });
-                  setMostrarFormVideo(true);
-                }}
-              >
-                + Nuevo
-              </button>
+              <div className="card-action-btns">
+                <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('videos'); }} title="Ver videos de años anteriores">
+                  📖 Biblioteca
+                </button>
+                <button 
+                  className="card-action-btn"
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    if (expandedCard !== 'videos') toggleCard('videos');
+                    setVideoEditando(null);
+                    setFormVideo({ descripcion: '', enlace: '', ciclo: bimestreGlobal });
+                    setMostrarFormVideo(true);
+                  }}
+                >
+                  + Nuevo
+                </button>
+              </div>
             </div>
             {expandedCard === 'videos' && renderCardContent('videos')}
           </div>
@@ -3162,20 +3211,23 @@ function DocenteAulaVirtual() {
                 <p className="card-count">{enlaces.length}</p>
                 <p className="card-subtitle">Enlaces compartidos</p>
               </div>
-              <button 
-                className="card-action-btn"
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  if (expandedCard !== 'enlaces') {
-                    toggleCard('enlaces');
-                  }
-                  setEnlaceEditando(null);
-                  setFormEnlace({ descripcion: '', enlace: '', ciclo: bimestreGlobal });
-                  setMostrarFormEnlace(true);
-                }}
-              >
-                + Nuevo
-              </button>
+              <div className="card-action-btns">
+                <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('enlaces'); }} title="Ver enlaces de años anteriores">
+                  📖 Biblioteca
+                </button>
+                <button 
+                  className="card-action-btn"
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    if (expandedCard !== 'enlaces') toggleCard('enlaces');
+                    setEnlaceEditando(null);
+                    setFormEnlace({ descripcion: '', enlace: '', ciclo: bimestreGlobal });
+                    setMostrarFormEnlace(true);
+                  }}
+                >
+                  + Nuevo
+                </button>
+              </div>
             </div>
             {expandedCard === 'enlaces' && renderCardContent('enlaces')}
           </div>
@@ -3586,7 +3638,7 @@ function DocenteAulaVirtual() {
             aria-labelledby="modal-biblioteca-title"
           >
             <div className="modal-biblioteca-header">
-              <h2 id="modal-biblioteca-title">📖 Biblioteca de Temas</h2>
+              <h2 id="modal-biblioteca-title">📖 {BIBLIOTECA_CONFIG[tipoBiblioteca]?.titulo || 'Biblioteca'}</h2>
               <button
                 className="modal-biblioteca-close"
                 onClick={() => setMostrarModalBiblioteca(false)}
@@ -3597,7 +3649,7 @@ function DocenteAulaVirtual() {
             </div>
             <div className="modal-biblioteca-body">
               <p className="modal-biblioteca-desc">
-                Temas del mismo curso y grado de años anteriores (2024 hasta el año pasado). Selecciona los que quieras copiar al año actual.
+                Contenido del mismo curso y grado de años anteriores (2024 hasta el año pasado). Selecciona lo que quieras copiar al año actual. Se conserva el bimestre.
               </p>
               {loadingBiblioteca ? (
                 <div className="modal-biblioteca-loading">
@@ -3607,7 +3659,7 @@ function DocenteAulaVirtual() {
               ) : datosBiblioteca.años && datosBiblioteca.años.length === 0 ? (
                 <div className="modal-biblioteca-empty">
                   <span className="modal-biblioteca-empty-icon">📚</span>
-                  <p>No hay temas de años anteriores para este curso y grado.</p>
+                  <p>No hay elementos de años anteriores para este curso y grado.</p>
                 </div>
               ) : (
                 <>
@@ -3625,43 +3677,43 @@ function DocenteAulaVirtual() {
                   </div>
                   <div className="modal-biblioteca-content">
                     {añoFiltroBiblioteca && datosBiblioteca.porAnio?.[añoFiltroBiblioteca] && (() => {
-                      const temas = datosBiblioteca.porAnio[añoFiltroBiblioteca];
-                      const todosSel = temas.every(t => isBibliotecaTemaSeleccionado(t.asignatura_id, t.id));
+                      const items = datosBiblioteca.porAnio[añoFiltroBiblioteca];
+                      const todosSel = items.every(t => isBibliotecaItemSeleccionado(t.asignatura_id, t.id));
                       return (
                         <>
                           <div className="modal-biblioteca-actions">
                             <button
                               type="button"
                               className="modal-biblioteca-select-all"
-                              onClick={() => seleccionarTodosBiblioteca(temas, !todosSel)}
+                              onClick={() => seleccionarTodosBiblioteca(items, !todosSel)}
                             >
                               {todosSel ? '☑ Deseleccionar todos' : '☐ Seleccionar todos'}
                             </button>
                           </div>
                           <div className="modal-biblioteca-list">
-                            {temas.map((tema) => (
+                            {items.map((item) => (
                               <label
-                                key={`${tema.asignatura_id}-${tema.id}`}
-                                className={`modal-biblioteca-item ${isBibliotecaTemaSeleccionado(tema.asignatura_id, tema.id) ? 'selected' : ''}`}
+                                key={`${item.asignatura_id}-${item.id}`}
+                                className={`modal-biblioteca-item ${isBibliotecaItemSeleccionado(item.asignatura_id, item.id) ? 'selected' : ''}`}
                               >
                                 <input
                                   type="checkbox"
-                                  checked={isBibliotecaTemaSeleccionado(tema.asignatura_id, tema.id)}
-                                  onChange={() => toggleBibliotecaTema(tema.asignatura_id, tema.id)}
+                                  checked={isBibliotecaItemSeleccionado(item.asignatura_id, item.id)}
+                                  onChange={() => toggleBibliotecaItem(item.asignatura_id, item.id)}
                                 />
                                 <div className="modal-biblioteca-item-content">
-                                  <span className="modal-biblioteca-item-name">{tema.nombre}</span>
+                                  <span className="modal-biblioteca-item-name">{item.nombre || item.titulo || item.descripcion}</span>
                                   <span className="modal-biblioteca-item-meta">
-                                    B{tema.ciclo} • {tema.asignatura_label} • {tema.docente_nombre}
+                                    B{item.ciclo} • {item.asignatura_label} • {item.docente_nombre}
                                   </span>
                                   <div className="modal-biblioteca-item-links">
-                                    {tema.archivo_url && (
-                                      <a href={tema.archivo_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                    {item.archivo_url && (
+                                      <a href={item.archivo_url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                                         📄 Ver archivo
                                       </a>
                                     )}
-                                    {tema.enlace_url && (
-                                      <a href={tema.enlace_url.startsWith('http') ? tema.enlace_url : `https://${tema.enlace_url}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                                    {item.enlace_url && (
+                                      <a href={item.enlace_url.startsWith('http') ? item.enlace_url : `https://${item.enlace_url}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
                                         🔗 Enlace
                                       </a>
                                     )}
@@ -3676,7 +3728,7 @@ function DocenteAulaVirtual() {
                   </div>
                   <div className="modal-biblioteca-footer">
                     <span className="modal-biblioteca-count">
-                      {bibliotecaSeleccionados.length} tema(s) seleccionado(s)
+                      {bibliotecaSeleccionados.length} elemento(s) seleccionado(s)
                     </span>
                     <div className="modal-biblioteca-footer-btns">
                       <button
@@ -3692,7 +3744,7 @@ function DocenteAulaVirtual() {
                         onClick={handleCopiarBiblioteca}
                         disabled={bibliotecaSeleccionados.length === 0 || guardandoBiblioteca}
                       >
-                        {guardandoBiblioteca ? '⏳ Copiando...' : `📋 Copiar al año actual`}
+                        {guardandoBiblioteca ? '⏳ Copiando...' : '📋 Copiar al año actual (conserva bimestre)'}
                       </button>
                     </div>
                   </div>
