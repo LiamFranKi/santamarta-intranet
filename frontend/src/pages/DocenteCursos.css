@@ -165,6 +165,11 @@
   position: fixed;
 }
 
+.dropdown-menu-portal-cursos {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
 .dropdown-menu {
   background: white;
   border: 1px solid #e5e7eb;
@@ -517,7 +522,12 @@
   min-width: 180px !important;
   max-width: 220px !important;
   z-index: 99999 !important;
-  overflow: hidden !important;
+}
+
+.dropdown-menu-alumno-portal {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  overscroll-behavior: contain !important;
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;

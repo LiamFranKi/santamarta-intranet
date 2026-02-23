@@ -2856,10 +2856,23 @@ function DocenteCursos() {
     } else {
       const button = event.currentTarget;
       const rect = button.getBoundingClientRect();
+      const DROPDOWN_EST_HEIGHT = 280;
+      const padding = 12;
+      const spaceBelow = window.innerHeight - rect.bottom - padding;
+      const spaceAbove = rect.top - padding;
+      const openUpward = spaceBelow < DROPDOWN_EST_HEIGHT && spaceAbove > spaceBelow;
+      const maxHeight = Math.min(DROPDOWN_EST_HEIGHT, openUpward ? spaceAbove : spaceBelow);
+      let left = rect.left;
+      const dropdownMinWidth = 200;
+      const dropdownWidth = Math.max(rect.width, dropdownMinWidth);
+      if (left + dropdownWidth > window.innerWidth - padding) left = window.innerWidth - dropdownWidth - padding;
+      if (left < padding) left = padding;
       setDropdownPosition({
-        top: rect.bottom + 8,
-        left: rect.left,
-        width: rect.width
+        top: openUpward ? undefined : rect.bottom + 8,
+        bottom: openUpward ? window.innerHeight - rect.top + 8 : undefined,
+        left,
+        width: dropdownWidth,
+        maxHeight: Math.max(120, maxHeight)
       });
       setOpenDropdown(cursoId);
     }
@@ -2958,12 +2971,15 @@ function DocenteCursos() {
                     </button>
                     {openDropdown === curso.id && dropdownPosition && createPortal(
                       <div 
-                        className="dropdown-menu-portal"
+                        className="dropdown-menu-portal dropdown-menu-portal-cursos"
                         style={{
                           position: 'fixed',
-                          top: `${dropdownPosition.top}px`,
+                          ...(dropdownPosition.top !== undefined ? { top: `${dropdownPosition.top}px` } : {}),
+                          ...(dropdownPosition.bottom !== undefined ? { bottom: `${dropdownPosition.bottom}px` } : {}),
                           left: `${dropdownPosition.left}px`,
                           width: `${dropdownPosition.width}px`,
+                          maxHeight: `${dropdownPosition.maxHeight}px`,
+                          overflowY: 'auto',
                           zIndex: 10000
                         }}
                         onMouseDown={(e) => e.stopPropagation()}
@@ -3080,33 +3096,26 @@ function DocenteCursos() {
                                 e.stopPropagation();
                                 e.preventDefault();
                                 
-                                const rect = e.currentTarget.getBoundingClientRect();
+                                  const rect = e.currentTarget.getBoundingClientRect();
                                 if (openDropdownAlumno?.id === alumno.id) {
                                   setOpenDropdownAlumno(null);
                                 } else {
                                   const dropdownWidth = 200;
+                                  const DROPDOWN_ALUMNO_HEIGHT = 180;
+                                  const padding = 12;
                                   let left = rect.left;
-                                  if (left + dropdownWidth > window.innerWidth) {
-                                    left = window.innerWidth - dropdownWidth - 10;
-                                  }
-                                  if (left < 10) {
-                                    left = 10;
-                                  }
-                                  
-                                  // Verificar si hay espacio abajo, si no, mostrar arriba
-                                  const spaceBelow = window.innerHeight - rect.bottom;
-                                  const spaceAbove = rect.top;
-                                  const dropdownHeight = 120; // Aproximado
-                                  
-                                  let top = rect.bottom + 2;
-                                  if (spaceBelow < dropdownHeight && spaceAbove > dropdownHeight) {
-                                    top = rect.top - dropdownHeight - 2;
-                                  }
-                                  
+                                  if (left + dropdownWidth > window.innerWidth - padding) left = window.innerWidth - dropdownWidth - padding;
+                                  if (left < padding) left = padding;
+                                  const spaceBelow = window.innerHeight - rect.bottom - padding;
+                                  const spaceAbove = rect.top - padding;
+                                  const openUpward = spaceBelow < DROPDOWN_ALUMNO_HEIGHT && spaceAbove > spaceBelow;
+                                  const maxHeight = Math.min(DROPDOWN_ALUMNO_HEIGHT, openUpward ? spaceAbove : spaceBelow);
+                                  const top = openUpward ? rect.top - Math.min(DROPDOWN_ALUMNO_HEIGHT, spaceAbove) - 2 : rect.bottom + 2;
                                   setOpenDropdownAlumno({ 
                                     id: alumno.id, 
-                                    top: top, 
-                                    left: left
+                                    top,
+                                    left,
+                                    maxHeight: Math.max(80, maxHeight)
                                   });
                                 }
                               }}
@@ -3114,14 +3123,16 @@ function DocenteCursos() {
                             >
                               Opciones {openDropdownAlumno?.id === alumno.id ? '▲' : '▼'}
                             </button>
-                            {openDropdownAlumno?.id === alumno.id && openDropdownAlumno?.top && 
+                            {openDropdownAlumno?.id === alumno.id && openDropdownAlumno?.top != null && 
                               createPortal(
                                 <div 
-                                  className="dropdown-menu dropdown-menu-alumno"
+                                  className="dropdown-menu dropdown-menu-alumno dropdown-menu-alumno-portal"
                                   style={{
                                     top: `${openDropdownAlumno.top}px`,
                                     left: `${openDropdownAlumno.left}px`,
                                     position: 'fixed',
+                                    maxHeight: openDropdownAlumno.maxHeight ? `${openDropdownAlumno.maxHeight}px` : undefined,
+                                    overflowY: openDropdownAlumno.maxHeight ? 'auto' : undefined,
                                     zIndex: 10001,
                                     transform: 'translateZ(0)',
                                     willChange: 'transform',
