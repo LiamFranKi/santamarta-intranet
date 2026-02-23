@@ -742,6 +742,7 @@ router.get('/notificaciones', async (req, res) => {
          n.contenido as mensaje,
          n.fecha_hora,
          n.estado,
+         COALESCE(n.leida, 0) as leida,
          'NOTIFICACION' as tipo_origen
        FROM notificaciones n
        WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
@@ -756,7 +757,7 @@ router.get('/notificaciones', async (req, res) => {
       titulo: n.titulo || 'Notificación del sistema', // SIEMPRE debe tener título
       mensaje: n.mensaje || n.contenido || '',
       fecha_hora: n.fecha_hora,
-      estado: n.estado === 'NO ENVIADO' ? 'NO_LEIDO' : (n.estado === 'ENVIADO' ? 'LEIDO' : n.estado || 'NO_LEIDO'),
+      estado: (n.leida === 1 || n.leida === true) ? 'LEIDO' : 'NO_LEIDO',
       tipo_origen: n.tipo_origen || 'NOTIFICACION'
     }));
 
@@ -764,6 +765,32 @@ router.get('/notificaciones', async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo notificaciones:', error);
     res.status(500).json({ error: 'Error al obtener notificaciones' });
+  }
+});
+
+/**
+ * PUT /api/alumno/notificaciones/:id/marcar-leido
+ * Marcar notificación como leída
+ */
+router.put('/notificaciones/:id/marcar-leido', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { usuario_id } = req.user;
+
+    const notif = await query(
+      `SELECT id FROM notificaciones 
+       WHERE id = ? AND (para = 'TODOS' OR (para = 'USUARIO' AND destinatario_id = ?))`,
+      [id, usuario_id]
+    );
+    if (notif.length === 0) {
+      return res.status(404).json({ error: 'Notificación no encontrada' });
+    }
+
+    await execute(`UPDATE notificaciones SET leida = 1 WHERE id = ?`, [id]);
+    res.json({ success: true, message: 'Notificación marcada como leída' });
+  } catch (error) {
+    console.error('Error marcando notificación como leída:', error);
+    res.status(500).json({ error: 'Error al marcar como leída' });
   }
 });
 
@@ -3047,7 +3074,7 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
               usuario_id: usuario_id,
               colegio_id: colegio_id,
               anio_activo: anio_activo,
-              tituloNotificacion: '✅ Examen Finalizado',
+              tituloNotificacion: 'Examen Finalizado',
               mensajeNotificacion: `${alumno_nombre} finalizó el examen "${titulo}" con ${puntajeFinal} puntos (${correctas} correctas, ${incorrectas} incorrectas) - Curso: ${curso_nombre} - Docente: ${docente_nombre}`,
               tipoNotificacion: 'examen_finalizado',
               dataExtra: {

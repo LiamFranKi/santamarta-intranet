@@ -782,6 +782,7 @@ router.get('/notificaciones', async (req, res) => {
            n.contenido as mensaje,
            n.fecha_hora,
            n.estado,
+           COALESCE(n.leida, 0) as leida,
            'NOTIFICACION' as tipo_origen
          FROM notificaciones n
          WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id IN (${placeholders})))
@@ -798,6 +799,7 @@ router.get('/notificaciones', async (req, res) => {
            n.contenido as mensaje,
            n.fecha_hora,
            n.estado,
+           COALESCE(n.leida, 0) as leida,
            'NOTIFICACION' as tipo_origen
          FROM notificaciones n
          WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
@@ -813,7 +815,7 @@ router.get('/notificaciones', async (req, res) => {
       titulo: n.titulo || 'Notificación del sistema',
       mensaje: n.mensaje || n.contenido || '',
       fecha_hora: n.fecha_hora,
-      estado: n.estado === 'NO ENVIADO' ? 'NO_LEIDO' : (n.estado === 'ENVIADO' ? 'LEIDO' : n.estado || 'NO_LEIDO'),
+      estado: (n.leida === 1 || n.leida === true) ? 'LEIDO' : 'NO_LEIDO',
       tipo_origen: n.tipo_origen || 'NOTIFICACION'
     }));
 
@@ -821,6 +823,43 @@ router.get('/notificaciones', async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo notificaciones:', error);
     res.status(500).json({ error: 'Error al obtener notificaciones' });
+  }
+});
+
+/**
+ * PUT /api/apoderado/notificaciones/:id/marcar-leido
+ * Marcar notificación como leída
+ */
+router.put('/notificaciones/:id/marcar-leido', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { usuario_id, apoderado_id, colegio_id } = req.user;
+
+    const hijosUsuarios = await query(
+      `SELECT DISTINCT u.id as usuario_id FROM alumnos a
+       INNER JOIN familias f ON f.alumno_id = a.id
+       INNER JOIN usuarios u ON u.alumno_id = a.id
+       WHERE f.apoderado_id = ? AND a.colegio_id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+      [apoderado_id, colegio_id, colegio_id]
+    );
+    const hijosIds = hijosUsuarios.map(h => h.usuario_id);
+    const todosIds = [usuario_id, ...hijosIds];
+    const placeholders = todosIds.map(() => '?').join(',');
+
+    const notif = await query(
+      `SELECT id FROM notificaciones 
+       WHERE id = ? AND (para = 'TODOS' OR (para = 'USUARIO' AND destinatario_id IN (${placeholders})))`,
+      [id, ...todosIds]
+    );
+    if (notif.length === 0) {
+      return res.status(404).json({ error: 'Notificación no encontrada' });
+    }
+
+    await execute(`UPDATE notificaciones SET leida = 1 WHERE id = ?`, [id]);
+    res.json({ success: true, message: 'Notificación marcada como leída' });
+  } catch (error) {
+    console.error('Error marcando notificación como leída:', error);
+    res.status(500).json({ error: 'Error al marcar como leída' });
   }
 });
 

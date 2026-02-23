@@ -57,28 +57,28 @@ async function crearNotificacionesAulaVirtual(params) {
     
     switch (tipo) {
       case 'tema':
-        tituloNotificacion = '📖 Nuevo Tema';
+        tituloNotificacion = 'Nuevo Tema';
         mensajeNotificacion = `Curso: ${curso_nombre} - Tema: ${nombre} - Docente: ${nombreDocente}`;
         break;
       case 'tarea':
-        tituloNotificacion = '📝 Nueva Tarea';
+        tituloNotificacion = 'Nueva Tarea';
         const fechaEntregaTexto = fecha_entrega ? ` - Fecha de entrega: ${fecha_entrega}` : '';
         mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}${fechaEntregaTexto}`;
         break;
       case 'examen':
-        tituloNotificacion = '📚 Nuevo Examen';
+        tituloNotificacion = 'Nuevo Examen';
         mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
         break;
       case 'video':
-        tituloNotificacion = '🎥 Nuevo Video';
+        tituloNotificacion = 'Nuevo Video';
         mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
         break;
       case 'enlace':
-        tituloNotificacion = '🔗 Nuevo Enlace de Ayuda';
+        tituloNotificacion = 'Nuevo Enlace de Ayuda';
         mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
         break;
       default:
-        tituloNotificacion = '🔔 Nueva Actividad';
+        tituloNotificacion = 'Nueva Actividad';
         mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
     }
     
@@ -2411,7 +2411,7 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/estrellas', async (req, res) => 
             usuario_id: req.user.usuario_id,
             colegio_id: colegio_id,
             anio_activo: anio_activo,
-            tituloNotificacion: '⭐ Estrella Asignada',
+            tituloNotificacion: 'Estrella Asignada',
             mensajeNotificacion: `${alumno_nombre} recibió ${points} estrella(s) en ${curso_nombre} - Docente: ${docente_nombre}`,
             tipoNotificacion: 'estrella',
             dataExtra: {
@@ -2700,7 +2700,7 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =
             usuario_id: req.user.usuario_id,
             colegio_id: colegio_id,
             anio_activo: anio_activo,
-            tituloNotificacion: '⚠️ Incidencia Registrada',
+            tituloNotificacion: 'Incidencia Registrada',
             mensajeNotificacion: `Se registró una incidencia para ${alumno_nombre} en ${curso_nombre} - Docente: ${docente_nombre}`,
             tipoNotificacion: 'incidencia',
             dataExtra: {
@@ -11650,6 +11650,7 @@ router.get('/notificaciones', async (req, res) => {
          n.contenido as mensaje,
          n.fecha_hora,
          n.estado,
+         COALESCE(n.leida, 0) as leida,
          'NOTIFICACION' as tipo_origen
        FROM notificaciones n
        WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
@@ -11658,13 +11659,13 @@ router.get('/notificaciones', async (req, res) => {
       [usuario_id]
     );
 
-    // Mapear campos para compatibilidad con el frontend
+    // Mapear campos para compatibilidad con el frontend (usar leida si existe, sino estado antiguo)
     const notificacionesMapeadas = (notificaciones || []).map(n => ({
       id: n.id,
-      titulo: n.titulo || n.asunto || 'Notificación del sistema', // SIEMPRE debe tener título
+      titulo: n.titulo || n.asunto || 'Notificación del sistema',
       mensaje: n.mensaje || n.contenido || '',
       fecha_hora: n.fecha_hora,
-      estado: n.estado === 'NO ENVIADO' ? 'NO_LEIDO' : (n.estado === 'ENVIADO' ? 'LEIDO' : n.estado || 'NO_LEIDO'),
+      estado: (n.leida === 1 || n.leida === true) ? 'LEIDO' : 'NO_LEIDO',
       tipo_origen: n.tipo_origen || 'NOTIFICACION'
     }));
 
@@ -11672,6 +11673,35 @@ router.get('/notificaciones', async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo notificaciones:', error);
     res.status(500).json({ error: 'Error al obtener notificaciones' });
+  }
+});
+
+/**
+ * PUT /api/docente/notificaciones/:id/marcar-leido
+ * Marcar notificación como leída
+ */
+router.put('/notificaciones/:id/marcar-leido', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { usuario_id } = req.user;
+
+    const notif = await query(
+      `SELECT id FROM notificaciones 
+       WHERE id = ? AND (para = 'TODOS' OR (para = 'USUARIO' AND destinatario_id = ?))`,
+      [id, usuario_id]
+    );
+    if (notif.length === 0) {
+      return res.status(404).json({ error: 'Notificación no encontrada' });
+    }
+
+    await execute(
+      `UPDATE notificaciones SET leida = 1 WHERE id = ?`,
+      [id]
+    );
+    res.json({ success: true, message: 'Notificación marcada como leída' });
+  } catch (error) {
+    console.error('Error marcando notificación como leída:', error);
+    res.status(500).json({ error: 'Error al marcar como leída' });
   }
 });
 
@@ -12134,7 +12164,7 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
         const nombreDocente = docenteInfo.length > 0 ? docenteInfo[0].nombre_completo : 'Un docente';
         
         // Preparar título y mensaje de la notificación
-        const tituloNotificacion = '📢 Nueva Publicación';
+        const tituloNotificacion = 'Nueva Publicación';
         // Limpiar HTML del contenido para el mensaje (solo primeros 200 caracteres)
         const contenidoLimpio = contenido.replace(/<[^>]*>/g, '').trim();
         const mensajeCorto = contenidoLimpio.length > 200 
@@ -13335,7 +13365,7 @@ router.put('/aula-virtual/tareas/:tareaId/entregas/:matriculaId/nota', async (re
               usuario_id: usuario_id,
               colegio_id: colegio_id,
               anio_activo: anio_activo,
-              tituloNotificacion: '📝 Nota de Tarea Asignada',
+              tituloNotificacion: 'Nota de Tarea Asignada',
               mensajeNotificacion: `${alumno_nombre} recibió nota ${nota.trim()} en la tarea "${tarea_titulo}" - Curso: ${curso_nombre} - Docente: ${docente_nombre}`,
               tipoNotificacion: 'nota_tarea',
               dataExtra: {
@@ -14630,7 +14660,7 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
             console.log(`📚 [EXAMEN ACTIVADO] Enviando notificaciones a ${todosDestinatarios.length} destinatarios (${alumnoUsuarioIds.length} alumnos, ${apoderadoUsuarioIds.length} apoderados incluyendo docentes)`);
             
             // Preparar notificación
-            const tituloNotificacion = '📚 Examen Activado';
+            const tituloNotificacion = 'Examen Activado';
             const mensajeNotificacion = `Examen: "${titulo}" - Curso: ${curso_nombre} - Docente: ${docente_nombre_completo}`;
             
             // Crear notificaciones en la BD
@@ -18583,13 +18613,13 @@ async function verificarTareasPorVencer() {
         // Preparar título de notificación
         let tituloNotificacion = '';
         if (tipoNotificacion === 'HOY') {
-          tituloNotificacion = '⚠️ Tarea se vence HOY';
+          tituloNotificacion = 'Tarea se vence HOY';
         } else if (tipoNotificacion === '1_DIA') {
-          tituloNotificacion = '⏰ Tarea se vence MAÑANA';
+          tituloNotificacion = 'Tarea se vence MAÑANA';
         } else if (tipoNotificacion === '2_DIAS') {
-          tituloNotificacion = '📅 Tarea se vence en 2 DÍAS';
+          tituloNotificacion = 'Tarea se vence en 2 DÍAS';
         } else if (tipoNotificacion === '3_DIAS') {
-          tituloNotificacion = '📅 Tarea se vence en 3 DÍAS';
+          tituloNotificacion = 'Tarea se vence en 3 DÍAS';
         }
         
         console.log(`📅 [TAREAS POR VENCER] Enviando notificaciones para tarea "${tarea.titulo}" (${tipoNotificacion}) a ${todosDestinatarios.length} destinatarios`);

@@ -51,6 +51,18 @@ Deberías ver archivos `.js` con hash. Si existen, el build está bien.
 
 ---
 
+## Migración: Marcar notificaciones como leídas
+
+**Solo la primera vez** que uses la función "Marcar como leído" en notificaciones, ejecuta:
+
+```bash
+mysql -u TU_USUARIO -p TU_BASE_DATOS < database/migrations/005_notificaciones_leida.sql
+```
+
+(Si la columna `leida` ya existe, ignorar el error y continuar.)
+
+---
+
 ## Ver logs del backend (si algo falla)
 
 ```bash

@@ -130,6 +130,24 @@
   color: #9ca3af;
 }
 
+.btn-marcar-leido {
+  margin-top: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #4a83c1;
+  background: rgba(74, 131, 193, 0.1);
+  border: 1px solid rgba(74, 131, 193, 0.3);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-marcar-leido:hover {
+  background: rgba(74, 131, 193, 0.2);
+  border-color: #4a83c1;
+}
+
 .empty-notificaciones {
   padding: 2rem;
   text-align: center;

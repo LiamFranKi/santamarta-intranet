@@ -50,6 +50,25 @@ function NotificacionesWidget() {
 
   const notificacionesNoLeidas = notificaciones.filter(n => n.estado === 'NO_LEIDO').length;
 
+  const getRutaMarcarLeido = () => {
+    if (user?.tipo === 'ALUMNO') return '/alumno/notificaciones';
+    if (user?.tipo === 'APODERADO') return '/apoderado/notificaciones';
+    return '/docente/notificaciones';
+  };
+
+  const marcarComoLeido = async (notifId, e) => {
+    e?.stopPropagation();
+    try {
+      const ruta = getRutaMarcarLeido();
+      await api.put(`${ruta}/${notifId}/marcar-leido`);
+      setNotificaciones(prev =>
+        prev.map(n => (n.id === notifId ? { ...n, estado: 'LEIDO' } : n))
+      );
+    } catch (error) {
+      console.error('Error marcando notificación como leída:', error);
+    }
+  };
+
   return (
     <div className="notificaciones-widget">
       <button
@@ -82,6 +101,7 @@ function NotificacionesWidget() {
                   <div
                     key={notif.id}
                     className={`notificacion-item ${notif.estado === 'NO_LEIDO' ? 'no-leida' : ''}`}
+                    onClick={() => notif.estado === 'NO_LEIDO' && marcarComoLeido(notif.id)}
                   >
                     <div className="notificacion-icon">🔔</div>
                     <div className="notificacion-content">
@@ -98,6 +118,16 @@ function NotificacionesWidget() {
                           minute: '2-digit'
                         })}
                       </span>
+                      {notif.estado === 'NO_LEIDO' && (
+                        <button
+                          type="button"
+                          className="btn-marcar-leido"
+                          onClick={(e) => marcarComoLeido(notif.id, e)}
+                          title="Marcar como leído"
+                        >
+                          ✓ Marcar como leído
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))
