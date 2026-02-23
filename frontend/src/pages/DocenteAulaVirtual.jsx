@@ -1456,6 +1456,15 @@ function DocenteAulaVirtual() {
 
     return (
       <div className="card-content-expanded">
+        <div className="temas-toolbar">
+          <button
+            type="button"
+            className="btn-biblioteca-inline"
+            onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca(); }}
+          >
+            📖 Biblioteca de temas
+          </button>
+        </div>
         {loading ? (
           <div className="empty-state">
             <p>Cargando temas interactivos...</p>
