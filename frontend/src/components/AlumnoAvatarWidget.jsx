@@ -36,21 +36,19 @@ function AlumnoAvatarWidget() {
       onKeyDown={(e) => e.key === 'Enter' && navigate('/alumno/avatar')}
     >
       <div className="alumno-avatar-widget-inner">
-        <div className="alumno-avatar-widget-image">
+        <div className="alumno-avatar-widget-imagen">
           {avatar?.image_url ? (
             <img src={avatar.image_url} alt={avatar.name || 'Mi avatar'} />
           ) : (
             <div className="alumno-avatar-widget-placeholder">🎭</div>
           )}
-          <div className="alumno-avatar-widget-estrellas">
-            <span className="alumno-avatar-widget-star">⭐</span>
-            <span>{totalEstrellas}</span>
-          </div>
         </div>
-        <p className="alumno-avatar-widget-label">
-          {avatar ? avatar.name : 'Mi Avatar'}
-        </p>
-        <span className="alumno-avatar-widget-link">Ver tienda →</span>
+        <div className="alumno-avatar-widget-info">
+          <p className="alumno-avatar-widget-nombre">{avatar ? avatar.name : 'Mi Avatar'}</p>
+          <p className="alumno-avatar-widget-descripcion">{avatar?.description || '—'}</p>
+          <p className="alumno-avatar-widget-estrellas">⭐ {totalEstrellas} estrellas</p>
+          <span className="alumno-avatar-widget-link">Ver tienda →</span>
+        </div>
       </div>
     </div>
   );
