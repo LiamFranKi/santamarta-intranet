@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import CalendarioWidget from './CalendarioWidget';
+import AlumnoAvatarWidget from './AlumnoAvatarWidget';
 import PublicacionesWidget from './PublicacionesWidget';
 import PublicacionFormCard from './PublicacionFormCard';
 import PublicacionesCardFeed from './PublicacionesCardFeed';
@@ -675,6 +676,7 @@ export default function DashboardLayout({ children }) {
           
           {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO' || role === 'ADMINISTRADOR') && (
             <aside className="dashboard-sidebar-right">
+              {role === 'ALUMNO' && <AlumnoAvatarWidget />}
               <CalendarioWidget />
               {/* PublicacionesWidget anterior - Solo en web/tablet, para DOCENTE y ADMINISTRADOR */}
               {(role === 'DOCENTE' || role === 'ADMINISTRADOR') && (

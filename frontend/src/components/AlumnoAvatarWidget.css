@@ -1,0 +1,83 @@
+.alumno-avatar-widget {
+  margin-bottom: 1rem;
+  cursor: pointer;
+  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(145deg, #fefce8 0%, #fef9c3 50%, #fef08a 100%);
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  box-shadow: 0 4px 12px rgba(234, 179, 8, 0.2);
+  transition: all 0.25s ease;
+}
+
+.alumno-avatar-widget:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(234, 179, 8, 0.3);
+  border-color: rgba(234, 179, 8, 0.5);
+}
+
+.alumno-avatar-widget-inner {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.alumno-avatar-widget-image {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  border: 3px solid rgba(234, 179, 8, 0.5);
+  margin-bottom: 0.5rem;
+}
+
+.alumno-avatar-widget-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.alumno-avatar-widget-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+}
+
+.alumno-avatar-widget-estrellas {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0.2rem 0.5rem;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #422006;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.alumno-avatar-widget-star {
+  font-size: 0.85rem;
+}
+
+.alumno-avatar-widget-label {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #854d0e;
+}
+
+.alumno-avatar-widget-link {
+  font-size: 0.75rem;
+  color: #a16207;
+  font-weight: 600;
+}

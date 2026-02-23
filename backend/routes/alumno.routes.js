@@ -273,6 +273,57 @@ router.get('/dashboard', async (req, res) => {
       };
     }
 
+    // Total estrellas (enrollment_incidents type=2) - acumulativas del año activo
+    const matriculasAlumno = await query(
+      `SELECT m.id FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+      [alumnoData.id, colegio_id, anio_activo]
+    );
+    const matriculaIds = matriculasAlumno.map(m => m.id);
+    let totalEstrellas = 0;
+    if (matriculaIds.length > 0) {
+      const placeholders = matriculaIds.map(() => '?').join(',');
+      const estrellasRows = await query(
+        `SELECT COALESCE(SUM(ei.points), 0) as total
+         FROM enrollment_incidents ei
+         WHERE ei.enrollment_id IN (${placeholders}) AND ei.type = 2`,
+        matriculaIds
+      );
+      totalEstrellas = parseInt(estrellasRows[0]?.total || 0, 10);
+    }
+
+    // Avatar actual (el de mayor nivel que tenga comprado)
+    const sexoAlumno = alumnoData.sexo;
+    const sexoAvatarBuscado = sexoAlumno === 0 ? 1 : (sexoAlumno === 1 ? 0 : null);
+    let avatarActual = [];
+    if (sexoAvatarBuscado !== null) {
+      avatarActual = await query(
+        `SELECT asi.*, ass.created_at as fecha_compra
+         FROM avatar_shop_sales ass
+         INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+         WHERE ass.student_id = ? AND (asi.sexo = ? OR asi.sexo IS NULL)
+         ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+        [alumnoData.id, sexoAvatarBuscado]
+      );
+    } else {
+      avatarActual = await query(
+        `SELECT asi.*, ass.created_at as fecha_compra
+         FROM avatar_shop_sales ass
+         INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+         WHERE ass.student_id = ?
+         ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+        [alumnoData.id]
+      );
+    }
+    let avatarUrl = null;
+    if (avatarActual.length > 0 && avatarActual[0].image) {
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      avatarUrl = process.env.NODE_ENV === 'production'
+        ? `${phpSystemUrl}/Static/Image/Avatars/${avatarActual[0].image}`
+        : `http://localhost:5000/Static/Image/Avatars/${avatarActual[0].image}`;
+    }
+
     // Construir URL de foto
     let fotoUrl = null;
     if (alumnoData.foto && alumnoData.foto !== '') {
@@ -293,6 +344,14 @@ router.get('/dashboard', async (req, res) => {
         apellido_materno: alumnoData.apellido_materno || '',
         foto: fotoUrl
       },
+      total_estrellas: totalEstrellas,
+      avatar_actual: avatarActual.length > 0 ? {
+        id: avatarActual[0].id,
+        name: avatarActual[0].name,
+        image: avatarActual[0].image,
+        image_url: avatarUrl,
+        level: avatarActual[0].level
+      } : null,
       matricula: matriculaData ? {
         id: matriculaData.id,
         grado: matriculaData.grado,
@@ -791,6 +850,275 @@ router.put('/notificaciones/:id/marcar-leido', async (req, res) => {
   } catch (error) {
     console.error('Error marcando notificación como leída:', error);
     res.status(500).json({ error: 'Error al marcar como leída' });
+  }
+});
+
+/**
+ * GET /api/alumno/avatares/resumen
+ * Resumen ligero: avatar actual y total estrellas (para widget del dashboard)
+ */
+router.get('/avatares/resumen', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo } = req.user;
+
+    const alumno = await query(
+      `SELECT a.id, a.sexo FROM alumnos a
+       INNER JOIN usuarios u ON u.alumno_id = a.id
+       WHERE u.id = ? AND u.colegio_id = ?`,
+      [req.user.usuario_id, colegio_id]
+    );
+    if (alumno.length === 0) return res.status(404).json({ error: 'Alumno no encontrado' });
+
+    const alumnoId = alumno[0].id;
+    const matriculas = await query(
+      `SELECT m.id FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+      [alumnoId, colegio_id, anio_activo]
+    );
+    const matriculaIds = matriculas.map(m => m.id);
+    let totalEstrellas = 0;
+    if (matriculaIds.length > 0) {
+      const ph = matriculaIds.map(() => '?').join(',');
+      const r = await query(
+        `SELECT COALESCE(SUM(points), 0) as t FROM enrollment_incidents WHERE enrollment_id IN (${ph}) AND type = 2`,
+        matriculaIds
+      );
+      totalEstrellas = parseInt(r[0]?.t || 0, 10);
+    }
+
+    const sexoAlumno = alumno[0].sexo;
+    const sexoAvatar = sexoAlumno === 0 ? 1 : (sexoAlumno === 1 ? 0 : null);
+    let avatarActual = [];
+    if (sexoAvatar !== null) {
+      avatarActual = await query(
+        `SELECT asi.* FROM avatar_shop_sales ass
+         INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+         WHERE ass.student_id = ? AND (asi.sexo = ? OR asi.sexo IS NULL)
+         ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+        [alumnoId, sexoAvatar]
+      );
+    } else {
+      avatarActual = await query(
+        `SELECT asi.* FROM avatar_shop_sales ass
+         INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+         WHERE ass.student_id = ?
+         ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+        [alumnoId]
+      );
+    }
+
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? `${phpSystemUrl}/Static/Image/Avatars/`
+      : 'http://localhost:5000/Static/Image/Avatars/';
+
+    let avatar_actual = null;
+    if (avatarActual.length > 0) {
+      const a = avatarActual[0];
+      avatar_actual = {
+        id: a.id,
+        name: a.name,
+        image: a.image,
+        image_url: a.image ? `${baseUrl}${a.image}` : null,
+        level: a.level
+      };
+    }
+
+    res.json({ avatar_actual, total_estrellas: totalEstrellas });
+  } catch (error) {
+    console.error('Error obteniendo resumen avatar:', error);
+    res.status(500).json({ avatar_actual: null, total_estrellas: 0 });
+  }
+});
+
+/**
+ * GET /api/alumno/avatares/tienda
+ * Tienda de avatares filtrada por género del alumno
+ */
+router.get('/avatares/tienda', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo } = req.user;
+
+    const alumno = await query(
+      `SELECT a.id, a.sexo FROM alumnos a
+       INNER JOIN usuarios u ON u.alumno_id = a.id
+       WHERE u.id = ? AND u.colegio_id = ?`,
+      [req.user.usuario_id, colegio_id]
+    );
+    if (alumno.length === 0) return res.status(404).json({ error: 'Alumno no encontrado' });
+
+    const alumnoId = alumno[0].id;
+    const sexoAlumno = alumno[0].sexo;
+    const sexoAvatar = sexoAlumno === 0 ? 1 : (sexoAlumno === 1 ? 0 : null);
+
+    // Total estrellas acumulativas
+    const matriculas = await query(
+      `SELECT m.id FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+      [alumnoId, colegio_id, anio_activo]
+    );
+    const matriculaIds = matriculas.map(m => m.id);
+    let totalEstrellas = 0;
+    if (matriculaIds.length > 0) {
+      const ph = matriculaIds.map(() => '?').join(',');
+      const r = await query(
+        `SELECT COALESCE(SUM(points), 0) as t FROM enrollment_incidents WHERE enrollment_id IN (${ph}) AND type = 2`,
+        matriculaIds
+      );
+      totalEstrellas = parseInt(r[0]?.t || 0, 10);
+    }
+
+    // Items de la tienda filtrados por sexo (orden: level ASC - primero el de 0 estrellas)
+    let items = [];
+    if (sexoAvatar !== null) {
+      items = await query(
+        `SELECT asi.* FROM avatar_shop_items asi
+         WHERE asi.sexo = ? OR asi.sexo IS NULL
+         ORDER BY asi.level ASC, asi.id ASC`,
+        [sexoAvatar]
+      );
+    } else {
+      items = await query(`SELECT * FROM avatar_shop_items ORDER BY level ASC, id ASC`);
+    }
+
+    // Avatares ya comprados por el alumno
+    const comprados = await query(
+      `SELECT item_id FROM avatar_shop_sales WHERE student_id = ?`,
+      [alumnoId]
+    );
+    const idsComprados = new Set(comprados.map(c => c.item_id));
+
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const baseAvatarUrl = process.env.NODE_ENV === 'production'
+      ? `${phpSystemUrl}/Static/Image/Avatars/`
+      : 'http://localhost:5000/Static/Image/Avatars/';
+
+    const itemsConEstado = items.map(it => ({
+      ...it,
+      ya_comprado: idsComprados.has(it.id),
+      image_url: it.image ? `${baseAvatarUrl}${it.image}` : null,
+      puede_comprar: it.price === 0 || totalEstrellas >= (it.price || 0)
+    }));
+
+    // Avatar actual (mayor level comprado)
+    const avatarActual = await query(
+      `SELECT asi.* FROM avatar_shop_sales ass
+       INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+       WHERE ass.student_id = ?
+       ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+      [alumnoId]
+    );
+    let avatarActualData = null;
+    if (avatarActual.length > 0) {
+      const a = avatarActual[0];
+      avatarActualData = {
+        id: a.id,
+        name: a.name,
+        image: a.image,
+        image_url: a.image ? `${baseAvatarUrl}${a.image}` : null,
+        level: a.level
+      };
+    }
+
+    res.json({
+      items: itemsConEstado,
+      total_estrellas: totalEstrellas,
+      avatar_actual: avatarActualData
+    });
+  } catch (error) {
+    console.error('Error obteniendo tienda de avatares:', error);
+    res.status(500).json({ error: 'Error al cargar la tienda de avatares' });
+  }
+});
+
+/**
+ * POST /api/alumno/avatares/comprar/:itemId
+ * Comprar/desbloquear avatar (las estrellas no se gastan, son umbral)
+ */
+router.post('/avatares/comprar/:itemId', async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+
+    const alumno = await query(
+      `SELECT a.id, a.sexo FROM alumnos a
+       INNER JOIN usuarios u ON u.alumno_id = a.id
+       WHERE u.id = ? AND u.colegio_id = ?`,
+      [req.user.usuario_id, colegio_id]
+    );
+    if (alumno.length === 0) return res.status(404).json({ error: 'Alumno no encontrado' });
+
+    const alumnoId = alumno[0].id;
+    const sexoAlumno = alumno[0].sexo;
+    const sexoAvatar = sexoAlumno === 0 ? 1 : (sexoAlumno === 1 ? 0 : null);
+
+    const item = await query(
+      `SELECT * FROM avatar_shop_items WHERE id = ?`,
+      [itemId]
+    );
+    if (item.length === 0) return res.status(404).json({ error: 'Avatar no encontrado' });
+
+    const yaComprado = await query(
+      `SELECT id FROM avatar_shop_sales WHERE student_id = ? AND item_id = ?`,
+      [alumnoId, itemId]
+    );
+    if (yaComprado.length > 0) {
+      return res.status(400).json({ error: 'Ya tienes este avatar' });
+    }
+
+    // Verificar género (si el item tiene sexo definido)
+    if (item[0].sexo != null && sexoAvatar !== null && item[0].sexo !== sexoAvatar) {
+      return res.status(400).json({ error: 'Este avatar no está disponible para tu perfil' });
+    }
+
+    // Total estrellas
+    const matriculas = await query(
+      `SELECT m.id FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+      [alumnoId, colegio_id, anio_activo]
+    );
+    const matriculaIds = matriculas.map(m => m.id);
+    let totalEstrellas = 0;
+    if (matriculaIds.length > 0) {
+      const ph = matriculaIds.map(() => '?').join(',');
+      const r = await query(
+        `SELECT COALESCE(SUM(points), 0) as t FROM enrollment_incidents WHERE enrollment_id IN (${ph}) AND type = 2`,
+        matriculaIds
+      );
+      totalEstrellas = parseInt(r[0]?.t || 0, 10);
+    }
+
+    const price = parseInt(item[0].price || 0, 10);
+    if (price > 0 && totalEstrellas < price) {
+      return res.status(400).json({
+        error: `Necesitas al menos ${price} estrellas para desbloquear este avatar. Tienes ${totalEstrellas}.`
+      });
+    }
+
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await execute(
+      `INSERT INTO avatar_shop_sales (student_id, item_id, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+      [alumnoId, itemId, now, now]
+    );
+
+    res.json({
+      success: true,
+      message: '¡Avatar desbloqueado!',
+      avatar: {
+        id: item[0].id,
+        name: item[0].name,
+        image: item[0].image,
+        image_url: item[0].image
+          ? `${process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe'}/Static/Image/Avatars/${item[0].image}`
+          : null
+      }
+    });
+  } catch (error) {
+    console.error('Error comprando avatar:', error);
+    res.status(500).json({ error: 'Error al comprar el avatar' });
   }
 });
 

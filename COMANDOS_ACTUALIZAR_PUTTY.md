@@ -51,7 +51,9 @@ Deberías ver archivos `.js` con hash. Si existen, el build está bien.
 
 ---
 
-## Migración: Marcar notificaciones como leídas
+## Migraciones (ejecutar solo la primera vez si aplica)
+
+### Marcar notificaciones como leídas
 
 **Solo la primera vez** que uses la función "Marcar como leído" en notificaciones, ejecuta:
 
@@ -59,7 +61,13 @@ Deberías ver archivos `.js` con hash. Si existen, el build está bien.
 mysql -u TU_USUARIO -p TU_BASE_DATOS < database/migrations/005_notificaciones_leida.sql
 ```
 
-(Si la columna `leida` ya existe, ignorar el error y continuar.)
+(Si la columna `leida` ya existe, ignorar el error.)
+
+### Tienda de avatares (columna sexo)
+```bash
+mysql -u TU_USUARIO -p TU_BASE_DATOS < database/migrations/006_avatar_shop_items_sexo.sql
+```
+(Si la columna `sexo` ya existe, ignorar el error.)
 
 ---
 
