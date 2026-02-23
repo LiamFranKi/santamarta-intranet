@@ -42,7 +42,7 @@ Las variables que debes actualizar son:
 | `EMAIL_HOST`    | Servidor SMTP (Gmail)              | `smtp.gmail.com`                |
 | `EMAIL_PORT`    | Puerto (Gmail usa 587)             | `587`                           |
 | `EMAIL_USER`    | Tu nuevo correo Gmail              | `colegio@tudominio.com`         |
-| `EMAIL_PASSWORD`| Clave de aplicación (16 caracteres)| `abcdefghijklmnop`              |
+| `EMAIL_PASSWORD`| Clave de aplicación (16 caracteres)| `xxxxxxxxxxxxxxxx`              |
 | `EMAIL_FROM`    | Remitente (suele ser igual a USER) | `colegio@tudominio.com`         |
 | `VAPID_EMAIL`   | Mismo correo (para push)           | `colegio@tudominio.com`         |
 
@@ -68,13 +68,15 @@ Busca o agrega estas líneas y pon los valores de tu nuevo correo:
 # Email (SMTP Gmail)
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
-EMAIL_USER=tu_nuevo_correo_colegio@gmail.com
-EMAIL_PASSWORD=abcdefghijklmnop
-EMAIL_FROM=tu_nuevo_correo_colegio@gmail.com
+EMAIL_USER=TU_CORREO_COLEGIO@gmail.com
+EMAIL_PASSWORD=TU_CLAVE_APP_16_CARACTERES
+EMAIL_FROM=TU_CORREO_COLEGIO@gmail.com
 
 # PWA - Notificaciones Push (usa el mismo correo)
-VAPID_EMAIL=tu_nuevo_correo_colegio@gmail.com
+VAPID_EMAIL=TU_CORREO_COLEGIO@gmail.com
 ```
+
+*(Reemplaza `TU_CORREO_COLEGIO` y `TU_CLAVE_APP_16_CARACTERES` con tus datos reales. **Nunca** subas credenciales reales a GitHub.)*
 
 **Guardar en nano:** `Ctrl + O` → `Enter` → `Ctrl + X`
 
