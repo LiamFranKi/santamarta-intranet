@@ -5,29 +5,31 @@
 }
 
 .avatar-titulo-principal {
-  font-size: 2rem;
+  font-size: 2.25rem;
   font-weight: 800;
-  color: #1f2937;
+  color: #2563eb;
   text-align: center;
   margin: 0 0 2rem 0;
   letter-spacing: -0.02em;
 }
 
 .avatar-tarjeta-centro {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
+  border: 1px solid #bfdbfe;
+  box-shadow: 0 8px 32px rgba(37, 99, 235, 0.08);
 }
 
 .avatar-tarjeta-contenido {
   display: flex;
-  gap: 2.5rem;
-  padding: 2.5rem;
+  gap: 3rem;
+  padding: 3rem;
+  align-items: center;
+  justify-content: center;
 }
 
 .avatar-imagen-container {
-  width: 200px;
-  min-height: 320px;
+  width: 240px;
+  min-height: 360px;
   flex-shrink: 0;
   background: #f9fafb;
   display: flex;
@@ -39,7 +41,7 @@
 .avatar-imagen-container img {
   width: 100%;
   height: 100%;
-  min-height: 320px;
+  min-height: 360px;
   object-fit: contain;
   object-position: center;
 }
@@ -54,25 +56,27 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  align-items: center;
+  text-align: center;
+  gap: 1.25rem;
 }
 
 .avatar-nombre {
   margin: 0;
-  font-size: 1.75rem;
+  font-size: 1.9rem;
   font-weight: 700;
-  color: #1f2937;
+  color: #1e40af;
 }
 
 .avatar-descripcion {
   margin: 0;
-  font-size: 1rem;
-  color: #4b5563;
+  font-size: 1.05rem;
+  color: #475569;
   line-height: 1.6;
 }
 
 .avatar-precio {
-  font-size: 1.1rem;
+  font-size: 1.15rem;
   color: #92400e;
   font-weight: 600;
 }
@@ -140,25 +144,24 @@
 
 /* Tienda de avatares */
 .avatar-tienda-titulo {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   font-weight: 700;
-  color: #1f2937;
+  color: #2563eb;
   text-align: center;
   margin: 2.5rem 0 1.5rem 0;
 }
 
 .avatar-tienda-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1.5rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.75rem;
   margin-top: 1rem;
 }
 
 .avatar-tienda-card {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  padding: 1.25rem;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -166,21 +169,51 @@
   transition: box-shadow 0.2s, transform 0.2s;
 }
 
+.avatar-tienda-card:nth-child(6n+1) {
+  background: linear-gradient(180deg, #f5f3ff 0%, #faf5ff 100%);
+  border-color: #e9d5ff;
+}
+
+.avatar-tienda-card:nth-child(6n+2) {
+  background: linear-gradient(180deg, #ecfdf5 0%, #f0fdfa 100%);
+  border-color: #a7f3d0;
+}
+
+.avatar-tienda-card:nth-child(6n+3) {
+  background: linear-gradient(180deg, #fff7ed 0%, #fffbeb 100%);
+  border-color: #fed7aa;
+}
+
+.avatar-tienda-card:nth-child(6n+4) {
+  background: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-color: #bae6fd;
+}
+
+.avatar-tienda-card:nth-child(6n+5) {
+  background: linear-gradient(180deg, #fff1f2 0%, #fef2f2 100%);
+  border-color: #fecdd3;
+}
+
+.avatar-tienda-card:nth-child(6n+6) {
+  background: linear-gradient(180deg, #fefce8 0%, #fef9c3 100%);
+  border-color: #fde68a;
+}
+
 .avatar-tienda-card:hover {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1);
+  transform: translateY(-3px);
 }
 
 .avatar-tienda-card-comprado {
   border-color: #4ade80;
-  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%);
+  background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%) !important;
 }
 
 .avatar-tienda-imagen {
   position: relative;
   width: 100%;
-  height: 140px;
-  background: #f9fafb;
+  height: 180px;
+  background: rgba(255, 255, 255, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -212,15 +245,15 @@
 
 .avatar-tienda-nombre {
   margin: 0 0 0.5rem 0;
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  color: #1f2937;
+  color: #1e40af;
 }
 
 .avatar-tienda-descripcion {
   margin: 0 0 0.5rem 0;
-  font-size: 0.85rem;
-  color: #6b7280;
+  font-size: 0.9rem;
+  color: #475569;
   line-height: 1.3;
   min-height: 2.6em;
 }
@@ -272,7 +305,7 @@
 
 @media (max-width: 1024px) {
   .avatar-tienda-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
@@ -292,7 +325,7 @@
 
   .avatar-imagen-container {
     width: 100%;
-    max-width: 240px;
+    max-width: 280px;
   }
 
   .avatar-titulo-principal {
