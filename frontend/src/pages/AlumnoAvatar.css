@@ -1,110 +1,106 @@
-.alumno-avatar {
+.avatar-pagina {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
   padding: 2rem;
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  min-height: 400px;
-  box-sizing: border-box;
-  overflow: visible;
 }
 
-/* Sección superior: Avatar actual + Estrellas */
-.avatar-seccion-actual {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 2rem;
-  margin-bottom: 2rem;
+.avatar-tarjeta-centro {
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  max-width: 520px;
+  width: 100%;
 }
 
-.avatar-actual-container {
-  width: 140px;
-  height: 140px;
+.avatar-tarjeta-contenido {
+  display: flex;
+  gap: 2rem;
+  padding: 2rem;
+}
+
+.avatar-imagen-container {
+  width: 180px;
+  height: 220px;
+  flex-shrink: 0;
   background: #f3f4f6;
-  border: 2px solid #e5e7eb;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-.avatar-actual-imagen {
+.avatar-imagen-container img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.avatar-actual-placeholder {
+.avatar-imagen-placeholder {
   font-size: 4rem;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
-.avatar-actual-nombre {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #1f2937;
+.avatar-info {
+  flex: 1;
+  min-width: 0;
 }
 
-.avatar-actual-estrellas {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #92400e;
-}
-
-.avatar-actual-estrellas-icon {
-  font-size: 1.25rem;
-}
-
-.avatar-actual-estrellas-count {
-  font-size: 1.25rem;
-}
-
-/* Título tienda */
-.avatar-tienda-titulo {
-  margin: 0 0 1.5rem 0;
+.avatar-nombre {
+  margin: 0 0 0.75rem 0;
   font-size: 1.5rem;
   font-weight: 700;
   color: #1f2937;
 }
 
-.btn-reintentar {
-  margin-top: 1rem;
-  padding: 0.5rem 1.5rem;
-  background: linear-gradient(135deg, #4a83c1, #3b6ea5);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
+.avatar-descripcion {
+  margin: 0 0 1rem 0;
+  font-size: 0.95rem;
+  color: #6b7280;
+  line-height: 1.5;
 }
 
-.btn-reintentar:hover {
-  transform: scale(1.05);
+.avatar-precio {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+  color: #92400e;
 }
 
-.avatar-loading {
+.avatar-precio-label {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.avatar-estrellas {
+  margin: 0;
+  font-size: 1rem;
+  color: #1f2937;
+}
+
+.avatar-estrellas-label {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.avatar-estrellas strong {
+  color: #92400e;
+  font-size: 1.25rem;
+}
+
+.avatar-cargando,
+.avatar-error {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  min-height: 300px;
   gap: 1rem;
+  color: #6b7280;
 }
 
-.avatar-loading-spinner {
-  width: 48px;
-  height: 48px;
-  border: 4px solid #e5e7eb;
+.avatar-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e5e7eb;
   border-top-color: #4a83c1;
-  border-radius: 8px;
   animation: avatar-spin 0.8s linear infinite;
 }
 
@@ -112,196 +108,33 @@
   to { transform: rotate(360deg); }
 }
 
-.avatar-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 400px;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  padding: 3rem;
-  text-align: center;
-}
-
-.avatar-icon {
-  font-size: 4rem;
-  margin-bottom: 1rem;
-}
-
-.avatar-placeholder p {
-  color: #6b7280;
-  font-size: 1.1rem;
-}
-
-.avatar-placeholder.avatar-error p {
+.avatar-error p {
   color: #dc2626;
 }
 
-/* Grid: 4 columnas */
-.avatar-tienda-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1.5rem;
-  width: 100%;
-}
-
-/* Cards - rectangulares, sin círculos */
-.avatar-card {
-  background: #ffffff;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e5e7eb;
-  transition: all 0.2s ease;
-  display: flex;
-  flex-direction: column;
-  padding: 1rem;
-}
-
-.avatar-card:hover {
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
-}
-
-.avatar-card-owned {
-  border-color: #4ade80;
-  background: #f0fdf4;
-}
-
-.avatar-card-can-buy {
-  border-color: #93c5fd;
-}
-
-.avatar-card-imagen {
-  position: relative;
-  width: 100%;
-  height: 140px;
-  background: #f3f4f6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 0.75rem;
-}
-
-.avatar-card-imagen img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.avatar-card-placeholder {
-  font-size: 3rem;
-  opacity: 0.6;
-}
-
-.avatar-card-badge,
-.avatar-card-badge-free {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.avatar-card-badge {
-  background: #4ade80;
-  color: #166534;
-}
-
-.avatar-card-badge-free {
-  background: #38bdf8;
-  color: #0c4a6e;
-}
-
-.avatar-card-nombre {
-  margin: 0 0 0.25rem 0;
-  font-size: 1rem;
-  font-weight: 700;
-  color: #1f2937;
-}
-
-.avatar-card-descripcion {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.85rem;
-  color: #6b7280;
-  line-height: 1.3;
-  flex: 1;
-}
-
-.avatar-card-precio {
-  margin-bottom: 0.75rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #92400e;
-}
-
-.btn-avatar-comprar {
-  width: 100%;
-  padding: 0.6rem 1rem;
-  border: none;
-  border-radius: 8px;
-  font-weight: 600;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-avatar-owned {
-  background: #d1fae5;
-  color: #065f46;
-  cursor: default;
-}
-
-.btn-avatar-can-buy {
-  background: linear-gradient(135deg, #4a83c1, #3b6ea5);
+.avatar-btn-reintentar {
+  padding: 0.5rem 1.25rem;
+  background: #4a83c1;
   color: white;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
 }
 
-.btn-avatar-can-buy:hover:not(:disabled) {
-  background: linear-gradient(135deg, #3b6ea5, #2d5a8a);
-  transform: scale(1.02);
+.avatar-btn-reintentar:hover {
+  background: #3b6ea5;
 }
 
-.btn-avatar-locked {
-  background: #f3f4f6;
-  color: #9ca3af;
-  cursor: not-allowed;
-}
-
-@media (max-width: 1024px) {
-  .avatar-tienda-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
-
-@media (max-width: 768px) {
-  .avatar-tienda-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
+@media (max-width: 600px) {
+  .avatar-tarjeta-contenido {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
   }
 
-  .avatar-seccion-actual {
-    padding: 1.5rem;
-  }
-
-  .avatar-actual-container {
-    width: 100px;
-    height: 100px;
-  }
-}
-
-@media (max-width: 480px) {
-  .alumno-avatar {
-    padding: 1rem;
-  }
-
-  .avatar-tienda-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .avatar-card-imagen {
-    height: 120px;
+  .avatar-imagen-container {
+    width: 160px;
+    height: 200px;
   }
 }
