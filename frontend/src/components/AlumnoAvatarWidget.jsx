@@ -46,6 +46,7 @@ function AlumnoAvatarWidget() {
         <div className="alumno-avatar-widget-info">
           <p className="alumno-avatar-widget-nombre">{avatar ? avatar.name : 'Mi Avatar'}</p>
           <p className="alumno-avatar-widget-descripcion">{avatar?.description || '—'}</p>
+          <p className="alumno-avatar-widget-nivel">Nivel {avatar?.level != null ? String(avatar.level).padStart(2, '0') : '00'}</p>
           <p className="alumno-avatar-widget-estrellas">⭐ {totalEstrellas} estrellas</p>
         </div>
       </div>

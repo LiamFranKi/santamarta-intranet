@@ -28,6 +28,7 @@
 }
 
 .avatar-imagen-container {
+  position: relative;
   width: 240px;
   min-height: 360px;
   flex-shrink: 0;
@@ -44,6 +45,19 @@
   min-height: 360px;
   object-fit: contain;
   object-position: center;
+}
+
+.avatar-nivel-badge {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 0.5rem 1rem;
+  background: rgba(15, 23, 42, 0.85);
+  color: #f59e0b;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: center;
 }
 
 .avatar-imagen-placeholder {
@@ -73,6 +87,13 @@
   font-size: 1.05rem;
   color: #475569;
   line-height: 1.6;
+}
+
+.avatar-nivel {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #92400e;
 }
 
 .avatar-precio {

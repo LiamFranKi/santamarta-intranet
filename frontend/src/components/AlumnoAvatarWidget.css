@@ -81,6 +81,13 @@
   overflow: hidden;
 }
 
+.alumno-avatar-widget-nivel {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #92400e;
+}
+
 .alumno-avatar-widget-estrellas {
   margin: 0;
   font-size: 1rem;

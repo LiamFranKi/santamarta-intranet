@@ -76,6 +76,7 @@ function AlumnoAvatar() {
   const avatar = avatarActual || { name: 'Sin avatar', description: 'Aún no tienes un avatar asignado', price: 0 };
   const precio = avatar.price != null ? avatar.price : 0;
   const descripcion = avatar.description || '—';
+  const nivel = avatar.level != null ? String(avatar.level).padStart(2, '0') : '00';
 
   return (
     <DashboardLayout>
@@ -89,10 +90,12 @@ function AlumnoAvatar() {
               ) : (
                 <div className="avatar-imagen-placeholder">🎭</div>
               )}
+              <div className="avatar-nivel-badge">Nivel {nivel}</div>
             </div>
             <div className="avatar-info">
               <h2 className="avatar-nombre">{avatar.name}</h2>
               <p className="avatar-descripcion">{descripcion}</p>
+              <p className="avatar-nivel">Nivel {nivel}</p>
               <div className="avatar-precio">
                 <span className="avatar-precio-label">Precio:</span>{' '}
                 {precio === 0 ? 'Gratis' : `${precio} estrellas`}
