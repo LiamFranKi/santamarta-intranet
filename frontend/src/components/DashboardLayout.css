@@ -345,11 +345,11 @@
 }
 
 .dashboard-main {
-  flex: 1;
+  flex: 1 1 auto;
   padding: 2rem;
   padding-right: 1.5rem;
   overflow-y: auto;
-  min-width: 0;
+  min-width: 320px;
   max-width: none;
 }
 

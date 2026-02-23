@@ -1,8 +1,10 @@
 .alumno-avatar {
   padding: 2rem;
+  width: 100%;
   max-width: 1200px;
   margin: 0 auto;
   min-height: 400px;
+  box-sizing: border-box;
 }
 
 .btn-reintentar {
@@ -29,6 +31,8 @@
   border-radius: 16px;
   border: 1px solid rgba(234, 179, 8, 0.3);
   box-shadow: 0 4px 12px rgba(234, 179, 8, 0.15);
+  flex-shrink: 0;
+  width: 100%;
 }
 
 .avatar-page-header h1 {
@@ -114,8 +118,9 @@
 
 .avatar-tienda-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 1.5rem;
+  width: 100%;
 }
 
 .avatar-card {
