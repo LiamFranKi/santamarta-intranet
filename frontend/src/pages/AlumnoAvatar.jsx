@@ -10,20 +10,25 @@ function AlumnoAvatar() {
   const [totalEstrellas, setTotalEstrellas] = useState(0);
   const [avatarActual, setAvatarActual] = useState(null);
   const [comprando, setComprando] = useState(null);
+  const [error, setError] = useState(null);
 
   const cargarTienda = async () => {
     try {
       setLoading(true);
+      setError(null);
       const res = await api.get('/alumno/avatares/tienda');
       setItems(res.data.items || []);
       setTotalEstrellas(res.data.total_estrellas || 0);
       setAvatarActual(res.data.avatar_actual || null);
-    } catch (error) {
-      console.error('Error cargando tienda:', error);
+    } catch (err) {
+      console.error('Error cargando tienda:', err);
+      const msg = err.response?.data?.error || err.message || 'No se pudo cargar la tienda de avatares';
+      setError(msg);
+      setItems([]);
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: error.response?.data?.error || 'No se pudo cargar la tienda de avatares'
+        text: msg
       });
     } finally {
       setLoading(false);
@@ -75,6 +80,14 @@ function AlumnoAvatar() {
           <div className="avatar-loading">
             <div className="avatar-loading-spinner"></div>
             <p>Cargando tienda...</p>
+          </div>
+        ) : error ? (
+          <div className="avatar-placeholder avatar-error">
+            <div className="avatar-icon">⚠️</div>
+            <p>{error}</p>
+            <button type="button" className="btn-reintentar" onClick={cargarTienda}>
+              Reintentar
+            </button>
           </div>
         ) : items.length === 0 ? (
           <div className="avatar-placeholder">

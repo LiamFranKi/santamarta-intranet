@@ -297,24 +297,37 @@ router.get('/dashboard', async (req, res) => {
     const sexoAlumno = alumnoData.sexo;
     const sexoAvatarBuscado = sexoAlumno === 0 ? 1 : (sexoAlumno === 1 ? 0 : null);
     let avatarActual = [];
-    if (sexoAvatarBuscado !== null) {
-      avatarActual = await query(
-        `SELECT asi.*, ass.created_at as fecha_compra
-         FROM avatar_shop_sales ass
-         INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
-         WHERE ass.student_id = ? AND (asi.sexo = ? OR asi.sexo IS NULL)
-         ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
-        [alumnoData.id, sexoAvatarBuscado]
-      );
-    } else {
-      avatarActual = await query(
-        `SELECT asi.*, ass.created_at as fecha_compra
-         FROM avatar_shop_sales ass
-         INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
-         WHERE ass.student_id = ?
-         ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
-        [alumnoData.id]
-      );
+    try {
+      if (sexoAvatarBuscado !== null) {
+        avatarActual = await query(
+          `SELECT asi.*, ass.created_at as fecha_compra
+           FROM avatar_shop_sales ass
+           INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+           WHERE ass.student_id = ? AND (asi.sexo = ? OR asi.sexo IS NULL)
+           ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+          [alumnoData.id, sexoAvatarBuscado]
+        );
+      } else {
+        avatarActual = await query(
+          `SELECT asi.*, ass.created_at as fecha_compra
+           FROM avatar_shop_sales ass
+           INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+           WHERE ass.student_id = ?
+           ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+          [alumnoData.id]
+        );
+      }
+    } catch (err) {
+      if (err.message && (err.message.includes('sexo') || err.code === 'ER_BAD_FIELD_ERROR')) {
+        avatarActual = await query(
+          `SELECT asi.*, ass.created_at as fecha_compra
+           FROM avatar_shop_sales ass
+           INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+           WHERE ass.student_id = ?
+           ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+          [alumnoData.id]
+        );
+      }
     }
     let avatarUrl = null;
     if (avatarActual.length > 0 && avatarActual[0].image) {
@@ -890,22 +903,36 @@ router.get('/avatares/resumen', async (req, res) => {
     const sexoAlumno = alumno[0].sexo;
     const sexoAvatar = sexoAlumno === 0 ? 1 : (sexoAlumno === 1 ? 0 : null);
     let avatarActual = [];
-    if (sexoAvatar !== null) {
-      avatarActual = await query(
-        `SELECT asi.* FROM avatar_shop_sales ass
-         INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
-         WHERE ass.student_id = ? AND (asi.sexo = ? OR asi.sexo IS NULL)
-         ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
-        [alumnoId, sexoAvatar]
-      );
-    } else {
-      avatarActual = await query(
-        `SELECT asi.* FROM avatar_shop_sales ass
-         INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
-         WHERE ass.student_id = ?
-         ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
-        [alumnoId]
-      );
+    try {
+      if (sexoAvatar !== null) {
+        avatarActual = await query(
+          `SELECT asi.* FROM avatar_shop_sales ass
+           INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+           WHERE ass.student_id = ? AND (asi.sexo = ? OR asi.sexo IS NULL)
+           ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+          [alumnoId, sexoAvatar]
+        );
+      } else {
+        avatarActual = await query(
+          `SELECT asi.* FROM avatar_shop_sales ass
+           INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+           WHERE ass.student_id = ?
+           ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+          [alumnoId]
+        );
+      }
+    } catch (err) {
+      if (err.message && (err.message.includes('sexo') || err.code === 'ER_BAD_FIELD_ERROR')) {
+        avatarActual = await query(
+          `SELECT asi.* FROM avatar_shop_sales ass
+           INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+           WHERE ass.student_id = ?
+           ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+          [alumnoId]
+        );
+      } else {
+        throw err;
+      }
     }
 
     const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
@@ -970,17 +997,25 @@ router.get('/avatares/tienda', async (req, res) => {
       totalEstrellas = parseInt(r[0]?.t || 0, 10);
     }
 
-    // Items de la tienda filtrados por sexo (orden: level ASC - primero el de 0 estrellas)
+    // Items de la tienda (filtrar por sexo si existe columna, sino todos)
     let items = [];
-    if (sexoAvatar !== null) {
-      items = await query(
-        `SELECT asi.* FROM avatar_shop_items asi
-         WHERE asi.sexo = ? OR asi.sexo IS NULL
-         ORDER BY asi.level ASC, asi.id ASC`,
-        [sexoAvatar]
-      );
-    } else {
-      items = await query(`SELECT * FROM avatar_shop_items ORDER BY level ASC, id ASC`);
+    try {
+      if (sexoAvatar !== null) {
+        items = await query(
+          `SELECT asi.* FROM avatar_shop_items asi
+           WHERE asi.sexo = ? OR asi.sexo IS NULL
+           ORDER BY asi.level ASC, asi.id ASC`,
+          [sexoAvatar]
+        );
+      } else {
+        items = await query(`SELECT * FROM avatar_shop_items ORDER BY level ASC, id ASC`);
+      }
+    } catch (err) {
+      if (err.message && (err.message.includes('sexo') || err.code === 'ER_BAD_FIELD_ERROR')) {
+        items = await query(`SELECT * FROM avatar_shop_items ORDER BY level ASC, id ASC`);
+      } else {
+        throw err;
+      }
     }
 
     // Avatares ya comprados por el alumno
@@ -1029,7 +1064,11 @@ router.get('/avatares/tienda', async (req, res) => {
     });
   } catch (error) {
     console.error('Error obteniendo tienda de avatares:', error);
-    res.status(500).json({ error: 'Error al cargar la tienda de avatares' });
+    const msg = error.message || 'Error al cargar la tienda';
+    if (error.message && (error.message.includes("doesn't exist") || error.message.includes('avatar_shop'))) {
+      return res.json({ items: [], total_estrellas: 0, avatar_actual: null });
+    }
+    res.status(500).json({ error: msg });
   }
 });
 
@@ -1068,8 +1107,8 @@ router.post('/avatares/comprar/:itemId', async (req, res) => {
       return res.status(400).json({ error: 'Ya tienes este avatar' });
     }
 
-    // Verificar género (si el item tiene sexo definido)
-    if (item[0].sexo != null && sexoAvatar !== null && item[0].sexo !== sexoAvatar) {
+    // Verificar género (solo si la columna sexo existe y el item lo tiene definido)
+    if (typeof item[0].sexo === 'number' && sexoAvatar !== null && item[0].sexo !== sexoAvatar) {
       return res.status(400).json({ error: 'Este avatar no está disponible para tu perfil' });
     }
 

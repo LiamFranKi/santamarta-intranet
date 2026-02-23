@@ -2,6 +2,23 @@
   padding: 2rem;
   max-width: 1200px;
   margin: 0 auto;
+  min-height: 400px;
+}
+
+.btn-reintentar {
+  margin-top: 1rem;
+  padding: 0.5rem 1.5rem;
+  background: linear-gradient(135deg, #4a83c1, #3b6ea5);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-reintentar:hover {
+  transform: scale(1.05);
 }
 
 .avatar-page-header {
@@ -89,6 +106,10 @@
 .avatar-placeholder p {
   color: #6b7280;
   font-size: 1.1rem;
+}
+
+.avatar-placeholder.avatar-error p {
+  color: #dc2626;
 }
 
 .avatar-tienda-grid {
