@@ -16144,6 +16144,164 @@ router.get('/aula-virtual/archivos', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/aula-virtual/biblioteca-temas
+ * Obtener temas de años anteriores (mismo curso, mismo grado) para la Biblioteca
+ * Años: 2024 hasta (anio_activo - 1). Incluye temas de cualquier docente.
+ */
+router.get('/aula-virtual/biblioteca-temas', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { asignatura_id } = req.query;
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    // Verificar que el docente tiene acceso a la asignatura actual (su aula virtual)
+    const asignaturaActual = await query(
+      `SELECT a.*, c.nombre as curso_nombre, g.grado, g.seccion, g.anio
+       FROM asignaturas a
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [asignatura_id, personal_id, colegio_id, anio_activo]
+    );
+
+    if (asignaturaActual.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
+    }
+
+    const { curso_id, grado } = asignaturaActual[0];
+    const anioMin = 2024;
+    const anioMax = Math.max(anioMin, anio_activo - 1);
+
+    if (anio_activo <= 2024) {
+      return res.json({ porAnio: {}, años: [] });
+    }
+
+    // Obtener asignaturas del mismo curso y grado, años 2024 a anio_activo-1 (cualquier docente)
+    const asignaturasAnteriores = await query(
+      `SELECT a.id as asignatura_id, g.anio, c.nombre as curso_nombre, g.grado, g.seccion,
+              CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) as docente_nombre
+       FROM asignaturas a
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       LEFT JOIN personal p ON p.id = a.personal_id
+       WHERE a.curso_id = ? AND g.grado = ? AND a.colegio_id = ?
+         AND g.anio >= ? AND g.anio <= ?
+       ORDER BY g.anio DESC, g.seccion ASC`,
+      [curso_id, grado, colegio_id, anioMin, anioMax]
+    );
+
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+
+    const porAnio = {};
+    const añosSet = new Set();
+
+    for (const asig of asignaturasAnteriores) {
+      const temas = await query(
+        `SELECT id, nombre, archivo, enlace, ciclo, orden, fecha_hora
+         FROM asignaturas_archivos WHERE asignatura_id = ?
+         ORDER BY ciclo ASC, orden ASC, id ASC`,
+        [asig.asignatura_id]
+      );
+
+      const temasConUrl = temas.map(t => {
+        let archivoUrl = null;
+        if (t.archivo && t.archivo !== '') {
+          if (t.archivo.startsWith('http')) {
+            archivoUrl = t.archivo;
+          } else {
+            archivoUrl = isDevelopment
+              ? `http://localhost:5000/Static/Archivos/${t.archivo.replace(/^\/Static\/Archivos\//, '')}`
+              : `${phpSystemUrl}/Static/Archivos/${t.archivo.replace(/^\/Static\/Archivos\//, '')}`;
+          }
+        }
+        return {
+          ...t,
+          asignatura_id: asig.asignatura_id,
+          asignatura_label: `${asig.curso_nombre} - ${asig.grado}° ${asig.seccion} (${asig.anio})`,
+          docente_nombre: asig.docente_nombre || 'Docente',
+          archivo_url: archivoUrl,
+          enlace_url: t.enlace && t.enlace.trim() !== '' ? t.enlace.trim() : null
+        };
+      });
+
+      if (temasConUrl.length > 0) {
+        if (!porAnio[asig.anio]) porAnio[asig.anio] = [];
+        porAnio[asig.anio].push(...temasConUrl);
+        añosSet.add(asig.anio);
+      }
+    }
+
+    const años = Array.from(añosSet).sort((a, b) => b - a);
+
+    res.json({ porAnio, años });
+  } catch (error) {
+    console.error('Error obteniendo biblioteca de temas:', error);
+    res.status(500).json({ error: 'Error al obtener biblioteca de temas' });
+  }
+});
+
+/**
+ * POST /api/docente/aula-virtual/copiar-temas-biblioteca
+ * Copiar temas seleccionados desde la biblioteca al año actual
+ * Body: { asignatura_id, items: [{ asignatura_origen_id, tema_id }, ...] }
+ */
+router.post('/aula-virtual/copiar-temas-biblioteca', async (req, res) => {
+  try {
+    const { personal_id, colegio_id, anio_activo } = req.user;
+    const { asignatura_id, items } = req.body;
+
+    if (!asignatura_id || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'asignatura_id e items son requeridos' });
+    }
+
+    // Verificar que el docente tiene acceso a la asignatura destino
+    const asignaturaDestino = await query(
+      `SELECT a.* FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [asignatura_id, personal_id, colegio_id, anio_activo]
+    );
+
+    if (asignaturaDestino.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a la asignatura destino' });
+    }
+
+    let copiados = 0;
+
+    for (const item of items) {
+      const { asignatura_origen_id, tema_id } = item;
+      if (!asignatura_origen_id || !tema_id) continue;
+
+      const tema = await query(
+        `SELECT * FROM asignaturas_archivos WHERE id = ? AND asignatura_id = ?`,
+        [tema_id, asignatura_origen_id]
+      );
+
+      if (tema.length === 0) continue;
+
+      const t = tema[0];
+      const enlaceVal = (t.enlace && String(t.enlace).trim() !== '') ? t.enlace : '';
+
+      await execute(
+        `INSERT INTO asignaturas_archivos (asignatura_id, trabajador_id, nombre, archivo, enlace, fecha_hora, ciclo, orden, visto)
+         VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+        [asignatura_id, personal_id, t.nombre, t.archivo || '', enlaceVal, t.ciclo, t.orden, t.visto || '']
+      );
+      copiados++;
+    }
+
+    res.json({ success: true, copiados });
+  } catch (error) {
+    console.error('Error copiando temas desde biblioteca:', error);
+    res.status(500).json({ error: 'Error al copiar temas desde biblioteca' });
+  }
+});
+
+/**
  * PUT /api/docente/aula-virtual/archivos/ordenar
  * Actualizar el orden de los temas
  * IMPORTANTE: Esta ruta debe estar ANTES de /aula-virtual/archivos/:id
