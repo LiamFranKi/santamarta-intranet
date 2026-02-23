@@ -168,6 +168,7 @@
 .dropdown-menu-portal-cursos {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
 .dropdown-menu {

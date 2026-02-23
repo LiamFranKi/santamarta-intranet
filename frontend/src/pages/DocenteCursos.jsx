@@ -2856,12 +2856,15 @@ function DocenteCursos() {
     } else {
       const button = event.currentTarget;
       const rect = button.getBoundingClientRect();
-      const DROPDOWN_EST_HEIGHT = 280;
+      const DROPDOWN_EST_HEIGHT = 320;
       const padding = 12;
-      const spaceBelow = window.innerHeight - rect.bottom - padding;
+      const isMobile = window.innerWidth < 768;
+      const bottomNavBar = isMobile ? 70 : 0;
+      const spaceBelow = window.innerHeight - rect.bottom - padding - bottomNavBar;
       const spaceAbove = rect.top - padding;
-      const openUpward = spaceBelow < DROPDOWN_EST_HEIGHT && spaceAbove > spaceBelow;
-      const maxHeight = Math.min(DROPDOWN_EST_HEIGHT, openUpward ? spaceAbove : spaceBelow);
+      const openUpward = spaceBelow < DROPDOWN_EST_HEIGHT || rect.bottom > window.innerHeight * 0.6;
+      const availableHeight = openUpward ? spaceAbove : spaceBelow;
+      const maxHeight = Math.min(DROPDOWN_EST_HEIGHT, Math.max(150, availableHeight));
       let left = rect.left;
       const dropdownMinWidth = 200;
       const dropdownWidth = Math.max(rect.width, dropdownMinWidth);
@@ -2869,10 +2872,10 @@ function DocenteCursos() {
       if (left < padding) left = padding;
       setDropdownPosition({
         top: openUpward ? undefined : rect.bottom + 8,
-        bottom: openUpward ? window.innerHeight - rect.top + 8 : undefined,
+        bottom: openUpward ? (window.innerHeight - rect.top + 8) : undefined,
         left,
         width: dropdownWidth,
-        maxHeight: Math.max(120, maxHeight)
+        maxHeight: Math.max(150, maxHeight)
       });
       setOpenDropdown(cursoId);
     }
