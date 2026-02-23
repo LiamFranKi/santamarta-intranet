@@ -64,14 +64,14 @@
 
 .alumno-avatar-widget-nombre {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.1rem;
   font-weight: 700;
   color: #0c4a6e;
 }
 
 .alumno-avatar-widget-descripcion {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 0.9rem;
   color: #475569;
   line-height: 1.3;
   display: -webkit-box;
@@ -82,14 +82,7 @@
 
 .alumno-avatar-widget-estrellas {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 1rem;
   font-weight: 600;
   color: #0369a1;
-}
-
-.alumno-avatar-widget-link {
-  font-size: 0.75rem;
-  color: #0284c7;
-  font-weight: 600;
-  margin-top: 0.25rem;
 }
