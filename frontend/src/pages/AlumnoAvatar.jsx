@@ -111,7 +111,7 @@ function AlumnoAvatar() {
         <h2 className="avatar-tienda-titulo">Tienda de Avatares</h2>
         {items.length > 0 ? (
           <div className="avatar-tienda-grid">
-            {items.map((item) => (
+            {[...items].sort((a, b) => (a.level ?? 0) - (b.level ?? 0)).map((item) => (
               <div key={item.id} className={`avatar-tienda-card ${item.ya_comprado ? 'avatar-tienda-card-comprado' : ''}`}>
                 <div className="avatar-tienda-imagen">
                   {item.image_url ? (
@@ -123,6 +123,7 @@ function AlumnoAvatar() {
                 </div>
                 <h3 className="avatar-tienda-nombre">{item.name}</h3>
                 <p className="avatar-tienda-descripcion">{item.description || '—'}</p>
+                <p className="avatar-tienda-nivel">Nivel {item.level != null ? String(item.level).padStart(2, '0') : '00'}</p>
                 <p className="avatar-tienda-precio">⭐ {item.price ?? 0} estrellas</p>
                 <button
                   type="button"
