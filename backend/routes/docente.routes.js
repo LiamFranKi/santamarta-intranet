@@ -8079,6 +8079,33 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
           }
         }
 
+        // Push notifications a destinatarios
+        try {
+          if (destinatariosArray.length > 0 && req.user?.colegio_id) {
+            const subsData = await query(
+              `SELECT endpoint, p256dh, auth FROM push_subscriptions
+               WHERE usuario_id IN (${destinatariosArray.map(() => '?').join(',')})
+                 AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+              [...destinatariosArray.map(id => parseInt(id)), req.user.colegio_id]
+            );
+            const subscriptions = (subsData || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
+            if (subscriptions.length > 0) {
+              const asuntoCorto = (asunto || 'Sin asunto').substring(0, 60);
+              enviarPushNotificationMultiple(subscriptions, {
+                title: 'Nuevo mensaje',
+                body: asuntoCorto,
+                icon: '/icons/icon-192x192.png',
+                badge: '/icons/icon-192x192.png',
+                vibrate: [200, 100, 200],
+                tag: `mensaje-${Date.now()}`,
+                data: { url: '/', tipo: 'mensaje' }
+              }).catch(err => console.error('❌ [MENSAJES] Error push:', err));
+            }
+          }
+        } catch (pushErr) {
+          console.error('❌ [MENSAJES] Error push:', pushErr);
+        }
+
         console.log('✅ Mensaje enviado exitosamente en nombre del hijo');
       } catch (bgError) {
         console.error('Error en procesamiento en segundo plano:', bgError);
@@ -11372,6 +11399,33 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         if (mensajesInsertados === 0) {
           console.error('No se pudieron insertar los mensajes');
           return;
+        }
+
+        // Push notifications a destinatarios
+        try {
+          if (usuariosDestinatarios.length > 0) {
+            const subsData = await query(
+              `SELECT endpoint, p256dh, auth FROM push_subscriptions
+               WHERE usuario_id IN (${usuariosDestinatarios.map(() => '?').join(',')})
+                 AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+              [...usuariosDestinatarios, colegio_id]
+            );
+            const subscriptions = (subsData || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
+            if (subscriptions.length > 0) {
+              const asuntoCorto = (asunto || 'Sin asunto').substring(0, 60);
+              enviarPushNotificationMultiple(subscriptions, {
+                title: 'Nuevo mensaje',
+                body: asuntoCorto,
+                icon: '/icons/icon-192x192.png',
+                badge: '/icons/icon-192x192.png',
+                vibrate: [200, 100, 200],
+                tag: `mensaje-${Date.now()}`,
+                data: { url: '/', tipo: 'mensaje' }
+              }).catch(err => console.error('❌ [MENSAJES] Error push:', err));
+            }
+          }
+        } catch (pushErr) {
+          console.error('❌ [MENSAJES] Error push:', pushErr);
         }
 
         let mensajeRespuesta = `Mensaje enviado a ${usuariosDestinatarios.length} destinatario(s)`;
