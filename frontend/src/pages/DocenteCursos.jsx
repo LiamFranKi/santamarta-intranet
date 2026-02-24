@@ -1750,7 +1750,8 @@ function DocenteCursos() {
   };
 
   // Helpers para Cualitativa (letras): convertir letra<->número usando rangos
-  const esCualitativa = datosNotas?.curso?.nivel?.tipo_calificacion === 0;
+  const esCualitativa = datosNotas?.curso?.nivel?.tipo_calificacion === 0 ||
+    (datosNotas?.curso?.nivel_nombre || '').toUpperCase().includes('INICIAL');
   const rangosLetras = datosNotas?.rangos_letras_primaria || [];
 
   // Puntaje mayor por letra para promediar: AD=20, A=19, B=18, C=17
@@ -4352,7 +4353,7 @@ function DocenteCursos() {
                     <div className="blue-bar-notas">
                       {esCualitativa
                         ? `Ingrese notas en letras (${rangosLetras.length > 0 ? rangosLetras.map(r => r.letra).join(', ') : 'A, B, C, AD'}).`
-                        : `Ingrese notas de: ${datosNotas.curso.nivel.nota_minima} - ${datosNotas.curso.nivel.nota_maxima}.`}
+                        : `Ingrese notas de: ${datosNotas?.curso?.nivel?.nota_minima ?? 0} - ${datosNotas?.curso?.nivel?.nota_maxima ?? 20}.`}
                     </div>
 
                     {/* Tabla de notas */}
@@ -4362,14 +4363,22 @@ function DocenteCursos() {
                           <tr>
                             <th>N°</th>
                             <th className="col-name">APELLIDOS Y NOMBRES</th>
-                            {datosNotas.criterios.map(criterio => (
-                              <th key={criterio.id}>
-                                <div className="th-criterio-content">
-                                  <div className="th-criterio-nombre">{criterio.descripcion.toUpperCase()}</div>
-                                  <div className="th-criterio-peso">({criterio.peso}%)</div>
-                                </div>
-                              </th>
-                            ))}
+                            {datosNotas.criterios.map(criterio => {
+                              const abrev = (criterio.abreviatura || '').trim() ||
+                                (criterio.descripcion || '').substring(0, 25).trim();
+                              return (
+                                <th key={criterio.id}>
+                                  <div className="th-criterio-content">
+                                    <span
+                                      className="th-indicador-abrev"
+                                      title={criterio.descripcion || abrev}
+                                    >
+                                      {abrev || criterio.descripcion}
+                                    </span>
+                                  </div>
+                                </th>
+                              );
+                            })}
                             {datosNotas.curso.examen_mensual && (
                               <th>EXAMEN MENSUAL ({datosNotas.curso.peso_examen_mensual}%)</th>
                             )}

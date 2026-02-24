@@ -3004,6 +3004,18 @@
   color: #666;
 }
 
+.th-indicador-abrev {
+  cursor: help;
+  font-weight: bold;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .notas-table td {
   border: 1px solid #eee;
   padding: 8px 5px;
