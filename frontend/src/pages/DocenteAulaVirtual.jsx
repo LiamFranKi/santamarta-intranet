@@ -134,6 +134,7 @@ function DocenteAulaVirtual() {
   const [mostrarFormSesion, setMostrarFormSesion] = useState(false);
   const [videoEditando, setVideoEditando] = useState(null);
   const [enlaceEditando, setEnlaceEditando] = useState(null);
+  const [sesionEditando, setSesionEditando] = useState(null);
   const [tareaSeleccionada, setTareaSeleccionada] = useState(null);
   const [mostrarDetallesTarea, setMostrarDetallesTarea] = useState(false);
   const [tareaDetalle, setTareaDetalle] = useState(null);
@@ -1762,122 +1763,16 @@ function DocenteAulaVirtual() {
 
   const renderSesionesContent = () => {
     const sesionesFiltradas = sesiones.filter(s => s.ciclo === bimestreGlobal);
-    const temasDisponibles = archivos.filter(a => a.ciclo === bimestreGlobal);
 
     return (
       <div className="card-content-expanded">
-        {/* Modal Nueva Sesión */}
-        {mostrarFormSesion && createPortal(
-          <div 
-            className="modal-tema-overlay"
-            onClick={() => {
-              setMostrarFormSesion(false);
-              setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
-            }}
-          >
-            <div 
-              className="modal-tema-container"
-              onClick={(e) => e.stopPropagation()}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="modal-sesion-title"
-            >
-              <div className="modal-tema-header">
-                <h2 id="modal-sesion-title">📄 Nueva Sesión</h2>
-                <button
-                  className="modal-tema-close"
-                  onClick={() => {
-                    setMostrarFormSesion(false);
-                    setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
-                  }}
-                  aria-label="Cerrar"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="modal-tema-body">
-                <form onSubmit={handleCrearSesion}>
-                  <div className="form-group">
-                    <label htmlFor="sesion-tema">Tema *</label>
-                    <select
-                      id="sesion-tema"
-                      className="form-input"
-                      value={formSesion.tema_id}
-                      onChange={(e) => setFormSesion({ ...formSesion, tema_id: e.target.value })}
-                      required
-                    >
-                      <option value="">-- Seleccionar tema --</option>
-                      {temasDisponibles.map((t) => (
-                        <option key={t.id} value={t.id}>{t.nombre}</option>
-                      ))}
-                    </select>
-                    {temasDisponibles.length === 0 && (
-                      <small style={{ color: '#ef4444' }}>No hay temas en este bimestre. Crea temas interactivos primero.</small>
-                    )}
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="sesion-archivo">Archivo PDF *</label>
-                    <input
-                      type="file"
-                      id="sesion-archivo"
-                      className="form-input"
-                      accept=".pdf,application/pdf"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        setFormSesion({ ...formSesion, archivo: f || null, archivoNombre: f?.name || '' });
-                      }}
-                      required
-                    />
-                    {formSesion.archivoNombre && (
-                      <small style={{ color: '#10b981' }}>Seleccionado: {formSesion.archivoNombre}</small>
-                    )}
-                  </div>
-                  <div className="form-group">
-                    <label htmlFor="sesion-descripcion">Descripción (opcional)</label>
-                    <textarea
-                      id="sesion-descripcion"
-                      className="form-input"
-                      rows={3}
-                      value={formSesion.descripcion}
-                      onChange={(e) => setFormSesion({ ...formSesion, descripcion: e.target.value })}
-                      placeholder="Breve descripción de la sesión..."
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Bimestre *</label>
-                    <select
-                      className="form-input"
-                      value={formSesion.ciclo}
-                      onChange={(e) => setFormSesion({ ...formSesion, ciclo: parseInt(e.target.value) })}
-                      required
-                    >
-                      {Array.from({ length: totalNotas }, (_, i) => i + 1).map((bim) => (
-                        <option key={bim} value={bim}>Bimestre {bim}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-actions">
-                    <button type="button" className="btn-cancelar" onClick={() => { setMostrarFormSesion(false); setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal }); }}>
-                      Cancelar
-                    </button>
-                    <button type="submit" className="btn-guardar" disabled={guardandoSesion || temasDisponibles.length === 0}>
-                      {guardandoSesion ? 'Guardando...' : 'Guardar'}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
-
         {sesionesFiltradas.length > 0 ? (
           <table>
             <thead>
               <tr>
                 <th>NOMBRE</th>
                 <th>FECHA</th>
-                <th>ACCIONES</th>
+                <th className="text-center">ACCIONES</th>
               </tr>
             </thead>
             <tbody>
@@ -1887,17 +1782,42 @@ function DocenteAulaVirtual() {
                   <td className="text-center">{sesion.fecha_hora ? new Date(sesion.fecha_hora).toLocaleDateString('es-PE') : '-'}</td>
                   <td className="text-center">
                     <div className="btn-group-opciones">
-                      {sesion.archivo_url && (
-                        <a href={sesion.archivo_url} target="_blank" rel="noopener noreferrer" className="btn-opciones" style={{ marginRight: '8px' }}>
-                          📄 Ver PDF
-                        </a>
-                      )}
                       <button
                         className="btn-opciones"
-                        onClick={() => handleEliminarSesion(sesion)}
+                        ref={(el) => (buttonRef.current[`sesion-${sesion.id}`] = el)}
+                        onClick={(e) => toggleDropdown(sesion.id, e, 'sesion')}
                       >
-                        🗑️ Eliminar
+                        Opciones {openDropdown === `sesion-${sesion.id}` ? '▲' : '▼'}
                       </button>
+                      {openDropdown === `sesion-${sesion.id}` && dropdownPosition && createPortal(
+                        <div
+                          className="dropdown-menu-portal-aula"
+                          style={{
+                            position: 'fixed',
+                            top: `${dropdownPosition.top}px`,
+                            right: `${dropdownPosition.right}px`,
+                            width: `${dropdownPosition.width}px`,
+                            zIndex: 10000
+                          }}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="dropdown-menu-opciones">
+                            {sesion.archivo_url && (
+                              <a href={sesion.archivo_url} target="_blank" rel="noopener noreferrer" onClick={() => setOpenDropdown(null)}>
+                                📄 Ver Archivo
+                              </a>
+                            )}
+                            <a href="#" onClick={(e) => { e.preventDefault(); setOpenDropdown(null); handleEditarSesion(sesion); }}>
+                              ✏️ Editar Sesión
+                            </a>
+                            <a href="#" onClick={(e) => { e.preventDefault(); setOpenDropdown(null); handleEliminarSesion(sesion); }}>
+                              🗑️ Eliminar
+                            </a>
+                          </div>
+                        </div>,
+                        document.body
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -2866,6 +2786,70 @@ function DocenteAulaVirtual() {
     }
   };
 
+  const handleEditarSesion = (sesion) => {
+    setSesionEditando(sesion);
+    setFormSesion({
+      tema_id: String(sesion.tema_id),
+      descripcion: sesion.descripcion || '',
+      archivo: null,
+      archivoNombre: '',
+      ciclo: sesion.ciclo ?? bimestreGlobal
+    });
+    setMostrarFormSesion(true);
+  };
+
+  const handleActualizarSesion = async (e) => {
+    e.preventDefault();
+    if (!sesionEditando || !formSesion.tema_id || !formSesion.ciclo) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Campos requeridos',
+        text: 'Selecciona un tema',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      });
+      return;
+    }
+    setGuardandoSesion(true);
+    try {
+      const formData = new FormData();
+      formData.append('asignatura_id', asignaturaId);
+      formData.append('tema_id', formSesion.tema_id);
+      formData.append('descripcion', formSesion.descripcion || '');
+      formData.append('ciclo', formSesion.ciclo);
+      if (formSesion.archivo) formData.append('archivo', formSesion.archivo);
+      await api.put(`/docente/aula-virtual/sesiones/${sesionEditando.id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      Swal.fire({
+        icon: 'success',
+        title: '¡Sesión actualizada!',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2000
+      });
+      setMostrarFormSesion(false);
+      setSesionEditando(null);
+      setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+      await cargarSesiones();
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo actualizar la sesión',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      });
+    } finally {
+      setGuardandoSesion(false);
+    }
+  };
+
   const handleEliminarSesion = async (sesion) => {
     const result = await Swal.fire({
       title: '¿Eliminar sesión?',
@@ -3401,11 +3385,14 @@ function DocenteAulaVirtual() {
                 <p className="card-count">{sesiones.filter(s => s.ciclo === bimestreGlobal).length}</p>
                 <p className="card-subtitle">PDFs vinculados a temas</p>
               </div>
-              <div className="card-action-btns">
+              <div className="card-action-btns" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
                 <button 
+                  type="button"
                   className="card-action-btn" 
                   onClick={(e) => { 
                     e.stopPropagation(); 
+                    e.preventDefault();
+                    setSesionEditando(null);
                     setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
                     setMostrarFormSesion(true); 
                   }}
@@ -3747,6 +3734,121 @@ function DocenteAulaVirtual() {
           </div>,
           document.body
         )}
+
+        {/* Modal de Formulario de Sesión - Fuera del card para que funcione cuando está colapsado */}
+        {mostrarFormSesion && (() => {
+          const temasDisponibles = archivos.filter(a => a.ciclo === bimestreGlobal);
+          return createPortal(
+            <div
+              className="modal-tema-overlay"
+              onClick={() => {
+                setMostrarFormSesion(false);
+                setSesionEditando(null);
+                setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+              }}
+            >
+              <div
+                className="modal-tema-container"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="modal-sesion-title"
+              >
+                <div className="modal-tema-header">
+                  <h2 id="modal-sesion-title">
+                    {sesionEditando ? '✏️ Editar Sesión' : '📄 Nueva Sesión'}
+                  </h2>
+                  <button
+                    className="modal-tema-close"
+                    onClick={() => {
+                      setMostrarFormSesion(false);
+                      setSesionEditando(null);
+                      setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+                    }}
+                    aria-label="Cerrar"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="modal-tema-body">
+                  <form onSubmit={sesionEditando ? handleActualizarSesion : handleCrearSesion}>
+                    <div className="form-group">
+                      <label htmlFor="sesion-tema">Tema *</label>
+                      <select
+                        id="sesion-tema"
+                        className="form-input"
+                        value={formSesion.tema_id}
+                        onChange={(e) => setFormSesion({ ...formSesion, tema_id: e.target.value })}
+                        required
+                      >
+                        <option value="">-- Seleccionar tema --</option>
+                        {temasDisponibles.map((t) => (
+                          <option key={t.id} value={t.id}>{t.nombre}</option>
+                        ))}
+                      </select>
+                      {temasDisponibles.length === 0 && (
+                        <small style={{ color: '#ef4444' }}>No hay temas en este bimestre. Crea temas interactivos primero.</small>
+                      )}
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="sesion-archivo">Archivo PDF {sesionEditando ? '(opcional, deja vacío para mantener el actual)' : '*'}</label>
+                      <input
+                        type="file"
+                        id="sesion-archivo"
+                        className="form-input"
+                        accept=".pdf,application/pdf"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          setFormSesion({ ...formSesion, archivo: f || null, archivoNombre: f?.name || '' });
+                        }}
+                        required={!sesionEditando}
+                      />
+                      {formSesion.archivoNombre && (
+                        <small style={{ color: '#10b981' }}>Seleccionado: {formSesion.archivoNombre}</small>
+                      )}
+                      {sesionEditando && !formSesion.archivoNombre && (
+                        <small style={{ color: '#6b7280' }}>Archivo actual se mantendrá</small>
+                      )}
+                    </div>
+                    <div className="form-group">
+                      <label htmlFor="sesion-descripcion">Descripción (opcional)</label>
+                      <textarea
+                        id="sesion-descripcion"
+                        className="form-input"
+                        rows={3}
+                        value={formSesion.descripcion}
+                        onChange={(e) => setFormSesion({ ...formSesion, descripcion: e.target.value })}
+                        placeholder="Breve descripción de la sesión..."
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Bimestre *</label>
+                      <select
+                        className="form-input"
+                        value={formSesion.ciclo}
+                        onChange={(e) => setFormSesion({ ...formSesion, ciclo: parseInt(e.target.value) })}
+                        required
+                      >
+                        {Array.from({ length: totalNotas }, (_, i) => i + 1).map((bim) => (
+                          <option key={bim} value={bim}>Bimestre {bim}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="form-actions">
+                      <button type="button" className="btn-cancelar" onClick={() => { setMostrarFormSesion(false); setSesionEditando(null); setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal }); }}>
+                        Cancelar
+                      </button>
+                      <button type="submit" className="btn-guardar" disabled={guardandoSesion || temasDisponibles.length === 0}>
+                        {guardandoSesion ? 'Guardando...' : (sesionEditando ? 'Actualizar' : 'Guardar')}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>,
+            document.body
+          );
+        })()}
 
         {/* Modal de Formulario de Tema */}
         {mostrarFormTema && createPortal(

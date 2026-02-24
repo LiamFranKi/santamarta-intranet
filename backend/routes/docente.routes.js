@@ -13256,6 +13256,52 @@ router.post('/aula-virtual/sesiones', uploadAulaVirtual.single('archivo'), async
 });
 
 /**
+ * PUT /api/docente/aula-virtual/sesiones/:id
+ * Actualizar una sesión (tema, descripcion, archivo opcional)
+ */
+router.put('/aula-virtual/sesiones/:id', uploadAulaVirtual.single('archivo'), async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { id } = req.params;
+    const { tema_id, descripcion, ciclo } = req.body;
+
+    const asignaturaCheck = req.user.tipo === 'ADMINISTRADOR'
+      ? await query(`SELECT s.* FROM asignaturas_sesion_pdf s INNER JOIN asignaturas a ON a.id = s.asignatura_id INNER JOIN grupos g ON g.id = a.grupo_id WHERE s.id = ? AND s.colegio_id = ? AND g.anio = ?`, [id, colegio_id, anio_activo])
+      : await query(`SELECT s.* FROM asignaturas_sesion_pdf s INNER JOIN asignaturas a ON a.id = s.asignatura_id INNER JOIN grupos g ON g.id = a.grupo_id WHERE s.id = ? AND a.personal_id = ? AND s.colegio_id = ? AND g.anio = ?`, [id, personal_id, colegio_id, anio_activo]);
+
+    if (asignaturaCheck.length === 0) {
+      return res.status(404).json({ error: 'Sesión no encontrada' });
+    }
+
+    const asignatura_id = asignaturaCheck[0].asignatura_id;
+    if (!tema_id || !ciclo) {
+      return res.status(400).json({ error: 'tema_id y ciclo son requeridos' });
+    }
+
+    const tema = await query(`SELECT * FROM asignaturas_archivos WHERE id = ? AND asignatura_id = ?`, [tema_id, asignatura_id]);
+    if (tema.length === 0) {
+      return res.status(400).json({ error: 'Tema no encontrado' });
+    }
+
+    const titulo = `SESION - ${tema[0].nombre}`;
+    let archivoPath = asignaturaCheck[0].archivo;
+    if (req.file) {
+      archivoPath = req.file.filename;
+    }
+
+    await execute(
+      `UPDATE asignaturas_sesion_pdf SET tema_id = ?, titulo = ?, descripcion = ?, archivo = ?, ciclo = ? WHERE id = ?`,
+      [tema_id, titulo, descripcion || '', archivoPath, parseInt(ciclo), id]
+    );
+
+    res.json({ success: true, message: 'Sesión actualizada correctamente' });
+  } catch (error) {
+    console.error('Error actualizando sesión:', error);
+    res.status(500).json({ error: 'Error al actualizar sesión' });
+  }
+});
+
+/**
  * DELETE /api/docente/aula-virtual/sesiones/:id
  * Eliminar una sesión
  */
