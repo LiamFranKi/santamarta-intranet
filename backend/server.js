@@ -260,18 +260,22 @@ app.listen(PORT, () => {
   const iniciarVerificacionTareas = () => {
     try {
       // Importar la función de verificación directamente
-      const { verificarTareasPorVencer } = require('./routes/docente.routes');
+      const { verificarTareasPorVencer, verificarTareasVencidasSinEntrega } = require('./routes/docente.routes');
       
       // Ejecutar inmediatamente al iniciar (después de 60 segundos para que el servidor y BD estén listos)
       setTimeout(async () => {
         console.log('📅 [AUTO-VERIFICACION] Iniciando primera verificación de tareas por vencer...');
         await verificarTareasPorVencer();
+        console.log('📅 [AUTO-VERIFICACION] Verificando tareas vencidas sin entrega...');
+        await verificarTareasVencidasSinEntrega();
       }, 60000); // 60 segundos después de iniciar
       
       // Ejecutar cada 24 horas (86400000 ms = 24 horas)
       setInterval(async () => {
         console.log('📅 [AUTO-VERIFICACION] Ejecutando verificación periódica de tareas por vencer...');
         await verificarTareasPorVencer();
+        console.log('📅 [AUTO-VERIFICACION] Verificando tareas vencidas sin entrega...');
+        await verificarTareasVencidasSinEntrega();
       }, 24 * 60 * 60 * 1000); // Cada 24 horas
       
       console.log('📅 [AUTO-VERIFICACION] Sistema de verificación automática configurado:');

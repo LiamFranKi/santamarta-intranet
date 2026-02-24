@@ -18820,20 +18820,231 @@ async function verificarTareasPorVencer() {
 }
 
 /**
+ * Función para verificar tareas vencidas sin entrega:
+ * 1. Asigna nota 0 a alumnos que no entregaron
+ * 2. Notifica SOLO a apoderados (no al alumno)
+ */
+async function verificarTareasVencidasSinEntrega() {
+  try {
+    console.log('📅 [TAREAS VENCIDAS SIN ENTREGA] Iniciando verificación...');
+
+    const colegios = await query(
+      `SELECT id, anio_activo FROM colegios WHERE estado = 'ACTIVO'`,
+      []
+    );
+
+    let tareasVencidas = [];
+
+    for (const colegio of colegios) {
+      const anioActivo = colegio.anio_activo || new Date().getFullYear();
+
+      const tareasColegio = await query(
+        `SELECT t.*, 
+                a.grupo_id, a.curso_id, a.colegio_id, a.personal_id,
+                c.nombre as curso_nombre,
+                CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre_completo,
+                g.anio
+         FROM asignaturas_tareas t
+         INNER JOIN asignaturas a ON a.id = t.asignatura_id
+         INNER JOIN cursos c ON c.id = a.curso_id
+         INNER JOIN personal p ON p.id = a.personal_id
+         INNER JOIN grupos g ON g.id = a.grupo_id
+         WHERE DATE(t.fecha_entrega) < DATE(NOW())
+           AND a.colegio_id = ?
+           AND g.anio = ?
+         ORDER BY t.fecha_entrega DESC`,
+        [colegio.id, anioActivo]
+      );
+
+      tareasVencidas = [...tareasVencidas, ...tareasColegio];
+    }
+
+    if (tareasVencidas.length === 0) {
+      console.log('📅 [TAREAS VENCIDAS SIN ENTREGA] No hay tareas vencidas pendientes');
+      return;
+    }
+
+    console.log(`📅 [TAREAS VENCIDAS SIN ENTREGA] Encontradas ${tareasVencidas.length} tareas vencidas`);
+
+    for (const tarea of tareasVencidas) {
+      try {
+        // Alumnos del grupo con matricula_id
+        const alumnos = await query(
+          `SELECT DISTINCT a.id as alumno_id, m.id as matricula_id,
+                  CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', COALESCE(a.apellido_materno, '')) as alumno_nombre
+           FROM alumnos a
+           INNER JOIN matriculas m ON m.alumno_id = a.id
+           WHERE m.grupo_id = ? 
+             AND m.colegio_id = ?
+             AND (m.estado = 0 OR m.estado = 4)`,
+          [tarea.grupo_id, tarea.colegio_id]
+        );
+
+        const alumnosConEntrega = await query(
+          `SELECT DISTINCT alumno_id FROM asignaturas_tareas_entregas WHERE tarea_id = ?`,
+          [tarea.id]
+        );
+        const alumnosConEntregaIds = alumnosConEntrega.map(e => e.alumno_id);
+
+        const alumnosConNota = await query(
+          `SELECT matricula_id FROM asignaturas_tareas_notas WHERE tarea_id = ?`,
+          [tarea.id]
+        );
+        const matriculaIdsConNota = new Set(alumnosConNota.map(n => n.matricula_id));
+
+        // Alumnos que NO entregaron y NO tienen nota
+        const alumnosSinEntregaYSinNota = alumnos.filter(
+          a => !alumnosConEntregaIds.includes(a.alumno_id) && !matriculaIdsConNota.has(a.matricula_id)
+        );
+
+        if (alumnosSinEntregaYSinNota.length === 0) {
+          continue;
+        }
+
+        console.log(`📅 [TAREAS VENCIDAS SIN ENTREGA] Tarea "${tarea.titulo}": ${alumnosSinEntregaYSinNota.length} alumnos sin entrega a procesar`);
+
+        const apoderadoUsuarioIdsSet = new Set();
+        const alumnoIdsParaApoderados = alumnosSinEntregaYSinNota.map(a => a.alumno_id);
+
+        for (const alumno of alumnosSinEntregaYSinNota) {
+          try {
+            await execute(
+              `INSERT INTO asignaturas_tareas_notas (tarea_id, matricula_id, nota)
+               VALUES (?, ?, '0')`,
+              [tarea.id, alumno.matricula_id]
+            );
+            console.log(`✅ [TAREAS VENCIDAS SIN ENTREGA] Nota 0 asignada a alumno ${alumno.alumno_id} (matrícula ${alumno.matricula_id})`);
+          } catch (err) {
+            if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) {
+              continue; // Ya existe nota, saltar
+            }
+            console.error(`❌ [TAREAS VENCIDAS SIN ENTREGA] Error asignando nota 0:`, err);
+            continue;
+          }
+
+          const apoderados = await query(
+            `SELECT DISTINCT u.id as usuario_id, ap.nro_documento
+             FROM apoderados ap
+             INNER JOIN familias f ON f.apoderado_id = ap.id
+             INNER JOIN usuarios u ON u.apoderado_id = ap.id
+             WHERE f.alumno_id = ? AND ap.colegio_id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+            [alumno.alumno_id, tarea.colegio_id, tarea.colegio_id]
+          );
+          apoderados.forEach(ap => apoderadoUsuarioIdsSet.add(ap.usuario_id));
+
+          const apoderadoDnis = apoderados.map(a => a.nro_documento).filter(dni => dni);
+          if (apoderadoDnis.length > 0) {
+            const docentesApoderados = await query(
+              `SELECT DISTINCT u.id FROM usuarios u
+               INNER JOIN personal p ON p.id = u.personal_id
+               WHERE u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'
+                 AND (p.nro_documento IN (${apoderadoDnis.map(() => '?').join(',')}) 
+                      OR u.usuario IN (${apoderadoDnis.map(() => '?').join(',')}))
+                 AND u.id NOT IN (${apoderados.map(() => '?').join(',')})`,
+              [tarea.colegio_id, ...apoderadoDnis, ...apoderadoDnis, ...apoderados.map(a => a.usuario_id)]
+            );
+            docentesApoderados.forEach(u => apoderadoUsuarioIdsSet.add(u.id));
+          }
+        }
+
+        const apoderadoUsuarioIds = [...apoderadoUsuarioIdsSet];
+        if (apoderadoUsuarioIds.length === 0) {
+          console.log(`⚠️ [TAREAS VENCIDAS SIN ENTREGA] No hay apoderados para notificar en tarea "${tarea.titulo}"`);
+          continue;
+        }
+
+        const tituloNotificacion = 'Tarea vencida sin entrega';
+        const mensajeNotificacion = `⚠️ Su hijo(a) no entregó la tarea "${tarea.titulo}" dentro del plazo. Se le asignó nota 0. - Curso: ${tarea.curso_nombre}`;
+
+        for (const destinatarioId of apoderadoUsuarioIds) {
+          try {
+            await execute(
+              `INSERT INTO notificaciones 
+               (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
+               VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
+              [tarea.personal_id, destinatarioId, tituloNotificacion, mensajeNotificacion]
+            );
+          } catch (err) {
+            console.error(`❌ [TAREAS VENCIDAS SIN ENTREGA] Error creando notificación:`, err);
+          }
+        }
+
+        const subscriptionsData = await query(
+          `SELECT endpoint, p256dh, auth FROM push_subscriptions 
+           WHERE usuario_id IN (${apoderadoUsuarioIds.map(() => '?').join(',')}) 
+             AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+          [...apoderadoUsuarioIds, tarea.colegio_id]
+        );
+        const subscriptions = subscriptionsData.map(sub => ({
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.p256dh, auth: sub.auth }
+        }));
+        if (subscriptions.length > 0) {
+          enviarPushNotificationMultiple(subscriptions, {
+            title: tituloNotificacion,
+            body: mensajeNotificacion,
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-192x192.png',
+            vibrate: [200, 100, 200],
+            tag: `tarea-vencida-sin-entrega-${tarea.id}`,
+            data: { url: '/apoderado/dashboard', tipo: 'tarea_vencida_sin_entrega', tarea_id: tarea.id }
+          }).catch(err => console.error('❌ [TAREAS VENCIDAS SIN ENTREGA] Error push:', err));
+        }
+
+        try {
+          const colegioInfo = await query(`SELECT nombre FROM colegios WHERE id = ?`, [tarea.colegio_id]);
+          const colegioNombre = colegioInfo[0]?.nombre || 'Vanguard Schools';
+          const usuariosConEmail = await query(
+            `SELECT DISTINCT u.id, COALESCE(a.email, p.email, ap.email) as email
+             FROM usuarios u
+             LEFT JOIN alumnos a ON a.id = u.alumno_id
+             LEFT JOIN personal p ON p.id = u.personal_id
+             LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
+             WHERE u.id IN (${apoderadoUsuarioIds.map(() => '?').join(',')})
+               AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+               AND COALESCE(a.email, p.email, ap.email) IS NOT NULL
+               AND COALESCE(a.email, p.email, ap.email) != ''`,
+            [...apoderadoUsuarioIds, tarea.colegio_id]
+          );
+          const emailsUnicos = new Map();
+          usuariosConEmail.forEach(u => {
+            const email = (u.email || '').toLowerCase().trim();
+            if (email && !emailsUnicos.has(email)) emailsUnicos.set(email, u);
+          });
+          for (const u of emailsUnicos.values()) {
+            enviarCorreoNotificacion(u.email, tituloNotificacion, mensajeNotificacion, colegioNombre)
+              .catch(err => console.error(`❌ [TAREAS VENCIDAS SIN ENTREGA] Error correo:`, err));
+          }
+        } catch (err) {
+          console.error(`❌ [TAREAS VENCIDAS SIN ENTREGA] Error correos:`, err);
+        }
+      } catch (error) {
+        console.error(`❌ [TAREAS VENCIDAS SIN ENTREGA] Error tarea ${tarea.id}:`, error);
+      }
+    }
+
+    console.log('✅ [TAREAS VENCIDAS SIN ENTREGA] Verificación completada');
+  } catch (error) {
+    console.error('❌ [TAREAS VENCIDAS SIN ENTREGA] Error:', error);
+  }
+}
+
+/**
  * GET /api/docente/tareas/verificar-vencimiento
  * Endpoint para verificar y enviar notificaciones de tareas por vencer
  * Se puede llamar periódicamente (cron job) o manualmente
  */
 router.get('/tareas/verificar-vencimiento', async (req, res) => {
   try {
-    // Ejecutar verificación de forma asíncrona
+    // Ejecutar ambas verificaciones de forma asíncrona
     setImmediate(async () => {
       await verificarTareasPorVencer();
+      await verificarTareasVencidasSinEntrega();
     });
     
     res.json({ 
       success: true, 
-      message: 'Verificación de tareas por vencer iniciada' 
+      message: 'Verificación de tareas por vencer y vencidas sin entrega iniciada' 
     });
   } catch (error) {
     console.error('Error iniciando verificación de tareas:', error);
@@ -18846,4 +19057,5 @@ router.get('/tareas/verificar-vencimiento', async (req, res) => {
 module.exports = router;
 module.exports.crearNotificacionesApoderados = crearNotificacionesApoderados;
 module.exports.verificarTareasPorVencer = verificarTareasPorVencer;
+module.exports.verificarTareasVencidasSinEntrega = verificarTareasVencidasSinEntrega;
 
