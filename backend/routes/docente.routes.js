@@ -9821,14 +9821,74 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/hijos/:hijoId/libreta-anios
+ * Lista de años en que el hijo tiene matrícula (para selector de libreta por año)
+ */
+router.get('/hijos/:hijoId/libreta-anios', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, usuario_id, personal_id } = req.user;
+
+    if (!hijoId || isNaN(parseInt(hijoId))) {
+      return res.status(400).json({ error: 'ID de alumno inválido' });
+    }
+
+    const hijoIdNum = parseInt(hijoId);
+    let nroDocumento = null;
+    const personalData = await query(
+      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [personal_id, colegio_id]
+    );
+    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+      nroDocumento = personalData[0].nro_documento;
+    } else {
+      const usuarioData = await query(
+        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+        [usuario_id, colegio_id, personal_id]
+      );
+      if (usuarioData && usuarioData.length > 0) nroDocumento = usuarioData[0].usuario;
+    }
+    if (!nroDocumento) {
+      return res.status(403).json({ error: 'No se encontró número de documento.' });
+    }
+
+    const esHijo = await query(
+      `SELECT COUNT(*) as count FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE ap.colegio_id = ? AND ap.nro_documento = ? AND a.id = ? AND a.colegio_id = ?`,
+      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
+    );
+    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+      return res.status(403).json({ error: 'No tienes permisos.' });
+    }
+
+    const rows = await query(
+      `SELECT g.anio FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+       ORDER BY g.anio DESC`,
+      [hijoIdNum, colegio_id]
+    );
+    const anios = (rows || []).map(r => r.anio).filter(Boolean);
+    return res.json({ anios });
+  } catch (error) {
+    console.error('Error listando años libreta:', error);
+    return res.status(500).json({ error: 'Error al obtener años' });
+  }
+});
+
+/**
  * GET /api/docente/hijos/:hijoId/libreta
- * Obtener datos de la libreta del hijo (promedios por bimestre de todas las asignaturas)
+ * Obtener datos de la libreta del hijo (ciclo=bimestre, anio=opcional; si no se envía anio usa año activo)
  */
 router.get('/hijos/:hijoId/libreta', async (req, res) => {
   try {
     const { hijoId } = req.params;
     const ciclo = Math.max(1, Math.min(4, parseInt(req.query.ciclo) || 1));
+    const anioParam = req.query.anio ? parseInt(req.query.anio, 10) : null;
     const { colegio_id, usuario_id, personal_id, anio_activo } = req.user;
+    const anio = (anioParam && anioParam > 0) ? anioParam : anio_activo;
 
     console.log(`\n🔵 ========== [HIJOS-LIBRETA] NUEVA PETICIÓN ========== (ciclo=${ciclo})`);
     console.log(`📋 [HIJOS-LIBRETA] hijoId recibido: ${hijoId}`);
@@ -9884,7 +9944,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver esta libreta. El alumno no está registrado como tu hijo.' });
     }
 
-    // Obtener matrícula actual del alumno
+    // Obtener matrícula del alumno para el año indicado (anio activo o año seleccionado)
     const matricula = await query(
       `SELECT m.id as matricula_id, m.grupo_id, m.alumno_id
        FROM matriculas m
@@ -9892,7 +9952,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
        AND (m.estado = 0 OR m.estado = 4)
        LIMIT 1`,
-      [hijoIdNum, colegio_id, anio_activo]
+      [hijoIdNum, colegio_id, anio]
     );
 
     if (!matricula || matricula.length === 0) {

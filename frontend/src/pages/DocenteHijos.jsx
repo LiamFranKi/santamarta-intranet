@@ -1800,26 +1800,53 @@ function DocenteHijos() {
 
   const handleVerLibreta = async (hijo) => {
     try {
-      const { value: ciclo } = await Swal.fire({
+      const resAnios = await api.get(`/docente/hijos/${hijo.id}/libreta-anios`);
+      const anios = resAnios.data?.anios || [];
+      if (anios.length === 0) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin datos',
+          text: 'No hay años con matrícula para este alumno',
+          confirmButtonText: 'Entendido'
+        });
+        return;
+      }
+      const anioDefault = anios[0];
+      const { value: result } = await Swal.fire({
         title: 'Exportar Libreta',
-        text: 'Seleccione el bimestre hasta el cual desea ver datos',
+        html: `
+          <p style="margin-bottom: 1rem;">Seleccione el año y el bimestre hasta el cual desea ver datos.</p>
+          <label style="display:block; text-align:left; margin-bottom: 0.25rem; font-weight: 600;">Año</label>
+          <select id="swal-anio" class="swal2-input" style="width: 100%; margin-bottom: 1rem;">
+            ${anios.map((a) => `<option value="${a}" ${a === anioDefault ? 'selected' : ''}>${a}</option>`).join('')}
+          </select>
+          <label style="display:block; text-align:left; margin-bottom: 0.25rem; font-weight: 600;">Bimestre</label>
+          <select id="swal-ciclo" class="swal2-input" style="width: 100%;">
+            <option value="1">Bimestre 1</option>
+            <option value="2">Bimestre 2</option>
+            <option value="3">Bimestre 3</option>
+            <option value="4">Bimestre 4</option>
+          </select>
+        `,
         icon: 'question',
-        input: 'select',
-        inputOptions: { 1: 'Bimestre 1', 2: 'Bimestre 2', 3: 'Bimestre 3', 4: 'Bimestre 4' },
-        inputValue: 1,
         showCancelButton: true,
         confirmButtonText: 'Descargar',
-        cancelButtonText: 'Cancelar'
+        cancelButtonText: 'Cancelar',
+        preConfirm: () => {
+          const anio = parseInt(document.getElementById('swal-anio').value, 10);
+          const ciclo = parseInt(document.getElementById('swal-ciclo').value, 10);
+          return { anio, ciclo };
+        }
       });
-      if (!ciclo) return;
+      if (!result) return;
       setHijoSeleccionado(hijo);
-      await generarPDFLibreta(hijo.id, parseInt(ciclo));
+      await generarPDFLibreta(hijo.id, result.ciclo, result.anio);
     } catch (error) {
       console.error('Error generando libreta:', error);
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'No se pudo generar la libreta',
+        text: error.response?.data?.error || 'No se pudo generar la libreta',
         confirmButtonText: 'Entendido'
       });
     }
@@ -2379,10 +2406,12 @@ function DocenteHijos() {
     }
   };
 
-  const generarPDFLibreta = async (hijoId, ciclo = 1) => {
+  const generarPDFLibreta = async (hijoId, ciclo = 1, anio = null) => {
     try {
       setLoadingNotasDetalladas(true);
-      const response = await api.get(`/docente/hijos/${hijoId}/libreta`, { params: { ciclo } });
+      const params = { ciclo };
+      if (anio != null && anio > 0) params.anio = anio;
+      const response = await api.get(`/docente/hijos/${hijoId}/libreta`, { params });
       const datosLibreta = response.data;
 
       if (!datosLibreta || !datosLibreta.alumno) {

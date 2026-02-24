@@ -2271,14 +2271,60 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
 });
 
 /**
+ * GET /api/apoderado/hijos/:hijoId/libreta-anios
+ * Lista de años en que el hijo tiene matrícula (para selector de libreta por año)
+ */
+router.get('/hijos/:hijoId/libreta-anios', async (req, res) => {
+  try {
+    const { hijoId } = req.params;
+    const { colegio_id, apoderado_id } = req.user;
+
+    if (!hijoId || isNaN(parseInt(hijoId))) {
+      return res.status(400).json({ error: 'ID de alumno inválido' });
+    }
+
+    const hijoIdNum = parseInt(hijoId);
+    if (!apoderado_id) {
+      return res.status(400).json({ error: 'Información de usuario incompleta.' });
+    }
+
+    const esHijo = await query(
+      `SELECT COUNT(*) as count FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       WHERE ap.id = ? AND a.id = ? AND a.colegio_id = ?`,
+      [apoderado_id, hijoIdNum, colegio_id]
+    );
+    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+      return res.status(403).json({ error: 'No tienes permisos.' });
+    }
+
+    const rows = await query(
+      `SELECT g.anio FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+       ORDER BY g.anio DESC`,
+      [hijoIdNum, colegio_id]
+    );
+    const anios = (rows || []).map(r => r.anio).filter(Boolean);
+    return res.json({ anios });
+  } catch (error) {
+    console.error('Error listando años libreta:', error);
+    return res.status(500).json({ error: 'Error al obtener años' });
+  }
+});
+
+/**
  * GET /api/apoderado/hijos/:hijoId/libreta
- * Obtener libreta de notas del hijo
+ * Obtener libreta de notas del hijo (ciclo=bimestre, anio=opcional; si no se envía anio usa año activo)
  */
 router.get('/hijos/:hijoId/libreta', async (req, res) => {
   try {
     const { hijoId } = req.params;
     const ciclo = Math.max(1, Math.min(4, parseInt(req.query.ciclo) || 1));
+    const anioParam = req.query.anio ? parseInt(req.query.anio, 10) : null;
     const { colegio_id, apoderado_id, anio_activo } = req.user;
+    const anio = (anioParam && anioParam > 0) ? anioParam : anio_activo;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -2306,7 +2352,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver esta libreta.' });
     }
 
-    // Obtener matrícula actual del alumno
+    // Obtener matrícula del alumno para el año indicado (anio activo o año seleccionado)
     const matricula = await query(
       `SELECT m.id as matricula_id, m.grupo_id, m.alumno_id
        FROM matriculas m
@@ -2314,7 +2360,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
        AND (m.estado = 0 OR m.estado = 4)
        LIMIT 1`,
-      [hijoIdNum, colegio_id, anio_activo]
+      [hijoIdNum, colegio_id, anio]
     );
 
     if (!matricula || matricula.length === 0) {
