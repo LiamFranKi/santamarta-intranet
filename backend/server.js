@@ -292,4 +292,23 @@ app.listen(PORT, () => {
   
   // Iniciar verificación automática (siempre activa, en desarrollo y producción)
   iniciarVerificacionTareas();
+
+  // Notificaciones push de cumpleaños del día (una vez al día)
+  const iniciarCumpleanosPush = () => {
+    try {
+      const { enviarNotificacionesCumpleanos } = require('./services/cumpleanosPushService');
+      setTimeout(async () => {
+        console.log('🎂 [CUMPLEANOS-PUSH] Ejecutando notificaciones de cumpleaños del día...');
+        await enviarNotificacionesCumpleanos();
+      }, 120000); // 2 min después de iniciar
+      setInterval(async () => {
+        console.log('🎂 [CUMPLEANOS-PUSH] Ejecutando notificaciones de cumpleaños del día...');
+        await enviarNotificacionesCumpleanos();
+      }, 24 * 60 * 60 * 1000); // cada 24 horas
+      console.log('🎂 [CUMPLEANOS-PUSH] Programado: primera ejecución en 2 min, luego cada 24 h');
+    } catch (error) {
+      console.error('❌ [CUMPLEANOS-PUSH] Error configurando:', error);
+    }
+  };
+  iniciarCumpleanosPush();
 });
