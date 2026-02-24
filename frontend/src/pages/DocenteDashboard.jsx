@@ -6,6 +6,7 @@ import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionFormCard from '../components/PublicacionFormCard';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
+import BirthdayWidget from '../components/BirthdayWidget';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './DocenteDashboard.css';
 import './DocenteGrupos.css';
@@ -724,6 +725,9 @@ function DocenteDashboard() {
         </div>,
         document.body
       )}
+
+      {/* Widget flotante de cumpleaños (z-index menor que comunicado para evitar conflictos) */}
+      <BirthdayWidget comunicadoAbierto={mostrarComunicadoHome} />
     </DashboardLayout>
   );
 }

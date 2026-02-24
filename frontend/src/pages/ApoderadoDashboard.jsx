@@ -5,6 +5,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
+import BirthdayWidget from '../components/BirthdayWidget';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './AlumnoDashboard.css';
 import './DocenteGrupos.css';
@@ -632,6 +633,9 @@ function ApoderadoDashboard() {
         </div>,
         document.body
       )}
+
+      {/* Widget flotante de cumpleaños (z-index menor que comunicado para evitar conflictos) */}
+      <BirthdayWidget comunicadoAbierto={mostrarComunicadoHome} />
     </DashboardLayout>
   );
 }

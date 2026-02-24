@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
+import BirthdayWidget from '../../components/BirthdayWidget';
 import './Dashboard.css';
 
 function Dashboard() {
@@ -199,6 +200,7 @@ function Dashboard() {
 
   return (
     <DashboardLayout>
+      <BirthdayWidget comunicadoAbierto={false} />
       <div className="dashboard-container">
         {/* Sección de Bienvenida */}
         <div className="dashboard-welcome">

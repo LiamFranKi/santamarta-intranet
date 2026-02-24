@@ -1,0 +1,166 @@
+/* Widget flotante de cumpleaños - posición a la derecha */
+.birthday-widget {
+  position: fixed;
+  top: 90px;
+  right: 20px;
+  width: 340px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 140px);
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(99, 102, 241, 0.15), 0 4px 12px rgba(0, 0, 0, 0.08);
+  border: 2px solid rgba(196, 181, 253, 0.3);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  z-index: 9999;
+}
+
+.birthday-widget-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.birthday-widget-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e3a5f;
+}
+
+.birthday-widget-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: rgba(56, 189, 248, 0.2);
+  color: #0c4a6e;
+  font-size: 1.25rem;
+  line-height: 1;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.birthday-widget-close:hover {
+  background: rgba(56, 189, 248, 0.35);
+}
+
+.birthday-widget-filters {
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #fafbfc;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.birthday-widget-select {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  background: white;
+  cursor: pointer;
+  color: #374151;
+}
+
+.birthday-widget-select:focus {
+  outline: none;
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+}
+
+.birthday-widget-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  min-height: 120px;
+}
+
+.birthday-widget-loading,
+.birthday-widget-empty {
+  margin: 0;
+  padding: 24px 0;
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.birthday-widget-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.birthday-widget-table thead {
+  position: sticky;
+  top: 0;
+  background: linear-gradient(135deg, #6ee7b7 0%, #34d399 100%);
+  color: white;
+}
+
+.birthday-widget-table th {
+  padding: 10px 8px;
+  text-align: left;
+  font-weight: 600;
+}
+
+.birthday-widget-table th:first-child {
+  width: 100px;
+}
+
+.birthday-widget-table th:nth-child(3) {
+  width: 80px;
+}
+
+.birthday-widget-table tbody tr {
+  border-bottom: 1px solid #f3f4f6;
+  transition: background 0.15s;
+}
+
+.birthday-widget-table tbody tr:hover {
+  background: #f0fdf4;
+}
+
+.birthday-widget-table td {
+  padding: 8px;
+  color: #374151;
+}
+
+.birthday-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.birthday-badge-personal {
+  background: linear-gradient(135deg, #93c5fd 0%, #60a5fa 100%);
+  color: white;
+}
+
+.birthday-badge-alumno {
+  background: linear-gradient(135deg, #fcd34d 0%, #f59e0b 100%);
+  color: white;
+}
+
+.birthday-badge-apoderado {
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+  color: white;
+}
+
+@media (max-width: 768px) {
+  .birthday-widget {
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
+}
