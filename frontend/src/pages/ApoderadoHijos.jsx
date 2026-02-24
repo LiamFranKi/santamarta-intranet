@@ -2611,18 +2611,18 @@ function ApoderadoHijos() {
         datosLibreta.cursos_cualitativos.forEach(curso => {
           if (yPos > pageHeight - 80) { doc.addPage(); yPos = margin; }
           doc.setFont('helvetica', 'bold');
-          doc.setFillColor(240, 248, 255);
+          doc.setFillColor(...colorLabel);
           doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
           doc.text(curso.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
           xPos = margin + colAreaWidth;
           for (let c = 1; c <= 4; c++) {
             const v = curso[`promedio_b${c}`];
-            doc.setFillColor(240, 248, 255);
+            doc.setFillColor(...colorLabel);
             doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
             doc.text(c <= cicloSel && (v !== null && v !== '' && v !== '-') ? String(v) : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
             xPos += colBimestreWidth;
           }
-          doc.setFillColor(240, 248, 255);
+          doc.setFillColor(...colorLabel);
           doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
           doc.text(curso.promedio_final || '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
           yPos += headerHeight;
