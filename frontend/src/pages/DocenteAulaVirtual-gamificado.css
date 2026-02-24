@@ -224,6 +224,13 @@
   background: linear-gradient(145deg, #faf5ff, #f3e8ff);
 }
 
+/* Card - Sesiones (Ámbar pastel suave) */
+.aula-section-card.sesiones-card {
+  --card-color-1: #fcd34d;
+  --card-color-2: #f59e0b;
+  background: linear-gradient(145deg, #fffbeb, #fef3c7);
+}
+
 /* Card - Exámenes (Rosa pastel suave) */
 .aula-section-card.examenes-card {
   --card-color-1: #f9a8d4;

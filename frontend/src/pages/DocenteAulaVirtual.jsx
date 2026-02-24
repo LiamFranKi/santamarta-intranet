@@ -116,7 +116,9 @@ function DocenteAulaVirtual() {
   const [cicloArchivos, setCicloArchivos] = useState(1);
   const [cicloTareas, setCicloTareas] = useState(1);
   const [cicloExamenes, setCicloExamenes] = useState(1);
+  const [cicloSesiones, setCicloSesiones] = useState(1);
   const [tareas, setTareas] = useState([]);
+  const [sesiones, setSesiones] = useState([]);
   const [examenes, setExamenes] = useState([]);
   const [videos, setVideos] = useState([]);
   const [enlaces, setEnlaces] = useState([]);
@@ -129,6 +131,7 @@ function DocenteAulaVirtual() {
   const [mostrarFormExamen, setMostrarFormExamen] = useState(false);
   const [mostrarFormVideo, setMostrarFormVideo] = useState(false);
   const [mostrarFormEnlace, setMostrarFormEnlace] = useState(false);
+  const [mostrarFormSesion, setMostrarFormSesion] = useState(false);
   const [videoEditando, setVideoEditando] = useState(null);
   const [enlaceEditando, setEnlaceEditando] = useState(null);
   const [tareaSeleccionada, setTareaSeleccionada] = useState(null);
@@ -172,6 +175,16 @@ function DocenteAulaVirtual() {
   });
   const [guardandoVideo, setGuardandoVideo] = useState(false);
   const [guardandoEnlace, setGuardandoEnlace] = useState(false);
+  const [guardandoSesion, setGuardandoSesion] = useState(false);
+
+  // Formulario de sesión (PDF vinculado a tema)
+  const [formSesion, setFormSesion] = useState({
+    tema_id: '',
+    descripcion: '',
+    archivo: null,
+    archivoNombre: '',
+    ciclo: 1
+  });
 
   // Formulario de tema
   const [formTema, setFormTema] = useState({
@@ -378,6 +391,17 @@ function DocenteAulaVirtual() {
     }
   }, [asignaturaId, bimestreGlobal]);
 
+  const cargarSesiones = useCallback(async (ciclo) => {
+    try {
+      const response = await api.get('/docente/aula-virtual/sesiones', {
+        params: { asignatura_id: asignaturaId, ciclo: ciclo ?? bimestreGlobal }
+      });
+      setSesiones(response.data.sesiones || []);
+    } catch (error) {
+      console.error('Error cargando sesiones:', error);
+    }
+  }, [asignaturaId, bimestreGlobal]);
+
   // Cargar datos del curso y configuración
   useEffect(() => {
     if (asignaturaId) {
@@ -391,6 +415,7 @@ function DocenteAulaVirtual() {
     setCicloArchivos(bimestreGlobal);
     setCicloTareas(bimestreGlobal);
     setCicloExamenes(bimestreGlobal);
+    setCicloSesiones(bimestreGlobal);
     // Actualizar ciclo del formulario cuando cambia el bimestre global
     if (!temaEditando) {
       setFormTema(prev => ({ ...prev, ciclo: bimestreGlobal }));
@@ -407,6 +432,7 @@ function DocenteAulaVirtual() {
     cargarVideos(1);
     cargarEnlaces(1);
     cargarTemas(1);
+    cargarSesiones(1);
   }, [asignaturaId, loading]);
 
   // Cargar datos cuando cambia el ciclo de cada sección
@@ -442,6 +468,11 @@ function DocenteAulaVirtual() {
     if (!asignaturaId) return;
     cargarEnlaces(bimestreGlobal);
   }, [bimestreGlobal, asignaturaId, cargarEnlaces]);
+
+  useEffect(() => {
+    if (!asignaturaId) return;
+    cargarSesiones(bimestreGlobal);
+  }, [bimestreGlobal, asignaturaId, cargarSesiones]);
 
   // Cerrar dropdowns al hacer click fuera
   useEffect(() => {
@@ -1458,6 +1489,8 @@ function DocenteAulaVirtual() {
         return renderTemasContent();
       case 'tareas':
         return renderTareasContent();
+      case 'sesiones':
+        return renderSesionesContent();
       case 'examenes':
         return renderExamenesContent();
       case 'videos':
@@ -1726,6 +1759,159 @@ function DocenteAulaVirtual() {
       )}
     </div>
   );
+
+  const renderSesionesContent = () => {
+    const sesionesFiltradas = sesiones.filter(s => s.ciclo === bimestreGlobal);
+    const temasDisponibles = archivos.filter(a => a.ciclo === bimestreGlobal);
+
+    return (
+      <div className="card-content-expanded">
+        {/* Modal Nueva Sesión */}
+        {mostrarFormSesion && createPortal(
+          <div 
+            className="modal-tema-overlay"
+            onClick={() => {
+              setMostrarFormSesion(false);
+              setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+            }}
+          >
+            <div 
+              className="modal-tema-container"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="modal-sesion-title"
+            >
+              <div className="modal-tema-header">
+                <h2 id="modal-sesion-title">📄 Nueva Sesión</h2>
+                <button
+                  className="modal-tema-close"
+                  onClick={() => {
+                    setMostrarFormSesion(false);
+                    setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+                  }}
+                  aria-label="Cerrar"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="modal-tema-body">
+                <form onSubmit={handleCrearSesion}>
+                  <div className="form-group">
+                    <label htmlFor="sesion-tema">Tema *</label>
+                    <select
+                      id="sesion-tema"
+                      className="form-input"
+                      value={formSesion.tema_id}
+                      onChange={(e) => setFormSesion({ ...formSesion, tema_id: e.target.value })}
+                      required
+                    >
+                      <option value="">-- Seleccionar tema --</option>
+                      {temasDisponibles.map((t) => (
+                        <option key={t.id} value={t.id}>{t.nombre}</option>
+                      ))}
+                    </select>
+                    {temasDisponibles.length === 0 && (
+                      <small style={{ color: '#ef4444' }}>No hay temas en este bimestre. Crea temas interactivos primero.</small>
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="sesion-archivo">Archivo PDF *</label>
+                    <input
+                      type="file"
+                      id="sesion-archivo"
+                      className="form-input"
+                      accept=".pdf,application/pdf"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        setFormSesion({ ...formSesion, archivo: f || null, archivoNombre: f?.name || '' });
+                      }}
+                      required
+                    />
+                    {formSesion.archivoNombre && (
+                      <small style={{ color: '#10b981' }}>Seleccionado: {formSesion.archivoNombre}</small>
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label htmlFor="sesion-descripcion">Descripción (opcional)</label>
+                    <textarea
+                      id="sesion-descripcion"
+                      className="form-input"
+                      rows={3}
+                      value={formSesion.descripcion}
+                      onChange={(e) => setFormSesion({ ...formSesion, descripcion: e.target.value })}
+                      placeholder="Breve descripción de la sesión..."
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Bimestre *</label>
+                    <select
+                      className="form-input"
+                      value={formSesion.ciclo}
+                      onChange={(e) => setFormSesion({ ...formSesion, ciclo: parseInt(e.target.value) })}
+                      required
+                    >
+                      {Array.from({ length: totalNotas }, (_, i) => i + 1).map((bim) => (
+                        <option key={bim} value={bim}>Bimestre {bim}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-actions">
+                    <button type="button" className="btn-cancelar" onClick={() => { setMostrarFormSesion(false); setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal }); }}>
+                      Cancelar
+                    </button>
+                    <button type="submit" className="btn-guardar" disabled={guardandoSesion || temasDisponibles.length === 0}>
+                      {guardandoSesion ? 'Guardando...' : 'Guardar'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {sesionesFiltradas.length > 0 ? (
+          <table>
+            <thead>
+              <tr>
+                <th>NOMBRE</th>
+                <th>FECHA</th>
+                <th>ACCIONES</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sesionesFiltradas.map((sesion) => (
+                <tr key={sesion.id}>
+                  <td>{sesion.titulo}</td>
+                  <td className="text-center">{sesion.fecha_hora ? new Date(sesion.fecha_hora).toLocaleDateString('es-PE') : '-'}</td>
+                  <td className="text-center">
+                    <div className="btn-group-opciones">
+                      {sesion.archivo_url && (
+                        <a href={sesion.archivo_url} target="_blank" rel="noopener noreferrer" className="btn-opciones" style={{ marginRight: '8px' }}>
+                          📄 Ver PDF
+                        </a>
+                      )}
+                      <button
+                        className="btn-opciones"
+                        onClick={() => handleEliminarSesion(sesion)}
+                      >
+                        🗑️ Eliminar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div className="empty-state">
+            <p>No hay sesiones para este bimestre</p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderExamenesContent = () => (
     <div className="card-content-expanded">
@@ -2628,6 +2814,94 @@ function DocenteAulaVirtual() {
     }
   };
 
+  const handleCrearSesion = async (e) => {
+    e.preventDefault();
+    if (!formSesion.tema_id || !formSesion.archivo || !formSesion.ciclo) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Campos requeridos',
+        text: 'Selecciona un tema y sube un archivo PDF',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      });
+      return;
+    }
+    setGuardandoSesion(true);
+    try {
+      const formData = new FormData();
+      formData.append('asignatura_id', asignaturaId);
+      formData.append('tema_id', formSesion.tema_id);
+      formData.append('descripcion', formSesion.descripcion || '');
+      formData.append('ciclo', formSesion.ciclo);
+      formData.append('archivo', formSesion.archivo);
+      await api.post('/docente/aula-virtual/sesiones', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      Swal.fire({
+        icon: 'success',
+        title: '¡Sesión creada!',
+        text: 'La sesión se ha registrado correctamente',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2000
+      });
+      setMostrarFormSesion(false);
+      setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+      await cargarSesiones();
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo crear la sesión',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3000
+      });
+    } finally {
+      setGuardandoSesion(false);
+    }
+  };
+
+  const handleEliminarSesion = async (sesion) => {
+    const result = await Swal.fire({
+      title: '¿Eliminar sesión?',
+      text: `¿Deseas eliminar "${sesion.titulo}"?`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, eliminar'
+    });
+    if (result.isConfirmed) {
+      try {
+        await api.delete(`/docente/aula-virtual/sesiones/${sesion.id}`);
+        Swal.fire({
+          icon: 'success',
+          title: 'Sesión eliminada',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 2000
+        });
+        await cargarSesiones();
+      } catch (error) {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: error.response?.data?.error || 'No se pudo eliminar',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 3000
+        });
+      }
+    }
+  };
+
   const renderVideosContent = () => {
     // Obtener videos del ciclo actual (bimestre global)
     const videosCicloActual = videos.filter(v => v.ciclo === bimestreGlobal);
@@ -3113,6 +3387,34 @@ function DocenteAulaVirtual() {
               </div>
             </div>
             {expandedCard === 'tareas' && renderCardContent('tareas')}
+          </div>
+
+          {/* Card: SESIONES (solo DOCENTE y ADMIN) */}
+          <div 
+            className={`aula-section-card sesiones-card ${expandedCard === 'sesiones' ? 'expanded' : ''}`}
+            onClick={() => expandedCard !== 'sesiones' && toggleCard('sesiones')}
+          >
+            <div className="card-header">
+              <div className="card-icon">📄</div>
+              <div className="card-info">
+                <h3 className="card-title">Sesiones</h3>
+                <p className="card-count">{sesiones.filter(s => s.ciclo === bimestreGlobal).length}</p>
+                <p className="card-subtitle">PDFs vinculados a temas</p>
+              </div>
+              <div className="card-action-btns">
+                <button 
+                  className="card-action-btn" 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+                    setMostrarFormSesion(true); 
+                  }}
+                >
+                  + Nuevo
+                </button>
+              </div>
+            </div>
+            {expandedCard === 'sesiones' && renderCardContent('sesiones')}
           </div>
 
           {/* Card: EXÁMENES */}

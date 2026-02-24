@@ -13160,6 +13160,127 @@ router.get('/aula-virtual/tareas', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/aula-virtual/sesiones
+ * Obtener sesiones de una asignatura (filtradas por ciclo) - solo DOCENTE y ADMIN
+ */
+router.get('/aula-virtual/sesiones', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo } = req.user;
+    const { asignatura_id, ciclo } = req.query;
+
+    if (!asignatura_id) {
+      return res.status(400).json({ error: 'asignatura_id es requerido' });
+    }
+
+    const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
+
+    const asignaturaCheck = req.user.tipo === 'ADMINISTRADOR'
+      ? await query(`SELECT a.* FROM asignaturas a INNER JOIN grupos g ON g.id = a.grupo_id WHERE a.id = ? AND a.colegio_id = ? AND g.anio = ?`, [asignatura_id, colegio_id, anio_activo])
+      : await query(`SELECT a.* FROM asignaturas a INNER JOIN grupos g ON g.id = a.grupo_id WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`, [asignatura_id, req.user.personal_id, colegio_id, anio_activo]);
+
+    if (asignaturaCheck.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
+    }
+
+    const sesiones = await query(
+      `SELECT s.*, aa.nombre as tema_nombre
+       FROM asignaturas_sesion_pdf s
+       INNER JOIN asignaturas_archivos aa ON aa.id = s.tema_id
+       WHERE s.asignatura_id = ? AND s.ciclo = ?
+       ORDER BY s.id ASC`,
+      [asignatura_id, cicloFiltro]
+    );
+
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const sesionesConUrls = sesiones.map(s => {
+      let archivoUrl = null;
+      if (s.archivo && s.archivo !== '') {
+        const nombre = s.archivo.startsWith('/Static/Archivos/') ? s.archivo.replace(/^\/Static\/Archivos\//, '') : s.archivo;
+        archivoUrl = isDevelopment ? `http://localhost:5000/Static/Archivos/${nombre}` : `${phpSystemUrl}/Static/Archivos/${nombre}`;
+      }
+      return { ...s, archivo_url: archivoUrl };
+    });
+
+    res.json({ sesiones: sesionesConUrls || [] });
+  } catch (error) {
+    console.error('Error obteniendo sesiones:', error);
+    res.status(500).json({ error: 'Error al obtener sesiones' });
+  }
+});
+
+/**
+ * POST /api/docente/aula-virtual/sesiones
+ * Crear una nueva sesión (tema + archivo PDF)
+ */
+router.post('/aula-virtual/sesiones', uploadAulaVirtual.single('archivo'), async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { asignatura_id, tema_id, descripcion, ciclo } = req.body;
+
+    if (!asignatura_id || !tema_id || !ciclo) {
+      return res.status(400).json({ error: 'asignatura_id, tema_id y ciclo son requeridos' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Debe subir un archivo PDF' });
+    }
+
+    const asignaturaCheck = req.user.tipo === 'ADMINISTRADOR'
+      ? await query(`SELECT a.* FROM asignaturas a INNER JOIN grupos g ON g.id = a.grupo_id WHERE a.id = ? AND a.colegio_id = ? AND g.anio = ?`, [asignatura_id, colegio_id, anio_activo])
+      : await query(`SELECT a.* FROM asignaturas a INNER JOIN grupos g ON g.id = a.grupo_id WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`, [asignatura_id, personal_id, colegio_id, anio_activo]);
+
+    if (asignaturaCheck.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
+    }
+
+    const tema = await query(`SELECT * FROM asignaturas_archivos WHERE id = ? AND asignatura_id = ?`, [tema_id, asignatura_id]);
+    if (tema.length === 0) {
+      return res.status(400).json({ error: 'Tema no encontrado' });
+    }
+
+    const titulo = `SESION - ${tema[0].nombre}`;
+    const archivoPath = req.file.filename;
+    const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+    await execute(
+      `INSERT INTO asignaturas_sesion_pdf (asignatura_id, tema_id, titulo, descripcion, archivo, ciclo, trabajador_id, fecha_hora, colegio_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [asignatura_id, tema_id, titulo, descripcion || '', archivoPath, parseInt(ciclo), personal_id, fechaHora, colegio_id]
+    );
+
+    res.json({ success: true, message: 'Sesión creada correctamente' });
+  } catch (error) {
+    console.error('Error creando sesión:', error);
+    res.status(500).json({ error: 'Error al crear sesión' });
+  }
+});
+
+/**
+ * DELETE /api/docente/aula-virtual/sesiones/:id
+ * Eliminar una sesión
+ */
+router.delete('/aula-virtual/sesiones/:id', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { id } = req.params;
+
+    const asignaturaCheck = req.user.tipo === 'ADMINISTRADOR'
+      ? await query(`SELECT s.* FROM asignaturas_sesion_pdf s INNER JOIN asignaturas a ON a.id = s.asignatura_id INNER JOIN grupos g ON g.id = a.grupo_id WHERE s.id = ? AND s.colegio_id = ? AND g.anio = ?`, [id, colegio_id, anio_activo])
+      : await query(`SELECT s.* FROM asignaturas_sesion_pdf s INNER JOIN asignaturas a ON a.id = s.asignatura_id INNER JOIN grupos g ON g.id = a.grupo_id WHERE s.id = ? AND a.personal_id = ? AND s.colegio_id = ? AND g.anio = ?`, [id, personal_id, colegio_id, anio_activo]);
+
+    if (asignaturaCheck.length === 0) {
+      return res.status(404).json({ error: 'Sesión no encontrada' });
+    }
+
+    await execute(`DELETE FROM asignaturas_sesion_pdf WHERE id = ?`, [id]);
+    res.json({ success: true, message: 'Sesión eliminada correctamente' });
+  } catch (error) {
+    console.error('Error eliminando sesión:', error);
+    res.status(500).json({ error: 'Error al eliminar sesión' });
+  }
+});
+
+/**
  * POST /api/docente/aula-virtual/tareas
  * Crear una nueva tarea
  */
