@@ -3768,6 +3768,54 @@ router.post('/cursos/:cursoId/criterios', async (req, res) => {
 });
 
 /**
+ * DELETE /api/docente/cursos/:cursoId/criterios/:criterioId
+ * Eliminar criterio/indicador (nivel INICIAL)
+ */
+router.delete('/cursos/:cursoId/criterios/:criterioId', async (req, res) => {
+  try {
+    const { cursoId, criterioId } = req.params;
+    const { colegio_id, personal_id } = req.user;
+
+    if (!personal_id) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    const asignatura = await query(
+      `SELECT a.id FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ?`,
+      [cursoId, personal_id, colegio_id]
+    );
+
+    if (!asignatura || asignatura.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este curso' });
+    }
+
+    const criterio = await query(
+      `SELECT id FROM asignaturas_criterios
+       WHERE id = ? AND asignatura_id = ? AND colegio_id = ?`,
+      [criterioId, cursoId, colegio_id]
+    );
+
+    if (!criterio || criterio.length === 0) {
+      return res.status(404).json({ error: 'Indicador no encontrado' });
+    }
+
+    await execute(`DELETE FROM asignaturas_indicadores WHERE criterio_id = ?`, [criterioId]);
+    await execute(`DELETE FROM notas WHERE criterio_id = ?`, [criterioId]);
+    await execute(`DELETE FROM asignaturas_criterios WHERE id = ?`, [criterioId]);
+
+    res.json({
+      success: true,
+      message: 'Indicador eliminado correctamente'
+    });
+  } catch (error) {
+    console.error('Error eliminando criterio:', error);
+    res.status(500).json({ error: 'Error al eliminar el indicador' });
+  }
+});
+
+/**
  * GET /api/docente/horario
  * Obtener horario del docente
  */

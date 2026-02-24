@@ -3910,6 +3910,29 @@ input.box:focus {
   flex: 1;
 }
 
+.indicador-item-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-eliminar-indicador {
+  background: transparent;
+  border: none;
+  padding: 0.35rem;
+  cursor: pointer;
+  font-size: 1rem;
+  opacity: 0.7;
+  transition: opacity 0.2s, transform 0.2s;
+  border-radius: 6px;
+}
+
+.btn-eliminar-indicador:hover {
+  opacity: 1;
+  transform: scale(1.1);
+  background: rgba(220, 38, 38, 0.1);
+}
+
 .indicador-abrev {
   font-size: 0.8rem;
   font-weight: 600;

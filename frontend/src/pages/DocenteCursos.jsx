@@ -2500,6 +2500,28 @@ function DocenteCursos() {
     }
   };
 
+  // Eliminar indicador (nivel INICIAL)
+  const eliminarIndicador = async (criterioId) => {
+    const result = await Swal.fire({
+      title: '¿Eliminar indicador?',
+      text: 'Esta acción no se puede deshacer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
+    });
+    if (!result.isConfirmed) return;
+    try {
+      await api.delete(`/docente/cursos/${cursoParaIndicadores.id}/criterios/${criterioId}`);
+      Swal.fire('Eliminado', 'Indicador eliminado correctamente', 'success');
+      cargarCriteriosIndicadores(cursoParaIndicadores.id, formIndicador.bimestre);
+    } catch (error) {
+      Swal.fire('Error', error.response?.data?.error || 'No se pudo eliminar', 'error');
+    }
+  };
+
   // Guardar indicador (nivel INICIAL - peso 0)
   const guardarIndicador = async (e) => {
     e.preventDefault();
@@ -5046,7 +5068,18 @@ function DocenteCursos() {
                       {criteriosIndicadores.map((c) => (
                         <li key={c.id} className="indicador-item">
                           <span className="indicador-desc">{c.descripcion}</span>
-                          {c.abreviatura && <span className="indicador-abrev">{c.abreviatura}</span>}
+                          <span className="indicador-item-right">
+                            {c.abreviatura && <span className="indicador-abrev">{c.abreviatura}</span>}
+                            <button
+                              type="button"
+                              className="btn-eliminar-indicador"
+                              onClick={() => eliminarIndicador(c.id)}
+                              title="Eliminar indicador"
+                              aria-label="Eliminar indicador"
+                            >
+                              🗑️
+                            </button>
+                          </span>
                         </li>
                       ))}
                     </ul>
