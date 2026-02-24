@@ -3032,12 +3032,21 @@ router.get('/cursos/:cursoId/notas', async (req, res) => {
     }
 
     // Obtener criterios del curso para este ciclo (ciclo = 0 significa todos los ciclos)
-    const criterios = await query(
+    let criterios = await query(
       `SELECT * FROM asignaturas_criterios
        WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = ? OR ciclo = 0)
        ORDER BY orden ASC`,
       [cursoId, colegio_id, cicloInt]
     );
+    // INICIAL: si no hay criterios para bimestre 2, 3 o 4, usar los del 1er bimestre
+    if (criterios.length === 0 && [2, 3, 4].includes(cicloInt) && cursoInfo.tipo_calificacion === 0) {
+      criterios = await query(
+        `SELECT * FROM asignaturas_criterios
+         WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = 1 OR ciclo = 0)
+         ORDER BY orden ASC`,
+        [cursoId, colegio_id]
+      );
+    }
 
     // Obtener indicadores para todos los criterios
     const criterioIds = criterios.map(c => c.id);
@@ -3281,12 +3290,21 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
     };
 
     // Obtener criterios del curso
-    const criterios = await query(
+    let criterios = await query(
       `SELECT * FROM asignaturas_criterios
        WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = ? OR ciclo = 0)
        ORDER BY orden ASC`,
       [cursoId, colegio_id, cicloInt]
     );
+    // INICIAL: si no hay criterios para bimestre 2, 3 o 4, usar los del 1er bimestre
+    if (criterios.length === 0 && [2, 3, 4].includes(cicloInt) && esCualitativa) {
+      criterios = await query(
+        `SELECT * FROM asignaturas_criterios
+         WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = 1 OR ciclo = 0)
+         ORDER BY orden ASC`,
+        [cursoId, colegio_id]
+      );
+    }
 
     // Obtener indicadores
     const criterioIds = criterios.map(c => c.id);
@@ -3675,6 +3693,15 @@ router.get('/cursos/:cursoId/criterios', async (req, res) => {
          ORDER BY orden ASC, id ASC`,
         [cursoId, colegio_id, cicloInt]
       );
+      // INICIAL: si no hay indicadores para bimestre 2, 3 o 4, mostrar los del 1er bimestre
+      if (criterios.length === 0 && [2, 3, 4].includes(cicloInt)) {
+        criterios = await query(
+          `SELECT * FROM asignaturas_criterios
+           WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = 1 OR ciclo = 0)
+           ORDER BY orden ASC, id ASC`,
+          [cursoId, colegio_id]
+        );
+      }
     } else {
       criterios = await query(
         `SELECT * FROM asignaturas_criterios
@@ -4843,16 +4870,27 @@ router.get('/tutoria/grupos/:grupoId/notas-todos', async (req, res) => {
     const grupoInfo = grupoTutor[0];
     const cursosConNotas = [];
 
+    const esInicialTutoria = (grupoInfo.tipo_calificacion === 0);
+
     for (const asignatura of asignaturas) {
       const cursoId = asignatura.id;
 
       // Obtener criterios del curso
-      const criterios = await query(
+      let criterios = await query(
         `SELECT * FROM asignaturas_criterios
          WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = ? OR ciclo = 0)
          ORDER BY orden ASC`,
         [cursoId, colegio_id, cicloInt]
       );
+      // INICIAL: si no hay criterios para bimestre 2, 3 o 4, usar los del 1er bimestre
+      if (criterios.length === 0 && [2, 3, 4].includes(cicloInt) && esInicialTutoria) {
+        criterios = await query(
+          `SELECT * FROM asignaturas_criterios
+           WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = 1 OR ciclo = 0)
+           ORDER BY orden ASC`,
+          [cursoId, colegio_id]
+        );
+      }
 
       const criterioIds = criterios.map(c => c.id);
       let todosIndicadores = [];
