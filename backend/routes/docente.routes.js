@@ -218,69 +218,7 @@ async function crearNotificacionesAulaVirtual(params) {
           console.log('⚠️ [AULA VIRTUAL] No hay suscripciones push activas para enviar notificaciones');
         }
         
-        // ========== ENVIAR CORREOS ELECTRÓNICOS ==========
-        try {
-          // Obtener información del colegio para el nombre
-          const colegioInfo = await query(
-            `SELECT nombre FROM colegios WHERE id = ?`,
-            [colegio_id]
-          );
-          const colegioNombre = colegioInfo.length > 0 ? colegioInfo[0].nombre : 'Vanguard Schools';
-          
-          // Obtener emails de los usuarios destinatarios
-          const usuariosConEmail = await query(
-            `SELECT DISTINCT u.id as usuario_id, 
-                    COALESCE(a.email, p.email, ap.email) as email
-             FROM usuarios u
-             LEFT JOIN alumnos a ON a.id = u.alumno_id
-             LEFT JOIN personal p ON p.id = u.personal_id
-             LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
-             WHERE u.id IN (${todosDestinatarios.map(() => '?').join(',')})
-               AND u.colegio_id = ?
-               AND u.estado = 'ACTIVO'
-               AND COALESCE(a.email, p.email, ap.email) IS NOT NULL
-               AND COALESCE(a.email, p.email, ap.email) != ''`,
-            [...todosDestinatarios, colegio_id]
-          );
-          
-          // Eliminar duplicados por email (evitar enviar el mismo correo dos veces)
-          const emailsUnicos = new Map();
-          usuariosConEmail.forEach(usuario => {
-            const emailLower = (usuario.email || '').toLowerCase().trim();
-            if (emailLower && !emailsUnicos.has(emailLower)) {
-              emailsUnicos.set(emailLower, usuario);
-            }
-          });
-          const usuariosSinDuplicados = Array.from(emailsUnicos.values());
-          
-          console.log(`📧 [AULA VIRTUAL] Encontrados ${usuariosConEmail.length} usuarios con email, ${usuariosSinDuplicados.length} únicos (sin duplicados)`);
-          
-          // Enviar correos en paralelo
-          const promesasCorreos = usuariosSinDuplicados.map(async (usuario) => {
-            try {
-              const resultadoCorreo = await enviarCorreoNotificacion(
-                usuario.email,
-                tituloNotificacion,
-                mensajeNotificacion,
-                colegioNombre
-              );
-              
-              if (resultadoCorreo.success) {
-                console.log(`✅ [AULA VIRTUAL] Correo enviado exitosamente a ${usuario.email}`);
-              } else {
-                console.error(`❌ [AULA VIRTUAL] Error enviando correo a ${usuario.email}:`, resultadoCorreo.error);
-              }
-            } catch (error) {
-              console.error(`❌ [AULA VIRTUAL] Excepción al enviar correo a ${usuario.email}:`, error.message);
-            }
-          });
-          
-          await Promise.allSettled(promesasCorreos);
-          console.log(`✅ [AULA VIRTUAL] Proceso de envío de correos completado`);
-        } catch (error) {
-          console.error(`❌ [AULA VIRTUAL] Error en proceso de envío de correos:`, error);
-          // No lanzar el error para no interrumpir el flujo principal
-        }
+        // Correos deshabilitados para Crear Tema/Tarea/Examen/Videoteca/Enlace (solo push)
       }
     } else {
       console.log('⚠️ [AULA VIRTUAL] No se encontraron destinatarios para notificar');
@@ -15066,69 +15004,7 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
                 console.log('⚠️ [EXAMEN ACTIVADO] No hay suscripciones push activas para enviar notificaciones');
               }
               
-              // ========== ENVIAR CORREOS ELECTRÓNICOS ==========
-              try {
-                // Obtener información del colegio para el nombre
-                const colegioInfo = await query(
-                  `SELECT nombre FROM colegios WHERE id = ?`,
-                  [colegio_id]
-                );
-                const colegioNombre = colegioInfo.length > 0 ? colegioInfo[0].nombre : 'Vanguard Schools';
-                
-                // Obtener emails de los usuarios destinatarios
-                const usuariosConEmail = await query(
-                  `SELECT DISTINCT u.id as usuario_id, 
-                          COALESCE(a.email, p.email, ap.email) as email
-                   FROM usuarios u
-                   LEFT JOIN alumnos a ON a.id = u.alumno_id
-                   LEFT JOIN personal p ON p.id = u.personal_id
-                   LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
-                   WHERE u.id IN (${todosDestinatarios.map(() => '?').join(',')})
-                     AND u.colegio_id = ?
-                     AND u.estado = 'ACTIVO'
-                     AND COALESCE(a.email, p.email, ap.email) IS NOT NULL
-                     AND COALESCE(a.email, p.email, ap.email) != ''`,
-                  [...todosDestinatarios, colegio_id]
-                );
-                
-                // Eliminar duplicados por email (evitar enviar el mismo correo dos veces)
-                const emailsUnicos = new Map();
-                usuariosConEmail.forEach(usuario => {
-                  const emailLower = (usuario.email || '').toLowerCase().trim();
-                  if (emailLower && !emailsUnicos.has(emailLower)) {
-                    emailsUnicos.set(emailLower, usuario);
-                  }
-                });
-                const usuariosSinDuplicados = Array.from(emailsUnicos.values());
-                
-                console.log(`📧 [EXAMEN ACTIVADO] Encontrados ${usuariosConEmail.length} usuarios con email, ${usuariosSinDuplicados.length} únicos (sin duplicados)`);
-                
-                // Enviar correos en paralelo
-                const promesasCorreos = usuariosSinDuplicados.map(async (usuario) => {
-                  try {
-                    const resultadoCorreo = await enviarCorreoNotificacion(
-                      usuario.email,
-                      tituloNotificacion,
-                      mensajeNotificacion,
-                      colegioNombre
-                    );
-                    
-                    if (resultadoCorreo.success) {
-                      console.log(`✅ [EXAMEN ACTIVADO] Correo enviado exitosamente a ${usuario.email}`);
-                    } else {
-                      console.error(`❌ [EXAMEN ACTIVADO] Error enviando correo a ${usuario.email}:`, resultadoCorreo.error);
-                    }
-                  } catch (error) {
-                    console.error(`❌ [EXAMEN ACTIVADO] Excepción al enviar correo a ${usuario.email}:`, error.message);
-                  }
-                });
-                
-                await Promise.allSettled(promesasCorreos);
-                console.log(`✅ [EXAMEN ACTIVADO] Proceso de envío de correos completado`);
-              } catch (error) {
-                console.error(`❌ [EXAMEN ACTIVADO] Error en proceso de envío de correos:`, error);
-                // No lanzar el error para no interrumpir el flujo principal
-              }
+              // Correos deshabilitados para Crear/Activar Examen (solo push)
             }
           }
         } catch (error) {
