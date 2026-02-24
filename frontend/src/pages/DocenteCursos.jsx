@@ -1792,6 +1792,13 @@ function DocenteCursos() {
     return rangosLetras.some(r => (r.letra || '').toUpperCase() === letraNorm);
   };
 
+  // Solo permite A, B, C, AD para inputs cualitativos (INICIAL)
+  const esEntradaValidaCualitativa = (val) => {
+    if (val === '') return true;
+    const v = String(val).toUpperCase();
+    return v === 'A' || v === 'B' || v === 'C' || v === 'AD';
+  };
+
   // Calcular promedio de un indicador (usa notasEditadas si existe; si no, datos originales)
   const calcularPromedioIndicador = (matriculaId, criterioId, indicadorId) => {
     let notas = notasEditadas[matriculaId]?.[criterioId]?.[indicadorId];
@@ -4433,6 +4440,7 @@ function DocenteCursos() {
                                                 onChange={(e) => {
                                                   const nuevoValor = e.target.value;
                                                   if (esCualitativa) {
+                                                    if (!esEntradaValidaCualitativa(nuevoValor)) return;
                                                     actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, nuevoValor);
                                                   } else if (nuevoValor === '' || 
                                                       (!isNaN(parseFloat(nuevoValor)) && 
@@ -4444,7 +4452,11 @@ function DocenteCursos() {
                                                 onBlur={(e) => {
                                                   if (esCualitativa) {
                                                     const v = (e.target.value || '').trim().toUpperCase();
-                                                    if (v) actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, v);
+                                                    if (v && !esEntradaValidaCualitativa(v)) {
+                                                      actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, '');
+                                                    } else if (v) {
+                                                      actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, v);
+                                                    }
                                                   } else {
                                                     const valor = parseFloat(e.target.value);
                                                     if (!isNaN(valor)) {
@@ -4452,8 +4464,8 @@ function DocenteCursos() {
                                                     }
                                                   }
                                                 }}
-                                                placeholder={esCualitativa ? 'A' : ''}
-                                                maxLength={esCualitativa ? 5 : 2}
+                                                placeholder=""
+                                                maxLength={esCualitativa ? 2 : 2}
                                               />
                                             );
                                           });
@@ -4475,6 +4487,7 @@ function DocenteCursos() {
                                           onChange={(e) => {
                                             const nuevoValor = e.target.value;
                                             if (esCualitativa) {
+                                              if (!esEntradaValidaCualitativa(nuevoValor)) return;
                                               setNotasEditadas(prev => {
                                                 const nuevo = { ...prev };
                                                 if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
@@ -4500,7 +4513,16 @@ function DocenteCursos() {
                                           onBlur={(e) => {
                                             if (esCualitativa) {
                                               const v = (e.target.value || '').trim().toUpperCase();
-                                              if (v) {
+                                              if (v && !esEntradaValidaCualitativa(v)) {
+                                                setNotasEditadas(prev => {
+                                                  const nuevo = { ...prev };
+                                                  if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
+                                                  if (!nuevo[alumno.matricula_id][criterio.id]) nuevo[alumno.matricula_id][criterio.id] = {};
+                                                  nuevo[alumno.matricula_id][criterio.id].directa = '';
+                                                  return nuevo;
+                                                });
+                                                setForceUpdate(prev => prev + 1);
+                                              } else if (v) {
                                                 setNotasEditadas(prev => {
                                                   const nuevo = { ...prev };
                                                   if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
@@ -4525,8 +4547,8 @@ function DocenteCursos() {
                                               }
                                             }
                                           }}
-                                          placeholder={esCualitativa ? 'A' : ''}
-                                          maxLength={esCualitativa ? 5 : 2}
+                                          placeholder=""
+                                          maxLength={esCualitativa ? 2 : 2}
                                         />
                                       </div>
                                     )}
