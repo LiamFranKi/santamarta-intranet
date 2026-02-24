@@ -9,9 +9,10 @@ const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', '
  * Se muestra en dashboards. z-index 9990 para quedar detrás del modal de comunicado (100001).
  */
 function BirthdayWidget({ visibleDefault = true, comunicadoAbierto = false }) {
+  const STORAGE_KEY = 'birthday_widget_closed_v1';
   const [visible, setVisible] = useState(() => {
     try {
-      return sessionStorage.getItem('birthday_widget_closed') !== 'true' && visibleDefault;
+      return sessionStorage.getItem(STORAGE_KEY) !== 'true' && visibleDefault;
     } catch {
       return visibleDefault;
     }
@@ -41,7 +42,7 @@ function BirthdayWidget({ visibleDefault = true, comunicadoAbierto = false }) {
 
   const cerrar = () => {
     try {
-      sessionStorage.setItem('birthday_widget_closed', 'true');
+      sessionStorage.setItem(STORAGE_KEY, 'true');
     } catch {}
     setVisible(false);
   };
