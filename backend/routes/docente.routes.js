@@ -9906,7 +9906,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     const matriculaId = matricula[0].matricula_id;
     const grupoId = matricula[0].grupo_id;
 
-    // Obtener información del alumno y grupo
+    // Obtener información del alumno y grupo (incluye tipo_calificacion para INICIAL cualitativa)
     const alumnoInfo = await query(
       `SELECT 
               a.id,
@@ -9918,6 +9918,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
               g.grado,
               g.seccion,
               n.nombre as nivel_nombre,
+              n.tipo_calificacion,
               t.nombre as turno_nombre,
               g.anio,
               CONCAT(p_tutor.nombres, ' ', p_tutor.apellidos) as tutor_nombre
@@ -9937,6 +9938,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     }
 
     const alumno = alumnoInfo[0];
+    const esCualitativa = alumno.tipo_calificacion === 0 || (alumno.nivel_nombre || '').toUpperCase().includes('INICIAL');
 
     // Obtener título de la intranet desde la tabla colegios
     const colegioInfo = await query(
@@ -9947,6 +9949,172 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       ? colegioInfo[0].titulo_intranet 
       : 'INTRANET VANGUARD SCHOOLS';
 
+    // === LIBRETA CUALITATIVA (INICIAL) ===
+    if (esCualitativa) {
+      const phpSerialize = require('php-serialize');
+      const asignaturasCual = await query(
+        `SELECT a.id as asignatura_id, c.id as curso_id, c.nombre as curso_nombre
+         FROM asignaturas a
+         INNER JOIN cursos c ON c.id = a.curso_id
+         WHERE a.grupo_id = ? AND a.colegio_id = ?
+         ORDER BY c.nombre ASC`,
+        [grupoId, colegio_id]
+      );
+
+      const deserializarNotasDetallesLibreta = (dataString) => {
+        if (!dataString || dataString === '') return {};
+        try {
+          try { return phpSerialize.unserialize(dataString) || {}; } catch (e) {
+            const decoded = Buffer.from(dataString, 'base64').toString('binary');
+            return phpSerialize.unserialize(decoded) || {};
+          }
+        } catch (err) { return {}; }
+      };
+
+      const cursosCualitativos = await Promise.all(asignaturasCual.map(async (asig) => {
+        const criterios = await query(
+          `SELECT * FROM asignaturas_criterios WHERE asignatura_id = ? AND colegio_id = ? ORDER BY orden ASC`,
+          [asig.asignatura_id, colegio_id]
+        );
+        const criterioIds = criterios.map(c => c.id);
+        let indicadores = [];
+        if (criterioIds.length > 0) {
+          indicadores = await query(
+            `SELECT * FROM asignaturas_indicadores WHERE criterio_id IN (${criterioIds.map(() => '?').join(',')}) ORDER BY criterio_id, id`,
+            criterioIds
+          );
+        }
+        const indicadoresPorCriterio = {};
+        indicadores.forEach(ind => {
+          if (!indicadoresPorCriterio[ind.criterio_id]) indicadoresPorCriterio[ind.criterio_id] = [];
+          indicadoresPorCriterio[ind.criterio_id].push(ind);
+        });
+
+        const todasNotasCriterios = await query(
+          `SELECT criterio_id, nota, ciclo FROM notas WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1,2,3,4)`,
+          [matriculaId, asig.asignatura_id]
+        );
+        const notasCriterioMap = {};
+        todasNotasCriterios.forEach(n => {
+          if (!notasCriterioMap[n.criterio_id]) notasCriterioMap[n.criterio_id] = {};
+          notasCriterioMap[n.criterio_id][n.ciclo] = n.nota;
+        });
+
+        const todasNotasDet = await query(
+          `SELECT ciclo, data FROM notas_detalles WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1,2,3,4)`,
+          [matriculaId, asig.asignatura_id]
+        );
+        const notasDetMap = {};
+        todasNotasDet.forEach(nd => {
+          notasDetMap[nd.ciclo] = deserializarNotasDetallesLibreta(nd.data);
+        });
+
+        const promediosAsig = await query(
+          `SELECT ciclo, promedio FROM promedios WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1,2,3,4)`,
+          [matriculaId, asig.asignatura_id]
+        );
+        const promediosMap = {};
+        promediosAsig.forEach(p => { promediosMap[p.ciclo] = p.promedio; });
+
+        const criteriosConNotas = criterios.map(cr => {
+          const indicadoresCr = indicadoresPorCriterio[cr.id] || [];
+          const indicadoresConNotas = indicadoresCr.map(ind => {
+            const notasB = {};
+            for (let cic = 1; cic <= 4; cic++) {
+              const data = notasDetMap[cic] || {};
+              const porCriterio = (data[cr.id] || data[String(cr.id)]) || {};
+              const arr = porCriterio[ind.id] || porCriterio[String(ind.id)] || [];
+              notasB[`nota_b${cic}`] = Array.isArray(arr) && arr.length > 0 ? (arr[0] != null ? String(arr[0]) : null) : null;
+            }
+            return { id: ind.id, descripcion: ind.descripcion, ...notasB };
+          });
+          const notasCriterio = notasCriterioMap[cr.id] || {};
+          const nota_b1 = notasCriterio[1] != null ? String(notasCriterio[1]) : null;
+          const nota_b2 = notasCriterio[2] != null ? String(notasCriterio[2]) : null;
+          const nota_b3 = notasCriterio[3] != null ? String(notasCriterio[3]) : null;
+          const nota_b4 = notasCriterio[4] != null ? String(notasCriterio[4]) : null;
+          return {
+            id: cr.id,
+            descripcion: cr.descripcion,
+            abreviatura: cr.abreviatura,
+            indicadores: indicadoresConNotas,
+            nota_b1, nota_b2, nota_b3, nota_b4
+          };
+        });
+
+        return {
+          asignatura_id: asig.asignatura_id,
+          curso_id: asig.curso_id,
+          curso_nombre: asig.curso_nombre,
+          criterios: criteriosConNotas,
+          promedio_b1: promediosMap[1] != null ? String(promediosMap[1]) : null,
+          promedio_b2: promediosMap[2] != null ? String(promediosMap[2]) : null,
+          promedio_b3: promediosMap[3] != null ? String(promediosMap[3]) : null,
+          promedio_b4: promediosMap[4] != null ? String(promediosMap[4]) : null,
+          promedio_final: null
+        };
+      }));
+
+      let recomendacionesTexto = '';
+      const matriculaRow = await query(`SELECT recomendaciones FROM matriculas WHERE id = ?`, [matriculaId]);
+      if (matriculaRow && matriculaRow[0] && matriculaRow[0].recomendaciones) {
+        try {
+          const decoded = Buffer.from(matriculaRow[0].recomendaciones, 'base64').toString('binary');
+          const deserialized = phpSerialize.unserialize(decoded);
+          if (deserialized && typeof deserialized === 'object' && deserialized[ciclo] && deserialized[ciclo].descripcion) {
+            recomendacionesTexto = String(deserialized[ciclo].descripcion).trim();
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      const conductaProm = await query(
+        `SELECT ciclo, promedio FROM promedios WHERE matricula_id = ? AND asignatura_id = -101 AND ciclo IN (1,2,3,4)`,
+        [matriculaId]
+      );
+      const conductaMap = {};
+      conductaProm.forEach(p => { conductaMap[p.ciclo] = p.promedio; });
+
+      const inasistenciasB1 = await obtenerInasistencias(matriculaId, 1, anio_activo);
+      const inasistenciasB2 = await obtenerInasistencias(matriculaId, 2, anio_activo);
+      const inasistenciasB3 = await obtenerInasistencias(matriculaId, 3, anio_activo);
+      const inasistenciasB4 = await obtenerInasistencias(matriculaId, 4, anio_activo);
+      const tardanzasB1 = await obtenerTardanzas(matriculaId, 1, anio_activo);
+      const tardanzasB2 = await obtenerTardanzas(matriculaId, 2, anio_activo);
+      const tardanzasB3 = await obtenerTardanzas(matriculaId, 3, anio_activo);
+      const tardanzasB4 = await obtenerTardanzas(matriculaId, 4, anio_activo);
+
+      const resumenCual = {
+        cantidad_cursos: { b1: cursosCualitativos.length, b2: cursosCualitativos.length, b3: cursosCualitativos.length, b4: cursosCualitativos.length },
+        suma_notas: { b1: null, b2: null, b3: null, b4: null },
+        promedio: { b1: null, b2: null, b3: null, b4: null, final: null },
+        promedio_conducta: {
+          b1: conductaMap[1] != null ? conductaMap[1] : '20',
+          b2: conductaMap[2] != null ? conductaMap[2] : '20',
+          b3: conductaMap[3] != null ? conductaMap[3] : '20',
+          b4: conductaMap[4] != null ? conductaMap[4] : '20'
+        },
+        orden_merito: { b1: null, b2: null, b3: null, b4: null },
+        inasistencias: { b1: inasistenciasB1, b2: inasistenciasB2, b3: inasistenciasB3, b4: inasistenciasB4 },
+        tardanzas: { b1: tardanzasB1, b2: tardanzasB2, b3: tardanzasB3, b4: tardanzasB4 }
+      };
+
+      console.log(`✅ [HIJOS-LIBRETA] Libreta cualitativa INICIAL obtenida exitosamente`);
+      console.log(`🔵 ========== [HIJOS-LIBRETA] FIN DE PETICIÓN ==========\n`);
+
+      return res.json({
+        alumno,
+        titulo_intranet: tituloIntranet,
+        es_cualitativa: true,
+        cursos_cualitativos: cursosCualitativos,
+        areas: [],
+        asignaturas_sin_area: [],
+        resumen: resumenCual,
+        recomendaciones: recomendacionesTexto,
+        ciclo
+      });
+    }
+
+    // === LIBRETA CUANTITATIVA (PRIMARIA / SECUNDARIA) ===
     // Obtener todas las asignaturas del grupo, agrupadas por área
     // Usar la tabla intermedia areas_cursos como en el sistema anterior
     const areas = await query(
@@ -10241,6 +10409,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     res.json({
       alumno,
       titulo_intranet: tituloIntranet,
+      es_cualitativa: false,
       areas: areasConAsignaturas,
       asignaturas_sin_area: asignaturasSinArea,
       resumen,

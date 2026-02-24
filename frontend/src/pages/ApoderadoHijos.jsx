@@ -2586,6 +2586,151 @@ function ApoderadoHijos() {
       const colAreaWidth = 80;
       const colBimestreWidth = (contentWidth - colAreaWidth) / numCols;
 
+      if (datosLibreta.es_cualitativa && datosLibreta.cursos_cualitativos) {
+        // ========== LAYOUT CUALITATIVO (INICIAL) ==========
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setLineWidth(borderWidth);
+        doc.setFillColor(...colorLabel);
+        doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
+        doc.text('AREAS', margin + colAreaWidth / 2, yPos + 3.5, { align: 'center' });
+        let xPos = margin + colAreaWidth;
+        for (let c = 1; c <= 4; c++) {
+          doc.setFillColor(...colorLabel);
+          doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
+          doc.text(`BIMESTRE ${['I','II','III','IV'][c-1]}`, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+          xPos += colBimestreWidth;
+        }
+        doc.setFillColor(...colorLabel);
+        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
+        doc.text('PF', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        yPos += headerHeight;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        datosLibreta.cursos_cualitativos.forEach(curso => {
+          if (yPos > pageHeight - 80) { doc.addPage(); yPos = margin; }
+          doc.setFont('helvetica', 'bold');
+          doc.setFillColor(240, 248, 255);
+          doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
+          doc.text(curso.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
+          xPos = margin + colAreaWidth;
+          for (let c = 1; c <= 4; c++) {
+            const v = curso[`promedio_b${c}`];
+            doc.setFillColor(240, 248, 255);
+            doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
+            doc.text(c <= cicloSel && (v !== null && v !== '' && v !== '-') ? String(v) : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+            xPos += colBimestreWidth;
+          }
+          doc.setFillColor(240, 248, 255);
+          doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
+          doc.text(curso.promedio_final || '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+          yPos += headerHeight;
+
+          doc.setFont('helvetica', 'normal');
+          curso.criterios?.forEach(cr => {
+            if (cr.indicadores && cr.indicadores.length > 0) {
+              cr.indicadores.forEach(ind => {
+                if (yPos > pageHeight - 60) { doc.addPage(); yPos = margin; }
+                const desc = (ind.descripcion || '').substring(0, 70);
+                doc.setFillColor(...colorData);
+                doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
+                doc.text(desc, margin + 2, yPos + 3.5);
+                xPos = margin + colAreaWidth;
+                for (let c = 1; c <= 4; c++) {
+                  const v = ind[`nota_b${c}`];
+                  doc.setFillColor(...colorData);
+                  doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
+                  doc.text(c <= cicloSel && (v !== null && v !== '' && v !== '-') ? String(v) : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+                  xPos += colBimestreWidth;
+                }
+                doc.setFillColor(...colorData);
+                doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
+                doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+                yPos += headerHeight;
+              });
+            } else {
+              if (yPos > pageHeight - 60) { doc.addPage(); yPos = margin; }
+              const desc = (cr.descripcion || cr.abreviatura || '').substring(0, 70);
+              doc.setFillColor(...colorData);
+              doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
+              doc.text(desc, margin + 2, yPos + 3.5);
+              xPos = margin + colAreaWidth;
+              for (let c = 1; c <= 4; c++) {
+                const v = cr[`nota_b${c}`];
+                doc.setFillColor(...colorData);
+                doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
+                doc.text(c <= cicloSel && (v !== null && v !== '' && v !== '-') ? String(v) : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+                xPos += colBimestreWidth;
+              }
+              doc.setFillColor(...colorData);
+              doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
+              doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+              yPos += headerHeight;
+            }
+          });
+        });
+        yPos += 5;
+
+        const resumenWidth = 95;
+        const recomWidth = contentWidth - resumenWidth - 10;
+        const resumenInicioY = yPos;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setFillColor(...colorLabel);
+        doc.rect(margin, yPos, resumenWidth, headerHeight, 'FD');
+        doc.text('CUADRO RESUMEN', margin + resumenWidth / 2, yPos + 3.5, { align: 'center' });
+        yPos += headerHeight;
+        const resumen = datosLibreta.resumen || {};
+        const filasResumen = [
+          ['CANTIDAD DE CURSOS', [resumen.cantidad_cursos?.b1, resumen.cantidad_cursos?.b2, resumen.cantidad_cursos?.b3, resumen.cantidad_cursos?.b4]],
+          ['PROMEDIO CONDUCTA', [resumen.promedio_conducta?.b1, resumen.promedio_conducta?.b2, resumen.promedio_conducta?.b3, resumen.promedio_conducta?.b4]],
+          ['N° INASISTENCIAS', [resumen.inasistencias?.b1, resumen.inasistencias?.b2, resumen.inasistencias?.b3, resumen.inasistencias?.b4]],
+          ['N° TARDANZAS', [resumen.tardanzas?.b1, resumen.tardanzas?.b2, resumen.tardanzas?.b3, resumen.tardanzas?.b4]]
+        ];
+        const colResumenArea = 55;
+        const colResumenBim = (resumenWidth - colResumenArea) / 4;
+        filasResumen.forEach(([label, vals]) => {
+          doc.setFont('helvetica', 'bold');
+          doc.setFillColor(...colorLabel);
+          doc.rect(margin, yPos, colResumenArea, headerHeight, 'FD');
+          doc.text(label, margin + 2, yPos + 3.5);
+          doc.setFont('helvetica', 'normal');
+          for (let i = 0; i < 4; i++) {
+            const v = vals[i];
+            doc.setFillColor(...colorData);
+            doc.rect(margin + colResumenArea + i * colResumenBim, yPos, colResumenBim, headerHeight, 'FD');
+            doc.text((i + 1) <= cicloSel && (v !== null && v !== undefined && v !== '') ? String(v) : '-', margin + colResumenArea + (i + 0.5) * colResumenBim, yPos + 3.5, { align: 'center' });
+          }
+          yPos += headerHeight;
+        });
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text('OBSERVACIONES DEL TUTOR(A)', margin + resumenWidth + 10, resumenInicioY);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        const textoRecom = (datosLibreta.recomendaciones || '').trim() || '(Sin observaciones)';
+        const lineasRecom = doc.splitTextToSize(textoRecom, recomWidth - 5);
+        let recomY = resumenInicioY + 6;
+        lineasRecom.forEach((linea) => {
+          doc.text(linea, margin + resumenWidth + 10, recomY);
+          recomY += 4;
+        });
+        yPos = Math.max(yPos, recomY + 5) + 15;
+
+        doc.setFontSize(8);
+        const firmaWidth = 70;
+        const firmaX = (pageWidth - firmaWidth) / 2;
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(0, 0, 0);
+        doc.line(firmaX, yPos, firmaX + firmaWidth, yPos);
+        yPos += 12;
+        doc.setFont('helvetica', 'bold');
+        doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
+      } else {
+        // ========== LAYOUT CUANTITATIVO (PRIMARIA/SECUNDARIA) - SIN CAMBIOS ==========
       const getPromedioFinalHastaCiclo = (obj) => {
         const vals = [];
         for (let c = 1; c <= cicloSel; c++) {
@@ -2776,8 +2921,9 @@ function ApoderadoHijos() {
 
       doc.setFont('helvetica', 'bold'); // Texto en negrita
       doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
+      } // fin else layout cuantitativo
 
-      const nombreArchivo = `Libreta_${datosLibreta.alumno.apellido_paterno?.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
+      const nombreArchivo = `Libreta_${datosLibreta.alumno.apellido_paterno?.replace(/\s+/g, '_') || 'libreta'}_${new Date().getTime()}.pdf`;
       doc.save(nombreArchivo);
 
       Swal.fire({
