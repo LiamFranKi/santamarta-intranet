@@ -157,10 +157,38 @@
   color: white;
 }
 
+/* Icono flotante cuando está minimizado */
+.birthday-widget-icon {
+  position: fixed;
+  top: 90px;
+  right: 20px;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid rgba(196, 181, 253, 0.4);
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+  font-size: 1.6rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+  z-index: 9999;
+}
+
+.birthday-widget-icon:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 24px rgba(245, 158, 11, 0.4);
+}
+
 @media (max-width: 768px) {
   .birthday-widget {
     right: 10px;
     left: 10px;
     width: auto;
+  }
+  .birthday-widget-icon {
+    right: 10px;
   }
 }

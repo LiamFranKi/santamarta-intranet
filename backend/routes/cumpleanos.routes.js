@@ -14,6 +14,21 @@ router.use(requireUserType('DOCENTE', 'ALUMNO', 'APODERADO', 'ADMINISTRADOR'));
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 /**
+ * GET /api/cumpleanos/config
+ * Obtener si debe mostrarse la ventana de cumpleaños (config Mostrar Ventana Cumpleaños)
+ */
+router.get('/config', async (req, res) => {
+  try {
+    const configs = await query(`SELECT valor FROM config WHERE clave = 'show_birthday_window' LIMIT 1`);
+    const show_birthday_window = (configs[0]?.valor || 'NO').toUpperCase() === 'SI' ? 'SI' : 'NO';
+    res.json({ show_birthday_window });
+  } catch (error) {
+    console.error('Error obteniendo config cumpleaños:', error);
+    res.json({ show_birthday_window: 'NO' });
+  }
+});
+
+/**
  * GET /api/cumpleanos?mes=2&perfil=PERSONAL|ALUMNO|APODERADO|TODOS
  * mes: 1-12 (opcional, default mes actual)
  * perfil: PERSONAL, ALUMNO, APODERADO, TODOS (opcional, default TODOS)
@@ -180,10 +195,14 @@ router.get('/', async (req, res) => {
       };
     });
 
+    const configs = await query(`SELECT valor FROM config WHERE clave = 'show_birthday_window' LIMIT 1`);
+    const show_birthday_window = (configs[0]?.valor || 'NO').toUpperCase() === 'SI' ? 'SI' : 'NO';
+
     res.json({
       cumpleanos,
       mes: mesNombre,
-      mesNum: mes
+      mesNum: mes,
+      show_birthday_window
     });
   } catch (error) {
     console.error('Error obteniendo cumpleaños:', error);

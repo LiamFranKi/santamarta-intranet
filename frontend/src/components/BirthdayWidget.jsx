@@ -6,22 +6,23 @@ const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', '
 
 /**
  * Widget flotante de cumpleaños del mes.
- * Se muestra en dashboards. z-index 9990 para quedar detrás del modal de comunicado (100001).
+ * - Siempre se muestra al ingresar al dashboard (expanded=true).
+ * - Al cerrar, se convierte en icono flotante; al hacer click en el icono se vuelve a abrir.
+ * - Respeta config "Mostrar Ventana Cumpleaños" (SI/NO) en Configuración.
  */
 function BirthdayWidget({ visibleDefault = true, comunicadoAbierto = false }) {
-  const STORAGE_KEY = 'birthday_widget_closed_v1';
-  const [visible, setVisible] = useState(() => {
-    try {
-      return sessionStorage.getItem(STORAGE_KEY) !== 'true' && visibleDefault;
-    } catch {
-      return visibleDefault;
-    }
-  });
-
+  const [showConfig, setShowConfig] = useState(null);
+  const [expanded, setExpanded] = useState(true);
   const [loading, setLoading] = useState(true);
   const [cumpleanos, setCumpleanos] = useState([]);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
   const [perfil, setPerfil] = useState('TODOS');
+
+  useEffect(() => {
+    api.get('/cumpleanos/config').then((res) => {
+      setShowConfig((res.data?.show_birthday_window || 'NO').toUpperCase() === 'SI');
+    }).catch(() => setShowConfig(false));
+  }, []);
 
   const cargarCumpleanos = async () => {
     try {
@@ -37,17 +38,26 @@ function BirthdayWidget({ visibleDefault = true, comunicadoAbierto = false }) {
   };
 
   useEffect(() => {
-    if (visible) cargarCumpleanos();
-  }, [visible, mes, perfil]);
+    if (showConfig && expanded) cargarCumpleanos();
+  }, [showConfig, expanded, mes, perfil]);
 
-  const cerrar = () => {
-    try {
-      sessionStorage.setItem(STORAGE_KEY, 'true');
-    } catch {}
-    setVisible(false);
-  };
+  if (showConfig === false || !visibleDefault) return null;
 
-  if (!visible) return null;
+  if (showConfig === null) return null;
+
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        className="birthday-widget-icon"
+        onClick={() => setExpanded(true)}
+        aria-label="Ver cumpleaños del mes"
+        style={{ zIndex: comunicadoAbierto ? 9990 : 9999 }}
+      >
+        🎂
+      </button>
+    );
+  }
 
   // Cuando hay comunicado abierto: z-index menor (9990) para quedar detrás del modal (100001)
   // Una vez cerrado el comunicado, el widget se ve normalmente (9999)
@@ -62,8 +72,8 @@ function BirthdayWidget({ visibleDefault = true, comunicadoAbierto = false }) {
         <button
           type="button"
           className="birthday-widget-close"
-          onClick={cerrar}
-          aria-label="Cerrar"
+          onClick={() => setExpanded(false)}
+          aria-label="Minimizar"
         >
           ×
         </button>
