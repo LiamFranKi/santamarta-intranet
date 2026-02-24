@@ -89,6 +89,18 @@ function DocenteCursos() {
     enlaces_id: []
   });
 
+  // Estados para modal Registrar Indicadores (solo nivel INICIAL)
+  const [mostrarModalIndicadores, setMostrarModalIndicadores] = useState(false);
+  const [cursoParaIndicadores, setCursoParaIndicadores] = useState(null);
+  const [criteriosIndicadores, setCriteriosIndicadores] = useState([]);
+  const [loadingIndicadores, setLoadingIndicadores] = useState(false);
+  const [guardandoIndicadores, setGuardandoIndicadores] = useState(false);
+  const [formIndicador, setFormIndicador] = useState({
+    descripcion: '',
+    abreviatura: '',
+    bimestre: 1
+  });
+
   useEffect(() => {
     cargarCursos();
   }, []);
@@ -1574,7 +1586,12 @@ function DocenteCursos() {
         console.log('Abriendo modal de copiar contenido para curso:', curso.id);
         setCursoParaCopiar(curso);
         setMostrarModalCopiarContenido(true);
-        cargarDatosCopiarContenido(curso.id);
+        break;
+      case 'indicadores':
+        setCursoParaIndicadores(curso);
+        setMostrarModalIndicadores(true);
+        setFormIndicador({ descripcion: '', abreviatura: '', bimestre: 1 });
+        cargarCriteriosIndicadores(curso.id, 1);
         break;
       case 'horario':
         // Abrir modal de horario para el curso
@@ -2467,6 +2484,48 @@ function DocenteCursos() {
     }
   };
 
+  // Cargar criterios/indicadores del curso (nivel INICIAL)
+  const cargarCriteriosIndicadores = async (cursoId, ciclo = null) => {
+    if (!cursoId) return;
+    try {
+      setLoadingIndicadores(true);
+      const params = ciclo ? { ciclo } : {};
+      const response = await api.get(`/docente/cursos/${cursoId}/criterios`, { params });
+      setCriteriosIndicadores(response.data.criterios || []);
+    } catch (error) {
+      console.error('Error cargando criterios:', error);
+      setCriteriosIndicadores([]);
+    } finally {
+      setLoadingIndicadores(false);
+    }
+  };
+
+  // Guardar indicador (nivel INICIAL - peso 0)
+  const guardarIndicador = async (e) => {
+    e.preventDefault();
+    if (!cursoParaIndicadores) return;
+    if (!formIndicador.descripcion || !formIndicador.descripcion.trim()) {
+      Swal.fire('Campo requerido', 'La descripción es obligatoria', 'warning');
+      return;
+    }
+    try {
+      setGuardandoIndicadores(true);
+      await api.post(`/docente/cursos/${cursoParaIndicadores.id}/criterios`, {
+        descripcion: formIndicador.descripcion.trim(),
+        abreviatura: formIndicador.abreviatura.trim(),
+        ciclo: formIndicador.bimestre
+      });
+      Swal.fire('¡Éxito!', 'Indicador registrado correctamente', 'success');
+      setFormIndicador({ descripcion: '', abreviatura: '', bimestre: formIndicador.bimestre });
+      cargarCriteriosIndicadores(cursoParaIndicadores.id, formIndicador.bimestre);
+    } catch (error) {
+      console.error('Error guardando indicador:', error);
+      Swal.fire('Error', error.response?.data?.error || 'No se pudo registrar el indicador', 'error');
+    } finally {
+      setGuardandoIndicadores(false);
+    }
+  };
+
   // Guardar link del aula virtual
   const guardarLinkAulaVirtual = async () => {
     if (!cursoParaAulaVirtual) {
@@ -2995,6 +3054,11 @@ function DocenteCursos() {
                           <button onClick={() => handleCursoAction(curso, 'notas')}>
                             📝 Registrar Notas
                           </button>
+                          {curso.nivel_tipo_calificacion === 0 && (
+                            <button onClick={() => handleCursoAction(curso, 'indicadores')}>
+                              📋 Registrar Indicadores
+                            </button>
+                          )}
                           <button onClick={() => handleCursoAction(curso, 'horario')}>
                             📅 Ver Horario
                           </button>
@@ -4852,6 +4916,142 @@ function DocenteCursos() {
                 >
                   {guardandoCopiarContenido ? '⏳ Guardando...' : '💾 Guardar Datos'}
                 </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Modal Registrar Indicadores (solo nivel INICIAL) */}
+        {mostrarModalIndicadores && cursoParaIndicadores && createPortal(
+          <div
+            className="modal-overlay modal-overlay-indicadores"
+            onClick={() => {
+              setMostrarModalIndicadores(false);
+              setCursoParaIndicadores(null);
+            }}
+            style={{ zIndex: 100000 }}
+          >
+            <div
+              className="modal-container modal-indicadores"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="modal-indicadores-title"
+            >
+              <div className="modal-header-indicadores">
+                <div className="modal-header-gradient-indicadores">
+                  <h2 id="modal-indicadores-title">📋 Registrar Indicador</h2>
+                  <p className="modal-indicadores-subtitle">
+                    {cursoParaIndicadores?.curso_nombre} - {cursoParaIndicadores?.nivel_nombre}
+                  </p>
+                </div>
+                <button
+                  className="modal-close modal-close-indicadores"
+                  onClick={() => {
+                    setMostrarModalIndicadores(false);
+                    setCursoParaIndicadores(null);
+                  }}
+                  type="button"
+                  aria-label="Cerrar"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="modal-body-indicadores">
+                <div className="modal-indicadores-instruction">
+                  Ingrese el indicador de aprendizaje para el bimestre seleccionado. El peso es 0 para nivel Inicial.
+                </div>
+
+                <form onSubmit={guardarIndicador} className="form-indicadores">
+                  <div className="form-group-indicadores">
+                    <label htmlFor="indicador-descripcion">Descripción <span className="text-required">*</span></label>
+                    <input
+                      id="indicador-descripcion"
+                      type="text"
+                      className="input-indicadores"
+                      placeholder="Ej: Cuenta e identifica los números del 0 al 3"
+                      value={formIndicador.descripcion}
+                      onChange={(e) => setFormIndicador(prev => ({ ...prev, descripcion: e.target.value }))}
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group-indicadores">
+                    <label htmlFor="indicador-abreviatura">Abreviatura</label>
+                    <input
+                      id="indicador-abreviatura"
+                      type="text"
+                      className="input-indicadores input-abreviatura"
+                      placeholder="Ej: IND01"
+                      value={formIndicador.abreviatura}
+                      onChange={(e) => setFormIndicador(prev => ({ ...prev, abreviatura: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="form-group-indicadores">
+                    <label htmlFor="indicador-bimestre">Bimestre</label>
+                    <select
+                      id="indicador-bimestre"
+                      className="input-indicadores select-bimestre"
+                      value={formIndicador.bimestre}
+                      onChange={(e) => {
+                        const bim = parseInt(e.target.value);
+                        setFormIndicador(prev => ({ ...prev, bimestre: bim }));
+                        cargarCriteriosIndicadores(cursoParaIndicadores.id, bim);
+                      }}
+                    >
+                      <option value={1}>I Bimestre</option>
+                      <option value={2}>II Bimestre</option>
+                      <option value={3}>III Bimestre</option>
+                      <option value={4}>IV Bimestre</option>
+                    </select>
+                  </div>
+
+                  <div className="modal-indicadores-footer">
+                    <button
+                      type="button"
+                      className="btn-indicadores btn-cancelar-indicadores"
+                      onClick={() => {
+                        setMostrarModalIndicadores(false);
+                        setCursoParaIndicadores(null);
+                      }}
+                      disabled={guardandoIndicadores}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn-indicadores btn-guardar-indicadores"
+                      disabled={guardandoIndicadores}
+                    >
+                      {guardandoIndicadores ? '⏳ Guardando...' : '💾 Guardar Datos'}
+                    </button>
+                  </div>
+                </form>
+
+                {/* Lista de indicadores ya registrados */}
+                <div className="indicadores-lista-section">
+                  <h3 className="indicadores-lista-title">Indicadores registrados (Bimestre {formIndicador.bimestre})</h3>
+                  {loadingIndicadores ? (
+                    <div className="indicadores-loading">
+                      <div className="spinner-ring"></div>
+                      <span>Cargando...</span>
+                    </div>
+                  ) : criteriosIndicadores.length === 0 ? (
+                    <p className="indicadores-empty">No hay indicadores registrados para este bimestre.</p>
+                  ) : (
+                    <ul className="indicadores-lista">
+                      {criteriosIndicadores.map((c) => (
+                        <li key={c.id} className="indicador-item">
+                          <span className="indicador-desc">{c.descripcion}</span>
+                          {c.abreviatura && <span className="indicador-abrev">{c.abreviatura}</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
             </div>
           </div>,

@@ -2060,7 +2060,7 @@ router.get('/cursos', async (req, res) => {
     const cursos = await query(
       `SELECT a.*, c.nombre as curso_nombre, c.imagen as curso_imagen, 
               g.grado, g.seccion, g.anio, 
-              n.nombre as nivel_nombre, t.nombre as turno_nombre
+              n.nombre as nivel_nombre, n.tipo_calificacion as nivel_tipo_calificacion, t.nombre as turno_nombre
        FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN cursos c ON c.id = a.curso_id
@@ -3615,6 +3615,155 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
   } catch (error) {
     console.error('Error guardando notas:', error);
     res.status(500).json({ error: 'Error al guardar notas' });
+  }
+});
+
+/**
+ * GET /api/docente/cursos/:cursoId/criterios
+ * Obtener criterios e indicadores de un curso (para nivel INICIAL - Registrar Indicadores)
+ */
+router.get('/cursos/:cursoId/criterios', async (req, res) => {
+  try {
+    const { cursoId } = req.params;
+    const { colegio_id, personal_id } = req.user;
+    const { ciclo } = req.query;
+
+    if (!personal_id) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    const asignatura = await query(
+      `SELECT a.*, n.tipo_calificacion
+       FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ?`,
+      [cursoId, personal_id, colegio_id]
+    );
+
+    if (!asignatura || asignatura.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este curso' });
+    }
+
+    let criterios = [];
+    if (ciclo) {
+      const cicloInt = parseInt(ciclo);
+      criterios = await query(
+        `SELECT * FROM asignaturas_criterios
+         WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = ? OR ciclo = 0)
+         ORDER BY orden ASC, id ASC`,
+        [cursoId, colegio_id, cicloInt]
+      );
+    } else {
+      criterios = await query(
+        `SELECT * FROM asignaturas_criterios
+         WHERE asignatura_id = ? AND colegio_id = ?
+         ORDER BY ciclo ASC, orden ASC, id ASC`,
+        [cursoId, colegio_id]
+      );
+    }
+
+    const criterioIds = criterios.map(c => c.id);
+    let todosIndicadores = [];
+    if (criterioIds.length > 0) {
+      todosIndicadores = await query(
+        `SELECT * FROM asignaturas_indicadores
+         WHERE criterio_id IN (${criterioIds.map(() => '?').join(',')})
+         ORDER BY criterio_id, id`,
+        criterioIds
+      );
+    }
+
+    const indicadoresPorCriterio = {};
+    todosIndicadores.forEach(ind => {
+      if (!indicadoresPorCriterio[ind.criterio_id]) indicadoresPorCriterio[ind.criterio_id] = [];
+      indicadoresPorCriterio[ind.criterio_id].push(ind);
+    });
+
+    const criteriosConIndicadores = criterios.map(c => ({
+      ...c,
+      indicadores: indicadoresPorCriterio[c.id] || []
+    }));
+
+    res.json({ criterios: criteriosConIndicadores });
+  } catch (error) {
+    console.error('Error obteniendo criterios:', error);
+    res.status(500).json({ error: 'Error al obtener criterios' });
+  }
+});
+
+/**
+ * POST /api/docente/cursos/:cursoId/criterios
+ * Crear criterio/indicador para nivel INICIAL (peso = 0)
+ */
+router.post('/cursos/:cursoId/criterios', async (req, res) => {
+  try {
+    const { cursoId } = req.params;
+    const { colegio_id, personal_id } = req.user;
+    const { descripcion, abreviatura, ciclo } = req.body;
+
+    if (!personal_id) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+    if (!descripcion || !descripcion.trim()) {
+      return res.status(400).json({ error: 'La descripción es obligatoria' });
+    }
+
+    const asignatura = await query(
+      `SELECT a.*, n.tipo_calificacion
+       FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ?`,
+      [cursoId, personal_id, colegio_id]
+    );
+
+    if (!asignatura || asignatura.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este curso' });
+    }
+
+    const cicloInt = ciclo ? parseInt(ciclo) : 1;
+    const abrev = (abreviatura || '').trim() || descripcion.trim().substring(0, 20);
+
+    const maxOrden = await query(
+      `SELECT COALESCE(MAX(orden), 0) as m
+       FROM asignaturas_criterios
+       WHERE asignatura_id = ? AND ciclo = ?`,
+      [cursoId, cicloInt]
+    );
+    const orden = (maxOrden[0]?.m || 0) + 1;
+
+    await execute(
+      `INSERT INTO asignaturas_criterios (colegio_id, descripcion, abreviatura, asignatura_id, ciclo, orden, peso)
+       VALUES (?, ?, ?, ?, ?, ?, 0)`,
+      [colegio_id, descripcion.trim(), abrev, cursoId, cicloInt, orden]
+    );
+
+    const criterioInsertado = await query(
+      `SELECT * FROM asignaturas_criterios
+       WHERE asignatura_id = ? AND colegio_id = ? AND ciclo = ? AND orden = ?
+       ORDER BY id DESC LIMIT 1`,
+      [cursoId, colegio_id, cicloInt, orden]
+    );
+    const criterioId = criterioInsertado[0]?.id;
+    if (!criterioId) {
+      return res.status(500).json({ error: 'Error al crear el criterio' });
+    }
+
+    await execute(
+      `INSERT INTO asignaturas_indicadores (criterio_id, descripcion, cuadros)
+       VALUES (?, ?, 1)`,
+      [criterioId, descripcion.trim()]
+    );
+
+    res.json({
+      success: true,
+      message: 'Indicador registrado correctamente',
+      criterio_id: criterioId
+    });
+  } catch (error) {
+    console.error('Error creando criterio:', error);
+    res.status(500).json({ error: 'Error al registrar indicador' });
   }
 });
 
