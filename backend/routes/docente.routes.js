@@ -3312,13 +3312,16 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
       }
     }
 
+    // Puntaje mayor por letra para promediar: AD=20, A=19, B=18, C=17
+    const PUNTAJES_LETRAS = { AD: 20, A: 19, B: 18, C: 17 };
     const letraANumero = (letra) => {
       if (!letra || typeof letra !== 'string') return null;
       const ln = String(letra).trim().toUpperCase();
+      if (PUNTAJES_LETRAS[ln] !== undefined) return PUNTAJES_LETRAS[ln];
       for (const r of rangosLetras) {
         if ((r.letra || '').toUpperCase() === ln && r.rango) {
           const [a, b] = r.rango.split('-').map(Number);
-          if (!isNaN(a) && !isNaN(b)) return (a + b) / 2;
+          if (!isNaN(a) && !isNaN(b)) return Math.max(a, b);
         }
       }
       return null;
@@ -3326,6 +3329,11 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
     const numeroALetra = (num) => {
       if (num == null || isNaN(num)) return null;
       const n = parseFloat(num);
+      const rounded = Math.round(n);
+      if (rounded >= 20) return 'AD';
+      if (rounded >= 19) return 'A';
+      if (rounded >= 18) return 'B';
+      if (rounded >= 17) return 'C';
       for (const r of rangosLetras) {
         if (!r.rango) continue;
         const [a, b] = r.rango.split('-').map(Number);

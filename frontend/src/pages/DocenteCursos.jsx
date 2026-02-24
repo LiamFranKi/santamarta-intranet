@@ -1753,13 +1753,16 @@ function DocenteCursos() {
   const esCualitativa = datosNotas?.curso?.nivel?.tipo_calificacion === 0;
   const rangosLetras = datosNotas?.rangos_letras_primaria || [];
 
+  // Puntaje mayor por letra para promediar: AD=20, A=19, B=18, C=17
+  const PUNTAJES_LETRAS = { AD: 20, A: 19, B: 18, C: 17 };
   const letraANumero = (letra) => {
     if (!letra || typeof letra !== 'string') return null;
     const letraNorm = String(letra).trim().toUpperCase();
+    if (PUNTAJES_LETRAS[letraNorm] !== undefined) return PUNTAJES_LETRAS[letraNorm];
     for (const r of rangosLetras) {
       if ((r.letra || '').toUpperCase() === letraNorm && r.rango) {
         const [min, max] = r.rango.split('-').map(Number);
-        if (!isNaN(min) && !isNaN(max)) return (min + max) / 2;
+        if (!isNaN(min) && !isNaN(max)) return Math.max(min, max);
       }
     }
     return null;
@@ -1768,6 +1771,11 @@ function DocenteCursos() {
   const numeroALetra = (num) => {
     if (num === null || num === undefined || isNaN(num)) return null;
     const n = parseFloat(num);
+    const rounded = Math.round(n);
+    if (rounded >= 20) return 'AD';
+    if (rounded >= 19) return 'A';
+    if (rounded >= 18) return 'B';
+    if (rounded >= 17) return 'C';
     for (const r of rangosLetras) {
       if (!r.rango) continue;
       const [min, max] = r.rango.split('-').map(Number);
