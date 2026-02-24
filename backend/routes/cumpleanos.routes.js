@@ -165,11 +165,13 @@ router.get('/', async (req, res) => {
     // Ordenar por día del mes
     resultado.sort((a, b) => (a.dia || 0) - (b.dia || 0));
 
-    // Formatear fecha para mostrar (ej: "01 de Febrero")
+    // Formatear fecha para mostrar (ej: "01 de Febrero") - usar dia de SQL para evitar NaN con formatos MySQL
     const mesNombre = MESES[mes - 1];
     const cumpleanos = resultado.map(r => {
-      const d = r.fecha ? new Date(r.fecha + 'T12:00:00') : null;
-      const diaStr = d ? String(d.getDate()).padStart(2, '0') : '--';
+      const diaNum = r.dia != null && !isNaN(Number(r.dia)) ? parseInt(r.dia, 10) : null;
+      const diaStr = (diaNum != null && diaNum >= 1 && diaNum <= 31)
+        ? String(diaNum).padStart(2, '0')
+        : '--';
       return {
         id: r.id,
         fecha: `${diaStr} de ${mesNombre}`,
