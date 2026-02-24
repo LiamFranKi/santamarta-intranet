@@ -3065,6 +3065,34 @@ router.get('/cursos/:cursoId/notas', async (req, res) => {
 
     const cursoInfo = asignatura[0];
 
+    // Si es Cualitativa (INICIAL), obtener tabla de conversión letras
+    let rangosLetrasPrimaria = [];
+    if (cursoInfo.tipo_calificacion === 0) {
+      try {
+        const colegioData = await query(
+          `SELECT rangos_letras_primaria FROM colegios WHERE id = ?`,
+          [colegio_id]
+        );
+        if (colegioData[0]?.rangos_letras_primaria) {
+          const phpSerialize = require('php-serialize');
+          const buffer = Buffer.from(colegioData[0].rangos_letras_primaria, 'base64');
+          const deserialized = phpSerialize.unserialize(buffer);
+          rangosLetrasPrimaria = Array.isArray(deserialized) ? deserialized
+            : (typeof deserialized === 'object' && deserialized !== null ? Object.values(deserialized) : []);
+        }
+      } catch (e) {
+        console.warn('Error deserializando rangos_letras_primaria:', e.message);
+      }
+      if (rangosLetrasPrimaria.length === 0) {
+        rangosLetrasPrimaria = [
+          { rango: '19-20', letra: 'AD' },
+          { rango: '13-18', letra: 'A' },
+          { rango: '11-12', letra: 'B' },
+          { rango: '0-10', letra: 'C' }
+        ];
+      }
+    }
+
     // Obtener criterios del curso para este ciclo (ciclo = 0 significa todos los ciclos)
     const criterios = await query(
       `SELECT * FROM asignaturas_criterios
@@ -3220,7 +3248,8 @@ router.get('/cursos/:cursoId/notas', async (req, res) => {
       },
       criterios: criteriosConIndicadores,
       alumnos: alumnosConNotas,
-      ciclo: cicloInt
+      ciclo: cicloInt,
+      rangos_letras_primaria: cursoInfo.tipo_calificacion === 0 ? rangosLetrasPrimaria : []
     });
   } catch (error) {
     console.error('Error obteniendo notas del curso:', error);
@@ -3265,6 +3294,45 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
     }
 
     const cursoInfo = asignatura[0];
+    const esCualitativa = cursoInfo.tipo_calificacion === 0;
+
+    let rangosLetras = [];
+    if (esCualitativa) {
+      try {
+        const colegioData = await query(`SELECT rangos_letras_primaria FROM colegios WHERE id = ?`, [colegio_id]);
+        if (colegioData[0]?.rangos_letras_primaria) {
+          const phpSerialize = require('php-serialize');
+          const buffer = Buffer.from(colegioData[0].rangos_letras_primaria, 'base64');
+          const deserialized = phpSerialize.unserialize(buffer);
+          rangosLetras = Array.isArray(deserialized) ? deserialized : (typeof deserialized === 'object' && deserialized ? Object.values(deserialized) : []);
+        }
+      } catch (e) { /* ignore */ }
+      if (rangosLetras.length === 0) {
+        rangosLetras = [{ rango: '19-20', letra: 'AD' }, { rango: '13-18', letra: 'A' }, { rango: '11-12', letra: 'B' }, { rango: '0-10', letra: 'C' }];
+      }
+    }
+
+    const letraANumero = (letra) => {
+      if (!letra || typeof letra !== 'string') return null;
+      const ln = String(letra).trim().toUpperCase();
+      for (const r of rangosLetras) {
+        if ((r.letra || '').toUpperCase() === ln && r.rango) {
+          const [a, b] = r.rango.split('-').map(Number);
+          if (!isNaN(a) && !isNaN(b)) return (a + b) / 2;
+        }
+      }
+      return null;
+    };
+    const numeroALetra = (num) => {
+      if (num == null || isNaN(num)) return null;
+      const n = parseFloat(num);
+      for (const r of rangosLetras) {
+        if (!r.rango) continue;
+        const [a, b] = r.rango.split('-').map(Number);
+        if (!isNaN(a) && !isNaN(b) && n >= a && n <= b) return r.letra || null;
+      }
+      return null;
+    };
 
     // Obtener criterios del curso
     const criterios = await query(
@@ -3329,39 +3397,48 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
 
             if (!notasIndicador || !Array.isArray(notasIndicador)) continue;
 
-            // Filtrar notas válidas (no vacías)
-            const notasValidas = notasIndicador
-              .map(n => {
-                const nota = parseFloat(n);
-                return isNaN(nota) ? null : nota;
-              })
-              .filter(n => n !== null);
-
-            if (notasValidas.length > 0) {
-              dataNotas[criterioId][indicadorId] = notasIndicador;
-
-              // Calcular promedio del indicador
-              const promedioIndicador = Math.round(
-                notasValidas.reduce((sum, n) => sum + n, 0) / notasValidas.length
-              );
-              promediosIndicadores.push(promedioIndicador);
+            if (esCualitativa && rangosLetras.length > 0) {
+              const numeros = notasIndicador.map(n => letraANumero(n)).filter(x => x !== null);
+              if (numeros.length > 0) {
+                dataNotas[criterioId][indicadorId] = notasIndicador;
+                const prom = numeros.reduce((s, x) => s + x, 0) / numeros.length;
+                promediosIndicadores.push(numeroALetra(prom));
+              }
+            } else {
+              const notasValidas = notasIndicador
+                .map(n => { const nota = parseFloat(n); return isNaN(nota) ? null : nota; })
+                .filter(n => n !== null);
+              if (notasValidas.length > 0) {
+                dataNotas[criterioId][indicadorId] = notasIndicador;
+                const promedioIndicador = Math.round(notasValidas.reduce((sum, n) => sum + n, 0) / notasValidas.length);
+                promediosIndicadores.push(promedioIndicador);
+              }
             }
           }
 
           // Calcular promedio del criterio (promedio de los promedios de indicadores)
           if (promediosIndicadores.length > 0) {
-            const promedioCriterio = Math.round(
-              promediosIndicadores.reduce((sum, p) => sum + p, 0) / promediosIndicadores.length
-            );
-            promediosCriterios[criterioId] = promedioCriterio.toString();
+            if (esCualitativa && rangosLetras.length > 0) {
+              const nums = promediosIndicadores.map(p => typeof p === 'string' ? letraANumero(p) : p).filter(x => x !== null);
+              if (nums.length > 0) {
+                const prom = nums.reduce((s, x) => s + x, 0) / nums.length;
+                promediosCriterios[criterioId] = numeroALetra(prom);
+              }
+            } else {
+              const promedioCriterio = Math.round(
+                promediosIndicadores.reduce((sum, p) => sum + p, 0) / promediosIndicadores.length
+              );
+              promediosCriterios[criterioId] = promedioCriterio.toString();
+            }
           }
         } else {
-          // No hay indicadores: la nota se ingresa directamente
           const notaDirecta = notasCriterio.directa || notasCriterio[0];
           if (notaDirecta && notaDirecta !== '') {
-            const nota = parseFloat(notaDirecta);
-            if (!isNaN(nota)) {
-              promediosCriterios[criterioId] = Math.round(nota).toString();
+            if (esCualitativa) {
+              promediosCriterios[criterioId] = String(notaDirecta).trim().toUpperCase();
+            } else {
+              const nota = parseFloat(notaDirecta);
+              if (!isNaN(nota)) promediosCriterios[criterioId] = Math.round(nota).toString();
             }
           }
         }
@@ -3512,34 +3589,32 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
         let promedioFinal = null;
 
         if (notasFinales.length > 0) {
-          if (cursoInfo.tipo_calificacion_final === 1) {
-            // Porcentual: sumar (nota × peso / 100)
+          if (esCualitativa && rangosLetras.length > 0) {
+            const numeros = notasFinales.map(n => letraANumero(n.nota)).filter(x => x !== null);
+            if (numeros.length > 0) {
+              const prom = numeros.reduce((s, x) => s + x, 0) / numeros.length;
+              promedioFinal = numeroALetra(prom);
+            }
+          } else if (cursoInfo.tipo_calificacion_final === 1) {
             let sumaPonderada = 0;
             let sumaPesos = 0;
-
             for (const notaRow of notasFinales) {
               const nota = parseFloat(notaRow.nota);
               const peso = parseFloat(notaRow.peso) || 0;
-              
               if (!isNaN(nota) && peso > 0) {
                 sumaPonderada += (nota * peso / 100);
                 sumaPesos += peso;
               }
             }
-
             if (sumaPesos > 0) {
-              if (Math.abs(sumaPesos - 100) < 0.01) {
-                promedioFinal = Math.round(sumaPonderada);
-              } else {
-                promedioFinal = Math.round((sumaPonderada / sumaPesos) * 100);
-              }
+              promedioFinal = Math.abs(sumaPesos - 100) < 0.01
+                ? Math.round(sumaPonderada)
+                : Math.round((sumaPonderada / sumaPesos) * 100);
             }
           } else {
-            // Promedio simple
             const notasValidas = notasFinales
               .map(n => parseFloat(n.nota))
               .filter(n => !isNaN(n));
-
             if (notasValidas.length > 0) {
               promedioFinal = Math.round(
                 notasValidas.reduce((sum, n) => sum + n, 0) / notasValidas.length
@@ -3547,8 +3622,8 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
             }
           }
 
-          // Agregar examen mensual si aplica
-          if (cursoInfo.examen_mensual === 'SI' && promedioFinal !== null) {
+          // Agregar examen mensual si aplica (solo para calificación numérica)
+          if (!esCualitativa && cursoInfo.examen_mensual === 'SI' && promedioFinal !== null && typeof promedioFinal === 'number') {
             const examenesAlumno = examenesPorAlumno[matriculaIdInt] || [];
             if (examenesAlumno.length > 0) {
               const notasExamenes = examenesAlumno.map(e => parseFloat(e.nota)).filter(n => !isNaN(n));

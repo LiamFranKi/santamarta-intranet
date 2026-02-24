@@ -1749,6 +1749,40 @@ function DocenteCursos() {
     setForceUpdate(prev => prev + 1);
   };
 
+  // Helpers para Cualitativa (letras): convertir letra<->número usando rangos
+  const esCualitativa = datosNotas?.curso?.nivel?.tipo_calificacion === 0;
+  const rangosLetras = datosNotas?.rangos_letras_primaria || [];
+
+  const letraANumero = (letra) => {
+    if (!letra || typeof letra !== 'string') return null;
+    const letraNorm = String(letra).trim().toUpperCase();
+    for (const r of rangosLetras) {
+      if ((r.letra || '').toUpperCase() === letraNorm && r.rango) {
+        const [min, max] = r.rango.split('-').map(Number);
+        if (!isNaN(min) && !isNaN(max)) return (min + max) / 2;
+      }
+    }
+    return null;
+  };
+
+  const numeroALetra = (num) => {
+    if (num === null || num === undefined || isNaN(num)) return null;
+    const n = parseFloat(num);
+    for (const r of rangosLetras) {
+      if (!r.rango) continue;
+      const [min, max] = r.rango.split('-').map(Number);
+      if (!isNaN(min) && !isNaN(max) && n >= min && n <= max) return r.letra || null;
+    }
+    return null;
+  };
+
+  const esLetraValida = (val) => {
+    if (!val || typeof val !== 'string') return false;
+    const letraNorm = String(val).trim().toUpperCase();
+    if (letraNorm === '') return true;
+    return rangosLetras.some(r => (r.letra || '').toUpperCase() === letraNorm);
+  };
+
   // Calcular promedio de un indicador (usa notasEditadas si existe; si no, datos originales)
   const calcularPromedioIndicador = (matriculaId, criterioId, indicadorId) => {
     let notas = notasEditadas[matriculaId]?.[criterioId]?.[indicadorId];
@@ -1757,12 +1791,16 @@ function DocenteCursos() {
       notas = alumno?.notas_detalladas?.[criterioId]?.[indicadorId];
     }
     if (!Array.isArray(notas)) notas = [];
+    if (esCualitativa && rangosLetras.length > 0) {
+      const numeros = notas.map(n => letraANumero(n)).filter(x => x !== null);
+      if (numeros.length === 0) return null;
+      const prom = numeros.reduce((s, x) => s + x, 0) / numeros.length;
+      return numeroALetra(prom);
+    }
     const notasValidas = notas
       .map(n => parseFloat(n))
       .filter(n => !isNaN(n) && n !== null && n !== '');
-    
     if (notasValidas.length === 0) return null;
-    
     return Math.round(notasValidas.reduce((sum, n) => sum + n, 0) / notasValidas.length);
   };
 
@@ -1778,24 +1816,28 @@ function DocenteCursos() {
       
       if (promediosIndicadores.length === 0) return null;
       
+      if (esCualitativa && rangosLetras.length > 0) {
+        const numeros = promediosIndicadores.map(p => letraANumero(p)).filter(x => x !== null);
+        if (numeros.length === 0) return null;
+        const prom = numeros.reduce((s, x) => s + x, 0) / numeros.length;
+        return numeroALetra(prom);
+      }
       return Math.round(
         promediosIndicadores.reduce((sum, p) => sum + p, 0) / promediosIndicadores.length
       );
     } else {
-      // Si no hay indicadores, usar la nota directa
-      // Si hay una entrada en notasEditadas (incluso vacía), usar solo esa
       if (notasEditadas[matriculaId]?.[criterioId] && 'directa' in notasEditadas[matriculaId][criterioId]) {
         const notaDirecta = notasEditadas[matriculaId][criterioId].directa;
         if (notaDirecta && notaDirecta !== '') {
+          if (esCualitativa) return notaDirecta.trim().toUpperCase();
           const nota = parseFloat(notaDirecta);
           return !isNaN(nota) ? Math.round(nota) : null;
         }
-        // Si está vacía, retornar null (no buscar en datos originales)
         return null;
       }
-      // Si no hay en notasEditadas, buscar en los datos originales
       const alumno = datosNotas?.alumnos?.find(a => a.matricula_id === matriculaId);
       if (alumno?.notas_criterios?.[criterioId]) {
+        if (esCualitativa) return String(alumno.notas_criterios[criterioId]).trim().toUpperCase();
         const nota = parseFloat(alumno.notas_criterios[criterioId]);
         return !isNaN(nota) ? Math.round(nota) : null;
       }
@@ -1866,7 +1908,14 @@ function DocenteCursos() {
         .filter(p => p !== null);
 
       if (promediosCriterios.length > 0) {
-        let suma = promediosCriterios.reduce((sum, p) => sum + p, 0);
+        if (esCualitativa && rangosLetras.length > 0) {
+          const numeros = promediosCriterios.map(p => typeof p === 'string' ? letraANumero(p) : p).filter(x => x !== null);
+          if (numeros.length > 0) {
+            const prom = numeros.reduce((s, x) => s + x, 0) / numeros.length;
+            return numeroALetra(prom);
+          }
+        }
+        let suma = promediosCriterios.reduce((sum, p) => sum + (typeof p === 'number' ? p : parseFloat(p) || 0), 0);
         let count = promediosCriterios.length;
 
         // Agregar examen mensual si aplica
@@ -4293,7 +4342,9 @@ function DocenteCursos() {
 
                     {/* Barra azul informativa */}
                     <div className="blue-bar-notas">
-                      Ingrese notas de: {datosNotas.curso.nivel.nota_minima} - {datosNotas.curso.nivel.nota_maxima}.
+                      {esCualitativa
+                        ? `Ingrese notas en letras (${rangosLetras.length > 0 ? rangosLetras.map(r => r.letra).join(', ') : 'A, B, C, AD'}).`
+                        : `Ingrese notas de: ${datosNotas.curso.nivel.nota_minima} - ${datosNotas.curso.nivel.nota_maxima}.`}
                     </div>
 
                     {/* Tabla de notas */}
@@ -4364,29 +4415,33 @@ function DocenteCursos() {
                                                 value={valor}
                                                 onChange={(e) => {
                                                   const nuevoValor = e.target.value;
-                                                  // Validar que sea un número entre nota_minima y nota_maxima
-                                                  if (nuevoValor === '' || 
-                                                      (!isNaN(nuevoValor) && 
+                                                  if (esCualitativa) {
+                                                    actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, nuevoValor);
+                                                  } else if (nuevoValor === '' || 
+                                                      (!isNaN(parseFloat(nuevoValor)) && 
                                                        parseFloat(nuevoValor) >= datosNotas.curso.nivel.nota_minima && 
                                                        parseFloat(nuevoValor) <= datosNotas.curso.nivel.nota_maxima)) {
                                                     actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, nuevoValor);
                                                   }
                                                 }}
                                                 onBlur={(e) => {
-                                                  // Formatear el valor al perder el foco
-                                                  const valor = parseFloat(e.target.value);
-                                                  if (!isNaN(valor)) {
-                                                    const valorFormateado = Math.round(valor).toString();
-                                                    actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, valorFormateado);
+                                                  if (esCualitativa) {
+                                                    const v = (e.target.value || '').trim().toUpperCase();
+                                                    if (v) actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, v);
+                                                  } else {
+                                                    const valor = parseFloat(e.target.value);
+                                                    if (!isNaN(valor)) {
+                                                      actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, Math.round(valor).toString());
+                                                    }
                                                   }
                                                 }}
-                                                placeholder=""
-                                                maxLength={2}
+                                                placeholder={esCualitativa ? 'A' : ''}
+                                                maxLength={esCualitativa ? 5 : 2}
                                               />
                                             );
                                           });
                                         })}
-                                        <div className={`box avg ${promedioCriterio !== null && promedioCriterio < datosNotas.curso.nivel.nota_aprobatoria ? 'below-min' : ''}`}>
+                                        <div className={`box avg ${promedioCriterio !== null && !esCualitativa && typeof promedioCriterio === 'number' && promedioCriterio < datosNotas.curso.nivel.nota_aprobatoria ? 'below-min' : ''}`}>
                                           {promedioCriterio !== null ? promedioCriterio : ''}
                                         </div>
                                       </div>
@@ -4402,8 +4457,17 @@ function DocenteCursos() {
                                           }
                                           onChange={(e) => {
                                             const nuevoValor = e.target.value;
-                                            if (nuevoValor === '' || 
-                                                (!isNaN(nuevoValor) && 
+                                            if (esCualitativa) {
+                                              setNotasEditadas(prev => {
+                                                const nuevo = { ...prev };
+                                                if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
+                                                if (!nuevo[alumno.matricula_id][criterio.id]) nuevo[alumno.matricula_id][criterio.id] = {};
+                                                nuevo[alumno.matricula_id][criterio.id].directa = nuevoValor;
+                                                return nuevo;
+                                              });
+                                              setForceUpdate(prev => prev + 1);
+                                            } else if (nuevoValor === '' || 
+                                                (!isNaN(parseFloat(nuevoValor)) && 
                                                  parseFloat(nuevoValor) >= datosNotas.curso.nivel.nota_minima && 
                                                  parseFloat(nuevoValor) <= datosNotas.curso.nivel.nota_maxima)) {
                                               setNotasEditadas(prev => {
@@ -4417,21 +4481,35 @@ function DocenteCursos() {
                                             }
                                           }}
                                           onBlur={(e) => {
-                                            const valor = parseFloat(e.target.value);
-                                            if (!isNaN(valor)) {
-                                              const valorFormateado = Math.round(valor).toString();
-                                              setNotasEditadas(prev => {
-                                                const nuevo = { ...prev };
-                                                if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
-                                                if (!nuevo[alumno.matricula_id][criterio.id]) nuevo[alumno.matricula_id][criterio.id] = {};
-                                                nuevo[alumno.matricula_id][criterio.id].directa = valorFormateado;
-                                                return nuevo;
-                                              });
-                                              setForceUpdate(prev => prev + 1);
+                                            if (esCualitativa) {
+                                              const v = (e.target.value || '').trim().toUpperCase();
+                                              if (v) {
+                                                setNotasEditadas(prev => {
+                                                  const nuevo = { ...prev };
+                                                  if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
+                                                  if (!nuevo[alumno.matricula_id][criterio.id]) nuevo[alumno.matricula_id][criterio.id] = {};
+                                                  nuevo[alumno.matricula_id][criterio.id].directa = v;
+                                                  return nuevo;
+                                                });
+                                                setForceUpdate(prev => prev + 1);
+                                              }
+                                            } else {
+                                              const valor = parseFloat(e.target.value);
+                                              if (!isNaN(valor)) {
+                                                const valorFormateado = Math.round(valor).toString();
+                                                setNotasEditadas(prev => {
+                                                  const nuevo = { ...prev };
+                                                  if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
+                                                  if (!nuevo[alumno.matricula_id][criterio.id]) nuevo[alumno.matricula_id][criterio.id] = {};
+                                                  nuevo[alumno.matricula_id][criterio.id].directa = valorFormateado;
+                                                  return nuevo;
+                                                });
+                                                setForceUpdate(prev => prev + 1);
+                                              }
                                             }
                                           }}
-                                          placeholder=""
-                                          maxLength={2}
+                                          placeholder={esCualitativa ? 'A' : ''}
+                                          maxLength={esCualitativa ? 5 : 2}
                                         />
                                       </div>
                                     )}
@@ -4511,7 +4589,8 @@ function DocenteCursos() {
                               <td>
                                 <div className={`box avg final ${(() => {
                                   const promedioFinal = calcularPromedioFinal(alumno.matricula_id);
-                                  return promedioFinal !== null && promedioFinal < datosNotas.curso.nivel.nota_aprobatoria ? 'below-min' : '';
+                                  if (esCualitativa) return '';
+                                  return promedioFinal !== null && typeof promedioFinal === 'number' && promedioFinal < datosNotas.curso.nivel.nota_aprobatoria ? 'below-min' : '';
                                 })()}`}>
                                   {(() => {
                                     const promedioFinal = calcularPromedioFinal(alumno.matricula_id);
