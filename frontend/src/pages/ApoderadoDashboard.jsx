@@ -259,7 +259,7 @@ function ApoderadoDashboard() {
       case 'examen':
         return 'Examen';
       case 'tarea':
-        return 'Tarea';
+        return 'Proyecto';
       case 'actividad':
         return 'Actividad';
       default:
@@ -362,7 +362,7 @@ function ApoderadoDashboard() {
                   if (evento.tipo === 'examen') {
                     titulo = evento.titulo || 'Examen';
                   } else if (evento.tipo === 'tarea') {
-                    titulo = evento.titulo || evento.descripcion || 'Tarea';
+                    titulo = evento.titulo || evento.descripcion || 'Proyecto';
                   } else if (evento.tipo === 'actividad') {
                     titulo = evento.descripcion || 'Actividad';
                   } else {

@@ -63,7 +63,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'No se pudieron cargar los detalles de la tarea'
+        text: 'No se pudieron cargar los detalles del proyecto'
       });
     }
   };
@@ -82,7 +82,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
       Swal.fire({
         icon: 'info',
         title: 'Solo lectura',
-        text: 'Como apoderado, solo puedes ver el contenido. El alumno debe entregar las tareas desde su cuenta.'
+        text: 'Como apoderado, solo puedes ver el contenido. El alumno debe entregar los proyectos desde su cuenta.'
       });
       return;
     }
@@ -393,7 +393,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
       <div className="card-content-expanded">
         {loading ? (
           <div className="empty-state">
-            <p>Cargando tareas...</p>
+            <p>Cargando proyectos...</p>
           </div>
         ) : tareasFiltradas.length > 0 ? (
           <table className="tabla-aula-virtual">
@@ -452,7 +452,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
           </table>
         ) : (
           <div className="empty-state">
-            <p>No hay tareas para este bimestre</p>
+            <p>No hay proyectos para este bimestre</p>
           </div>
         )}
       </div>
@@ -806,7 +806,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
               color: '#92400e',
               fontSize: '0.875rem'
             }}>
-              ⚠️ Modo solo lectura: Puedes ver todo el contenido, pero no puedes entregar tareas ni realizar exámenes. El alumno debe hacerlo desde su cuenta.
+              ⚠️ Modo solo lectura: Puedes ver todo el contenido, pero no puedes entregar proyectos ni realizar exámenes. El alumno debe hacerlo desde su cuenta.
             </div>
           )}
         </div>
@@ -850,9 +850,9 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
             <div className="card-header">
               <div className="card-icon">📝</div>
               <div className="card-info">
-                <h3 className="card-title">Tareas Virtuales</h3>
+                <h3 className="card-title">Proyectos</h3>
                 <p className="card-count">{tareas.filter(t => t.ciclo === bimestreGlobal).length}</p>
-                <p className="card-subtitle">Tareas asignadas</p>
+                <p className="card-subtitle">Proyectos asignados</p>
                         </div>
                     </div>
             {expandedCard === 'tareas' && renderCardContent('tareas')}
@@ -908,7 +908,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
         </div>
       </div>
       
-      {/* Modal de Detalles de Tarea */}
+      {/* Modal de Detalles del Proyecto */}
       {mostrarModalTarea && tareaDetalle && createPortal(
         <div
           style={{
@@ -940,7 +940,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2 style={{ margin: 0, color: '#374151', fontSize: '1.5rem' }}>Detalles de la Tarea</h2>
+              <h2 style={{ margin: 0, color: '#374151', fontSize: '1.5rem' }}>Detalles del Proyecto</h2>
               <button
                 onClick={cerrarModalTarea}
                 style={{

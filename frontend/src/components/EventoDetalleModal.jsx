@@ -52,7 +52,7 @@ function EventoDetalleModal({ evento, tipo, onClose }) {
         <div className={`evento-detalle-modal-header evento-tipo-${tipo}`}>
           <h2>
             {tipo === 'examen' && '📋 Examen'}
-            {tipo === 'tarea' && '📝 Tarea'}
+            {tipo === 'tarea' && '📝 Proyecto'}
             {tipo === 'actividad' && '📅 Actividad'}
           </h2>
           <button className="evento-detalle-modal-close" onClick={onClose}>✕</button>
@@ -66,7 +66,7 @@ function EventoDetalleModal({ evento, tipo, onClose }) {
               <strong>Título:</strong>
               <span>
                 {tipo === 'examen' && (evento.titulo || 'Examen')}
-                {tipo === 'tarea' && (evento.titulo || evento.descripcion || 'Tarea')}
+                {tipo === 'tarea' && (evento.titulo || evento.descripcion || 'Proyecto')}
                 {tipo === 'actividad' && (evento.descripcion || 'Actividad')}
               </span>
             </div>

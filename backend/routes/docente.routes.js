@@ -61,7 +61,7 @@ async function crearNotificacionesAulaVirtual(params) {
         mensajeNotificacion = `Curso: ${curso_nombre} - Tema: ${nombre} - Docente: ${nombreDocente}`;
         break;
       case 'tarea':
-        tituloNotificacion = 'Nueva Tarea';
+        tituloNotificacion = 'Nuevo Proyecto';
         const fechaEntregaTexto = fecha_entrega ? ` - Fecha de entrega: ${fecha_entrega}` : '';
         mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}${fechaEntregaTexto}`;
         break;
@@ -13806,7 +13806,7 @@ router.put('/aula-virtual/tareas/:tareaId/entregas/:matriculaId/nota', async (re
               usuario_id: usuario_id,
               colegio_id: colegio_id,
               anio_activo: anio_activo,
-              tituloNotificacion: 'Nota de Tarea Asignada',
+              tituloNotificacion: 'Nota de Proyecto Asignada',
               mensajeNotificacion: `${alumno_nombre} recibió nota ${nota.trim()} en la tarea "${tarea_titulo}" - Curso: ${curso_nombre} - Docente: ${docente_nombre}`,
               tipoNotificacion: 'nota_tarea',
               dataExtra: {
@@ -18874,19 +18874,19 @@ async function verificarTareasPorVencer() {
         if (diasRestantes === 0) {
           // Se vence hoy
           tipoNotificacion = 'HOY';
-          mensajeNotificacion = `⚠️ La tarea "${tarea.titulo}" se vence HOY - Curso: ${tarea.curso_nombre}`;
+          mensajeNotificacion = `⚠️ El proyecto "${tarea.titulo}" se vence HOY - Curso: ${tarea.curso_nombre}`;
         } else if (diasRestantes === 1) {
           // Falta 1 día
           tipoNotificacion = '1_DIA';
-          mensajeNotificacion = `⏰ La tarea "${tarea.titulo}" se vence MAÑANA - Curso: ${tarea.curso_nombre}`;
+          mensajeNotificacion = `⏰ El proyecto "${tarea.titulo}" se vence MAÑANA - Curso: ${tarea.curso_nombre}`;
         } else if (diasRestantes === 2) {
           // Faltan 2 días
           tipoNotificacion = '2_DIAS';
-          mensajeNotificacion = `📅 La tarea "${tarea.titulo}" se vence en 2 DÍAS - Curso: ${tarea.curso_nombre}`;
+          mensajeNotificacion = `📅 El proyecto "${tarea.titulo}" se vence en 2 DÍAS - Curso: ${tarea.curso_nombre}`;
         } else if (diasRestantes === 3) {
           // Faltan 3 días
           tipoNotificacion = '3_DIAS';
-          mensajeNotificacion = `📅 La tarea "${tarea.titulo}" se vence en 3 DÍAS - Curso: ${tarea.curso_nombre}`;
+          mensajeNotificacion = `📅 El proyecto "${tarea.titulo}" se vence en 3 DÍAS - Curso: ${tarea.curso_nombre}`;
         }
         
         // Si no corresponde a ninguna notificación, saltar
@@ -18992,13 +18992,13 @@ async function verificarTareasPorVencer() {
         // Preparar título de notificación
         let tituloNotificacion = '';
         if (tipoNotificacion === 'HOY') {
-          tituloNotificacion = 'Tarea se vence HOY';
+          tituloNotificacion = 'Proyecto se vence HOY';
         } else if (tipoNotificacion === '1_DIA') {
-          tituloNotificacion = 'Tarea se vence MAÑANA';
+          tituloNotificacion = 'Proyecto se vence MAÑANA';
         } else if (tipoNotificacion === '2_DIAS') {
-          tituloNotificacion = 'Tarea se vence en 2 DÍAS';
+          tituloNotificacion = 'Proyecto se vence en 2 DÍAS';
         } else if (tipoNotificacion === '3_DIAS') {
-          tituloNotificacion = 'Tarea se vence en 3 DÍAS';
+          tituloNotificacion = 'Proyecto se vence en 3 DÍAS';
         }
         
         console.log(`📅 [TAREAS POR VENCER] Enviando notificaciones para tarea "${tarea.titulo}" (${tipoNotificacion}) a ${todosDestinatarios.length} destinatarios`);
@@ -19278,8 +19278,8 @@ async function verificarTareasVencidasSinEntrega() {
           continue;
         }
 
-        const tituloNotificacion = 'Tarea vencida sin entrega';
-        const mensajeNotificacion = `⚠️ Su hijo(a) no entregó la tarea "${tarea.titulo}" dentro del plazo. Se le asignó nota 0. - Curso: ${tarea.curso_nombre}`;
+        const tituloNotificacion = 'Proyecto vencido sin entrega';
+        const mensajeNotificacion = `⚠️ Su hijo(a) no entregó el proyecto "${tarea.titulo}" dentro del plazo. Se le asignó nota 0. - Curso: ${tarea.curso_nombre}`;
 
         for (const destinatarioId of apoderadoUsuarioIds) {
           try {

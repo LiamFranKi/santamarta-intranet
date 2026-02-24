@@ -2720,7 +2720,7 @@ function DocenteCursos() {
         title: '¡Éxito!',
         html: `Contenido copiado correctamente.<br>
                <strong>Temas:</strong> ${response.data.copiados.temas}<br>
-               <strong>Tareas:</strong> ${response.data.copiados.tareas}<br>
+               <strong>Proyectos:</strong> ${response.data.copiados.tareas}<br>
                <strong>Exámenes:</strong> ${response.data.copiados.examenes}<br>
                <strong>Videos:</strong> ${response.data.copiados.videos}<br>
                <strong>Enlaces:</strong> ${response.data.copiados.enlaces}`,
@@ -4804,10 +4804,10 @@ function DocenteCursos() {
                       </div>
                     </div>
 
-                    {/* Selector de Tareas Virtuales */}
+                    {/* Selector de Proyectos */}
                     <div className="form-group-copiar">
                       <label htmlFor="tareas-id" className="form-label-copiar">
-                        📝 Tareas Virtuales
+                        📝 Proyectos
                       </label>
                       <div className="checkbox-list-container">
                         {datosCopiarContenido.tareas.length > 0 ? (
@@ -4857,7 +4857,7 @@ function DocenteCursos() {
                             </div>
                           </>
                         ) : (
-                          <p className="empty-list-text">No hay tareas disponibles</p>
+                          <p className="empty-list-text">No hay proyectos disponibles</p>
                         )}
                       </div>
                     </div>

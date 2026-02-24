@@ -77,7 +77,7 @@ function obtenerAccion(method, path) {
 function obtenerModulo(path) {
   if (path.includes('/auth')) return 'AUTENTICACION';
   if (path.includes('/examen')) return 'EXAMENES';
-  if (path.includes('/tarea')) return 'TAREAS';
+  if (path.includes('/tarea')) return 'PROYECTOS';
   if (path.includes('/tema')) return 'TEMAS';
   if (path.includes('/calificacion') || path.includes('/nota')) return 'CALIFICACIONES';
   if (path.includes('/colegio')) return 'CONFIGURACION';
@@ -115,14 +115,14 @@ function generarDescripcion(req) {
   
   if (method === 'POST') {
     if (path.includes('/examen')) return 'Creó un examen';
-    if (path.includes('/tarea')) return 'Creó una tarea';
+    if (path.includes('/tarea')) return 'Creó un proyecto';
     if (path.includes('/tema')) return 'Creó un tema';
     return `Creó recurso en ${path}`;
   }
   
   if (method === 'PUT' || method === 'PATCH') {
     if (path.includes('/examen')) return `Editó examen ID ${params.id}`;
-    if (path.includes('/tarea')) return `Editó tarea ID ${params.id}`;
+    if (path.includes('/tarea')) return `Editó proyecto ID ${params.id}`;
     if (path.includes('/tema')) return `Editó tema ID ${params.id}`;
     return `Editó recurso en ${path}`;
   }

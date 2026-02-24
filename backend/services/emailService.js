@@ -174,7 +174,7 @@ function obtenerIconoYColor(titulo) {
   // Detectar tipo por palabras clave o emojis
   if (tituloLower.includes('nueva publicación') || tituloLower.includes('publicación')) {
     return { icono: '📢', color: '#3b82f6' }; // Azul
-  } else if (tituloLower.includes('nueva tarea') || tituloLower.includes('tarea')) {
+  } else if (tituloLower.includes('nuevo proyecto') || tituloLower.includes('proyecto') || tituloLower.includes('nueva tarea') || tituloLower.includes('tarea')) {
     return { icono: '📝', color: '#10b981' }; // Verde
   } else if (tituloLower.includes('examen activado') || tituloLower.includes('nuevo examen') || tituloLower.includes('examen finalizado')) {
     return { icono: '📚', color: '#8b5cf6' }; // Morado
@@ -190,7 +190,7 @@ function obtenerIconoYColor(titulo) {
     return { icono: '⚠️', color: '#f59e0b' }; // Naranja
   } else if (tituloLower.includes('nota de tarea')) {
     return { icono: '📝', color: '#10b981' }; // Verde
-  } else if (tituloLower.includes('tarea se vence')) {
+  } else if (tituloLower.includes('proyecto se vence') || tituloLower.includes('tarea se vence')) {
     if (tituloLower.includes('hoy')) {
       return { icono: '⚠️', color: '#ef4444' }; // Rojo
     } else if (tituloLower.includes('mañana')) {

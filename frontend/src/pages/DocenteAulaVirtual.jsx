@@ -224,7 +224,7 @@ function DocenteAulaVirtual() {
 
   const BIBLIOTECA_CONFIG = {
     temas: { api: 'biblioteca-temas', copyApi: 'copiar-temas-biblioteca', titulo: 'Biblioteca de Temas', labelItem: 'nombre', useCopyTemas: true },
-    tareas: { api: 'biblioteca-tareas', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Tareas', labelItem: 'titulo', useCopyTemas: false },
+    tareas: { api: 'biblioteca-tareas', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Proyectos', labelItem: 'titulo', useCopyTemas: false },
     examenes: { api: 'biblioteca-examenes', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Exámenes', labelItem: 'titulo', useCopyTemas: false },
     videos: { api: 'biblioteca-videos', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Videos', labelItem: 'descripcion', useCopyTemas: false },
     enlaces: { api: 'biblioteca-enlaces', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Enlaces', labelItem: 'descripcion', useCopyTemas: false }
@@ -915,8 +915,8 @@ function DocenteAulaVirtual() {
         
         Swal.fire({
           icon: 'success',
-          title: '¡Tarea actualizada!',
-          text: 'La tarea se ha actualizado correctamente',
+          title: '¡Proyecto actualizado!',
+          text: 'El proyecto se ha actualizado correctamente',
           toast: true,
           position: 'top-end',
           showConfirmButton: false,
@@ -931,8 +931,8 @@ function DocenteAulaVirtual() {
 
         Swal.fire({
           icon: 'success',
-          title: '¡Tarea creada!',
-          text: 'La tarea se ha creado correctamente',
+          title: '¡Proyecto creado!',
+          text: 'El proyecto se ha creado correctamente',
           toast: true,
           position: 'top-end',
           showConfirmButton: false,
@@ -957,7 +957,7 @@ function DocenteAulaVirtual() {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: error.response?.data?.error || (tareaEditando ? 'No se pudo actualizar la tarea' : 'No se pudo crear la tarea'),
+        text: error.response?.data?.error || (tareaEditando ? 'No se pudo actualizar el proyecto' : 'No se pudo crear el proyecto'),
         toast: true,
         position: 'top-end',
         showConfirmButton: false,
@@ -1032,7 +1032,7 @@ function DocenteAulaVirtual() {
   const handleEliminarTarea = async (tarea) => {
     const result = await Swal.fire({
       title: '¿Estás seguro?',
-      text: `¿Deseas eliminar la tarea "${tarea.titulo}"?`,
+      text: `¿Deseas eliminar el proyecto "${tarea.titulo}"?`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
@@ -1047,8 +1047,8 @@ function DocenteAulaVirtual() {
         
         Swal.fire({
           icon: 'success',
-          title: '¡Tarea eliminada!',
-          text: 'La tarea se ha eliminado correctamente',
+          title: '¡Proyecto eliminado!',
+          text: 'El proyecto se ha eliminado correctamente',
           toast: true,
           position: 'top-end',
           showConfirmButton: false,
@@ -1062,7 +1062,7 @@ function DocenteAulaVirtual() {
         Swal.fire({
           icon: 'error',
           title: 'Error',
-          text: error.response?.data?.error || 'No se pudo eliminar la tarea',
+          text: error.response?.data?.error || 'No se pudo eliminar el proyecto',
           toast: true,
           position: 'top-end',
           showConfirmButton: false,
@@ -1407,7 +1407,7 @@ function DocenteAulaVirtual() {
 
       Swal.fire({
         icon: 'success',
-        title: '¡Tarea calificada!',
+        title: '¡Proyecto calificado!',
         text: 'La calificación se ha guardado correctamente',
         toast: true,
         position: 'top-end',
@@ -1425,7 +1425,7 @@ function DocenteAulaVirtual() {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: error.response?.data?.error || 'No se pudo calificar la tarea',
+        text: error.response?.data?.error || 'No se pudo calificar el proyecto',
         toast: true,
         position: 'top-end',
         showConfirmButton: false,
@@ -1536,7 +1536,7 @@ function DocenteAulaVirtual() {
     <div className="card-content-expanded">
       <div className="temas-toolbar">
         <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('tareas'); }}>
-          📖 Biblioteca de tareas
+          📖 Biblioteca de proyectos
         </button>
       </div>
       {/* Modal de Detalles de Tarea */}
@@ -1557,7 +1557,7 @@ function DocenteAulaVirtual() {
           >
             <div className="modal-tarea-detalle-header">
               <h2 id="modal-tarea-detalle-title">
-                📝 Detalles de la Tarea
+                📝 Detalles del Proyecto
               </h2>
               <button
                 className="modal-tarea-detalle-close"
@@ -1704,10 +1704,10 @@ function DocenteAulaVirtual() {
                             📋 Asignar a Registro
                           </a>
                           <a href="#" onClick={(e) => { e.preventDefault(); handleEditarTarea(tarea); }}>
-                            ✏️ Editar Tarea
+                            ✏️ Editar Proyecto
                           </a>
                           <a href="#" onClick={(e) => { e.preventDefault(); handleEliminarTarea(tarea); }}>
-                            🗑️ Borrar Tarea
+                            🗑️ Borrar Proyecto
                           </a>
                         </div>
                       </div>,
@@ -3099,12 +3099,12 @@ function DocenteAulaVirtual() {
             <div className="card-header">
               <div className="card-icon">📝</div>
               <div className="card-info">
-                <h3 className="card-title">Tareas Virtuales</h3>
+                <h3 className="card-title">Proyectos</h3>
                 <p className="card-count">{tareas.length}</p>
-                <p className="card-subtitle">Tareas asignadas</p>
+                <p className="card-subtitle">Proyectos asignados</p>
               </div>
               <div className="card-action-btns">
-                <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('tareas'); }} title="Ver tareas de años anteriores">
+                <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('tareas'); }} title="Ver proyectos de años anteriores">
                   📖 Biblioteca
                 </button>
                 <button className="card-action-btn" onClick={(e) => { e.stopPropagation(); setMostrarFormTarea(true); }}>
@@ -3260,7 +3260,7 @@ function DocenteAulaVirtual() {
             >
               <div className="modal-tema-header">
                 <h2 id="modal-tarea-title">
-                  {tareaEditando ? '✏️ Editar Tarea' : '📝 Registrar Tarea'}
+                  {tareaEditando ? '✏️ Editar Proyecto' : '📝 Registrar Proyecto'}
                 </h2>
                 <button
                   className="modal-tema-close"
@@ -3296,7 +3296,7 @@ function DocenteAulaVirtual() {
                       className="form-input"
                       value={formTarea.titulo}
                       onChange={(e) => setFormTarea({ ...formTarea, titulo: e.target.value })}
-                      placeholder="Ej: Tarea 1: Investigación sobre..."
+                      placeholder="Ej: Proyecto 1: Investigación sobre..."
                       required
                     />
                   </div>
