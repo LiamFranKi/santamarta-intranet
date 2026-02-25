@@ -2108,27 +2108,29 @@ function DocenteCursos() {
     doc.text('N°', margin + colN / 2, yPosition + 4, { align: 'center' });
     doc.text('APELLIDOS Y NOMBRES', margin + colN + colNombre / 2, yPosition + 4, { align: 'center' });
 
-    // Criterios - nombre arriba
+    // Criterios - INICIAL: abrev sin porcentaje; No-INICIAL: nombre completo + porcentaje
     xPos = margin + colN + colNombre;
     anchosCriterios.forEach(item => {
-      const nombreCriterio = doc.splitTextToSize(item.criterio.descripcion.toUpperCase(), item.ancho - 2);
-      doc.text(nombreCriterio[0] || item.criterio.descripcion.toUpperCase(), xPos + item.ancho / 2, yPosition + 3.5, { align: 'center' });
-      // Porcentaje abajo
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`(${item.criterio.peso}%)`, xPos + item.ancho / 2, yPosition + 8, { align: 'center' });
+      const abrev = (item.criterio.abreviatura || '').trim() || (item.criterio.descripcion || '').substring(0, 25).trim();
+      const textoCriterio = esCualitativa ? (abrev || item.criterio.descripcion) : item.criterio.descripcion;
+      const mostrarPeso = !esCualitativa && item.criterio.peso != null && item.criterio.peso > 0;
+      const nombreCriterio = doc.splitTextToSize(String(textoCriterio).toUpperCase(), item.ancho - 2);
+      doc.text(nombreCriterio[0] || String(textoCriterio).toUpperCase(), xPos + item.ancho / 2, yPosition + 3.5, { align: 'center' });
+      if (mostrarPeso) {
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`(${item.criterio.peso}%)`, xPos + item.ancho / 2, yPosition + 8, { align: 'center' });
+      }
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       xPos += item.ancho;
     });
 
-    // Examen Mensual (si aplica)
+    // Examen Mensual (si aplica) - INICIAL: EM sin %; No-INICIAL: EXAMEN MENSUAL (X%)
     if (datosNotas.curso.examen_mensual) {
-      const nombreExamen = doc.splitTextToSize('EXAMEN MENSUAL', anchoExamenMensual - 2);
-      doc.text(nombreExamen[0] || 'EXAMEN MENSUAL', xPos + anchoExamenMensual / 2, yPosition + 3.5, { align: 'center' });
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text(`(${datosNotas.curso.peso_examen_mensual}%)`, xPos + anchoExamenMensual / 2, yPosition + 8, { align: 'center' });
+      const textoEM = esCualitativa ? 'EM' : `EXAMEN MENSUAL (${datosNotas.curso.peso_examen_mensual}%)`;
+      const nombreExamen = doc.splitTextToSize(textoEM, anchoExamenMensual - 2);
+      doc.text(nombreExamen[0] || textoEM, xPos + anchoExamenMensual / 2, yPosition + 4, { align: 'center' });
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       xPos += anchoExamenMensual;
@@ -2190,21 +2192,24 @@ function DocenteCursos() {
         doc.text('APELLIDOS Y NOMBRES', margin + colN + colNombre / 2, yPosition + 4, { align: 'center' });
         xPos = margin + colN + colNombre;
         anchosCriterios.forEach(item => {
-          const nombreCriterio = doc.splitTextToSize(item.criterio.descripcion.toUpperCase(), item.ancho - 2);
-          doc.text(nombreCriterio[0] || item.criterio.descripcion.toUpperCase(), xPos + item.ancho / 2, yPosition + 3.5, { align: 'center' });
-          doc.setFontSize(8);
-          doc.setFont('helvetica', 'normal');
-          doc.text(`(${item.criterio.peso}%)`, xPos + item.ancho / 2, yPosition + 8, { align: 'center' });
+          const abrev = (item.criterio.abreviatura || '').trim() || (item.criterio.descripcion || '').substring(0, 25).trim();
+          const textoCriterio = esCualitativa ? (abrev || item.criterio.descripcion) : item.criterio.descripcion;
+          const mostrarPeso = !esCualitativa && item.criterio.peso != null && item.criterio.peso > 0;
+          const nombreCriterio = doc.splitTextToSize(String(textoCriterio).toUpperCase(), item.ancho - 2);
+          doc.text(nombreCriterio[0] || String(textoCriterio).toUpperCase(), xPos + item.ancho / 2, yPosition + 3.5, { align: 'center' });
+          if (mostrarPeso) {
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`(${item.criterio.peso}%)`, xPos + item.ancho / 2, yPosition + 8, { align: 'center' });
+          }
           doc.setFontSize(9);
           doc.setFont('helvetica', 'bold');
           xPos += item.ancho;
         });
         if (datosNotas.curso.examen_mensual) {
-          const nombreExamen = doc.splitTextToSize('EXAMEN MENSUAL', anchoExamenMensual - 2);
-          doc.text(nombreExamen[0] || 'EXAMEN MENSUAL', xPos + anchoExamenMensual / 2, yPosition + 3.5, { align: 'center' });
-          doc.setFontSize(8);
-          doc.setFont('helvetica', 'normal');
-          doc.text(`(${datosNotas.curso.peso_examen_mensual}%)`, xPos + anchoExamenMensual / 2, yPosition + 8, { align: 'center' });
+          const textoEM = esCualitativa ? 'EM' : `EXAMEN MENSUAL (${datosNotas.curso.peso_examen_mensual}%)`;
+          const nombreExamen = doc.splitTextToSize(textoEM, anchoExamenMensual - 2);
+          doc.text(nombreExamen[0] || textoEM, xPos + anchoExamenMensual / 2, yPosition + 4, { align: 'center' });
           doc.setFontSize(9);
           doc.setFont('helvetica', 'bold');
           xPos += anchoExamenMensual;
@@ -4373,6 +4378,9 @@ function DocenteCursos() {
                             {datosNotas.criterios.map(criterio => {
                               const abrev = (criterio.abreviatura || '').trim() ||
                                 (criterio.descripcion || '').substring(0, 25).trim();
+                              // INICIAL: solo abreviatura, sin porcentaje. No-INICIAL: nombre completo + porcentaje
+                              const mostrarNombreCompleto = !esCualitativa;
+                              const mostrarPorcentaje = !esCualitativa && criterio.peso != null && criterio.peso > 0;
                               return (
                                 <th key={criterio.id}>
                                   <div className="th-criterio-content">
@@ -4380,14 +4388,19 @@ function DocenteCursos() {
                                       className="th-indicador-abrev"
                                       title={criterio.descripcion || abrev}
                                     >
-                                      {abrev || criterio.descripcion}
+                                      {mostrarNombreCompleto ? (criterio.descripcion || abrev) : (abrev || criterio.descripcion)}
+                                      {mostrarPorcentaje && ` (${criterio.peso}%)`}
                                     </span>
                                   </div>
                                 </th>
                               );
                             })}
                             {datosNotas.curso.examen_mensual && (
-                              <th>EXAMEN MENSUAL ({datosNotas.curso.peso_examen_mensual}%)</th>
+                              <th>
+                                {esCualitativa
+                                  ? 'EM'
+                                  : `EXAMEN MENSUAL (${datosNotas.curso.peso_examen_mensual}%)`}
+                              </th>
                             )}
                             <th>PROM.</th>
                           </tr>
