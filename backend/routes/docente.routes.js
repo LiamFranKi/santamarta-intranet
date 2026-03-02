@@ -1727,8 +1727,66 @@ router.get('/grupos/:grupoId/alumnos', async (req, res) => {
     res.json({ alumnos: alumnos || [] });
   } catch (error) {
     console.error('Error obteniendo alumnos:', error);
-    console.error('Stack:', error.stack);
-    res.status(500).json({ error: 'Error al obtener lista de alumnos' });
+    res.status(500).json({ error: 'Error al obtener alumnos' });
+  }
+});
+
+/**
+ * GET /api/docente/grupos/:grupoId/mensajes-historial
+ * Historial de mensajes enviados al grupo (Conexiones Familiares)
+ */
+router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, usuario_id, personal_id, anio_activo } = req.user;
+
+    if (!grupoId || !personal_id) {
+      return res.status(400).json({ error: 'Parámetros requeridos' });
+    }
+
+    // Verificar que el docente tiene acceso al grupo
+    const tieneAcceso = await query(
+      `SELECT 1 FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.personal_id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ? LIMIT 1`,
+      [personal_id, grupoId, colegio_id, anio_activo]
+    );
+
+    if (!tieneAcceso || tieneAcceso.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este grupo' });
+    }
+
+    // Obtener info del grupo
+    const grupoRow = await query(
+      `SELECT g.id, g.grado, g.seccion, n.nombre as nivel_nombre, t.nombre as turno_nombre
+       FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN turnos t ON t.id = g.turno_id
+       WHERE g.id = ? AND g.colegio_id = ?`,
+      [grupoId, colegio_id]
+    );
+    const grupo = grupoRow?.[0] || null;
+
+    // Obtener historial de mensajes_grupos (si la tabla existe)
+    let mensajes = [];
+    try {
+      mensajes = await query(
+        `SELECT id, asunto, mensaje, fecha_hora
+         FROM mensajes_grupos
+         WHERE grupo_id = ? AND remitente_id = ?
+         ORDER BY fecha_hora DESC`,
+        [grupoId, usuario_id]
+      );
+    } catch (mgErr) {
+      if (!mgErr.message || !mgErr.message.includes("doesn't exist")) {
+        console.warn('Error obteniendo mensajes_grupos:', mgErr.message);
+      }
+    }
+
+    res.json({ grupo, mensajes: mensajes || [] });
+  } catch (error) {
+    console.error('Error obteniendo historial de mensajes:', error);
+    res.status(500).json({ error: 'Error al obtener historial' });
   }
 });
 
@@ -11783,12 +11841,41 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               usuariosDestinatarios.push(al.usuario_id);
             }
           });
+
+          // Registrar en mensajes_grupos (historial Conexiones Familiares)
+          try {
+            for (const grupoId of gruposArray) {
+              await execute(
+                `INSERT INTO mensajes_grupos (remitente_id, grupo_id, asunto, mensaje, fecha_hora)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [usuario_id, grupoId, asunto, mensaje, new Date().toISOString().slice(0, 19).replace('T', ' ')]
+              );
+            }
+          } catch (err) {
+            console.warn('Error insertando en mensajes_grupos (tabla puede no existir):', err.message);
+          }
         }
 
         // Crear un mensaje para cada destinatario
         const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
         let mensajesInsertados = 0;
         const mensajesIds = []; // Para asociar archivos
+
+        // Registrar en mensajes_grupos (historial Conexiones Familiares) si se envió a grupos
+        if (gruposArray && gruposArray.length > 0) {
+          try {
+            for (const grupoId of gruposArray) {
+              await execute(
+                `INSERT INTO mensajes_grupos (remitente_id, grupo_id, asunto, mensaje, fecha_hora)
+                 VALUES (?, ?, ?, ?, ?)`,
+                [usuario_id, grupoId, asunto, mensaje, fechaHora]
+              );
+              console.log(`📨 [MENSAJES_GRUPOS] Registro historial - grupo_id: ${grupoId}`);
+            }
+          } catch (mgErr) {
+            console.warn('⚠️ [MENSAJES_GRUPOS] Tabla mensajes_grupos puede no existir:', mgErr.message);
+          }
+        }
 
         // Insertar mensajes en la base de datos
         console.log(`📨 [ENVIAR MENSAJE] Procesando ${usuariosDestinatarios.length} destinatario(s)`);

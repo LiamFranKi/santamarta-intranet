@@ -626,17 +626,12 @@ function DocenteGrupos() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     e.preventDefault();
-                                    // Abrir modal de mensaje para el grupo
-                                    setGrupoParaMensaje(grupo);
-                                    setMostrarModalMensajeGrupo(true);
-                                    setAsuntoMensajeGrupo('');
-                                    setContenidoMensajeGrupo('');
-                                    setArchivosAdjuntosMensajeGrupo([]);
                                     setOpenDropdownGrupo(null);
+                                    navigate(`/docente/grupos/${grupo.id}/conexiones-familiares`, { state: { grupo } });
                                   }}
                                 >
-                                  <span className="dropdown-icon">✉️</span>
-                                  <span>Enviar Mensaje</span>
+                                  <span className="dropdown-icon">👨‍👩‍👧‍👦</span>
+                                  <span>Conexiones Familiares</span>
                                 </button>
                               </div>,
                               document.body

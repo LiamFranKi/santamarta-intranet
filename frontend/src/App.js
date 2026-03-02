@@ -10,6 +10,7 @@ import DocenteDashboard from './pages/DocenteDashboard';
 import DocentePerfil from './pages/DocentePerfil';
 import DocenteQR from './pages/DocenteQR';
 import DocenteGrupos from './pages/DocenteGrupos';
+import DocenteConexionesFamiliares from './pages/DocenteConexionesFamiliares';
 import DocenteCursos from './pages/DocenteCursos';
 import DocenteHorario from './pages/DocenteHorario';
 import DocenteComunicados from './pages/DocenteComunicados';
@@ -192,6 +193,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <DocenteGrupos />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/grupos/:grupoId/conexiones-familiares"
+        element={
+          <PrivateRoute>
+            <DocenteConexionesFamiliares />
           </PrivateRoute>
         }
       />
