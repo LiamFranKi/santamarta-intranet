@@ -11973,7 +11973,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           return;
         }
 
-        // Push notifications a destinatarios
+        // Push notifications a destinatarios (alumnos)
         try {
           if (usuariosDestinatarios.length > 0) {
             const subsData = await query(
@@ -11998,6 +11998,76 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           }
         } catch (pushErr) {
           console.error('❌ [MENSAJES] Error push:', pushErr);
+        }
+
+        // Si se envió a grupos (Conexiones Familiares): notificar a apoderados (BD + push + correo)
+        if (gruposArray && gruposArray.length > 0) {
+          try {
+            const apoderadosGrupo = await query(
+              `SELECT DISTINCT u.id as usuario_id, ap.email
+               FROM grupos g
+               INNER JOIN matriculas m ON m.grupo_id = g.id AND (m.estado = 0 OR m.estado = 4)
+               INNER JOIN alumnos a ON a.id = m.alumno_id
+               INNER JOIN familias f ON f.alumno_id = a.id
+               INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
+               INNER JOIN usuarios u ON u.apoderado_id = ap.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+               WHERE g.id IN (${gruposArray.map(() => '?').join(',')})`,
+              [colegio_id, colegio_id, ...gruposArray]
+            );
+            const apoderadosList = apoderadosGrupo || [];
+            const apoderadosUnicos = [];
+            const vistos = new Set();
+            for (const ap of apoderadosList) {
+              if (vistos.has(ap.usuario_id)) continue;
+              vistos.add(ap.usuario_id);
+              apoderadosUnicos.push(ap);
+            }
+            if (apoderadosUnicos.length > 0) {
+              const tituloNotif = 'Mensaje del docente al grupo';
+              const contenidoNotif = `Se ha enviado un mensaje al grupo: "${(asunto || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
+              for (const ap of apoderadosUnicos) {
+                try {
+                  await execute(
+                    `INSERT INTO notificaciones (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
+                     VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'ENVIADO')`,
+                    [usuario_id, ap.usuario_id, tituloNotif, contenidoNotif]
+                  );
+                } catch (insErr) {
+                  console.warn('Notificación BD apoderado:', insErr.message);
+                }
+              }
+              const apoderadoUsuarioIds = apoderadosUnicos.map(a => a.usuario_id);
+              const subsApod = await query(
+                `SELECT endpoint, p256dh, auth FROM push_subscriptions
+                 WHERE usuario_id IN (${apoderadoUsuarioIds.map(() => '?').join(',')})
+                   AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+                [...apoderadoUsuarioIds, colegio_id]
+              );
+              const subsApodList = (subsApod || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
+              if (subsApodList.length > 0) {
+                enviarPushNotificationMultiple(subsApodList, {
+                  title: 'Mensaje del docente',
+                  body: (asunto || 'Nuevo mensaje al grupo').substring(0, 60),
+                  icon: '/icons/icon-192x192.png',
+                  tag: `mensaje-grupo-${Date.now()}`,
+                  data: { url: '/apoderado/mensajes', tipo: 'mensaje' }
+                }).catch(err => console.error('❌ [MENSAJES] Push apoderados:', err));
+              }
+              for (const ap of apoderadosUnicos) {
+                if (ap.email && String(ap.email).trim()) {
+                  enviarCorreoNotificacion(
+                    ap.email.trim(),
+                    'Mensaje del docente al grupo',
+                    contenidoNotif,
+                    req.user.colegio_nombre || 'Vanguard Schools'
+                  ).catch(err => console.warn('Correo apoderado:', err?.message));
+                }
+              }
+              console.log(`📧 [MENSAJES] Notificados ${apoderadosUnicos.length} apoderado(s): BD + push + correo`);
+            }
+          } catch (errApod) {
+            console.error('❌ [MENSAJES] Error notificando apoderados:', errApod);
+          }
         }
 
         let mensajeRespuesta = `Mensaje enviado a ${usuariosDestinatarios.length} destinatario(s)`;
