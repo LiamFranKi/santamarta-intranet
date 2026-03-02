@@ -192,16 +192,16 @@
   position: fixed !important;
   background: white !important;
   border: 1px solid #d1d5db !important;
-  border-radius: 6px !important;
+  border-radius: 8px !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
-  min-width: 160px !important;
-  max-width: 200px !important;
+  min-width: 280px !important;
+  max-width: 360px !important;
+  padding: 0.5rem 0 !important;
   z-index: 10000 !important;
   overflow: hidden !important;
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
-  padding: 0.25rem 0 !important;
   pointer-events: auto !important;
   margin: 0 !important;
 }
@@ -221,6 +221,12 @@
 
 .dropdown-menu-grupo {
   z-index: 10001 !important;
+  min-width: 320px !important;
+  width: max-content !important;
+}
+.dropdown-menu-grupo .dropdown-item {
+  padding: 0.75rem 1.5rem 0.75rem 1.75rem !important;
+  padding-right: 2rem !important;
 }
 
 /* Asegurar que las celdas de la tabla permitan overflow */
@@ -233,17 +239,18 @@
 
 .dropdown-item {
   width: 100%;
-  padding: 0.5rem 0.75rem !important;
+  padding: 0.75rem 1.75rem !important;
+  min-width: 0 !important;
   border: none !important;
   background: white !important;
   color: #374151 !important;
   text-align: left !important;
   cursor: pointer !important;
-  font-size: 0.85rem !important;
+  font-size: 0.9rem !important;
   font-weight: 500 !important;
   display: flex !important;
   align-items: center !important;
-  gap: 0.5rem !important;
+  gap: 0.6rem !important;
   transition: background-color 0.15s ease, color 0.15s ease !important;
   border-bottom: 1px solid #f3f4f6 !important;
   white-space: nowrap !important;

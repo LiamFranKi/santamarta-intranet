@@ -573,7 +573,7 @@ function DocenteGrupos() {
                               } else {
                                 // Cerrar otros dropdowns primero
                                 // Calcular posición: justo debajo del botón
-                                const dropdownWidth = 280;
+                                const dropdownWidth = 320;
                                 let left = rect.left;
                                 // Si el dropdown se sale por la derecha, ajustar
                                 if (left + dropdownWidth > window.innerWidth) {
