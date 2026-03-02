@@ -1516,3 +1516,106 @@
   border-top: none;
 }
 
+/* Conexiones Familiares - Historial de mensajes (grilla) */
+.historial-mensajes-grid-container {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(74, 131, 193, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.historial-mensajes-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.historial-mensajes-table thead {
+  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
+  color: white;
+}
+
+.historial-mensajes-table th {
+  padding: 0.875rem 1rem;
+  text-align: left;
+  font-weight: 700;
+  border: none;
+}
+
+.historial-mensajes-table th:last-child {
+  text-align: center;
+  width: 140px;
+}
+
+.historial-mensajes-table tbody tr {
+  border-bottom: 1px solid #e5e7eb;
+  transition: background 0.2s;
+}
+
+.historial-mensajes-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.historial-mensajes-table tbody tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+.historial-mensajes-table tbody tr:nth-child(even):hover {
+  background: #f1f5f9;
+}
+
+.historial-mensajes-table td {
+  padding: 0.875rem 1rem;
+  color: #374151;
+  vertical-align: middle;
+}
+
+.historial-mensajes-table td:last-child {
+  text-align: center;
+}
+
+.historial-mensajes-acciones {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-cf-ver,
+.btn-cf-eliminar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 1rem;
+}
+
+.btn-cf-ver {
+  background: linear-gradient(135deg, #6ba3d4 0%, #4a83c1 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(74, 131, 193, 0.25);
+}
+
+.btn-cf-ver:hover {
+  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(74, 131, 193, 0.35);
+}
+
+.btn-cf-eliminar {
+  background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(220, 38, 38, 0.25);
+}
+
+.btn-cf-eliminar:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(220, 38, 38, 0.35);
+}
+

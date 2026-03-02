@@ -1791,6 +1791,37 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
 });
 
 /**
+ * DELETE /api/docente/grupos/:grupoId/mensajes-historial/:mensajeId
+ * Eliminar un mensaje del historial de Conexiones Familiares (solo el remitente)
+ */
+router.delete('/grupos/:grupoId/mensajes-historial/:mensajeId', async (req, res) => {
+  try {
+    const { grupoId, mensajeId } = req.params;
+    const { usuario_id, colegio_id } = req.user;
+
+    const grupoRow = await query(
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.colegio_id = ?`,
+      [grupoId, colegio_id]
+    );
+    if (!grupoRow || grupoRow.length === 0) {
+      return res.status(404).json({ error: 'Grupo no encontrado' });
+    }
+
+    const result = await execute(
+      `DELETE FROM mensajes_grupos WHERE id = ? AND grupo_id = ? AND remitente_id = ?`,
+      [mensajeId, grupoId, usuario_id]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ error: 'Mensaje no encontrado o no puede eliminarse' });
+    }
+    res.json({ success: true, message: 'Mensaje eliminado del historial' });
+  } catch (error) {
+    console.error('Error eliminando mensaje del historial:', error);
+    res.status(500).json({ error: 'Error al eliminar' });
+  }
+});
+
+/**
  * GET /api/docente/alumnos/:alumnoId/info
  * Obtener información completa del alumno con historial de matrículas
  */
@@ -11841,19 +11872,6 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               usuariosDestinatarios.push(al.usuario_id);
             }
           });
-
-          // Registrar en mensajes_grupos (historial Conexiones Familiares)
-          try {
-            for (const grupoId of gruposArray) {
-              await execute(
-                `INSERT INTO mensajes_grupos (remitente_id, grupo_id, asunto, mensaje, fecha_hora)
-                 VALUES (?, ?, ?, ?, ?)`,
-                [usuario_id, grupoId, asunto, mensaje, new Date().toISOString().slice(0, 19).replace('T', ' ')]
-              );
-            }
-          } catch (err) {
-            console.warn('Error insertando en mensajes_grupos (tabla puede no existir):', err.message);
-          }
         }
 
         // Crear un mensaje para cada destinatario
@@ -12053,17 +12071,26 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                   data: { url: '/apoderado/mensajes', tipo: 'mensaje' }
                 }).catch(err => console.error('❌ [MENSAJES] Push apoderados:', err));
               }
+              const conEmail = apoderadosUnicos.filter(ap => (ap.email && String(ap.email).trim()));
+              console.log(`📧 [MENSAJES] Apoderados: ${apoderadosUnicos.length} únicos, ${conEmail.length} con email para correo`);
               for (const ap of apoderadosUnicos) {
-                if (ap.email && String(ap.email).trim()) {
-                  enviarCorreoNotificacion(
-                    ap.email.trim(),
-                    'Mensaje del docente al grupo',
-                    contenidoNotif,
-                    req.user.colegio_nombre || 'Vanguard Schools'
-                  ).catch(err => console.warn('Correo apoderado:', err?.message));
+                const email = (ap.email && String(ap.email).trim()) || '';
+                if (email) {
+                  try {
+                    const r = await enviarCorreoNotificacion(
+                      email,
+                      'Mensaje del docente al grupo',
+                      contenidoNotif,
+                      req.user.colegio_nombre || 'Vanguard Schools'
+                    );
+                    if (r?.success) console.log(`📧 [MENSAJES] Correo enviado a ${email}`);
+                    else console.warn(`📧 [MENSAJES] Correo fallido para ${email}:`, r?.error);
+                  } catch (err) {
+                    console.warn('Correo apoderado:', err?.message);
+                  }
                 }
               }
-              console.log(`📧 [MENSAJES] Notificados ${apoderadosUnicos.length} apoderado(s): BD + push + correo`);
+              console.log(`📧 [MENSAJES] Notificados ${apoderadosUnicos.length} apoderado(s): BD + push; correos enviados a quienes tienen email en tabla apoderados`);
             }
           } catch (errApod) {
             console.error('❌ [MENSAJES] Error notificando apoderados:', errApod);
