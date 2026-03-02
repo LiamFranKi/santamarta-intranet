@@ -73,6 +73,49 @@ function DocenteConexionesFamiliares() {
     }
   }, [grupoId, loading]);
 
+  // Configurar handler de imágenes para ReactQuill (igual que DocenteGrupos)
+  useEffect(() => {
+    if (!mostrarModalEnviar) return;
+    const timeoutId = setTimeout(() => {
+      const quill = quillRef.current?.getEditor();
+      if (!quill) return;
+      const toolbar = quill.getModule('toolbar');
+      if (!toolbar) return;
+      const imageHandler = () => {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+        input.onchange = async () => {
+          const file = input.files[0];
+          if (!file) return;
+          if (file.size > 5 * 1024 * 1024) {
+            Swal.fire('Error', 'La imagen no puede ser mayor a 5MB', 'error');
+            return;
+          }
+          if (!file.type.startsWith('image/')) {
+            Swal.fire('Error', 'Solo se permiten archivos de imagen', 'error');
+            return;
+          }
+          try {
+            const fd = new FormData();
+            fd.append('imagen', file);
+            const response = await api.post('/docente/mensajes/subir-imagen', fd);
+            const imagenUrl = response.data.url;
+            const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 };
+            quill.insertEmbed(range.index, 'image', imagenUrl);
+            quill.setSelection(range.index + 1);
+          } catch (error) {
+            console.error('Error subiendo imagen:', error);
+            Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+          }
+        };
+      };
+      toolbar.addHandler('image', imageHandler);
+    }, 200);
+    return () => clearTimeout(timeoutId);
+  }, [mostrarModalEnviar]);
+
   const handleArchivoChange = (e) => {
     const files = Array.from(e.target.files);
     setArchivosAdjuntos(prev => [...prev, ...files]);
@@ -128,6 +171,18 @@ function DocenteConexionesFamiliares() {
     } finally {
       setEnviandoMensaje(false);
     }
+  };
+
+  const procesarHTMLMensaje = (html) => {
+    if (!html) return '';
+    const baseURL = (api.defaults.baseURL || '').replace('/api', '') || (process.env.REACT_APP_PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe');
+    return html.replace(
+      /<img([^>]*)\ssrc=["']([^"']+)["']([^>]*)>/gi,
+      (match, before, src, after) => {
+        if (src.startsWith('http')) return match;
+        return `<img${before} src="${baseURL}${src.startsWith('/') ? '' : '/'}${src}"${after}>`;
+      }
+    );
   };
 
   const formatearFecha = (fechaHora) => {
@@ -302,6 +357,11 @@ function DocenteConexionesFamiliares() {
                       ['clean']
                     ]
                   }}
+                  formats={[
+                    'header', 'bold', 'italic', 'underline', 'strike',
+                    'list', 'bullet', 'color', 'background', 'align',
+                    'link', 'image'
+                  ]}
                 />
               </div>
               <div className="form-group">
@@ -347,7 +407,7 @@ function DocenteConexionesFamiliares() {
               </p>
               <div
                 className="mensaje-contenido-ver"
-                dangerouslySetInnerHTML={{ __html: mensajeVer.mensaje || '' }}
+                dangerouslySetInnerHTML={{ __html: procesarHTMLMensaje(mensajeVer.mensaje || '') }}
                 style={{
                   padding: '1rem',
                   background: '#f9fafb',
@@ -357,6 +417,31 @@ function DocenteConexionesFamiliares() {
                   border: '1px solid #e5e7eb'
                 }}
               />
+              {mensajeVer.archivos && Array.isArray(mensajeVer.archivos) && mensajeVer.archivos.length > 0 && (
+                <div className="mensaje-archivos" style={{ marginTop: '1rem' }}>
+                  <h4>Archivos Adjuntos ({mensajeVer.archivos.length}):</h4>
+                  <div className="archivos-lista-modal" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginTop: '0.5rem' }}>
+                    {mensajeVer.archivos.map((archivo, index) => {
+                      const archivoUrl = archivo.archivo_url || (archivo.archivo ? `${process.env.REACT_APP_PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe'}/Static/Archivos/${archivo.archivo}` : null);
+                      if (!archivoUrl) return null;
+                      const nombreArchivo = archivo.nombre_archivo || archivo.archivo || '';
+                      const esImagen = /\.(jpg|jpeg|png|gif|webp)$/i.test(nombreArchivo);
+                      return (
+                        <div key={index} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
+                          {esImagen ? (
+                            <>
+                              <img src={archivoUrl} alt={nombreArchivo} style={{ maxWidth: 300, maxHeight: 300, borderRadius: 8, border: '1px solid #e5e7eb' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                              <a href={archivoUrl} target="_blank" rel="noopener noreferrer" download={nombreArchivo} style={{ padding: '0.5rem 0.75rem', background: '#eff6ff', borderRadius: 6, color: '#1d4ed8', textDecoration: 'none', fontSize: '0.875rem' }}>📎 {nombreArchivo}</a>
+                            </>
+                          ) : (
+                            <a href={archivoUrl} target="_blank" rel="noopener noreferrer" download={nombreArchivo} style={{ padding: '0.5rem 0.75rem', background: '#eff6ff', borderRadius: 6, color: '#1d4ed8', textDecoration: 'none', fontSize: '0.875rem' }}>📎 {nombreArchivo}</a>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="form-actions" style={{ marginTop: '1rem' }}>
                 <button className="btn-cancelar" onClick={() => setMensajeVer(null)} type="button">Cerrar</button>
               </div>

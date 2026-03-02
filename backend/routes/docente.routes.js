@@ -1788,6 +1788,26 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
          ORDER BY fecha_hora DESC`,
         [grupoId, usuario_id]
       );
+
+      // Enriquecer con archivos adjuntos (desde mensajes que coincidan por remitente, asunto, fecha)
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const isProduction = process.env.NODE_ENV === 'production';
+      for (const mg of mensajes) {
+        const archivosRows = await query(
+          `SELECT DISTINCT ma.nombre_archivo, ma.archivo
+           FROM mensajes_archivos ma
+           INNER JOIN mensajes m ON m.id = ma.mensaje_id
+           WHERE m.remitente_id = ? AND m.asunto = ? 
+             AND DATE_FORMAT(m.fecha_hora, '%Y-%m-%d %H:%i:%s') = DATE_FORMAT(?, '%Y-%m-%d %H:%i:%s')`,
+          [usuario_id, mg.asunto, mg.fecha_hora]
+        );
+        mg.archivos = (archivosRows || []).map(arch => {
+          const archivoUrl = isProduction
+            ? `${phpSystemUrl}/Static/Archivos/${arch.archivo}`
+            : `http://localhost:5000/Static/Archivos/${arch.archivo}`;
+          return { ...arch, archivo_url: archivoUrl };
+        });
+      }
     } catch (mgErr) {
       if (!mgErr.message || !mgErr.message.includes("doesn't exist")) {
         console.warn('Error obteniendo mensajes_grupos:', mgErr.message);
