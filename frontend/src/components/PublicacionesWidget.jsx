@@ -85,6 +85,16 @@ function PublicacionesWidget() {
     }
   };
 
+  const ordenarGrupos = (a, b) => {
+    const ordenNivel = { Inicial: 0, Primaria: 1, Secundaria: 2 };
+    const niv = (x) => ordenNivel[x.nivel_nombre] ?? (x.nivel_id != null ? Number(x.nivel_id) : 999);
+    const grad = (x) => (x.grado != null ? Number(x.grado) : 0);
+    const sec = (x) => String(x.seccion || '');
+    if (niv(a) !== niv(b)) return niv(a) - niv(b);
+    if (grad(a) !== grad(b)) return grad(a) - grad(b);
+    return sec(a).localeCompare(sec(b), undefined, { sensitivity: 'base', numeric: true });
+  };
+
   const cargarGrupos = async () => {
     // Solo cargar grupos si es docente (alumnos no pueden crear publicaciones)
     if (esAlumno) {
@@ -93,7 +103,8 @@ function PublicacionesWidget() {
     }
     try {
       const response = await api.get('/docente/grupos');
-      setGrupos(response.data.grupos || []);
+      const lista = response.data.grupos || [];
+      setGrupos([...lista].sort(ordenarGrupos));
     } catch (error) {
       console.error('Error cargando grupos:', error);
     }

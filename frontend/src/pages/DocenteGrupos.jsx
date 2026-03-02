@@ -226,11 +226,20 @@ function DocenteGrupos() {
     }
   }, [mostrarModalMensajeAlumno]);
 
+  const ordenarGrupos = (a, b) => {
+    const niv = (x) => (x.nivel_id != null ? Number(x.nivel_id) : 0);
+    const grad = (x) => (x.grado != null ? Number(x.grado) : 0);
+    if (niv(a) !== niv(b)) return niv(a) - niv(b);
+    if (grad(a) !== grad(b)) return grad(a) - grad(b);
+    return String(a.seccion || '').localeCompare(String(b.seccion || ''), undefined, { sensitivity: 'base' });
+  };
+
   const cargarGrupos = async () => {
     try {
       setLoading(true);
       const response = await api.get('/docente/grupos');
-      setGrupos(response.data.grupos || []);
+      const lista = response.data.grupos || [];
+      setGrupos([...lista].sort(ordenarGrupos));
     } catch (error) {
       console.error('Error cargando grupos:', error);
     } finally {
@@ -377,11 +386,7 @@ function DocenteGrupos() {
 
       console.log(`📎 [ENVIAR MENSAJE ALUMNO] Contenido HTML (primeros 500 caracteres):`, contenidoMensajeAlumno.substring(0, 500));
       console.log(`📎 [ENVIAR MENSAJE ALUMNO] ¿Contiene imágenes?:`, contenidoMensajeAlumno.includes('<img'));
-      const response = await api.post('/docente/mensajes/enviar', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await api.post('/docente/mensajes/enviar', formData);
 
       Swal.fire({
         title: '¡Mensaje Enviado!',
@@ -448,11 +453,7 @@ function DocenteGrupos() {
       console.log(`📎 [ENVIAR MENSAJE GRUPO] Enviando mensaje al grupo ID: ${grupoParaMensaje.id}`);
       console.log(`📎 [ENVIAR MENSAJE GRUPO] Contenido HTML (primeros 500 caracteres):`, contenidoMensajeGrupo.substring(0, 500));
       console.log(`📎 [ENVIAR MENSAJE GRUPO] ¿Contiene imágenes?:`, contenidoMensajeGrupo.includes('<img'));
-      const response = await api.post('/docente/mensajes/enviar', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
+      const response = await api.post('/docente/mensajes/enviar', formData);
       console.log(`📎 [ENVIAR MENSAJE GRUPO] Respuesta del servidor:`, response.data);
 
       Swal.fire({
@@ -485,6 +486,18 @@ function DocenteGrupos() {
       grupo.turno_nombre?.toLowerCase().includes(searchTerm)
     );
   });
+
+  // Ordenar por Nivel, luego por Grado, luego por Sección (Inicial 3° A, Primaria 4° A, 4° B, 5° A, 6° UNICA)
+  const ordenarGrupos = (a, b) => {
+    const ordenNivel = { Inicial: 0, Primaria: 1, Secundaria: 2 };
+    const niv = (x) => ordenNivel[x.nivel_nombre] ?? (x.nivel_id != null ? Number(x.nivel_id) : 999);
+    const grad = (x) => (x.grado != null ? Number(x.grado) : 0);
+    const sec = (x) => String(x.seccion || '');
+    if (niv(a) !== niv(b)) return niv(a) - niv(b);
+    if (grad(a) !== grad(b)) return grad(a) - grad(b);
+    return sec(a).localeCompare(sec(b), undefined, { sensitivity: 'base', numeric: true });
+  };
+  const gruposOrdenados = [...gruposFiltrados].sort(ordenarGrupos);
 
   if (loading) {
     return (
@@ -521,8 +534,8 @@ function DocenteGrupos() {
             </div>
 
             <div className="grupos-cards-container">
-              {gruposFiltrados.length > 0 ? (
-                gruposFiltrados.map((grupo, index) => {
+              {gruposOrdenados.length > 0 ? (
+                gruposOrdenados.map((grupo, index) => {
                   // Colores pasteles suaves para cada card
                   const coloresPasteles = [
                     'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%)', // Light Cyan
@@ -568,7 +581,7 @@ function DocenteGrupos() {
                               } else {
                                 // Cerrar otros dropdowns primero
                                 // Calcular posición: justo debajo del botón
-                                const dropdownWidth = 180;
+                                const dropdownWidth = 280;
                                 let left = rect.left;
                                 // Si el dropdown se sale por la derecha, ajustar
                                 if (left + dropdownWidth > window.innerWidth) {
@@ -729,7 +742,7 @@ function DocenteGrupos() {
                                     setOpenDropdownAlumno(null);
                                   } else {
                                     // Calcular posición del dropdown
-                                    const dropdownWidth = 180;
+                                    const dropdownWidth = 250;
                                     const dropdownHeight = 90; // Aproximado
                                     let left = rect.left;
                                     let top = rect.bottom + 2;

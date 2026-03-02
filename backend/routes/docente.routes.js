@@ -1643,6 +1643,17 @@ router.get('/grupos', async (req, res) => {
 
     // Combinar grupos (priorizar grupos asignados, luego grupos de tutoría)
     const grupos = [...gruposAsignados, ...gruposTutoria];
+    // Ordenar por Nivel (Inicial, Primaria, Secundaria), Grado, Sección (4° A, 4° B, 5° A, 6° UNICA)
+    const ordenNivel = { Inicial: 0, Primaria: 1, Secundaria: 2 };
+    grupos.sort((a, b) => {
+      const nivA = ordenNivel[a.nivel_nombre] ?? (a.nivel_id != null ? Number(a.nivel_id) : 999);
+      const nivB = ordenNivel[b.nivel_nombre] ?? (b.nivel_id != null ? Number(b.nivel_id) : 999);
+      if (nivA !== nivB) return nivA - nivB;
+      const gradA = a.grado != null ? Number(a.grado) : 0;
+      const gradB = b.grado != null ? Number(b.grado) : 0;
+      if (gradA !== gradB) return gradA - gradB;
+      return String(a.seccion || '').localeCompare(String(b.seccion || ''), undefined, { sensitivity: 'base', numeric: true });
+    });
 
     res.json({ grupos: grupos || [] });
   } catch (error) {
