@@ -11903,6 +11903,55 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               usuariosDestinatarios.push(al.usuario_id);
             }
           });
+
+          // Conexiones Familiares: agregar apoderados y docentes-apoderados para que reciban mensajes en bandeja
+          try {
+            const apoderadosGrupo = await query(
+              `SELECT DISTINCT u.id as usuario_id, ap.nro_documento, ap.email
+               FROM grupos g
+               INNER JOIN matriculas m ON m.grupo_id = g.id AND (m.estado = 0 OR m.estado = 4)
+               INNER JOIN alumnos a ON a.id = m.alumno_id
+               INNER JOIN familias f ON f.alumno_id = a.id
+               INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
+               INNER JOIN usuarios u ON u.apoderado_id = ap.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+               WHERE g.id IN (${gruposArray.map(() => '?').join(',')})`,
+              [colegio_id, colegio_id, ...gruposArray]
+            );
+            const apoderadoIds = [];
+            const apoderadoDnis = [];
+            const apoderadosUnicos = [];
+            const vistos = new Set();
+            for (const ap of apoderadosGrupo || []) {
+              if (vistos.has(ap.usuario_id)) continue;
+              vistos.add(ap.usuario_id);
+              apoderadosUnicos.push(ap);
+              apoderadoIds.push(ap.usuario_id);
+              if (ap.nro_documento) apoderadoDnis.push(ap.nro_documento);
+            }
+            apoderadoIds.forEach(id => {
+              if (!usuariosDestinatarios.includes(id)) usuariosDestinatarios.push(id);
+            });
+            // Docentes que también son apoderados (mismo DNI): reciben mensaje en bandeja docente
+            if (apoderadoDnis.length > 0) {
+              const placeholdersDni = apoderadoDnis.map(() => '?').join(',');
+              let sqlDocApod = `SELECT DISTINCT u.id FROM usuarios u
+                INNER JOIN personal p ON p.id = u.personal_id
+                WHERE u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'
+                  AND p.nro_documento IN (${placeholdersDni})`;
+              const paramsDocApod = [colegio_id, ...apoderadoDnis];
+              if (apoderadoIds.length > 0) {
+                sqlDocApod += ` AND u.id NOT IN (${apoderadoIds.map(() => '?').join(',')})`;
+                paramsDocApod.push(...apoderadoIds);
+              }
+              const docentesApoderados = await query(sqlDocApod, paramsDocApod);
+              (docentesApoderados || []).forEach(d => {
+                if (!usuariosDestinatarios.includes(d.id)) usuariosDestinatarios.push(d.id);
+              });
+              console.log(`📨 [ENVIAR MENSAJE] Apoderados: ${apoderadosUnicos.length}, docentes-apoderados: ${(docentesApoderados || []).length}`);
+            }
+          } catch (errApod) {
+            console.warn('⚠️ [ENVIAR MENSAJE] Error obteniendo apoderados para bandeja:', errApod.message);
+          }
         }
 
         // Crear un mensaje para cada destinatario
@@ -12022,7 +12071,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           return;
         }
 
-        // Push notifications a destinatarios (alumnos)
+        // Push notifications a todos los destinatarios (alumnos, apoderados, docentes-apoderados)
         try {
           if (usuariosDestinatarios.length > 0) {
             const subsData = await query(
@@ -12098,6 +12147,8 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                   title: 'Mensaje del docente',
                   body: (asunto || 'Nuevo mensaje al grupo').substring(0, 60),
                   icon: '/icons/icon-192x192.png',
+                  badge: '/icons/icon-192x192.png',
+                  vibrate: [200, 100, 200],
                   tag: `mensaje-grupo-${Date.now()}`,
                   data: { url: '/apoderado/mensajes', tipo: 'mensaje' }
                 }).catch(err => console.error('❌ [MENSAJES] Push apoderados:', err));
