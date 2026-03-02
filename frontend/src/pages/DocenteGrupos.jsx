@@ -227,11 +227,13 @@ function DocenteGrupos() {
   }, [mostrarModalMensajeAlumno]);
 
   const ordenarGrupos = (a, b) => {
-    const niv = (x) => (x.nivel_id != null ? Number(x.nivel_id) : 0);
+    const ordenNivel = { Inicial: 0, Primaria: 1, Secundaria: 2 };
+    const niv = (x) => ordenNivel[x.nivel_nombre] ?? (x.nivel_id != null ? Number(x.nivel_id) : 999);
     const grad = (x) => (x.grado != null ? Number(x.grado) : 0);
+    const sec = (x) => String(x.seccion || '');
     if (niv(a) !== niv(b)) return niv(a) - niv(b);
     if (grad(a) !== grad(b)) return grad(a) - grad(b);
-    return String(a.seccion || '').localeCompare(String(b.seccion || ''), undefined, { sensitivity: 'base' });
+    return sec(a).localeCompare(sec(b), undefined, { sensitivity: 'base', numeric: true });
   };
 
   const cargarGrupos = async () => {
@@ -487,16 +489,6 @@ function DocenteGrupos() {
     );
   });
 
-  // Ordenar por Nivel, luego por Grado, luego por Sección (Inicial 3° A, Primaria 4° A, 4° B, 5° A, 6° UNICA)
-  const ordenarGrupos = (a, b) => {
-    const ordenNivel = { Inicial: 0, Primaria: 1, Secundaria: 2 };
-    const niv = (x) => ordenNivel[x.nivel_nombre] ?? (x.nivel_id != null ? Number(x.nivel_id) : 999);
-    const grad = (x) => (x.grado != null ? Number(x.grado) : 0);
-    const sec = (x) => String(x.seccion || '');
-    if (niv(a) !== niv(b)) return niv(a) - niv(b);
-    if (grad(a) !== grad(b)) return grad(a) - grad(b);
-    return sec(a).localeCompare(sec(b), undefined, { sensitivity: 'base', numeric: true });
-  };
   const gruposOrdenados = [...gruposFiltrados].sort(ordenarGrupos);
 
   if (loading) {
