@@ -36,7 +36,7 @@ function AvatarTest() {
       <div className="avatar-test-page" style={{ padding: '2rem', maxWidth: 800, margin: '0 auto' }}>
         <h1 style={{ marginBottom: '0.5rem' }}>Prueba Avatar Modular</h1>
         <p style={{ color: '#6b7280', marginBottom: '2rem' }}>
-          Volt Spectrum (base 2048×2048) + 4 accesorios (1024×1024, PNG transparente)
+          Base + 4 accesorios (512×512 PNG transparente, aspect-ratio 1:1)
         </p>
 
         <div style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>

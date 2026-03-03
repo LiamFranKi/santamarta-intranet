@@ -29,7 +29,8 @@ function LayeredAvatar({ baseImage, accessories = [], baseUrl = '', size = '512p
       className={`layered-avatar ${className}`}
       style={{
         width: size,
-        height: size,
+        height: size === '100%' ? 'auto' : size,
+        aspectRatio: '1 / 1',
         maxWidth: '100%',
       }}
     >
