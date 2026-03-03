@@ -197,6 +197,20 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Servir avatares modulares desde backend/Static/Image/Avatars (evita depender de Apache/PHP)
+app.get('/api/static/avatars/:filename', (req, res) => {
+  const filename = req.params.filename || '';
+  if (!filename || !/^[a-zA-Z0-9_\-\u00C0-\u024F\u1E00-\u1EFF.]+\.png$/i.test(filename)) {
+    return res.status(400).json({ error: 'Nombre de archivo no válido' });
+  }
+  const avatarsPath = path.join(__dirname, 'Static', 'Image', 'Avatars', filename);
+  if (!fs.existsSync(avatarsPath)) {
+    return res.status(404).json({ error: 'Archivo no encontrado' });
+  }
+  res.type('image/png');
+  res.sendFile(avatarsPath);
+});
+
 // Rutas del colegio
 const colegioRoutes = require('./routes/colegio.routes');
 app.use('/api/colegio', colegioRoutes);

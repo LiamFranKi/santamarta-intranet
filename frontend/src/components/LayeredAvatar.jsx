@@ -17,8 +17,11 @@ function LayeredAvatar({ baseImage, accessories = [], baseUrl = '', size = '512p
   const getImageUrl = (filename) => {
     if (!filename) return '';
     if (filename.startsWith('http')) return filename;
-    const base = baseUrl || (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '') + '/Static/Image/Avatars/';
-    return base.replace(/\/$/, '') + '/' + filename.replace(/^\//, '');
+    const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+    const base = baseUrl || apiBase.replace(/\/+$/, '') + '/static/avatars/';
+    const cleanBase = base.replace(/\/+$/, '');
+    const cleanName = filename.replace(/^\//, '');
+    return cleanBase + '/' + encodeURIComponent(cleanName);
   };
 
   return (

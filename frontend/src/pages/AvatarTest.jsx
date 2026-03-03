@@ -7,9 +7,8 @@ import LayeredAvatar from '../components/LayeredAvatar';
  * Muestra Volt Spectrum + 4 accesorios superpuestos.
  */
 function AvatarTest() {
-  const baseUrl =
-    (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '') +
-    '/Static/Image/Avatars/';
+  const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  const baseUrl = apiBase.replace(/\/+$/, '') + '/static/avatars/';
 
   const accessories = [
     { image: '02_Visor_Táctico_Neón.png', name: 'Visor Táctico Neón', zIndex: 1 },
