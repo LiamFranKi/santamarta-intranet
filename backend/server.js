@@ -169,6 +169,17 @@ app.use('/uploads', express.static(uploadsPath, {
   }
 }));
 
+// Servir carpeta Static (Avatares, Fotos, Archivos compartidos con sistema PHP)
+const staticPath = path.join(__dirname, 'Static');
+if (fs.existsSync(staticPath)) {
+  app.use('/Static', express.static(staticPath, {
+    setHeaders: (res) => {
+      res.set('Access-Control-Allow-Origin', '*');
+      res.set('Cache-Control', 'public, max-age=86400');
+    }
+  }));
+}
+
 // Aplicar rate limiter solo a rutas de API (después de archivos estáticos)
 app.use('/api', limiter);
 

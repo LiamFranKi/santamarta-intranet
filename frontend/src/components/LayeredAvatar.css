@@ -1,0 +1,29 @@
+.layered-avatar {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.layered-avatar-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.layered-avatar-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  pointer-events: none;
+}
+
+.layered-avatar-base {
+  /* Base siempre abajo */
+  z-index: 0;
+}
