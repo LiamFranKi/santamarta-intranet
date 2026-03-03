@@ -10,11 +10,12 @@ function AvatarTest() {
   const apiBase = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
   const baseUrl = apiBase.replace(/\/+$/, '') + '/static/avatars/';
 
+  /* Orden z-index: Capa (1) detrás de hombros → Base (2) → Núcleo (3) → Visor (4) → Dron (5) al frente */
   const accessories = [
-    { image: '02_Visor_Táctico_Neón.png', name: 'Visor Táctico Neón', zIndex: 1 },
-    { image: '03_Capa_de_Fibra_Óptica.png', name: 'Capa de Fibra Óptica', zIndex: 2 },
+    { image: '03_Capa_de_Fibra_Óptica.png', name: 'Capa de Fibra Óptica', zIndex: 1 },
     { image: '04_Núcleo_de_Plasma.png', name: 'Núcleo de Plasma', zIndex: 3 },
-    { image: '05_Dron_de_Vigilancia.png', name: 'Dron de Vigilancia', zIndex: 4 },
+    { image: '02_Visor_Táctico_Neón.png', name: 'Visor Táctico Neón', zIndex: 4 },
+    { image: '05_Dron_de_Vigilancia.png', name: 'Dron de Vigilancia', zIndex: 5 },
   ];
 
   const [size, setSize] = useState('512px');

@@ -39,7 +39,7 @@ function LayeredAvatar({ baseImage, accessories = [], baseUrl = '', size = '512p
             src={getImageUrl(baseImage)}
             alt="Avatar base"
             className="layered-avatar-layer layered-avatar-base"
-            style={{ zIndex: 0 }}
+            style={{ zIndex: 2 }}
           />
         )}
         {Array.isArray(accessories) &&
