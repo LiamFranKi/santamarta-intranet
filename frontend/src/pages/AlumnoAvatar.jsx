@@ -174,25 +174,18 @@ function AlumnoAvatar() {
                   )}
                 </div>
                 <h1 className="avatar-hero-nombre">{nombreMostrar}</h1>
+                <p className="avatar-hero-subtitle">Avatar del bimestre {bimestre}</p>
+                {descripcionBase && <p className="avatar-hero-descripcion">{descripcionBase}</p>}
+                {historiaBase && (
+                  <blockquote className="avatar-hero-historia">{historiaBase}</blockquote>
+                )}
                 <div className="avatar-hero-estrellas">
                   <span className="avatar-hero-estrellas-icon">⭐</span>
                   <span className="avatar-hero-estrellas-num">{totalEstrellas}</span>
-                  <span className="avatar-hero-estrellas-label">estrellas</span>
+                  <span className="avatar-hero-estrellas-label">Tus estrellas</span>
                 </div>
               </div>
             </div>
-
-            {/* Descripción e historia (si existen) */}
-            {(descripcionBase || historiaBase) && (
-              <div className="avatar-story-card">
-                {descripcionBase && <p className="avatar-story-descripcion">{descripcionBase}</p>}
-                {historiaBase && (
-                  <blockquote className="avatar-story-historia">
-                    {historiaBase}
-                  </blockquote>
-                )}
-              </div>
-            )}
 
             {/* Accesorios */}
             <section className="avatar-accesorios-section">
