@@ -2249,8 +2249,14 @@ function DocenteTutoria() {
                             </tr>
                             {alumnoInfo.alumno.avatar.description && (
                               <tr>
-                                <th>DESCRIPCIÓN AVATAR</th>
+                                <th>DESCRIPCIÓN</th>
                                 <td>{alumnoInfo.alumno.avatar.description}</td>
+                              </tr>
+                            )}
+                            {alumnoInfo.alumno.avatar.historia && (
+                              <tr>
+                                <th>HISTORIA</th>
+                                <td>{alumnoInfo.alumno.avatar.historia}</td>
                               </tr>
                             )}
                             {alumnoInfo.alumno.estrellas !== undefined && (

@@ -1911,46 +1911,112 @@ router.get('/alumnos/:alumnoId/info', async (req, res) => {
       [alumnoId, colegio_id, anio_activo]
     );
 
-    // Obtener avatar actual del alumno según su sexo y nivel
-    // IMPORTANTE: 
-    // - Alumnos: sexo = 0 es Masculino, sexo = 1 es Femenino
-    // - Avatares: sexo = 0 es Femenino, sexo = 1 es Masculino (opuesto)
-    // Si alumno es masculino (sexo=0), buscar avatar con sexo=1
-    // Si alumno es femenino (sexo=1), buscar avatar con sexo=0
+    // Obtener avatar actual del alumno
+    // Prioridad 1: avatar_bases (sistema por bimestre) con descripcion e historia
+    // Prioridad 2: avatar_shop (sistema antiguo)
     const sexoAlumno = alumno[0].sexo;
     const sexoAvatarBuscado = sexoAlumno === 0 ? 1 : (sexoAlumno === 1 ? 0 : null);
     const nivelId = nivelActual && nivelActual.length > 0 ? nivelActual[0].nivel_id : null;
-    
-    // Buscar avatar del alumno con el sexo correcto
-    // IMPORTANTE: asi.level es el nivel del avatar (1, 2, 3...), no el nivel_id de la tabla niveles
+
+    // Helper para bimestre actual (simple, por mes)
+    const getBimestreActual = () => {
+      const m = new Date().getMonth() + 1;
+      return Math.min(4, Math.max(1, Math.ceil(m / 3)));
+    };
+    let bimestre = getBimestreActual();
+    try {
+      const phpSerialize = require('php-serialize');
+      const rows = await query('SELECT rangos_ciclos_notas FROM colegios WHERE id = ? LIMIT 1', [colegio_id]);
+      if (rows && rows.length > 0 && rows[0].rangos_ciclos_notas) {
+        let rangos = {};
+        try { rangos = phpSerialize.unserialize(rows[0].rangos_ciclos_notas) || {}; } catch (e) {
+          try { rangos = JSON.parse(rows[0].rangos_ciclos_notas) || {}; } catch (e2) {}
+        }
+        const anio = parseInt(anio_activo, 10) || new Date().getFullYear();
+        const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+        const parseDdMm = (str) => {
+          if (!str || typeof str !== 'string') return null;
+          const parts = str.trim().split('-');
+          if (parts.length < 2) return null;
+          const d = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+          if (isNaN(d) || isNaN(m) || m < 1 || m > 12) return null;
+          return new Date(anio, m - 1, d);
+        };
+        for (let ciclo = 1; ciclo <= 4; ciclo++) {
+          const r = rangos[ciclo] || rangos[String(ciclo)];
+          if (!r || !r.inicio || !r.final) continue;
+          const inicioDate = parseDdMm(r.inicio), finalDate = parseDdMm(r.final);
+          if (!inicioDate || !finalDate) continue;
+          inicioDate.setHours(0, 0, 0, 0); finalDate.setHours(23, 59, 59, 999);
+          if (hoy >= inicioDate && hoy <= finalDate) { bimestre = ciclo; break; }
+        }
+      }
+    } catch (e) { /* usar bimestre por defecto */ }
+
+    // Intentar avatar_bases (sistema por bimestre)
+    let avatarBimestre = null;
+    try {
+      let bases = await query(
+        `SELECT * FROM avatar_bases WHERE bimestre = ? AND sexo = ? LIMIT 1`,
+        [bimestre, sexoAvatarBuscado !== null ? sexoAvatarBuscado : 0]
+      );
+      if (bases.length === 0) bases = await query(`SELECT * FROM avatar_bases WHERE bimestre = ? LIMIT 1`, [bimestre]);
+      if (bases.length > 0) {
+        const baseRow = bases[0];
+        const equipado = await query(
+          `SELECT accesorio_id FROM alumno_avatar_equipado WHERE student_id = ? AND avatar_base_id = ?`,
+          [alumnoId, baseRow.id]
+        );
+        const accesorioId = equipado[0]?.accesorio_id || null;
+        const baseUrl = process.env.NODE_ENV !== 'production'
+          ? 'http://localhost:5000/api/static/avatars'
+          : ((req.get('x-forwarded-host') || req.get('host'))
+            ? `${(req.get('x-forwarded-proto') || req.protocol || 'https')}://${req.get('x-forwarded-host') || req.get('host')}/api/static/avatars`
+            : `${process.env.API_PUBLIC_URL || process.env.PHP_SYSTEM_URL || ''}/api/static/avatars`);
+        let imagenUrl = baseRow.imagen_base ? `${baseUrl}/${baseRow.imagen_base}` : null;
+        if (accesorioId) {
+          const acc = await query(`SELECT imagen_combinada FROM avatar_accesorios WHERE id = ?`, [accesorioId]);
+          if (acc.length > 0 && acc[0].imagen_combinada) imagenUrl = `${baseUrl}/${acc[0].imagen_combinada}`;
+        }
+        if (!imagenUrl && baseRow.imagen_base) imagenUrl = `${baseUrl}/${baseRow.imagen_base}`;
+        const desc = baseRow.descripcion ?? baseRow.Descripcion ?? '';
+        const hist = baseRow.historia ?? baseRow.Historia ?? '';
+        avatarBimestre = {
+          id: baseRow.id,
+          name: baseRow.nombre || '',
+          description: String(desc || '').trim(),
+          historia: String(hist || '').trim(),
+          level: bimestre,
+          image_url: imagenUrl,
+          bimestre
+        };
+      }
+    } catch (e) {
+      if (!e.message || (!e.message.includes("doesn't exist") && !e.message.includes('avatar_bases'))) {
+        console.warn('Error avatar_bases docente:', e.message);
+      }
+    }
+
+    // Fallback: avatar_shop (sistema antiguo)
     let avatarAlumno = [];
-    if (sexoAvatarBuscado !== null) {
-      // Buscar avatar con sexo correcto del alumno
-      avatarAlumno = await query(
-        `SELECT asi.*, 
-                ass.created_at as fecha_compra,
-                ass.student_id
-         FROM avatar_shop_sales ass
-         INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
-         WHERE ass.student_id = ? 
-         AND (asi.sexo = ? OR asi.sexo IS NULL)
-         ORDER BY asi.level DESC, ass.created_at DESC
-         LIMIT 1`,
-        [alumnoId, sexoAvatarBuscado]
-      );
-    } else {
-      // Si no tiene sexo definido, buscar cualquier avatar
-      avatarAlumno = await query(
-        `SELECT asi.*, 
-                ass.created_at as fecha_compra,
-                ass.student_id
-         FROM avatar_shop_sales ass
-         INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
-         WHERE ass.student_id = ?
-         ORDER BY asi.level DESC, ass.created_at DESC
-         LIMIT 1`,
-        [alumnoId]
-      );
+    if (!avatarBimestre) {
+      if (sexoAvatarBuscado !== null) {
+        avatarAlumno = await query(
+          `SELECT asi.*, ass.created_at as fecha_compra, ass.student_id
+           FROM avatar_shop_sales ass INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+           WHERE ass.student_id = ? AND (asi.sexo = ? OR asi.sexo IS NULL)
+           ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+          [alumnoId, sexoAvatarBuscado]
+        );
+      } else {
+        avatarAlumno = await query(
+          `SELECT asi.*, ass.created_at as fecha_compra, ass.student_id
+           FROM avatar_shop_sales ass INNER JOIN avatar_shop_items asi ON asi.id = ass.item_id
+           WHERE ass.student_id = ?
+           ORDER BY asi.level DESC, ass.created_at DESC LIMIT 1`,
+          [alumnoId]
+        );
+      }
     }
 
     // Obtener historial de matrículas agrupado por nivel
@@ -2014,46 +2080,62 @@ router.get('/alumnos/:alumnoId/info', async (req, res) => {
       }
     }
 
-    // Construir URL del avatar del alumno
+    // Construir URL del avatar y objeto avatar final
     let avatarUrl = null;
-    if (avatarAlumno && avatarAlumno.length > 0) {
-      // Avatares se guardan en Static/Image/Avatars/ (compartido con sistema PHP)
-      // IMPORTANTE: Usar el mismo dominio del sistema PHP para servir avatares
-      // Por defecto usar PHP_SYSTEM_URL (o fallback), solo usar localhost si estamos explícitamente en desarrollo
+    let avatarObj = null;
+    if (avatarBimestre) {
+      avatarUrl = avatarBimestre.image_url;
+      avatarObj = avatarBimestre;
+    } else if (avatarAlumno && avatarAlumno.length > 0) {
       const isDevelopment = process.env.NODE_ENV !== 'production' && !process.env.PHP_SYSTEM_URL;
       if (avatarAlumno[0].image) {
-        if (isDevelopment) {
-          avatarUrl = `http://localhost:5000/Static/Image/Avatars/${avatarAlumno[0].image}`;
-        } else {
-          const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
-          avatarUrl = `${phpSystemUrl}/Static/Image/Avatars/${avatarAlumno[0].image}`;
-        }
+        avatarUrl = isDevelopment
+          ? `http://localhost:5000/Static/Image/Avatars/${avatarAlumno[0].image}`
+          : `${process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe'}/Static/Image/Avatars/${avatarAlumno[0].image}`;
       }
+      avatarObj = {
+        id: avatarAlumno[0].id,
+        name: avatarAlumno[0].name,
+        description: avatarAlumno[0].description || '',
+        historia: '',
+        level: avatarAlumno[0].level,
+        image: avatarAlumno[0].image,
+        image_url: avatarUrl,
+        fecha_compra: avatarAlumno[0].fecha_compra
+      };
     }
 
-    // Generar hash SHA1 del matricula_id para el QR (igual que sistema anterior)
+    // Contar estrellas (avatar_bimestre: enrollment_incidents; avatar_shop: level)
+    let estrellasTotal = 0;
+    if (avatarBimestre) {
+      const matriculasForEstrellas = await query(
+        `SELECT m.id FROM matriculas m INNER JOIN grupos g ON g.id = m.grupo_id
+         WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+        [alumnoId, colegio_id, anio_activo]
+      );
+      const matIds = matriculasForEstrellas.map(m => m.id);
+      if (matIds.length > 0) {
+        const ph = matIds.map(() => '?').join(',');
+        const r = await query(
+          `SELECT COALESCE(SUM(points), 0) as t FROM enrollment_incidents WHERE enrollment_id IN (${ph}) AND type = 2`,
+          matIds
+        );
+        estrellasTotal = parseInt(r[0]?.t || 0, 10);
+      }
+    } else if (avatarAlumno && avatarAlumno.length > 0) {
+      estrellasTotal = avatarAlumno[0].level || 0;
+    }
+
+    // Generar hash SHA1 del matricula_id para el QR
     const crypto = require('crypto');
     const matriculaId = matriculaActual && matriculaActual.length > 0 ? matriculaActual[0].id : null;
     const qrCode = matriculaId ? crypto.createHash('sha1').update(String(matriculaId)).digest('hex') : null;
-
-    // Contar estrellas del alumno (sumar niveles de todos los avatares comprados)
-    const estrellasTotal = avatarAlumno && avatarAlumno.length > 0 
-      ? avatarAlumno[0].level || 0 
-      : 0;
 
     res.json({
       alumno: {
         ...alumno[0],
         foto_url: fotoUrl,
-        avatar: avatarAlumno && avatarAlumno.length > 0 ? {
-          id: avatarAlumno[0].id,
-          name: avatarAlumno[0].name,
-          description: avatarAlumno[0].description,
-          level: avatarAlumno[0].level,
-          image: avatarAlumno[0].image,
-          image_url: avatarUrl,
-          fecha_compra: avatarAlumno[0].fecha_compra
-        } : null,
+        avatar: avatarObj,
         nivel_actual: nivelActual && nivelActual.length > 0 ? {
           nivel_id: nivelActual[0].nivel_id,
           nivel_nombre: nivelActual[0].nivel_nombre,
