@@ -651,15 +651,16 @@ export default function DashboardLayout({ children }) {
           </div>
         </header>
 
-        <div className="dashboard-main-wrapper">
+        <div className={`dashboard-main-wrapper ${role === 'ADMINISTRADOR' ? 'dashboard-main-wrapper-no-sidebar' : ''}`}>
           <main className="dashboard-main">{children}</main>
           
-          {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO' || role === 'ADMINISTRADOR') && (
+          {/* Columna derecha (calendario, publicaciones): no se muestra para ADMINISTRADOR */}
+          {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO') && (
             <aside className="dashboard-sidebar-right">
               {role === 'ALUMNO' && <AlumnoAvatarWidget />}
               <CalendarioWidget />
-              {/* PublicacionesWidget anterior - Solo en web/tablet, para DOCENTE y ADMINISTRADOR */}
-              {(role === 'DOCENTE' || role === 'ADMINISTRADOR') && (
+              {/* PublicacionesWidget anterior - Solo en web/tablet, para DOCENTE */}
+              {role === 'DOCENTE' && (
                 <div className="publicaciones-widget-sidebar">
                   <PublicacionesWidget />
                 </div>
@@ -675,7 +676,7 @@ export default function DashboardLayout({ children }) {
                 <div className="card-amarillo-vacio">
                   <h3 className="card-amarillo-title">Publicaciones</h3>
                   <div className="card-amarillo-separator"></div>
-                  {(role === 'DOCENTE' || role === 'ADMINISTRADOR') && (
+                  {role === 'DOCENTE' && (
                     <div className="card-amarillo-form-container">
                       <PublicacionFormCard onPublicacionCreada={() => setRefreshPublicaciones(prev => prev + 1)} />
                     </div>

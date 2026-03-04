@@ -352,6 +352,12 @@
   min-height: 0;
 }
 
+/* Administrador: sin columna derecha (calendario/publicaciones), contenido a ancho completo */
+.dashboard-main-wrapper-no-sidebar .dashboard-main {
+  flex: 1 1 100%;
+  max-width: 100%;
+}
+
 .dashboard-main {
   flex: 1 1 auto;
   padding: 2rem;
