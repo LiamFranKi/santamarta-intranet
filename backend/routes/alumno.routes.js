@@ -349,6 +349,30 @@ router.get('/dashboard', async (req, res) => {
       }
     }
 
+    // Avatar por bimestre (para widget) - nombre + descripcion + imagen
+    let avatarWidget = null;
+    try {
+      const bimestre = await getBimestreActualFromConfig(colegio_id, anio_activo);
+      const cols = 'id, bimestre, nombre, sexo, descripcion, imagen_base';
+      const sexoAv = alumnoData.sexo !== null && alumnoData.sexo !== undefined ? alumnoData.sexo : 0;
+      let bases = await query(`SELECT ${cols} FROM avatar_bases WHERE bimestre = ? AND sexo = ? LIMIT 1`, [bimestre, sexoAv]);
+      if (bases.length === 0) bases = await query(`SELECT ${cols} FROM avatar_bases WHERE bimestre = ? LIMIT 1`, [bimestre]);
+      if (bases.length > 0) {
+        const row = bases[0];
+        const getField = (r, keys) => { for (const k of keys) if (r[k] != null && r[k] !== '') return r[k]; const l = Object.keys(r).find((x) => x.toLowerCase() === keys[0].toLowerCase()); return l ? r[l] : ''; };
+        const desc = String(getField(row, ['descripcion', 'Descripcion']) || '').trim();
+        const equipado = await query(`SELECT accesorio_id FROM alumno_avatar_equipado WHERE student_id = ? AND avatar_base_id = ?`, [alumnoData.id, row.id]);
+        const accId = equipado[0]?.accesorio_id;
+        const baseUrl = getAvatarBaseUrlForReq(req);
+        let imgUrl = row.imagen_base ? `${baseUrl}/${row.imagen_base}` : null;
+        if (accId) {
+          const acc = await query(`SELECT imagen_combinada FROM avatar_accesorios WHERE id = ?`, [accId]);
+          if (acc.length > 0 && acc[0].imagen_combinada) imgUrl = `${baseUrl}/${acc[0].imagen_combinada}`;
+        }
+        avatarWidget = { nombre: row.nombre || 'Mi avatar', descripcion: desc, imagen_url: imgUrl, total_estrellas: totalEstrellas };
+      }
+    } catch (e) { /* ignorar si no existe avatar_bases */ }
+
     const responseData = {
       alumno: {
         id: alumnoData.id,
@@ -357,6 +381,7 @@ router.get('/dashboard', async (req, res) => {
         apellido_materno: alumnoData.apellido_materno || '',
         foto: fotoUrl
       },
+      avatar_widget: avatarWidget,
       total_estrellas: totalEstrellas,
       avatar_actual: avatarActual.length > 0 ? {
         id: avatarActual[0].id,

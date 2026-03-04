@@ -7,12 +7,14 @@ import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import BirthdayWidget from '../components/BirthdayWidget';
 import AlumnoAvatarWidget from '../components/AlumnoAvatarWidget';
+import { useAvatarWidget } from '../context/AvatarWidgetContext';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './AlumnoDashboard.css';
 import './DocenteGrupos.css';
 
 function AlumnoDashboard() {
   const navigate = useNavigate();
+  const { setAvatarWidget } = useAvatarWidget();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
@@ -77,6 +79,10 @@ function AlumnoDashboard() {
   useEffect(() => {
     cargarDashboard();
   }, []);
+
+  useEffect(() => {
+    if (dashboardData?.avatar_widget && setAvatarWidget) setAvatarWidget(dashboardData.avatar_widget);
+  }, [dashboardData?.avatar_widget, setAvatarWidget]);
 
   // Extraer datos del dashboard (con valores por defecto para evitar errores)
   const { alumno, matricula, estadisticas, asignaturas, proximosExamenes, proximasTareas, proximasActividades, comunicadoHome } = dashboardData || {};

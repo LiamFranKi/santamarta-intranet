@@ -1,20 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { useAvatarWidget } from '../context/AvatarWidgetContext';
 import './AlumnoAvatarWidget.css';
 
 function AlumnoAvatarWidget() {
   const navigate = useNavigate();
+  const { avatarWidget: ctxAvatar } = useAvatarWidget();
   const [avatar, setAvatar] = useState(null);
   const [totalEstrellas, setTotalEstrellas] = useState(0);
   const [loading, setLoading] = useState(true);
+  const usamosContexto = useRef(false);
 
   useEffect(() => {
+    if (ctxAvatar?.nombre && ctxAvatar?.imagen_url) {
+      usamosContexto.current = true;
+      let imgUrl = ctxAvatar.imagen_url || '';
+      if (imgUrl.startsWith('http:') && window.location.protocol === 'https:') imgUrl = imgUrl.replace(/^http:/, 'https:');
+      setAvatar({
+        image_url: imgUrl,
+        name: ctxAvatar.nombre,
+        description: String(ctxAvatar.descripcion || '').trim(),
+        level: null
+      });
+      setTotalEstrellas(ctxAvatar.total_estrellas ?? 0);
+      setLoading(false);
+      return;
+    }
     const cargar = async () => {
+      if (usamosContexto.current) return;
       try {
         // Preferir sistema por bimestre (avatar + accesorios por bimestre/género)
         const resBimestre = await api.get('/alumno/avatares-bimestre/resumen').catch(() => null);
-        if (resBimestre?.data?.avatar_imagen_url != null) {
+        if (resBimestre?.data?.avatar_imagen_url != null && !usamosContexto.current) {
           let base = resBimestre.data.avatar_base || {};
           let desc = String(base.descripcion ?? base.description ?? '').trim();
           if (!desc && base.id) {
@@ -24,28 +42,32 @@ function AlumnoAvatarWidget() {
           }
           let imgUrl = resBimestre.data.avatar_imagen_url || '';
           if (imgUrl.startsWith('http:') && window.location.protocol === 'https:') imgUrl = imgUrl.replace(/^http:/, 'https:');
-          setAvatar({
-            image_url: imgUrl,
-            name: base.nombre || 'Mi avatar',
-            description: desc,
-            level: base.bimestre ?? null
-          });
-          setTotalEstrellas(resBimestre.data.total_estrellas ?? 0);
+          if (!usamosContexto.current) {
+            setAvatar({
+              image_url: imgUrl,
+              name: base.nombre || 'Mi avatar',
+              description: desc,
+              level: base.bimestre ?? null
+            });
+            setTotalEstrellas(resBimestre.data.total_estrellas ?? 0);
+          }
           setLoading(false);
           return;
         }
         const res = await api.get('/alumno/avatares/resumen');
-        setAvatar(res.data.avatar_actual);
-        setTotalEstrellas(res.data.total_estrellas || 0);
+        if (!usamosContexto.current) {
+          setAvatar(res.data.avatar_actual);
+          setTotalEstrellas(res.data.total_estrellas || 0);
+        }
       } catch {
-        setAvatar(null);
-        setTotalEstrellas(0);
+        if (!usamosContexto.current) setAvatar(null);
+        if (!usamosContexto.current) setTotalEstrellas(0);
       } finally {
         setLoading(false);
       }
     };
     cargar();
-  }, []);
+  }, [ctxAvatar]);
 
   if (loading) return null;
 

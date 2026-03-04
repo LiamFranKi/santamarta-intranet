@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { AvatarWidgetProvider } from './context/AvatarWidgetContext';
 import { ColegioProvider } from './context/ColegioContext';
 import Login from './pages/Login';
 import Dashboard from './pages/admin/Dashboard';
@@ -677,6 +678,7 @@ function App() {
     <ThemeProvider theme={theme}>
       <CssBaseline />
       <AuthProvider>
+        <AvatarWidgetProvider>
         <ColegioProvider colegioId={1}>
           <Router
             future={{
@@ -688,6 +690,7 @@ function App() {
             <AppRoutes />
           </Router>
         </ColegioProvider>
+        </AvatarWidgetProvider>
       </AuthProvider>
     </ThemeProvider>
   );
