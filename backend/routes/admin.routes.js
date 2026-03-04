@@ -516,15 +516,15 @@ const uploadAvatarDosImagenes = multer({
   }
 }).fields([{ name: 'imagen_accesorio', maxCount: 1 }, { name: 'imagen_combinada', maxCount: 1 }]);
 
-/** URL base para imágenes de avatares: en producción usar el mismo origen que la API (Node) donde se guardan los archivos */
+/** URL base para imágenes de avatares: usar ruta /api/static/avatars (siempre llega al Node que tiene los archivos) */
 function getAvataresBaseUrl(req) {
   if (process.env.NODE_ENV !== 'production') {
-    return 'http://localhost:5000/Static/Image/Avatars';
+    return 'http://localhost:5000/api/static/avatars';
   }
-  const host = req.get('host');
+  const host = req.get('x-forwarded-host') || req.get('host');
   const protocol = (req.get('x-forwarded-proto') || req.protocol || 'https');
-  if (host) return `${protocol}://${host}/Static/Image/Avatars`;
-  return `${process.env.API_PUBLIC_URL || process.env.PHP_SYSTEM_URL || ''}/Static/Image/Avatars`;
+  if (host) return `${protocol}://${host}/api/static/avatars`;
+  return `${process.env.API_PUBLIC_URL || process.env.PHP_SYSTEM_URL || ''}/api/static/avatars`;
 }
 
 /** GET /api/admin/avatares/bases - Listar todas las bases */
