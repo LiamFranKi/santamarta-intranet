@@ -1,0 +1,338 @@
+/* Admin Avatares - Avatares por bimestre y género */
+.admin-avatares {
+  padding: 1.5rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #f0f9ff 100%);
+  min-height: 100vh;
+}
+
+.admin-avatares-titulo {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin-bottom: 0.375rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.admin-avatares-descripcion {
+  color: #6b7280;
+  font-size: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-avatares-actions {
+  margin-bottom: 1.5rem;
+}
+
+.admin-avatares-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  transition: all 0.2s;
+}
+
+.admin-avatares-btn:hover {
+  background: #f3f4f6;
+}
+
+.admin-avatares-btn.primary {
+  background: linear-gradient(135deg, #6ba3d4 0%, #4a83c1 100%);
+  color: white;
+  border: none;
+}
+
+.admin-avatares-btn.primary:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.admin-avatares-btn.small {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.admin-avatares-btn.danger {
+  color: #dc2626;
+  border-color: #fecaca;
+}
+
+.admin-avatares-btn.danger:hover {
+  background: #fef2f2;
+}
+
+.admin-avatares-btn.back {
+  margin-bottom: 1rem;
+}
+
+.admin-avatares-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.admin-avatares-empty,
+.admin-avatares-empty-list {
+  color: #6b7280;
+  padding: 2rem;
+  text-align: center;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.admin-avatares-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.25rem;
+}
+
+.admin-avatares-card {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  border: 1px solid #e5e7eb;
+}
+
+.admin-avatares-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.admin-avatares-card-imagen {
+  aspect-ratio: 1;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.admin-avatares-card-imagen img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-avatares-card-placeholder {
+  font-size: 4rem;
+  opacity: 0.6;
+}
+
+.admin-avatares-card-info {
+  padding: 1rem;
+}
+
+.admin-avatares-card-info h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 0.25rem 0;
+}
+
+.admin-avatares-card-info p {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.admin-avatares-card-actions {
+  padding: 0 1rem 1rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Formulario avatar base */
+.admin-avatares-form-wrap {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  margin-top: 1rem;
+}
+
+.admin-avatares-form h2 {
+  font-size: 1.5rem;
+  color: #1f2937;
+  margin: 0 0 1.5rem 0;
+}
+
+.admin-avatares-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-avatares-form-grid label {
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.admin-avatares-form-grid label.full {
+  grid-column: 1 / -1;
+}
+
+.admin-avatares-form-grid input[type="text"],
+.admin-avatares-form-grid input[type="number"],
+.admin-avatares-form-grid select,
+.admin-avatares-form-grid textarea {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.admin-avatares-form-grid textarea.full {
+  grid-column: 1 / -1;
+  min-height: 80px;
+  resize: vertical;
+}
+
+.admin-avatares-hint {
+  font-size: 0.85rem;
+  color: #6b7280;
+  margin: 0.25rem 0 0 0;
+  grid-column: 1 / -1;
+}
+
+/* Accesorios */
+.admin-avatares-accesorios {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.admin-avatares-accesorios h2 {
+  font-size: 1.25rem;
+  color: #1f2937;
+  margin: 0 0 0.5rem 0;
+}
+
+.admin-avatares-accesorios .admin-avatares-btn.primary {
+  margin-bottom: 1rem;
+}
+
+.admin-avatares-accesorios-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.admin-avatares-accesorios-list li {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  background: #f9fafb;
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  border: 1px solid #e5e7eb;
+}
+
+.admin-avatares-acc-imagen {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.admin-avatares-acc-imagen img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-avatares-acc-imagen span {
+  font-size: 1.5rem;
+}
+
+.admin-avatares-accesorios-list li > span {
+  flex: 1;
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+/* Modal accesorio */
+.admin-avatares-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.admin-avatares-modal {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.admin-avatares-modal h3 {
+  font-size: 1.25rem;
+  color: #1f2937;
+  margin: 0 0 1.25rem 0;
+}
+
+.admin-avatares-modal form label {
+  display: block;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.9rem;
+  margin-top: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.admin-avatares-modal form input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.admin-avatares-modal-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
+.admin-avatares-modal-actions .admin-avatares-btn {
+  flex: 1;
+}
+
+@media (max-width: 768px) {
+  .admin-avatares-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-avatares-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-avatares-accesorios-list li {
+    flex-wrap: wrap;
+  }
+}
