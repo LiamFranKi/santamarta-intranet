@@ -1915,7 +1915,7 @@ router.get('/alumnos/:alumnoId/info', async (req, res) => {
     // Prioridad 1: avatar_bases (sistema por bimestre) con descripcion e historia
     // Prioridad 2: avatar_shop (sistema antiguo)
     const sexoAlumno = alumno[0].sexo;
-    const sexoAvatarBuscado = sexoAlumno === 0 ? 1 : (sexoAlumno === 1 ? 0 : null);
+    const sexoAvatarBuscado = sexoAlumno;
     const nivelId = nivelActual && nivelActual.length > 0 ? nivelActual[0].nivel_id : null;
 
     // Helper para bimestre actual (simple, por mes)

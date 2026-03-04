@@ -1323,9 +1323,10 @@ router.get('/avatares-bimestre/resumen', async (req, res) => {
     const totalEstrellas = await getTotalEstrellasAlumno(alumnoId, colegio_id, anio_activo);
 
     const cols = 'id, bimestre, nombre, sexo, descripcion, historia, imagen_base, orden';
+    const sexoAv = sexo !== null && sexo !== undefined ? sexo : 0;
     let base = await query(
       `SELECT ${cols} FROM avatar_bases WHERE bimestre = ? AND sexo = ? LIMIT 1`,
-      [bimestre, sexo !== null && sexo !== undefined ? sexo : 0]
+      [bimestre, sexoAv]
     );
     if (base.length === 0) {
       base = await query(`SELECT ${cols} FROM avatar_bases WHERE bimestre = ? LIMIT 1`, [bimestre]);

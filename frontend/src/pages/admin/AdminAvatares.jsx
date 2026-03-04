@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import './AdminAvatares.css';
 
 const BIMESTRES = [1, 2, 3, 4];
-const SEXO_OPTS = [{ value: 0, label: 'Femenino' }, { value: 1, label: 'Masculino' }];
+const SEXO_OPTS = [{ value: 0, label: 'Masculino' }, { value: 1, label: 'Femenino' }];
 
 function AdminAvatares() {
   const [bases, setBases] = useState([]);
