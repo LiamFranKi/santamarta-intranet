@@ -516,13 +516,22 @@ const uploadAvatarDosImagenes = multer({
   }
 }).fields([{ name: 'imagen_accesorio', maxCount: 1 }, { name: 'imagen_combinada', maxCount: 1 }]);
 
+/** URL base para imágenes de avatares: en producción usar el mismo origen que la API (Node) donde se guardan los archivos */
+function getAvataresBaseUrl(req) {
+  if (process.env.NODE_ENV !== 'production') {
+    return 'http://localhost:5000/Static/Image/Avatars';
+  }
+  const host = req.get('host');
+  const protocol = (req.get('x-forwarded-proto') || req.protocol || 'https');
+  if (host) return `${protocol}://${host}/Static/Image/Avatars`;
+  return `${process.env.API_PUBLIC_URL || process.env.PHP_SYSTEM_URL || ''}/Static/Image/Avatars`;
+}
+
 /** GET /api/admin/avatares/bases - Listar todas las bases */
 router.get('/avatares/bases', async (req, res) => {
   try {
     const bases = await query('SELECT * FROM avatar_bases ORDER BY bimestre, sexo, orden, id');
-    const baseUrl = process.env.NODE_ENV === 'production'
-      ? `${process.env.PHP_SYSTEM_URL || ''}/Static/Image/Avatars`
-      : 'http://localhost:5000/Static/Image/Avatars';
+    const baseUrl = getAvataresBaseUrl(req);
     const list = (bases || []).map(b => ({
       ...b,
       imagen_base_url: b.imagen_base ? `${baseUrl}/${b.imagen_base}` : null
@@ -606,9 +615,7 @@ router.get('/avatares/bases/:baseId/accesorios', async (req, res) => {
   try {
     const baseId = parseInt(req.params.baseId, 10);
     const accesorios = await query('SELECT * FROM avatar_accesorios WHERE avatar_base_id = ? ORDER BY orden, id', [baseId]);
-    const baseUrl = process.env.NODE_ENV === 'production'
-      ? `${process.env.PHP_SYSTEM_URL || ''}/Static/Image/Avatars`
-      : 'http://localhost:5000/Static/Image/Avatars';
+    const baseUrl = getAvataresBaseUrl(req);
     const list = (accesorios || []).map(a => ({
       ...a,
       imagen_accesorio_url: a.imagen_accesorio ? `${baseUrl}/${a.imagen_accesorio}` : null,

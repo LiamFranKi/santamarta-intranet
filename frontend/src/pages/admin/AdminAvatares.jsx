@@ -309,8 +309,8 @@ function AdminAvatares() {
                 </div>
                 <div className="admin-avatares-card-actions">
                   <button type="button" className="admin-avatares-btn small" onClick={() => abrirFormulario(b)}>Editar</button>
-                  <button type="button" className="admin-avatares-btn small primary" onClick={() => abrirModalAccesorio(null, b.id)}>＋ Nuevo accesorio</button>
                   <button type="button" className="admin-avatares-btn small danger" onClick={() => eliminarBase(b.id)}>Eliminar</button>
+                  <button type="button" className="admin-avatares-btn small primary admin-avatares-btn-accesorio" onClick={() => abrirModalAccesorio(null, b.id)}>＋ Nuevo accesorio</button>
                 </div>
               </div>
             ))}
