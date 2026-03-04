@@ -1331,6 +1331,8 @@ router.get('/avatares-bimestre/resumen', async (req, res) => {
     }
     if (!imagenUrl && baseRow.imagen_base) imagenUrl = `${baseUrl}/${baseRow.imagen_base}`;
 
+    const desc = baseRow.descripcion ?? baseRow.Descripcion ?? baseRow.DESCRIPCION ?? '';
+    const hist = baseRow.historia ?? baseRow.Historia ?? baseRow.HISTORIA ?? '';
     res.json({
       avatar_imagen_url: imagenUrl,
       avatar_base: {
@@ -1338,8 +1340,8 @@ router.get('/avatares-bimestre/resumen', async (req, res) => {
         bimestre: baseRow.bimestre,
         nombre: baseRow.nombre,
         sexo: baseRow.sexo,
-        descripcion: baseRow.descripcion || '',
-        historia: baseRow.historia || ''
+        descripcion: String(desc || '').trim(),
+        historia: String(hist || '').trim()
       },
       total_estrellas: totalEstrellas,
       bimestre
