@@ -1242,6 +1242,17 @@ const baseAvatarBimestreUrl = () => (process.env.NODE_ENV === 'production'
   ? `${process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe'}/Static/Image/Avatars/`
   : 'http://localhost:5000/Static/Image/Avatars/');
 
+/** URL base para imágenes de avatares (misma que admin: /api/static/avatars para que carguen desde Node) */
+function getAvatarBaseUrlForReq(req) {
+  if (process.env.NODE_ENV !== 'production') {
+    return 'http://localhost:5000/api/static/avatars';
+  }
+  const host = req.get('x-forwarded-host') || req.get('host');
+  const protocol = (req.get('x-forwarded-proto') || req.protocol || 'https');
+  if (host) return `${protocol}://${host}/api/static/avatars`;
+  return `${process.env.API_PUBLIC_URL || process.env.PHP_SYSTEM_URL || ''}/api/static/avatars`;
+}
+
 const getAlumnoIdAndSexo = async (req) => {
   const { colegio_id } = req.user;
   const alumno = await query(
@@ -1307,16 +1318,18 @@ router.get('/avatares-bimestre/resumen', async (req, res) => {
       [alumnoId, baseRow.id]
     );
     const accesorioId = equipado[0]?.accesorio_id || null;
-    let imagenUrl = baseAvatarBimestreUrl() + (baseRow.imagen_base || '');
+    const baseUrl = getAvatarBaseUrlForReq(req);
+    let imagenUrl = baseRow.imagen_base ? `${baseUrl}/${baseRow.imagen_base}` : null;
     if (accesorioId) {
       const acc = await query(
         `SELECT imagen_combinada FROM avatar_accesorios WHERE id = ?`,
         [accesorioId]
       );
       if (acc.length > 0 && acc[0].imagen_combinada) {
-        imagenUrl = baseAvatarBimestreUrl() + acc[0].imagen_combinada;
+        imagenUrl = `${baseUrl}/${acc[0].imagen_combinada}`;
       }
     }
+    if (!imagenUrl && baseRow.imagen_base) imagenUrl = `${baseUrl}/${baseRow.imagen_base}`;
 
     res.json({
       avatar_imagen_url: imagenUrl,
@@ -1324,7 +1337,9 @@ router.get('/avatares-bimestre/resumen', async (req, res) => {
         id: baseRow.id,
         bimestre: baseRow.bimestre,
         nombre: baseRow.nombre,
-        sexo: baseRow.sexo
+        sexo: baseRow.sexo,
+        descripcion: baseRow.descripcion || '',
+        historia: baseRow.historia || ''
       },
       total_estrellas: totalEstrellas,
       bimestre
@@ -1398,11 +1413,11 @@ router.get('/avatares-bimestre/bases/:baseId/accesorios', async (req, res) => {
       [alumnoId, baseId]
     );
     const equipadoId = equipado[0]?.accesorio_id || null;
-    const baseUrl = baseAvatarBimestreUrl();
+    const baseUrl = getAvatarBaseUrlForReq(req);
     const list = accesorios.map(a => ({
       ...a,
-      imagen_accesorio_url: a.imagen_accesorio ? baseUrl + a.imagen_accesorio : null,
-      imagen_combinada_url: a.imagen_combinada ? baseUrl + a.imagen_combinada : null,
+      imagen_accesorio_url: a.imagen_accesorio ? `${baseUrl}/${a.imagen_accesorio}` : null,
+      imagen_combinada_url: a.imagen_combinada ? `${baseUrl}/${a.imagen_combinada}` : null,
       desbloqueado: desbloqueadoIds.has(a.id),
       puede_desbloquear: totalEstrellas >= (a.puntuacion_requerida || 0),
       equipado: equipadoId === a.id

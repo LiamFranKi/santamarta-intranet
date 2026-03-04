@@ -47,6 +47,7 @@ function AlumnoAvatarWidget() {
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && navigate('/alumno/avatar')}
+      aria-label="Ver mi avatar y desbloquear accesorios"
     >
       <div className="alumno-avatar-widget-inner">
         <div className="alumno-avatar-widget-imagen">
@@ -58,9 +59,15 @@ function AlumnoAvatarWidget() {
         </div>
         <div className="alumno-avatar-widget-info">
           <p className="alumno-avatar-widget-nombre">{avatar ? avatar.name : 'Mi Avatar'}</p>
-          <p className="alumno-avatar-widget-descripcion">{avatar?.description || '—'}</p>
-          {avatar?.level != null && <p className="alumno-avatar-widget-nivel">Nivel {String(avatar.level).padStart(2, '0')}</p>}
-          <p className="alumno-avatar-widget-estrellas">⭐ {totalEstrellas} estrellas</p>
+          {avatar?.description ? (
+            <p className="alumno-avatar-widget-descripcion">{avatar.description}</p>
+          ) : null}
+          <div className="alumno-avatar-widget-estrellas-wrap">
+            <span className="alumno-avatar-widget-estrellas-icon">⭐</span>
+            <span className="alumno-avatar-widget-estrellas-num">{totalEstrellas}</span>
+            <span className="alumno-avatar-widget-estrellas-label">estrellas</span>
+          </div>
+          <span className="alumno-avatar-widget-cta">Toca para personalizar →</span>
         </div>
       </div>
     </div>

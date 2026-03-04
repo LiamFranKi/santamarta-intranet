@@ -153,104 +153,150 @@ function AlumnoAvatar() {
 
   const imagenMostrar = sistema === 'bimestre' ? avatarImagenUrl : avatarActual?.image_url;
   const nombreMostrar = sistema === 'bimestre' ? (avatarBase?.nombre || 'Mi avatar') : avatar.name;
+  const descripcionBase = (avatarBase?.descripcion || '').trim();
+  const historiaBase = (avatarBase?.historia || '').trim();
 
   return (
     <DashboardLayout>
       <div className="avatar-pagina">
-        <h1 className="avatar-titulo-principal">Tu Avatar</h1>
-        {sistema === 'bimestre' && (
-          <p className="avatar-bimestre-badge">Bimestre {bimestre}</p>
-        )}
-        <div className="avatar-tarjeta-centro">
-          <div className="avatar-tarjeta-contenido">
-            <div className="avatar-imagen-container">
-              {imagenMostrar ? (
-                <img src={imagenMostrar} alt={nombreMostrar} />
-              ) : (
-                <div className="avatar-imagen-placeholder">🎭</div>
-              )}
-              {sistema === 'tienda' && <div className="avatar-nivel-badge">Nivel {nivel}</div>}
-            </div>
-            <div className="avatar-info">
-              <h2 className="avatar-nombre">{nombreMostrar}</h2>
-              <p className="avatar-descripcion">{sistema === 'bimestre' ? (avatarBase?.nombre ? `Avatar del bimestre ${bimestre}` : '') : descripcion}</p>
-              {sistema === 'tienda' && (
-                <>
-                  <p className="avatar-nivel">Nivel {nivel}</p>
-                  <div className="avatar-precio">
-                    <span className="avatar-precio-label">Precio:</span>{' '}
-                    {precio === 0 ? 'Gratis' : `${precio} estrellas`}
-                  </div>
-                </>
-              )}
-              <div className="avatar-estrellas">
-                <span className="avatar-estrellas-label">Tus estrellas:</span>{' '}
-                <strong>{totalEstrellas}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {sistema === 'bimestre' ? (
           <>
-            <h2 className="avatar-tienda-titulo">Accesorios de tu avatar</h2>
-            <div className="avatar-bimestre-sin-accesorio">
-              <button
-                type="button"
-                className={`avatar-tienda-btn ${accesorios.every(a => !a.equipado) ? 'avatar-tienda-btn-comprado' : ''}`}
-                onClick={handleEquiparSoloBase}
-                disabled={equipando === -1}
-              >
-                {equipando === -1 ? '...' : 'Usar sin accesorio'}
-              </button>
-            </div>
-            {accesorios.length > 0 ? (
-              <div className="avatar-tienda-grid">
-                {accesorios.map((acc) => (
-                  <div key={acc.id} className={`avatar-tienda-card ${acc.desbloqueado ? 'avatar-tienda-card-comprado' : ''}`}>
-                    <div className="avatar-tienda-imagen">
-                      {(acc.imagen_accesorio_url || acc.imagen_combinada_url) ? (
-                        <img src={acc.imagen_accesorio_url || acc.imagen_combinada_url} alt={acc.nombre} />
-                      ) : (
-                        <div className="avatar-tienda-placeholder">🎭</div>
-                      )}
-                      {acc.desbloqueado && <span className="avatar-tienda-badge">✓ Desbloqueado</span>}
-                      {acc.equipado && <span className="avatar-tienda-badge equipado">Equipado</span>}
-                    </div>
-                    <h3 className="avatar-tienda-nombre">{acc.nombre}</h3>
-                    <p className="avatar-tienda-descripcion">{acc.descripcion || '—'}</p>
-                    <p className="avatar-tienda-precio">⭐ {acc.puntuacion_requerida ?? 0} estrellas</p>
-                    <div className="avatar-bimestre-acciones">
-                      {!acc.desbloqueado && (
-                        <button
-                          type="button"
-                          className={`avatar-tienda-btn ${acc.puede_desbloquear ? 'avatar-tienda-btn-comprar' : 'avatar-tienda-btn-bloqueado'}`}
-                          onClick={() => handleDesbloquearBimestre(acc)}
-                          disabled={!acc.puede_desbloquear || comprando === acc.id}
-                        >
-                          {acc.puede_desbloquear ? (comprando === acc.id ? '...' : 'Desbloquear') : `Necesitas ${acc.puntuacion_requerida ?? 0} ⭐`}
-                        </button>
-                      )}
-                      {acc.desbloqueado && (
-                        <button
-                          type="button"
-                          className={`avatar-tienda-btn ${acc.equipado ? 'avatar-tienda-btn-comprado' : ''}`}
-                          onClick={() => handleEquiparBimestre(acc.id)}
-                          disabled={acc.equipado || equipando === acc.id}
-                        >
-                          {acc.equipado ? 'Equipado' : equipando === acc.id ? '...' : 'Equipar'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+            {/* Hero: avatar + nombre + estrellas */}
+            <div className="avatar-hero">
+              <div className="avatar-hero-bg" />
+              <div className="avatar-hero-content">
+                <span className="avatar-hero-bimestre">Bimestre {bimestre}</span>
+                <div className="avatar-hero-imagen-wrap">
+                  {imagenMostrar ? (
+                    <img src={imagenMostrar} alt={nombreMostrar} className="avatar-hero-imagen" />
+                  ) : (
+                    <div className="avatar-hero-placeholder">🎭</div>
+                  )}
+                </div>
+                <h1 className="avatar-hero-nombre">{nombreMostrar}</h1>
+                <div className="avatar-hero-estrellas">
+                  <span className="avatar-hero-estrellas-icon">⭐</span>
+                  <span className="avatar-hero-estrellas-num">{totalEstrellas}</span>
+                  <span className="avatar-hero-estrellas-label">estrellas</span>
+                </div>
               </div>
-            ) : (
-              <p className="avatar-tienda-vacio">No hay accesorios para este bimestre.</p>
+            </div>
+
+            {/* Descripción e historia (si existen) */}
+            {(descripcionBase || historiaBase) && (
+              <div className="avatar-story-card">
+                {descripcionBase && <p className="avatar-story-descripcion">{descripcionBase}</p>}
+                {historiaBase && (
+                  <blockquote className="avatar-story-historia">
+                    {historiaBase}
+                  </blockquote>
+                )}
+              </div>
             )}
+
+            {/* Accesorios */}
+            <section className="avatar-accesorios-section">
+              <h2 className="avatar-accesorios-titulo">Desbloquea accesorios</h2>
+              <p className="avatar-accesorios-subtitulo">Gana estrellas con tu esfuerzo y personaliza tu avatar</p>
+              <div className="avatar-bimestre-sin-accesorio">
+                <button
+                  type="button"
+                  className={`avatar-btn-base ${accesorios.every(a => !a.equipado) ? 'avatar-btn-base-active' : ''}`}
+                  onClick={handleEquiparSoloBase}
+                  disabled={equipando === -1}
+                >
+                  {equipando === -1 ? '...' : '✨ Usar solo avatar (sin accesorio)'}
+                </button>
+              </div>
+              {accesorios.length > 0 ? (
+                <div className="avatar-accesorios-grid">
+                  {accesorios.map((acc) => {
+                    const puede = acc.puede_desbloquear;
+                    const desbloqueado = acc.desbloqueado;
+                    const equipado = acc.equipado;
+                    const estrellasReq = acc.puntuacion_requerida ?? 0;
+                    return (
+                      <div key={acc.id} className={`avatar-acc-card ${desbloqueado ? 'avatar-acc-card-unlocked' : ''} ${equipado ? 'avatar-acc-card-equipped' : ''}`}>
+                        <div className="avatar-acc-imagen">
+                          {(acc.imagen_accesorio_url || acc.imagen_combinada_url) ? (
+                            <img src={acc.imagen_accesorio_url || acc.imagen_combinada_url} alt={acc.nombre} />
+                          ) : (
+                            <div className="avatar-acc-placeholder">✨</div>
+                          )}
+                          {!desbloqueado && <div className="avatar-acc-lock" title={`Necesitas ${estrellasReq} estrellas`}>🔒</div>}
+                          {equipado && <span className="avatar-acc-badge-equipado">Equipado</span>}
+                          {desbloqueado && !equipado && <span className="avatar-acc-badge-listo">Listo</span>}
+                        </div>
+                        <h3 className="avatar-acc-nombre">{acc.nombre}</h3>
+                        {acc.descripcion && <p className="avatar-acc-descripcion">{acc.descripcion}</p>}
+                        <div className="avatar-acc-estrellas-req">
+                          <span className="avatar-acc-estrellas-icon">⭐</span>
+                          <span>{estrellasReq} estrellas</span>
+                          {desbloqueado ? (
+                            <span className="avatar-acc-check">✓</span>
+                          ) : (
+                            <span className={`avatar-acc-progress ${puede ? 'avatar-acc-progress-ok' : ''}`}>
+                              {totalEstrellas}/{estrellasReq}
+                            </span>
+                          )}
+                        </div>
+                        <div className="avatar-acc-actions">
+                          {!desbloqueado && (
+                            <button
+                              type="button"
+                              className={`avatar-acc-btn ${puede ? 'avatar-acc-btn-unlock' : 'avatar-acc-btn-locked'}`}
+                              onClick={() => handleDesbloquearBimestre(acc)}
+                              disabled={!puede || comprando === acc.id}
+                            >
+                              {puede ? (comprando === acc.id ? '...' : 'Desbloquear') : `Faltan ${estrellasReq - totalEstrellas} ⭐`}
+                            </button>
+                          )}
+                          {desbloqueado && (
+                            <button
+                              type="button"
+                              className={`avatar-acc-btn avatar-acc-btn-equip ${equipado ? 'avatar-acc-btn-equipped' : ''}`}
+                              onClick={() => handleEquiparBimestre(acc.id)}
+                              disabled={equipado || equipando === acc.id}
+                            >
+                              {equipado ? '✓ Equipado' : equipando === acc.id ? '...' : 'Equipar'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="avatar-tienda-vacio">No hay accesorios para este bimestre. ¡Vuelve pronto!</p>
+              )}
+            </section>
           </>
         ) : (
           <>
+            <h1 className="avatar-titulo-principal">Tu Avatar</h1>
+            <div className="avatar-tarjeta-centro">
+              <div className="avatar-tarjeta-contenido">
+                <div className="avatar-imagen-container">
+                  {imagenMostrar ? (
+                    <img src={imagenMostrar} alt={nombreMostrar} />
+                  ) : (
+                    <div className="avatar-imagen-placeholder">🎭</div>
+                  )}
+                  <div className="avatar-nivel-badge">Nivel {nivel}</div>
+                </div>
+                <div className="avatar-info">
+                  <h2 className="avatar-nombre">{nombreMostrar}</h2>
+                  <p className="avatar-descripcion">{descripcion}</p>
+                  <p className="avatar-nivel">Nivel {nivel}</p>
+                  <div className="avatar-precio">
+                    <span className="avatar-precio-label">Precio:</span> {precio === 0 ? 'Gratis' : `${precio} estrellas`}
+                  </div>
+                  <div className="avatar-estrellas">
+                    <span className="avatar-estrellas-label">Tus estrellas:</span> <strong>{totalEstrellas}</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
             <h2 className="avatar-tienda-titulo">Tienda de Avatares</h2>
             {items.length > 0 ? (
               <div className="avatar-tienda-grid">
