@@ -1316,14 +1316,18 @@ router.get('/avatares-bimestre/resumen', async (req, res) => {
     }
 
     const baseRow = base[0];
-    // Asegurar descripcion e historia como string (MySQL puede devolver Buffer en TEXT)
     const safeStr = (v) => {
       if (v == null || v === undefined) return '';
       if (Buffer.isBuffer(v)) return v.toString('utf8');
       return String(v || '').trim();
     };
-    const descripcionStr = safeStr(baseRow.descripcion ?? baseRow.Descripcion ?? baseRow.DESCRIPCION ?? '');
-    const historiaStr = safeStr(baseRow.historia ?? baseRow.Historia ?? baseRow.HISTORIA ?? '');
+    const getField = (row, keys) => {
+      for (const k of keys) if (row[k] != null && row[k] !== '') return row[k];
+      const lower = Object.keys(row).find((x) => x.toLowerCase() === keys[0].toLowerCase());
+      return lower ? row[lower] : '';
+    };
+    const descripcionStr = safeStr(getField(baseRow, ['descripcion', 'Descripcion', 'DESCRIPCION']));
+    const historiaStr = safeStr(getField(baseRow, ['historia', 'Historia', 'HISTORIA']));
 
     const equipado = await query(
       `SELECT accesorio_id FROM alumno_avatar_equipado WHERE student_id = ? AND avatar_base_id = ?`,

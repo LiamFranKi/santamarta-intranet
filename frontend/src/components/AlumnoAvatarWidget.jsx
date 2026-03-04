@@ -15,8 +15,13 @@ function AlumnoAvatarWidget() {
         // Preferir sistema por bimestre (avatar + accesorios por bimestre/género)
         const resBimestre = await api.get('/alumno/avatares-bimestre/resumen').catch(() => null);
         if (resBimestre?.data?.avatar_imagen_url != null) {
-          const base = resBimestre.data.avatar_base || {};
-          const desc = String(base.descripcion ?? base.description ?? '').trim();
+          let base = resBimestre.data.avatar_base || {};
+          let desc = String(base.descripcion ?? base.description ?? '').trim();
+          if (!desc && base.id) {
+            const resBases = await api.get('/alumno/avatares-bimestre/bases', { params: { bimestre: base.bimestre ?? 1 } }).catch(() => null);
+            const full = resBases?.data?.bases?.find((b) => b.id === base.id);
+            if (full) desc = String(full.descripcion ?? full.Descripcion ?? full.description ?? '').trim();
+          }
           let imgUrl = resBimestre.data.avatar_imagen_url || '';
           if (imgUrl.startsWith('http:') && window.location.protocol === 'https:') imgUrl = imgUrl.replace(/^http:/, 'https:');
           setAvatar({
