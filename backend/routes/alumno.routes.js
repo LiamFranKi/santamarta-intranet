@@ -1184,6 +1184,60 @@ const getBimestreActual = () => {
   return Math.min(4, Math.max(1, Math.ceil(m / 3)));
 };
 
+/**
+ * Obtiene el bimestre actual según los rangos de ciclos de notas del colegio (Configuración → NOTAS).
+ * Si no hay rangos configurados o la fecha no cae en ninguno, usa getBimestreActual().
+ */
+const getBimestreActualFromConfig = async (colegio_id, anio_activo) => {
+  try {
+    const rows = await query(
+      'SELECT rangos_ciclos_notas FROM colegios WHERE id = ? LIMIT 1',
+      [colegio_id]
+    );
+    if (!rows || rows.length === 0 || !rows[0].rangos_ciclos_notas) return getBimestreActual();
+
+    let rangos = {};
+    try {
+      rangos = phpSerialize.unserialize(rows[0].rangos_ciclos_notas) || {};
+    } catch (e) {
+      try {
+        rangos = JSON.parse(rows[0].rangos_ciclos_notas) || {};
+      } catch (e2) {
+        return getBimestreActual();
+      }
+    }
+
+    const anio = parseInt(anio_activo, 10) || new Date().getFullYear();
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const parseDdMm = (str) => {
+      if (!str || typeof str !== 'string') return null;
+      const parts = str.trim().split('-');
+      if (parts.length < 2) return null;
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (isNaN(d) || isNaN(m) || m < 1 || m > 12) return null;
+      return new Date(anio, m - 1, d);
+    };
+
+    for (let ciclo = 1; ciclo <= 4; ciclo++) {
+      const key = ciclo.toString();
+      const r = rangos[key] || rangos[ciclo];
+      if (!r || !r.inicio || !r.final) continue;
+      const inicioDate = parseDdMm(r.inicio);
+      const finalDate = parseDdMm(r.final);
+      if (!inicioDate || !finalDate) continue;
+      inicioDate.setHours(0, 0, 0, 0);
+      finalDate.setHours(23, 59, 59, 999);
+      if (hoy >= inicioDate && hoy <= finalDate) return ciclo;
+    }
+  } catch (err) {
+    console.warn('getBimestreActualFromConfig:', err.message);
+  }
+  return getBimestreActual();
+};
+
 const baseAvatarBimestreUrl = () => (process.env.NODE_ENV === 'production'
   ? `${process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe'}/Static/Image/Avatars/`
   : 'http://localhost:5000/Static/Image/Avatars/');
@@ -1224,7 +1278,7 @@ const getTotalEstrellasAlumno = async (alumnoId, colegio_id, anio_activo) => {
 router.get('/avatares-bimestre/resumen', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user;
-    const bimestre = req.query.bimestre ? parseInt(req.query.bimestre, 10) : getBimestreActual();
+    const bimestre = req.query.bimestre ? parseInt(req.query.bimestre, 10) : await getBimestreActualFromConfig(colegio_id, anio_activo);
     const data = await getAlumnoIdAndSexo(req);
     if (!data) return res.status(404).json({ error: 'Alumno no encontrado' });
     const { alumnoId, sexo } = data;
@@ -1290,7 +1344,8 @@ router.get('/avatares-bimestre/resumen', async (req, res) => {
  */
 router.get('/avatares-bimestre/bases', async (req, res) => {
   try {
-    const bimestre = req.query.bimestre ? parseInt(req.query.bimestre, 10) : getBimestreActual();
+    const { colegio_id, anio_activo } = req.user || {};
+    const bimestre = req.query.bimestre ? parseInt(req.query.bimestre, 10) : await getBimestreActualFromConfig(colegio_id, anio_activo);
     const sexo = req.query.sexo !== undefined ? parseInt(req.query.sexo, 10) : null;
     let bases = [];
     if (sexo !== null && !isNaN(sexo)) {
@@ -1346,6 +1401,7 @@ router.get('/avatares-bimestre/bases/:baseId/accesorios', async (req, res) => {
     const baseUrl = baseAvatarBimestreUrl();
     const list = accesorios.map(a => ({
       ...a,
+      imagen_accesorio_url: a.imagen_accesorio ? baseUrl + a.imagen_accesorio : null,
       imagen_combinada_url: a.imagen_combinada ? baseUrl + a.imagen_combinada : null,
       desbloqueado: desbloqueadoIds.has(a.id),
       puede_desbloquear: totalEstrellas >= (a.puntuacion_requerida || 0),

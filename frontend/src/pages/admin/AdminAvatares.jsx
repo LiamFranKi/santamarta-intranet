@@ -21,16 +21,21 @@ function AdminAvatares() {
     orden: 0
   });
   const [archivoBase, setArchivoBase] = useState(null);
-  const [accesorios, setAccesorios] = useState([]);
+  const [previewBaseUrl, setPreviewBaseUrl] = useState(null); // vista previa imagen base
+  const [accesoriosPorBase, setAccesoriosPorBase] = useState({}); // { [baseId]: [accesorios] }
+  const [baseParaAccesorio, setBaseParaAccesorio] = useState(null); // base id al abrir "Nuevo accesorio"
   const [guardandoBase, setGuardandoBase] = useState(false);
-  const [accesorioEditando, setAccesorioEditando] = useState(null);
+  const [accesorioEditando, setAccesorioEditando] = useState(null); // id del accesorio al editar
   const [formAccesorio, setFormAccesorio] = useState({
     nombre: '',
     descripcion: '',
     puntuacion_requerida: 0,
     orden: 0
   });
+  const [archivoSoloAccesorio, setArchivoSoloAccesorio] = useState(null);
+  const [previewSoloAccesorioUrl, setPreviewSoloAccesorioUrl] = useState(null);
   const [archivoAccesorio, setArchivoAccesorio] = useState(null);
+  const [previewAccesorioUrl, setPreviewAccesorioUrl] = useState(null);
   const [guardandoAccesorio, setGuardandoAccesorio] = useState(false);
   const [mostrarModalAccesorio, setMostrarModalAccesorio] = useState(false);
 
@@ -38,11 +43,23 @@ function AdminAvatares() {
     try {
       setLoading(true);
       const res = await api.get('/admin/avatares/bases');
-      setBases(res.data.bases || []);
+      const list = res.data.bases || [];
+      setBases(list);
+      if (list.length > 0) {
+        const resAcc = await Promise.all(list.map((b) => api.get(`/admin/avatares/bases/${b.id}/accesorios`)));
+        const map = {};
+        list.forEach((b, i) => {
+          map[b.id] = resAcc[i]?.data?.accesorios || [];
+        });
+        setAccesoriosPorBase(map);
+      } else {
+        setAccesoriosPorBase({});
+      }
     } catch (e) {
       console.error(e);
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudieron cargar los avatares' });
       setBases([]);
+      setAccesoriosPorBase({});
     } finally {
       setLoading(false);
     }
@@ -50,17 +67,28 @@ function AdminAvatares() {
 
   useEffect(() => { cargarBases(); }, []);
 
-  const cargarAccesorios = async (baseId) => {
+  const refrescarAccesoriosDeBase = async (baseId) => {
     if (!baseId) return;
     try {
       const res = await api.get(`/admin/avatares/bases/${baseId}/accesorios`);
-      setAccesorios(res.data.accesorios || []);
+      setAccesoriosPorBase((prev) => ({ ...prev, [baseId]: res.data.accesorios || [] }));
     } catch (e) {
-      setAccesorios([]);
+      setAccesoriosPorBase((prev) => ({ ...prev, [baseId]: [] }));
     }
   };
 
+  const getAccesorioById = (id) => {
+    if (!id) return null;
+    for (const arr of Object.values(accesoriosPorBase)) {
+      const a = arr.find((x) => x.id === id);
+      if (a) return a;
+    }
+    return null;
+  };
+
   const abrirFormulario = (base) => {
+    if (previewBaseUrl) URL.revokeObjectURL(previewBaseUrl);
+    setPreviewBaseUrl(null);
     if (base) {
       setBaseEditando(base.id);
       setFormBase({
@@ -72,17 +100,17 @@ function AdminAvatares() {
         orden: base.orden ?? 0
       });
       setArchivoBase(null);
-      cargarAccesorios(base.id);
     } else {
       setBaseEditando(null);
       setFormBase({ bimestre: 1, sexo: 0, nombre: '', descripcion: '', historia: '', orden: 0 });
       setArchivoBase(null);
-      setAccesorios([]);
     }
     setMostrarModalBase(true);
   };
 
   const cerrarModalBase = () => {
+    if (previewBaseUrl) URL.revokeObjectURL(previewBaseUrl);
+    setPreviewBaseUrl(null);
     setMostrarModalBase(false);
     setBaseEditando(null);
     setAccesorioEditando(null);
@@ -107,25 +135,14 @@ function AdminAvatares() {
         await api.put(`/admin/avatares/bases/${baseEditando}`, fd);
         Swal.fire({ icon: 'success', title: 'Listo', text: 'Avatar base actualizado correctamente' });
         cargarBases();
-        cargarAccesorios(baseEditando);
+        refrescarAccesoriosDeBase(baseEditando);
       } else {
-        const res = await api.post('/admin/avatares/bases', fd);
-        const nuevaBase = res.data?.base;
-        Swal.fire({ icon: 'success', title: 'Listo', text: 'Avatar base creado. Puedes añadir accesorios abajo.' });
-        cargarBases();
-        if (nuevaBase?.id) {
-          setBaseEditando(nuevaBase.id);
-          setFormBase({
-            bimestre: nuevaBase.bimestre,
-            sexo: nuevaBase.sexo,
-            nombre: nuevaBase.nombre || '',
-            descripcion: nuevaBase.descripcion || '',
-            historia: nuevaBase.historia || '',
-            orden: nuevaBase.orden ?? 0
-          });
-          setArchivoBase(null);
-          cargarAccesorios(nuevaBase.id);
-        }
+        await api.post('/admin/avatares/bases', fd);
+        Swal.fire({ icon: 'success', title: 'Listo', text: 'Avatar base creado correctamente' });
+        if (previewBaseUrl) URL.revokeObjectURL(previewBaseUrl);
+        setPreviewBaseUrl(null);
+        setArchivoBase(null);
+        cerrarModalBase();
       }
     } catch (err) {
       const msg = err.response?.data?.error || err.message || 'No se pudo guardar';
@@ -154,19 +171,27 @@ function AdminAvatares() {
     }
   };
 
-  const abrirModalAccesorio = (acc) => {
+  const abrirModalAccesorio = (acc, baseId) => {
+    if (previewSoloAccesorioUrl) URL.revokeObjectURL(previewSoloAccesorioUrl);
+    if (previewAccesorioUrl) URL.revokeObjectURL(previewAccesorioUrl);
+    setPreviewSoloAccesorioUrl(null);
+    setPreviewAccesorioUrl(null);
     if (acc) {
       setAccesorioEditando(acc.id);
+      setBaseParaAccesorio(acc.avatar_base_id);
       setFormAccesorio({
         nombre: acc.nombre || '',
         descripcion: acc.descripcion || '',
         puntuacion_requerida: acc.puntuacion_requerida ?? 0,
         orden: acc.orden ?? 0
       });
+      setArchivoSoloAccesorio(null);
       setArchivoAccesorio(null);
     } else {
       setAccesorioEditando(null);
+      setBaseParaAccesorio(baseId);
       setFormAccesorio({ nombre: '', descripcion: '', puntuacion_requerida: 0, orden: 0 });
+      setArchivoSoloAccesorio(null);
       setArchivoAccesorio(null);
     }
     setMostrarModalAccesorio(true);
@@ -174,7 +199,8 @@ function AdminAvatares() {
 
   const guardarAccesorio = async (e) => {
     e.preventDefault();
-    if (!baseEditando) return;
+    const baseId = baseParaAccesorio || (accesorioEditando && getAccesorioById(accesorioEditando)?.avatar_base_id);
+    if (!baseId) return;
     setGuardandoAccesorio(true);
     try {
       const fd = new FormData();
@@ -182,16 +208,21 @@ function AdminAvatares() {
       fd.append('descripcion', (formAccesorio.descripcion || '').trim());
       fd.append('puntuacion_requerida', formAccesorio.puntuacion_requerida);
       fd.append('orden', formAccesorio.orden);
+      if (archivoSoloAccesorio) fd.append('imagen_accesorio', archivoSoloAccesorio);
       if (archivoAccesorio) fd.append('imagen_combinada', archivoAccesorio);
       if (accesorioEditando) {
         await api.put(`/admin/avatares/accesorios/${accesorioEditando}`, fd);
         Swal.fire({ icon: 'success', title: 'Listo', text: 'Accesorio actualizado' });
       } else {
-        await api.post(`/admin/avatares/bases/${baseEditando}/accesorios`, fd);
+        await api.post(`/admin/avatares/bases/${baseId}/accesorios`, fd);
         Swal.fire({ icon: 'success', title: 'Listo', text: 'Accesorio creado' });
       }
+      if (previewSoloAccesorioUrl) URL.revokeObjectURL(previewSoloAccesorioUrl);
+      if (previewAccesorioUrl) URL.revokeObjectURL(previewAccesorioUrl);
+      setPreviewSoloAccesorioUrl(null);
+      setPreviewAccesorioUrl(null);
       setMostrarModalAccesorio(false);
-      cargarAccesorios(baseEditando);
+      refrescarAccesoriosDeBase(baseId);
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudo guardar' });
     } finally {
@@ -199,7 +230,7 @@ function AdminAvatares() {
     }
   };
 
-  const eliminarAccesorio = async (id) => {
+  const eliminarAccesorio = async (accesorioId, baseId) => {
     const { isConfirmed } = await Swal.fire({
       title: '¿Eliminar este accesorio?',
       icon: 'warning',
@@ -208,10 +239,9 @@ function AdminAvatares() {
     });
     if (!isConfirmed) return;
     try {
-      await api.delete(`/admin/avatares/accesorios/${id}`);
+      await api.delete(`/admin/avatares/accesorios/${accesorioId}`);
       Swal.fire({ icon: 'success', title: 'Eliminado' });
-      setMostrarModalAccesorio(false);
-      cargarAccesorios(baseEditando);
+      refrescarAccesoriosDeBase(baseId);
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudo eliminar' });
     }
@@ -257,12 +287,29 @@ function AdminAvatares() {
                     <div className="admin-avatares-card-placeholder">🎭</div>
                   )}
                 </div>
+                <div className="admin-avatares-acc-grid-wrap">
+                  <div className="admin-avatares-acc-grid" style={{ '--cols': 3 }}>
+                    {(accesoriosPorBase[b.id] || []).map((a) => (
+                      <div key={a.id} className="admin-avatares-acc-mini">
+                        <div className="admin-avatares-acc-mini-img" onClick={() => abrirModalAccesorio(a, b.id)} title={a.nombre}>
+                          {(a.imagen_accesorio_url || a.imagen_combinada_url) ? (
+                            <img src={a.imagen_accesorio_url || a.imagen_combinada_url} alt={a.nombre} />
+                          ) : (
+                            <span>✨</span>
+                          )}
+                        </div>
+                        <button type="button" className="admin-avatares-acc-mini-delete" onClick={(ev) => { ev.stopPropagation(); eliminarAccesorio(a.id, b.id); }} aria-label="Eliminar accesorio">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 <div className="admin-avatares-card-info">
                   <h3>{b.nombre || `Bimestre ${b.bimestre} ${SEXO_OPTS.find(s => s.value === b.sexo)?.label || ''}`}</h3>
                   <p className="admin-avatares-card-meta">Bimestre {b.bimestre} · {SEXO_OPTS.find(s => s.value === b.sexo)?.label}</p>
                 </div>
                 <div className="admin-avatares-card-actions">
                   <button type="button" className="admin-avatares-btn small" onClick={() => abrirFormulario(b)}>Editar</button>
+                  <button type="button" className="admin-avatares-btn small primary" onClick={() => abrirModalAccesorio(null, b.id)}>＋ Nuevo accesorio</button>
                   <button type="button" className="admin-avatares-btn small danger" onClick={() => eliminarBase(b.id)}>Eliminar</button>
                 </div>
               </div>
@@ -305,12 +352,26 @@ function AdminAvatares() {
                       <label>Orden</label>
                       <input type="number" value={formBase.orden} onChange={(e) => setFormBase({ ...formBase, orden: parseInt(e.target.value, 10) || 0 })} min={0} />
                     </div>
-                    <div className="form-group">
-                      <label>Imagen base (sin accesorios)</label>
-                      <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={(e) => setArchivoBase(e.target.files?.[0] || null)} />
-                      {baseActual?.imagen_base_url && !archivoBase && <small className="form-hint">Se muestra la imagen actual. Sube otra para reemplazar. Máx. 15 MB.</small>}
-                      {!baseEditando && <small className="form-hint">Opcional. Puedes añadirla después al editar. Tamaño máximo: 15 MB.</small>}
-                    </div>
+                  <div className="form-group">
+                    <label>Imagen base (sin accesorios)</label>
+                    <input
+                      type="file"
+                      accept="image/png,image/jpeg,image/jpg"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null;
+                        if (previewBaseUrl) URL.revokeObjectURL(previewBaseUrl);
+                        setPreviewBaseUrl(file ? URL.createObjectURL(file) : null);
+                        setArchivoBase(file);
+                      }}
+                    />
+                    {(previewBaseUrl || (baseActual?.imagen_base_url && !archivoBase)) && (
+                      <div className="admin-avatares-preview-wrap">
+                        <img src={previewBaseUrl || baseActual?.imagen_base_url} alt="Vista previa" className="admin-avatares-preview-img" />
+                      </div>
+                    )}
+                    {baseActual?.imagen_base_url && !archivoBase && <small className="form-hint">Se muestra la imagen actual. Sube otra para reemplazar. Máx. 15 MB.</small>}
+                    {!baseEditando && !previewBaseUrl && <small className="form-hint">Opcional. Puedes añadirla después al editar. Tamaño máximo: 15 MB.</small>}
+                  </div>
                     <div className="form-group form-group-full">
                       <label>Historia o texto (opcional)</label>
                       <textarea value={formBase.historia} onChange={(e) => setFormBase({ ...formBase, historia: e.target.value })} rows={3} placeholder="Texto que verá el alumno" />
@@ -323,29 +384,6 @@ function AdminAvatares() {
                     </button>
                   </div>
                 </form>
-
-                {baseEditando && (
-                  <div className="admin-avatares-modal-accesorios">
-                    <h3 className="admin-avatares-section-title">✨ Accesorios de este avatar</h3>
-                    <p className="admin-avatares-hint-block">Cada accesorio tiene su imagen combinada (personaje + accesorio). Los alumnos desbloquean por estrellas y eligen cuál equipar.</p>
-                    <button type="button" className="admin-avatares-btn primary" onClick={() => abrirModalAccesorio(null)}>＋ Añadir accesorio</button>
-                    <ul className="admin-avatares-accesorios-list">
-                      {accesorios.map((a) => (
-                        <li key={a.id} className="admin-avatares-accesorio-item">
-                          <div className="admin-avatares-acc-imagen">
-                            {a.imagen_combinada_url ? <img src={a.imagen_combinada_url} alt={a.nombre} /> : <span>🎭</span>}
-                          </div>
-                          <span className="admin-avatares-acc-info">{a.nombre} — ⭐ {a.puntuacion_requerida} estrellas</span>
-                          <div className="admin-avatares-acc-actions">
-                            <button type="button" className="admin-avatares-btn small" onClick={() => abrirModalAccesorio(a)}>Editar</button>
-                            <button type="button" className="admin-avatares-btn small danger" onClick={() => eliminarAccesorio(a.id)}>Eliminar</button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                    {accesorios.length === 0 && <p className="admin-avatares-empty-list">Aún no hay accesorios. Añade uno con el botón de arriba.</p>}
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -353,7 +391,7 @@ function AdminAvatares() {
 
         {/* Modal Nuevo / Editar accesorio */}
         {mostrarModalAccesorio && (
-          <div className="admin-avatares-modal-overlay admin-avatares-modal-accesorio-overlay" onClick={() => setMostrarModalAccesorio(false)}>
+          <div className="admin-avatares-modal-overlay admin-avatares-modal-accesorio-overlay" onClick={() => { if (previewSoloAccesorioUrl) URL.revokeObjectURL(previewSoloAccesorioUrl); if (previewAccesorioUrl) URL.revokeObjectURL(previewAccesorioUrl); setPreviewSoloAccesorioUrl(null); setPreviewAccesorioUrl(null); setMostrarModalAccesorio(false); }}>
             <div className="admin-avatares-modal admin-avatares-modal-accesorio" onClick={(e) => e.stopPropagation()}>
               <h3 className="admin-avatares-modal-title">{accesorioEditando ? '✏️ Editar accesorio' : '➕ Nuevo accesorio'}</h3>
               <form onSubmit={guardarAccesorio} className="admin-avatares-modal-form">
@@ -374,13 +412,47 @@ function AdminAvatares() {
                   <input type="number" value={formAccesorio.orden} onChange={(e) => setFormAccesorio({ ...formAccesorio, orden: parseInt(e.target.value, 10) || 0 })} min={0} />
                 </div>
                 <div className="form-group">
+                  <label>Imagen del accesorio (solo) — para tienda/listado</label>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      if (previewSoloAccesorioUrl) URL.revokeObjectURL(previewSoloAccesorioUrl);
+                      setPreviewSoloAccesorioUrl(file ? URL.createObjectURL(file) : null);
+                      setArchivoSoloAccesorio(file);
+                    }}
+                  />
+                  {(previewSoloAccesorioUrl || (accesorioEditando && getAccesorioById(accesorioEditando)?.imagen_accesorio_url && !archivoSoloAccesorio)) && (
+                    <div className="admin-avatares-preview-wrap">
+                      <img src={previewSoloAccesorioUrl || getAccesorioById(accesorioEditando)?.imagen_accesorio_url} alt="Vista previa solo accesorio" className="admin-avatares-preview-img" />
+                    </div>
+                  )}
+                  {accesorioEditando && !archivoSoloAccesorio && <small className="form-hint">Dejar vacío para mantener la actual.</small>}
+                  <small className="form-hint">Solo el accesorio (ej. casco). Se muestra en la tienda antes de canjear. Máx. 15 MB.</small>
+                </div>
+                <div className="form-group">
                   <label>Imagen combinada (personaje + este accesorio)</label>
-                  <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={(e) => setArchivoAccesorio(e.target.files?.[0] || null)} />
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      if (previewAccesorioUrl) URL.revokeObjectURL(previewAccesorioUrl);
+                      setPreviewAccesorioUrl(file ? URL.createObjectURL(file) : null);
+                      setArchivoAccesorio(file);
+                    }}
+                  />
+                  {(previewAccesorioUrl || (accesorioEditando && getAccesorioById(accesorioEditando)?.imagen_combinada_url && !archivoAccesorio)) && (
+                    <div className="admin-avatares-preview-wrap">
+                      <img src={previewAccesorioUrl || getAccesorioById(accesorioEditando)?.imagen_combinada_url} alt="Vista previa combinada" className="admin-avatares-preview-img" />
+                    </div>
+                  )}
                   {accesorioEditando && !archivoAccesorio && <small className="form-hint">Dejar vacío para mantener la actual.</small>}
-                  <small className="form-hint">Tamaño máximo: 15 MB.</small>
+                  <small className="form-hint">Avatar completo con el accesorio equipado. Se muestra cuando el alumno lo canjea. Máx. 15 MB.</small>
                 </div>
                 <div className="admin-avatares-modal-actions">
-                  <button type="button" className="admin-avatares-btn secondary" onClick={() => setMostrarModalAccesorio(false)}>Cancelar</button>
+                  <button type="button" className="admin-avatares-btn secondary" onClick={() => { if (previewSoloAccesorioUrl) URL.revokeObjectURL(previewSoloAccesorioUrl); if (previewAccesorioUrl) URL.revokeObjectURL(previewAccesorioUrl); setPreviewSoloAccesorioUrl(null); setPreviewAccesorioUrl(null); setMostrarModalAccesorio(false); }}>Cancelar</button>
                   <button type="submit" className="admin-avatares-btn primary" disabled={guardandoAccesorio}>{guardandoAccesorio ? 'Guardando...' : '💾 Guardar'}</button>
                 </div>
               </form>

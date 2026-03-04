@@ -209,8 +209,8 @@ function AlumnoAvatar() {
                 {accesorios.map((acc) => (
                   <div key={acc.id} className={`avatar-tienda-card ${acc.desbloqueado ? 'avatar-tienda-card-comprado' : ''}`}>
                     <div className="avatar-tienda-imagen">
-                      {acc.imagen_combinada_url ? (
-                        <img src={acc.imagen_combinada_url} alt={acc.nombre} />
+                      {(acc.imagen_accesorio_url || acc.imagen_combinada_url) ? (
+                        <img src={acc.imagen_accesorio_url || acc.imagen_combinada_url} alt={acc.nombre} />
                       ) : (
                         <div className="avatar-tienda-placeholder">🎭</div>
                       )}

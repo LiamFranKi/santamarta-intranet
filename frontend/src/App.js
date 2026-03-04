@@ -534,7 +534,7 @@ function AppRoutes() {
         path="/admin/gamificacion/niveles"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
-            <Dashboard />
+            <Navigate to="/admin/avatares" replace />
           </PrivateRoute>
         }
       />
@@ -542,7 +542,7 @@ function AppRoutes() {
         path="/admin/gamificacion/logros"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
-            <Dashboard />
+            <Navigate to="/admin/avatares" replace />
           </PrivateRoute>
         }
       />
@@ -558,7 +558,7 @@ function AppRoutes() {
         path="/admin/gamificacion/avatares"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
-            <AdminAvatares />
+            <Navigate to="/admin/avatares" replace />
           </PrivateRoute>
         }
       />
@@ -566,7 +566,7 @@ function AppRoutes() {
         path="/admin/gamificacion/ranking"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
-            <Dashboard />
+            <Navigate to="/admin/avatares" replace />
           </PrivateRoute>
         }
       />
