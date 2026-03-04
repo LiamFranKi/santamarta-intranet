@@ -365,8 +365,8 @@
   }
 
   .avatar-hero-imagen-wrap {
-    width: 140px;
-    height: 140px;
+    width: 200px;
+    height: 200px;
   }
 
   .avatar-hero-nombre {
@@ -390,7 +390,7 @@
 .avatar-hero-bg {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 40%, #312e81 100%);
+  background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 40%, #ddd6fe 100%);
   opacity: 0.97;
 }
 
@@ -406,23 +406,23 @@
 .avatar-hero-bimestre {
   display: inline-block;
   padding: 0.35rem 1rem;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(99, 102, 241, 0.2);
   border-radius: 999px;
   font-size: 0.9rem;
   font-weight: 600;
-  color: #e0e7ff;
+  color: #4338ca;
   margin-bottom: 1rem;
   letter-spacing: 0.05em;
 }
 
 .avatar-hero-imagen-wrap {
-  width: 180px;
-  height: 180px;
+  width: 260px;
+  height: 260px;
   border-radius: 50%;
   overflow: hidden;
-  border: 4px solid rgba(255, 255, 255, 0.35);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
-  background: rgba(255, 255, 255, 0.08);
+  border: 4px solid rgba(99, 102, 241, 0.35);
+  box-shadow: 0 12px 32px rgba(99, 102, 241, 0.2);
+  background: rgba(255, 255, 255, 0.7);
   margin-bottom: 1.25rem;
 }
 
@@ -447,8 +447,8 @@
   margin: 0 0 0.35rem 0;
   font-size: 1.85rem;
   font-weight: 800;
-  color: #fff;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+  color: #4338ca;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
   letter-spacing: -0.02em;
 }
 
@@ -456,7 +456,7 @@
   margin: 0 0 0.75rem 0;
   font-size: 0.95rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
+  color: #4f46e5;
   letter-spacing: 0.02em;
 }
 
@@ -464,18 +464,18 @@
   margin: 0 0 0.6rem 0;
   font-size: 1rem;
   line-height: 1.55;
-  color: rgba(255, 255, 255, 0.92);
+  color: #4338ca;
   max-width: 520px;
 }
 
 .avatar-hero-historia {
   margin: 0 0 1rem 0;
   padding: 0 0 0 1rem;
-  border-left: 3px solid rgba(255, 255, 255, 0.5);
+  border-left: 3px solid rgba(99, 102, 241, 0.5);
   font-size: 0.95rem;
   font-style: italic;
   line-height: 1.55;
-  color: rgba(255, 255, 255, 0.88);
+  color: #4f46e5;
   max-width: 520px;
   text-align: left;
 }
