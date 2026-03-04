@@ -384,7 +384,88 @@
   border: 1px dashed #e5e7eb;
 }
 
-/* Modal accesorio */
+/* Modal Nuevo/Editar avatar base (formato igual que el resto de módulos) */
+.admin-avatares-modal-base-overlay {
+  z-index: 1000;
+}
+
+.admin-avatares-modal-base {
+  max-width: 640px;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  border-top: 4px solid #4a83c1;
+  padding: 0;
+}
+
+.admin-avatares-modal-base-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 2rem;
+  border-bottom: 2px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.admin-avatares-modal-base-title {
+  font-size: 1.35rem;
+  color: #1f2937;
+  margin: 0;
+  font-weight: 700;
+}
+
+.admin-avatares-modal-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: #f3f4f6;
+  color: #6b7280;
+  border-radius: 10px;
+  font-size: 1.25rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.admin-avatares-modal-close:hover {
+  background: #e5e7eb;
+  color: #1f2937;
+}
+
+.admin-avatares-modal-base-body {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  padding: 1.5rem 2rem 2rem;
+}
+
+.admin-avatares-modal-accesorios {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 2px solid #e5e7eb;
+}
+
+.admin-avatares-modal-accesorios .admin-avatares-section-title {
+  margin-top: 0;
+}
+
+.admin-avatares-modal-accesorios .admin-avatares-btn.primary {
+  margin-bottom: 1rem;
+}
+
+/* Modal accesorio (encima del modal base) */
+.admin-avatares-modal-accesorio-overlay {
+  z-index: 1001;
+}
+
+.admin-avatares-modal-accesorio {
+  max-width: 480px;
+}
+
+/* Modal overlay base (compartido) */
 .admin-avatares-modal-overlay {
   position: fixed;
   inset: 0;
