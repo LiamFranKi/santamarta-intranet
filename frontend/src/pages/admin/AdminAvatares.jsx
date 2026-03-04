@@ -97,23 +97,25 @@ function AdminAvatares() {
       const fd = new FormData();
       fd.append('bimestre', formBase.bimestre);
       fd.append('sexo', formBase.sexo);
-      fd.append('nombre', formBase.nombre);
-      fd.append('descripcion', formBase.descripcion);
-      fd.append('historia', formBase.historia);
+      fd.append('nombre', formBase.nombre.trim());
+      fd.append('descripcion', (formBase.descripcion || '').trim());
+      fd.append('historia', (formBase.historia || '').trim());
       fd.append('orden', formBase.orden);
       if (archivoBase) fd.append('imagen_base', archivoBase);
+      // No enviar Content-Type: axios lo fija con boundary para FormData
       if (baseEditando) {
-        await api.put(`/admin/avatares/bases/${baseEditando}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-        Swal.fire({ icon: 'success', title: 'Avatar base actualizado' });
+        await api.put(`/admin/avatares/bases/${baseEditando}`, fd);
+        Swal.fire({ icon: 'success', title: 'Listo', text: 'Avatar base actualizado correctamente' });
       } else {
-        await api.post('/admin/avatares/bases', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-        Swal.fire({ icon: 'success', title: 'Avatar base creado' });
+        await api.post('/admin/avatares/bases', fd);
+        Swal.fire({ icon: 'success', title: 'Listo', text: 'Avatar base creado correctamente' });
       }
       cargarBases();
       if (!baseEditando) cerrarFormulario();
       else cargarAccesorios(baseEditando);
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudo guardar' });
+      const msg = err.response?.data?.error || err.message || 'No se pudo guardar';
+      Swal.fire({ icon: 'error', title: 'Error', text: msg });
     } finally {
       setGuardandoBase(false);
     }
@@ -162,17 +164,17 @@ function AdminAvatares() {
     setGuardandoAccesorio(true);
     try {
       const fd = new FormData();
-      fd.append('nombre', formAccesorio.nombre);
-      fd.append('descripcion', formAccesorio.descripcion);
+      fd.append('nombre', formAccesorio.nombre.trim());
+      fd.append('descripcion', (formAccesorio.descripcion || '').trim());
       fd.append('puntuacion_requerida', formAccesorio.puntuacion_requerida);
       fd.append('orden', formAccesorio.orden);
       if (archivoAccesorio) fd.append('imagen_combinada', archivoAccesorio);
       if (accesorioEditando) {
-        await api.put(`/admin/avatares/accesorios/${accesorioEditando}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-        Swal.fire({ icon: 'success', title: 'Accesorio actualizado' });
+        await api.put(`/admin/avatares/accesorios/${accesorioEditando}`, fd);
+        Swal.fire({ icon: 'success', title: 'Listo', text: 'Accesorio actualizado' });
       } else {
-        await api.post(`/admin/avatares/bases/${baseEditando}/accesorios`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
-        Swal.fire({ icon: 'success', title: 'Accesorio creado' });
+        await api.post(`/admin/avatares/bases/${baseEditando}/accesorios`, fd);
+        Swal.fire({ icon: 'success', title: 'Listo', text: 'Accesorio creado' });
       }
       setMostrarModalAccesorio(false);
       cargarAccesorios(baseEditando);
@@ -206,28 +208,36 @@ function AdminAvatares() {
   return (
     <DashboardLayout>
       <div className="admin-avatares">
-        <h1 className="admin-avatares-titulo">Avatares por bimestre</h1>
-        <p className="admin-avatares-descripcion">
-          Cada avatar es por bimestre y género. En una sola pantalla editas el avatar base y sus accesorios (imagen combinada = personaje + accesorio).
-        </p>
+        <div className="admin-avatares-header">
+          <h1>🎮 Avatares por bimestre</h1>
+          <p>Gestiona los avatares base por bimestre y género, y sus accesorios. Cada accesorio usa una imagen ya combinada (personaje + accesorio).</p>
+        </div>
 
         {vista === 'lista' && (
           <>
             <div className="admin-avatares-actions">
               <button type="button" className="admin-avatares-btn primary" onClick={() => abrirFormulario(null)}>
-                + Nuevo avatar base
+                ＋ Nuevo avatar base
               </button>
             </div>
             {loading ? (
-              <p>Cargando...</p>
+              <div className="admin-avatares-loading">
+                <div className="admin-avatares-spinner" />
+                <p>Cargando avatares...</p>
+              </div>
             ) : bases.length === 0 ? (
-              <div className="admin-avatares-empty">
-                <p>No hay avatares base. Crea uno para Bimestre 1, 2, 3 o 4 y género Femenino/Masculino.</p>
+              <div className="admin-avatares-card admin-avatares-empty-card">
+                <div className="admin-avatares-empty-icon">🎭</div>
+                <h3>No hay avatares base</h3>
+                <p>Crea el primero para Bimestre 1, 2, 3 o 4 y género Femenino o Masculino.</p>
+                <button type="button" className="admin-avatares-btn primary" onClick={() => abrirFormulario(null)}>
+                  ＋ Crear avatar base
+                </button>
               </div>
             ) : (
               <div className="admin-avatares-grid">
                 {bases.map((b) => (
-                  <div key={b.id} className="admin-avatares-card">
+                  <div key={b.id} className="admin-avatares-card admin-avatares-card-base">
                     <div className="admin-avatares-card-imagen">
                       {b.imagen_base_url ? (
                         <img src={b.imagen_base_url} alt={b.nombre} />
@@ -237,7 +247,7 @@ function AdminAvatares() {
                     </div>
                     <div className="admin-avatares-card-info">
                       <h3>{b.nombre || `Bimestre ${b.bimestre} ${SEXO_OPTS.find(s => s.value === b.sexo)?.label || ''}`}</h3>
-                      <p>Bimestre {b.bimestre} · {SEXO_OPTS.find(s => s.value === b.sexo)?.label}</p>
+                      <p className="admin-avatares-card-meta">Bimestre {b.bimestre} · {SEXO_OPTS.find(s => s.value === b.sexo)?.label}</p>
                     </div>
                     <div className="admin-avatares-card-actions">
                       <button type="button" className="admin-avatares-btn small" onClick={() => abrirFormulario(b)}>Editar</button>
@@ -251,79 +261,111 @@ function AdminAvatares() {
         )}
 
         {vista === 'formulario' && (
-          <div className="admin-avatares-form-wrap">
-            <button type="button" className="admin-avatares-btn back" onClick={cerrarFormulario}>← Volver a la lista</button>
+          <div className="admin-avatares-form-container">
+            <button type="button" className="admin-avatares-btn back" onClick={cerrarFormulario}>
+              ← Volver a la lista
+            </button>
 
-            <form onSubmit={guardarBase} className="admin-avatares-form">
-              <h2>{baseEditando ? 'Editar avatar base' : 'Nuevo avatar base'}</h2>
-              <div className="admin-avatares-form-grid">
-                <label>Bimestre</label>
-                <select value={formBase.bimestre} onChange={(e) => setFormBase({ ...formBase, bimestre: parseInt(e.target.value, 10) })}>
-                  {BIMESTRES.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-                <label>Género</label>
-                <select value={formBase.sexo} onChange={(e) => setFormBase({ ...formBase, sexo: parseInt(e.target.value, 10) })}>
-                  {SEXO_OPTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-                <label>Nombre</label>
-                <input type="text" value={formBase.nombre} onChange={(e) => setFormBase({ ...formBase, nombre: e.target.value })} placeholder="Ej. Avatar Bimestre 1 Masculino" />
-                <label>Descripción</label>
-                <input type="text" value={formBase.descripcion} onChange={(e) => setFormBase({ ...formBase, descripcion: e.target.value })} placeholder="Opcional" />
-                <label>Orden</label>
-                <input type="number" value={formBase.orden} onChange={(e) => setFormBase({ ...formBase, orden: parseInt(e.target.value, 10) || 0 })} min={0} />
-                <label>Imagen base (sin accesorios)</label>
-                <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={(e) => setArchivoBase(e.target.files?.[0] || null)} />
-                {baseActual?.imagen_base_url && !archivoBase && <p className="admin-avatares-hint">Actual: se muestra la imagen ya guardada. Sube otra para reemplazar.</p>}
-                <label className="full">Historia / texto (opcional)</label>
-                <textarea className="full" value={formBase.historia} onChange={(e) => setFormBase({ ...formBase, historia: e.target.value })} rows={3} />
-              </div>
-              <button type="submit" className="admin-avatares-btn primary" disabled={guardandoBase}>
-                {guardandoBase ? 'Guardando...' : 'Guardar avatar base'}
-              </button>
-            </form>
+            <div className="admin-avatares-card admin-avatares-form-card">
+              <h2 className="admin-avatares-section-title">{baseEditando ? '✏️ Editar avatar base' : '➕ Nuevo avatar base'}</h2>
+              <form onSubmit={guardarBase} className="admin-avatares-form">
+                <div className="admin-avatares-form-grid">
+                  <div className="form-group">
+                    <label>Bimestre</label>
+                    <select value={formBase.bimestre} onChange={(e) => setFormBase({ ...formBase, bimestre: parseInt(e.target.value, 10) })}>
+                      {BIMESTRES.map((n) => <option key={n} value={n}>Bimestre {n}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Género</label>
+                    <select value={formBase.sexo} onChange={(e) => setFormBase({ ...formBase, sexo: parseInt(e.target.value, 10) })}>
+                      {SEXO_OPTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group form-group-full">
+                    <label>Nombre del avatar</label>
+                    <input type="text" value={formBase.nombre} onChange={(e) => setFormBase({ ...formBase, nombre: e.target.value })} placeholder="Ej. Avatar Bimestre 1 Masculino" />
+                  </div>
+                  <div className="form-group form-group-full">
+                    <label>Descripción (opcional)</label>
+                    <input type="text" value={formBase.descripcion} onChange={(e) => setFormBase({ ...formBase, descripcion: e.target.value })} placeholder="Breve descripción" />
+                  </div>
+                  <div className="form-group">
+                    <label>Orden</label>
+                    <input type="number" value={formBase.orden} onChange={(e) => setFormBase({ ...formBase, orden: parseInt(e.target.value, 10) || 0 })} min={0} />
+                  </div>
+                  <div className="form-group">
+                    <label>Imagen base (sin accesorios)</label>
+                    <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={(e) => setArchivoBase(e.target.files?.[0] || null)} />
+                    {baseActual?.imagen_base_url && !archivoBase && <small className="form-hint">Se muestra la imagen actual. Sube otra para reemplazar.</small>}
+                    {!baseEditando && <small className="form-hint">Opcional. Puedes añadirla después al editar.</small>}
+                  </div>
+                  <div className="form-group form-group-full">
+                    <label>Historia o texto (opcional)</label>
+                    <textarea value={formBase.historia} onChange={(e) => setFormBase({ ...formBase, historia: e.target.value })} rows={3} placeholder="Texto que verá el alumno" />
+                  </div>
+                </div>
+                <div className="admin-avatares-form-actions">
+                  <button type="button" className="admin-avatares-btn secondary" onClick={cerrarFormulario}>Cancelar</button>
+                  <button type="submit" className="admin-avatares-btn primary" disabled={guardandoBase}>
+                    {guardandoBase ? 'Guardando...' : '💾 Guardar avatar base'}
+                  </button>
+                </div>
+              </form>
+            </div>
 
             {baseEditando && (
-              <div className="admin-avatares-accesorios">
-                <h2>Accesorios de este avatar</h2>
-                <p className="admin-avatares-hint">Cada accesorio tiene su imagen combinada (personaje + accesorio). Los alumnos desbloquean por estrellas y eligen cuál equipar.</p>
-                <button type="button" className="admin-avatares-btn primary" onClick={() => abrirModalAccesorio(null)}>+ Añadir accesorio</button>
+              <div className="admin-avatares-card admin-avatares-accesorios-card">
+                <h2 className="admin-avatares-section-title">✨ Accesorios de este avatar</h2>
+                <p className="admin-avatares-hint-block">Cada accesorio tiene su imagen combinada (personaje + accesorio). Los alumnos desbloquean por estrellas y eligen cuál equipar.</p>
+                <button type="button" className="admin-avatares-btn primary" onClick={() => abrirModalAccesorio(null)}>＋ Añadir accesorio</button>
                 <ul className="admin-avatares-accesorios-list">
                   {accesorios.map((a) => (
-                    <li key={a.id}>
+                    <li key={a.id} className="admin-avatares-accesorio-item">
                       <div className="admin-avatares-acc-imagen">
                         {a.imagen_combinada_url ? <img src={a.imagen_combinada_url} alt={a.nombre} /> : <span>🎭</span>}
                       </div>
-                      <span>{a.nombre} — ⭐ {a.puntuacion_requerida} estrellas</span>
-                      <div>
+                      <span className="admin-avatares-acc-info">{a.nombre} — ⭐ {a.puntuacion_requerida} estrellas</span>
+                      <div className="admin-avatares-acc-actions">
                         <button type="button" className="admin-avatares-btn small" onClick={() => abrirModalAccesorio(a)}>Editar</button>
                         <button type="button" className="admin-avatares-btn small danger" onClick={() => eliminarAccesorio(a.id)}>Eliminar</button>
                       </div>
                     </li>
                   ))}
                 </ul>
-                {accesorios.length === 0 && <p className="admin-avatares-empty-list">Aún no hay accesorios. Añade uno.</p>}
+                {accesorios.length === 0 && <p className="admin-avatares-empty-list">Aún no hay accesorios. Añade uno con el botón de arriba.</p>}
               </div>
             )}
 
             {mostrarModalAccesorio && (
               <div className="admin-avatares-modal-overlay" onClick={() => setMostrarModalAccesorio(false)}>
                 <div className="admin-avatares-modal" onClick={(e) => e.stopPropagation()}>
-                  <h3>{accesorioEditando ? 'Editar accesorio' : 'Nuevo accesorio'}</h3>
-                  <form onSubmit={guardarAccesorio}>
-                    <label>Nombre</label>
-                    <input type="text" value={formAccesorio.nombre} onChange={(e) => setFormAccesorio({ ...formAccesorio, nombre: e.target.value })} placeholder="Ej. Gorro, Capa" required />
-                    <label>Descripción</label>
-                    <input type="text" value={formAccesorio.descripcion} onChange={(e) => setFormAccesorio({ ...formAccesorio, descripcion: e.target.value })} />
-                    <label>Estrellas necesarias para desbloquear</label>
-                    <input type="number" value={formAccesorio.puntuacion_requerida} onChange={(e) => setFormAccesorio({ ...formAccesorio, puntuacion_requerida: parseInt(e.target.value, 10) || 0 })} min={0} />
-                    <label>Orden</label>
-                    <input type="number" value={formAccesorio.orden} onChange={(e) => setFormAccesorio({ ...formAccesorio, orden: parseInt(e.target.value, 10) || 0 })} min={0} />
-                    <label>Imagen combinada (personaje + este accesorio)</label>
-                    <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={(e) => setArchivoAccesorio(e.target.files?.[0] || null)} />
-                    {accesorioEditando && !archivoAccesorio && <p className="admin-avatares-hint">Dejar vacío para mantener la actual.</p>}
+                  <h3 className="admin-avatares-modal-title">{accesorioEditando ? '✏️ Editar accesorio' : '➕ Nuevo accesorio'}</h3>
+                  <form onSubmit={guardarAccesorio} className="admin-avatares-modal-form">
+                    <div className="form-group">
+                      <label>Nombre</label>
+                      <input type="text" value={formAccesorio.nombre} onChange={(e) => setFormAccesorio({ ...formAccesorio, nombre: e.target.value })} placeholder="Ej. Gorro, Capa" required />
+                    </div>
+                    <div className="form-group">
+                      <label>Descripción (opcional)</label>
+                      <input type="text" value={formAccesorio.descripcion} onChange={(e) => setFormAccesorio({ ...formAccesorio, descripcion: e.target.value })} />
+                    </div>
+                    <div className="form-group">
+                      <label>Estrellas necesarias para desbloquear</label>
+                      <input type="number" value={formAccesorio.puntuacion_requerida} onChange={(e) => setFormAccesorio({ ...formAccesorio, puntuacion_requerida: parseInt(e.target.value, 10) || 0 })} min={0} />
+                    </div>
+                    <div className="form-group">
+                      <label>Orden</label>
+                      <input type="number" value={formAccesorio.orden} onChange={(e) => setFormAccesorio({ ...formAccesorio, orden: parseInt(e.target.value, 10) || 0 })} min={0} />
+                    </div>
+                    <div className="form-group">
+                      <label>Imagen combinada (personaje + este accesorio)</label>
+                      <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={(e) => setArchivoAccesorio(e.target.files?.[0] || null)} />
+                      {accesorioEditando && !archivoAccesorio && <small className="form-hint">Dejar vacío para mantener la actual.</small>}
+                    </div>
                     <div className="admin-avatares-modal-actions">
-                      <button type="button" className="admin-avatares-btn" onClick={() => setMostrarModalAccesorio(false)}>Cancelar</button>
-                      <button type="submit" className="admin-avatares-btn primary" disabled={guardandoAccesorio}>{guardandoAccesorio ? 'Guardando...' : 'Guardar'}</button>
+                      <button type="button" className="admin-avatares-btn secondary" onClick={() => setMostrarModalAccesorio(false)}>Cancelar</button>
+                      <button type="submit" className="admin-avatares-btn primary" disabled={guardandoAccesorio}>{guardandoAccesorio ? 'Guardando...' : '💾 Guardar'}</button>
                     </div>
                   </form>
                 </div>
