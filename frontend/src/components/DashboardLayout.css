@@ -159,6 +159,13 @@
   transform: scale(1.15);
 }
 
+/* Icono Cerrar sesión: emoji 🚪 para que se vea en PWA (⏻ no renderiza en algunos dispositivos) */
+.sidebar-icon-logout {
+  font-size: 1.25rem;
+  line-height: 1;
+  display: inline-block;
+}
+
 .sidebar-label {
   font-size: 0.95rem;
   font-weight: 500;

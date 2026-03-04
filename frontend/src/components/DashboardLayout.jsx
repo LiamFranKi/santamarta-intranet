@@ -601,7 +601,7 @@ export default function DashboardLayout({ children }) {
 
           <div className="sidebar-item">
             <button className="sidebar-link sidebar-link-button" type="button" onClick={logout}>
-              <span className="sidebar-icon">⏻</span>
+              <span className="sidebar-icon sidebar-icon-logout" aria-hidden="true">🚪</span>
               <span className="sidebar-label">Cerrar sesión</span>
             </button>
           </div>
