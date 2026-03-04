@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { useAvatarWidget } from '../context/AvatarWidgetContext';
 import './AlumnoAvatarWidget.css';
 
 function AlumnoAvatarWidget() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { avatarWidget: ctxAvatar } = useAvatarWidget();
   const [avatar, setAvatar] = useState(null);
   const [totalEstrellas, setTotalEstrellas] = useState(0);
@@ -70,10 +72,11 @@ function AlumnoAvatarWidget() {
   }, [ctxAvatar]);
 
   if (loading) return null;
+  const esFemenino = user?.sexo === 1 || user?.sexo === '1';
 
   return (
     <div
-      className="alumno-avatar-widget"
+      className={`alumno-avatar-widget ${esFemenino ? 'alumno-avatar-widget-femenino' : 'alumno-avatar-widget-masculino'}`}
       onClick={() => navigate('/alumno/avatar')}
       role="button"
       tabIndex={0}

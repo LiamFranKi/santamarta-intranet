@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
+import { useAuth } from '../context/AuthContext';
 import './AlumnoAvatar.css';
 
 // Sistema: 'bimestre' = avatares por bimestre con accesorios; 'tienda' = tienda antigua (avatar_shop)
 function AlumnoAvatar() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [sistema, setSistema] = useState('tienda'); // 'bimestre' | 'tienda'
   const [avatarActual, setAvatarActual] = useState(null);
@@ -167,6 +169,8 @@ function AlumnoAvatar() {
   // descripcion e historia: aceptar snake_case (descripcion) o camelCase (description)
   const descripcionBase = String(avatarBase?.descripcion ?? avatarBase?.description ?? '').trim();
   const historiaBase = String(avatarBase?.historia ?? '').trim();
+  // sexo: 0 = Masculino, 1 = Femenino (según AlumnoPerfil/DocenteGrupos)
+  const esFemenino = user?.sexo === 1 || user?.sexo === '1';
 
   return (
     <DashboardLayout>
@@ -174,7 +178,7 @@ function AlumnoAvatar() {
         {sistema === 'bimestre' ? (
           <>
             {/* Hero: avatar + nombre + estrellas */}
-            <div className="avatar-hero">
+            <div className={`avatar-hero ${esFemenino ? 'avatar-hero-femenino' : 'avatar-hero-masculino'}`}>
               <div className="avatar-hero-bg" />
               <div className="avatar-hero-content">
                 <span className="avatar-hero-bimestre">Bimestre {bimestre}</span>
@@ -186,7 +190,6 @@ function AlumnoAvatar() {
                   )}
                 </div>
                 <h1 className="avatar-hero-nombre">{nombreMostrar}</h1>
-                <p className="avatar-hero-subtitle">Avatar del bimestre {bimestre}</p>
                 {descripcionBase && <p className="avatar-hero-descripcion">{descripcionBase}</p>}
                 {historiaBase && (
                   <blockquote className="avatar-hero-historia">{historiaBase}</blockquote>
