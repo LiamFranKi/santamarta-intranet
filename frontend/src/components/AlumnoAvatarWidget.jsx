@@ -15,11 +15,13 @@ function AlumnoAvatarWidget() {
         // Preferir sistema por bimestre (avatar + accesorios por bimestre/género)
         const resBimestre = await api.get('/alumno/avatares-bimestre/resumen').catch(() => null);
         if (resBimestre?.data?.avatar_imagen_url != null) {
+          const base = resBimestre.data.avatar_base || {};
+          const desc = String(base.descripcion ?? base.description ?? '').trim();
           setAvatar({
             image_url: resBimestre.data.avatar_imagen_url,
-            name: resBimestre.data.avatar_base?.nombre || 'Mi avatar',
-            description: resBimestre.data.mensaje || '',
-            level: null
+            name: base.nombre || 'Mi avatar',
+            description: desc,
+            level: base.bimestre ?? null
           });
           setTotalEstrellas(resBimestre.data.total_estrellas ?? 0);
           setLoading(false);
