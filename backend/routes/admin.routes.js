@@ -476,6 +476,207 @@ router.put('/configuracion', uploadConfig.fields([
  * POST /api/admin/configuracion/reiniciar-accesos
  * Reiniciar accesos de alumnos y apoderados
  */
+// --- Avatares por bimestre (avatar_bases, avatar_accesorios) ---
+const avatarsDir = path.join(__dirname, '..', 'Static', 'Image', 'Avatars');
+try {
+  if (!fs.existsSync(avatarsDir)) {
+    fs.mkdirSync(avatarsDir, { recursive: true });
+  }
+} catch (e) {
+  console.warn('No se pudo crear carpeta Avatars:', e.message);
+}
+
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (!fs.existsSync(avatarsDir)) fs.mkdirSync(avatarsDir, { recursive: true });
+    cb(null, avatarsDir);
+  },
+  filename: (req, file, cb) => {
+    const safe = (file.originalname || 'img').replace(/[^a-zA-Z0-9._-]/g, '_');
+    cb(null, `avatar-${Date.now()}-${safe}`);
+  }
+});
+const uploadAvatar = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /\.(png|jpg|jpeg)$/i.test(file.originalname || '') && /image\/(png|jpeg|jpg)/.test(file.mimetype);
+    if (ok) cb(null, true);
+    else cb(new Error('Solo imágenes PNG/JPG'));
+  }
+});
+
+/** GET /api/admin/avatares/bases - Listar todas las bases */
+router.get('/avatares/bases', async (req, res) => {
+  try {
+    const bases = await query('SELECT * FROM avatar_bases ORDER BY bimestre, sexo, orden, id');
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? `${process.env.PHP_SYSTEM_URL || ''}/Static/Image/Avatars`
+      : 'http://localhost:5000/Static/Image/Avatars';
+    const list = (bases || []).map(b => ({
+      ...b,
+      imagen_base_url: b.imagen_base ? `${baseUrl}/${b.imagen_base}` : null
+    }));
+    res.json({ bases: list });
+  } catch (err) {
+    if (err.message && (err.message.includes("doesn't exist") || err.message.includes('avatar_bases'))) {
+      return res.json({ bases: [] });
+    }
+    console.error('Error listando avatar_bases:', err);
+    res.status(500).json({ error: 'Error al listar avatares base' });
+  }
+});
+
+/** POST /api/admin/avatares/bases - Crear base (opcional: imagen_base en multipart) */
+router.post('/avatares/bases', uploadAvatar.single('imagen_base'), async (req, res) => {
+  try {
+    const { bimestre, sexo, nombre, descripcion, historia, orden } = req.body || {};
+    const bim = parseInt(bimestre, 10);
+    const sx = parseInt(sexo, 10);
+    if (![1, 2, 3, 4].includes(bim)) return res.status(400).json({ error: 'Bimestre debe ser 1, 2, 3 o 4' });
+    if (![0, 1].includes(sx)) return res.status(400).json({ error: 'Sexo: 0=Femenino, 1=Masculino' });
+    const imagen_base = (req.file && req.file.filename) ? req.file.filename : (req.body.imagen_base || '');
+    const ord = parseInt(orden, 10) || 0;
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await execute(
+      `INSERT INTO avatar_bases (bimestre, sexo, nombre, descripcion, historia, imagen_base, orden, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [bim, sx, (nombre || '').trim(), (descripcion || '').trim(), (historia || '').trim(), imagen_base, ord, now, now]
+    );
+    const inserted = await query('SELECT * FROM avatar_bases ORDER BY id DESC LIMIT 1');
+    res.status(201).json({ base: inserted[0] });
+  } catch (err) {
+    console.error('Error creando avatar base:', err);
+    res.status(500).json({ error: err.message || 'Error al crear avatar base' });
+  }
+});
+
+/** PUT /api/admin/avatares/bases/:id - Actualizar base */
+router.put('/avatares/bases/:id', uploadAvatar.single('imagen_base'), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { bimestre, sexo, nombre, descripcion, historia, orden } = req.body || {};
+    const existing = await query('SELECT * FROM avatar_bases WHERE id = ?', [id]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Avatar base no encontrado' });
+    const row = existing[0];
+    const imagen_base = (req.file && req.file.filename) ? req.file.filename : (req.body.imagen_base !== undefined ? req.body.imagen_base : row.imagen_base);
+    const bim = bimestre !== undefined ? parseInt(bimestre, 10) : row.bimestre;
+    const sx = sexo !== undefined ? parseInt(sexo, 10) : row.sexo;
+    const nombre_ = nombre !== undefined ? String(nombre).trim() : row.nombre;
+    const descripcion_ = descripcion !== undefined ? String(descripcion).trim() : row.descripcion;
+    const historia_ = historia !== undefined ? String(historia).trim() : row.historia;
+    const ord = orden !== undefined ? parseInt(orden, 10) : row.orden;
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await execute(
+      `UPDATE avatar_bases SET bimestre=?, sexo=?, nombre=?, descripcion=?, historia=?, imagen_base=?, orden=?, updated_at=? WHERE id=?`,
+      [bim, sx, nombre_, descripcion_, historia_, imagen_base, ord, now, id]
+    );
+    const updated = await query('SELECT * FROM avatar_bases WHERE id = ?', [id]);
+    res.json({ base: updated[0] });
+  } catch (err) {
+    console.error('Error actualizando avatar base:', err);
+    res.status(500).json({ error: err.message || 'Error al actualizar' });
+  }
+});
+
+/** DELETE /api/admin/avatares/bases/:id */
+router.delete('/avatares/bases/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await execute('DELETE FROM avatar_bases WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error eliminando avatar base:', err);
+    res.status(500).json({ error: err.message || 'Error al eliminar' });
+  }
+});
+
+/** GET /api/admin/avatares/bases/:baseId/accesorios */
+router.get('/avatares/bases/:baseId/accesorios', async (req, res) => {
+  try {
+    const baseId = parseInt(req.params.baseId, 10);
+    const accesorios = await query('SELECT * FROM avatar_accesorios WHERE avatar_base_id = ? ORDER BY orden, id', [baseId]);
+    const baseUrl = process.env.NODE_ENV === 'production'
+      ? `${process.env.PHP_SYSTEM_URL || ''}/Static/Image/Avatars`
+      : 'http://localhost:5000/Static/Image/Avatars';
+    const list = (accesorios || []).map(a => ({
+      ...a,
+      imagen_combinada_url: a.imagen_combinada ? `${baseUrl}/${a.imagen_combinada}` : null
+    }));
+    res.json({ accesorios: list });
+  } catch (err) {
+    if (err.message && (err.message.includes("doesn't exist") || err.message.includes('avatar_accesorios'))) {
+      return res.json({ accesorios: [] });
+    }
+    console.error('Error listando accesorios:', err);
+    res.status(500).json({ error: 'Error al listar accesorios' });
+  }
+});
+
+/** POST /api/admin/avatares/bases/:baseId/accesorios - Crear accesorio */
+router.post('/avatares/bases/:baseId/accesorios', uploadAvatar.single('imagen_combinada'), async (req, res) => {
+  try {
+    const baseId = parseInt(req.params.baseId, 10);
+    const { nombre, descripcion, puntuacion_requerida, orden } = req.body || {};
+    const imagen_combinada = (req.file && req.file.filename) ? req.file.filename : (req.body.imagen_combinada || '');
+    const puntos = parseInt(puntuacion_requerida, 10) || 0;
+    const ord = parseInt(orden, 10) || 0;
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await execute(
+      `INSERT INTO avatar_accesorios (avatar_base_id, nombre, descripcion, puntuacion_requerida, imagen_combinada, orden, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [baseId, (nombre || '').trim(), (descripcion || '').trim(), puntos, imagen_combinada, ord, now, now]
+    );
+    const inserted = await query('SELECT * FROM avatar_accesorios ORDER BY id DESC LIMIT 1');
+    res.status(201).json({ accesorio: inserted[0] });
+  } catch (err) {
+    console.error('Error creando accesorio:', err);
+    res.status(500).json({ error: err.message || 'Error al crear accesorio' });
+  }
+});
+
+/** PUT /api/admin/avatares/accesorios/:id */
+router.put('/avatares/accesorios/:id', uploadAvatar.single('imagen_combinada'), async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const { nombre, descripcion, puntuacion_requerida, orden } = req.body || {};
+    const existing = await query('SELECT * FROM avatar_accesorios WHERE id = ?', [id]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Accesorio no encontrado' });
+    const row = existing[0];
+    const imagen_combinada = (req.file && req.file.filename) ? req.file.filename : (req.body.imagen_combinada !== undefined ? req.body.imagen_combinada : row.imagen_combinada);
+    const nombre_ = nombre !== undefined ? String(nombre).trim() : row.nombre;
+    const descripcion_ = descripcion !== undefined ? String(descripcion).trim() : row.descripcion;
+    const puntos = puntuacion_requerida !== undefined ? parseInt(puntuacion_requerida, 10) : row.puntuacion_requerida;
+    const ord = orden !== undefined ? parseInt(orden, 10) : row.orden;
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    await execute(
+      `UPDATE avatar_accesorios SET nombre=?, descripcion=?, puntuacion_requerida=?, imagen_combinada=?, orden=?, updated_at=? WHERE id=?`,
+      [nombre_, descripcion_, puntos, imagen_combinada, ord, now, id]
+    );
+    const updated = await query('SELECT * FROM avatar_accesorios WHERE id = ?', [id]);
+    res.json({ accesorio: updated[0] });
+  } catch (err) {
+    console.error('Error actualizando accesorio:', err);
+    res.status(500).json({ error: err.message || 'Error al actualizar' });
+  }
+});
+
+/** DELETE /api/admin/avatares/accesorios/:id */
+router.delete('/avatares/accesorios/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    await execute('DELETE FROM avatar_accesorios WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error eliminando accesorio:', err);
+    res.status(500).json({ error: err.message || 'Error al eliminar' });
+  }
+});
+
+/**
+ * POST /api/admin/configuracion/reiniciar-accesos
+ * Reiniciar accesos de alumnos y apoderados
+ */
 router.post('/configuracion/reiniciar-accesos', async (req, res) => {
   try {
     const { colegio_id } = req.user;

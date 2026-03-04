@@ -364,3 +364,30 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Sistema por bimestre */
+.avatar-bimestre-badge {
+  text-align: center;
+  margin: -1rem 0 1rem 0;
+  font-size: 0.95rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.avatar-bimestre-sin-accesorio {
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: center;
+}
+
+.avatar-bimestre-acciones {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.avatar-tienda-badge.equipado {
+  background: #059669;
+  color: #fff;
+}

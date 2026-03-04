@@ -1178,6 +1178,275 @@ router.post('/avatares/comprar/:itemId', async (req, res) => {
   }
 });
 
+// --- Sistema de avatares por bimestre (tablas avatar_bases, avatar_accesorios, etc.) ---
+const getBimestreActual = () => {
+  const m = new Date().getMonth() + 1; // 1-12
+  return Math.min(4, Math.max(1, Math.ceil(m / 3)));
+};
+
+const baseAvatarBimestreUrl = () => (process.env.NODE_ENV === 'production'
+  ? `${process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe'}/Static/Image/Avatars/`
+  : 'http://localhost:5000/Static/Image/Avatars/');
+
+const getAlumnoIdAndSexo = async (req) => {
+  const { colegio_id } = req.user;
+  const alumno = await query(
+    `SELECT a.id, a.sexo FROM alumnos a
+     INNER JOIN usuarios u ON u.alumno_id = a.id
+     WHERE u.id = ? AND u.colegio_id = ?`,
+    [req.user.usuario_id, colegio_id]
+  );
+  if (alumno.length === 0) return null;
+  return { alumnoId: alumno[0].id, sexo: alumno[0].sexo };
+};
+
+const getTotalEstrellasAlumno = async (alumnoId, colegio_id, anio_activo) => {
+  const matriculas = await query(
+    `SELECT m.id FROM matriculas m
+     INNER JOIN grupos g ON g.id = m.grupo_id
+     WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+    [alumnoId, colegio_id, anio_activo]
+  );
+  const matriculaIds = matriculas.map(m => m.id);
+  if (matriculaIds.length === 0) return 0;
+  const ph = matriculaIds.map(() => '?').join(',');
+  const r = await query(
+    `SELECT COALESCE(SUM(points), 0) as t FROM enrollment_incidents WHERE enrollment_id IN (${ph}) AND type = 2`,
+    matriculaIds
+  );
+  return parseInt(r[0]?.t || 0, 10);
+};
+
+/**
+ * GET /api/alumno/avatares-bimestre/resumen
+ * Resumen: avatar actual (imagen a mostrar), total estrellas, bimestre
+ */
+router.get('/avatares-bimestre/resumen', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo } = req.user;
+    const bimestre = req.query.bimestre ? parseInt(req.query.bimestre, 10) : getBimestreActual();
+    const data = await getAlumnoIdAndSexo(req);
+    if (!data) return res.status(404).json({ error: 'Alumno no encontrado' });
+    const { alumnoId, sexo } = data;
+    const totalEstrellas = await getTotalEstrellasAlumno(alumnoId, colegio_id, anio_activo);
+
+    let base = await query(
+      `SELECT * FROM avatar_bases WHERE bimestre = ? AND sexo = ? LIMIT 1`,
+      [bimestre, sexo !== null && sexo !== undefined ? sexo : 0]
+    );
+    if (base.length === 0) {
+      base = await query(`SELECT * FROM avatar_bases WHERE bimestre = ? LIMIT 1`, [bimestre]);
+    }
+    if (base.length === 0) {
+      return res.json({
+        avatar_imagen_url: null,
+        avatar_base: null,
+        total_estrellas: totalEstrellas,
+        bimestre,
+        mensaje: 'No hay avatar configurado para este bimestre.'
+      });
+    }
+
+    const baseRow = base[0];
+    const equipado = await query(
+      `SELECT accesorio_id FROM alumno_avatar_equipado WHERE student_id = ? AND avatar_base_id = ?`,
+      [alumnoId, baseRow.id]
+    );
+    const accesorioId = equipado[0]?.accesorio_id || null;
+    let imagenUrl = baseAvatarBimestreUrl() + (baseRow.imagen_base || '');
+    if (accesorioId) {
+      const acc = await query(
+        `SELECT imagen_combinada FROM avatar_accesorios WHERE id = ?`,
+        [accesorioId]
+      );
+      if (acc.length > 0 && acc[0].imagen_combinada) {
+        imagenUrl = baseAvatarBimestreUrl() + acc[0].imagen_combinada;
+      }
+    }
+
+    res.json({
+      avatar_imagen_url: imagenUrl,
+      avatar_base: {
+        id: baseRow.id,
+        bimestre: baseRow.bimestre,
+        nombre: baseRow.nombre,
+        sexo: baseRow.sexo
+      },
+      total_estrellas: totalEstrellas,
+      bimestre
+    });
+  } catch (error) {
+    if (error.message && (error.message.includes("doesn't exist") || error.message.includes('avatar_bases'))) {
+      return res.json({ avatar_imagen_url: null, avatar_base: null, total_estrellas: 0, bimestre: 1, mensaje: 'Sistema de avatares por bimestre no configurado.' });
+    }
+    console.error('Error avatares-bimestre resumen:', error);
+    res.status(500).json({ error: 'Error al obtener resumen de avatar' });
+  }
+});
+
+/**
+ * GET /api/alumno/avatares-bimestre/bases
+ * Listar avatares base (por bimestre y opcionalmente sexo)
+ */
+router.get('/avatares-bimestre/bases', async (req, res) => {
+  try {
+    const bimestre = req.query.bimestre ? parseInt(req.query.bimestre, 10) : getBimestreActual();
+    const sexo = req.query.sexo !== undefined ? parseInt(req.query.sexo, 10) : null;
+    let bases = [];
+    if (sexo !== null && !isNaN(sexo)) {
+      bases = await query(`SELECT * FROM avatar_bases WHERE bimestre = ? AND sexo = ? ORDER BY orden, id`, [bimestre, sexo]);
+    } else {
+      bases = await query(`SELECT * FROM avatar_bases WHERE bimestre = ? ORDER BY sexo, orden, id`, [bimestre]);
+    }
+    const baseUrl = baseAvatarBimestreUrl();
+    const list = bases.map(b => ({
+      ...b,
+      imagen_base_url: b.imagen_base ? baseUrl + b.imagen_base : null
+    }));
+    res.json({ bases: list, bimestre });
+  } catch (error) {
+    if (error.message && (error.message.includes("doesn't exist") || error.message.includes('avatar_bases'))) {
+      return res.json({ bases: [], bimestre: 1 });
+    }
+    console.error('Error listando bases avatares-bimestre:', error);
+    res.status(500).json({ error: 'Error al listar avatares base' });
+  }
+});
+
+/**
+ * GET /api/alumno/avatares-bimestre/bases/:baseId/accesorios
+ * Listar accesorios de un avatar base (con estado desbloqueado / puede desbloquear para el alumno)
+ */
+router.get('/avatares-bimestre/bases/:baseId/accesorios', async (req, res) => {
+  try {
+    const { baseId } = req.params;
+    const data = await getAlumnoIdAndSexo(req);
+    if (!data) return res.status(404).json({ error: 'Alumno no encontrado' });
+    const { alumnoId } = data;
+    const { colegio_id, anio_activo } = req.user;
+    const totalEstrellas = await getTotalEstrellasAlumno(alumnoId, colegio_id, anio_activo);
+
+    const accesorios = await query(
+      `SELECT * FROM avatar_accesorios WHERE avatar_base_id = ? ORDER BY orden, id`,
+      [baseId]
+    );
+    let desbloqueadoIds = new Set();
+    if (accesorios.length > 0) {
+      const desbloqueos = await query(
+        `SELECT accesorio_id FROM alumno_avatar_desbloqueos WHERE student_id = ? AND accesorio_id IN (${accesorios.map(() => '?').join(',')})`,
+        [alumnoId, ...accesorios.map(a => a.id)]
+      );
+      desbloqueadoIds = new Set((desbloqueos || []).map(d => d.accesorio_id));
+    }
+    const equipado = await query(
+      `SELECT accesorio_id FROM alumno_avatar_equipado WHERE student_id = ? AND avatar_base_id = ?`,
+      [alumnoId, baseId]
+    );
+    const equipadoId = equipado[0]?.accesorio_id || null;
+    const baseUrl = baseAvatarBimestreUrl();
+    const list = accesorios.map(a => ({
+      ...a,
+      imagen_combinada_url: a.imagen_combinada ? baseUrl + a.imagen_combinada : null,
+      desbloqueado: desbloqueadoIds.has(a.id),
+      puede_desbloquear: totalEstrellas >= (a.puntuacion_requerida || 0),
+      equipado: equipadoId === a.id
+    }));
+    res.json({ accesorios: list, total_estrellas: totalEstrellas });
+  } catch (error) {
+    if (error.message && (error.message.includes("doesn't exist") || error.message.includes('avatar_accesorios'))) {
+      return res.json({ accesorios: [], total_estrellas: 0 });
+    }
+    console.error('Error listando accesorios avatares-bimestre:', error);
+    res.status(500).json({ error: 'Error al listar accesorios' });
+  }
+});
+
+/**
+ * POST /api/alumno/avatares-bimestre/desbloquear/:accesorioId
+ * Desbloquear accesorio si el alumno tiene puntuación suficiente
+ */
+router.post('/avatares-bimestre/desbloquear/:accesorioId', async (req, res) => {
+  try {
+    const { accesorioId } = req.params;
+    const data = await getAlumnoIdAndSexo(req);
+    if (!data) return res.status(404).json({ error: 'Alumno no encontrado' });
+    const { alumnoId } = data;
+    const { colegio_id, anio_activo } = req.user;
+    const totalEstrellas = await getTotalEstrellasAlumno(alumnoId, colegio_id, anio_activo);
+
+    const acc = await query(`SELECT * FROM avatar_accesorios WHERE id = ?`, [accesorioId]);
+    if (acc.length === 0) return res.status(404).json({ error: 'Accesorio no encontrado' });
+    const required = parseInt(acc[0].puntuacion_requerida || 0, 10);
+    if (totalEstrellas < required) {
+      return res.status(400).json({
+        error: `Necesitas al menos ${required} estrellas. Tienes ${totalEstrellas}.`
+      });
+    }
+    const exist = await query(
+      `SELECT id FROM alumno_avatar_desbloqueos WHERE student_id = ? AND accesorio_id = ?`,
+      [alumnoId, accesorioId]
+    );
+    if (exist.length > 0) {
+      return res.json({ success: true, message: 'Ya tenías este accesorio desbloqueado.' });
+    }
+    await execute(
+      `INSERT INTO alumno_avatar_desbloqueos (student_id, accesorio_id) VALUES (?, ?)`,
+      [alumnoId, accesorioId]
+    );
+    res.json({ success: true, message: '¡Accesorio desbloqueado!' });
+  } catch (error) {
+    console.error('Error desbloqueando accesorio:', error);
+    res.status(500).json({ error: 'Error al desbloquear accesorio' });
+  }
+});
+
+/**
+ * PUT /api/alumno/avatares-bimestre/equipar
+ * Body: { avatar_base_id, accesorio_id } (accesorio_id null = solo base)
+ */
+router.put('/avatares-bimestre/equipar', async (req, res) => {
+  try {
+    const { avatar_base_id, accesorio_id } = req.body || {};
+    const data = await getAlumnoIdAndSexo(req);
+    if (!data) return res.status(404).json({ error: 'Alumno no encontrado' });
+    const alumnoId = data.alumnoId;
+    if (!avatar_base_id) return res.status(400).json({ error: 'Falta avatar_base_id' });
+
+    if (accesorio_id != null) {
+      const acc = await query(
+        `SELECT id FROM avatar_accesorios WHERE id = ? AND avatar_base_id = ?`,
+        [accesorio_id, avatar_base_id]
+      );
+      if (acc.length === 0) return res.status(400).json({ error: 'Accesorio no pertenece a este avatar' });
+      const desbloqueo = await query(
+        `SELECT id FROM alumno_avatar_desbloqueos WHERE student_id = ? AND accesorio_id = ?`,
+        [alumnoId, accesorio_id]
+      );
+      if (desbloqueo.length === 0) return res.status(400).json({ error: 'Debes desbloquear este accesorio primero' });
+    }
+
+    const exist = await query(
+      `SELECT 1 FROM alumno_avatar_equipado WHERE student_id = ? AND avatar_base_id = ?`,
+      [alumnoId, avatar_base_id]
+    );
+    if (exist.length > 0) {
+      await execute(
+        `UPDATE alumno_avatar_equipado SET accesorio_id = ? WHERE student_id = ? AND avatar_base_id = ?`,
+        [accesorio_id || null, alumnoId, avatar_base_id]
+      );
+    } else {
+      await execute(
+        `INSERT INTO alumno_avatar_equipado (student_id, avatar_base_id, accesorio_id) VALUES (?, ?, ?)`,
+        [alumnoId, avatar_base_id, accesorio_id || null]
+      );
+    }
+    res.json({ success: true, message: 'Avatar actualizado.' });
+  } catch (error) {
+    console.error('Error equipando accesorio:', error);
+    res.status(500).json({ error: 'Error al equipar' });
+  }
+});
+
 /**
  * GET /api/alumno/actividades
  * Obtener actividades del colegio (solo lectura para alumno)

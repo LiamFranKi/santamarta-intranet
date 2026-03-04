@@ -12,6 +12,19 @@ function AlumnoAvatarWidget() {
   useEffect(() => {
     const cargar = async () => {
       try {
+        // Preferir sistema por bimestre (avatar + accesorios por bimestre/género)
+        const resBimestre = await api.get('/alumno/avatares-bimestre/resumen').catch(() => null);
+        if (resBimestre?.data?.avatar_imagen_url != null) {
+          setAvatar({
+            image_url: resBimestre.data.avatar_imagen_url,
+            name: resBimestre.data.avatar_base?.nombre || 'Mi avatar',
+            description: resBimestre.data.mensaje || '',
+            level: null
+          });
+          setTotalEstrellas(resBimestre.data.total_estrellas ?? 0);
+          setLoading(false);
+          return;
+        }
         const res = await api.get('/alumno/avatares/resumen');
         setAvatar(res.data.avatar_actual);
         setTotalEstrellas(res.data.total_estrellas || 0);
@@ -46,7 +59,7 @@ function AlumnoAvatarWidget() {
         <div className="alumno-avatar-widget-info">
           <p className="alumno-avatar-widget-nombre">{avatar ? avatar.name : 'Mi Avatar'}</p>
           <p className="alumno-avatar-widget-descripcion">{avatar?.description || '—'}</p>
-          <p className="alumno-avatar-widget-nivel">Nivel {avatar?.level != null ? String(avatar.level).padStart(2, '0') : '00'}</p>
+          {avatar?.level != null && <p className="alumno-avatar-widget-nivel">Nivel {String(avatar.level).padStart(2, '0')}</p>}
           <p className="alumno-avatar-widget-estrellas">⭐ {totalEstrellas} estrellas</p>
         </div>
       </div>

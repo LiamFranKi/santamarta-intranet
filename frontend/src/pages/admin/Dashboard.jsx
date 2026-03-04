@@ -79,6 +79,11 @@ function Dashboard() {
       description: 'Gestiona los avatares disponibles',
       icon: '👤'
     },
+    '/admin/avatares': {
+      title: '👤 Avatares',
+      description: 'Avatares por bimestre y género con sus accesorios',
+      icon: '👤'
+    },
     '/admin/gamificacion/ranking': {
       title: '📈 Ranking',
       description: 'Visualiza y gestiona el ranking de estudiantes',

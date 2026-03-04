@@ -19,6 +19,7 @@ import DocenteMensajes from './pages/DocenteMensajes';
 import DocenteHijos from './pages/DocenteHijos';
 import DocenteTutoria from './pages/DocenteTutoria';
 import AdminActividades from './pages/admin/AdminActividades';
+import AdminAvatares from './pages/admin/AdminAvatares';
 import AdminComunicados from './pages/admin/AdminComunicados';
 import AdminConfiguracion from './pages/admin/AdminConfiguracion';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
@@ -546,10 +547,18 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/avatares"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <AdminAvatares />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/admin/gamificacion/avatares"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
-            <Dashboard />
+            <AdminAvatares />
           </PrivateRoute>
         }
       />
