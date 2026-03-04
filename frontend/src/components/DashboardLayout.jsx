@@ -505,42 +505,16 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
-              <div className="sidebar-menu-item">
-                <button
-                  className={`sidebar-menu-toggle ${expandedMenus.gamificacion ? 'expanded' : ''}`}
-                  onClick={() => toggleSubmenu('gamificacion')}
-                >
-                  <div className="sidebar-menu-toggle-content">
-                    <span className="sidebar-icon">🎮</span>
-                    <span className="sidebar-label">Gamificación</span>
-                  </div>
-                  <span className="sidebar-menu-arrow">▶</span>
-                </button>
-                <div className={`sidebar-submenu ${expandedMenus.gamificacion ? 'expanded' : ''}`}>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gamificacion/niveles">
-                    Niveles (Gamificación)
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gamificacion/logros">
-                    Logros
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gamificacion/avatares">
-                    Avatares
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/gamificacion/ranking">
-                    Ranking
-                  </NavLink>
-                </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/avatares">
+                  <span className="sidebar-icon">🎮</span>
+                  <span className="sidebar-label">Gamificación</span>
+                </NavLink>
               </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/actividades">
                   <span className="sidebar-icon">📅</span>
                   <span className="sidebar-label">Actividades</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/avatares">
-                  <span className="sidebar-icon">👤</span>
-                  <span className="sidebar-label">Avatares</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
