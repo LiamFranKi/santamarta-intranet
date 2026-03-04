@@ -64,30 +64,10 @@ function Dashboard() {
       description: 'Gestiona las áreas académicas',
       icon: '📊'
     },
-    '/admin/gamificacion/niveles': {
-      title: '🎮 Niveles de Gamificación',
-      description: 'Gestiona los niveles del sistema de gamificación',
-      icon: '🎮'
-    },
-    '/admin/gamificacion/logros': {
-      title: '🏆 Logros',
-      description: 'Gestiona los logros y badges del sistema',
-      icon: '🏆'
-    },
-    '/admin/gamificacion/avatares': {
-      title: '👤 Avatares',
-      description: 'Gestiona los avatares disponibles',
-      icon: '👤'
-    },
     '/admin/avatares': {
-      title: '👤 Avatares',
+      title: '🎮 Gamificación',
       description: 'Avatares por bimestre y género con sus accesorios',
-      icon: '👤'
-    },
-    '/admin/gamificacion/ranking': {
-      title: '📈 Ranking',
-      description: 'Visualiza y gestiona el ranking de estudiantes',
-      icon: '📈'
+      icon: '🎮'
     },
     '/admin/notificaciones': {
       title: '🔔 Notificaciones',
