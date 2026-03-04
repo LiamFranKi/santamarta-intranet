@@ -1248,9 +1248,11 @@ function getAvatarBaseUrlForReq(req) {
     return 'http://localhost:5000/api/static/avatars';
   }
   const host = req.get('x-forwarded-host') || req.get('host');
-  const protocol = (req.get('x-forwarded-proto') || req.protocol || 'https');
+  let protocol = req.get('x-forwarded-proto') || req.protocol;
+  if (!protocol || protocol === 'http') protocol = 'https'; // Evitar Mixed Content: forzar HTTPS en producción
   if (host) return `${protocol}://${host}/api/static/avatars`;
-  return `${process.env.API_PUBLIC_URL || process.env.PHP_SYSTEM_URL || ''}/api/static/avatars`;
+  const fallback = process.env.API_PUBLIC_URL || process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+  return fallback.replace(/\/$/, '') + '/api/static/avatars';
 }
 
 const getAlumnoIdAndSexo = async (req) => {

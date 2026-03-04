@@ -17,8 +17,10 @@ function AlumnoAvatarWidget() {
         if (resBimestre?.data?.avatar_imagen_url != null) {
           const base = resBimestre.data.avatar_base || {};
           const desc = String(base.descripcion ?? base.description ?? '').trim();
+          let imgUrl = resBimestre.data.avatar_imagen_url || '';
+          if (imgUrl.startsWith('http:') && window.location.protocol === 'https:') imgUrl = imgUrl.replace(/^http:/, 'https:');
           setAvatar({
-            image_url: resBimestre.data.avatar_imagen_url,
+            image_url: imgUrl,
             name: base.nombre || 'Mi avatar',
             description: desc,
             level: base.bimestre ?? null
