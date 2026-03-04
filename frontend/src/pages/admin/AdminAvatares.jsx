@@ -297,8 +297,8 @@ function AdminAvatares() {
                   <div className="form-group">
                     <label>Imagen base (sin accesorios)</label>
                     <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={(e) => setArchivoBase(e.target.files?.[0] || null)} />
-                    {baseActual?.imagen_base_url && !archivoBase && <small className="form-hint">Se muestra la imagen actual. Sube otra para reemplazar.</small>}
-                    {!baseEditando && <small className="form-hint">Opcional. Puedes añadirla después al editar.</small>}
+                    {baseActual?.imagen_base_url && !archivoBase && <small className="form-hint">Se muestra la imagen actual. Sube otra para reemplazar. Máx. 15 MB.</small>}
+                    {!baseEditando && <small className="form-hint">Opcional. Puedes añadirla después al editar. Tamaño máximo: 15 MB.</small>}
                   </div>
                   <div className="form-group form-group-full">
                     <label>Historia o texto (opcional)</label>
@@ -362,6 +362,7 @@ function AdminAvatares() {
                       <label>Imagen combinada (personaje + este accesorio)</label>
                       <input type="file" accept="image/png,image/jpeg,image/jpg" onChange={(e) => setArchivoAccesorio(e.target.files?.[0] || null)} />
                       {accesorioEditando && !archivoAccesorio && <small className="form-hint">Dejar vacío para mantener la actual.</small>}
+                      <small className="form-hint">Tamaño máximo: 15 MB.</small>
                     </div>
                     <div className="admin-avatares-modal-actions">
                       <button type="button" className="admin-avatares-btn secondary" onClick={() => setMostrarModalAccesorio(false)}>Cancelar</button>
