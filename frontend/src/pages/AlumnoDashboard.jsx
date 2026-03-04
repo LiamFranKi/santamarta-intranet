@@ -6,7 +6,6 @@ import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import BirthdayWidget from '../components/BirthdayWidget';
-import AlumnoAvatarWidget from '../components/AlumnoAvatarWidget';
 import { useAvatarWidget } from '../context/AvatarWidgetContext';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './AlumnoDashboard.css';
@@ -426,9 +425,6 @@ function AlumnoDashboard() {
   return (
     <DashboardLayout>
       <div className="alumno-dashboard">
-        {/* Avatar base del bimestre - todos los alumnos lo tienen visible */}
-        <AlumnoAvatarWidget />
-
         {/* Tarjetas de estadísticas - 4 columnas */}
         <div className="stats-grid-4">
           <div className="stat-card mundo-card" onClick={abrirModalCursos} style={{ cursor: 'pointer', background: coloresPastelesDashboard[0] }}>

@@ -98,7 +98,6 @@ function AlumnoAvatarWidget() {
             <span className="alumno-avatar-widget-estrellas-num">{totalEstrellas}</span>
             <span className="alumno-avatar-widget-estrellas-label">estrellas</span>
           </div>
-          <span className="alumno-avatar-widget-cta">Toca para personalizar →</span>
         </div>
       </div>
     </div>
