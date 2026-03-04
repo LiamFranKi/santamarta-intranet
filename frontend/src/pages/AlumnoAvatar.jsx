@@ -25,12 +25,23 @@ function AlumnoAvatar() {
       setError(null);
       const resBimestre = await api.get('/alumno/avatares-bimestre/resumen').catch(() => null);
       if (resBimestre?.data?.avatar_base != null && resBimestre?.data?.avatar_imagen_url != null) {
+        let ab = resBimestre.data.avatar_base;
+        const bim = resBimestre.data.bimestre ?? 1;
+        if (!String(ab.descripcion ?? ab.description ?? '').trim() || !String(ab.historia ?? '').trim()) {
+          const resBases = await api.get('/alumno/avatares-bimestre/bases', { params: { bimestre: bim } }).catch(() => null);
+          const full = resBases?.data?.bases?.find((b) => b.id === ab.id);
+          if (full) {
+            const d = String(ab.descripcion ?? ab.description ?? full.descripcion ?? full.Descripcion ?? '').trim();
+            const h = String(ab.historia ?? full.historia ?? full.Historia ?? '').trim();
+            ab = { ...ab, descripcion: d, historia: h };
+          }
+        }
         setSistema('bimestre');
         setAvatarImagenUrl(resBimestre.data.avatar_imagen_url);
-        setAvatarBase(resBimestre.data.avatar_base);
+        setAvatarBase(ab);
         setTotalEstrellas(resBimestre.data.total_estrellas ?? 0);
-        setBimestre(resBimestre.data.bimestre ?? 1);
-        const resAcc = await api.get(`/alumno/avatares-bimestre/bases/${resBimestre.data.avatar_base.id}/accesorios`);
+        setBimestre(bim);
+        const resAcc = await api.get(`/alumno/avatares-bimestre/bases/${ab.id}/accesorios`);
         setAccesorios(resAcc.data.accesorios || []);
         setItems([]);
         setAvatarActual(null);
@@ -153,8 +164,9 @@ function AlumnoAvatar() {
 
   const imagenMostrar = sistema === 'bimestre' ? avatarImagenUrl : avatarActual?.image_url;
   const nombreMostrar = sistema === 'bimestre' ? (avatarBase?.nombre || 'Mi avatar') : avatar.name;
-  const descripcionBase = (avatarBase?.descripcion || '').trim();
-  const historiaBase = (avatarBase?.historia || '').trim();
+  // descripcion e historia: aceptar snake_case (descripcion) o camelCase (description)
+  const descripcionBase = String(avatarBase?.descripcion ?? avatarBase?.description ?? '').trim();
+  const historiaBase = String(avatarBase?.historia ?? '').trim();
 
   return (
     <DashboardLayout>

@@ -1295,12 +1295,13 @@ router.get('/avatares-bimestre/resumen', async (req, res) => {
     const { alumnoId, sexo } = data;
     const totalEstrellas = await getTotalEstrellasAlumno(alumnoId, colegio_id, anio_activo);
 
+    const cols = 'id, bimestre, nombre, sexo, descripcion, historia, imagen_base, orden';
     let base = await query(
-      `SELECT * FROM avatar_bases WHERE bimestre = ? AND sexo = ? LIMIT 1`,
+      `SELECT ${cols} FROM avatar_bases WHERE bimestre = ? AND sexo = ? LIMIT 1`,
       [bimestre, sexo !== null && sexo !== undefined ? sexo : 0]
     );
     if (base.length === 0) {
-      base = await query(`SELECT * FROM avatar_bases WHERE bimestre = ? LIMIT 1`, [bimestre]);
+      base = await query(`SELECT ${cols} FROM avatar_bases WHERE bimestre = ? LIMIT 1`, [bimestre]);
     }
     if (base.length === 0) {
       return res.json({
@@ -1313,6 +1314,15 @@ router.get('/avatares-bimestre/resumen', async (req, res) => {
     }
 
     const baseRow = base[0];
+    // Asegurar descripcion e historia como string (MySQL puede devolver Buffer en TEXT)
+    const safeStr = (v) => {
+      if (v == null || v === undefined) return '';
+      if (Buffer.isBuffer(v)) return v.toString('utf8');
+      return String(v || '').trim();
+    };
+    const descripcionStr = safeStr(baseRow.descripcion ?? baseRow.Descripcion ?? baseRow.DESCRIPCION ?? '');
+    const historiaStr = safeStr(baseRow.historia ?? baseRow.Historia ?? baseRow.HISTORIA ?? '');
+
     const equipado = await query(
       `SELECT accesorio_id FROM alumno_avatar_equipado WHERE student_id = ? AND avatar_base_id = ?`,
       [alumnoId, baseRow.id]
@@ -1331,8 +1341,6 @@ router.get('/avatares-bimestre/resumen', async (req, res) => {
     }
     if (!imagenUrl && baseRow.imagen_base) imagenUrl = `${baseUrl}/${baseRow.imagen_base}`;
 
-    const desc = baseRow.descripcion ?? baseRow.Descripcion ?? baseRow.DESCRIPCION ?? '';
-    const hist = baseRow.historia ?? baseRow.Historia ?? baseRow.HISTORIA ?? '';
     res.json({
       avatar_imagen_url: imagenUrl,
       avatar_base: {
@@ -1340,8 +1348,8 @@ router.get('/avatares-bimestre/resumen', async (req, res) => {
         bimestre: baseRow.bimestre,
         nombre: baseRow.nombre,
         sexo: baseRow.sexo,
-        descripcion: String(desc || '').trim(),
-        historia: String(hist || '').trim()
+        descripcion: descripcionStr,
+        historia: historiaStr
       },
       total_estrellas: totalEstrellas,
       bimestre
