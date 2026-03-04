@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -12,6 +13,7 @@ function AlumnoAvatarWidget() {
   const [avatar, setAvatar] = useState(null);
   const [totalEstrellas, setTotalEstrellas] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [mostrarImagenGrande, setMostrarImagenGrande] = useState(false);
   const usamosContexto = useRef(false);
 
   useEffect(() => {
@@ -84,7 +86,22 @@ function AlumnoAvatarWidget() {
       aria-label="Ver mi avatar y desbloquear accesorios"
     >
       <div className="alumno-avatar-widget-inner">
-        <div className="alumno-avatar-widget-imagen">
+        <div
+          className="alumno-avatar-widget-imagen alumno-avatar-widget-imagen-clickable"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (avatar?.image_url) setMostrarImagenGrande(true);
+          }}
+          role={avatar?.image_url ? 'button' : undefined}
+          tabIndex={avatar?.image_url ? 0 : undefined}
+          onKeyDown={(e) => {
+            if (avatar?.image_url && e.key === 'Enter') {
+              e.stopPropagation();
+              setMostrarImagenGrande(true);
+            }
+          }}
+          aria-label={avatar?.image_url ? 'Ver imagen ampliada' : undefined}
+        >
           {avatar?.image_url ? (
             <img src={avatar.image_url} alt={avatar.name || 'Mi avatar'} />
           ) : (
@@ -103,6 +120,29 @@ function AlumnoAvatarWidget() {
           </div>
         </div>
       </div>
+      {mostrarImagenGrande && avatar?.image_url && createPortal(
+        <div
+          className="avatar-lightbox-overlay"
+          onClick={() => setMostrarImagenGrande(false)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Escape' && setMostrarImagenGrande(false)}
+          aria-label="Cerrar"
+        >
+          <div className="avatar-lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <img src={avatar.image_url} alt={avatar.name || 'Mi avatar'} className="avatar-lightbox-imagen" />
+            <button
+              type="button"
+              className="avatar-lightbox-cerrar"
+              onClick={() => setMostrarImagenGrande(false)}
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
@@ -20,6 +21,7 @@ function AlumnoAvatar() {
   const [comprando, setComprando] = useState(null);
   const [equipando, setEquipando] = useState(null);
   const [error, setError] = useState(null);
+  const [mostrarImagenGrande, setMostrarImagenGrande] = useState(false);
 
   const cargar = async () => {
     try {
@@ -182,7 +184,14 @@ function AlumnoAvatar() {
               <div className="avatar-hero-bg" />
               <div className="avatar-hero-content">
                 <span className="avatar-hero-bimestre">Bimestre {bimestre}</span>
-                <div className="avatar-hero-imagen-wrap">
+                <div
+                  className="avatar-hero-imagen-wrap avatar-hero-imagen-clickable"
+                  onClick={() => imagenMostrar && setMostrarImagenGrande(true)}
+                  role={imagenMostrar ? 'button' : undefined}
+                  tabIndex={imagenMostrar ? 0 : undefined}
+                  onKeyDown={(e) => imagenMostrar && e.key === 'Enter' && setMostrarImagenGrande(true)}
+                  aria-label={imagenMostrar ? 'Ver imagen ampliada' : undefined}
+                >
                   {imagenMostrar ? (
                     <img src={imagenMostrar} alt={nombreMostrar} className="avatar-hero-imagen" />
                   ) : (
@@ -284,7 +293,14 @@ function AlumnoAvatar() {
             <h1 className="avatar-titulo-principal">Tu Avatar</h1>
             <div className="avatar-tarjeta-centro">
               <div className="avatar-tarjeta-contenido">
-                <div className="avatar-imagen-container">
+                <div
+                  className="avatar-imagen-container avatar-imagen-clickable"
+                  onClick={() => imagenMostrar && setMostrarImagenGrande(true)}
+                  role={imagenMostrar ? 'button' : undefined}
+                  tabIndex={imagenMostrar ? 0 : undefined}
+                  onKeyDown={(e) => imagenMostrar && e.key === 'Enter' && setMostrarImagenGrande(true)}
+                  aria-label={imagenMostrar ? 'Ver imagen ampliada' : undefined}
+                >
                   {imagenMostrar ? (
                     <img src={imagenMostrar} alt={nombreMostrar} />
                   ) : (
@@ -339,6 +355,29 @@ function AlumnoAvatar() {
           </>
         )}
       </div>
+      {mostrarImagenGrande && imagenMostrar && createPortal(
+        <div
+          className="avatar-lightbox-overlay"
+          onClick={() => setMostrarImagenGrande(false)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Escape' && setMostrarImagenGrande(false)}
+          aria-label="Cerrar"
+        >
+          <div className="avatar-lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <img src={imagenMostrar} alt={nombreMostrar} className="avatar-lightbox-imagen" />
+            <button
+              type="button"
+              className="avatar-lightbox-cerrar"
+              onClick={() => setMostrarImagenGrande(false)}
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
     </DashboardLayout>
   );
 }
