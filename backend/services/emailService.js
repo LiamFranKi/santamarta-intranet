@@ -240,6 +240,12 @@ function obtenerIconoYColor(titulo) {
     return { icono: '⭐', color: '#fbbf24' }; // Amarillo
   } else if (tituloLower.includes('incidencia')) {
     return { icono: '⚠️', color: '#f59e0b' }; // Naranja
+  } else if (tituloLower.includes('asistió') || tituloLower.includes('asistencia registrada')) {
+    return { icono: '✅', color: '#10b981' }; // Verde
+  } else if (tituloLower.includes('tardanza')) {
+    return { icono: '⚠️', color: '#f59e0b' }; // Naranja
+  } else if (tituloLower.includes('falta registrada') || tituloLower.includes('falta -')) {
+    return { icono: '❌', color: '#ef4444' }; // Rojo
   } else if (tituloLower.includes('nota de tarea')) {
     return { icono: '📝', color: '#10b981' }; // Verde
   } else if (tituloLower.includes('proyecto se vence') || tituloLower.includes('tarea se vence')) {

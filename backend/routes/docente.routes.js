@@ -451,9 +451,15 @@ async function crearNotificacionesApoderados(params) {
         console.log('⚠️ [NOTIFICACIONES APODERADOS] No hay suscripciones push activas para enviar notificaciones');
       }
 
-      // Correo a apoderados solo para Exámenes y Notas de tarea (cuenta principal GENERAL)
-      const tiposConCorreoApoderados = ['nota_tarea', 'examen_finalizado'];
-      if (tiposConCorreoApoderados.includes(tipoNotificacion)) {
+      // Correo a apoderados:
+      // - nota_tarea, examen_finalizado → cuenta GENERAL (principal)
+      // - asistencia_manual_* (tutor manual + auto-falta) → cuenta ASISTENCIA
+      const tiposConCorreoGENERAL = ['nota_tarea', 'examen_finalizado'];
+      const esAsistenciaManual = tipoNotificacion && tipoNotificacion.startsWith('asistencia_manual_');
+      const enviarCorreo = tiposConCorreoGENERAL.includes(tipoNotificacion) || esAsistenciaManual;
+      const categoriaCorreo = esAsistenciaManual ? 'ASISTENCIA' : 'GENERAL';
+
+      if (enviarCorreo) {
         try {
           const colegioInfo = await query(`SELECT nombre FROM colegios WHERE id = ?`, [colegio_id]);
           const colegioNombre = colegioInfo.length > 0 ? colegioInfo[0].nombre : 'Vanguard Schools';
@@ -474,11 +480,11 @@ async function crearNotificacionesApoderados(params) {
             if (email && !emailsUnicos.has(email)) emailsUnicos.set(email, u.email);
           });
           for (const email of emailsUnicos.values()) {
-            enviarCorreoNotificacion(email, tituloNotificacion, mensajeNotificacion, colegioNombre, 'GENERAL')
+            enviarCorreoNotificacion(email, tituloNotificacion, mensajeNotificacion, colegioNombre, categoriaCorreo)
               .catch(err => console.error(`❌ [NOTIFICACIONES APODERADOS] Error correo:`, err));
           }
           if (emailsUnicos.size > 0) {
-            console.log(`📧 [NOTIFICACIONES APODERADOS] Correos enviados a ${emailsUnicos.size} apoderado(s) (${tipoNotificacion})`);
+            console.log(`📧 [NOTIFICACIONES APODERADOS] Correos enviados a ${emailsUnicos.size} apoderado(s) (${tipoNotificacion}, cuenta: ${categoriaCorreo})`);
           }
         } catch (err) {
           console.error(`❌ [NOTIFICACIONES APODERADOS] Error envío correos:`, err);
