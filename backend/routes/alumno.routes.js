@@ -1410,10 +1410,10 @@ router.get('/avatares-bimestre/bases', async (req, res) => {
     } else {
       bases = await query(`SELECT * FROM avatar_bases WHERE bimestre = ? ORDER BY sexo, orden, id`, [bimestre]);
     }
-    const baseUrl = baseAvatarBimestreUrl();
+    const baseUrl = getAvatarBaseUrlForReq(req);
     const list = bases.map(b => ({
       ...b,
-      imagen_base_url: b.imagen_base ? baseUrl + b.imagen_base : null
+      imagen_base_url: b.imagen_base ? `${baseUrl}/${b.imagen_base}` : null
     }));
     res.json({ bases: list, bimestre });
   } catch (error) {
