@@ -4,11 +4,13 @@ import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
+import { useAvatarWidget } from '../context/AvatarWidgetContext';
 import './AlumnoAvatar.css';
 
 // Sistema: 'bimestre' = avatares por bimestre con accesorios; 'tienda' = tienda antigua (avatar_shop)
 function AlumnoAvatar() {
   const { user } = useAuth();
+  const { setAvatarWidget } = useAvatarWidget();
   const [loading, setLoading] = useState(true);
   const [sistema, setSistema] = useState('tienda'); // 'bimestre' | 'tienda'
   const [avatarActual, setAvatarActual] = useState(null);
@@ -41,14 +43,24 @@ function AlumnoAvatar() {
           }
         }
         setSistema('bimestre');
-        setAvatarImagenUrl(resBimestre.data.avatar_imagen_url);
+        const imagenUrl = resBimestre.data.avatar_imagen_url;
+        setAvatarImagenUrl(imagenUrl);
         setAvatarBase(ab);
-        setTotalEstrellas(resBimestre.data.total_estrellas ?? 0);
+        const estrellas = resBimestre.data.total_estrellas ?? 0;
+        setTotalEstrellas(estrellas);
         setBimestre(bim);
         const resAcc = await api.get(`/alumno/avatares-bimestre/bases/${ab.id}/accesorios`);
         setAccesorios(resAcc.data.accesorios || []);
         setItems([]);
         setAvatarActual(null);
+        if (setAvatarWidget && ab?.nombre && imagenUrl) {
+          setAvatarWidget({
+            nombre: ab.nombre,
+            descripcion: String(ab.descripcion ?? ab.description ?? '').trim(),
+            imagen_url: imagenUrl,
+            total_estrellas: estrellas
+          });
+        }
         setLoading(false);
         return;
       }
@@ -90,8 +102,14 @@ function AlumnoAvatar() {
     try {
       setComprando(accesorio.id);
       await api.post(`/alumno/avatares-bimestre/desbloquear/${accesorio.id}`);
+      if (avatarBase?.id) {
+        await api.put('/alumno/avatares-bimestre/equipar', {
+          avatar_base_id: avatarBase.id,
+          accesorio_id: accesorio.id
+        });
+      }
       await cargar();
-      Swal.fire({ icon: 'success', title: '¡Accesorio desbloqueado!', timer: 2000, showConfirmButton: false });
+      Swal.fire({ icon: 'success', title: '¡Accesorio desbloqueado y equipado!', timer: 2000, showConfirmButton: false });
     } catch (err) {
       Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudo desbloquear' });
     } finally {
