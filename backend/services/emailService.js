@@ -294,13 +294,18 @@ function generarTemplateNotificacion(datos) {
 async function enviarCorreoAsistencia(destinatario, datos) {
   try {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-      console.error(`❌ [EMAIL] Variables de entorno EMAIL_USER o EMAIL_PASSWORD no configuradas`);
+      console.error(`❌ [EMAIL] Variables de entorno EMAIL_USER o EMAIL_PASSWORD no configuradas en el servidor. Revisar backend/.env`);
       return { success: false, error: 'Configuración de email incompleta' };
+    }
+    const emailDestino = (destinatario && String(destinatario).trim()) || '';
+    if (!emailDestino || !emailDestino.includes('@')) {
+      console.error(`❌ [EMAIL] Destinatario de asistencia inválido: "${destinatario}"`);
+      return { success: false, error: 'Destinatario inválido' };
     }
 
     const { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia } = datos;
     
-    console.log(`📧 [EMAIL] Preparando correo para: ${destinatario}`);
+    console.log(`📧 [EMAIL] Enviando correo de asistencia a: ${emailDestino}`);
     console.log(`📧 [EMAIL] Datos:`, { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia });
     
     const template = generarTemplateAsistencia({
@@ -324,7 +329,7 @@ async function enviarCorreoAsistencia(destinatario, datos) {
 
     const mailOptions = {
       from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`,
-      to: destinatario,
+      to: emailDestino,
       subject: asunto,
       html: template,
       // Configurar para que los rebotes no se reenvíen al remitente
@@ -337,19 +342,17 @@ async function enviarCorreoAsistencia(destinatario, datos) {
       // Configurar envelope para evitar notificaciones de rebote
       envelope: {
         from: process.env.EMAIL_USER,
-        to: destinatario
+        to: emailDestino
       }
     };
 
-    console.log(`📧 [EMAIL] Enviando correo desde: ${process.env.EMAIL_USER} hacia: ${destinatario}`);
+    console.log(`📧 [EMAIL] SMTP enviando asistencia hacia: ${emailDestino}`);
     const info = await transporter.sendMail(mailOptions);
     console.log(`✅ [EMAIL] Correo enviado exitosamente. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    // Error capturado: solo registrar en logs, NO reenviar al remitente
-    console.error(`❌ [EMAIL] Error enviando correo a ${destinatario}:`, error.message);
-    console.error(`❌ [EMAIL] Stack trace:`, error.stack);
-    console.log(`⚠️ [EMAIL] Error registrado pero NO se notificará al remitente para evitar confusión`);
+    console.error(`❌ [EMAIL] Error enviando correo de asistencia:`, error.message);
+    console.error(`❌ [EMAIL] Stack:`, error.stack);
     return { success: false, error: error.message };
   }
 }

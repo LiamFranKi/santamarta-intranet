@@ -613,38 +613,39 @@ router.post('/registrar', async (req, res) => {
         // Esto permite que el usuario reciba la respuesta inmediatamente
         setImmediate(async () => {
           try {
-            // Enviar correos a apoderados en paralelo
-            if (apoderados.length > 0) {
-              console.log(`📧 [ASISTENCIA] Enviando correos a ${apoderados.length} apoderados (asíncrono)...`);
-              const promesasCorreos = apoderados
-                .filter(ap => ap.email)
-                .map(async (apoderado) => {
-                  try {
-                    console.log(`📧 [ASISTENCIA] Enviando correo a: ${apoderado.email}`);
-                    const resultadoCorreo = await enviarCorreoAsistencia(apoderado.email, {
-                      nombreAlumno: datosUsuario.nombre_completo,
-                      hora: horaFormateada,
-                      fecha: fechaFormateada,
-                      tipo: tipo_registro,
-                      colegioNombre,
-                      tipoAsistencia: tipo_registro === 'ENTRADA' ? tipoAsistenciaParaNotificacion : null
-                    });
-                    if (resultadoCorreo.success) {
-                      console.log(`✅ [ASISTENCIA] Correo enviado exitosamente a ${apoderado.email}`);
-                    } else {
-                      console.error(`❌ [ASISTENCIA] Error enviando correo a ${apoderado.email}:`, resultadoCorreo.error);
-                    }
-                  } catch (error) {
-                    console.error(`❌ [ASISTENCIA] Excepción al enviar correo a ${apoderado.email}:`, error.message);
+            // Enviar correos a apoderados (emails válidos, trim para evitar fallos silenciosos)
+            const apoderadosConEmail = apoderados.filter(ap => ap.email && String(ap.email).trim());
+            if (apoderadosConEmail.length > 0) {
+              console.log(`📧 [ASISTENCIA] Enviando correos de asistencia a ${apoderadosConEmail.length} apoderado(s)...`);
+              const promesasCorreos = apoderadosConEmail.map(async (apoderado) => {
+                const email = String(apoderado.email).trim();
+                try {
+                  const resultadoCorreo = await enviarCorreoAsistencia(email, {
+                    nombreAlumno: datosUsuario.nombre_completo,
+                    hora: horaFormateada,
+                    fecha: fechaFormateada,
+                    tipo: tipo_registro,
+                    colegioNombre,
+                    tipoAsistencia: tipo_registro === 'ENTRADA' ? tipoAsistenciaParaNotificacion : null
+                  });
+                  if (resultadoCorreo.success) {
+                    console.log(`✅ [ASISTENCIA] Correo enviado a ${email}`);
+                    return { ok: true, email };
+                  } else {
+                    console.error(`❌ [ASISTENCIA] Correo fallido a ${email}:`, resultadoCorreo.error);
+                    return { ok: false, email, error: resultadoCorreo.error };
                   }
-                });
-              
-              // No esperar a que terminen, solo iniciar el proceso
-              Promise.all(promesasCorreos).catch(err => {
-                console.error(`❌ [ASISTENCIA] Error en envío de correos:`, err);
+                } catch (error) {
+                  console.error(`❌ [ASISTENCIA] Excepción enviando a ${email}:`, error.message);
+                  return { ok: false, email, error: error.message };
+                }
               });
+              const resultados = await Promise.all(promesasCorreos);
+              const enviados = resultados.filter(r => r.ok).length;
+              const fallidos = resultados.filter(r => !r.ok).length;
+              console.log(`📧 [ASISTENCIA] Correos de asistencia: ${enviados} enviados, ${fallidos} fallidos`);
             } else {
-              console.log(`⚠️ [ASISTENCIA] No se encontraron apoderados con email para este alumno`);
+              console.log(`⚠️ [ASISTENCIA] No hay apoderados con email válido para este alumno (total apoderados: ${apoderados.length})`);
             }
 
             // Enviar push notifications en paralelo (ya optimizado en el servicio)
