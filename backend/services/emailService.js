@@ -313,13 +313,14 @@ async function enviarCorreoAsistencia(destinatario, datos) {
       tipoAsistencia: tipoAsistencia || null
     });
 
+    // Asunto con palabra clave al inicio: ASISTIÓ, TARDANZA, SALIDA (para apoderados)
     const asunto = esDocente
-      ? (tipo === 'ENTRADA' 
+      ? (tipo === 'ENTRADA'
           ? `✅ Registro de Entrada - ${hora}`
           : `👋 Registro de Salida - ${hora}`)
-      : (tipo === 'ENTRADA' 
-          ? `✅ ${nombreAlumno} llegó al colegio - ${hora}`
-          : `👋 ${nombreAlumno} salió del colegio - ${hora}`);
+      : (tipo === 'ENTRADA'
+          ? `${tipoAsistencia === 'TARDANZA' ? 'TARDANZA' : 'ASISTIÓ'} - ${nombreAlumno} llegó al colegio - ${hora}`
+          : `SALIDA - ${nombreAlumno} salió del colegio - ${hora}`);
 
     const mailOptions = {
       from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`,

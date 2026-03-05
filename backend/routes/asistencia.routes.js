@@ -506,7 +506,12 @@ router.post('/registrar', async (req, res) => {
         if (!mensajeConfig) {
           console.error(`❌ [ASISTENCIA] No se encontró configuración de mensaje para tipo_registro: ${tipo_registro}`);
         }
-        const tituloNotificacion = mensajeConfig?.titulo || `Asistencia ${tipo_registro}`;
+        let tituloNotificacion = mensajeConfig?.titulo || `Asistencia ${tipo_registro}`;
+        const palabraClave = tipo_registro === 'ENTRADA'
+          ? (tipoAsistenciaParaNotificacion === 'TARDANZA' ? 'TARDANZA' : 'ASISTIÓ')
+          : 'SALIDA';
+        tituloNotificacion = `${palabraClave} - ${tituloNotificacion}`;
+
         let mensajeNotificacion = mensajeConfig?.mensaje_corto
           ? mensajeConfig.mensaje_corto
               .replace('{nombreAlumno}', datosUsuario.nombre_completo)

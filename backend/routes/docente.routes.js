@@ -6242,7 +6242,9 @@ router.post('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
         const nombreAlumno = `${alumnoData[0].nombres} ${alumnoData[0].apellido_paterno} ${alumnoData[0].apellido_materno}`.trim();
         const fechaForm = moment(fechaNorm).format('DD/MM/YYYY');
         const cfg = mensajesConfig.asistencia?.manual?.[tipo];
-        const titulo = cfg?.titulo || `Asistencia: ${tipo}`;
+        const tituloBase = cfg?.titulo || `Asistencia: ${tipo}`;
+        const palabraClaveManual = { PRESENTE: 'ASISTIÓ', TARDANZA: 'TARDANZA', TARDANZA_JUSTIFICADA: 'TARDANZA JUSTIFICADA', FALTA: 'FALTA', FALTA_JUSTIFICADA: 'FALTA JUSTIFICADA' }[tipo] || tipo;
+        const titulo = `${palabraClaveManual} - ${tituloBase}`;
         const mensaje = (cfg?.mensaje_corto || '').replace('{nombreAlumno}', nombreAlumno).replace('{fecha}', fechaForm);
         setImmediate(() => {
           crearNotificacionesApoderados({
@@ -6250,7 +6252,7 @@ router.post('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
             usuario_id,
             colegio_id,
             anio_activo,
-            tituloNotificacion: titulo,
+            tituloNotificacion: titulo, // Ya incluye palabra clave al inicio (ASISTIÓ, TARDANZA, FALTA, etc.)
             mensajeNotificacion: mensaje,
             tipoNotificacion: `asistencia_manual_${tipo}`,
             dataExtra: { fecha: fechaNorm, tipo }
@@ -6326,7 +6328,8 @@ router.post('/tutoria/grupos/:grupoId/asistencia/guardar-todo', async (req, res)
 
     for (const item of marcadosComoFalta) {
       const cfg = mensajesConfig.asistencia?.manual?.FALTA;
-      const titulo = cfg?.titulo || 'Falta Registrada';
+      const tituloBase = cfg?.titulo || 'Falta Registrada';
+      const titulo = `FALTA - ${tituloBase}`;
       const fechaForm = moment(fechaNorm).format('DD/MM/YYYY');
       const mensaje = (cfg?.mensaje_corto || '').replace('{nombreAlumno}', item.nombre_completo).replace('{fecha}', fechaForm);
       setImmediate(() => {
