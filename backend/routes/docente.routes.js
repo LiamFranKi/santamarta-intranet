@@ -361,10 +361,10 @@ async function crearNotificacionesApoderados(params) {
       }
     }
     
-    // Combinar todos los destinatarios (alumno + apoderados + docentes-apoderados)
-    const todosDestinatarios = [...new Set([alumnoUsuarioId, ...apoderadoUsuarioIds])];
+    // Solo apoderados y docentes-apoderados (NO incluir al alumno)
+    const todosDestinatarios = [...new Set(apoderadoUsuarioIds)];
     
-    console.log(`📢 [NOTIFICACIONES APODERADOS] Encontrados ${todosDestinatarios.length} destinatarios (1 alumno, ${apoderadoUsuarioIds.length} apoderados incluyendo docentes)`);
+    console.log(`📢 [NOTIFICACIONES APODERADOS] Encontrados ${todosDestinatarios.length} destinatarios (solo apoderados, sin alumno)`);
     console.log(`📋 [NOTIFICACIONES APODERADOS] IDs de destinatarios:`, todosDestinatarios);
     
     // Crear notificaciones en la BD

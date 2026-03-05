@@ -626,6 +626,7 @@ router.post('/registrar', async (req, res) => {
                     fecha: fechaFormateada,
                     tipo: tipo_registro,
                     colegioNombre,
+                    esDocente: false,
                     tipoAsistencia: tipo_registro === 'ENTRADA' ? tipoAsistenciaParaNotificacion : null
                   });
                   if (resultadoCorreo.success) {
@@ -656,12 +657,24 @@ router.post('/registrar', async (req, res) => {
             if (subscriptions && subscriptions.length > 0) {
               console.log(`📱 [ASISTENCIA] Enviando ${subscriptions.length} notificación(es) push...`);
               enviarPushNotificationMultiple(subscriptions, payloadPush)
-                .then(resultadosPush => {
+                .then(async (resultadosPush) => {
                   const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
                   const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
                   console.log(`✅ [ASISTENCIA] Push: ${exitosas} exitosas, ${fallidas} fallidas`);
                   if (fallidas > 0) {
                     console.log(`❌ [ASISTENCIA] Errores push:`, resultadosPush.filter(r => !r.resultado || !r.resultado.success).map(r => r.resultado?.error || 'Error desconocido'));
+                  }
+                  // Marcar suscripciones expiradas (410/404) como inactivas para no seguir intentando
+                  const expiradas = resultadosPush.filter(r => r.resultado && r.resultado.expired && r.subscription && r.subscription.endpoint);
+                  if (expiradas.length > 0) {
+                    try {
+                      for (const { subscription } of expiradas) {
+                        await execute('UPDATE push_subscriptions SET activo = 0 WHERE endpoint = ?', [subscription.endpoint]);
+                      }
+                      console.log(`📱 [ASISTENCIA] ${expiradas.length} suscripción(es) marcadas como inactivas (expiradas)`);
+                    } catch (e) {
+                      console.error(`❌ [ASISTENCIA] Error marcando suscripciones inactivas:`, e.message);
+                    }
                   }
                 })
                 .catch(err => console.error(`❌ [ASISTENCIA] Error envío push:`, err));
