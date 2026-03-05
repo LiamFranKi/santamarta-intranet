@@ -24,8 +24,10 @@ function AsistenciaEscaneo() {
   const html5QrCodeRef = useRef(null);
   const scannerId = useRef(null);
   const busquedaTimeoutRef = useRef(null);
-  const ultimoQRProcesado = useRef(null); // Prevenir procesar el mismo QR múltiples veces
-  const tiempoUltimoQR = useRef(0); // Timestamp del último QR procesado
+  const ultimoQRProcesado = useRef(null);
+  const tiempoUltimoQR = useRef(0);
+  const registroCompletoThrottleUntil = useRef(0);
+  const registroCompletoQR = useRef(null); // QR que dio "registro completo" (throttle 5s)
   const cambiandoCamara = useRef(false); // Prevenir múltiples cambios de cámara simultáneos
 
   useEffect(() => {
@@ -205,9 +207,11 @@ function AsistenciaEscaneo() {
       return;
     }
     
-    // Prevenir procesar el mismo QR múltiples veces en menos de 2 segundos
+    // Prevenir procesar el mismo QR múltiples veces (2s normal, 5s si mismo QR dio "registro completo")
     const ahora = Date.now();
-    if (ultimoQRProcesado.current === qrData && (ahora - tiempoUltimoQR.current) < 2000) {
+    const usoThrottleCompleto = registroCompletoQR.current === qrData && registroCompletoThrottleUntil.current > ahora;
+    const limite = usoThrottleCompleto ? registroCompletoThrottleUntil.current : tiempoUltimoQR.current + 2000;
+    if (ultimoQRProcesado.current === qrData && ahora < limite) {
       console.log('⚠️ QR ya procesado recientemente, ignorando...');
       return;
     }
@@ -235,7 +239,22 @@ function AsistenciaEscaneo() {
       console.log('📱 Procesando QR:', qrData.substring(0, 20) + '...');
       const response = await api.post('/asistencia/escaneo', { qr_data: qrData });
       
-      if (response.data.success) {
+      if (response.data.registro_completo) {
+        // Ya tiene entrada y salida hoy - mostrar mensaje informativo (evita bucle)
+        const u = response.data.usuario;
+        Swal.fire({
+          title: 'Registro completo',
+          html: `Ya tiene entrada y salida registradas hoy para <strong>${u?.nombres || ''} ${u?.apellidos || ''}</strong>.`,
+          icon: 'info',
+          confirmButtonText: 'Entendido',
+          timer: 4000,
+          timerProgressBar: true
+        });
+        ultimoQRProcesado.current = qrData;
+        tiempoUltimoQR.current = ahora;
+        registroCompletoQR.current = qrData;
+        registroCompletoThrottleUntil.current = ahora + 5000;
+      } else if (response.data.success) {
         setUsuarioSeleccionado(response.data.usuario);
         mostrarModalConfirmacion(response.data);
       } else {

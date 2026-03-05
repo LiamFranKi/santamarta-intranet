@@ -138,20 +138,25 @@ router.post('/escaneo', async (req, res) => {
     // 1. Hay un registro HOY (mismo día)
     // 2. Tiene hora_entrada
     // 3. NO tiene hora_salida
-    // Si no cumple estas condiciones, SIEMPRE es ENTRADA (incluso si ayer no se escaneó salida)
+    // Si tiene entrada Y salida, registro_completo = true (evitar bucle en frontend)
     let tipoRegistro = 'ENTRADA';
+    let registroCompleto = false;
     if (asistenciaHoy.length > 0) {
       const registro = asistenciaHoy[0];
-      // Verificar que el registro sea del día de HOY (no de ayer)
       const fechaRegistro = moment(registro.fecha).format('YYYY-MM-DD');
-      if (fechaRegistro === fechaHoy && registro.hora_entrada && !registro.hora_salida) {
-        tipoRegistro = 'SALIDA';
+      if (fechaRegistro === fechaHoy) {
+        if (registro.hora_entrada && registro.hora_salida) {
+          registroCompleto = true;
+          tipoRegistro = 'COMPLETO'; // El frontend no debe mostrar modal de registrar
+        } else if (registro.hora_entrada && !registro.hora_salida) {
+          tipoRegistro = 'SALIDA';
+        }
       }
-      // Si el registro es de otro día, siempre es ENTRADA
     }
 
     res.json({
       success: true,
+      registro_completo: registroCompleto,
       usuario: datosUsuario,
       tipo_registro: tipoRegistro,
       asistencia_existente: asistenciaHoy.length > 0 ? asistenciaHoy[0] : null
