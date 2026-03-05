@@ -609,15 +609,15 @@ router.post('/registrar', async (req, res) => {
           }
         };
 
-        // Enviar notificaciones de forma ASÍNCRONA (sin bloquear la respuesta)
-        // Esto permite que el usuario reciba la respuesta inmediatamente
+        // Una sola ejecución por escaneo: solo ENTRADA envía correo a apoderados; SALIDA y todo lo demás solo push.
         setImmediate(async () => {
-          // 1) Correos: en bloque aparte para que un fallo no afecte al push
-          try {
-            const apoderadosConEmail = (apoderados || []).filter(ap => ap && ap.email && String(ap.email).trim());
-            if (apoderadosConEmail.length > 0) {
-              console.log(`📧 [ASISTENCIA] Enviando correos a ${apoderadosConEmail.length} apoderado(s)...`);
-              const promesasCorreos = apoderadosConEmail.map(async (apoderado) => {
+          // 1) Correos: SOLO en ENTRADA de alumnos (no en SALIDA; ~500 alumnos = no superar límite Gmail)
+          if (tipo_registro === 'ENTRADA') {
+            try {
+              const apoderadosConEmail = (apoderados || []).filter(ap => ap && ap.email && String(ap.email).trim());
+              if (apoderadosConEmail.length > 0) {
+                console.log(`📧 [ASISTENCIA] Enviando correos (solo ENTRADA) a ${apoderadosConEmail.length} apoderado(s)...`);
+                const promesasCorreos = apoderadosConEmail.map(async (apoderado) => {
                 const email = String(apoderado.email).trim();
                 try {
                   const resultadoCorreo = await enviarCorreoAsistencia(email, {
@@ -645,14 +645,17 @@ router.post('/registrar', async (req, res) => {
               const enviados = resultados.filter(r => r.ok).length;
               const fallidos = resultados.filter(r => !r.ok).length;
               console.log(`📧 [ASISTENCIA] Correos: ${enviados} enviados, ${fallidos} fallidos`);
-            } else {
-              console.log(`⚠️ [ASISTENCIA] No hay apoderados con email válido (total: ${(apoderados || []).length})`);
+              } else {
+                console.log(`⚠️ [ASISTENCIA] No hay apoderados con email válido (total: ${(apoderados || []).length})`);
+              }
+            } catch (error) {
+              console.error(`❌ [ASISTENCIA] Error en envío de correos (push se enviará igual):`, error.message);
             }
-          } catch (error) {
-            console.error(`❌ [ASISTENCIA] Error en envío de correos (push se enviará igual):`, error.message);
+          } else {
+            console.log(`📧 [ASISTENCIA] SALIDA: solo notificaciones push (sin correo)`);
           }
 
-          // 2) Push: siempre intentar, aunque hayan fallado los correos
+          // 2) Push: siempre intentar (ENTRADA y SALIDA)
           try {
             if (subscriptions && subscriptions.length > 0) {
               console.log(`📱 [ASISTENCIA] Enviando ${subscriptions.length} notificación(es) push...`);
@@ -753,34 +756,9 @@ router.post('/registrar', async (req, res) => {
           }
         };
 
-        // Enviar notificaciones de forma ASÍNCRONA (sin bloquear la respuesta)
+        // Asistencia personal/docente: solo notificaciones push (sin correo)
         setImmediate(async () => {
           try {
-            // Enviar correo al docente si tiene email
-            if (datosUsuario.email && datosUsuario.email.trim() !== '') {
-              console.log(`📧 [ASISTENCIA] Enviando correo al docente: ${datosUsuario.email}`);
-              enviarCorreoAsistencia(datosUsuario.email, {
-                nombreAlumno: datosUsuario.nombre_completo, // Reutilizamos el campo para el nombre del docente
-                hora: horaFormateada,
-                fecha: fechaFormateada,
-                tipo: tipo_registro,
-                colegioNombre,
-                esDocente: true // Indicar que es un correo para docente
-              })
-                .then(resultadoCorreo => {
-                  if (resultadoCorreo.success) {
-                    console.log(`✅ [ASISTENCIA] Correo enviado exitosamente al docente ${datosUsuario.email}`);
-                  } else {
-                    console.error(`❌ [ASISTENCIA] Error enviando correo al docente ${datosUsuario.email}:`, resultadoCorreo.error);
-                  }
-                })
-                .catch(error => {
-                  console.error(`❌ [ASISTENCIA] Excepción al enviar correo al docente ${datosUsuario.email}:`, error.message);
-                });
-            } else {
-              console.log(`⚠️ [ASISTENCIA] Docente ${datosUsuario.nombre_completo} no tiene email configurado`);
-            }
-
             // Enviar push notifications al docente
             if (subscriptions.length > 0) {
               console.log(`📱 [ASISTENCIA] Enviando ${subscriptions.length} notificaciones push al docente (asíncrono)...`);

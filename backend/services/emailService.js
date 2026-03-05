@@ -25,6 +25,58 @@ console.log(`📧 [EMAIL] Configuración de email:`, {
 
 const transporter = nodemailer.createTransport(emailConfig);
 
+// Transporter opcional SOLO para correos de ASISTENCIA (QR / entrada-salida).
+// Si defines EMAIL_ASISTENCIA_USER y EMAIL_ASISTENCIA_PASSWORD en .env, los correos de asistencia
+// usan esta cuenta y no consumen el límite diario de la cuenta principal (EMAIL_USER).
+// Gmail: ~500/día por cuenta; todos los módulos comparten EMAIL_USER, por eso se agota con muchos escaneos.
+let transporterAsistencia = null;
+const asistenciaUser = process.env.EMAIL_ASISTENCIA_USER;
+const asistenciaPass = process.env.EMAIL_ASISTENCIA_PASSWORD;
+if (asistenciaUser && asistenciaPass) {
+  transporterAsistencia = nodemailer.createTransport({
+    host: process.env.EMAIL_ASISTENCIA_HOST || process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.EMAIL_ASISTENCIA_PORT || process.env.EMAIL_PORT || '587'),
+    secure: false,
+    auth: { user: asistenciaUser, pass: asistenciaPass },
+    tls: { rejectUnauthorized: false }
+  });
+  console.log(`📧 [EMAIL] Cuenta de ASISTENCIA configurada: ${asistenciaUser.substring(0, 3)}*** (no usa límite de la cuenta principal)`);
+} else {
+  console.log(`📧 [EMAIL] Asistencia usará la misma cuenta que el resto (EMAIL_USER). Para evitar límite Gmail, define EMAIL_ASISTENCIA_USER y EMAIL_ASISTENCIA_PASSWORD`);
+}
+
+// Cuentas opcionales para TAREAS y EXÁMENES (mismo esquema: *_USER, *_PASSWORD, opcional *_HOST, *_PORT)
+function crearTransporterOpcional(prefix) {
+  const user = process.env[`EMAIL_${prefix}_USER`];
+  const pass = process.env[`EMAIL_${prefix}_PASSWORD`];
+  if (!user || !pass) return null;
+  const trans = nodemailer.createTransport({
+    host: process.env[`EMAIL_${prefix}_HOST`] || process.env.EMAIL_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env[`EMAIL_${prefix}_PORT`] || process.env.EMAIL_PORT || '587'),
+    secure: false,
+    auth: { user, pass },
+    tls: { rejectUnauthorized: false }
+  });
+  console.log(`📧 [EMAIL] Cuenta ${prefix} configurada: ${user.substring(0, 3)}***`);
+  return { transporter: trans, user };
+}
+let transporterTarea = crearTransporterOpcional('TAREA');
+let transporterExamen = crearTransporterOpcional('EXAMEN');
+
+/** Devuelve { transporter, fromUser } según categoría: ASISTENCIA | TAREA | EXAMEN | GENERAL */
+function getTransporterPorCategoria(categoria) {
+  if (categoria === 'ASISTENCIA' && transporterAsistencia) {
+    return { transporter: transporterAsistencia, fromUser: process.env.EMAIL_ASISTENCIA_USER };
+  }
+  if (categoria === 'TAREA' && transporterTarea) {
+    return { transporter: transporterTarea.transporter, fromUser: process.env.EMAIL_TAREA_USER };
+  }
+  if (categoria === 'EXAMEN' && transporterExamen) {
+    return { transporter: transporterExamen.transporter, fromUser: process.env.EMAIL_EXAMEN_USER };
+  }
+  return { transporter, fromUser: process.env.EMAIL_USER };
+}
+
 // Configurar manejo de errores y rebotes
 // Los rebotes y errores de entrega se registrarán en logs pero NO se reenviarán al remitente
 transporter.on('error', (error) => {
@@ -289,12 +341,17 @@ function generarTemplateNotificacion(datos) {
 }
 
 /**
- * Enviar correo de notificación de asistencia
+ * Enviar correo de notificación de asistencia (entrada/salida QR, docente).
+ * Usa EMAIL_ASISTENCIA_* si está configurado; si no, usa la cuenta principal (EMAIL_USER).
  */
 async function enviarCorreoAsistencia(destinatario, datos) {
   try {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-      console.error(`❌ [EMAIL] Variables de entorno EMAIL_USER o EMAIL_PASSWORD no configuradas en el servidor. Revisar backend/.env`);
+    const usoAsistencia = transporterAsistencia ? transporterAsistencia : transporter;
+    const fromUser = transporterAsistencia ? process.env.EMAIL_ASISTENCIA_USER : process.env.EMAIL_USER;
+    const fromPass = transporterAsistencia ? process.env.EMAIL_ASISTENCIA_PASSWORD : process.env.EMAIL_PASSWORD;
+
+    if (!fromUser || !fromPass) {
+      console.error(`❌ [EMAIL] Configuración de email incompleta. Revisar backend/.env (EMAIL_USER o EMAIL_ASISTENCIA_USER para asistencia)`);
       return { success: false, error: 'Configuración de email incompleta' };
     }
     const emailDestino = (destinatario && String(destinatario).trim()) || '';
@@ -328,26 +385,23 @@ async function enviarCorreoAsistencia(destinatario, datos) {
           : `SALIDA - ${nombreAlumno} salió del colegio - ${hora}`);
 
     const mailOptions = {
-      from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`,
+      from: `"${colegioNombre || 'Vanguard Schools'}" <${fromUser}>`,
       to: emailDestino,
       subject: asunto,
       html: template,
-      // Configurar para que los rebotes no se reenvíen al remitente
-      // Si el correo rebota, el error se captura pero no se notifica al remitente
       headers: {
-        'Return-Path': process.env.EMAIL_USER, // Mantener el remitente original
-        'X-Auto-Response-Suppress': 'All', // Suprimir respuestas automáticas
-        'Precedence': 'bulk' // Indicar que es correo masivo (reduce notificaciones de rebote)
+        'Return-Path': fromUser,
+        'X-Auto-Response-Suppress': 'All',
+        'Precedence': 'bulk'
       },
-      // Configurar envelope para evitar notificaciones de rebote
       envelope: {
-        from: process.env.EMAIL_USER,
+        from: fromUser,
         to: emailDestino
       }
     };
 
     console.log(`📧 [EMAIL] SMTP enviando asistencia hacia: ${emailDestino}`);
-    const info = await transporter.sendMail(mailOptions);
+    const info = await usoAsistencia.sendMail(mailOptions);
     console.log(`✅ [EMAIL] Correo enviado exitosamente. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
@@ -363,11 +417,13 @@ async function enviarCorreoAsistencia(destinatario, datos) {
  * @param {string} titulo - Título de la notificación
  * @param {string} mensaje - Mensaje de la notificación
  * @param {string} colegioNombre - Nombre del colegio (opcional)
+ * @param {string} categoria - 'ASISTENCIA' | 'TAREA' | 'EXAMEN' | 'GENERAL' (opcional). Define qué cuenta usar; si no hay cuenta específica, usa la principal.
  */
-async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNombre = 'Vanguard Schools') {
+async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNombre = 'Vanguard Schools', categoria = 'GENERAL') {
   try {
-    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-      console.error(`❌ [EMAIL] Variables de entorno EMAIL_USER o EMAIL_PASSWORD no configuradas`);
+    const { transporter: trans, fromUser } = getTransporterPorCategoria(categoria || 'GENERAL');
+    if (!fromUser) {
+      console.error(`❌ [EMAIL] No hay cuenta configurada para categoría ${categoria}. Revisa .env (EMAIL_USER para GENERAL, o EMAIL_ASISTENCIA_*/EMAIL_TAREA_*/EMAIL_EXAMEN_*)`);
       return { success: false, error: 'Configuración de email incompleta' };
     }
 
@@ -376,13 +432,10 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
       return { success: false, error: 'Parámetros incompletos' };
     }
 
-    console.log(`📧 [EMAIL NOTIFICACION] Preparando correo para: ${destinatario}`);
+    console.log(`📧 [EMAIL NOTIFICACION] Preparando correo para: ${destinatario} (categoría: ${categoria || 'GENERAL'})`);
     console.log(`📧 [EMAIL NOTIFICACION] Título: ${titulo}`);
     
-    // Obtener icono y color según el tipo
     const { icono } = obtenerIconoYColor(titulo);
-    
-    // Asegurar que el título tenga el icono
     const tituloConIcono = titulo.includes(icono) ? titulo : `${icono} ${titulo}`;
     
     const template = generarTemplateNotificacion({
@@ -392,26 +445,23 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
     });
 
     const mailOptions = {
-      from: `"${colegioNombre || 'Vanguard Schools'}" <${process.env.EMAIL_USER}>`,
+      from: `"${colegioNombre || 'Vanguard Schools'}" <${fromUser}>`,
       to: destinatario,
       subject: tituloConIcono,
       html: template,
-      // Configurar para que los rebotes no se reenvíen al remitente
-      // Si el correo rebota, el error se captura pero no se notifica al remitente
       headers: {
-        'Return-Path': process.env.EMAIL_USER, // Mantener el remitente original
-        'X-Auto-Response-Suppress': 'All', // Suprimir respuestas automáticas
-        'Precedence': 'bulk' // Indicar que es correo masivo (reduce notificaciones de rebote)
+        'Return-Path': fromUser,
+        'X-Auto-Response-Suppress': 'All',
+        'Precedence': 'bulk'
       },
-      // Configurar envelope para evitar notificaciones de rebote
       envelope: {
-        from: process.env.EMAIL_USER,
+        from: fromUser,
         to: destinatario
       }
     };
 
-    console.log(`📧 [EMAIL NOTIFICACION] Enviando correo desde: ${process.env.EMAIL_USER} hacia: ${destinatario}`);
-    const info = await transporter.sendMail(mailOptions);
+    console.log(`📧 [EMAIL NOTIFICACION] Enviando correo desde: ${fromUser} hacia: ${destinatario}`);
+    const info = await trans.sendMail(mailOptions);
     console.log(`✅ [EMAIL NOTIFICACION] Correo enviado exitosamente. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {

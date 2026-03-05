@@ -32,15 +32,12 @@ async function enviarPushNotification(subscription, payload) {
     console.log(`✅ [PUSH] Notificación enviada exitosamente. StatusCode: ${result.statusCode}`);
     return { success: true, statusCode: result.statusCode };
   } catch (error) {
-    console.error(`❌ [PUSH] Error enviando push notification:`, error.message);
-    console.error(`❌ [PUSH] StatusCode:`, error.statusCode);
-    
-    // Si el error es 410 (Gone) o 404 (Not Found), la subscription ya no es válida
+    // 410/404 = suscripción expirada: solo warn (no llenar error log); el backend ya marca activo=0
     if (error.statusCode === 410 || error.statusCode === 404) {
-      console.warn(`⚠️ [PUSH] Subscription expirada o no encontrada (${error.statusCode})`);
+      console.warn(`⚠️ [PUSH] Subscription expirada (${error.statusCode}) - endpoint: ${(subscription.endpoint || '').substring(0, 50)}...`);
       return { success: false, error: 'Subscription expirada', expired: true };
     }
-    
+    console.error(`❌ [PUSH] Error enviando push notification:`, error.message, `StatusCode: ${error.statusCode}`);
     return { success: false, error: error.message, statusCode: error.statusCode };
   }
 }
