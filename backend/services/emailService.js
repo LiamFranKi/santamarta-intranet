@@ -398,7 +398,8 @@ async function enviarCorreoAsistencia(destinatario, datos) {
       headers: {
         'Return-Path': fromUser,
         'X-Auto-Response-Suppress': 'All',
-        'Precedence': 'bulk'
+        'X-Priority': '1',
+        'Importance': 'high'
       },
       envelope: {
         from: fromUser,
