@@ -612,11 +612,11 @@ router.post('/registrar', async (req, res) => {
         // Enviar notificaciones de forma ASÍNCRONA (sin bloquear la respuesta)
         // Esto permite que el usuario reciba la respuesta inmediatamente
         setImmediate(async () => {
+          // 1) Correos: en bloque aparte para que un fallo no afecte al push
           try {
-            // Enviar correos a apoderados (emails válidos, trim para evitar fallos silenciosos)
-            const apoderadosConEmail = apoderados.filter(ap => ap.email && String(ap.email).trim());
+            const apoderadosConEmail = (apoderados || []).filter(ap => ap && ap.email && String(ap.email).trim());
             if (apoderadosConEmail.length > 0) {
-              console.log(`📧 [ASISTENCIA] Enviando correos de asistencia a ${apoderadosConEmail.length} apoderado(s)...`);
+              console.log(`📧 [ASISTENCIA] Enviando correos a ${apoderadosConEmail.length} apoderado(s)...`);
               const promesasCorreos = apoderadosConEmail.map(async (apoderado) => {
                 const email = String(apoderado.email).trim();
                 try {
@@ -643,37 +643,33 @@ router.post('/registrar', async (req, res) => {
               const resultados = await Promise.all(promesasCorreos);
               const enviados = resultados.filter(r => r.ok).length;
               const fallidos = resultados.filter(r => !r.ok).length;
-              console.log(`📧 [ASISTENCIA] Correos de asistencia: ${enviados} enviados, ${fallidos} fallidos`);
+              console.log(`📧 [ASISTENCIA] Correos: ${enviados} enviados, ${fallidos} fallidos`);
             } else {
-              console.log(`⚠️ [ASISTENCIA] No hay apoderados con email válido para este alumno (total apoderados: ${apoderados.length})`);
+              console.log(`⚠️ [ASISTENCIA] No hay apoderados con email válido (total: ${(apoderados || []).length})`);
             }
+          } catch (error) {
+            console.error(`❌ [ASISTENCIA] Error en envío de correos (push se enviará igual):`, error.message);
+          }
 
-            // Enviar push notifications en paralelo (ya optimizado en el servicio)
-            if (subscriptions.length > 0) {
-              console.log(`📱 [ASISTENCIA] Enviando ${subscriptions.length} notificaciones push (asíncrono)...`);
-              console.log(`📱 [ASISTENCIA] Payload:`, JSON.stringify(payloadPush, null, 2));
-              
-              // No esperar a que terminen, solo iniciar el proceso
+          // 2) Push: siempre intentar, aunque hayan fallado los correos
+          try {
+            if (subscriptions && subscriptions.length > 0) {
+              console.log(`📱 [ASISTENCIA] Enviando ${subscriptions.length} notificación(es) push...`);
               enviarPushNotificationMultiple(subscriptions, payloadPush)
                 .then(resultadosPush => {
                   const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
                   const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
-                  console.log(`✅ [ASISTENCIA] Push notifications: ${exitosas} exitosas, ${fallidas} fallidas`);
+                  console.log(`✅ [ASISTENCIA] Push: ${exitosas} exitosas, ${fallidas} fallidas`);
                   if (fallidas > 0) {
-                    console.log(`❌ [ASISTENCIA] Errores en push notifications:`, 
-                      resultadosPush.filter(r => !r.resultado || !r.resultado.success).map(r => r.resultado?.error || 'Error desconocido')
-                    );
+                    console.log(`❌ [ASISTENCIA] Errores push:`, resultadosPush.filter(r => !r.resultado || !r.resultado.success).map(r => r.resultado?.error || 'Error desconocido'));
                   }
                 })
-                .catch(err => {
-                  console.error(`❌ [ASISTENCIA] Error en envío de push notifications:`, err);
-                });
+                .catch(err => console.error(`❌ [ASISTENCIA] Error envío push:`, err));
             } else {
-              console.log(`⚠️ [ASISTENCIA] No hay suscripciones push activas para enviar notificaciones`);
+              console.log(`⚠️ [ASISTENCIA] No hay suscripciones push activas`);
             }
           } catch (error) {
-            console.error(`❌ [ASISTENCIA] Error en bloque de notificaciones (asíncrono):`, error);
-            console.error(`❌ [ASISTENCIA] Stack trace:`, error.stack);
+            console.error(`❌ [ASISTENCIA] Error preparando push:`, error.message);
           }
         });
       } catch (error) {
