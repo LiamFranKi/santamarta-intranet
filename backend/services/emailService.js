@@ -64,8 +64,9 @@ let transporterTarea = crearTransporterOpcional('TAREA');
 let transporterExamen = crearTransporterOpcional('EXAMEN');
 let transporterPublicaciones = crearTransporterOpcional('PUBLICACIONES');
 let transporterMensajes = crearTransporterOpcional('MENSAJES');
+let transporterComunicados = crearTransporterOpcional('COMUNICADOS');
 
-/** Devuelve { transporter, fromUser } según categoría: ASISTENCIA | TAREA | EXAMEN | PUBLICACIONES | MENSAJES | GENERAL */
+/** Devuelve { transporter, fromUser } según categoría: ASISTENCIA | TAREA | EXAMEN | PUBLICACIONES | MENSAJES | COMUNICADOS | GENERAL */
 function getTransporterPorCategoria(categoria) {
   if (categoria === 'ASISTENCIA' && transporterAsistencia) {
     return { transporter: transporterAsistencia, fromUser: process.env.EMAIL_ASISTENCIA_USER };
@@ -81,6 +82,9 @@ function getTransporterPorCategoria(categoria) {
   }
   if (categoria === 'MENSAJES' && transporterMensajes) {
     return { transporter: transporterMensajes.transporter, fromUser: transporterMensajes.user };
+  }
+  if (categoria === 'COMUNICADOS' && transporterComunicados) {
+    return { transporter: transporterComunicados.transporter, fromUser: transporterComunicados.user };
   }
   return { transporter, fromUser: process.env.EMAIL_USER };
 }
@@ -445,7 +449,7 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
   try {
     const { transporter: trans, fromUser } = getTransporterPorCategoria(categoria || 'GENERAL');
     if (!fromUser) {
-      console.error(`❌ [EMAIL] No hay cuenta configurada para categoría ${categoria}. Revisa .env (EMAIL_USER para GENERAL, o EMAIL_ASISTENCIA_*/EMAIL_TAREA_*/EMAIL_MENSAJES_*/EMAIL_PUBLICACIONES_*)`);
+      console.error(`❌ [EMAIL] No hay cuenta configurada para categoría ${categoria}. Revisa .env (EMAIL_USER para GENERAL, o EMAIL_ASISTENCIA_*/EMAIL_MENSAJES_*/EMAIL_COMUNICADOS_*/EMAIL_PUBLICACIONES_*)`);
       return { success: false, error: 'Configuración de email incompleta' };
     }
 

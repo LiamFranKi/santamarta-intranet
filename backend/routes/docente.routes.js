@@ -10870,6 +10870,75 @@ router.post('/comunicados', uploadComunicado.single('archivo'), async (req, res)
         fecha_hora: fechaHora
       }
     });
+
+    // Push y correo en segundo plano (alumnos, apoderados, docentes)
+    setImmediate(async () => {
+      try {
+        const colegioInfo = await query(`SELECT nombre FROM colegios WHERE id = ?`, [colegio_id]);
+        const colegioNombre = colegioInfo.length > 0 ? colegioInfo[0].nombre : 'Vanguard Schools';
+        const tituloNotif = 'Nuevo comunicado';
+        const descripcionCorta = (descripcion || '').substring(0, 100);
+
+        // Usuarios a notificar: alumnos + apoderados + docentes
+        const usuariosNotificar = await query(
+          `SELECT id FROM usuarios WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo IN ('ALUMNO', 'APODERADO', 'DOCENTE')`,
+          [colegio_id]
+        );
+        const usuarioIds = (usuariosNotificar || []).map(u => u.id);
+        if (usuarioIds.length > 0) {
+          const subsData = await query(
+            `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE usuario_id IN (${usuarioIds.map(() => '?').join(',')}) AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+            [...usuarioIds, colegio_id]
+          );
+          const subscriptions = (subsData || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
+          if (subscriptions.length > 0) {
+            enviarPushNotificationMultiple(subscriptions, {
+              title: 'Nuevo comunicado',
+              body: descripcionCorta,
+              icon: '/icons/icon-192x192.png',
+              badge: '/icons/icon-192x192.png',
+              vibrate: [200, 100, 200],
+              tag: `comunicado-${result.insertId}-${Date.now()}`,
+              data: { url: '/comunicados', tipo: 'comunicado', comunicado_id: result.insertId }
+            }).catch(err => console.error('❌ [COMUNICADOS] Error push:', err));
+            console.log(`📱 [COMUNICADOS] Push enviado a ${subscriptions.length} suscripción(es)`);
+          }
+        }
+
+        // Correo solo a apoderados y docentes (cuenta COMUNICADOS)
+        const usuariosConEmail = await query(
+          `SELECT u.id, COALESCE(ap.email, p.email) as email
+           FROM usuarios u
+           LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
+           LEFT JOIN personal p ON p.id = u.personal_id
+           WHERE u.colegio_id = ? AND u.estado = 'ACTIVO'
+             AND (u.tipo = 'APODERADO' OR u.tipo = 'DOCENTE')
+             AND COALESCE(ap.email, p.email) IS NOT NULL
+             AND TRIM(COALESCE(ap.email, p.email)) != ''`,
+          [colegio_id]
+        );
+        const emailsUnicos = new Map();
+        (usuariosConEmail || []).forEach(u => {
+          const email = (u.email || '').toLowerCase().trim();
+          if (email && email.includes('@') && !emailsUnicos.has(email)) emailsUnicos.set(email, u.email);
+        });
+        const contenidoNotif = `Nuevo comunicado: "${descripcionCorta}". Ingrese a Comunicados para ver el contenido.`;
+        let enviadosCorreo = 0;
+        for (const email of emailsUnicos.values()) {
+          try {
+            const res = await enviarCorreoNotificacion(email, tituloNotif, contenidoNotif, colegioNombre, 'COMUNICADOS');
+            if (res && res.success) enviadosCorreo++;
+          } catch (e) {
+            console.warn(`❌ [COMUNICADOS] Error correo a ${email}:`, e.message);
+          }
+        }
+        if (emailsUnicos.size > 0) {
+          console.log(`📧 [COMUNICADOS] Correos enviados a ${enviadosCorreo}/${emailsUnicos.size} apoderado(s)/docente(s) (cuenta COMUNICADOS)`);
+        }
+      } catch (err) {
+        console.error('❌ [COMUNICADOS] Error notificaciones:', err);
+      }
+    });
   } catch (error) {
     console.error('Error creando comunicado:', error);
     res.status(500).json({ error: 'Error al crear comunicado' });
