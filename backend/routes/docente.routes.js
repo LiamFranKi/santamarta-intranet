@@ -12998,6 +12998,9 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
     setImmediate(async () => {
       try {
         console.log('📢 [PUBLICACIONES] Iniciando creación de notificaciones...');
+
+        const colegioRow = await query('SELECT nombre FROM colegios WHERE id = ? LIMIT 1', [colegio_id]);
+        const colegioNombre = colegioRow.length ? colegioRow[0].nombre : 'Vanguard Schools';
         
         // Obtener nombre del docente que crea la publicación
         const docenteInfo = await query(
@@ -13209,14 +13212,25 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
                 console.log(`📱 [PUBLICACIONES] Enviando ${subscriptions.length} push notifications...`);
                 
                 enviarPushNotificationMultiple(subscriptions, payloadPush)
-                  .then(resultadosPush => {
+                  .then(async (resultadosPush) => {
                     const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
                     const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
                     console.log(`✅ [PUBLICACIONES] Push notifications: ${exitosas} exitosas, ${fallidas} fallidas`);
                     if (fallidas > 0) {
-                      console.log(`❌ [PUBLICACIONES] Errores en push notifications:`, 
+                      console.log(`❌ [PUBLICACIONES] Errores en push notifications:`,
                         resultadosPush.filter(r => !r.resultado || !r.resultado.success).map(r => r.resultado?.error || 'Error desconocido')
                       );
+                    }
+                    const expiradas = resultadosPush.filter(r => r.resultado && r.resultado.expired && r.subscription?.endpoint);
+                    for (const { subscription } of expiradas) {
+                      try {
+                        await execute('UPDATE push_subscriptions SET activo = 0 WHERE endpoint = ?', [subscription.endpoint]);
+                      } catch (e) {
+                        console.warn('❌ [PUBLICACIONES] Error marcando suscripción inactiva:', e.message);
+                      }
+                    }
+                    if (expiradas.length > 0) {
+                      console.log(`📱 [PUBLICACIONES] ${expiradas.length} suscripción(es) marcadas inactivas (410)`);
                     }
                   })
                   .catch(err => {
@@ -13225,7 +13239,37 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
               } else {
                 console.log('⚠️ [PUBLICACIONES] No hay suscripciones push activas para enviar notificaciones');
               }
-              // Correos deshabilitados para publicaciones (solo push)
+
+              // ========== ENVIAR CORREOS (solo apoderados y docentes-apoderados) con cuenta PUBLICACIONES ==========
+              const destinatariosCorreo = destinatarios.filter(d => d.tipo === 'APODERADO' || d.tipo === 'DOCENTE');
+              if (destinatariosCorreo.length > 0) {
+                let enviadosCorreo = 0;
+                for (const dest of destinatariosCorreo) {
+                  let email = null;
+                  if (dest.tipo === 'APODERADO') {
+                    const ap = await query(
+                      `SELECT ap.email FROM apoderados ap INNER JOIN usuarios u ON u.apoderado_id = ap.id WHERE u.id = ? AND ap.email IS NOT NULL AND ap.email != '' LIMIT 1`,
+                      [dest.usuario_id]
+                    );
+                    email = ap.length ? ap[0].email : null;
+                  } else if (dest.tipo === 'DOCENTE') {
+                    const per = await query(
+                      `SELECT p.email FROM personal p INNER JOIN usuarios u ON u.personal_id = p.id WHERE u.id = ? AND p.email IS NOT NULL AND p.email != '' LIMIT 1`,
+                      [dest.usuario_id]
+                    );
+                    email = per.length ? per[0].email : null;
+                  }
+                  if (email) {
+                    try {
+                      const res = await enviarCorreoNotificacion(email, tituloNotificacion, mensajeNotificacion, colegioNombre, 'PUBLICACIONES');
+                      if (res.success) enviadosCorreo++;
+                    } catch (e) {
+                      console.warn(`❌ [PUBLICACIONES] Error enviando correo a ${email}:`, e.message);
+                    }
+                  }
+                }
+                console.log(`📧 [PUBLICACIONES] Correos enviados a apoderados/docentes: ${enviadosCorreo}/${destinatariosCorreo.length}`);
+              }
             }
           } catch (error) {
             console.error('❌ [PUBLICACIONES] Error enviando push notifications:', error);

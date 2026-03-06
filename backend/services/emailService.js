@@ -62,8 +62,9 @@ function crearTransporterOpcional(prefix) {
 }
 let transporterTarea = crearTransporterOpcional('TAREA');
 let transporterExamen = crearTransporterOpcional('EXAMEN');
+let transporterPublicaciones = crearTransporterOpcional('PUBLICACIONES');
 
-/** Devuelve { transporter, fromUser } según categoría: ASISTENCIA | TAREA | EXAMEN | GENERAL */
+/** Devuelve { transporter, fromUser } según categoría: ASISTENCIA | TAREA | EXAMEN | PUBLICACIONES | GENERAL */
 function getTransporterPorCategoria(categoria) {
   if (categoria === 'ASISTENCIA' && transporterAsistencia) {
     return { transporter: transporterAsistencia, fromUser: process.env.EMAIL_ASISTENCIA_USER };
@@ -73,6 +74,9 @@ function getTransporterPorCategoria(categoria) {
   }
   if (categoria === 'EXAMEN' && transporterExamen) {
     return { transporter: transporterExamen.transporter, fromUser: process.env.EMAIL_EXAMEN_USER };
+  }
+  if (categoria === 'PUBLICACIONES' && transporterPublicaciones) {
+    return { transporter: transporterPublicaciones.transporter, fromUser: transporterPublicaciones.user };
   }
   return { transporter, fromUser: process.env.EMAIL_USER };
 }
