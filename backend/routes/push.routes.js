@@ -88,6 +88,25 @@ router.post('/unsubscribe', authenticateToken, async (req, res) => {
 });
 
 /**
+ * POST /api/push/unsubscribe-all
+ * Marcar todas las suscripciones del usuario como inactivas (cuando no hay subscription local)
+ */
+router.post('/unsubscribe-all', authenticateToken, async (req, res) => {
+  try {
+    const { usuario_id } = req.user;
+    await execute(
+      `UPDATE push_subscriptions SET activo = 0, fecha_actualizacion = NOW() 
+       WHERE usuario_id = ?`,
+      [usuario_id]
+    );
+    res.json({ success: true, message: 'Desuscripción exitosa' });
+  } catch (error) {
+    console.error('Error desuscribiendo push (all):', error);
+    res.status(500).json({ error: 'Error al desuscribir' });
+  }
+});
+
+/**
  * GET /api/push/public-key
  * Obtener la clave pública VAPID para suscripción
  */

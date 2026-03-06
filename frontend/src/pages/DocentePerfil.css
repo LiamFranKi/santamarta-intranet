@@ -476,6 +476,40 @@
   opacity: 0.8;
 }
 
+.notificaciones-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.notificaciones-buttons .btn-activar-notificaciones {
+  flex: 1;
+  min-width: 180px;
+}
+
+.btn-desuscribir-notificaciones {
+  background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btn-desuscribir-notificaciones:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4b5563 0%, #374151 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(75, 85, 99, 0.3);
+}
+
+.btn-desuscribir-notificaciones:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-change-password {
   background: linear-gradient(135deg, #6ba3d4 0%, #4a83c1 50%, #2d5a8f 100%);
   color: white;

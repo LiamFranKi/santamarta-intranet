@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { suscribirNotificacionesPush, verificarEstadoNotificaciones } from '../services/pushNotificationService';
+import { suscribirNotificacionesPush, desuscribirNotificacionesPush, verificarEstadoNotificaciones, tieneSuscripcionPushActiva } from '../services/pushNotificationService';
 import Swal from 'sweetalert2';
 import './AlumnoPerfil.css';
 
@@ -40,15 +40,23 @@ function ApoderadoPerfil() {
   const [changingPassword, setChangingPassword] = useState(false);
   const [notificacionesEstado, setNotificacionesEstado] = useState(null);
   const [activandoNotificaciones, setActivandoNotificaciones] = useState(false);
+  const [desuscribiendoNotificaciones, setDesuscribiendoNotificaciones] = useState(false);
+  const [tieneSuscripcionPush, setTieneSuscripcionPush] = useState(null);
 
   useEffect(() => {
     cargarPerfil();
     verificarNotificaciones();
   }, []);
 
-  const verificarNotificaciones = () => {
+  const verificarNotificaciones = async () => {
     const estado = verificarEstadoNotificaciones();
     setNotificacionesEstado(estado);
+    if (estado.permiso === 'granted') {
+      const tiene = await tieneSuscripcionPushActiva();
+      setTieneSuscripcionPush(tiene);
+    } else {
+      setTieneSuscripcionPush(false);
+    }
   };
 
   const cargarPerfil = async () => {
@@ -265,6 +273,7 @@ function ApoderadoPerfil() {
       const resultado = await suscribirNotificacionesPush();
       
       if (resultado.success) {
+        setTieneSuscripcionPush(true);
         Swal.fire({
           icon: 'success',
           title: '¡Notificaciones Activadas!',
@@ -309,6 +318,41 @@ function ApoderadoPerfil() {
       });
     } finally {
       setActivandoNotificaciones(false);
+    }
+  };
+
+  const handleDesuscribirNotificaciones = async () => {
+    try {
+      setDesuscribiendoNotificaciones(true);
+      const resultado = await desuscribirNotificacionesPush();
+      if (resultado.success) {
+        setTieneSuscripcionPush(false);
+        Swal.fire({
+          icon: 'success',
+          title: 'Desuscripción exitosa',
+          text: 'Haz clic en "Activar Notificaciones" para volver a suscribirte con una suscripción nueva.',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 4000
+        });
+        verificarNotificaciones();
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: resultado.error || 'No se pudo desuscribir'
+        });
+      }
+    } catch (error) {
+      console.error('Error desuscribiendo:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo desuscribir'
+      });
+    } finally {
+      setDesuscribiendoNotificaciones(false);
     }
   };
 
@@ -490,29 +534,46 @@ function ApoderadoPerfil() {
                 )}
               </div>
             )}
-            <button
-              type="button"
-              className="btn-activar-notificaciones"
-              onClick={handleActivarNotificaciones}
-              disabled={activandoNotificaciones || (notificacionesEstado && notificacionesEstado.permiso === 'granted')}
-            >
-              {activandoNotificaciones ? (
-                <>
-                  <span className="btn-icon">⏳</span>
-                  Activando...
-                </>
-              ) : notificacionesEstado && notificacionesEstado.permiso === 'granted' ? (
-                <>
-                  <span className="btn-icon">✅</span>
-                  Notificaciones Activadas
-                </>
-              ) : (
-                <>
-                  <span className="btn-icon">🔔</span>
-                  Activar Notificaciones
-                </>
+            <div className="notificaciones-buttons">
+              <button
+                type="button"
+                className="btn-activar-notificaciones"
+                onClick={handleActivarNotificaciones}
+                disabled={activandoNotificaciones || (tieneSuscripcionPush === true)}
+              >
+                {activandoNotificaciones ? (
+                  <>
+                    <span className="btn-icon">⏳</span>
+                    Activando...
+                  </>
+                ) : tieneSuscripcionPush ? (
+                  <>
+                    <span className="btn-icon">✅</span>
+                    Notificaciones Activadas
+                  </>
+                ) : (
+                  <>
+                    <span className="btn-icon">🔔</span>
+                    Activar Notificaciones
+                  </>
+                )}
+              </button>
+              {notificacionesEstado?.permiso === 'granted' && tieneSuscripcionPush && (
+                <button
+                  type="button"
+                  className="btn-desuscribir-notificaciones"
+                  onClick={handleDesuscribirNotificaciones}
+                  disabled={desuscribiendoNotificaciones || activandoNotificaciones}
+                  title="Si no recibes notificaciones, desuscribir y volver a activar puede solucionarlo"
+                >
+                  {desuscribiendoNotificaciones ? (
+                    <>⏳ Desuscribiendo...</>
+                  ) : (
+                    <>🔄 Desuscribir y renovar</>
+                  )}
+                </button>
               )}
-            </button>
+            </div>
           </div>
         </div>
 

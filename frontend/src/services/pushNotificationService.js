@@ -107,6 +107,35 @@ function arrayBufferToBase64(buffer) {
 }
 
 /**
+ * Desuscribir de notificaciones push (para renovar suscripción expirada 410)
+ * Llama a pushManager.unsubscribe() y notifica al backend
+ */
+export async function desuscribirNotificacionesPush() {
+  try {
+    if (!('serviceWorker' in navigator)) {
+      return { success: false, error: 'Service Worker no disponible' };
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = await registration.pushManager.getSubscription();
+
+    if (subscription) {
+      await subscription.unsubscribe();
+      await api.post('/push/unsubscribe', { endpoint: subscription.endpoint });
+      console.log('✅ Desuscripción push exitosa');
+      return { success: true };
+    }
+
+    // No hay suscripción local: marcar todas las del usuario como inactivas (cleanup)
+    await api.post('/push/unsubscribe-all');
+    return { success: true };
+  } catch (error) {
+    console.error('❌ Error desuscribiendo push:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Verificar si las notificaciones están habilitadas
  */
 export function verificarEstadoNotificaciones() {
@@ -117,6 +146,20 @@ export function verificarEstadoNotificaciones() {
     disponible: true,
     permiso: Notification.permission
   };
+}
+
+/**
+ * Verificar si hay una suscripción push activa en este dispositivo
+ */
+export async function tieneSuscripcionPushActiva() {
+  try {
+    if (!('serviceWorker' in navigator)) return false;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    return !!sub;
+  } catch {
+    return false;
+  }
 }
 
 
