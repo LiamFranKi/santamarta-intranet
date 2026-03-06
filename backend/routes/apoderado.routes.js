@@ -6,6 +6,7 @@ const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
+const { enviarCorreoNotificacion } = require('../services/emailService');
 const phpSerialize = require('php-serialize');
 
 // Configurar multer para subir archivos de mensajes
@@ -4364,7 +4365,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           }
         }
 
-        // Push notifications a destinatarios
+        // Push notifications a destinatarios (alumnos, apoderados, docentes)
         try {
           const destIds = Array.from(todosDestinatarios);
           if (destIds.length > 0) {
@@ -4390,6 +4391,43 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           }
         } catch (pushErr) {
           console.error('❌ [MENSAJES] Error push:', pushErr);
+        }
+
+        // Correo solo a apoderados y docentes (cuenta MENSAJES). No a alumnos.
+        try {
+          const destIds = Array.from(todosDestinatarios);
+          if (destIds.length > 0) {
+            const usuariosConEmail = await query(
+              `SELECT u.id, u.tipo, COALESCE(ap.email, p.email) as email
+               FROM usuarios u
+               LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
+               LEFT JOIN personal p ON p.id = u.personal_id
+               WHERE u.id IN (${destIds.map(() => '?').join(',')})
+                 AND u.colegio_id = ?
+                 AND (u.tipo = 'APODERADO' OR u.tipo = 'DOCENTE')
+                 AND COALESCE(ap.email, p.email) IS NOT NULL
+                 AND TRIM(COALESCE(ap.email, p.email)) != ''`,
+              [...destIds, colegio_id]
+            );
+            const emailsUnicos = new Map();
+            (usuariosConEmail || []).forEach(u => {
+              const email = (u.email || '').toLowerCase().trim();
+              if (email && email.includes('@') && !emailsUnicos.has(email)) emailsUnicos.set(email, u.email);
+            });
+            const colegioInfo = await query(`SELECT nombre FROM colegios WHERE id = ?`, [colegio_id]);
+            const colegioNombre = colegioInfo.length > 0 ? colegioInfo[0].nombre : 'Vanguard Schools';
+            const tituloNotif = 'Nuevo mensaje';
+            const contenidoNotif = `Tiene un nuevo mensaje: "${(asunto || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
+            for (const email of emailsUnicos.values()) {
+              enviarCorreoNotificacion(email, tituloNotif, contenidoNotif, colegioNombre, 'MENSAJES')
+                .catch(err => console.warn(`❌ [MENSAJES] Error correo a ${email}:`, err.message));
+            }
+            if (emailsUnicos.size > 0) {
+              console.log(`📧 [MENSAJES] Apoderado envió: correos a ${emailsUnicos.size} apoderado(s)/docente(s) (cuenta MENSAJES)`);
+            }
+          }
+        } catch (emailErr) {
+          console.warn('❌ [MENSAJES] Error enviando correos:', emailErr.message);
         }
 
         console.log('✅ Mensaje enviado exitosamente');

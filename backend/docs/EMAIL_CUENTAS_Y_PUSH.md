@@ -6,12 +6,14 @@ Puedes usar **hasta 4 cuentas** para repartir el límite diario de Gmail (~500/d
 
 | Cuenta en `.env` | Se usa para |
 |------------------|-------------|
-| **EMAIL_USER** / **EMAIL_PASSWORD** (principal) | Publicaciones, avisos, mensajes docente→apoderados, estrellas, incidencias, etc. |
+| **EMAIL_USER** / **EMAIL_PASSWORD** (principal) | Publicaciones, avisos generales, estrellas, incidencias, etc. |
 | **EMAIL_ASISTENCIA_USER** / **EMAIL_ASISTENCIA_PASSWORD** | Asistencia por QR (entrada/salida) y asistencia manual del tutor |
+| **EMAIL_MENSAJES_USER** / **EMAIL_MENSAJES_PASSWORD** | Módulo Mensajes y Conexiones Familiares (correo solo a apoderados/docentes) |
 | **EMAIL_TAREA_USER** / **EMAIL_TAREA_PASSWORD** | Tareas por vencer, tareas vencidas sin entrega, nota de tarea |
 | **EMAIL_EXAMEN_USER** / **EMAIL_EXAMEN_PASSWORD** | Notificaciones relacionadas con exámenes (cuando se implemente envío de correo) |
+| **EMAIL_PUBLICACIONES_USER** / **EMAIL_PUBLICACIONES_PASSWORD** | Publicaciones del colegio (correo a apoderados/docentes) |
 
-Si **no** defines una cuenta opcional (ASISTENCIA, TAREA, EXAMEN), ese tipo de correo se envía con la **cuenta principal** (EMAIL_USER).
+Si **no** defines una cuenta opcional, ese tipo de correo se envía con la **cuenta principal** (EMAIL_USER).
 
 ### Ejemplo de `backend/.env`
 
@@ -23,6 +25,10 @@ EMAIL_PASSWORD=contraseña-app-principal
 # Asistencia (QR y manual)
 EMAIL_ASISTENCIA_USER=asistencias@gmail.com
 EMAIL_ASISTENCIA_PASSWORD=contraseña-app-asistencias
+
+# Mensajes y Conexiones Familiares (correo solo a apoderados/docentes)
+EMAIL_MENSAJES_USER=mensajes@gmail.com
+EMAIL_MENSAJES_PASSWORD=contraseña-app-mensajes
 
 # Tareas
 EMAIL_TAREA_USER=tareas@gmail.com

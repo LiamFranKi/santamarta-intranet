@@ -63,8 +63,9 @@ function crearTransporterOpcional(prefix) {
 let transporterTarea = crearTransporterOpcional('TAREA');
 let transporterExamen = crearTransporterOpcional('EXAMEN');
 let transporterPublicaciones = crearTransporterOpcional('PUBLICACIONES');
+let transporterMensajes = crearTransporterOpcional('MENSAJES');
 
-/** Devuelve { transporter, fromUser } según categoría: ASISTENCIA | TAREA | EXAMEN | PUBLICACIONES | GENERAL */
+/** Devuelve { transporter, fromUser } según categoría: ASISTENCIA | TAREA | EXAMEN | PUBLICACIONES | MENSAJES | GENERAL */
 function getTransporterPorCategoria(categoria) {
   if (categoria === 'ASISTENCIA' && transporterAsistencia) {
     return { transporter: transporterAsistencia, fromUser: process.env.EMAIL_ASISTENCIA_USER };
@@ -77,6 +78,9 @@ function getTransporterPorCategoria(categoria) {
   }
   if (categoria === 'PUBLICACIONES' && transporterPublicaciones) {
     return { transporter: transporterPublicaciones.transporter, fromUser: transporterPublicaciones.user };
+  }
+  if (categoria === 'MENSAJES' && transporterMensajes) {
+    return { transporter: transporterMensajes.transporter, fromUser: transporterMensajes.user };
   }
   return { transporter, fromUser: process.env.EMAIL_USER };
 }
@@ -430,11 +434,18 @@ async function enviarCorreoAsistencia(destinatario, datos) {
  * @param {string} colegioNombre - Nombre del colegio (opcional)
  * @param {string} categoria - 'ASISTENCIA' | 'TAREA' | 'EXAMEN' | 'GENERAL' (opcional). Define qué cuenta usar; si no hay cuenta específica, usa la principal.
  */
+/** Verifica que una cadena sea un email válido (evita "No recipients defined" por datos en BD) */
+function esEmailValido(email) {
+  if (!email || typeof email !== 'string') return false;
+  const e = email.trim();
+  return e.length > 0 && e.includes('@') && !e.includes(' ') && e.indexOf('@') > 0 && e.indexOf('@') < e.length - 1;
+}
+
 async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNombre = 'Vanguard Schools', categoria = 'GENERAL') {
   try {
     const { transporter: trans, fromUser } = getTransporterPorCategoria(categoria || 'GENERAL');
     if (!fromUser) {
-      console.error(`❌ [EMAIL] No hay cuenta configurada para categoría ${categoria}. Revisa .env (EMAIL_USER para GENERAL, o EMAIL_ASISTENCIA_*/EMAIL_TAREA_*/EMAIL_EXAMEN_*)`);
+      console.error(`❌ [EMAIL] No hay cuenta configurada para categoría ${categoria}. Revisa .env (EMAIL_USER para GENERAL, o EMAIL_ASISTENCIA_*/EMAIL_TAREA_*/EMAIL_MENSAJES_*/EMAIL_PUBLICACIONES_*)`);
       return { success: false, error: 'Configuración de email incompleta' };
     }
 
@@ -443,7 +454,13 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
       return { success: false, error: 'Parámetros incompletos' };
     }
 
-    console.log(`📧 [EMAIL NOTIFICACION] Preparando correo para: ${destinatario} (categoría: ${categoria || 'GENERAL'})`);
+    const emailDestino = String(destinatario).trim();
+    if (!esEmailValido(emailDestino)) {
+      console.warn(`⚠️ [EMAIL] Email inválido omitido (falta @ o tiene espacios): "${emailDestino}"`);
+      return { success: false, error: 'Email inválido' };
+    }
+
+    console.log(`📧 [EMAIL NOTIFICACION] Preparando correo para: ${emailDestino} (categoría: ${categoria || 'GENERAL'})`);
     console.log(`📧 [EMAIL NOTIFICACION] Título: ${titulo}`);
     
     const { icono } = obtenerIconoYColor(titulo);
@@ -457,7 +474,7 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
 
     const mailOptions = {
       from: `"${colegioNombre || 'Vanguard Schools'}" <${fromUser}>`,
-      to: destinatario,
+      to: emailDestino,
       subject: tituloConIcono,
       html: template,
       headers: {
@@ -467,17 +484,18 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
       },
       envelope: {
         from: fromUser,
-        to: destinatario
+        to: emailDestino
       }
     };
 
-    console.log(`📧 [EMAIL NOTIFICACION] Enviando correo desde: ${fromUser} hacia: ${destinatario}`);
+    console.log(`📧 [EMAIL NOTIFICACION] Enviando correo desde: ${fromUser} hacia: ${emailDestino}`);
     const info = await trans.sendMail(mailOptions);
     console.log(`✅ [EMAIL NOTIFICACION] Correo enviado exitosamente. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
     // Error capturado: solo registrar en logs, NO reenviar al remitente
-    console.error(`❌ [EMAIL NOTIFICACION] Error enviando correo a ${destinatario}:`, error.message);
+    const emailDestino = (destinatario && String(destinatario).trim()) || '?';
+    console.error(`❌ [EMAIL NOTIFICACION] Error enviando correo a ${emailDestino}:`, error.message);
     console.error(`❌ [EMAIL NOTIFICACION] Stack trace:`, error.stack);
     console.log(`⚠️ [EMAIL NOTIFICACION] Error registrado pero NO se notificará al remitente para evitar confusión`);
     return { success: false, error: error.message };
