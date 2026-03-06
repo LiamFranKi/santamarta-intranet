@@ -6,7 +6,7 @@
  * Apoderado: personal + alumnos/apoderados de grupos de sus hijos
  * Administrador: todo el colegio
  */
-const { query } = require('../utils/mysql');
+const { query, execute } = require('../utils/mysql');
 const { getAnioActivo } = require('../utils/mysql');
 const { enviarPushNotificationMultiple } = require('./pushNotificationService');
 
@@ -116,7 +116,14 @@ async function getCumpleanosHoyParaUsuario(colegio_id, anio_activo, tipo, person
  * Enviar notificaciones push de cumpleaños del día a todos los usuarios.
  * Se ejecuta una vez al día (ej. 8:00 AM).
  */
+let cumpleanosEnEjecucion = false;
+
 async function enviarNotificacionesCumpleanos() {
+  if (cumpleanosEnEjecucion) {
+    console.log('🎂 [CUMPLEANOS-PUSH] Ya hay una ejecución en curso, omitiendo');
+    return;
+  }
+  cumpleanosEnEjecucion = true;
   try {
     const configs = await query(`SELECT valor FROM config WHERE clave = 'show_birthday_window' LIMIT 1`);
     if ((configs[0]?.valor || 'NO').toUpperCase() !== 'SI') {
@@ -192,9 +199,18 @@ async function enviarNotificacionesCumpleanos() {
       };
 
       try {
-        await enviarPushNotificationMultiple(subscriptions, payload);
-        totalEnviados += subscriptions.length;
-        console.log(`🎂 [CUMPLEANOS-PUSH] Usuario ${u.id} (${u.tipo}): ${cumpleanos.length} cumpleaños, ${subscriptions.length} push enviados`);
+        const resultadosPush = await enviarPushNotificationMultiple(subscriptions, payload);
+        const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
+        totalEnviados += exitosas;
+        // Marcar suscripciones expiradas (410) como inactivas para no reintentar
+        const expiradas = resultadosPush.filter(r => r.resultado && r.resultado.expired && r.subscription?.endpoint);
+        for (const { subscription } of expiradas) {
+          await execute('UPDATE push_subscriptions SET activo = 0 WHERE endpoint = ?', [subscription.endpoint]);
+        }
+        if (expiradas.length > 0) {
+          console.log(`🎂 [CUMPLEANOS-PUSH] ${expiradas.length} suscripción(es) marcadas inactivas (410)`);
+        }
+        console.log(`🎂 [CUMPLEANOS-PUSH] Usuario ${u.id} (${u.tipo}): ${cumpleanos.length} cumpleaños, ${exitosas} push enviados`);
       } catch (err) {
         console.error(`🎂 [CUMPLEANOS-PUSH] Error usuario ${u.id}:`, err.message);
       }
@@ -203,6 +219,8 @@ async function enviarNotificacionesCumpleanos() {
     console.log(`🎂 [CUMPLEANOS-PUSH] Total notificaciones enviadas: ${totalEnviados}`);
   } catch (error) {
     console.error('🎂 [CUMPLEANOS-PUSH] Error:', error);
+  } finally {
+    cumpleanosEnEjecucion = false;
   }
 }
 
