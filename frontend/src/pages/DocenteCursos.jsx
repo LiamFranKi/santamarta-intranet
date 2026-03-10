@@ -280,7 +280,20 @@ function DocenteCursos() {
   }, [mostrarModalNomina, cursoParaNomina?.id, bimestreNomina, cargarAlumnosNomina]);
 
   const actualizarNotaNomina = (matriculaId, colIndex, valor) => {
-    const v = String(valor || '').replace(/\D/g, '').slice(0, 2);
+    const raw = String(valor || '').trim().toUpperCase();
+    const allowed = raw.replace(/[^0-9ABCD]/g, '').slice(0, 2);
+    let v = '';
+    if (/^\d{1,2}$/.test(allowed)) {
+      v = allowed;
+    } else if (allowed === 'A' || allowed === 'B' || allowed === 'C' || allowed === 'AD') {
+      v = allowed;
+    } else if (allowed.startsWith('A')) {
+      v = allowed === 'AD' ? 'AD' : 'A';
+    } else if (allowed === 'B' || allowed === 'C') {
+      v = allowed;
+    } else if (/^\d+/.test(allowed)) {
+      v = allowed.replace(/\D/g, '').slice(0, 2);
+    }
     setNotasNomina(prev => {
       const arr = [...(prev[matriculaId] || Array(NUM_CUADRADITOS).fill(''))];
       arr[colIndex] = v;
@@ -4504,7 +4517,7 @@ function DocenteCursos() {
                                 <td key={i} className="nomina-col-cuadro">
                                   <input
                                     type="text"
-                                    inputMode="numeric"
+                                    inputMode="text"
                                     maxLength={2}
                                     className="nomina-input-cuadro"
                                     value={val}
