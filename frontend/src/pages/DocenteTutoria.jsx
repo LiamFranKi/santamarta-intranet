@@ -49,6 +49,7 @@ function DocenteTutoria() {
   const [contenidoMensajeGrupo, setContenidoMensajeGrupo] = useState('');
   const [archivosAdjuntosMensajeGrupo, setArchivosAdjuntosMensajeGrupo] = useState([]);
   const [enviandoMensajeGrupo, setEnviandoMensajeGrupo] = useState(false);
+  const [enviarAMensajeGrupo, setEnviarAMensajeGrupo] = useState('todos'); // 'todos' | 'apoderados' | 'alumnos'
   const quillRefMensajeGrupo = useRef(null);
   
   // Estados para modal de asistencias (tutoría)
@@ -398,6 +399,7 @@ function DocenteTutoria() {
         setAsuntoMensajeGrupo('');
         setContenidoMensajeGrupo('');
         setArchivosAdjuntosMensajeGrupo([]);
+        setEnviarAMensajeGrupo('todos');
         break;
       case 'registrar-asistencia':
         await handleAbrirAsistencias(grupo);
@@ -1129,6 +1131,7 @@ function DocenteTutoria() {
       formData.append('grupos', JSON.stringify([grupoParaMensaje.id])); // Enviar al grupo
       formData.append('asunto', asuntoMensajeGrupo.trim());
       formData.append('mensaje', contenidoMensajeGrupo);
+      formData.append('enviar_a', enviarAMensajeGrupo);
 
       // Agregar archivos
       archivosAdjuntosMensajeGrupo.forEach((archivo) => {
@@ -1155,6 +1158,7 @@ function DocenteTutoria() {
       setAsuntoMensajeGrupo('');
       setContenidoMensajeGrupo('');
       setArchivosAdjuntosMensajeGrupo([]);
+      setEnviarAMensajeGrupo('todos');
       setMostrarModalMensajeGrupo(false);
       setGrupoParaMensaje(null);
     } catch (error) {
@@ -2036,6 +2040,7 @@ function DocenteTutoria() {
                 setAsuntoMensajeGrupo('');
                 setContenidoMensajeGrupo('');
                 setArchivosAdjuntosMensajeGrupo([]);
+                setEnviarAMensajeGrupo('todos');
                 setGrupoParaMensaje(null);
               }
             }}
@@ -2057,6 +2062,7 @@ function DocenteTutoria() {
                   setAsuntoMensajeGrupo('');
                   setContenidoMensajeGrupo('');
                   setArchivosAdjuntosMensajeGrupo([]);
+                  setEnviarAMensajeGrupo('todos');
                   setGrupoParaMensaje(null);
                 }}
                 type="button"
@@ -2072,7 +2078,21 @@ function DocenteTutoria() {
                 <p><strong>Grupo:</strong> {grupoParaMensaje.grado}° {grupoParaMensaje.seccion}</p>
                 <p><strong>Nivel:</strong> {grupoParaMensaje.nivel_nombre} - {grupoParaMensaje.turno_nombre}</p>
                 <p><strong>Alumnos:</strong> {grupoParaMensaje.total_alumnos || 0}</p>
-                <p className="mensaje-info-text">El mensaje se enviará a todos los alumnos del grupo</p>
+              </div>
+
+              {/* Enviar mensaje a */}
+              <div className="form-group cf-enviar-a">
+                <label htmlFor="enviar-a-select-tutoria">Enviar mensaje a:</label>
+                <select
+                  id="enviar-a-select-tutoria"
+                  value={enviarAMensajeGrupo}
+                  onChange={(e) => setEnviarAMensajeGrupo(e.target.value)}
+                  className="cf-enviar-a-select"
+                >
+                  <option value="todos">👥 Todos (Apoderados y Alumnos)</option>
+                  <option value="apoderados">👨‍👩‍👧 Solo Apoderados</option>
+                  <option value="alumnos">🎓 Solo Alumnos</option>
+                </select>
               </div>
 
               {/* Campo Asunto */}
@@ -2165,6 +2185,7 @@ function DocenteTutoria() {
                     setAsuntoMensajeGrupo('');
                     setContenidoMensajeGrupo('');
                     setArchivosAdjuntosMensajeGrupo([]);
+                    setEnviarAMensajeGrupo('todos');
                     setGrupoParaMensaje(null);
                   }}
                   type="button"

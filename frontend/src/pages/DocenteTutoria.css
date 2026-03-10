@@ -1099,6 +1099,26 @@
   font-size: 0.95rem;
 }
 
+/* Enviar mensaje a (combobox) - Tutoria */
+.modal-mensaje-body .cf-enviar-a-select {
+  width: 100%;
+  max-width: 320px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.95rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  color: #374151;
+}
+
+.modal-mensaje-body .cf-enviar-a-select:hover,
+.modal-mensaje-body .cf-enviar-a-select:focus {
+  border-color: #4a83c1;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(74, 131, 193, 0.2);
+}
+
 .modal-mensaje-body .form-input {
   width: 100%;
   padding: 0.875rem 1rem;
