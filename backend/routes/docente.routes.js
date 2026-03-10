@@ -6221,7 +6221,10 @@ router.post('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
         const tituloBase = cfg?.titulo || `Asistencia: ${tipo}`;
         const palabraClaveManual = { PRESENTE: 'ASISTIÓ', TARDANZA: 'TARDANZA', TARDANZA_JUSTIFICADA: 'TARDANZA JUSTIFICADA', FALTA: 'FALTA', FALTA_JUSTIFICADA: 'FALTA JUSTIFICADA' }[tipo] || tipo;
         const titulo = `${palabraClaveManual} - ${tituloBase}`;
-        const mensaje = (cfg?.mensaje_corto || '').replace('{nombreAlumno}', nombreAlumno).replace('{fecha}', fechaForm);
+        let mensaje = (cfg?.mensaje_corto || '').replace('{nombreAlumno}', nombreAlumno).replace('{fecha}', fechaForm);
+        if (tipo === 'FALTA' || tipo === 'TARDANZA') {
+          mensaje += (mensaje.trim() ? ' ' : '') + 'Comuníquese con su tutora para poder justificar su Falta o Tardanza.';
+        }
         setImmediate(() => {
           crearNotificacionesApoderados({
             alumno_id: alumnoData[0].id,
@@ -6307,7 +6310,8 @@ router.post('/tutoria/grupos/:grupoId/asistencia/guardar-todo', async (req, res)
       const tituloBase = cfg?.titulo || 'Falta Registrada';
       const titulo = `FALTA - ${tituloBase}`;
       const fechaForm = moment(fechaNorm).format('DD/MM/YYYY');
-      const mensaje = (cfg?.mensaje_corto || '').replace('{nombreAlumno}', item.nombre_completo).replace('{fecha}', fechaForm);
+      let mensaje = (cfg?.mensaje_corto || '').replace('{nombreAlumno}', item.nombre_completo).replace('{fecha}', fechaForm);
+      mensaje += (mensaje.trim() ? ' ' : '') + 'Comuníquese con su tutora para poder justificar su Falta o Tardanza.';
       setImmediate(() => {
         crearNotificacionesApoderados({
           alumno_id: item.alumno_id,

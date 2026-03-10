@@ -65,8 +65,9 @@ let transporterExamen = crearTransporterOpcional('EXAMEN');
 let transporterPublicaciones = crearTransporterOpcional('PUBLICACIONES');
 let transporterMensajes = crearTransporterOpcional('MENSAJES');
 let transporterComunicados = crearTransporterOpcional('COMUNICADOS');
+let transporterAlertas = crearTransporterOpcional('ALERTAS');
 
-/** Devuelve { transporter, fromUser } según categoría: ASISTENCIA | TAREA | EXAMEN | PUBLICACIONES | MENSAJES | COMUNICADOS | GENERAL */
+/** Devuelve { transporter, fromUser } según categoría: ASISTENCIA | TAREA | EXAMEN | PUBLICACIONES | MENSAJES | COMUNICADOS | ALERTAS | GENERAL */
 function getTransporterPorCategoria(categoria) {
   if (categoria === 'ASISTENCIA' && transporterAsistencia) {
     return { transporter: transporterAsistencia, fromUser: process.env.EMAIL_ASISTENCIA_USER };
@@ -85,6 +86,9 @@ function getTransporterPorCategoria(categoria) {
   }
   if (categoria === 'COMUNICADOS' && transporterComunicados) {
     return { transporter: transporterComunicados.transporter, fromUser: transporterComunicados.user };
+  }
+  if (categoria === 'ALERTAS' && transporterAlertas) {
+    return { transporter: transporterAlertas.transporter, fromUser: transporterAlertas.user };
   }
   return { transporter, fromUser: process.env.EMAIL_USER };
 }
@@ -202,6 +206,12 @@ function generarTemplateAsistencia(datos) {
                   </tr>
                 </table>
               </div>
+              
+              ${tipo === 'ENTRADA' && !esDocente && (tipoAsistencia === 'TARDANZA' || tipoAsistencia === 'FALTA') ? `
+              <p style="margin: 25px 0 15px 0; font-size: 16px; color: #1f2937; line-height: 1.6; font-weight: 600;">
+                Comuníquese con su tutora para poder justificar su Falta o Tardanza.
+              </p>
+              ` : ''}
               
               <p style="margin: 25px 0 0 0; font-size: 14px; color: #6b7280; line-height: 1.6;">
                 Este es un mensaje automático del sistema de asistencia. Por favor, no responda a este correo.
@@ -449,7 +459,7 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
   try {
     const { transporter: trans, fromUser } = getTransporterPorCategoria(categoria || 'GENERAL');
     if (!fromUser) {
-      console.error(`❌ [EMAIL] No hay cuenta configurada para categoría ${categoria}. Revisa .env (EMAIL_USER para GENERAL, o EMAIL_ASISTENCIA_*/EMAIL_MENSAJES_*/EMAIL_COMUNICADOS_*/EMAIL_PUBLICACIONES_*)`);
+      console.error(`❌ [EMAIL] No hay cuenta configurada para categoría ${categoria}. Revisa .env (EMAIL_USER para GENERAL, o EMAIL_ASISTENCIA_*/EMAIL_MENSAJES_*/EMAIL_COMUNICADOS_*/EMAIL_ALERTAS_*/EMAIL_PUBLICACIONES_*)`);
       return { success: false, error: 'Configuración de email incompleta' };
     }
 
