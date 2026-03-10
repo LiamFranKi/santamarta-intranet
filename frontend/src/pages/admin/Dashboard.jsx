@@ -1,12 +1,32 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import BirthdayWidget from '../../components/BirthdayWidget';
+import api from '../../services/api';
 import './Dashboard.css';
+
+const coloresPasteles = [
+  'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',   // Verde menta
+  'linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%)',   // Azul cielo
+  'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)',   // Naranja suave
+  'linear-gradient(135deg, #fce4ec 0%, #f8bbd9 100%)',   // Rosa pastel
+  'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)',   // Lavanda
+  'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%)',   // Cyan pastel
+  'linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%)',   // Ámbar suave
+  'linear-gradient(135deg, #efebe9 0%, #d7ccc8 100%)',   // Marrón claro
+];
 
 function Dashboard() {
   const { user } = useAuth();
+  const [stats, setStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  useEffect(() => {
+    api.get('/admin/dashboard').then(res => {
+      setStats(res.data);
+    }).catch(() => setStats(null)).finally(() => setLoadingStats(false));
+  }, []);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -181,43 +201,34 @@ function Dashboard() {
     );
   }
 
+  const fmt = (n) => (n == null || n === '' ? '—' : typeof n === 'number' ? n.toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : String(n));
+  const fmtMonto = (n, moneda = stats?.moneda || 'S/') => (n == null || n === '' ? '—' : `${moneda} ${parseFloat(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+
+  const cards = [
+    { key: 'grados', title: 'Total Grados', icon: '📚', value: loadingStats ? '—' : fmt(stats?.total_grados), color: coloresPasteles[0] },
+    { key: 'trabajadores', title: 'Total Trabajadores', icon: '👥', value: loadingStats ? '—' : fmt(stats?.total_trabajadores), color: coloresPasteles[1] },
+    { key: 'alumnos', title: 'Total Alumnos', icon: '👨‍🎓', value: loadingStats ? '—' : fmt(stats?.total_alumnos), color: coloresPasteles[2] },
+    { key: 'apoderados', title: 'Total Apoderados', icon: '👨‍👩‍👧‍👦', value: loadingStats ? '—' : fmt(stats?.total_apoderados), color: coloresPasteles[3] },
+    { key: 'presupuesto', title: 'Presupuesto Anual (Año Activo)', icon: '📋', value: loadingStats ? '—' : (stats?.presupuesto_anual != null ? fmtMonto(stats.presupuesto_anual) : '—'), color: coloresPasteles[4] },
+    { key: 'ingresos', title: 'Total Ingresos (Año Activo)', icon: '💰', value: loadingStats ? '—' : fmtMonto(stats?.total_ingresos), color: coloresPasteles[5] },
+    { key: 'deuda', title: 'Total Deuda (Año Activo)', icon: '⚠️', value: loadingStats ? '—' : fmtMonto(stats?.total_deuda), color: coloresPasteles[6] },
+    { key: 'deudas_ant', title: 'Deudas Anteriores', icon: '📜', value: loadingStats ? '—' : fmtMonto(stats?.deudas_anteriores), color: coloresPasteles[7] },
+  ];
+
   return (
     <DashboardLayout>
       <BirthdayWidget comunicadoAbierto={false} />
       <div className="dashboard-container">
-        {/* Stat Cards */}
-        <div className="stats-grid">
-          <div className="stat-card" style={{ '--card-color': '#667eea' }}>
-            <div className="stat-icon">👨‍🎓</div>
-            <div className="stat-content">
-              <h3 className="stat-title">Total Alumnos</h3>
-              <div className="stat-value">—</div>
+        <div className="admin-stats-grid">
+          {cards.map((card) => (
+            <div key={card.key} className="admin-stat-card" style={{ background: card.color }}>
+              <div className="admin-stat-icon">{card.icon}</div>
+              <div className="admin-stat-content">
+                <h3 className="admin-stat-title">{card.title}</h3>
+                <div className="admin-stat-value">{card.value}</div>
+              </div>
             </div>
-          </div>
-
-          <div className="stat-card" style={{ '--card-color': '#f093fb' }}>
-            <div className="stat-icon">👨‍🏫</div>
-            <div className="stat-content">
-              <h3 className="stat-title">Total Docentes</h3>
-              <div className="stat-value">—</div>
-            </div>
-          </div>
-
-          <div className="stat-card" style={{ '--card-color': '#4facfe' }}>
-            <div className="stat-icon">📚</div>
-            <div className="stat-content">
-              <h3 className="stat-title">Total Grados</h3>
-              <div className="stat-value">—</div>
-            </div>
-          </div>
-
-          <div className="stat-card" style={{ '--card-color': '#43e97b' }}>
-            <div className="stat-icon">💰</div>
-            <div className="stat-content">
-              <h3 className="stat-title">Total Ingresos</h3>
-              <div className="stat-value">—</div>
-            </div>
-          </div>
+          ))}
         </div>
       </div>
     </DashboardLayout>

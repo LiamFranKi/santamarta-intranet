@@ -35,7 +35,66 @@
   margin-bottom: 2rem;
 }
 
-/* Stat Card */
+/* Admin Dashboard: 4 cards per row, pastel */
+.admin-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.admin-stat-card {
+  border-radius: 16px;
+  padding: 1.25rem;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.admin-stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.admin-stat-icon {
+  font-size: 2.5rem;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 14px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.admin-stat-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-stat-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #4b5563;
+  margin: 0 0 0.35rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  line-height: 1.3;
+}
+
+.admin-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1f2937;
+  line-height: 1.2;
+}
+
+/* Stat Card (legacy) */
 .stat-card {
   background: white;
   border-radius: 16px;
@@ -238,6 +297,12 @@
 }
 
 /* Responsive */
+@media (max-width: 1200px) {
+  .admin-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width: 1024px) {
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -257,6 +322,15 @@
 @media (max-width: 640px) {
   .dashboard-welcome h1 {
     font-size: 1.75rem;
+  }
+
+  .admin-stats-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .admin-stat-value {
+    font-size: 1.35rem;
   }
 
   .stats-grid {
