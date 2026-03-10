@@ -12098,7 +12098,8 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
   try {
     console.log('📨 [ENVIAR MENSAJE] Inicio de procesamiento -', new Date().toISOString());
     const { usuario_id, colegio_id } = req.user;
-    const { destinatarios, grupos, asunto, mensaje } = req.body;
+    const { destinatarios, grupos, asunto, mensaje, enviar_a } = req.body;
+    const enviarATipo = (enviar_a === 'apoderados' || enviar_a === 'alumnos') ? enviar_a : 'todos';
 
     // Parsear destinatarios y grupos si vienen como string JSON
     const destinatariosArray = typeof destinatarios === 'string' ? JSON.parse(destinatarios) : destinatarios;
@@ -12133,28 +12134,31 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           usuariosDestinatarios.push(...destinatariosArray);
         }
 
-        // Si hay grupos, obtener todos los alumnos de esos grupos
+        // Si hay grupos, obtener alumnos y/o apoderados según enviar_a
         let totalAlumnosGrupos = 0;
         if (gruposArray && gruposArray.length > 0) {
-          const alumnosGrupos = await query(
-            `SELECT DISTINCT u.id as usuario_id
-             FROM grupos g
-             INNER JOIN matriculas m ON m.grupo_id = g.id AND m.estado = 0
-             INNER JOIN alumnos a ON a.id = m.alumno_id
-             INNER JOIN usuarios u ON u.alumno_id = a.id AND u.estado = 'ACTIVO'
-             WHERE g.id IN (${gruposArray.map(() => '?').join(',')})
-               AND g.colegio_id = ?`,
-            [...gruposArray, colegio_id]
-          );
+          // Alumnos: solo si enviar_a es 'todos' o 'alumnos'
+          if (enviarATipo === 'todos' || enviarATipo === 'alumnos') {
+            const alumnosGrupos = await query(
+              `SELECT DISTINCT u.id as usuario_id
+               FROM grupos g
+               INNER JOIN matriculas m ON m.grupo_id = g.id AND m.estado = 0
+               INNER JOIN alumnos a ON a.id = m.alumno_id
+               INNER JOIN usuarios u ON u.alumno_id = a.id AND u.estado = 'ACTIVO'
+               WHERE g.id IN (${gruposArray.map(() => '?').join(',')})
+                 AND g.colegio_id = ?`,
+              [...gruposArray, colegio_id]
+            );
+            totalAlumnosGrupos = alumnosGrupos.length;
+            alumnosGrupos.forEach(al => {
+              if (!usuariosDestinatarios.includes(al.usuario_id)) {
+                usuariosDestinatarios.push(al.usuario_id);
+              }
+            });
+          }
 
-          totalAlumnosGrupos = alumnosGrupos.length;
-          alumnosGrupos.forEach(al => {
-            if (!usuariosDestinatarios.includes(al.usuario_id)) {
-              usuariosDestinatarios.push(al.usuario_id);
-            }
-          });
-
-          // Conexiones Familiares: agregar apoderados y docentes-apoderados para que reciban mensajes en bandeja
+          // Apoderados y docentes-apoderados: solo si enviar_a es 'todos' o 'apoderados'
+          if (enviarATipo === 'todos' || enviarATipo === 'apoderados') {
           try {
             const apoderadosGrupo = await query(
               `SELECT DISTINCT u.id as usuario_id, ap.nro_documento, ap.email
@@ -12201,6 +12205,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             }
           } catch (errApod) {
             console.warn('⚠️ [ENVIAR MENSAJE] Error obteniendo apoderados para bandeja:', errApod.message);
+          }
           }
         }
 

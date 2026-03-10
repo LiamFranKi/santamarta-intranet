@@ -1301,6 +1301,39 @@
   font-weight: 700;
 }
 
+/* Conexiones Familiares: selector Enviar a */
+.cf-enviar-a .cf-enviar-a-opciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.cf-enviar-a-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.cf-enviar-a-option:hover {
+  border-color: #4a83c1;
+  background: linear-gradient(145deg, #eff6ff 0%, #dbeafe 100%);
+}
+
+.cf-enviar-a-option input:checked + span {
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.cf-enviar-a-option input[type="radio"] {
+  accent-color: #4a83c1;
+}
+
 .mensaje-info-text {
   font-size: 0.85rem;
   color: #6b7280;

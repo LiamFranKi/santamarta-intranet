@@ -23,6 +23,7 @@ function DocenteConexionesFamiliares() {
   const [contenidoMensaje, setContenidoMensaje] = useState('');
   const [archivosAdjuntos, setArchivosAdjuntos] = useState([]);
   const [enviandoMensaje, setEnviandoMensaje] = useState(false);
+  const [enviarA, setEnviarA] = useState('todos'); // 'todos' | 'apoderados' | 'alumnos'
   const quillRef = useRef(null);
 
   // Modal Ver mensaje
@@ -146,6 +147,7 @@ function DocenteConexionesFamiliares() {
       formData.append('grupos', JSON.stringify([grupo.id]));
       formData.append('asunto', asuntoMensaje.trim());
       formData.append('mensaje', contenidoMensaje);
+      formData.append('enviar_a', enviarA);
       archivosAdjuntos.forEach(archivo => formData.append('archivos', archivo));
 
       await api.post('/docente/mensajes/enviar', formData, {
@@ -253,6 +255,7 @@ function DocenteConexionesFamiliares() {
                 setAsuntoMensaje('');
                 setContenidoMensaje('');
                 setArchivosAdjuntos([]);
+                setEnviarA('todos');
                 setMostrarModalEnviar(true);
               }}
               type="button"
@@ -325,7 +328,23 @@ function DocenteConexionesFamiliares() {
               <div className="mensaje-grupo-info">
                 <p><strong>Grupo:</strong> {grupo.grado}° {grupo.seccion}</p>
                 <p><strong>Nivel:</strong> {grupo.nivel_nombre} — {grupo.turno_nombre}</p>
-                <p className="mensaje-info-text">El mensaje se enviará a todos los alumnos del grupo</p>
+              </div>
+              <div className="form-group cf-enviar-a">
+                <label>Enviar mensaje a:</label>
+                <div className="cf-enviar-a-opciones">
+                  <label className="cf-enviar-a-option">
+                    <input type="radio" name="enviar_a" value="todos" checked={enviarA === 'todos'} onChange={() => setEnviarA('todos')} />
+                    <span>👥 Todos (Apoderados y Alumnos)</span>
+                  </label>
+                  <label className="cf-enviar-a-option">
+                    <input type="radio" name="enviar_a" value="apoderados" checked={enviarA === 'apoderados'} onChange={() => setEnviarA('apoderados')} />
+                    <span>👨‍👩‍👧 Solo Apoderados</span>
+                  </label>
+                  <label className="cf-enviar-a-option">
+                    <input type="radio" name="enviar_a" value="alumnos" checked={enviarA === 'alumnos'} onChange={() => setEnviarA('alumnos')} />
+                    <span>🎓 Solo Alumnos</span>
+                  </label>
+                </div>
               </div>
               <div className="form-group">
                 <label htmlFor="asunto-cf">Asunto:</label>
