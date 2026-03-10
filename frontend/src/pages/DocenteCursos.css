@@ -2295,12 +2295,83 @@
 }
 
 .modal-nomina-container {
-  max-width: 95vw;
-  width: 900px;
+  max-width: 98vw;
+  width: min(1200px, 98vw);
 }
 
 .modal-nomina-body {
   max-height: 70vh;
+}
+
+.modal-nomina-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1rem;
+}
+
+.modal-nomina-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  margin-left: auto;
+}
+
+.nomina-bimestre-select {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nomina-bimestre-select label {
+  font-weight: 600;
+  color: #374151;
+}
+
+.nomina-select-bimestre {
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 0.9rem;
+  background: white;
+}
+
+.nomina-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nomina-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.nomina-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+
+.nomina-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.nomina-btn-guardar {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+}
+
+.nomina-btn-limpiar {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
 }
 
 .nomina-info-header {
@@ -2338,6 +2409,12 @@
 
 .nomina-info-header-item.docente {
   background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  font-weight: 600;
+}
+
+.nomina-info-header-item.bimestre {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   color: white;
   font-weight: 600;
 }
@@ -2411,12 +2488,76 @@
 }
 
 .nomina-col-cuadro {
-  width: 24px;
-  min-width: 24px;
-  padding: 0.25rem !important;
+  width: 32px;
+  min-width: 32px;
+  padding: 0.15rem !important;
   background: white;
   text-align: center;
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+}
+
+.nomina-input-cuadro {
+  width: 100%;
+  min-width: 26px;
+  max-width: 36px;
+  height: 28px;
+  padding: 0.15rem 0.2rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.nomina-input-cuadro:focus {
+  outline: none;
+  border-color: #4a83c1;
+  box-shadow: 0 0 0 2px rgba(74, 131, 193, 0.2);
+}
+
+/* Responsivo: modal y cuadraditos en móvil/tablet */
+@media (max-width: 768px) {
+  .modal-nomina-container {
+    width: 98vw;
+    max-height: 95vh;
+  }
+  .modal-nomina-controls {
+    margin-left: 0;
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .nomina-bimestre-select,
+  .nomina-actions {
+    width: 100%;
+  }
+  .nomina-actions {
+    flex-wrap: wrap;
+  }
+  .nomina-col-cuadro {
+    width: 26px;
+    min-width: 26px;
+  }
+  .nomina-input-cuadro {
+    min-width: 22px;
+    max-width: 28px;
+    height: 24px;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .nomina-col-nombres {
+    min-width: 140px;
+  }
+  .nomina-col-cuadro {
+    width: 24px;
+    min-width: 24px;
+  }
+  .nomina-input-cuadro {
+    min-width: 20px;
+    max-width: 24px;
+    height: 22px;
+  }
 }
 
 .modal-horario-body {

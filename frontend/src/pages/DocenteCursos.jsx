@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -102,6 +102,9 @@ function DocenteCursos() {
   const [cursoParaNomina, setCursoParaNomina] = useState(null);
   const [alumnosNomina, setAlumnosNomina] = useState([]);
   const [loadingNomina, setLoadingNomina] = useState(false);
+  const [bimestreNomina, setBimestreNomina] = useState(1);
+  const [notasNomina, setNotasNomina] = useState({}); // { matricula_id: ["05","12","",...] }
+  const [guardandoNomina, setGuardandoNomina] = useState(false);
 
   // Estados para modal Registrar Indicadores (solo nivel INICIAL)
   const [mostrarModalIndicadores, setMostrarModalIndicadores] = useState(false);
@@ -250,15 +253,71 @@ function DocenteCursos() {
     }
   };
 
-  const cargarAlumnosNomina = async (cursoId) => {
+  const NUM_CUADRADITOS = 25;
+
+  const cargarAlumnosNomina = useCallback(async (cursoId) => {
     try {
       setLoadingNomina(true);
-      const response = await api.get(`/docente/cursos/${cursoId}/alumnos`);
-      setAlumnosNomina(response.data.alumnos || []);
+      const [alumnosRes, notasRes] = await Promise.all([
+        api.get(`/docente/cursos/${cursoId}/alumnos`),
+        api.get(`/docente/cursos/${cursoId}/nomina`, { params: { bimestre: bimestreNomina } })
+      ]);
+      setAlumnosNomina(alumnosRes.data.alumnos || []);
+      setNotasNomina(notasRes.data.notas || {});
     } catch (error) {
-      console.error('Error cargando alumnos para nómina:', error);
+      console.error('Error cargando alumnos/notas para nómina:', error);
+      setAlumnosNomina([]);
+      setNotasNomina({});
     } finally {
       setLoadingNomina(false);
+    }
+  }, [bimestreNomina]);
+
+  useEffect(() => {
+    if (mostrarModalNomina && cursoParaNomina) {
+      cargarAlumnosNomina(cursoParaNomina.id);
+    }
+  }, [mostrarModalNomina, cursoParaNomina?.id, bimestreNomina, cargarAlumnosNomina]);
+
+  const actualizarNotaNomina = (matriculaId, colIndex, valor) => {
+    const v = String(valor || '').replace(/\D/g, '').slice(0, 2);
+    setNotasNomina(prev => {
+      const arr = [...(prev[matriculaId] || Array(NUM_CUADRADITOS).fill(''))];
+      arr[colIndex] = v;
+      return { ...prev, [matriculaId]: arr };
+    });
+  };
+
+  const guardarNotasNomina = async () => {
+    if (!cursoParaNomina) return;
+    try {
+      setGuardandoNomina(true);
+      await api.post(`/docente/cursos/${cursoParaNomina.id}/nomina`, { bimestre: bimestreNomina, notas: notasNomina });
+      Swal.fire({ title: 'Guardado', text: 'Notas guardadas correctamente', icon: 'success', timer: 2000, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire('Error', 'No se pudo guardar', 'error');
+    } finally {
+      setGuardandoNomina(false);
+    }
+  };
+
+  const limpiarNotasNomina = async () => {
+    const { value } = await Swal.fire({
+      title: '¿Limpiar todo?',
+      text: 'Se borrarán todas las notas de la nómina de este bimestre.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      cancelButtonText: 'Cancelar',
+      confirmButtonText: 'Sí, limpiar'
+    });
+    if (!value) return;
+    try {
+      await api.delete(`/docente/cursos/${cursoParaNomina.id}/nomina`, { params: { bimestre: bimestreNomina } });
+      setNotasNomina({});
+      Swal.fire({ title: 'Listo', text: 'Notas limpiadas', icon: 'success', timer: 1500, showConfirmButton: false });
+    } catch {
+      Swal.fire('Error', 'No se pudo limpiar', 'error');
     }
   };
 
@@ -1636,13 +1695,14 @@ function DocenteCursos() {
     const filaY = 20;
     const altoCaja = 6;
     const pad = 3;
-    const anchoLabel = 18;
-    const anchoValor = 36;
+    const anchoLabel = 14;
+    const anchoValor = 30;
 
     const bloques = [
-      { label: 'CURSO:', valor: (cursoParaNomina.curso_nombre || '').substring(0, 24), colorBg: [74, 131, 193], colorValor: [30, 64, 175] },
-      { label: 'GRADO:', valor: `${cursoParaNomina.grado}° ${cursoParaNomina.seccion} ${cursoParaNomina.nivel_nombre || ''}`.substring(0, 18), colorBg: [16, 185, 129], colorValor: [6, 95, 70] },
-      { label: 'DOCENTE:', valor: (docenteNombre || '').substring(0, 32), colorBg: [139, 92, 246], colorValor: [91, 33, 182] }
+      { label: 'CURSO:', valor: (cursoParaNomina.curso_nombre || '').substring(0, 20), colorBg: [74, 131, 193], colorValor: [30, 64, 175] },
+      { label: 'GRADO:', valor: `${cursoParaNomina.grado}° ${cursoParaNomina.seccion} ${cursoParaNomina.nivel_nombre || ''}`.substring(0, 16), colorBg: [16, 185, 129], colorValor: [6, 95, 70] },
+      { label: 'DOCENTE:', valor: (docenteNombre || '').substring(0, 24), colorBg: [139, 92, 246], colorValor: [91, 33, 182] },
+      { label: 'BIM:', valor: `Bim. ${bimestreNomina}`, colorBg: [245, 158, 11], colorValor: [180, 83, 9] }
     ];
     const totalBloquesWidth = bloques.length * (anchoLabel + anchoValor + pad * 4);
     let xBloque = (pageWidth - totalBloquesWidth) / 2;
@@ -1699,8 +1759,15 @@ function DocenteCursos() {
       let x = leftOffset + colNumWidth;
       doc.text((alumno.nombre_completo || '').substring(0, 45), x + 2, y + cuadroHeight / 2 + 1);
       x += colNombresWidth;
+      const notasAlumno = notasNomina[alumno.matricula_id] || [];
       for (let c = 0; c < numCols; c++) {
         doc.rect(x, y, colCuadroWidth - 0.2, cuadroHeight, 'S');
+        const notaVal = notasAlumno[c];
+        if (notaVal) {
+          doc.setFontSize(7);
+          doc.text(String(notaVal), x + (colCuadroWidth - 0.2) / 2, y + cuadroHeight / 2 + 1, { align: 'center' });
+          doc.setFontSize(9);
+        }
         x += colCuadroWidth;
       }
       y += rowHeight;
@@ -4315,7 +4382,7 @@ function DocenteCursos() {
         {/* Modal Ver Nómina */}
         {mostrarModalNomina && createPortal(
           <div 
-            className="modal-horario-overlay"
+            className="modal-horario-overlay modal-nomina-overlay"
             onClick={() => {
               setMostrarModalNomina(false);
               setCursoParaNomina(null);
@@ -4329,32 +4396,61 @@ function DocenteCursos() {
               aria-modal="true"
               aria-labelledby="modal-nomina-title"
             >
-              <div className="modal-horario-header">
-                <h2 id="modal-nomina-title">
-                  📋 Registro Académico
-                </h2>
-                <div className="modal-horario-header-actions">
-                  <button
-                    className="btn-exportar-pdf-nomina"
-                    onClick={() => exportarPDFNomina()}
-                    type="button"
-                    disabled={loadingNomina || alumnosNomina.length === 0}
-                  >
-                    📥 Exportar PDF
-                  </button>
-                  <button
-                    className="modal-horario-close"
-                    onClick={() => {
-                      setMostrarModalNomina(false);
-                      setCursoParaNomina(null);
-                      setAlumnosNomina([]);
-                    }}
-                    type="button"
-                    aria-label="Cerrar modal"
-                  >
-                    ✕
-                  </button>
+              <div className="modal-horario-header modal-nomina-header">
+                <h2 id="modal-nomina-title">📋 Registro Académico</h2>
+                <div className="modal-nomina-controls">
+                  <div className="nomina-bimestre-select">
+                    <label htmlFor="nomina-bimestre">Bimestre:</label>
+                    <select
+                      id="nomina-bimestre"
+                      value={bimestreNomina}
+                      onChange={(e) => setBimestreNomina(parseInt(e.target.value, 10))}
+                      className="nomina-select-bimestre"
+                    >
+                      {[1, 2, 3, 4].map((b) => (
+                        <option key={b} value={b}>Bimestre {b}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="nomina-actions">
+                    <button
+                      type="button"
+                      className="nomina-btn nomina-btn-guardar"
+                      onClick={guardarNotasNomina}
+                      disabled={guardandoNomina || loadingNomina}
+                    >
+                      {guardandoNomina ? '...' : '💾 Guardar'}
+                    </button>
+                    <button
+                      type="button"
+                      className="nomina-btn nomina-btn-limpiar"
+                      onClick={limpiarNotasNomina}
+                      disabled={loadingNomina}
+                    >
+                      🗑️ Limpiar todo
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-exportar-pdf-nomina"
+                      onClick={() => exportarPDFNomina()}
+                      disabled={loadingNomina || alumnosNomina.length === 0}
+                    >
+                      📥 Exportar PDF
+                    </button>
+                  </div>
                 </div>
+                <button
+                  className="modal-horario-close"
+                  onClick={() => {
+                    setMostrarModalNomina(false);
+                    setCursoParaNomina(null);
+                    setAlumnosNomina([]);
+                  }}
+                  type="button"
+                  aria-label="Cerrar"
+                >
+                  ✕
+                </button>
               </div>
 
               <div className="modal-horario-body modal-nomina-body">
@@ -4370,6 +4466,9 @@ function DocenteCursos() {
                       <span className="nomina-info-header-item docente">
                         <strong>DOCENTE:</strong> {user?.apellidos ? `${user.apellidos}, ${user.nombres}` : `${[user?.apellido_paterno, user?.apellido_materno].filter(Boolean).join(' ')}, ${user?.nombres || ''}`.trim()}
                       </span>
+                      <span className="nomina-info-header-item bimestre">
+                        <strong>BIMESTRE:</strong> {bimestreNomina}
+                      </span>
                     </div>
                     <div className="nomina-logo-container">
                       <img src={logoNominaUrl} alt="Logo" onError={(e) => { e.target.style.display = 'none'; }} />
@@ -4383,24 +4482,37 @@ function DocenteCursos() {
                   </div>
                 ) : alumnosNomina.length > 0 ? (
                   <div className="nomina-table-wrapper" id="nomina-para-pdf">
-                    <table className="nomina-table">
+                    <table className="nomina-table nomina-table-editable">
                       <thead>
                         <tr>
                           <th className="nomina-col-num">Nº</th>
                           <th className="nomina-col-nombres">Apellidos y Nombres</th>
-                          {Array.from({ length: 20 }, (_, i) => (
+                          {Array.from({ length: NUM_CUADRADITOS }, (_, i) => (
                             <th key={i} className="nomina-col-cuadro" />
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {alumnosNomina.map((alumno, idx) => (
-                          <tr key={alumno.id}>
+                          <tr key={alumno.matricula_id || alumno.id}>
                             <td className="nomina-col-num">{idx + 1}</td>
                             <td className="nomina-col-nombres" title={alumno.nombre_completo}>{alumno.nombre_completo}</td>
-                            {Array.from({ length: 20 }, (_, i) => (
-                              <td key={i} className="nomina-col-cuadro" />
-                            ))}
+                            {Array.from({ length: NUM_CUADRADITOS }, (_, i) => {
+                              const arr = notasNomina[alumno.matricula_id] || [];
+                              const val = arr[i] ?? '';
+                              return (
+                                <td key={i} className="nomina-col-cuadro">
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    maxLength={2}
+                                    className="nomina-input-cuadro"
+                                    value={val}
+                                    onChange={(e) => actualizarNotaNomina(alumno.matricula_id, i, e.target.value)}
+                                  />
+                                </td>
+                              );
+                            })}
                           </tr>
                         ))}
                       </tbody>

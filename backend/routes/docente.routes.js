@@ -2340,6 +2340,122 @@ router.get('/cursos/:cursoId/alumnos', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/cursos/:cursoId/nomina
+ * Obtener notas de nómina para un curso y bimestre
+ */
+router.get('/cursos/:cursoId/nomina', async (req, res) => {
+  try {
+    const { cursoId } = req.params;
+    const bimestre = parseInt(req.query.bimestre || '1', 10);
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!cursoId) return res.status(400).json({ error: 'ID de curso es requerido' });
+    if (bimestre < 1 || bimestre > 4) return res.status(400).json({ error: 'Bimestre debe ser 1, 2, 3 o 4' });
+
+    const asignatura = await query(
+      `SELECT a.* FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [cursoId, personalId, colegio_id, anio_activo]
+    );
+    if (!asignatura || asignatura.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este curso' });
+    }
+
+    const [row] = await query(
+      `SELECT notas_json FROM nomina_registros
+       WHERE asignatura_id = ? AND personal_id = ? AND bimestre = ? AND colegio_id = ?`,
+      [cursoId, personalId, bimestre, colegio_id]
+    );
+    const notas_json = (row && row.notas_json) ? (typeof row.notas_json === 'string' ? JSON.parse(row.notas_json) : row.notas_json) : {};
+    res.json({ notas: notas_json, bimestre });
+  } catch (error) {
+    console.error('Error obteniendo notas de nómina:', error);
+    res.status(500).json({ error: 'Error al obtener notas de nómina' });
+  }
+});
+
+/**
+ * POST /api/docente/cursos/:cursoId/nomina
+ * Guardar notas de nómina
+ */
+router.post('/cursos/:cursoId/nomina', async (req, res) => {
+  try {
+    const { cursoId } = req.params;
+    const { bimestre, notas } = req.body;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!cursoId) return res.status(400).json({ error: 'ID de curso es requerido' });
+    const bimestreInt = parseInt(bimestre || '1', 10);
+    if (bimestreInt < 1 || bimestreInt > 4) return res.status(400).json({ error: 'Bimestre debe ser 1, 2, 3 o 4' });
+
+    const asignatura = await query(
+      `SELECT a.* FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [cursoId, personalId, colegio_id, anio_activo]
+    );
+    if (!asignatura || asignatura.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este curso' });
+    }
+
+    const notasJson = typeof notas === 'object' ? JSON.stringify(notas) : (notas || '{}');
+    await execute(
+      `INSERT INTO nomina_registros (asignatura_id, personal_id, bimestre, notas_json, colegio_id)
+       VALUES (?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE notas_json = VALUES(notas_json), updated_at = CURRENT_TIMESTAMP`,
+      [cursoId, personalId, bimestreInt, notasJson, colegio_id]
+    );
+    res.json({ ok: true, mensaje: 'Notas guardadas correctamente' });
+  } catch (error) {
+    console.error('Error guardando notas de nómina:', error);
+    res.status(500).json({ error: 'Error al guardar notas de nómina' });
+  }
+});
+
+/**
+ * DELETE /api/docente/cursos/:cursoId/nomina
+ * Limpiar todas las notas de nómina de un bimestre
+ */
+router.delete('/cursos/:cursoId/nomina', async (req, res) => {
+  try {
+    const { cursoId } = req.params;
+    const bimestre = parseInt(req.query.bimestre || '1', 10);
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!cursoId) return res.status(400).json({ error: 'ID de curso es requerido' });
+    if (bimestre < 1 || bimestre > 4) return res.status(400).json({ error: 'Bimestre debe ser 1, 2, 3 o 4' });
+
+    const asignatura = await query(
+      `SELECT a.id FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [cursoId, personalId, colegio_id, anio_activo]
+    );
+    if (!asignatura || asignatura.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este curso' });
+    }
+
+    await execute(
+      `INSERT INTO nomina_registros (asignatura_id, personal_id, bimestre, notas_json, colegio_id)
+       VALUES (?, ?, ?, '{}', ?)
+       ON DUPLICATE KEY UPDATE notas_json = '{}', updated_at = CURRENT_TIMESTAMP`,
+      [cursoId, personalId, bimestre, colegio_id]
+    );
+    res.json({ ok: true, mensaje: 'Notas limpiadas correctamente' });
+  } catch (error) {
+    console.error('Error limpiando notas de nómina:', error);
+    res.status(500).json({ error: 'Error al limpiar notas de nómina' });
+  }
+});
+
+/**
  * GET /api/docente/cursos/:cursoId/alumnos/:alumnoId/estrellas
  * Obtener historial de estrellas de un alumno
  */
