@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import { normalizeStaticFileUrl } from '../../config/staticFiles';
@@ -26,6 +28,47 @@ function AdminComunicados() {
   });
   const [archivoSeleccionado, setArchivoSeleccionado] = useState(null);
   const [archivoActual, setArchivoActual] = useState(null);
+  const quillRefContenido = useRef(null);
+
+  useEffect(() => {
+    if (!mostrarModal || !quillRefContenido.current) return;
+    const timeoutId = setTimeout(() => {
+      const quill = quillRefContenido.current?.getEditor();
+      if (!quill) return;
+      const toolbar = quill.getModule('toolbar');
+      if (!toolbar) return;
+      toolbar.addHandler('image', () => {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+        input.onchange = async () => {
+          const file = input.files[0];
+          if (!file || file.size > 5 * 1024 * 1024) {
+            Swal.fire('Error', 'La imagen no puede ser mayor a 5MB', 'error');
+            return;
+          }
+          if (!file.type.startsWith('image/')) {
+            Swal.fire('Error', 'Solo se permiten imágenes', 'error');
+            return;
+          }
+          try {
+            const formData = new FormData();
+            formData.append('imagen', file);
+            const res = await api.post('/docente/mensajes/subir-imagen', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+            const url = `${api.defaults.baseURL.replace('/api', '')}${res.data.url}`;
+            const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 };
+            quill.insertEmbed(range.index, 'image', url);
+            quill.setSelection(range.index + 1);
+          } catch (e) {
+            Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+          }
+        };
+      });
+    }, 200);
+    return () => clearTimeout(timeoutId);
+  }, [mostrarModal]);
+
   const [pagination, setPagination] = useState({
     total: 0,
     page: 1,
@@ -592,12 +635,29 @@ function AdminComunicados() {
                 </div>
                 <div className="form-group">
                   <label>Contenido</label>
-                  <textarea
-                    value={formulario.contenido}
-                    onChange={(e) => setFormulario({...formulario, contenido: e.target.value})}
-                    rows="6"
-                    className="form-input"
-                    placeholder="Contenido del comunicado..."
+                  <ReactQuill
+                    ref={quillRefContenido}
+                    theme="snow"
+                    value={formulario.contenido || ''}
+                    onChange={(value) => setFormulario({ ...formulario, contenido: value })}
+                    placeholder="Contenido del comunicado (negrita, viñetas, colores, etc.)..."
+                    modules={{
+                      toolbar: [
+                        [{ header: [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ list: 'ordered' }, { list: 'bullet' }],
+                        [{ color: [] }, { background: [] }],
+                        [{ align: [] }],
+                        ['link', 'image'],
+                        ['clean']
+                      ]
+                    }}
+                    formats={[
+                      'header', 'bold', 'italic', 'underline', 'strike',
+                      'list', 'bullet', 'color', 'background', 'align',
+                      'link', 'image'
+                    ]}
+                    style={{ minHeight: '180px', marginBottom: '3rem' }}
                   />
                 </div>
                 <div className="form-group">
