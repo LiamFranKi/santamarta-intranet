@@ -204,14 +204,15 @@ function Dashboard() {
   const fmt = (n) => (n == null || n === '' ? '—' : typeof n === 'number' ? n.toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : String(n));
   const fmtMonto = (n, moneda = stats?.moneda || 'S/') => (n == null || n === '' ? '—' : `${moneda} ${parseFloat(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 
+  const anio = stats?.anio_activo ?? '—';
   const cards = [
     { key: 'grados', title: 'Total Grados', icon: '📚', value: loadingStats ? '—' : fmt(stats?.total_grados), color: coloresPasteles[0] },
     { key: 'trabajadores', title: 'Total Trabajadores', icon: '👥', value: loadingStats ? '—' : fmt(stats?.total_trabajadores), color: coloresPasteles[1] },
     { key: 'alumnos', title: 'Total Alumnos', icon: '👨‍🎓', value: loadingStats ? '—' : fmt(stats?.total_alumnos), color: coloresPasteles[2] },
     { key: 'apoderados', title: 'Total Apoderados', icon: '👨‍👩‍👧‍👦', value: loadingStats ? '—' : fmt(stats?.total_apoderados), color: coloresPasteles[3] },
-    { key: 'presupuesto', title: 'Presupuesto Anual (Año Activo)', icon: '📋', value: loadingStats ? '—' : (stats?.presupuesto_anual != null ? fmtMonto(stats.presupuesto_anual) : '—'), color: coloresPasteles[4] },
-    { key: 'ingresos', title: 'Total Ingresos (Año Activo)', icon: '💰', value: loadingStats ? '—' : fmtMonto(stats?.total_ingresos), color: coloresPasteles[5] },
-    { key: 'deuda', title: 'Total Deuda (Año Activo)', icon: '⚠️', value: loadingStats ? '—' : fmtMonto(stats?.total_deuda), color: coloresPasteles[6] },
+    { key: 'presupuesto', title: `Presupuesto Anual (${anio})`, icon: '📋', value: loadingStats ? '—' : (stats?.presupuesto_anual != null ? fmtMonto(stats.presupuesto_anual) : '—'), color: coloresPasteles[4] },
+    { key: 'ingresos', title: `Total Ingresos (${anio})`, icon: '💰', value: loadingStats ? '—' : fmtMonto(stats?.total_ingresos), color: coloresPasteles[5] },
+    { key: 'deuda', title: `Total Deuda (${anio})`, icon: '⚠️', value: loadingStats ? '—' : fmtMonto(stats?.total_deuda), color: coloresPasteles[6] },
     { key: 'deudas_ant', title: 'Deudas Anteriores', icon: '📜', value: loadingStats ? '—' : fmtMonto(stats?.deudas_anteriores), color: coloresPasteles[7] },
   ];
 

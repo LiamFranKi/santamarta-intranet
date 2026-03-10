@@ -48,6 +48,7 @@ router.use(requireUserType('ADMINISTRADOR'));
 /**
  * GET /api/admin/dashboard
  * Estadísticas para el dashboard del administrador (año activo)
+ * Total Alumnos/Apoderados: solo los que han pagado matrícula y NO están retirados.
  */
 router.get('/dashboard', async (req, res) => {
   try {
@@ -57,9 +58,26 @@ router.get('/dashboard', async (req, res) => {
       'SELECT anio_activo, total_pensiones, moneda FROM colegios WHERE id = ? LIMIT 1',
       [colegio_id]
     );
-    const anioActivo = colegio?.anio_activo || new Date().getFullYear();
+    const anioActivo = parseInt(colegio?.anio_activo || new Date().getFullYear(), 10);
     const totalPensiones = parseInt(colegio?.total_pensiones || 10);
     const moneda = colegio?.moneda || 'S/';
+
+    // Matrículas del año activo: pagaron matrícula, NO retirados (estado 0 o 4)
+    const matriculasPagadas = await query(
+      `SELECT m.id, m.alumno_id, c.pension, c.matricula
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN costos c ON c.id = m.costo_id
+       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)
+         AND EXISTS (
+           SELECT 1 FROM pagos p
+           WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
+             AND p.tipo = 0 AND p.estado_pago = 'CANCELADO'
+         )`,
+      [colegio_id, anioActivo, colegio_id]
+    );
+    const matIdsPagadas = (matriculasPagadas || []).map(m => m.id);
+    const alumnoIdsPagados = [...new Set((matriculasPagadas || []).map(m => m.alumno_id))];
 
     // Total Grados (grupos del año activo)
     const [rGrados] = await query(
@@ -67,77 +85,60 @@ router.get('/dashboard', async (req, res) => {
       [colegio_id, anioActivo]
     );
 
-    // Total Trabajadores (personal)
+    // Total Trabajadores
     const [rTrabajadores] = await query(
       'SELECT COUNT(*) as total FROM personal WHERE colegio_id = ?',
       [colegio_id]
     );
 
-    // Total Alumnos (con matrícula en año activo)
-    const [rAlumnos] = await query(
-      `SELECT COUNT(DISTINCT m.alumno_id) as total
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
-      [colegio_id, anioActivo]
-    );
+    // Total Alumnos: solo con matrícula pagada y no retirados
+    const totalAlumnos = alumnoIdsPagados.length;
 
-    // Total Apoderados (con hijos matriculados en año activo)
-    const [rApoderados] = await query(
-      `SELECT COUNT(DISTINCT f.apoderado_id) as total
-       FROM familias f
-       INNER JOIN matriculas m ON m.alumno_id = f.alumno_id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
-      [colegio_id, anioActivo]
-    );
-
-    // Presupuesto Anual: no existe en BD, se devuelve null para mostrar "—"
-    const presupuestoAnual = null;
-
-    // Total Ingresos (año activo): pagos CANCELADO de matrículas del año
-    const [rIngresos] = await query(
-      `SELECT COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as total
-       FROM pagos p
-       INNER JOIN matriculas m ON m.id = p.matricula_id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-         AND g.anio = ?`,
-      [colegio_id, anioActivo]
-    );
-
-    // Total Deuda (año activo): suma de pensiones pendientes/vencidas del año
-    const matriculasAnio = await query(
-      `SELECT m.id, c.pension, c.matricula
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       INNER JOIN costos c ON c.id = m.costo_id
-       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
-      [colegio_id, anioActivo]
-    );
-    let totalDeuda = 0;
-    for (const mat of matriculasAnio || []) {
-      const pagosCancelados = await query(
-        `SELECT COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as pagado
-         FROM pagos p
-         WHERE p.matricula_id = ? AND p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND (p.tipo = 0 OR (p.tipo = 1 AND p.nro_pago <= ?))`,
-        [mat.id, colegio_id, totalPensiones]
+    // Total Apoderados: padres de alumnos matriculados y pagados del año actual
+    let totalApoderados = 0;
+    if (alumnoIdsPagados.length > 0) {
+      const ph = alumnoIdsPagados.map(() => '?').join(',');
+      const [rAp] = await query(
+        `SELECT COUNT(DISTINCT f.apoderado_id) as total
+         FROM familias f
+         WHERE f.alumno_id IN (${ph})`,
+        alumnoIdsPagados
       );
-      const pension = parseFloat(mat.pension || 0);
-      const matriculaCosto = parseFloat(mat.matricula || 0);
-      const totalPagar = matriculaCosto + (pension * totalPensiones);
-      const pagado = parseFloat((pagosCancelados && pagosCancelados[0]?.pagado) || 0);
-      totalDeuda += Math.max(0, totalPagar - pagado);
+      totalApoderados = rAp?.total ?? 0;
     }
 
-    // Deudas Anteriores: matrículas de años anteriores con saldo pendiente
+    // Presupuesto Anual (año activo): matrícula + 10 pensiones por cada alumno pagado
+    let presupuestoAnual = 0;
+    for (const mat of matriculasPagadas || []) {
+      const pension = parseFloat(mat.pension || 0);
+      const matriculaCosto = parseFloat(mat.matricula || 0);
+      presupuestoAnual += matriculaCosto + (pension * totalPensiones);
+    }
+
+    // Total Ingresos (año activo): todo lo ya pagado (matrículas + pensiones) de alumnos pagados
+    let totalIngresos = 0;
+    if (matIdsPagadas.length > 0) {
+      const ph = matIdsPagadas.map(() => '?').join(',');
+      const [rIngresos] = await query(
+        `SELECT COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as total
+         FROM pagos p
+         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+           AND p.matricula_id IN (${ph})`,
+        [colegio_id, ...matIdsPagadas]
+      );
+      totalIngresos = parseFloat(rIngresos?.total || 0);
+    }
+
+    // Total Deuda (año activo): Presupuesto - Ingresos
+    const totalDeuda = Math.max(0, presupuestoAnual - totalIngresos);
+
+    // Deudas Anteriores: años >= 2025 y < año activo, solo lo no pagado
     const matriculasAnteriores = await query(
-      `SELECT m.id, c.pension, c.matricula
+      `SELECT m.id, c.pension, c.matricula, g.anio
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN costos c ON c.id = m.costo_id
-       WHERE m.colegio_id = ? AND g.anio < ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE m.colegio_id = ? AND g.anio >= 2025 AND g.anio < ? AND (m.estado = 0 OR m.estado = 4)`,
       [colegio_id, anioActivo]
     );
     let deudasAnteriores = 0;
@@ -158,10 +159,10 @@ router.get('/dashboard', async (req, res) => {
     res.json({
       total_grados: rGrados?.total ?? 0,
       total_trabajadores: rTrabajadores?.total ?? 0,
-      total_alumnos: rAlumnos?.total ?? 0,
-      total_apoderados: rApoderados?.total ?? 0,
+      total_alumnos: totalAlumnos,
+      total_apoderados: totalApoderados,
       presupuesto_anual: presupuestoAnual,
-      total_ingresos: parseFloat(rIngresos?.total || 0),
+      total_ingresos: totalIngresos,
       total_deuda: totalDeuda,
       deudas_anteriores: deudasAnteriores,
       moneda,
