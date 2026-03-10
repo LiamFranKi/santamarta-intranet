@@ -1594,12 +1594,14 @@ function DocenteCursos() {
     const margin = 12;
     const docenteNombre = user?.apellidos ? `${user.apellidos}, ${user.nombres}` : `${[user?.apellido_paterno, user?.apellido_materno].filter(Boolean).join(' ')}, ${user?.nombres || ''}`.trim();
 
-    const colNombresWidth = 62;
+    // Tabla ~23% más ancha para ocupar casi todo el ancho de hoja
+    const usableWidth = pageWidth - 2 * margin;
+    const colNumWidth = 12;
+    const colNombresWidth = 76;
     const numCols = 25;
-    const colCuadroWidth = 6;
-    const colNumWidth = 10;
+    const colCuadroWidth = (usableWidth - colNumWidth - colNombresWidth) / numCols;
     const totalTableWidth = colNumWidth + colNombresWidth + numCols * colCuadroWidth;
-    const leftOffset = (pageWidth - totalTableWidth) / 2;
+    const leftOffset = margin;
 
     // Logo en esquina superior derecha, más arriba (y=4)
     const logoUrl = process.env.REACT_APP_API_URL
@@ -1666,38 +1668,42 @@ function DocenteCursos() {
 
     doc.setTextColor(0, 0, 0);
 
-    // Cabecera: UNA sola fila azul (Nº + Apellidos + zona cuadraditos todo azul)
+    // Cabecera: UNA sola fila azul - texto centrado horizontal y vertical
     let y = 30;
+    const headerHeight = 7;
     doc.setFillColor(74, 131, 193);
-    doc.rect(leftOffset, y - 4, totalTableWidth, 6, 'F');
+    doc.rect(leftOffset, y - 5, totalTableWidth, headerHeight, 'F');
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text('Nº', leftOffset + colNumWidth / 2, y + 1, { align: 'center' });
-    doc.text('Apellidos y Nombres', leftOffset + colNumWidth + colNombresWidth / 2, y + 1, { align: 'center' });
+    const headerTextY = y - 5 + headerHeight / 2 + 1.2; // centrado vertical en la barra
+    doc.text('Nº', leftOffset + colNumWidth / 2, headerTextY, { align: 'center' });
+    doc.text('Apellidos y Nombres', leftOffset + colNumWidth + colNombresWidth / 2, headerTextY, { align: 'center' });
     doc.setTextColor(0, 0, 0);
 
+    const rowHeight = 5.5;
+    const cuadroHeight = 4.2;
     y = 38;
     alumnosNomina.forEach((alumno, idx) => {
-      if (y > pageHeight - 18) {
+      if (y > pageHeight - 20) {
         doc.addPage('landscape', 'a4');
         y = 12;
       }
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
+      doc.setFontSize(9);
       doc.setFillColor(74, 131, 193);
-      doc.rect(leftOffset, y - 0.5, colNumWidth, 4.5, 'F');
+      doc.rect(leftOffset, y - 0.5, colNumWidth, cuadroHeight + 0.5, 'F');
       doc.setTextColor(255, 255, 255);
-      doc.text(String(idx + 1), leftOffset + colNumWidth / 2, y + 3, { align: 'center' });
+      doc.text(String(idx + 1), leftOffset + colNumWidth / 2, y + cuadroHeight / 2 + 1, { align: 'center' });
       doc.setTextColor(0, 0, 0);
       let x = leftOffset + colNumWidth;
-      doc.text((alumno.nombre_completo || '').substring(0, 40), x + 2, y + 3);
+      doc.text((alumno.nombre_completo || '').substring(0, 45), x + 2, y + cuadroHeight / 2 + 1);
       x += colNombresWidth;
       for (let c = 0; c < numCols; c++) {
-        doc.rect(x, y, colCuadroWidth - 0.2, 4, 'S');
+        doc.rect(x, y, colCuadroWidth - 0.2, cuadroHeight, 'S');
         x += colCuadroWidth;
       }
-      y += 5;
+      y += rowHeight;
     });
 
     const nombreArchivo = `Nomina_${cursoParaNomina.curso_nombre.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
