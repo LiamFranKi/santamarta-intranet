@@ -76,6 +76,12 @@ function DocenteTutoria() {
   const [loadingConducta, setLoadingConducta] = useState(false);
   const [guardandoConducta, setGuardandoConducta] = useState(false);
 
+  // Estados para modal Ver Horario (del grupo, como lo ve el alumno)
+  const [mostrarModalHorario, setMostrarModalHorario] = useState(false);
+  const [grupoParaHorario, setGrupoParaHorario] = useState(null);
+  const [horarioGrupo, setHorarioGrupo] = useState([]);
+  const [loadingHorario, setLoadingHorario] = useState(false);
+
   // Estados para modal de mensaje a alumno individual
   const [mostrarModalMensajeAlumno, setMostrarModalMensajeAlumno] = useState(false);
   const [alumnoParaMensaje, setAlumnoParaMensaje] = useState(null); // Alumno seleccionado para enviar mensaje
@@ -413,6 +419,9 @@ function DocenteTutoria() {
       case 'registrar-conducta':
         await handleAbrirConducta(grupo);
         break;
+      case 'ver-horario':
+        await handleVerHorarioGrupo(grupo);
+        break;
       default:
         break;
     }
@@ -723,6 +732,180 @@ function DocenteTutoria() {
     setMostrarModalConducta(true);
     setConductaCiclo(1);
     await cargarConducta(grupo.id, 1);
+  };
+
+  // Ver Horario del grupo (como lo ve el alumno)
+  const handleVerHorarioGrupo = async (grupo) => {
+    setGrupoParaHorario(grupo);
+    setMostrarModalHorario(true);
+    setLoadingHorario(true);
+    setHorarioGrupo([]);
+    try {
+      const res = await api.get(`/docente/tutoria/grupos/${grupo.id}/horario`);
+      const horariosRecibidos = res.data.horario || [];
+      const dias = horariosRecibidos.map(c => typeof c.dia === 'number' ? c.dia : null).filter(d => d !== null);
+      const minDia = dias.length ? Math.min(...dias) : 1;
+      const maxDia = dias.length ? Math.max(...dias) : 5;
+      const usaCeroCuatro = minDia === 0 && maxDia <= 4;
+      const normalizado = horariosRecibidos.map(c => ({
+        ...c,
+        diaNormalizado: usaCeroCuatro ? (typeof c.dia === 'number' ? c.dia + 1 : c.dia) : c.dia
+      }));
+      setHorarioGrupo(normalizado);
+    } catch (error) {
+      console.error('Error cargando horario:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudo cargar el horario' });
+      setHorarioGrupo([]);
+    } finally {
+      setLoadingHorario(false);
+    }
+  };
+
+  const horarioHoraAMinutos = (hora) => {
+    if (!hora) return 0;
+    const h = hora.toUpperCase().trim();
+    if (h.includes('AM') || h.includes('PM')) {
+      const partes = hora.split(':');
+      if (partes.length < 2) return 0;
+      let hr = parseInt(partes[0], 10);
+      const minStr = partes[1].replace(/[^0-9]/g, '');
+      const min = parseInt(minStr || 0, 10);
+      if (h.includes('PM') && hr !== 12) hr += 12;
+      if (h.includes('AM') && hr === 12) hr = 0;
+      return hr * 60 + min;
+    }
+    const partes = hora.split(':');
+    if (partes.length < 2) return 0;
+    const hr = parseInt(partes[0], 10);
+    const min = parseInt(partes[1] ? partes[1].split(' ')[0] : 0, 10);
+    return (isNaN(hr) || isNaN(min)) ? 0 : hr * 60 + min;
+  };
+
+  const horarioObtenerBloquesUnicos = (data) => {
+    if (!data || data.length === 0) return [];
+    const bloques = data.map(c => ({
+      inicio: c.inicio || c.hora_inicio || '',
+      fin: c.fin || c.hora_final || ''
+    })).filter(b => b.inicio && b.fin);
+    const unicos = {};
+    bloques.forEach(b => {
+      const key = `${b.inicio}-${b.fin}`;
+      if (!unicos[key]) unicos[key] = b;
+    });
+    return Object.values(unicos).sort((a, b) => horarioHoraAMinutos(a.inicio) - horarioHoraAMinutos(b.inicio));
+  };
+
+  const horarioObtenerClase = (dia, inicio, fin, data) => {
+    if (!data || data.length === 0) return null;
+    return data.find(c => {
+      const d = c.diaNormalizado ?? c.dia ?? 0;
+      const i = c.inicio || c.hora_inicio || '';
+      const f = c.fin || c.hora_final || '';
+      return d === dia && i === inicio && f === fin;
+    }) || null;
+  };
+
+  const horarioFormatearClase = (clase) => {
+    if (!clase) return null;
+    const t = clase.titulo || '';
+    const doc = clase.docente_nombre || '';
+    if (!t) return null;
+    return doc ? `${t} - ${doc}` : t;
+  };
+
+  const horarioColorPalette = ['#FFF9C4','#BBDEFB','#F3E5F5','#C8E6C9','#E0F7FA','#FFF3E0','#FCE4EC','#E1F5FE','#F1F8E9','#FFEBEE','#E8EAF6','#E0F2F1','#E1BEE7','#FFE0B2','#FFCCBC','#D1C4E9','#F8BBD0','#B2DFDB','#C5E1A5','#FFE082'];
+  const horarioHash = (str) => {
+    let h = 0;
+    const s = (str || '').trim().toLowerCase();
+    for (let i = 0; i < s.length; i++) {
+      h = ((h << 5) - h) + s.charCodeAt(i);
+      h = h ^ (h >> 6);
+    }
+    return Math.abs(h);
+  };
+  const horarioGetColor = (titulo) => titulo && titulo.trim() ? horarioColorPalette[horarioHash(titulo) % horarioColorPalette.length] : '#ffffff';
+
+  const exportarHorarioGrupoPDF = () => {
+    if (!horarioGrupo || horarioGrupo.length === 0) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay horario para exportar' });
+      return;
+    }
+    const doc = new jsPDF('l', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const contentWidth = pageWidth - 2 * margin;
+    let y = margin;
+
+    doc.setFillColor(59, 130, 246);
+    doc.rect(0, 0, pageWidth, 28, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    const tituloGrupo = grupoParaHorario ? `${grupoParaHorario.grado}° ${grupoParaHorario.seccion} - ${grupoParaHorario.nivel_nombre}` : 'Horario';
+    doc.text(`HORARIO DE CLASES - ${tituloGrupo}`, margin + contentWidth / 2, 14, { align: 'center' });
+    doc.setFontSize(10);
+    doc.text('Año Académico Actual', margin + contentWidth / 2, 22, { align: 'center' });
+    y = 34;
+
+    const bloques = horarioObtenerBloquesUnicos(horarioGrupo);
+    const diasSemana = [
+      { id: 1, abrev: 'LUN' },
+      { id: 2, abrev: 'MAR' },
+      { id: 3, abrev: 'MIÉ' },
+      { id: 4, abrev: 'JUE' },
+      { id: 5, abrev: 'VIE' }
+    ];
+    const colWidth = contentWidth / 6;
+    const rowH = 14;
+
+    doc.setFillColor(30, 64, 175);
+    doc.rect(margin, y, colWidth, rowH, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.text('HORA', margin + colWidth / 2, y + 9, { align: 'center' });
+    diasSemana.forEach((d, i) => {
+      doc.rect(margin + colWidth * (i + 1), y, colWidth, rowH, 'F');
+      doc.text(d.abrev, margin + colWidth * (i + 1) + colWidth / 2, y + 9, { align: 'center' });
+    });
+    y += rowH;
+
+    doc.setTextColor(30, 41, 59);
+    bloques.forEach((bloque) => {
+      const clase1 = horarioObtenerClase(1, bloque.inicio, bloque.fin, horarioGrupo);
+      const clase2 = horarioObtenerClase(2, bloque.inicio, bloque.fin, horarioGrupo);
+      const clase3 = horarioObtenerClase(3, bloque.inicio, bloque.fin, horarioGrupo);
+      const clase4 = horarioObtenerClase(4, bloque.inicio, bloque.fin, horarioGrupo);
+      const clase5 = horarioObtenerClase(5, bloque.inicio, bloque.fin, horarioGrupo);
+
+      doc.setDrawColor(220, 220, 220);
+      doc.rect(margin, y, colWidth, rowH, 'S');
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text(`${bloque.inicio || ''}\n${bloque.fin || ''}`, margin + colWidth / 2, y + rowH / 2 + 1, { align: 'center' });
+
+      [clase1, clase2, clase3, clase4, clase5].forEach((clase, idx) => {
+        const col = margin + colWidth * (idx + 1);
+        const colorHex = clase ? horarioGetColor(clase.titulo) : '#ffffff';
+        const rgb = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(colorHex);
+        if (rgb) {
+          doc.setFillColor(parseInt(rgb[1], 16), parseInt(rgb[2], 16), parseInt(rgb[3], 16));
+          doc.rect(col, y, colWidth, rowH, 'F');
+        }
+        doc.setDrawColor(200, 200, 200);
+        doc.rect(col, y, colWidth, rowH, 'S');
+        if (clase) {
+          doc.setTextColor(30, 41, 59);
+          doc.setFontSize(7);
+          const texto = horarioFormatearClase(clase) || '';
+          doc.text(doc.splitTextToSize(texto, colWidth - 4), col + colWidth / 2, y + 4, { align: 'center', maxWidth: colWidth - 4 });
+        }
+      });
+      y += rowH;
+    });
+
+    doc.save(`Horario_${(tituloGrupo || 'Grupo').replace(/\s+/g, '_')}_${Date.now()}.pdf`);
+    Swal.fire({ icon: 'success', title: 'PDF generado', text: 'El horario se exportó correctamente', timer: 2000, showConfirmButton: false });
   };
 
   const cargarConducta = async (grupoId, ciclo) => {
@@ -1752,6 +1935,73 @@ function DocenteTutoria() {
         document.body
       )}
 
+      {/* Modal Ver Horario (como lo ve el alumno) */}
+      {mostrarModalHorario && grupoParaHorario && createPortal(
+        <div className="modal-overlay-qr" onClick={() => { setMostrarModalHorario(false); setGrupoParaHorario(null); setHorarioGrupo([]); }} style={{ zIndex: 100000 }}>
+          <div className="modal-content-horario" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '95%', maxHeight: '95vh', overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.25rem' }}>📅 Horario - {grupoParaHorario.grado}° {grupoParaHorario.seccion} - {grupoParaHorario.nivel_nombre}</h2>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                {horarioGrupo && horarioGrupo.length > 0 && (
+                  <button className="btn-imprimir" onClick={exportarHorarioGrupoPDF} style={{ padding: '8px 16px', fontSize: '14px' }}>📥 Exportar PDF</button>
+                )}
+                <button className="modal-close-qr" onClick={() => { setMostrarModalHorario(false); setGrupoParaHorario(null); setHorarioGrupo([]); }}>×</button>
+              </div>
+            </div>
+            <div style={{ padding: '1rem', minHeight: 200 }}>
+              {loadingHorario ? (
+                <div className="horario-loading" style={{ padding: '2rem', textAlign: 'center' }}>
+                  <div className="loading-spinner">Cargando horario...</div>
+                </div>
+              ) : !horarioGrupo || horarioGrupo.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#6b7280', padding: '2rem' }}>No se encontró horario para este grado</p>
+              ) : (
+                <div className="horario-container" style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
+                  <div className="horario-table-wrapper" style={{ overflowX: 'auto' }}>
+                    <table className="horario-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+                      <thead>
+                        <tr>
+                          <th className="horario-hora-col" style={{ backgroundColor: '#3b82f6', color: 'white', padding: 12, textAlign: 'center', fontWeight: 'bold' }}>Hora</th>
+                          {[{ id: 1, abrev: 'LUNES' }, { id: 2, abrev: 'MARTES' }, { id: 3, abrev: 'MIÉRCOLES' }, { id: 4, abrev: 'JUEVES' }, { id: 5, abrev: 'VIERNES' }].map(d => (
+                            <th key={d.id} className="horario-dia-col" style={{ backgroundColor: '#3b82f6', color: 'white', padding: 12, textAlign: 'center', fontWeight: 'bold' }}>{d.abrev}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {horarioObtenerBloquesUnicos(horarioGrupo).map((bloque, idx) => {
+                          const c1 = horarioObtenerClase(1, bloque.inicio, bloque.fin, horarioGrupo);
+                          const c2 = horarioObtenerClase(2, bloque.inicio, bloque.fin, horarioGrupo);
+                          const c3 = horarioObtenerClase(3, bloque.inicio, bloque.fin, horarioGrupo);
+                          const c4 = horarioObtenerClase(4, bloque.inicio, bloque.fin, horarioGrupo);
+                          const c5 = horarioObtenerClase(5, bloque.inicio, bloque.fin, horarioGrupo);
+                          const renderCelda = (clase) => {
+                            const color = clase ? horarioGetColor(clase.titulo) : 'transparent';
+                            return (
+                              <td key={idx} className={`horario-clase-cell ${!clase ? 'horario-cell-empty' : ''}`} style={{ padding: 10, textAlign: 'center', border: '1px solid #e5e7eb', backgroundColor: color || '#fff' }}>
+                                {clase ? horarioFormatearClase(clase) : ''}
+                              </td>
+                            );
+                          };
+                          return (
+                            <tr key={idx}>
+                              <td className="horario-hora-cell" style={{ padding: 10, fontWeight: 600, border: '1px solid #e5e7eb', backgroundColor: '#f8fafc' }}>{bloque.inicio} - {bloque.fin}</td>
+                              {[c1, c2, c3, c4, c5].map((clase, i) => (
+                                <React.Fragment key={i}>{renderCelda(clase)}</React.Fragment>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
       <div className="docente-tutoria">
         {!selectedGrupo ? (
           <>
@@ -1836,6 +2086,7 @@ function DocenteTutoria() {
                     const opciones = [
                       { id: 'lista-alumnos', label: 'Lista de Alumnos', icon: '📋' },
                       { id: 'cursos-asignados', label: 'Cursos Asignados', icon: '📚' },
+                      { id: 'ver-horario', label: 'Ver Horario', icon: '📅' },
                       { id: 'notas-asistencia', label: 'Ver Notas', icon: '📊' },
                       { id: 'enviar-comunicado', label: 'Enviar Mensaje', icon: '✉️' },
                       { id: 'registrar-asistencia', label: 'Asistencias', icon: '✅' },

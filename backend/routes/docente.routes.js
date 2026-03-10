@@ -6131,6 +6131,89 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId', async (req, re
 });
 
 /**
+ * GET /api/docente/tutoria/grupos/:grupoId/horario
+ * Obtener horario del grupo (igual que lo ve el alumno)
+ */
+router.get('/tutoria/grupos/:grupoId/horario', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    const grupoTutor = await query(
+      `SELECT g.*, n.nombre as nivel_nombre FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+
+    if (!grupoTutor || grupoTutor.length === 0) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+
+    const anioActivoInt = parseInt(anio_activo);
+
+    const horarioCrudo = await query(
+      `SELECT 
+         gh.id,
+         gh.dia,
+         gh.hora_inicio,
+         gh.hora_final,
+         gh.anio,
+         c.nombre AS curso_nombre,
+         gh.descripcion AS descripcion,
+         g.grado,
+         g.seccion,
+         n.nombre AS nivel_nombre,
+         CONCAT(p.nombres, ' ', p.apellidos) AS docente_nombre
+       FROM grupos_horarios gh
+       LEFT JOIN asignaturas a ON a.id = gh.asignatura_id AND a.colegio_id = ?
+       LEFT JOIN grupos g ON g.id = COALESCE(a.grupo_id, gh.grupo_id)
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN cursos c ON c.id = a.curso_id
+       LEFT JOIN personal p ON p.id = COALESCE(a.personal_id, gh.personal_id)
+       WHERE gh.anio = ?
+         AND (
+           (a.grupo_id = ? AND a.colegio_id = ?)
+           OR
+           (gh.grupo_id = ? AND a.id IS NULL)
+         )
+       ORDER BY gh.dia,
+         TIME(STR_TO_DATE(gh.hora_inicio, '%l:%i %p')),
+         COALESCE(TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i:%s')), TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i')))`,
+      [colegio_id, anioActivoInt, grupoId, colegio_id, grupoId]
+    );
+
+    const horario = (horarioCrudo || []).map((row) => {
+      let grupoTexto = '';
+      if (row.nivel_nombre || row.grado || row.seccion) {
+        const gradoTexto = row.grado ? `${row.grado}°` : '';
+        grupoTexto = `${row.nivel_nombre || ''} ${gradoTexto} ${row.seccion || ''}`.trim();
+        if (row.anio) grupoTexto = `${grupoTexto} - ${row.anio}`;
+      }
+      const titulo = row.curso_nombre || row.descripcion || '';
+      return {
+        id: row.id,
+        dia: typeof row.dia === 'number' ? row.dia : parseInt(row.dia || 0, 10),
+        inicio: row.hora_inicio,
+        fin: row.hora_final,
+        anio: row.anio,
+        titulo,
+        grupo: grupoTexto,
+        docente_nombre: row.docente_nombre || ''
+      };
+    });
+
+    res.json({ horario, grupo: grupoTutor[0] });
+  } catch (error) {
+    console.error('Error obteniendo horario del grupo (tutor):', error);
+    res.status(500).json({ error: 'Error al obtener horario' });
+  }
+});
+
+/**
  * GET /api/docente/tutoria/grupos/:grupoId/alumnos
  * Obtener alumnos de un grupo específico del tutor
  */

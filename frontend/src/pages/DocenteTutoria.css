@@ -1814,3 +1814,69 @@
   outline: none;
   border-color: #667eea;
 }
+
+/* Modal Ver Horario (tutor) */
+.modal-overlay-qr {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.modal-content-horario {
+  background: white;
+  border-radius: 12px;
+  width: 100%;
+  padding: 1.5rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+}
+
+.modal-close-qr {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 0.25rem;
+  line-height: 1;
+  border-radius: 8px;
+}
+
+.modal-close-qr:hover {
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.horario-table-wrapper {
+  overflow-x: auto;
+}
+
+.horario-table {
+  border-collapse: collapse;
+}
+
+.horario-table th,
+.horario-table td {
+  border: 1px solid #e5e7eb;
+}
+
+.btn-imprimir {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-imprimir:hover {
+  opacity: 0.9;
+}
