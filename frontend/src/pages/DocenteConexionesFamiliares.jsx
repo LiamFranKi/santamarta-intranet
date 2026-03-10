@@ -330,21 +330,17 @@ function DocenteConexionesFamiliares() {
                 <p><strong>Nivel:</strong> {grupo.nivel_nombre} — {grupo.turno_nombre}</p>
               </div>
               <div className="form-group cf-enviar-a">
-                <label>Enviar mensaje a:</label>
-                <div className="cf-enviar-a-opciones">
-                  <label className="cf-enviar-a-option">
-                    <input type="radio" name="enviar_a" value="todos" checked={enviarA === 'todos'} onChange={() => setEnviarA('todos')} />
-                    <span>👥 Todos (Apoderados y Alumnos)</span>
-                  </label>
-                  <label className="cf-enviar-a-option">
-                    <input type="radio" name="enviar_a" value="apoderados" checked={enviarA === 'apoderados'} onChange={() => setEnviarA('apoderados')} />
-                    <span>👨‍👩‍👧 Solo Apoderados</span>
-                  </label>
-                  <label className="cf-enviar-a-option">
-                    <input type="radio" name="enviar_a" value="alumnos" checked={enviarA === 'alumnos'} onChange={() => setEnviarA('alumnos')} />
-                    <span>🎓 Solo Alumnos</span>
-                  </label>
-                </div>
+                <label htmlFor="enviar-a-select">Enviar mensaje a:</label>
+                <select
+                  id="enviar-a-select"
+                  value={enviarA}
+                  onChange={(e) => setEnviarA(e.target.value)}
+                  className="cf-enviar-a-select"
+                >
+                  <option value="todos">👥 Todos (Apoderados y Alumnos)</option>
+                  <option value="apoderados">👨‍👩‍👧 Solo Apoderados</option>
+                  <option value="alumnos">🎓 Solo Alumnos</option>
+                </select>
               </div>
               <div className="form-group">
                 <label htmlFor="asunto-cf">Asunto:</label>

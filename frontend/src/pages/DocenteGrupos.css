@@ -1301,37 +1301,24 @@
   font-weight: 700;
 }
 
-/* Conexiones Familiares: selector Enviar a */
-.cf-enviar-a .cf-enviar-a-opciones {
-  display: flex;
-  flex-direction: column;
-  gap: 0.6rem;
-}
-
-.cf-enviar-a-option {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.6rem 1rem;
-  background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
-  border: 2px solid #e2e8f0;
-  border-radius: 10px;
+/* Conexiones Familiares: selector Enviar a (combobox) */
+.cf-enviar-a-select {
+  width: 100%;
+  max-width: 320px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.95rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
   cursor: pointer;
-  transition: all 0.2s;
+  color: #374151;
 }
 
-.cf-enviar-a-option:hover {
+.cf-enviar-a-select:hover,
+.cf-enviar-a-select:focus {
   border-color: #4a83c1;
-  background: linear-gradient(145deg, #eff6ff 0%, #dbeafe 100%);
-}
-
-.cf-enviar-a-option input:checked + span {
-  font-weight: 700;
-  color: #1e40af;
-}
-
-.cf-enviar-a-option input[type="radio"] {
-  accent-color: #4a83c1;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(74, 131, 193, 0.2);
 }
 
 .mensaje-info-text {
