@@ -1594,7 +1594,14 @@ function DocenteCursos() {
     const margin = 12;
     const docenteNombre = user?.apellidos ? `${user.apellidos}, ${user.nombres}` : `${[user?.apellido_paterno, user?.apellido_materno].filter(Boolean).join(' ')}, ${user?.nombres || ''}`.trim();
 
-    // Logo en esquina superior derecha
+    const colNombresWidth = 62;
+    const numCols = 25;
+    const colCuadroWidth = 6;
+    const colNumWidth = 10;
+    const totalTableWidth = colNumWidth + colNombresWidth + numCols * colCuadroWidth;
+    const leftOffset = (pageWidth - totalTableWidth) / 2;
+
+    // Logo en esquina superior derecha, más arriba (y=4)
     const logoUrl = process.env.REACT_APP_API_URL
       ? `${process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '')}/assets/logos/logo.png`
       : `${window.location.origin}/assets/logos/logo.png`;
@@ -1612,85 +1619,65 @@ function DocenteCursos() {
       canvas.height = logoImg.height;
       ctx.drawImage(logoImg, 0, 0);
       const logoData = canvas.toDataURL('image/png');
-      const logoW = 18;
+      const logoW = 16;
       const logoH = (logoImg.height / logoImg.width) * logoW;
-      doc.addImage(logoData, 'PNG', pageWidth - margin - logoW, margin, logoW, logoH);
+      doc.addImage(logoData, 'PNG', pageWidth - margin - logoW, 4, logoW, logoH);
     } catch (e) {
       console.warn('Logo no cargado para PDF:', e);
     }
 
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('REGISTRO ACADÉMICO', margin, 14);
+    doc.text('REGISTRO ACADÉMICO', pageWidth / 2, 12, { align: 'center' });
 
-    // Fila con CURSO, GRADO, DOCENTE en cajas con color
-    const filaY = 22;
-    let xActual = margin;
-    const altoCaja = 7;
-    const sep = 2;
+    // CURSO, GRADO, DOCENTE - padding 3mm, centrado, más compacto
+    const filaY = 20;
+    const altoCaja = 6;
+    const pad = 3;
+    const anchoLabel = 18;
+    const anchoValor = 36;
 
-    doc.setFillColor(74, 131, 193);
-    doc.rect(xActual, filaY - 5, 45, altoCaja, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text('CURSO:', xActual + 2, filaY + 0.5);
-    xActual += 47;
-    doc.setFillColor(240, 247, 255);
-    doc.rect(xActual, filaY - 5, 50, altoCaja, 'F');
-    doc.setTextColor(30, 64, 175);
-    doc.setFont('helvetica', 'normal');
-    doc.text((cursoParaNomina.curso_nombre || '').substring(0, 28), xActual + 2, filaY + 0.5);
-    xActual += 52;
-
-    doc.setFillColor(16, 185, 129);
-    doc.rect(xActual, filaY - 5, 38, altoCaja, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.text('GRADO:', xActual + 2, filaY + 0.5);
-    xActual += 40;
-    doc.setFillColor(236, 253, 245);
-    doc.rect(xActual, filaY - 5, 42, altoCaja, 'F');
-    doc.setTextColor(6, 95, 70);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${cursoParaNomina.grado}° ${cursoParaNomina.seccion} ${cursoParaNomina.nivel_nombre || ''}`.substring(0, 22), xActual + 2, filaY + 0.5);
-    xActual += 44;
-
-    doc.setFillColor(139, 92, 246);
-    doc.rect(xActual, filaY - 5, 40, altoCaja, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.text('DOCENTE:', xActual + 2, filaY + 0.5);
-    xActual += 42;
-    doc.setFillColor(245, 243, 255);
-    doc.rect(xActual, filaY - 5, Math.min(65, pageWidth - xActual - margin), altoCaja, 'F');
-    doc.setTextColor(91, 33, 182);
-    doc.setFont('helvetica', 'normal');
-    doc.text((docenteNombre || '').substring(0, 38), xActual + 2, filaY + 0.5);
+    const bloques = [
+      { label: 'CURSO:', valor: (cursoParaNomina.curso_nombre || '').substring(0, 24), colorBg: [74, 131, 193], colorValor: [30, 64, 175] },
+      { label: 'GRADO:', valor: `${cursoParaNomina.grado}° ${cursoParaNomina.seccion} ${cursoParaNomina.nivel_nombre || ''}`.substring(0, 18), colorBg: [16, 185, 129], colorValor: [6, 95, 70] },
+      { label: 'DOCENTE:', valor: (docenteNombre || '').substring(0, 32), colorBg: [139, 92, 246], colorValor: [91, 33, 182] }
+    ];
+    const totalBloquesWidth = bloques.length * (anchoLabel + anchoValor + pad * 4);
+    let xBloque = (pageWidth - totalBloquesWidth) / 2;
+    bloques.forEach((b) => {
+      const wLabel = anchoLabel + pad * 2;
+      const wValor = anchoValor + pad * 2;
+      doc.setFillColor(...b.colorBg);
+      doc.rect(xBloque, filaY - 4, wLabel, altoCaja, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text(b.label, xBloque + wLabel / 2, filaY + 0.5, { align: 'center' });
+      xBloque += wLabel;
+      doc.setFillColor(248, 250, 252);
+      doc.rect(xBloque, filaY - 4, wValor, altoCaja, 'F');
+      doc.setDrawColor(220, 220, 220);
+      doc.rect(xBloque, filaY - 4, wValor, altoCaja, 'S');
+      doc.setTextColor(...b.colorValor);
+      doc.setFont('helvetica', 'normal');
+      doc.text(b.valor, xBloque + wValor / 2, filaY + 0.5, { align: 'center' });
+      xBloque += wValor + pad;
+    });
 
     doc.setTextColor(0, 0, 0);
 
-    const colNombresWidth = 65;
-    const numCols = 20;
-    const colCuadroWidth = 7.5;
-
-    let y = 36;
+    // Cabecera: UNA sola fila azul (Nº + Apellidos + zona cuadraditos todo azul)
+    let y = 30;
     doc.setFillColor(74, 131, 193);
-    doc.rect(margin, y - 4, 10, 6, 'F');
-    doc.rect(margin + 10, y - 4, colNombresWidth, 6, 'F');
+    doc.rect(leftOffset, y - 4, totalTableWidth, 6, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    doc.text('Nº', margin + 3, y + 1);
-    doc.text('Apellidos y Nombres', margin + 14, y + 1);
+    doc.text('Nº', leftOffset + colNumWidth / 2, y + 1, { align: 'center' });
+    doc.text('Apellidos y Nombres', leftOffset + colNumWidth + colNombresWidth / 2, y + 1, { align: 'center' });
     doc.setTextColor(0, 0, 0);
-    let x = margin + 10 + colNombresWidth;
-    for (let c = 0; c < numCols; c++) {
-      doc.rect(x, y - 4, colCuadroWidth - 0.3, 6);
-      x += colCuadroWidth;
-    }
 
-    y = 44;
+    y = 38;
     alumnosNomina.forEach((alumno, idx) => {
       if (y > pageHeight - 18) {
         doc.addPage('landscape', 'a4');
@@ -1698,13 +1685,16 @@ function DocenteCursos() {
       }
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
-      x = margin;
-      doc.text(String(idx + 1), x + 2, y + 3);
-      x += 10;
-      doc.text((alumno.nombre_completo || '').substring(0, 42), x + 2, y + 3);
+      doc.setFillColor(74, 131, 193);
+      doc.rect(leftOffset, y - 0.5, colNumWidth, 4.5, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.text(String(idx + 1), leftOffset + colNumWidth / 2, y + 3, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+      let x = leftOffset + colNumWidth;
+      doc.text((alumno.nombre_completo || '').substring(0, 40), x + 2, y + 3);
       x += colNombresWidth;
       for (let c = 0; c < numCols; c++) {
-        doc.rect(x, y, colCuadroWidth - 0.3, 4);
+        doc.rect(x, y, colCuadroWidth - 0.2, 4, 'S');
         x += colCuadroWidth;
       }
       y += 5;
