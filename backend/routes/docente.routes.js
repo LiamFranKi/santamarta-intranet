@@ -11019,7 +11019,7 @@ router.post('/comunicados', uploadComunicado.single('archivo'), async (req, res)
       return res.status(403).json({ error: 'Solo los administradores pueden crear comunicados' });
     }
 
-    const { descripcion, contenido, tipo, privacidad, show_in_home } = req.body;
+    const { descripcion, contenido, tipo, privacidad, show_in_home, estado } = req.body;
 
     if (!descripcion) {
       return res.status(400).json({ error: 'La descripción es requerida' });
@@ -11034,11 +11034,13 @@ router.post('/comunicados', uploadComunicado.single('archivo'), async (req, res)
     const tipoComunicado = tipo || (archivoPath ? 'ARCHIVO' : 'TEXTO');
     const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
+    const estadoComunicado = (estado === 'INACTIVO') ? 'INACTIVO' : 'ACTIVO';
+
     // Insertar comunicado
     const result = await execute(
       `INSERT INTO comunicados (colegio_id, descripcion, contenido, archivo, privacidad, fecha_hora, tipo, estado, show_in_home)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVO', ?)`,
-      [colegio_id, descripcion, contenido || '', archivoPath, privacidad || '', fechaHora, tipoComunicado, show_in_home ? 1 : 0]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [colegio_id, descripcion, contenido || '', archivoPath, privacidad || '', fechaHora, tipoComunicado, estadoComunicado, show_in_home ? 1 : 0]
     );
 
     // Registrar auditoría
@@ -11161,7 +11163,7 @@ router.put('/comunicados/:id', uploadComunicado.single('archivo'), async (req, r
     }
 
     const { id } = req.params;
-    const { descripcion, contenido, tipo, privacidad, show_in_home } = req.body;
+    const { descripcion, contenido, tipo, privacidad, show_in_home, estado } = req.body;
 
     // Verificar que el comunicado existe
     const comunicados = await query(
@@ -11179,13 +11181,14 @@ router.put('/comunicados/:id', uploadComunicado.single('archivo'), async (req, r
     }
 
     const tipoComunicado = tipo || (archivoPath ? 'ARCHIVO' : 'TEXTO');
+    const estadoComunicado = (estado === 'INACTIVO') ? 'INACTIVO' : 'ACTIVO';
 
     // Actualizar comunicado
     await execute(
       `UPDATE comunicados 
-       SET descripcion = ?, contenido = ?, archivo = ?, privacidad = ?, tipo = ?, show_in_home = ?
+       SET descripcion = ?, contenido = ?, archivo = ?, privacidad = ?, tipo = ?, estado = ?, show_in_home = ?
        WHERE id = ? AND colegio_id = ?`,
-      [descripcion, contenido || '', archivoPath, privacidad || '', tipoComunicado, show_in_home ? 1 : 0, id, colegio_id]
+      [descripcion, contenido || '', archivoPath, privacidad || '', tipoComunicado, estadoComunicado, show_in_home ? 1 : 0, id, colegio_id]
     );
 
     // Registrar auditoría

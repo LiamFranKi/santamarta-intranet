@@ -24,7 +24,8 @@ function AdminComunicados() {
     contenido: '',
     tipo: 'TEXTO',
     privacidad: '',
-    show_in_home: false
+    show_in_home: false,
+    estado: 'ACTIVO'
   });
   const [archivoSeleccionado, setArchivoSeleccionado] = useState(null);
   const [archivoActual, setArchivoActual] = useState(null);
@@ -119,7 +120,8 @@ function AdminComunicados() {
       contenido: '',
       tipo: 'TEXTO',
       privacidad: '',
-      show_in_home: false
+      show_in_home: false,
+      estado: 'ACTIVO'
     });
     setArchivoSeleccionado(null);
     setArchivoActual(null);
@@ -133,7 +135,8 @@ function AdminComunicados() {
       contenido: comunicado.contenido || '',
       tipo: comunicado.tipo || 'TEXTO',
       privacidad: comunicado.privacidad || '',
-      show_in_home: comunicado.show_in_home === 1 || comunicado.show_in_home === true
+      show_in_home: comunicado.show_in_home === 1 || comunicado.show_in_home === true,
+      estado: comunicado.estado || 'ACTIVO'
     });
     setArchivoSeleccionado(null);
     setArchivoActual(comunicado.archivo_url || null);
@@ -148,7 +151,8 @@ function AdminComunicados() {
       contenido: '',
       tipo: 'TEXTO',
       privacidad: '',
-      show_in_home: false
+      show_in_home: false,
+      estado: 'ACTIVO'
     });
     setArchivoSeleccionado(null);
     setArchivoActual(null);
@@ -164,6 +168,7 @@ function AdminComunicados() {
       formData.append('tipo', formulario.tipo);
       formData.append('privacidad', formulario.privacidad);
       formData.append('show_in_home', formulario.show_in_home ? '1' : '0');
+      formData.append('estado', formulario.estado || 'ACTIVO');
       
       if (archivoSeleccionado) {
         formData.append('archivo', archivoSeleccionado);
@@ -659,6 +664,17 @@ function AdminComunicados() {
                     ]}
                     style={{ minHeight: '180px', marginBottom: '3rem' }}
                   />
+                </div>
+                <div className="form-group">
+                  <label>Estado</label>
+                  <select
+                    value={formulario.estado || 'ACTIVO'}
+                    onChange={(e) => setFormulario({ ...formulario, estado: e.target.value })}
+                    className="form-input"
+                  >
+                    <option value="ACTIVO">Activo</option>
+                    <option value="INACTIVO">Inactivo</option>
+                  </select>
                 </div>
                 <div className="form-group">
                   <label>Tipo</label>
