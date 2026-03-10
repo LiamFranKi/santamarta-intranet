@@ -13,6 +13,12 @@ import './DocenteCursos.css';
 function DocenteCursos() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const logoNominaUrl = useMemo(() => {
+    const base = process.env.REACT_APP_API_URL
+      ? process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '')
+      : window.location.origin;
+    return `${base}/assets/logos/logo.png`;
+  }, []);
   const [loading, setLoading] = useState(true);
   const [cursos, setCursos] = useState([]);
   const [selectedCurso, setSelectedCurso] = useState(null);
@@ -1580,7 +1586,7 @@ function DocenteCursos() {
     });
   };
 
-  const exportarPDFNomina = () => {
+  const exportarPDFNomina = async () => {
     if (!cursoParaNomina || alumnosNomina.length === 0) return;
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -1588,47 +1594,117 @@ function DocenteCursos() {
     const margin = 12;
     const docenteNombre = user?.apellidos ? `${user.apellidos}, ${user.nombres}` : `${[user?.apellido_paterno, user?.apellido_materno].filter(Boolean).join(' ')}, ${user?.nombres || ''}`.trim();
 
-    doc.setFontSize(14);
+    // Logo en esquina superior derecha
+    const logoUrl = process.env.REACT_APP_API_URL
+      ? `${process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '')}/assets/logos/logo.png`
+      : `${window.location.origin}/assets/logos/logo.png`;
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
+      await new Promise((resolve, reject) => {
+        logoImg.onload = resolve;
+        logoImg.onerror = reject;
+        logoImg.src = logoUrl;
+      });
+      canvas.width = logoImg.width;
+      canvas.height = logoImg.height;
+      ctx.drawImage(logoImg, 0, 0);
+      const logoData = canvas.toDataURL('image/png');
+      const logoW = 18;
+      const logoH = (logoImg.height / logoImg.width) * logoW;
+      doc.addImage(logoData, 'PNG', pageWidth - margin - logoW, margin, logoW, logoH);
+    } catch (e) {
+      console.warn('Logo no cargado para PDF:', e);
+    }
+
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('REGISTRO ACADÉMICO', margin, 15);
+    doc.text('REGISTRO ACADÉMICO', margin, 14);
 
-    doc.setFontSize(10);
+    // Fila con CURSO, GRADO, DOCENTE en cajas con color
+    const filaY = 22;
+    let xActual = margin;
+    const altoCaja = 7;
+    const sep = 2;
+
+    doc.setFillColor(74, 131, 193);
+    doc.rect(xActual, filaY - 5, 45, altoCaja, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CURSO:', xActual + 2, filaY + 0.5);
+    xActual += 47;
+    doc.setFillColor(240, 247, 255);
+    doc.rect(xActual, filaY - 5, 50, altoCaja, 'F');
+    doc.setTextColor(30, 64, 175);
     doc.setFont('helvetica', 'normal');
-    doc.text(`CURSO: ${cursoParaNomina.curso_nombre}`, margin, 22);
-    doc.text(`GRADO: ${cursoParaNomina.grado}° ${cursoParaNomina.seccion} ${cursoParaNomina.nivel_nombre || ''}`, margin, 28);
-    doc.text(`DOCENTE: ${docenteNombre}`, margin, 34);
+    doc.text((cursoParaNomina.curso_nombre || '').substring(0, 28), xActual + 2, filaY + 0.5);
+    xActual += 52;
 
-    const colNombresWidth = 55;
-    const numCols = 30;
-    const colCuadroWidth = (pageWidth - margin * 2 - 10 - colNombresWidth) / numCols;
+    doc.setFillColor(16, 185, 129);
+    doc.rect(xActual, filaY - 5, 38, altoCaja, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('GRADO:', xActual + 2, filaY + 0.5);
+    xActual += 40;
+    doc.setFillColor(236, 253, 245);
+    doc.rect(xActual, filaY - 5, 42, altoCaja, 'F');
+    doc.setTextColor(6, 95, 70);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${cursoParaNomina.grado}° ${cursoParaNomina.seccion} ${cursoParaNomina.nivel_nombre || ''}`.substring(0, 22), xActual + 2, filaY + 0.5);
+    xActual += 44;
 
+    doc.setFillColor(139, 92, 246);
+    doc.rect(xActual, filaY - 5, 40, altoCaja, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DOCENTE:', xActual + 2, filaY + 0.5);
+    xActual += 42;
+    doc.setFillColor(245, 243, 255);
+    doc.rect(xActual, filaY - 5, Math.min(65, pageWidth - xActual - margin), altoCaja, 'F');
+    doc.setTextColor(91, 33, 182);
+    doc.setFont('helvetica', 'normal');
+    doc.text((docenteNombre || '').substring(0, 38), xActual + 2, filaY + 0.5);
+
+    doc.setTextColor(0, 0, 0);
+
+    const colNombresWidth = 65;
+    const numCols = 20;
+    const colCuadroWidth = 7.5;
+
+    let y = 36;
+    doc.setFillColor(74, 131, 193);
+    doc.rect(margin, y - 4, 10, 6, 'F');
+    doc.rect(margin + 10, y - 4, colNombresWidth, 6, 'F');
+    doc.setTextColor(255, 255, 255);
     doc.setFontSize(8);
     doc.setFont('helvetica', 'bold');
-    let x = margin;
-    doc.text('Nº', x, 42);
-    x += 10;
-    doc.text('Apellidos y Nombres', x, 42);
-    x += colNombresWidth;
-
+    doc.text('Nº', margin + 3, y + 1);
+    doc.text('Apellidos y Nombres', margin + 14, y + 1);
+    doc.setTextColor(0, 0, 0);
+    let x = margin + 10 + colNombresWidth;
     for (let c = 0; c < numCols; c++) {
-      doc.rect(x, 38, colCuadroWidth - 0.5, 5);
+      doc.rect(x, y - 4, colCuadroWidth - 0.3, 6);
       x += colCuadroWidth;
     }
 
-    let y = 48;
+    y = 44;
     alumnosNomina.forEach((alumno, idx) => {
-      if (y > pageHeight - 20) {
+      if (y > pageHeight - 18) {
         doc.addPage('landscape', 'a4');
-        y = 15;
+        y = 12;
       }
       doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
       x = margin;
-      doc.text(String(idx + 1), x, y + 3.5);
+      doc.text(String(idx + 1), x + 2, y + 3);
       x += 10;
-      doc.text(alumno.nombre_completo || '', x, y + 3.5);
+      doc.text((alumno.nombre_completo || '').substring(0, 42), x + 2, y + 3);
       x += colNombresWidth;
       for (let c = 0; c < numCols; c++) {
-        doc.rect(x, y, colCuadroWidth - 0.5, 4);
+        doc.rect(x, y, colCuadroWidth - 0.3, 4);
         x += colCuadroWidth;
       }
       y += 5;
@@ -4287,10 +4363,21 @@ function DocenteCursos() {
 
               <div className="modal-horario-body modal-nomina-body">
                 {cursoParaNomina && (
-                  <div className="nomina-info-header">
-                    <p><strong>CURSO:</strong> {cursoParaNomina.curso_nombre}</p>
-                    <p><strong>GRADO:</strong> {cursoParaNomina.grado}° {cursoParaNomina.seccion} {cursoParaNomina.nivel_nombre || ''}</p>
-                    <p><strong>DOCENTE:</strong> {user?.apellidos ? `${user.apellidos}, ${user.nombres}` : `${[user?.apellido_paterno, user?.apellido_materno].filter(Boolean).join(' ')}, ${user?.nombres || ''}`.trim()}</p>
+                  <div className="nomina-header-with-logo">
+                    <div className="nomina-info-header">
+                      <span className="nomina-info-header-item curso">
+                        <strong>CURSO:</strong> {cursoParaNomina.curso_nombre}
+                      </span>
+                      <span className="nomina-info-header-item grado">
+                        <strong>GRADO:</strong> {cursoParaNomina.grado}° {cursoParaNomina.seccion} {cursoParaNomina.nivel_nombre || ''}
+                      </span>
+                      <span className="nomina-info-header-item docente">
+                        <strong>DOCENTE:</strong> {user?.apellidos ? `${user.apellidos}, ${user.nombres}` : `${[user?.apellido_paterno, user?.apellido_materno].filter(Boolean).join(' ')}, ${user?.nombres || ''}`.trim()}
+                      </span>
+                    </div>
+                    <div className="nomina-logo-container">
+                      <img src={logoNominaUrl} alt="Logo" onError={(e) => { e.target.style.display = 'none'; }} />
+                    </div>
                   </div>
                 )}
 
@@ -4305,7 +4392,7 @@ function DocenteCursos() {
                         <tr>
                           <th className="nomina-col-num">Nº</th>
                           <th className="nomina-col-nombres">Apellidos y Nombres</th>
-                          {Array.from({ length: 30 }, (_, i) => (
+                          {Array.from({ length: 20 }, (_, i) => (
                             <th key={i} className="nomina-col-cuadro" />
                           ))}
                         </tr>
@@ -4314,8 +4401,8 @@ function DocenteCursos() {
                         {alumnosNomina.map((alumno, idx) => (
                           <tr key={alumno.id}>
                             <td className="nomina-col-num">{idx + 1}</td>
-                            <td className="nomina-col-nombres">{alumno.nombre_completo}</td>
-                            {Array.from({ length: 30 }, (_, i) => (
+                            <td className="nomina-col-nombres" title={alumno.nombre_completo}>{alumno.nombre_completo}</td>
+                            {Array.from({ length: 20 }, (_, i) => (
                               <td key={i} className="nomina-col-cuadro" />
                             ))}
                           </tr>

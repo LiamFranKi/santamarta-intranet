@@ -2305,16 +2305,68 @@
 
 .nomina-info-header {
   margin-bottom: 1.5rem;
-  padding: 1rem;
+  padding: 0.75rem 1rem;
   background: linear-gradient(145deg, #eef2ff, #ffffff);
   border: 1px solid rgba(74, 131, 193, 0.18);
   border-radius: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 1.5rem;
 }
 
-.nomina-info-header p {
-  margin: 0.5rem 0;
-  color: #1f2937;
-  font-size: 0.95rem;
+.nomina-info-header-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.nomina-info-header-item.curso {
+  background: linear-gradient(135deg, #4a83c1 0%, #3b6fa8 100%);
+  color: white;
+  font-weight: 600;
+}
+
+.nomina-info-header-item.grado {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  font-weight: 600;
+}
+
+.nomina-info-header-item.docente {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  font-weight: 600;
+}
+
+.nomina-header-with-logo {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.nomina-logo-container {
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background: white;
+  border: 1px solid rgba(74, 131, 193, 0.2);
+}
+
+.nomina-logo-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .nomina-table-wrapper {
@@ -2333,28 +2385,38 @@
 .nomina-table th,
 .nomina-table td {
   border: 1px solid #e5e7eb;
-  padding: 0.4rem 0.5rem;
+  padding: 0.35rem 0.45rem;
   text-align: left;
 }
 
+.nomina-table thead th {
+  background: linear-gradient(135deg, #4a83c1 0%, #3b6fa8 100%);
+  color: white;
+  font-weight: 700;
+  font-size: 0.8rem;
+}
+
 .nomina-col-num {
-  width: 40px;
+  width: 36px;
+  min-width: 36px;
   text-align: center;
-  font-weight: 600;
-  background: #f9fafb;
+  font-weight: 700;
 }
 
 .nomina-col-nombres {
-  min-width: 180px;
+  min-width: 220px;
   font-weight: 500;
-  background: #f9fafb;
+  white-space: nowrap;
+  font-size: 0.82rem;
 }
 
 .nomina-col-cuadro {
-  width: 22px;
-  min-width: 22px;
+  width: 24px;
+  min-width: 24px;
   padding: 0.25rem !important;
   background: white;
+  text-align: center;
+  font-size: 0.75rem;
 }
 
 .modal-horario-body {
