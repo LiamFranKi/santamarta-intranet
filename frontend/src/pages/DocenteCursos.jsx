@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
@@ -11,6 +12,7 @@ import './DocenteCursos.css';
 
 function DocenteCursos() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [cursos, setCursos] = useState([]);
   const [selectedCurso, setSelectedCurso] = useState(null);
@@ -88,6 +90,12 @@ function DocenteCursos() {
     videos_id: [],
     enlaces_id: []
   });
+
+  // Estados para modal Ver Nómina
+  const [mostrarModalNomina, setMostrarModalNomina] = useState(false);
+  const [cursoParaNomina, setCursoParaNomina] = useState(null);
+  const [alumnosNomina, setAlumnosNomina] = useState([]);
+  const [loadingNomina, setLoadingNomina] = useState(false);
 
   // Estados para modal Registrar Indicadores (solo nivel INICIAL)
   const [mostrarModalIndicadores, setMostrarModalIndicadores] = useState(false);
@@ -233,6 +241,18 @@ function DocenteCursos() {
       console.error('Error cargando cursos:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const cargarAlumnosNomina = async (cursoId) => {
+    try {
+      setLoadingNomina(true);
+      const response = await api.get(`/docente/cursos/${cursoId}/alumnos`);
+      setAlumnosNomina(response.data.alumnos || []);
+    } catch (error) {
+      console.error('Error cargando alumnos para nómina:', error);
+    } finally {
+      setLoadingNomina(false);
     }
   };
 
@@ -1560,6 +1580,71 @@ function DocenteCursos() {
     });
   };
 
+  const exportarPDFNomina = () => {
+    if (!cursoParaNomina || alumnosNomina.length === 0) return;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 12;
+    const docenteNombre = user?.apellidos ? `${user.apellidos}, ${user.nombres}` : `${[user?.apellido_paterno, user?.apellido_materno].filter(Boolean).join(' ')}, ${user?.nombres || ''}`.trim();
+
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REGISTRO ACADÉMICO', margin, 15);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`CURSO: ${cursoParaNomina.curso_nombre}`, margin, 22);
+    doc.text(`GRADO: ${cursoParaNomina.grado}° ${cursoParaNomina.seccion} ${cursoParaNomina.nivel_nombre || ''}`, margin, 28);
+    doc.text(`DOCENTE: ${docenteNombre}`, margin, 34);
+
+    const colNombresWidth = 55;
+    const numCols = 30;
+    const colCuadroWidth = (pageWidth - margin * 2 - 10 - colNombresWidth) / numCols;
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    let x = margin;
+    doc.text('Nº', x, 42);
+    x += 10;
+    doc.text('Apellidos y Nombres', x, 42);
+    x += colNombresWidth;
+
+    for (let c = 0; c < numCols; c++) {
+      doc.rect(x, 38, colCuadroWidth - 0.5, 5);
+      x += colCuadroWidth;
+    }
+
+    let y = 48;
+    alumnosNomina.forEach((alumno, idx) => {
+      if (y > pageHeight - 20) {
+        doc.addPage('landscape', 'a4');
+        y = 15;
+      }
+      doc.setFont('helvetica', 'normal');
+      x = margin;
+      doc.text(String(idx + 1), x, y + 3.5);
+      x += 10;
+      doc.text(alumno.nombre_completo || '', x, y + 3.5);
+      x += colNombresWidth;
+      for (let c = 0; c < numCols; c++) {
+        doc.rect(x, y, colCuadroWidth - 0.5, 4);
+        x += colCuadroWidth;
+      }
+      y += 5;
+    });
+
+    const nombreArchivo = `Nomina_${cursoParaNomina.curso_nombre.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
+    doc.save(nombreArchivo);
+
+    Swal.fire({
+      title: '¡PDF Generado!',
+      text: 'La nómina se ha descargado correctamente',
+      icon: 'success',
+      zIndex: 100001
+    });
+  };
+
   const handleCursoAction = (curso, action) => {
     setOpenDropdown(null); // Cerrar dropdown al seleccionar una opción
     setDropdownPosition(null);
@@ -1598,6 +1683,11 @@ function DocenteCursos() {
         setCursoParaHorario(curso);
         setMostrarModalHorario(true);
         cargarHorarioCurso(curso.id);
+        break;
+      case 'nomina':
+        setCursoParaNomina(curso);
+        setMostrarModalNomina(true);
+        cargarAlumnosNomina(curso.id);
         break;
       default:
         break;
@@ -3154,6 +3244,9 @@ function DocenteCursos() {
                           <button onClick={() => handleCursoAction(curso, 'horario')}>
                             📅 Ver Horario
                           </button>
+                          <button onClick={() => handleCursoAction(curso, 'nomina')}>
+                            📋 Ver Nómina
+                          </button>
                           <button onClick={() => handleCursoAction(curso, 'enlaces')}>
                             🔗 Link Aula Virtual
                           </button>
@@ -4139,6 +4232,100 @@ function DocenteCursos() {
                 ) : (
                   <div className="empty-state">
                     <p>No se encontró horario para este curso</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Modal Ver Nómina */}
+        {mostrarModalNomina && createPortal(
+          <div 
+            className="modal-horario-overlay"
+            onClick={() => {
+              setMostrarModalNomina(false);
+              setCursoParaNomina(null);
+              setAlumnosNomina([]);
+            }}
+          >
+            <div 
+              className="modal-horario-container modal-nomina-container"
+              onClick={(e) => e.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="modal-nomina-title"
+            >
+              <div className="modal-horario-header">
+                <h2 id="modal-nomina-title">
+                  📋 Registro Académico
+                </h2>
+                <div className="modal-horario-header-actions">
+                  <button
+                    className="btn-exportar-pdf-nomina"
+                    onClick={() => exportarPDFNomina()}
+                    type="button"
+                    disabled={loadingNomina || alumnosNomina.length === 0}
+                  >
+                    📥 Exportar PDF
+                  </button>
+                  <button
+                    className="modal-horario-close"
+                    onClick={() => {
+                      setMostrarModalNomina(false);
+                      setCursoParaNomina(null);
+                      setAlumnosNomina([]);
+                    }}
+                    type="button"
+                    aria-label="Cerrar modal"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              <div className="modal-horario-body modal-nomina-body">
+                {cursoParaNomina && (
+                  <div className="nomina-info-header">
+                    <p><strong>CURSO:</strong> {cursoParaNomina.curso_nombre}</p>
+                    <p><strong>GRADO:</strong> {cursoParaNomina.grado}° {cursoParaNomina.seccion} {cursoParaNomina.nivel_nombre || ''}</p>
+                    <p><strong>DOCENTE:</strong> {user?.apellidos ? `${user.apellidos}, ${user.nombres}` : `${[user?.apellido_paterno, user?.apellido_materno].filter(Boolean).join(' ')}, ${user?.nombres || ''}`.trim()}</p>
+                  </div>
+                )}
+
+                {loadingNomina ? (
+                  <div className="horario-loading">
+                    <div className="loading-spinner">Cargando nómina...</div>
+                  </div>
+                ) : alumnosNomina.length > 0 ? (
+                  <div className="nomina-table-wrapper" id="nomina-para-pdf">
+                    <table className="nomina-table">
+                      <thead>
+                        <tr>
+                          <th className="nomina-col-num">Nº</th>
+                          <th className="nomina-col-nombres">Apellidos y Nombres</th>
+                          {Array.from({ length: 30 }, (_, i) => (
+                            <th key={i} className="nomina-col-cuadro" />
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {alumnosNomina.map((alumno, idx) => (
+                          <tr key={alumno.id}>
+                            <td className="nomina-col-num">{idx + 1}</td>
+                            <td className="nomina-col-nombres">{alumno.nombre_completo}</td>
+                            {Array.from({ length: 30 }, (_, i) => (
+                              <td key={i} className="nomina-col-cuadro" />
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="empty-state">
+                    <p>No hay alumnos en este curso</p>
                   </div>
                 )}
               </div>

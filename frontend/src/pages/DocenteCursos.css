@@ -171,6 +171,11 @@
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+.dropdown-menu-portal-cursos .dropdown-menu {
+  flex-wrap: nowrap !important;
+  min-width: 220px;
+}
+
 .dropdown-menu {
   background: white;
   border: 1px solid #e5e7eb;
@@ -178,8 +183,23 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   display: flex;
   flex-direction: column;
+  flex-wrap: nowrap;
   overflow: hidden;
   width: 100%;
+}
+
+.dropdown-menu button {
+  flex: 0 0 auto;
+  min-width: 100%;
+  padding: 0.75rem 1rem;
+  border: none;
+  background: white;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9rem;
+  color: #374151;
+  transition: background 0.2s;
+  border-bottom: 1px solid #f3f4f6;
 }
 
 .curso-card {
@@ -193,18 +213,6 @@
   flex-direction: column;
   gap: 0.75rem;
   position: relative;
-}
-
-.dropdown-menu button {
-  padding: 0.75rem 1rem;
-  border: none;
-  background: white;
-  text-align: left;
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: #374151;
-  transition: background 0.2s;
-  border-bottom: 1px solid #f3f4f6;
 }
 
 .dropdown-menu button:last-child {
@@ -2258,6 +2266,95 @@
 .modal-horario-close:hover {
   background: rgba(255, 255, 255, 0.3);
   transform: rotate(90deg);
+}
+
+.modal-horario-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn-exportar-pdf-nomina {
+  background: rgba(255, 255, 255, 0.9);
+  color: #4a83c1;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.btn-exportar-pdf-nomina:hover:not(:disabled) {
+  background: white;
+}
+
+.btn-exportar-pdf-nomina:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.modal-nomina-container {
+  max-width: 95vw;
+  width: 900px;
+}
+
+.modal-nomina-body {
+  max-height: 70vh;
+}
+
+.nomina-info-header {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: linear-gradient(145deg, #eef2ff, #ffffff);
+  border: 1px solid rgba(74, 131, 193, 0.18);
+  border-radius: 12px;
+}
+
+.nomina-info-header p {
+  margin: 0.5rem 0;
+  color: #1f2937;
+  font-size: 0.95rem;
+}
+
+.nomina-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: white;
+}
+
+.nomina-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.nomina-table th,
+.nomina-table td {
+  border: 1px solid #e5e7eb;
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+}
+
+.nomina-col-num {
+  width: 40px;
+  text-align: center;
+  font-weight: 600;
+  background: #f9fafb;
+}
+
+.nomina-col-nombres {
+  min-width: 180px;
+  font-weight: 500;
+  background: #f9fafb;
+}
+
+.nomina-col-cuadro {
+  width: 22px;
+  min-width: 22px;
+  padding: 0.25rem !important;
+  background: white;
 }
 
 .modal-horario-body {
