@@ -423,6 +423,9 @@ function DocenteTutoria() {
       case 'ver-horario':
         await handleVerHorarioGrupo(grupo);
         break;
+      case 'ver-nomina':
+        await handleExportarNominaGrupo(grupo);
+        break;
       default:
         break;
     }
@@ -733,6 +736,108 @@ function DocenteTutoria() {
     setMostrarModalConducta(true);
     setConductaCiclo(1);
     await cargarConducta(grupo.id, 1);
+  };
+
+  // Exportar Nómina PDF (directo, sin modal) - solo nombre del grupo + logo
+  const handleExportarNominaGrupo = async (grupo) => {
+    try {
+      const res = await api.get(`/docente/tutoria/grupos/${grupo.id}/alumnos`);
+      const alumnos = res.data.alumnos || [];
+      if (alumnos.length === 0) {
+        Swal.fire({ icon: 'info', title: 'Sin alumnos', text: 'No hay alumnos en este grupo' });
+        return;
+      }
+      const alumnosConNombre = alumnos.map(a => ({
+        ...a,
+        nombre_completo: a.nombre_completo || `${(a.apellido_paterno || '')} ${(a.apellido_materno || '')}, ${(a.nombres || '')}`.trim()
+      }));
+
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 12;
+      const colNombresWidth = 76;
+      const numCols = 25;
+      const colNumWidth = 12;
+      const usableWidth = pageWidth - 2 * margin;
+      const colCuadroWidth = (usableWidth - colNumWidth - colNombresWidth) / numCols;
+      const totalTableWidth = colNumWidth + colNombresWidth + numCols * colCuadroWidth;
+      const leftOffset = margin;
+
+      const logoUrl = process.env.REACT_APP_API_URL
+        ? `${process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '')}/assets/logos/logo.png`
+        : `${window.location.origin}/assets/logos/logo.png`;
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const logoImg = new Image();
+        logoImg.crossOrigin = 'anonymous';
+        await new Promise((resolve, reject) => {
+          logoImg.onload = resolve;
+          logoImg.onerror = reject;
+          logoImg.src = logoUrl;
+        });
+        canvas.width = logoImg.width;
+        canvas.height = logoImg.height;
+        ctx.drawImage(logoImg, 0, 0);
+        const logoData = canvas.toDataURL('image/png');
+        const logoW = 16;
+        const logoH = (logoImg.height / logoImg.width) * logoW;
+        doc.addImage(logoData, 'PNG', pageWidth - margin - logoW, 4, logoW, logoH);
+      } catch (e) { console.warn('Logo no cargado:', e); }
+
+      const grupoNombre = `${grupo.grado}° ${grupo.seccion} - ${grupo.nivel_nombre || ''} - ${grupo.turno_nombre || ''}`.replace(/\s*-\s*$/, '').trim();
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('REGISTRO ACADÉMICO', pageWidth / 2, 12, { align: 'center' });
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'normal');
+      doc.text(grupoNombre, pageWidth / 2, 20, { align: 'center' });
+
+      let y = 28;
+      const headerHeight = 7;
+      doc.setFillColor(74, 131, 193);
+      doc.rect(leftOffset, y - 5, totalTableWidth, headerHeight, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      const headerTextY = y - 5 + headerHeight / 2 + 1.2;
+      doc.text('Nº', leftOffset + colNumWidth / 2, headerTextY, { align: 'center' });
+      doc.text('Apellidos y Nombres', leftOffset + colNumWidth + colNombresWidth / 2, headerTextY, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+
+      const rowHeight = 5.5;
+      const cuadroHeight = 4.2;
+      y = 36;
+      alumnosConNombre.forEach((alumno, idx) => {
+        if (y > pageHeight - 20) {
+          doc.addPage('landscape', 'a4');
+          y = 12;
+        }
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setFillColor(74, 131, 193);
+        doc.rect(leftOffset, y - 0.5, colNumWidth, cuadroHeight + 0.5, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.text(String(idx + 1), leftOffset + colNumWidth / 2, y + cuadroHeight / 2 + 1, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
+        let x = leftOffset + colNumWidth;
+        doc.text((alumno.nombre_completo || '').substring(0, 45), x + 2, y + cuadroHeight / 2 + 1);
+        x += colNombresWidth;
+        for (let c = 0; c < numCols; c++) {
+          doc.rect(x, y, colCuadroWidth - 0.2, cuadroHeight, 'S');
+          x += colCuadroWidth;
+        }
+        y += rowHeight;
+      });
+
+      const nombreArchivo = `Nomina_${grupoNombre.replace(/\s+/g, '_')}_${Date.now()}.pdf`;
+      doc.save(nombreArchivo);
+      Swal.fire({ title: '¡PDF Generado!', text: 'La nómina se ha descargado correctamente', icon: 'success', timer: 2000, showConfirmButton: false });
+    } catch (err) {
+      console.error('Error exportando nómina:', err);
+      Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudo generar el PDF' });
+    }
   };
 
   // Ver Horario del grupo (como lo ve el alumno)
@@ -2233,6 +2338,7 @@ function DocenteTutoria() {
                       { id: 'lista-alumnos', label: 'Lista de Alumnos', icon: '📋' },
                       { id: 'cursos-asignados', label: 'Cursos Asignados', icon: '📚' },
                       { id: 'ver-horario', label: 'Ver Horario', icon: '📅' },
+                      { id: 'ver-nomina', label: 'Ver Nómina', icon: '📄' },
                       { id: 'notas-asistencia', label: 'Ver Notas', icon: '📊' },
                       { id: 'enviar-comunicado', label: 'Enviar Mensaje', icon: '✉️' },
                       { id: 'registrar-asistencia', label: 'Asistencias', icon: '✅' },
