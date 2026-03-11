@@ -112,25 +112,10 @@ function Dashboard() {
       description: 'Visualiza estadísticas generales del sistema',
       icon: '📈'
     },
-    '/admin/config/anio-escolar': {
-      title: '📅 Año Escolar',
-      description: 'Gestiona los años escolares',
-      icon: '📅'
-    },
-    '/admin/config/general': {
-      title: '⚙️ Configuración General',
-      description: 'Configuración general del sistema',
+    '/admin/config': {
+      title: '⚙️ Configuración',
+      description: 'Configuración del sistema (página temporal)',
       icon: '⚙️'
-    },
-    '/admin/config/temas': {
-      title: '🎨 Temas y Colores',
-      description: 'Personaliza los temas y colores del sistema',
-      icon: '🎨'
-    },
-    '/admin/config/pwa': {
-      title: '📱 PWA',
-      description: 'Configuración de Progressive Web App',
-      icon: '📱'
     },
     '/admin/auditoria': {
       title: '🧾 Auditoría',
@@ -145,8 +130,8 @@ function Dashboard() {
     icon: '📊'
   };
 
-  // Si es una ruta específica de admin (pero NO el dashboard principal ni configuración general), mostrar contenido específico
-  const isAdminRoute = location.pathname.startsWith('/admin/') && location.pathname !== '/admin/dashboard' && location.pathname !== '/admin/config/general';
+  // Si es una ruta específica de admin (pero NO el dashboard principal), mostrar contenido específico (placeholder)
+  const isAdminRoute = location.pathname.startsWith('/admin/') && location.pathname !== '/admin/dashboard';
   
   if (isAdminRoute) {
     return (

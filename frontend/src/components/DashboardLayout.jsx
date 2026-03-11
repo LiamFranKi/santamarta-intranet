@@ -32,7 +32,6 @@ export default function DashboardLayout({ children }) {
     const path = location.pathname || '';
     setExpandedMenus(prev => ({
       ...prev,
-      ...(path.startsWith('/admin/config') && { config: true }),
       ...(path.startsWith('/admin/usuarios') && { usuarios: true }),
       ...(path.startsWith('/admin/academico') && { academico: true }),
       ...(path.startsWith('/admin/reportes') && { reportes: true }),
@@ -586,31 +585,11 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
-              <div className="sidebar-menu-item">
-                <button
-                  className={`sidebar-menu-toggle ${expandedMenus.config ? 'expanded' : ''}`}
-                  onClick={() => toggleSubmenu('config')}
-                >
-                  <div className="sidebar-menu-toggle-content">
-                    <span className="sidebar-icon">⚙️</span>
-                    <span className="sidebar-label">Configuración</span>
-                  </div>
-                  <span className="sidebar-menu-arrow">▶</span>
-                </button>
-                <div className={`sidebar-submenu ${expandedMenus.config ? 'expanded' : ''}`}>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/config/anio-escolar">
-                    Año Escolar
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/config/general">
-                    General
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/config/temas">
-                    Temas y Colores
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/config/pwa">
-                    PWA
-                  </NavLink>
-                </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/config">
+                  <span className="sidebar-icon">⚙️</span>
+                  <span className="sidebar-label">Configuración</span>
+                </NavLink>
               </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/auditoria">

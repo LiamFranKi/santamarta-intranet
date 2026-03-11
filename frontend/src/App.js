@@ -22,7 +22,6 @@ import DocenteTutoria from './pages/DocenteTutoria';
 import AdminActividades from './pages/admin/AdminActividades';
 import AdminAvatares from './pages/admin/AdminAvatares';
 import AdminComunicados from './pages/admin/AdminComunicados';
-import AdminConfiguracion from './pages/admin/AdminConfiguracion';
 import DashboardLayout from './components/DashboardLayout';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
 import AlumnoDashboard from './pages/AlumnoDashboard';
@@ -639,39 +638,17 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/config/anio-escolar"
+        path="/admin/config"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
           </PrivateRoute>
         }
       />
-      <Route
-        path="/admin/config/general"
-        element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
-            <DashboardLayout>
-              <AdminConfiguracion />
-            </DashboardLayout>
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/admin/config/temas"
-        element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
-            <Dashboard />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/admin/config/pwa"
-        element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
-            <Dashboard />
-          </PrivateRoute>
-        }
-      />
+      <Route path="/admin/config/anio-escolar" element={<Navigate to="/admin/config" replace />} />
+      <Route path="/admin/config/general" element={<Navigate to="/admin/config" replace />} />
+      <Route path="/admin/config/temas" element={<Navigate to="/admin/config" replace />} />
+      <Route path="/admin/config/pwa" element={<Navigate to="/admin/config" replace />} />
       <Route
         path="/admin/mensajes"
         element={
