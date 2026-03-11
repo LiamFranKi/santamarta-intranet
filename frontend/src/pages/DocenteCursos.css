@@ -171,9 +171,14 @@
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* Opciones por curso: 2 columnas (6-7 ítems) */
 .dropdown-menu-portal-cursos .dropdown-menu {
   flex-wrap: nowrap !important;
-  min-width: 220px;
+  min-width: 280px;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  justify-items: start !important;
+  align-content: start !important;
 }
 
 .dropdown-menu {
@@ -191,6 +196,7 @@
 .dropdown-menu button {
   flex: 0 0 auto;
   min-width: 100%;
+  width: 100%;
   padding: 0.75rem 1rem;
   border: none;
   background: white;
@@ -200,6 +206,7 @@
   color: #374151;
   transition: background 0.2s;
   border-bottom: 1px solid #f3f4f6;
+  box-sizing: border-box;
 }
 
 .curso-card {

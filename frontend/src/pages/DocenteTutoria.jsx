@@ -2322,7 +2322,7 @@ function DocenteTutoria() {
               {openDropdown && createPortal(
                 <div
                   ref={dropdownRef}
-                  className="dropdown-menu"
+                  className="dropdown-menu dropdown-menu-tutoria-grupo"
                   style={{
                     position: 'fixed',
                     top: `${openDropdown.top}px`,

@@ -151,6 +151,15 @@
   overflow-y: auto;
 }
 
+/* Opciones por grupo en Tutoría: 9 ítems en 2 columnas */
+.dropdown-menu-tutoria-grupo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  justify-items: start;
+  align-content: start;
+  min-width: 320px;
+}
+
 .dropdown-item {
   display: flex;
   align-items: center;
@@ -160,6 +169,8 @@
   transition: all 0.2s;
   color: #374151;
   font-size: 0.9rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .dropdown-item:hover {

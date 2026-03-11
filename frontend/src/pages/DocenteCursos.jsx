@@ -3259,7 +3259,7 @@ function DocenteCursos() {
       const availableHeight = openUpward ? spaceAbove : spaceBelow;
       const maxHeight = Math.min(DROPDOWN_EST_HEIGHT, Math.max(150, availableHeight));
       let left = rect.left;
-      const dropdownMinWidth = 200;
+      const dropdownMinWidth = 280; /* 2 columnas en Opciones por curso */
       const dropdownWidth = Math.max(rect.width, dropdownMinWidth);
       if (left + dropdownWidth > window.innerWidth - padding) left = window.innerWidth - dropdownWidth - padding;
       if (left < padding) left = padding;
