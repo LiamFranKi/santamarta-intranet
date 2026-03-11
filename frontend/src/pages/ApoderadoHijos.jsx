@@ -3836,9 +3836,9 @@ function ApoderadoHijos() {
                   const colorCard = coloresPasteles[index % coloresPasteles.length];
                   
                   return (
-                    <div 
-                      key={hijo.id} 
-                      className="hijo-card"
+                    <div
+                      key={hijo.id}
+                      className={`hijo-card ${openDropdown?.hijoId === hijo.id ? 'hijo-card-dropdown-abierto' : ''}`}
                       style={{
                         background: colorCard.bg,
                         borderColor: colorCard.border

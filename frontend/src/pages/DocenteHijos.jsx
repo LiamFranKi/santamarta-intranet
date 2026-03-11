@@ -3842,7 +3842,7 @@ function DocenteHijos() {
                   return (
                     <div 
                       key={hijo.id} 
-                      className="hijo-card"
+                      className={`hijo-card ${openDropdown?.hijoId === hijo.id ? 'hijo-card-dropdown-abierto' : ''}`}
                       style={{
                         background: colorCard.bg,
                         borderColor: colorCard.border

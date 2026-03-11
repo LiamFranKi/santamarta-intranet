@@ -79,6 +79,10 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
+.hijo-card.hijo-card-dropdown-abierto {
+  z-index: 1000;
+}
+
 .hijo-actions {
   position: absolute;
   bottom: 1rem;
@@ -100,8 +104,11 @@
   right: auto !important;
   min-width: 320px !important;
   max-width: 380px !important;
-  max-height: min(70vh, 480px) !important;
+  max-height: min(70vh, 520px) !important;
   overflow-y: auto !important;
+  overflow-x: visible !important;
+  padding: 5mm !important;
+  z-index: 1001 !important;
 }
 
 /* Botón Opciones Dropdown */
@@ -161,7 +168,7 @@
 .dropdown-menu.dropdown-menu-hijo .dropdown-item,
 .dropdown-menu-hijo .dropdown-item {
   width: 100%;
-  padding: 0.6rem 0.75rem !important;
+  padding: 0.6rem 5mm !important;
   border: none !important;
   background: transparent !important;
   color: #1f2937 !important;
