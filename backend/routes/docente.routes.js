@@ -10991,33 +10991,44 @@ async function obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds) {
 
     const placeholders = ids.map(() => '?').join(',');
     const result = { b1: null, b2: null, b3: null, b4: null };
+    const matIdNum = parseInt(matriculaId, 10);
+
+    // Obtener matrículas del grupo
+    const matriculasGrupo = await query(
+      `SELECT id FROM matriculas WHERE grupo_id = ? AND (estado = 0 OR estado = 4)`,
+      [grupoId]
+    );
+    const matriculaIds = (matriculasGrupo || []).map(m => m.id);
+    if (matriculaIds.length === 0) return result;
+
+    const matPlaceholders = matriculaIds.map(() => '?').join(',');
 
     for (let ciclo = 1; ciclo <= 4; ciclo++) {
       const promedios = await query(
-        `SELECT m.id as matricula_id, p.asignatura_id, p.promedio
-         FROM matriculas m
-         INNER JOIN promedios p ON p.matricula_id = m.id AND p.asignatura_id IN (${placeholders}) AND p.ciclo = ?
-         WHERE m.grupo_id = ? AND (m.estado = 0 OR m.estado = 4)
-         ORDER BY m.id`,
-        [ciclo, grupoId, ...ids]
+        `SELECT p.matricula_id, p.asignatura_id, p.promedio
+         FROM promedios p
+         WHERE p.matricula_id IN (${matPlaceholders})
+           AND p.asignatura_id IN (${placeholders})
+           AND p.ciclo = ?`,
+        [...matriculaIds, ...ids, ciclo]
       );
 
       const sumaPorMatricula = {};
       const countPorMatricula = {};
-      promedios.forEach(row => {
-        if (!sumaPorMatricula[row.matricula_id]) { sumaPorMatricula[row.matricula_id] = 0; countPorMatricula[row.matricula_id] = 0; }
+      (promedios || []).forEach(row => {
+        const mid = row.matricula_id;
+        if (!sumaPorMatricula[mid]) { sumaPorMatricula[mid] = 0; countPorMatricula[mid] = 0; }
         const n = parseFloat(row.promedio);
-        if (!isNaN(n)) { sumaPorMatricula[row.matricula_id] += n; countPorMatricula[row.matricula_id]++; }
+        if (!isNaN(n)) { sumaPorMatricula[mid] += n; countPorMatricula[mid]++; }
       });
 
       const promedioGeneral = Object.keys(sumaPorMatricula).map(matId => ({
-        matricula_id: parseInt(matId),
+        matricula_id: parseInt(matId, 10),
         promedio: countPorMatricula[matId] > 0 ? sumaPorMatricula[matId] / countPorMatricula[matId] : 0
       }));
       promedioGeneral.sort((a, b) => b.promedio - a.promedio);
 
-      const matIdNum = parseInt(matriculaId, 10);
-      const pos = promedioGeneral.findIndex(p => parseInt(p.matricula_id, 10) === matIdNum);
+      const pos = promedioGeneral.findIndex(p => p.matricula_id === matIdNum);
       if (pos >= 0) result[`b${ciclo}`] = `Puesto ${String(pos + 1).padStart(2, '0')}`;
     }
     return result;
