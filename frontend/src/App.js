@@ -141,8 +141,9 @@ function NavigateToDashboard() {
 }
 
 function AppRoutes() {
+  const location = useLocation();
   return (
-    <Routes>
+    <Routes key={location.pathname}>
       <Route path="/login" element={<Login />} />
       <Route
         path="/admin/dashboard"
