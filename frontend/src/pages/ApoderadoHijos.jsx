@@ -154,26 +154,23 @@ function ApoderadoHijos() {
       setOpenDropdown(null);
       return;
     }
-    const buttonEl = e.currentTarget;
-    // Calcular posición en el siguiente frame para usar el layout real del botón
-    requestAnimationFrame(() => {
-      const rect = buttonEl.getBoundingClientRect();
-      const dropdownWidth = 320;
-      const dropdownHeight = 520;
-      let left = rect.left;
-      let top = rect.bottom + 4;
-      let maxHeight = undefined;
-      if (left + dropdownWidth > window.innerWidth - 10) left = window.innerWidth - dropdownWidth - 10;
-      if (left < 10) left = 10;
-      if (top + dropdownHeight > window.innerHeight - 10) {
-        top = rect.top - dropdownHeight - 4;
-        if (top < 10) {
-          maxHeight = rect.top - 20;
-          top = 10;
-        }
+    // Posición en el mismo instante del click (rect del botón real)
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dropdownWidth = 320;
+    const dropdownHeight = 520;
+    let left = rect.left;
+    let top = rect.bottom + 4;
+    let maxHeight = undefined;
+    if (left + dropdownWidth > window.innerWidth - 10) left = window.innerWidth - dropdownWidth - 10;
+    if (left < 10) left = 10;
+    if (top + dropdownHeight > window.innerHeight - 10) {
+      top = rect.top - dropdownHeight - 4;
+      if (top < 10) {
+        top = 10;
+        maxHeight = Math.max(120, rect.top - 12);
       }
-      setOpenDropdown({ hijoId, top, left, maxHeight });
-    });
+    }
+    setOpenDropdown({ hijoId, top, left, maxHeight });
   };
 
   // Función para diagnosticar deudas de un hijo
