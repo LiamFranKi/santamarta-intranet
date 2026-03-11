@@ -2976,11 +2976,11 @@ async function obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds) {
 
     for (let ciclo = 1; ciclo <= 4; ciclo++) {
       const promedios = await query(
-        `SELECT m.matricula_id, p.asignatura_id, p.promedio
+        `SELECT m.id as matricula_id, p.asignatura_id, p.promedio
          FROM matriculas m
          INNER JOIN promedios p ON p.matricula_id = m.id AND p.asignatura_id IN (${placeholders}) AND p.ciclo = ?
          WHERE m.grupo_id = ? AND (m.estado = 0 OR m.estado = 4)
-         ORDER BY m.matricula_id`,
+         ORDER BY m.id`,
         [ciclo, grupoId, ...ids]
       );
 
@@ -2998,7 +2998,8 @@ async function obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds) {
       }));
       promedioGeneral.sort((a, b) => b.promedio - a.promedio);
 
-      const pos = promedioGeneral.findIndex(p => p.matricula_id === matriculaId);
+      const matIdNum = parseInt(matriculaId, 10);
+      const pos = promedioGeneral.findIndex(p => parseInt(p.matricula_id, 10) === matIdNum);
       if (pos >= 0) result[`b${ciclo}`] = `Puesto ${String(pos + 1).padStart(2, '0')}`;
     }
     return result;
