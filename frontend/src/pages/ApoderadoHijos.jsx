@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
@@ -25,7 +25,6 @@ function ApoderadoHijos() {
   const [hijos, setHijos] = useState([]);
   const [openDropdown, setOpenDropdown] = useState(null);
   const dropdownRef = useRef(null);
-  const opcionesButtonRefs = useRef({});
   const quillRefMensaje = useRef(null);
   const [showModalEditar, setShowModalEditar] = useState(false);
   const [hijoSeleccionado, setHijoSeleccionado] = useState(null);
@@ -157,28 +156,6 @@ function ApoderadoHijos() {
     }
     setOpenDropdown({ hijoId });
   };
-
-  useLayoutEffect(() => {
-    if (!openDropdown?.hijoId || openDropdown.top != null) return;
-    const btn = opcionesButtonRefs.current[openDropdown.hijoId];
-    if (!btn) return;
-    const rect = btn.getBoundingClientRect();
-    const dropdownWidth = 320;
-    const dropdownHeight = 520;
-    let left = rect.left;
-    let top = rect.bottom + 4;
-    let maxHeight = undefined;
-    if (left + dropdownWidth > window.innerWidth - 10) left = window.innerWidth - dropdownWidth - 10;
-    if (left < 10) left = 10;
-    if (top + dropdownHeight > window.innerHeight - 10) {
-      top = rect.top - dropdownHeight - 4;
-      if (top < 10) {
-        top = 10;
-        maxHeight = Math.max(120, rect.top - 12);
-      }
-    }
-    setOpenDropdown((prev) => (prev ? { ...prev, top, left, maxHeight } : null));
-  }, [openDropdown?.hijoId, openDropdown?.top]);
 
   // Función para diagnosticar deudas de un hijo
   const diagnosticarDeudas = async (hijo) => {
@@ -3898,10 +3875,6 @@ function ApoderadoHijos() {
                       <div className="hijo-actions">
                         <div className="dropdown-container">
                           <button 
-                            ref={(el) => {
-                              if (el) opcionesButtonRefs.current[hijo.id] = el;
-                              else delete opcionesButtonRefs.current[hijo.id];
-                            }}
                             className="btn-opciones-hijo"
                             onClick={(e) => handleOpcionesClick(e, hijo.id)}
                             title="Opciones"
@@ -3909,24 +3882,12 @@ function ApoderadoHijos() {
                             Opciones {openDropdown?.hijoId === hijo.id ? '▲' : '▼'}
                           </button>
                           
-                          {openDropdown?.hijoId === hijo.id && 
-                            createPortal(
-                              <div 
-                                ref={dropdownRef}
-                                className="dropdown-menu dropdown-menu-hijo"
-                                style={{
-                                  top: openDropdown.top != null ? `${openDropdown.top}px` : 0,
-                                  left: openDropdown.left != null ? `${openDropdown.left}px` : 0,
-                                  position: 'fixed',
-                                  zIndex: 99999,
-                                  visibility: openDropdown.top != null ? 'visible' : 'hidden',
-                                  ...(openDropdown.maxHeight != null && {
-                                    maxHeight: `${openDropdown.maxHeight}px`,
-                                    overflowY: 'auto'
-                                  })
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
+                          {openDropdown?.hijoId === hijo.id && (
+                            <div 
+                              ref={dropdownRef}
+                              className="dropdown-menu dropdown-menu-hijo dropdown-menu-hijo-inline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
                                 <button
                                   className="dropdown-item"
                                   type="button"
@@ -4104,10 +4065,8 @@ function ApoderadoHijos() {
                                     <span>Diagnosticar Deudas</span>
                                   </button>
                                 )}
-                              </div>,
-                              document.body
-                            )
-                          }
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

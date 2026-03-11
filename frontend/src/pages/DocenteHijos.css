@@ -90,6 +90,20 @@
   position: relative;
 }
 
+/* Dropdown anclado al botón (dentro del container, sin portal). Selector fuerte para ganar a .dropdown-menu-hijo */
+.dropdown-menu.dropdown-menu-hijo.dropdown-menu-hijo-inline,
+.dropdown-menu-hijo.dropdown-menu-hijo-inline {
+  position: absolute !important;
+  top: 100% !important;
+  left: 0 !important;
+  margin-top: 4px !important;
+  right: auto !important;
+  min-width: 320px !important;
+  max-width: 380px !important;
+  max-height: min(70vh, 480px) !important;
+  overflow-y: auto !important;
+}
+
 /* Botón Opciones Dropdown */
 .btn-opciones-hijo {
   background: linear-gradient(135deg, #6ba3d4 0%, #4a83c1 100%);
