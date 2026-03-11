@@ -10807,12 +10807,13 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     const promedioConductaB2 = await obtenerPromedioConducta(matriculaId, 2);
     const promedioConductaB3 = await obtenerPromedioConducta(matriculaId, 3);
     const promedioConductaB4 = await obtenerPromedioConducta(matriculaId, 4);
+    const conductaVals = [promedioConductaB1, promedioConductaB2, promedioConductaB3, promedioConductaB4]
+      .filter(v => v != null && v !== '' && v !== '-').map(v => parseFloat(v));
+    const promedioConductaFinal = conductaVals.length > 0 ? Math.round(conductaVals.reduce((a, b) => a + b, 0) / conductaVals.length) : null;
 
-    // Orden de mérito (por ahora null, se puede implementar después)
-    const ordenMeritoB1 = null;
-    const ordenMeritoB2 = null;
-    const ordenMeritoB3 = null;
-    const ordenMeritoB4 = null;
+    // Orden de mérito: ranking por promedio general por bimestre (todos los alumnos del grupo)
+    const asignaturasIds = asignaturas.map(a => a.asignatura_id).filter(id => id !== -101);
+    const ordenMerito = await obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds);
 
     // Inasistencias y tardanzas (usar datos de asistencia)
     const inasistenciasB1 = await obtenerInasistencias(matriculaId, 1, anio_activo);
@@ -10849,13 +10850,14 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         b1: promedioConductaB1,
         b2: promedioConductaB2,
         b3: promedioConductaB3,
-        b4: promedioConductaB4
+        b4: promedioConductaB4,
+        final: promedioConductaFinal
       },
       orden_merito: {
-        b1: ordenMeritoB1,
-        b2: ordenMeritoB2,
-        b3: ordenMeritoB3,
-        b4: ordenMeritoB4
+        b1: ordenMerito.b1,
+        b2: ordenMerito.b2,
+        b3: ordenMerito.b3,
+        b4: ordenMerito.b4
       },
       inasistencias: {
         b1: inasistenciasB1,
@@ -10977,6 +10979,50 @@ async function obtenerTardanzas(matriculaId, ciclo, anio) {
   } catch (error) {
     console.error('Error obteniendo tardanzas:', error);
     return 0;
+  }
+}
+
+// Función auxiliar para calcular orden de mérito por bimestre (ranking por promedio general del grupo)
+async function obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds) {
+  try {
+    if (!asignaturasIds || asignaturasIds.length === 0) return { b1: null, b2: null, b3: null, b4: null };
+    const ids = asignaturasIds.filter(id => id !== -101 && id != null);
+    if (ids.length === 0) return { b1: null, b2: null, b3: null, b4: null };
+
+    const placeholders = ids.map(() => '?').join(',');
+    const result = { b1: null, b2: null, b3: null, b4: null };
+
+    for (let ciclo = 1; ciclo <= 4; ciclo++) {
+      const promedios = await query(
+        `SELECT m.matricula_id, p.asignatura_id, p.promedio
+         FROM matriculas m
+         INNER JOIN promedios p ON p.matricula_id = m.id AND p.asignatura_id IN (${placeholders}) AND p.ciclo = ?
+         WHERE m.grupo_id = ? AND (m.estado = 0 OR m.estado = 4)
+         ORDER BY m.matricula_id`,
+        [ciclo, grupoId, ...ids]
+      );
+
+      const sumaPorMatricula = {};
+      const countPorMatricula = {};
+      promedios.forEach(row => {
+        if (!sumaPorMatricula[row.matricula_id]) { sumaPorMatricula[row.matricula_id] = 0; countPorMatricula[row.matricula_id] = 0; }
+        const n = parseFloat(row.promedio);
+        if (!isNaN(n)) { sumaPorMatricula[row.matricula_id] += n; countPorMatricula[row.matricula_id]++; }
+      });
+
+      const promedioGeneral = Object.keys(sumaPorMatricula).map(matId => ({
+        matricula_id: parseInt(matId),
+        promedio: countPorMatricula[matId] > 0 ? sumaPorMatricula[matId] / countPorMatricula[matId] : 0
+      }));
+      promedioGeneral.sort((a, b) => b.promedio - a.promedio);
+
+      const pos = promedioGeneral.findIndex(p => p.matricula_id === matriculaId);
+      if (pos >= 0) result[`b${ciclo}`] = `Puesto ${String(pos + 1).padStart(2, '0')}`;
+    }
+    return result;
+  } catch (error) {
+    console.error('Error obteniendo orden de mérito:', error);
+    return { b1: null, b2: null, b3: null, b4: null };
   }
 }
 

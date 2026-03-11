@@ -2874,12 +2874,20 @@ function DocenteHijos() {
           doc.text(v !== null && v !== undefined && v !== '' ? String(v) : def, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
           xPos += colBimestreWidth;
         });
-        const promFinal = label === 'PROMEDIO' && promB.filter(p => p != null && p !== '').length > 0
-          ? Math.round(promB.filter(p => p != null && p !== '').map(Number).reduce((a, b) => a + (isNaN(b) ? 0 : b), 0) / promB.filter(p => p != null && p !== '').length)
-          : (label === 'PROMEDIO' ? resumen.promedio.final : def);
+        let col5Val = '-';
+        if (label === 'PROMEDIO') {
+          col5Val = promB.filter(p => p != null && p !== '').length > 0
+            ? String(Math.round(promB.filter(p => p != null && p !== '').map(Number).reduce((a, b) => a + (isNaN(b) ? 0 : b), 0) / promB.filter(p => p != null && p !== '').length))
+            : (resumen.promedio?.final != null ? String(resumen.promedio.final) : '-');
+        } else if (label === 'PROMEDIO CONDUCTA') {
+          col5Val = resumen.promedio_conducta?.final != null && resumen.promedio_conducta.final !== ''
+            ? String(resumen.promedio_conducta.final) : (condB.filter(c => c != null && c !== '').length > 0
+              ? String(Math.round(condB.filter(c => c != null && c !== '').map(Number).reduce((a, b) => a + (isNaN(b) ? 0 : b), 0) / condB.filter(c => c != null && c !== '').length))
+              : '-');
+        }
         doc.setFillColor(...colorData);
         doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-        doc.text(label === 'PROMEDIO' && promFinal != null ? String(promFinal) : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        doc.text((label === 'PROMEDIO' || label === 'PROMEDIO CONDUCTA') && col5Val !== '-' ? col5Val : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
         yPos += headerHeight;
       };
 
