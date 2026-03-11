@@ -151,13 +151,14 @@
   overflow-y: auto;
 }
 
-/* Opciones por grupo en Tutoría: 9 ítems en 2 columnas */
+/* Opciones por grupo en Tutoría: 9 ítems en 2 columnas. Selector doble + !important para ganar a AlumnoCursos.css */
+.dropdown-menu.dropdown-menu-tutoria-grupo,
 .dropdown-menu-tutoria-grupo {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  justify-items: start;
-  align-content: start;
-  min-width: 320px;
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  justify-items: start !important;
+  align-content: start !important;
+  min-width: 320px !important;
 }
 
 .dropdown-item {
