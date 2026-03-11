@@ -25,6 +25,7 @@ function ApoderadoHijos() {
   const [hijos, setHijos] = useState([]);
   const [openDropdown, setOpenDropdown] = useState(null);
   const dropdownRef = useRef(null);
+  const dropdownButtonRef = useRef(null);
   const quillRefMensaje = useRef(null);
   const [showModalEditar, setShowModalEditar] = useState(false);
   const [hijoSeleccionado, setHijoSeleccionado] = useState(null);
@@ -117,6 +118,7 @@ function ApoderadoHijos() {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         const isDropdownButton = event.target.closest('.btn-opciones-hijo');
         if (!isDropdownButton) {
+          dropdownButtonRef.current = null;
           setOpenDropdown(null);
         }
       }
@@ -151,11 +153,30 @@ function ApoderadoHijos() {
   const handleOpcionesClick = (e, hijoId) => {
     e.stopPropagation();
     if (openDropdown?.hijoId === hijoId) {
+      dropdownButtonRef.current = null;
       setOpenDropdown(null);
       return;
     }
-    setOpenDropdown({ hijoId });
+    const btn = e.currentTarget;
+    dropdownButtonRef.current = btn;
+    setOpenDropdown({ hijoId, rect: btn.getBoundingClientRect() });
   };
+
+  // Actualizar posición del dropdown en portal al hacer scroll o resize
+  useEffect(() => {
+    if (!openDropdown || !dropdownButtonRef.current) return;
+    const updateRect = () => {
+      if (dropdownButtonRef.current) {
+        setOpenDropdown(prev => prev ? { ...prev, rect: dropdownButtonRef.current.getBoundingClientRect() } : null);
+      }
+    };
+    window.addEventListener('scroll', updateRect, true);
+    window.addEventListener('resize', updateRect);
+    return () => {
+      window.removeEventListener('scroll', updateRect, true);
+      window.removeEventListener('resize', updateRect);
+    };
+  }, [openDropdown?.hijoId]);
 
   // Función para diagnosticar deudas de un hijo
   const diagnosticarDeudas = async (hijo) => {
@@ -3875,198 +3896,14 @@ function ApoderadoHijos() {
                       <div className="hijo-actions">
                         <div className="dropdown-container">
                           <button 
+                            ref={(el) => { if (openDropdown?.hijoId === hijo.id && el) dropdownButtonRef.current = el; }}
                             className="btn-opciones-hijo"
                             onClick={(e) => handleOpcionesClick(e, hijo.id)}
                             title="Opciones"
                           >
                             Opciones {openDropdown?.hijoId === hijo.id ? '▲' : '▼'}
                           </button>
-                          
-                          {openDropdown?.hijoId === hijo.id && (
-                            <div 
-                              ref={dropdownRef}
-                              className="dropdown-menu dropdown-menu-hijo dropdown-menu-hijo-inline"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                                <button
-                                  className="dropdown-item"
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpcionClick('editar-datos', hijo);
-                                  }}
-                                >
-                                  <span className="dropdown-icon">✏️</span>
-                                  <span>Editar Datos</span>
-                                </button>
-                                <button
-                                  className="dropdown-item"
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpcionClick('cursos-asignados', hijo);
-                                  }}
-                                >
-                                  <span className="dropdown-icon">📚</span>
-                                  <span>Cursos Asignados</span>
-                                </button>
-                                <button
-                                  className="dropdown-item"
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpcionClick('horario', hijo);
-                                  }}
-                                >
-                                  <span className="dropdown-icon">📅</span>
-                                  <span>Horario</span>
-                                </button>
-                                <button
-                                  className="dropdown-item"
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpcionClick('incidencias', hijo);
-                                  }}
-                                >
-                                  <span className="dropdown-icon">⚠️</span>
-                                  <span>Incidencias</span>
-                                </button>
-                                <button
-                                  className="dropdown-item"
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpcionClick('estrellas', hijo);
-                                  }}
-                                >
-                                  <span className="dropdown-icon">⭐</span>
-                                  <span>Estrellas</span>
-                                </button>
-                                <button
-                                  className="dropdown-item"
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpcionClick('asistencias', hijo);
-                                  }}
-                                >
-                                  <span className="dropdown-icon">✅</span>
-                                  <span>Asistencias</span>
-                                </button>
-                                <button
-                                  className="dropdown-item"
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpcionClick('imprimir-qr', hijo);
-                                  }}
-                                >
-                                  <span className="dropdown-icon">🖨️</span>
-                                  <span>Imprimir QR</span>
-                                </button>
-                                <button
-                                  className={`dropdown-item ${tieneDeudasBloqueadas ? 'disabled' : ''}`}
-                                  type="button"
-                                  disabled={tieneDeudasBloqueadas}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    console.log('[FRONTEND] onClick Notas Detalladas - tieneDeudasBloqueadas:', tieneDeudasBloqueadas);
-                                    if (tieneDeudasBloqueadas) {
-                                      console.log('[FRONTEND] BLOQUEANDO en onClick - Notas Detalladas');
-                                      Swal.fire({
-                                        icon: 'warning',
-                                        title: 'Acceso Bloqueado',
-                                        text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.',
-                                        confirmButtonText: 'Entendido'
-                                      });
-                                      return;
-                                    }
-                                    console.log('[FRONTEND] PERMITIENDO en onClick - Notas Detalladas');
-                                    handleOpcionClick('notas-detalladas', hijo);
-                                  }}
-                                  title={tieneDeudasBloqueadas ? 'Bloqueado por deudas pendientes' : ''}
-                                >
-                                  <span className="dropdown-icon">📊</span>
-                                  <span>Notas Detalladas</span>
-                                  {tieneDeudasBloqueadas && <span className="bloqueado-badge">🔒</span>}
-                                </button>
-                                <button
-                                  className={`dropdown-item ${tieneDeudasBloqueadas ? 'disabled' : ''}`}
-                                  type="button"
-                                  disabled={tieneDeudasBloqueadas}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    console.log('[FRONTEND] onClick Ver Libreta - tieneDeudasBloqueadas:', tieneDeudasBloqueadas);
-                                    if (tieneDeudasBloqueadas) {
-                                      console.log('[FRONTEND] BLOQUEANDO en onClick - Ver Libreta');
-                                      Swal.fire({
-                                        icon: 'warning',
-                                        title: 'Acceso Bloqueado',
-                                        text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.',
-                                        confirmButtonText: 'Entendido'
-                                      });
-                                      return;
-                                    }
-                                    console.log('[FRONTEND] PERMITIENDO en onClick - Ver Libreta');
-                                    handleOpcionClick('imprimir-notas', hijo);
-                                  }}
-                                  title={tieneDeudasBloqueadas ? 'Bloqueado por deudas pendientes' : ''}
-                                >
-                                  <span className="dropdown-icon">📄</span>
-                                  <span>Ver Libreta</span>
-                                  {tieneDeudasBloqueadas && <span className="bloqueado-badge">🔒</span>}
-                                </button>
-                                <button
-                                  className="dropdown-item"
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpcionClick('pagos-realizados', hijo);
-                                  }}
-                                >
-                                  <span className="dropdown-icon">💳</span>
-                                  <span>Pagos Realizados</span>
-                                </button>
-                                <button
-                                  className="dropdown-item"
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpcionClick('reiniciar-contrasena', hijo);
-                                  }}
-                                >
-                                  <span className="dropdown-icon">🔑</span>
-                                  <span>Reiniciar Contraseña</span>
-                                </button>
-                                <button
-                                  className="dropdown-item"
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleOpcionClick('psicologia', hijo);
-                                  }}
-                                >
-                                  <span className="dropdown-icon">🧠</span>
-                                  <span>Psicología</span>
-                                </button>
-                                {/* Botón Diagnosticar Deudas - OCULTO (no eliminado por si acaso) */}
-                                {false && (
-                                  <button
-                                    className="dropdown-item"
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleOpcionClick('diagnostico-deudas', hijo);
-                                    }}
-                                    style={{ backgroundColor: '#fff3cd', color: '#856404', fontWeight: 'bold' }}
-                                  >
-                                    <span className="dropdown-icon">🔍</span>
-                                    <span>Diagnosticar Deudas</span>
-                                  </button>
-                                )}
-                            </div>
-                          )}
+                          {/* El dropdown se renderiza en portal para evitar corte por overflow */}
                         </div>
                       </div>
                     </div>
@@ -4083,6 +3920,68 @@ function ApoderadoHijos() {
           </div>
         )}
       </div>
+
+      {/* Dropdown Opciones en portal (evita corte por overflow de la sección derecha) */}
+      {openDropdown?.rect && (() => {
+        const hijo = hijos.find(h => h.id === openDropdown.hijoId);
+        if (!hijo) return null;
+        const rect = openDropdown.rect;
+        return createPortal(
+          <div
+            ref={dropdownRef}
+            className="dropdown-menu dropdown-menu-hijo dropdown-menu-hijo-portal"
+            style={{
+              position: 'fixed',
+              top: rect.bottom + 4,
+              left: rect.left,
+              zIndex: 10001
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('editar-datos', hijo); }}>
+              <span className="dropdown-icon">✏️</span><span>Editar Datos</span>
+            </button>
+            <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('cursos-asignados', hijo); }}>
+              <span className="dropdown-icon">📚</span><span>Cursos Asignados</span>
+            </button>
+            <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('horario', hijo); }}>
+              <span className="dropdown-icon">📅</span><span>Horario</span>
+            </button>
+            <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('incidencias', hijo); }}>
+              <span className="dropdown-icon">⚠️</span><span>Incidencias</span>
+            </button>
+            <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('estrellas', hijo); }}>
+              <span className="dropdown-icon">⭐</span><span>Estrellas</span>
+            </button>
+            <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('asistencias', hijo); }}>
+              <span className="dropdown-icon">✅</span><span>Asistencias</span>
+            </button>
+            <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('imprimir-qr', hijo); }}>
+              <span className="dropdown-icon">🖨️</span><span>Imprimir QR</span>
+            </button>
+            <button className={`dropdown-item ${tieneDeudasBloqueadas ? 'disabled' : ''}`} type="button" disabled={tieneDeudasBloqueadas}
+              onClick={(e) => { e.stopPropagation(); if (tieneDeudasBloqueadas) { Swal.fire({ icon: 'warning', title: 'Acceso Bloqueado', text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.', confirmButtonText: 'Entendido' }); return; } handleOpcionClick('notas-detalladas', hijo); }}
+              title={tieneDeudasBloqueadas ? 'Bloqueado por deudas pendientes' : ''}>
+              <span className="dropdown-icon">📊</span><span>Notas Detalladas</span>{tieneDeudasBloqueadas && <span className="bloqueado-badge">🔒</span>}
+            </button>
+            <button className={`dropdown-item ${tieneDeudasBloqueadas ? 'disabled' : ''}`} type="button" disabled={tieneDeudasBloqueadas}
+              onClick={(e) => { e.stopPropagation(); if (tieneDeudasBloqueadas) { Swal.fire({ icon: 'warning', title: 'Acceso Bloqueado', text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.', confirmButtonText: 'Entendido' }); return; } handleOpcionClick('imprimir-notas', hijo); }}
+              title={tieneDeudasBloqueadas ? 'Bloqueado por deudas pendientes' : ''}>
+              <span className="dropdown-icon">📄</span><span>Ver Libreta</span>{tieneDeudasBloqueadas && <span className="bloqueado-badge">🔒</span>}
+            </button>
+            <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('pagos-realizados', hijo); }}>
+              <span className="dropdown-icon">💳</span><span>Pagos Realizados</span>
+            </button>
+            <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('reiniciar-contrasena', hijo); }}>
+              <span className="dropdown-icon">🔑</span><span>Reiniciar Contraseña</span>
+            </button>
+            <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('psicologia', hijo); }}>
+              <span className="dropdown-icon">🧠</span><span>Psicología</span>
+            </button>
+          </div>,
+          document.body
+        );
+      })()}
 
       {/* Modal Editar Datos */}
       {showModalEditar && hijoSeleccionado && createPortal(

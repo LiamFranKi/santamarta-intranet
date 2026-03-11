@@ -365,7 +365,7 @@
   padding: 2rem;
   padding-right: 1.5rem;
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: visible;
   min-width: 320px;
   max-width: none;
   background: #f5f6fa;
