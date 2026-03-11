@@ -150,53 +150,30 @@ function ApoderadoHijos() {
 
   const handleOpcionesClick = (e, hijoId) => {
     e.stopPropagation();
-    console.log('[FRONTEND] ========== HANDLE OPCIONES CLICK ==========');
-    console.log('[FRONTEND] handleOpcionesClick llamado para hijoId:', hijoId);
-    console.log('[FRONTEND] openDropdown actual:', openDropdown);
-    console.log('[FRONTEND] openDropdown?.hijoId:', openDropdown?.hijoId);
-    const rect = e.currentTarget.getBoundingClientRect();
-    console.log('[FRONTEND] Rect del botón:', rect);
-    
-    // CORRECCIÓN: openDropdown es un objeto {hijoId, top, left}, no un número
     if (openDropdown?.hijoId === hijoId) {
-      console.log('[FRONTEND] Cerrando dropdown (ya estaba abierto)');
       setOpenDropdown(null);
-    } else {
-      console.log('[FRONTEND] Abriendo dropdown para hijoId:', hijoId);
-      // Calcular posición del dropdown (12 opciones, igual que Docente Hijos a Cargo)
-      const dropdownWidth = 220;
-      const dropdownHeight = 520; // Suficiente para Editar Datos, Cursos, Horario... hasta Psicología y Reiniciar
-      let left = rect.left;
-      let top = rect.bottom + 2;
-      
-      // Si el dropdown se sale por la derecha, ajustar
-      if (left + dropdownWidth > window.innerWidth - 10) {
-        left = window.innerWidth - dropdownWidth - 10;
-      }
-      // Asegurar que no se salga por la izquierda
-      if (left < 10) {
-        left = 10;
-      }
-      
-      // Si el dropdown se sale por abajo, mostrarlo arriba
-      if (top + dropdownHeight > window.innerHeight - 10) {
-        top = rect.top - dropdownHeight - 2;
-      }
-      
-      // Evitar que "Editar Datos" (primer ítem) quede cortado arriba
-      if (top < 10) {
-        top = 10;
-      }
-      
-      const newDropdown = {
-        hijoId,
-        top,
-        left
-      };
-      console.log('[FRONTEND] Nuevo openDropdown configurado:', newDropdown);
-      setOpenDropdown(newDropdown);
-      console.log('[FRONTEND] ========== FIN HANDLE OPCIONES CLICK ==========');
+      return;
     }
+    const buttonEl = e.currentTarget;
+    // Calcular posición en el siguiente frame para usar el layout real del botón
+    requestAnimationFrame(() => {
+      const rect = buttonEl.getBoundingClientRect();
+      const dropdownWidth = 320;
+      const dropdownHeight = 520;
+      let left = rect.left;
+      let top = rect.bottom + 4;
+      let maxHeight = undefined;
+      if (left + dropdownWidth > window.innerWidth - 10) left = window.innerWidth - dropdownWidth - 10;
+      if (left < 10) left = 10;
+      if (top + dropdownHeight > window.innerHeight - 10) {
+        top = rect.top - dropdownHeight - 4;
+        if (top < 10) {
+          maxHeight = rect.top - 20;
+          top = 10;
+        }
+      }
+      setOpenDropdown({ hijoId, top, left, maxHeight });
+    });
   };
 
   // Función para diagnosticar deudas de un hijo
@@ -3924,15 +3901,7 @@ function ApoderadoHijos() {
                             Opciones {openDropdown?.hijoId === hijo.id ? '▲' : '▼'}
                           </button>
                           
-                          {openDropdown?.hijoId === hijo.id && openDropdown?.top && (() => {
-                            console.log('[FRONTEND] ========== RENDERIZANDO DROPDOWN ==========');
-                            console.log('[FRONTEND] Hijo ID:', hijo.id);
-                            console.log('[FRONTEND] Hijo DNI:', hijo.dni || hijo.nro_documento || 'NO DISPONIBLE');
-                            console.log('[FRONTEND] Hijo completo:', hijo);
-                            console.log('[FRONTEND] tieneDeudasBloqueadas en render:', tieneDeudasBloqueadas);
-                            return null;
-                          })()}
-                          {openDropdown?.hijoId === hijo.id && openDropdown?.top && 
+                          {openDropdown?.hijoId === hijo.id && openDropdown?.top != null && 
                             createPortal(
                               <div 
                                 ref={dropdownRef}
@@ -3941,7 +3910,11 @@ function ApoderadoHijos() {
                                   top: `${openDropdown.top}px`,
                                   left: `${openDropdown.left}px`,
                                   position: 'fixed',
-                                  zIndex: 99999
+                                  zIndex: 99999,
+                                  ...(openDropdown.maxHeight != null && {
+                                    maxHeight: `${openDropdown.maxHeight}px`,
+                                    overflowY: 'auto'
+                                  })
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                               >
