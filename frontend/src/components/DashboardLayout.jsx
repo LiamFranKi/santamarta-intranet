@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import CalendarioWidget from './CalendarioWidget';
@@ -22,8 +22,26 @@ function getInitials(nombre) {
 export default function DashboardLayout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
+
+  // Mantener abierto el submenú que contiene la ruta actual (evita que se "bloquee" la navegación en Config, etc.)
+  useEffect(() => {
+    const path = location.pathname || '';
+    setExpandedMenus(prev => ({
+      ...prev,
+      ...(path.startsWith('/admin/config') && { config: true }),
+      ...(path.startsWith('/admin/usuarios') && { usuarios: true }),
+      ...(path.startsWith('/admin/academico') && { academico: true }),
+      ...(path.startsWith('/admin/reportes') && { reportes: true }),
+    }));
+  }, [location.pathname]);
+
+  // Al cambiar de ruta, cerrar el sidebar en móvil para que no quede bloqueada la vista
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname]);
   const [rolesAdicionales, setRolesAdicionales] = useState({
     es_apoderado: false,
     es_tutor: false
@@ -585,7 +603,7 @@ export default function DashboardLayout({ children }) {
                 </div>
               </div>
               <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/auditoria">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/auditoria">
                   <span className="sidebar-icon">🧾</span>
                   <span className="sidebar-label">Auditoría</span>
                 </NavLink>

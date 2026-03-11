@@ -132,7 +132,7 @@ function Dashboard() {
       description: 'Configuración de Progressive Web App',
       icon: '📱'
     },
-    '/auditoria': {
+    '/admin/auditoria': {
       title: '🧾 Auditoría',
       description: 'Visualiza los logs de auditoría del sistema',
       icon: '🧾'
@@ -145,8 +145,8 @@ function Dashboard() {
     icon: '📊'
   };
 
-  // Si es una ruta específica de admin (pero NO el dashboard principal ni configuración), mostrar contenido específico
-  const isAdminRoute = (location.pathname.startsWith('/admin/') && location.pathname !== '/admin/dashboard' && location.pathname !== '/admin/config/general') || location.pathname === '/auditoria';
+  // Si es una ruta específica de admin (pero NO el dashboard principal ni configuración general), mostrar contenido específico
+  const isAdminRoute = location.pathname.startsWith('/admin/') && location.pathname !== '/admin/dashboard' && location.pathname !== '/admin/config/general';
   
   if (isAdminRoute) {
     return (

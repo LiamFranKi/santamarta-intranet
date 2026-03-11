@@ -153,7 +153,7 @@ function AppRoutes() {
       />
       {/* Placeholder: Auditoría UI se implementará en la siguiente iteración */}
       <Route
-        path="/auditoria"
+        path="/admin/auditoria"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
