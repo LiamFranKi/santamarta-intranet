@@ -500,6 +500,9 @@ function AlumnoDashboard() {
                   if ((evento.tipo === 'tarea' || evento.tipo === 'examen') && evento.grado && evento.seccion && evento.nivel_nombre) {
                     grupoInfo = `${evento.grado}° ${evento.seccion} - ${evento.nivel_nombre}`;
                   }
+                  // Curso (asignatura) y docente: backend los envía en tareas y exámenes
+                  const cursoNombre = evento.asignatura_nombre || evento.curso_nombre || '';
+                  const docenteNombre = evento.docente_nombre || '';
                   
                   return (
                     <div
@@ -515,6 +518,12 @@ function AlumnoDashboard() {
                         <h3 className="evento-card-titulo">{titulo}</h3>
                         {grupoInfo && (
                           <span className="evento-card-grupo">{grupoInfo}</span>
+                        )}
+                        {cursoNombre && (
+                          <span className="evento-card-curso">📚 {cursoNombre}</span>
+                        )}
+                        {docenteNombre && (
+                          <span className="evento-card-docente">👨‍🏫 {docenteNombre}</span>
                         )}
                         <span className="evento-card-tipo">{getTipoTexto(evento.tipo)}</span>
                       </div>
