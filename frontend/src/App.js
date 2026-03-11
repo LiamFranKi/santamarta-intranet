@@ -23,6 +23,7 @@ import AdminActividades from './pages/admin/AdminActividades';
 import AdminAvatares from './pages/admin/AdminAvatares';
 import AdminComunicados from './pages/admin/AdminComunicados';
 import AdminConfiguracion from './pages/admin/AdminConfiguracion';
+import DashboardLayout from './components/DashboardLayout';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
 import AlumnoDashboard from './pages/AlumnoDashboard';
 import AlumnoPerfil from './pages/AlumnoPerfil';
@@ -648,7 +649,9 @@ function AppRoutes() {
         path="/admin/config/general"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
-            <AdminConfiguracion />
+            <DashboardLayout>
+              <AdminConfiguracion />
+            </DashboardLayout>
           </PrivateRoute>
         }
       />

@@ -14,7 +14,7 @@
   left: 0;
   top: 0;
   bottom: 0;
-  z-index: 999;
+  z-index: 9999;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease;
 }
@@ -179,6 +179,8 @@
   min-width: 0;
   transition: margin-left 0.3s ease;
   margin-left: 240px;
+  position: relative;
+  z-index: 1;
 }
 
 .dashboard-header {
@@ -387,7 +389,7 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 998;
+  z-index: 9998;
   animation: fadeIn 0.3s ease;
 }
 

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './AdminConfiguracion.css';
@@ -462,11 +461,9 @@ function AdminConfiguracion() {
 
   if (loading) {
     return (
-      <DashboardLayout>
-        <div className="admin-configuracion-loading">
-          <p>Cargando configuración...</p>
-        </div>
-      </DashboardLayout>
+      <div className="admin-configuracion-loading">
+        <p>Cargando configuración...</p>
+      </div>
     );
   }
 
@@ -475,8 +472,7 @@ function AdminConfiguracion() {
   const opcionesPago = ['Matrícula', ...Array.from({ length: parseInt(config.total_pensiones) || 10 }, (_, i) => `Pensión ${i + 1}`)];
 
   return (
-    <DashboardLayout>
-      <div className="admin-configuracion">
+    <div className="admin-configuracion">
         <div className="config-header">
           <h1>⚙️ Configuración General</h1>
           <p>Administra la configuración general del sistema</p>
@@ -1356,7 +1352,6 @@ function AdminConfiguracion() {
 
         </div>
       </div>
-    </DashboardLayout>
   );
 }
 

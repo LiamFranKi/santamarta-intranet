@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -25,6 +25,7 @@ export default function DashboardLayout({ children }) {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
+  const sidebarNavRef = useRef(null);
 
   // Mantener abierto el submenú que contiene la ruta actual (evita que se "bloquee" la navegación en Config, etc.)
   useEffect(() => {
@@ -38,9 +39,18 @@ export default function DashboardLayout({ children }) {
     }));
   }, [location.pathname]);
 
-  // Al cambiar de ruta, cerrar el sidebar en móvil para que no quede bloqueada la vista
+  // Al cambiar de ruta: cerrar sidebar en móvil y mantener visible el ítem activo (evitar que el menú “suba” al hacer clic en Mensajes, etc.)
   useEffect(() => {
     setSidebarOpen(false);
+    const nav = sidebarNavRef.current;
+    if (nav) {
+      const active = nav.querySelector('.sidebar-link.active, .sidebar-sublink.active');
+      if (active) {
+        requestAnimationFrame(() => {
+          active.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+        });
+      }
+    }
   }, [location.pathname]);
   const [rolesAdicionales, setRolesAdicionales] = useState({
     es_apoderado: false,
@@ -231,7 +241,7 @@ export default function DashboardLayout({ children }) {
           </button>
         </div>
 
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" ref={sidebarNavRef}>
           {role === 'DOCENTE' ? (
             <>
               <div className="sidebar-item">
