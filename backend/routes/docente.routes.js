@@ -10813,7 +10813,9 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
 
     // Orden de mérito: ranking por promedio general por bimestre (todos los alumnos del grupo)
     const asignaturasIds = asignaturas.map(a => a.asignatura_id).filter(id => id !== -101);
-    const ordenMerito = await obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds);
+    const ordenMeritoResult = await obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds);
+    const ordenMerito = ordenMeritoResult.puestos;
+    const ordenMeritoDetalle = ordenMeritoResult.detalle || { b1: [], b2: [], b3: [], b4: [] };
 
     // Inasistencias y tardanzas (usar datos de asistencia)
     const inasistenciasB1 = await obtenerInasistencias(matriculaId, 1, anio_activo);
@@ -10859,6 +10861,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         b3: ordenMerito.b3,
         b4: ordenMerito.b4
       },
+      orden_merito_detalle: ordenMeritoDetalle,
       inasistencias: {
         b1: inasistenciasB1,
         b2: inasistenciasB2,
@@ -10983,23 +10986,41 @@ async function obtenerTardanzas(matriculaId, ciclo, anio) {
 }
 
 // Función auxiliar para calcular orden de mérito por bimestre (ranking por promedio general del grupo)
+// Retorna { puestos: { b1, b2, b3, b4 }, detalle: { b1: [{ apellido_paterno, apellido_materno, nombres, promedio, puesto }], ... } }
 async function obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds) {
   try {
-    if (!asignaturasIds || asignaturasIds.length === 0) return { b1: null, b2: null, b3: null, b4: null };
+    if (!asignaturasIds || asignaturasIds.length === 0) {
+      return { puestos: { b1: null, b2: null, b3: null, b4: null }, detalle: { b1: [], b2: [], b3: [], b4: [] } };
+    }
     const ids = asignaturasIds.filter(id => id !== -101 && id != null);
-    if (ids.length === 0) return { b1: null, b2: null, b3: null, b4: null };
+    if (ids.length === 0) {
+      return { puestos: { b1: null, b2: null, b3: null, b4: null }, detalle: { b1: [], b2: [], b3: [], b4: [] } };
+    }
 
     const placeholders = ids.map(() => '?').join(',');
-    const result = { b1: null, b2: null, b3: null, b4: null };
+    const puestos = { b1: null, b2: null, b3: null, b4: null };
+    const detalle = { b1: [], b2: [], b3: [], b4: [] };
     const matIdNum = parseInt(matriculaId, 10);
 
-    // Obtener matrículas del grupo
+    // Matrículas del grupo con nombres de alumnos
     const matriculasGrupo = await query(
-      `SELECT id FROM matriculas WHERE grupo_id = ? AND (estado = 0 OR estado = 4)`,
+      `SELECT m.id as matricula_id, a.apellido_paterno, a.apellido_materno, a.nombres
+       FROM matriculas m
+       INNER JOIN alumnos a ON a.id = m.alumno_id
+       WHERE m.grupo_id = ? AND (m.estado = 0 OR m.estado = 4)`,
       [grupoId]
     );
-    const matriculaIds = (matriculasGrupo || []).map(m => m.id);
-    if (matriculaIds.length === 0) return result;
+    const matriculaIds = (matriculasGrupo || []).map(m => m.matricula_id);
+    if (matriculaIds.length === 0) return { puestos, detalle };
+
+    const mapNombres = {};
+    (matriculasGrupo || []).forEach(m => {
+      mapNombres[m.matricula_id] = {
+        apellido_paterno: m.apellido_paterno || '',
+        apellido_materno: m.apellido_materno || '',
+        nombres: m.nombres || ''
+      };
+    });
 
     const matPlaceholders = matriculaIds.map(() => '?').join(',');
 
@@ -11029,12 +11050,24 @@ async function obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds) {
       promedioGeneral.sort((a, b) => b.promedio - a.promedio);
 
       const pos = promedioGeneral.findIndex(p => p.matricula_id === matIdNum);
-      if (pos >= 0) result[`b${ciclo}`] = `Puesto ${String(pos + 1).padStart(2, '0')}`;
+      if (pos >= 0) puestos[`b${ciclo}`] = `Puesto ${String(pos + 1).padStart(2, '0')}`;
+
+      // Lista para verificación: puesto asc, con nombres y promedio (con decimales)
+      detalle[`b${ciclo}`] = promedioGeneral.map((p, idx) => {
+        const nom = mapNombres[p.matricula_id] || {};
+        return {
+          apellido_paterno: nom.apellido_paterno,
+          apellido_materno: nom.apellido_materno,
+          nombres: nom.nombres,
+          promedio: Math.round(p.promedio * 100) / 100,
+          puesto: idx + 1
+        };
+      });
     }
-    return result;
+    return { puestos, detalle };
   } catch (error) {
     console.error('Error obteniendo orden de mérito:', error);
-    return { b1: null, b2: null, b3: null, b4: null };
+    return { puestos: { b1: null, b2: null, b3: null, b4: null }, detalle: { b1: [], b2: [], b3: [], b4: [] } };
   }
 }
 
