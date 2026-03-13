@@ -2944,7 +2944,7 @@ function DocenteHijos() {
           yP += 4;
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(8);
-          doc.text(`${datosLibreta.alumno.grado}° ${datosLibreta.alumno.seccion || ''} — ${datosLibreta.alumno.anio || ''}`, margin, yP);
+          doc.text(`${datosLibreta.alumno.grado}° ${datosLibreta.alumno.seccion || ''} — ${datosLibreta.alumno.nivel_nombre || ''} — ${datosLibreta.alumno.anio || ''}`, margin, yP);
           yP += 8;
           const list = ordenMeritoDetalle[`b${b}`] || [];
           doc.setFillColor(...colorLabel);

@@ -427,7 +427,7 @@ function DocenteTutoria() {
         await handleExportarNominaGrupo(grupo);
         break;
       case 'orden-merito':
-        navigate(`/docente/tutoria/grupos/${grupo.id}/orden-merito`);
+        await handleOrdenMeritoPDF(grupo);
         break;
       default:
         break;
@@ -839,6 +839,99 @@ function DocenteTutoria() {
       Swal.fire({ title: '¡PDF Generado!', text: 'La nómina se ha descargado correctamente', icon: 'success', timer: 2000, showConfirmButton: false });
     } catch (err) {
       console.error('Error exportando nómina:', err);
+      Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudo generar el PDF' });
+    }
+  };
+
+  // Orden de Mérito: modal año/bimestre y exportar solo el reporte en PDF (sin libreta)
+  const handleOrdenMeritoPDF = async (grupo) => {
+    const anioDefault = grupo.anio != null ? Number(grupo.anio) : new Date().getFullYear();
+    const { value: result } = await Swal.fire({
+      title: 'Reporte de Orden de Mérito',
+      html: `
+        <p style="margin-bottom: 1rem;">Seleccione el año y el bimestre.</p>
+        <label style="display:block; text-align:left; margin-bottom: 0.25rem; font-weight: 600;">Año</label>
+        <select id="swal-anio-om" class="swal2-input" style="width: 100%; margin-bottom: 1rem;">
+          <option value="${anioDefault}">${anioDefault}</option>
+        </select>
+        <label style="display:block; text-align:left; margin-bottom: 0.25rem; font-weight: 600;">Bimestre</label>
+        <select id="swal-ciclo-om" class="swal2-input" style="width: 100%;">
+          <option value="1">Bimestre I</option>
+          <option value="2">Bimestre II</option>
+          <option value="3">Bimestre III</option>
+          <option value="4">Bimestre IV</option>
+        </select>
+      `,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Descargar PDF',
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const anio = parseInt(document.getElementById('swal-anio-om').value, 10);
+        const ciclo = parseInt(document.getElementById('swal-ciclo-om').value, 10);
+        return { anio, ciclo };
+      }
+    });
+    if (!result) return;
+    try {
+      const res = await api.get(`/docente/tutoria/grupos/${grupo.id}/orden-merito`);
+      const { grupo: grupoRes, detalle } = res.data;
+      const list = (detalle && detalle[`b${result.ciclo}`]) || [];
+      const bimestresLabel = ['I', 'II', 'III', 'IV'];
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 5;
+      const colPuesto = 18;
+      const colPromedio = 28;
+      const colNombres = pageWidth - margin * 2 - colPuesto - colPromedio;
+      const colorLabel = [100, 149, 237];
+      const colorData = [255, 255, 255];
+
+      let yP = margin + 12;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.text(`Reporte de Orden de Mérito — Bimestre ${bimestresLabel[result.ciclo - 1]}`, margin, yP);
+      yP += 4;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      const grado = grupoRes?.grado ?? grupo.grado;
+      const seccion = grupoRes?.seccion ?? grupo.seccion;
+      const nivel = grupoRes?.nivel_nombre ?? grupo.nivel_nombre ?? '';
+      const anio = grupoRes?.anio ?? result.anio;
+      doc.text(`${grado}° ${seccion || ''} — ${nivel} — ${anio || ''}`, margin, yP);
+      yP += 8;
+      doc.setFillColor(...colorLabel);
+      doc.rect(margin, yP, colPuesto, 6, 'FD');
+      doc.rect(margin + colPuesto, yP, colNombres, 6, 'FD');
+      doc.rect(margin + colPuesto + colNombres, yP, colPromedio, 6, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 255);
+      doc.text('Puesto', margin + colPuesto / 2, yP + 4, { align: 'center' });
+      doc.text('Apellidos y Nombres', margin + colPuesto + colNombres / 2, yP + 4, { align: 'center' });
+      doc.text('Promedio', margin + colPuesto + colNombres + colPromedio / 2, yP + 4, { align: 'center' });
+      doc.setTextColor(0, 0, 0);
+      yP += 6;
+      doc.setFont('helvetica', 'normal');
+      list.forEach((row) => {
+        if (yP > pageHeight - 20) { doc.addPage(); yP = margin; }
+        const nombreCompleto = `${row.apellido_paterno || ''} ${row.apellido_materno || ''} ${row.nombres || ''}`.trim() || '-';
+        doc.setFillColor(...colorData);
+        doc.rect(margin, yP, colPuesto, 5, 'FD');
+        doc.rect(margin + colPuesto, yP, colNombres, 5, 'FD');
+        doc.rect(margin + colPuesto + colNombres, yP, colPromedio, 5, 'FD');
+        doc.text(String(row.puesto), margin + colPuesto / 2, yP + 3.5, { align: 'center' });
+        doc.text(nombreCompleto, margin + colPuesto + 2, yP + 3.5);
+        doc.text(typeof row.promedio === 'number' ? row.promedio.toFixed(2) : String(row.promedio || ''), margin + colPuesto + colNombres + colPromedio / 2, yP + 3.5, { align: 'center' });
+        yP += 5;
+      });
+
+      const nombreArchivo = `OrdenMerito_${grado}°_${seccion}_Bim${bimestresLabel[result.ciclo - 1]}_${Date.now()}.pdf`;
+      doc.save(nombreArchivo);
+      Swal.fire({ title: '¡PDF Generado!', text: 'El reporte de orden de mérito se ha descargado correctamente', icon: 'success', timer: 2000, showConfirmButton: false });
+    } catch (err) {
+      console.error('Error generando orden de mérito:', err);
       Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudo generar el PDF' });
     }
   };
