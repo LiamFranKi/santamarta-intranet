@@ -2739,7 +2739,15 @@ function ApoderadoHijos() {
         doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
 
         // Sección Detalle de Notas (explicaciones del docente por curso)
-        const detalleNotasCual = datosLibreta.detalle_notas || [];
+        let detalleNotasCual = datosLibreta.detalle_notas || [];
+        if (detalleNotasCual.length === 0 && datosLibreta.cursos_cualitativos) {
+          detalleNotasCual = (datosLibreta.cursos_cualitativos || []).map(c => ({
+            curso_nombre: c.curso_nombre || '-',
+            docente_nombre: '-',
+            promedio: c[`promedio_b${cicloSel}`] != null && c[`promedio_b${cicloSel}`] !== '' ? c[`promedio_b${cicloSel}`] : '-',
+            explicacion: '-'
+          }));
+        }
         if (detalleNotasCual.length > 0) {
           doc.addPage();
           let yDet = margin + 12;
@@ -2989,7 +2997,21 @@ function ApoderadoHijos() {
       doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
 
       // Sección Detalle de Notas (explicaciones del docente por curso) — antes del Reporte de Orden de Mérito
-      const detalleNotas = datosLibreta.detalle_notas || [];
+      let detalleNotas = datosLibreta.detalle_notas || [];
+      if (detalleNotas.length === 0 && datosLibreta.areas) {
+        const items = [];
+        (datosLibreta.areas || []).forEach(ar => {
+          (ar.asignaturas || []).forEach(as => {
+            const prom = as[`promedio_b${cicloSel}`];
+            items.push({ curso_nombre: as.curso_nombre || '-', docente_nombre: '-', promedio: prom != null && prom !== '' ? prom : '-', explicacion: '-' });
+          });
+        });
+        (datosLibreta.asignaturas_sin_area || []).forEach(as => {
+          const prom = as[`promedio_b${cicloSel}`];
+          items.push({ curso_nombre: as.curso_nombre || '-', docente_nombre: '-', promedio: prom != null && prom !== '' ? prom : '-', explicacion: '-' });
+        });
+        detalleNotas = items;
+      }
       if (detalleNotas.length > 0) {
         doc.addPage();
         let yDet = margin + 12;
