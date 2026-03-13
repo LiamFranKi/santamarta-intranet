@@ -2789,7 +2789,7 @@ function ApoderadoHijos() {
             const lineasExp = doc.splitTextToSize(expl, colExp - 4);
             const lineasCurso = doc.splitTextToSize(curso, colCurso - 4);
             const lineasDocente = doc.splitTextToSize(docente, colDocente - 4);
-            const filaAlt = Math.max(6, Math.max(lineasExp.length, lineasCurso.length, lineasDocente.length) * 4);
+            const filaAlt = Math.max(6, Math.max(lineasExp.length, lineasCurso.length, lineasDocente.length) * 4) + 4;
             if (yDet + filaAlt > pageHeight - 25) { doc.addPage(); yDet = margin; }
             doc.setFillColor(240, 247, 255);
             doc.rect(margin, yDet, colCurso, filaAlt, 'FD');
@@ -3059,7 +3059,7 @@ function ApoderadoHijos() {
           const lineasExp = doc.splitTextToSize(expl, colExp - 4);
           const lineasCurso = doc.splitTextToSize(curso, colCurso - 4);
           const lineasDocente = doc.splitTextToSize(docente, colDocente - 4);
-          const filaAlt = Math.max(6, Math.max(lineasExp.length, lineasCurso.length, lineasDocente.length) * 4);
+          const filaAlt = Math.max(6, Math.max(lineasExp.length, lineasCurso.length, lineasDocente.length) * 4) + 4;
           if (yDet + filaAlt > pageHeight - 25) { doc.addPage(); yDet = margin; }
           doc.setFillColor(240, 247, 255);
           doc.rect(margin, yDet, colCurso, filaAlt, 'FD');
