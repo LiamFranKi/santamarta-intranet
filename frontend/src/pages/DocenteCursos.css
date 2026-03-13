@@ -3353,6 +3353,21 @@
   gap: 1.5rem;
   margin-bottom: 1.5rem;
   flex-wrap: wrap;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8a 100%);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(74, 131, 193, 0.35);
+}
+
+.detalle-notas-header .btn-regresar {
+  background: rgba(255,255,255,0.2);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.4);
+}
+
+.detalle-notas-header .btn-regresar:hover {
+  background: rgba(255,255,255,0.3);
+  color: white;
 }
 
 .detalle-notas-header-info {
@@ -3362,13 +3377,14 @@
 .detalle-notas-titulo {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #4a83c1;
+  color: white;
   margin: 0 0 0.25rem 0;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.15);
 }
 
 .detalle-notas-subtitulo {
   font-size: 0.95rem;
-  color: #6b7280;
+  color: rgba(255,255,255,0.9);
   margin: 0;
 }
 
@@ -3379,21 +3395,36 @@
   justify-content: space-between;
   gap: 1rem;
   margin-bottom: 1.5rem;
-  padding: 1rem;
-  background: #f8fafc;
-  border-radius: 8px;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(180deg, #f8fbfe 0%, #eef4fa 100%);
+  border: 1px solid rgba(74, 131, 193, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 2px 12px rgba(74, 131, 193, 0.08);
 }
 
 .detalle-notas-bimestre label {
   margin-right: 0.5rem;
-  font-weight: 500;
+  font-weight: 600;
+  color: #374151;
 }
 
 .detalle-notas-bimestre select {
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  border: 1px solid #c5d9ed;
+  border-radius: 8px;
   font-size: 14px;
+  background: white;
+  color: #1e3a5f;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.detalle-notas-bimestre select:hover,
+.detalle-notas-bimestre select:focus {
+  border-color: #4a83c1;
+  box-shadow: 0 0 0 3px rgba(74, 131, 193, 0.15);
+  outline: none;
 }
 
 .detalle-notas-buttons {
@@ -3403,48 +3434,57 @@
 }
 
 .btn-guardar-detalle,
-.btn-enviar-mes,
 .btn-exportar-detalle {
-  padding: 0.5rem 1rem;
-  border-radius: 6px;
-  font-weight: 500;
+  padding: 0.6rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 600;
   font-size: 14px;
-  border: 1px solid #ddd;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .btn-guardar-detalle {
-  background: #4a83c1;
+  background: linear-gradient(135deg, #4a83c1 0%, #3a6da3 100%);
   color: white;
-  border-color: #4a83c1;
+  border: none;
+  box-shadow: 0 3px 12px rgba(74, 131, 193, 0.4);
 }
 
 .btn-guardar-detalle:hover:not(:disabled) {
-  background: #3a73b1;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(74, 131, 193, 0.5);
+  background: linear-gradient(135deg, #3a73b1 0%, #2d5a8a 100%);
 }
 
 .btn-guardar-detalle:disabled {
   opacity: 0.7;
   cursor: not-allowed;
+  transform: none;
 }
 
-.btn-enviar-mes,
 .btn-exportar-detalle {
   background: white;
-  color: #333;
+  color: #4a83c1;
+  border: 1px solid #4a83c1;
 }
 
-.btn-enviar-mes:hover,
 .btn-exportar-detalle:hover {
-  background: #f0f4f8;
+  background: linear-gradient(180deg, #f0f7ff 0%, #e8f0fa 100%);
+  border-color: #3a73b1;
+  color: #2d5a8a;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(74, 131, 193, 0.2);
 }
 
 .detalle-notas-table-wrapper {
   overflow-x: auto;
-  border: 1px solid #ddd;
-  border-radius: 8px;
+  border-radius: 12px;
   background: white;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+  border: 1px solid rgba(74, 131, 193, 0.12);
 }
 
 .detalle-notas-table {
@@ -3455,24 +3495,35 @@
 }
 
 .detalle-notas-table th {
-  background: #f5f9f2;
-  border-bottom: 1px solid #ddd;
-  padding: 12px 10px;
+  background: linear-gradient(180deg, #4a83c1 0%, #3a6da3 100%);
+  color: white;
+  border: none;
+  padding: 14px 12px;
   font-weight: 600;
   text-align: left;
+  font-size: 13px;
+  letter-spacing: 0.3px;
+}
+
+.detalle-notas-table th:first-child {
+  border-radius: 12px 0 0 0;
+}
+
+.detalle-notas-table th:last-child {
+  border-radius: 0 12px 0 0;
 }
 
 .detalle-notas-table .col-num {
-  width: 45px;
+  width: 50px;
   text-align: center;
 }
 
 .detalle-notas-table .col-nombre {
-  width: 200px;
+  width: 220px;
 }
 
 .detalle-notas-table .col-promedio {
-  width: 90px;
+  width: 100px;
   text-align: center;
 }
 
@@ -3481,50 +3532,78 @@
 }
 
 .detalle-notas-table td {
-  border-bottom: 1px solid #eee;
-  padding: 10px;
+  border-bottom: 1px solid #eef2f7;
+  padding: 12px;
   vertical-align: top;
+}
+
+.detalle-notas-table tbody tr {
+  transition: background 0.2s;
+}
+
+.detalle-notas-table tbody tr:nth-child(even) {
+  background: #fafcfe;
+}
+
+.detalle-notas-table tbody tr:hover {
+  background: linear-gradient(90deg, rgba(74, 131, 193, 0.06) 0%, transparent 100%);
 }
 
 .detalle-notas-table .col-num {
   text-align: center;
+  font-weight: 600;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.detalle-notas-table .col-nombre {
+  color: #1e293b;
   font-weight: 500;
-  color: #666;
 }
 
 .detalle-notas-promedio-box {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 40px;
-  padding: 6px 10px;
-  background: #f0f4f8;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-weight: 600;
-  color: #2980b9;
+  min-width: 48px;
+  padding: 8px 14px;
+  background: linear-gradient(180deg, #e8f4fc 0%, #d6eaf8 100%);
+  border: 1px solid #aed6f1;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 15px;
+  color: #1e5a8a;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
 }
 
 .detalle-notas-textarea {
   width: 100%;
-  min-height: 70px;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+  min-height: 75px;
+  padding: 12px 14px;
+  border: 1px solid #d1dae6;
+  border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
   resize: vertical;
   box-sizing: border-box;
+  background: #fafcff;
+  transition: all 0.2s;
+}
+
+.detalle-notas-textarea:hover {
+  border-color: #a8c5e4;
+  background: white;
 }
 
 .detalle-notas-textarea:focus {
   outline: none;
   border-color: #4a83c1;
-  box-shadow: 0 0 0 2px rgba(74, 131, 193, 0.2);
+  box-shadow: 0 0 0 3px rgba(74, 131, 193, 0.15);
+  background: white;
 }
 
-.detalle-notas-table tr:hover {
-  background-color: #fafbfc;
+.detalle-notas-textarea::placeholder {
+  color: #94a3b8;
 }
 
 /* Contenedor de cuadros */

@@ -465,21 +465,6 @@ function DocenteCursos() {
     Swal.fire({ title: 'Exportado', text: 'PDF descargado correctamente', icon: 'success', timer: 1500, showConfirmButton: false, zIndex: 100001 });
   };
 
-  const enviarAlMesDetalleNotas = () => {
-    Swal.fire({
-      title: 'Enviar al mes',
-      text: 'Esta función enviará el detalle de notas a los apoderados. ¿Desea continuar?',
-      icon: 'info',
-      showCancelButton: true,
-      confirmButtonText: 'Enviar',
-      cancelButtonText: 'Cancelar',
-      zIndex: 100001
-    }).then((result) => {
-      if (result.isConfirmed) {
-        Swal.fire({ title: 'Próximamente', text: 'Función en desarrollo', icon: 'info', zIndex: 100001 });
-      }
-    });
-  };
 
   const abrirModalEstrellas = async (alumno) => {
     setAlumnoSeleccionado(alumno);
@@ -3569,11 +3554,8 @@ function DocenteCursos() {
                 <button className="btn-guardar-detalle" onClick={guardarDetalleNotas} disabled={guardandoDetalleNotas}>
                   {guardandoDetalleNotas ? '⏳ Guardando...' : '💾 Guardar'}
                 </button>
-                <button className="btn-enviar-mes" onClick={enviarAlMesDetalleNotas}>
-                  📤 Enviar al mes
-                </button>
                 <button className="btn-exportar-detalle" onClick={exportarDetalleNotas}>
-                  📥 Exportar
+                  📥 Exportar PDF
                 </button>
               </div>
             </div>
