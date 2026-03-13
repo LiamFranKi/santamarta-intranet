@@ -3342,6 +3342,191 @@
   background-color: #fcfcfc;
 }
 
+/* Detalle Notas - vista lista con explicaciones por bimestre */
+.detalle-notas-container {
+  padding: 0 0 2rem 0;
+}
+
+.detalle-notas-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.detalle-notas-header-info {
+  flex: 1;
+}
+
+.detalle-notas-titulo {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #4a83c1;
+  margin: 0 0 0.25rem 0;
+}
+
+.detalle-notas-subtitulo {
+  font-size: 0.95rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.detalle-notas-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.detalle-notas-bimestre label {
+  margin-right: 0.5rem;
+  font-weight: 500;
+}
+
+.detalle-notas-bimestre select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.detalle-notas-buttons {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.btn-guardar-detalle,
+.btn-enviar-mes,
+.btn-exportar-detalle {
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 14px;
+  border: 1px solid #ddd;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-guardar-detalle {
+  background: #4a83c1;
+  color: white;
+  border-color: #4a83c1;
+}
+
+.btn-guardar-detalle:hover:not(:disabled) {
+  background: #3a73b1;
+}
+
+.btn-guardar-detalle:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btn-enviar-mes,
+.btn-exportar-detalle {
+  background: white;
+  color: #333;
+}
+
+.btn-enviar-mes:hover,
+.btn-exportar-detalle:hover {
+  background: #f0f4f8;
+}
+
+.detalle-notas-table-wrapper {
+  overflow-x: auto;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: white;
+}
+
+.detalle-notas-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 14px;
+}
+
+.detalle-notas-table th {
+  background: #f5f9f2;
+  border-bottom: 1px solid #ddd;
+  padding: 12px 10px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.detalle-notas-table .col-num {
+  width: 45px;
+  text-align: center;
+}
+
+.detalle-notas-table .col-nombre {
+  width: 200px;
+}
+
+.detalle-notas-table .col-promedio {
+  width: 90px;
+  text-align: center;
+}
+
+.detalle-notas-table .col-explicacion {
+  width: auto;
+}
+
+.detalle-notas-table td {
+  border-bottom: 1px solid #eee;
+  padding: 10px;
+  vertical-align: top;
+}
+
+.detalle-notas-table .col-num {
+  text-align: center;
+  font-weight: 500;
+  color: #666;
+}
+
+.detalle-notas-promedio-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 6px 10px;
+  background: #f0f4f8;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-weight: 600;
+  color: #2980b9;
+}
+
+.detalle-notas-textarea {
+  width: 100%;
+  min-height: 70px;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.detalle-notas-textarea:focus {
+  outline: none;
+  border-color: #4a83c1;
+  box-shadow: 0 0 0 2px rgba(74, 131, 193, 0.2);
+}
+
+.detalle-notas-table tr:hover {
+  background-color: #fafbfc;
+}
+
 /* Contenedor de cuadros */
 .box-row {
   display: flex;

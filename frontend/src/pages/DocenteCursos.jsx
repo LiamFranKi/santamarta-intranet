@@ -22,6 +22,7 @@ function DocenteCursos() {
   const [loading, setLoading] = useState(true);
   const [cursos, setCursos] = useState([]);
   const [selectedCurso, setSelectedCurso] = useState(null);
+  const [vistaActual, setVistaActual] = useState(null); // null | 'alumnos' | 'detalle-notas'
   const [cursoInfo, setCursoInfo] = useState(null); // Información del curso seleccionado
   const [alumnos, setAlumnos] = useState([]);
   const [loadingAlumnos, setLoadingAlumnos] = useState(false);
@@ -105,6 +106,13 @@ function DocenteCursos() {
   const [bimestreNomina, setBimestreNomina] = useState(1);
   const [notasNomina, setNotasNomina] = useState({}); // { matricula_id: ["05","12","",...] }
   const [guardandoNomina, setGuardandoNomina] = useState(false);
+
+  // Estados para Detalle Notas (vista lista con explicaciones por bimestre)
+  const [datosDetalleNotas, setDatosDetalleNotas] = useState(null); // { curso, alumnos, ciclo }
+  const [loadingDetalleNotas, setLoadingDetalleNotas] = useState(false);
+  const [cicloDetalleNotas, setCicloDetalleNotas] = useState(1);
+  const [explicacionesDetalleNotas, setExplicacionesDetalleNotas] = useState({}); // { matricula_id: texto }
+  const [guardandoDetalleNotas, setGuardandoDetalleNotas] = useState(false);
 
   // Estados para modal Registrar Indicadores (solo nivel INICIAL)
   const [mostrarModalIndicadores, setMostrarModalIndicadores] = useState(false);
@@ -337,6 +345,7 @@ function DocenteCursos() {
   const cargarAlumnos = async (cursoId) => {
     try {
       setLoadingAlumnos(true);
+      setVistaActual('alumnos');
       const response = await api.get(`/docente/cursos/${cursoId}/alumnos`);
       setAlumnos(response.data.alumnos || []);
       setCursoInfo(response.data.curso);
@@ -359,12 +368,117 @@ function DocenteCursos() {
 
   const handleVolver = () => {
     setSelectedCurso(null);
+    setVistaActual(null);
     setCursoInfo(null);
     setAlumnos([]);
+    setDatosDetalleNotas(null);
+    setExplicacionesDetalleNotas({});
     setOpenDropdownAlumno(null);
     setMostrarModalEstrellas(false);
     setMostrarModalIncidencias(false);
     setAlumnoSeleccionado(null);
+  };
+
+  const cargarDetalleNotas = useCallback(async (cursoId, ciclo = 1) => {
+    try {
+      setLoadingDetalleNotas(true);
+      setVistaActual('detalle-notas');
+      const response = await api.get(`/docente/cursos/${cursoId}/detalle-notas`, { params: { ciclo } });
+      setDatosDetalleNotas(response.data);
+      setCursoInfo(response.data.curso);
+      setSelectedCurso(cursoId);
+      setCicloDetalleNotas(ciclo);
+      const expMap = {};
+      (response.data.alumnos || []).forEach(a => {
+        expMap[a.matricula_id] = a.explicacion || '';
+      });
+      setExplicacionesDetalleNotas(expMap);
+      setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
+    } catch (error) {
+      console.error('Error cargando detalle notas:', error);
+      Swal.fire({ title: 'Error', text: 'No se pudo cargar el detalle de notas', icon: 'error', zIndex: 100001 });
+    } finally {
+      setLoadingDetalleNotas(false);
+    }
+  }, []);
+
+  const cambiarCicloDetalleNotas = (nuevoCiclo) => {
+    if (selectedCurso && nuevoCiclo >= 1 && nuevoCiclo <= 4) {
+      cargarDetalleNotas(selectedCurso, nuevoCiclo);
+    }
+  };
+
+  const actualizarExplicacionDetalle = (matriculaId, texto) => {
+    setExplicacionesDetalleNotas(prev => ({ ...prev, [matriculaId]: texto }));
+  };
+
+  const guardarDetalleNotas = async () => {
+    if (!selectedCurso || !datosDetalleNotas) return;
+    try {
+      setGuardandoDetalleNotas(true);
+      const datos = (datosDetalleNotas.alumnos || []).map(a => ({
+        matricula_id: a.matricula_id,
+        nota: a.promedio != null ? a.promedio : '',
+        explicacion: explicacionesDetalleNotas[a.matricula_id] || ''
+      }));
+      await api.post(`/docente/cursos/${selectedCurso}/detalle-notas`, {
+        ciclo: cicloDetalleNotas,
+        datos
+      });
+      Swal.fire({ title: 'Guardado', text: 'Detalle de notas guardado correctamente', icon: 'success', timer: 2000, showConfirmButton: false, zIndex: 100001 });
+      cargarDetalleNotas(selectedCurso, cicloDetalleNotas);
+    } catch (error) {
+      console.error('Error guardando detalle notas:', error);
+      Swal.fire({ title: 'Error', text: error.response?.data?.error || 'No se pudo guardar', icon: 'error', zIndex: 100001 });
+    } finally {
+      setGuardandoDetalleNotas(false);
+    }
+  };
+
+  const exportarDetalleNotas = () => {
+    if (!datosDetalleNotas?.alumnos) return;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const margin = 15;
+    let y = 20;
+    const curso = datosDetalleNotas.curso;
+    doc.setFontSize(14);
+    doc.text(`Detalle de Notas - Bimestre ${cicloDetalleNotas}`, margin, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.text(`${curso?.curso_nombre || ''} - ${curso?.grado || ''}° ${curso?.seccion || ''} - ${curso?.nivel_nombre || ''}`, margin, y);
+    y += 12;
+    doc.setFontSize(9);
+    datosDetalleNotas.alumnos.forEach((a, i) => {
+      if (y > 270) { doc.addPage(); y = 20; }
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${a.numero}. ${a.nombre_completo}  -  Promedio: ${a.promedio != null ? a.promedio : '-'}`, margin, y);
+      y += 6;
+      const exp = (explicacionesDetalleNotas[a.matricula_id] || '').trim();
+      if (exp) {
+        doc.setFont('helvetica', 'normal');
+        const lineas = doc.splitTextToSize(exp, 180);
+        lineas.forEach(l => { doc.text(l, margin + 3, y); y += 5; });
+      }
+      y += 4;
+    });
+    doc.save(`Detalle_Notas_${curso?.curso_nombre || 'curso'}_Bim${cicloDetalleNotas}.pdf`);
+    Swal.fire({ title: 'Exportado', text: 'PDF descargado correctamente', icon: 'success', timer: 1500, showConfirmButton: false, zIndex: 100001 });
+  };
+
+  const enviarAlMesDetalleNotas = () => {
+    Swal.fire({
+      title: 'Enviar al mes',
+      text: 'Esta función enviará el detalle de notas a los apoderados. ¿Desea continuar?',
+      icon: 'info',
+      showCancelButton: true,
+      confirmButtonText: 'Enviar',
+      cancelButtonText: 'Cancelar',
+      zIndex: 100001
+    }).then((result) => {
+      if (result.isConfirmed) {
+        Swal.fire({ title: 'Próximamente', text: 'Función en desarrollo', icon: 'info', zIndex: 100001 });
+      }
+    });
   };
 
   const abrirModalEstrellas = async (alumno) => {
@@ -1812,6 +1926,10 @@ function DocenteCursos() {
         setCursoParaNotas(curso);
         setMostrarModalNotas(true);
         cargarNotasCurso(curso.id);
+        break;
+      case 'detalle-notas':
+        // Abrir vista Detalle Notas (lista con explicaciones por bimestre)
+        cargarDetalleNotas(curso.id, 1);
         break;
       case 'enlaces':
         // Abrir modal de aula virtual para el curso
@@ -3388,6 +3506,9 @@ function DocenteCursos() {
                           <button onClick={() => handleCursoAction(curso, 'notas')}>
                             📝 Registrar Notas
                           </button>
+                          <button onClick={() => handleCursoAction(curso, 'detalle-notas')}>
+                            📋 Detalle Notas
+                          </button>
                           {curso.nivel_tipo_calificacion === 0 && (
                             <button onClick={() => handleCursoAction(curso, 'indicadores')}>
                               📋 Registrar Indicadores
@@ -3421,6 +3542,84 @@ function DocenteCursos() {
               </div>
             )}
           </>
+        ) : vistaActual === 'detalle-notas' ? (
+          <div className="detalle-notas-container">
+            <div className="detalle-notas-header">
+              <button className="btn-regresar" onClick={handleVolver} type="button">← Volver</button>
+              <div className="detalle-notas-header-info">
+                {cursoInfo && (
+                  <>
+                    <h2 className="detalle-notas-titulo">📋 Detalle de Notas</h2>
+                    <p className="detalle-notas-subtitulo">{cursoInfo.curso_nombre} - {cursoInfo.grado}° {cursoInfo.seccion} - {cursoInfo.nivel_nombre}</p>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="detalle-notas-controls">
+              <div className="detalle-notas-bimestre">
+                <label>Bimestre:</label>
+                <select value={cicloDetalleNotas} onChange={(e) => cambiarCicloDetalleNotas(parseInt(e.target.value))}>
+                  <option value={1}>Bimestre 1</option>
+                  <option value={2}>Bimestre 2</option>
+                  <option value={3}>Bimestre 3</option>
+                  <option value={4}>Bimestre 4</option>
+                </select>
+              </div>
+              <div className="detalle-notas-buttons">
+                <button className="btn-guardar-detalle" onClick={guardarDetalleNotas} disabled={guardandoDetalleNotas}>
+                  {guardandoDetalleNotas ? '⏳ Guardando...' : '💾 Guardar'}
+                </button>
+                <button className="btn-enviar-mes" onClick={enviarAlMesDetalleNotas}>
+                  📤 Enviar al mes
+                </button>
+                <button className="btn-exportar-detalle" onClick={exportarDetalleNotas}>
+                  📥 Exportar
+                </button>
+              </div>
+            </div>
+            {loadingDetalleNotas ? (
+              <div className="loading-spinner" style={{ padding: '2rem' }}>Cargando...</div>
+            ) : datosDetalleNotas?.alumnos?.length > 0 ? (
+              <div className="detalle-notas-table-wrapper">
+                <table className="detalle-notas-table">
+                  <thead>
+                    <tr>
+                      <th className="col-num">N°</th>
+                      <th className="col-nombre">Alumno</th>
+                      <th className="col-promedio">Promedio</th>
+                      <th className="col-explicacion">Explicación para el apoderado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {datosDetalleNotas.alumnos.map((alumno) => (
+                      <tr key={alumno.matricula_id}>
+                        <td className="col-num">{alumno.numero}</td>
+                        <td className="col-nombre">{alumno.nombre_completo}</td>
+                        <td className="col-promedio">
+                          <div className="detalle-notas-promedio-box">
+                            {alumno.promedio != null && alumno.promedio !== '' ? alumno.promedio : '-'}
+                          </div>
+                        </td>
+                        <td className="col-explicacion">
+                          <textarea
+                            className="detalle-notas-textarea"
+                            value={explicacionesDetalleNotas[alumno.matricula_id] ?? ''}
+                            onChange={(e) => actualizarExplicacionDetalle(alumno.matricula_id, e.target.value)}
+                            placeholder="Escriba aquí la explicación para el apoderado sobre el promedio del alumno..."
+                            rows={3}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="empty-state mundo-card" style={{ marginTop: '2rem' }}>
+                <p>No hay alumnos en este curso para el bimestre seleccionado</p>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="alumnos-container">
             {/* Header con botón Volver */}
@@ -4695,15 +4894,15 @@ function DocenteCursos() {
                     <h2>
                       {datosNotas.curso.curso_nombre.toUpperCase()} - {datosNotas.curso.grado}° {datosNotas.curso.seccion} - {datosNotas.curso.nivel_nombre.toUpperCase()} - BIMESTRE {cicloSeleccionadoNotas}
                     </h2>
-                    <button
-                      className="modal-close-btn"
-                      onClick={() => {
-                        setMostrarModalNotas(false);
-                        setCursoParaNotas(null);
-                        setDatosNotas(null);
-                        setNotasEditadas({});
-                      }}
-                    >
+                      <button
+                        className="modal-close-btn"
+                        onClick={() => {
+                          setMostrarModalNotas(false);
+                          setCursoParaNotas(null);
+                          setDatosNotas(null);
+                          setNotasEditadas({});
+                        }}
+                      >
                       ✕
                     </button>
                   </div>

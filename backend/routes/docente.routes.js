@@ -3952,6 +3952,166 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/cursos/:cursoId/detalle-notas?ciclo=1
+ * Lista de alumnos con promedio calculado y explicación guardada (para Detalle Notas)
+ */
+router.get('/cursos/:cursoId/detalle-notas', async (req, res) => {
+  try {
+    const { cursoId } = req.params;
+    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { ciclo = 1 } = req.query;
+
+    if (!personal_id) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    const cicloInt = parseInt(ciclo);
+    if (cicloInt < 1 || cicloInt > 4) {
+      return res.status(400).json({ error: 'Ciclo debe ser 1, 2, 3 o 4' });
+    }
+
+    const asignatura = await query(
+      `SELECT a.*, g.id as grupo_id, g.grado, g.seccion, g.anio,
+              n.nombre as nivel_nombre, c.nombre as curso_nombre
+       FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN cursos c ON c.id = a.curso_id
+       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [cursoId, personal_id, colegio_id, anio_activo]
+    );
+
+    if (!asignatura || asignatura.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este curso' });
+    }
+
+    const cursoInfo = asignatura[0];
+
+    const alumnos = await query(
+      `SELECT a.id as alumno_id,
+              a.nombres, a.apellido_paterno, a.apellido_materno,
+              CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
+              m.id as matricula_id
+       FROM alumnos a
+       INNER JOIN matriculas m ON m.alumno_id = a.id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.grupo_id = ? AND m.colegio_id = ? 
+         AND (m.estado = 0 OR m.estado = 4)
+         AND g.anio = ?
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
+      [cursoInfo.grupo_id, colegio_id, anio_activo]
+    );
+
+    if (alumnos.length === 0) {
+      return res.json({
+        curso: { id: cursoInfo.id, curso_nombre: cursoInfo.curso_nombre, grado: cursoInfo.grado, seccion: cursoInfo.seccion, nivel_nombre: cursoInfo.nivel_nombre },
+        ciclo: cicloInt,
+        alumnos: []
+      });
+    }
+
+    const matriculaIds = alumnos.map(a => a.matricula_id);
+    const promedios = await query(
+      `SELECT matricula_id, promedio FROM promedios
+       WHERE asignatura_id = ? AND matricula_id IN (${matriculaIds.map(() => '?').join(',')}) AND ciclo = ?`,
+      [cursoId, ...matriculaIds, cicloInt]
+    );
+
+    const explicaciones = await query(
+      `SELECT matricula_id, nota, explicacion FROM notas_detalle_explicaciones
+       WHERE asignatura_id = ? AND matricula_id IN (${matriculaIds.map(() => '?').join(',')}) AND ciclo = ? AND colegio_id = ?`,
+      [cursoId, ...matriculaIds, cicloInt, colegio_id]
+    );
+
+    const alumnosConDatos = alumnos.map((a, i) => {
+      const prom = promedios.find(p => p.matricula_id === a.matricula_id);
+      const exp = explicaciones.find(e => e.matricula_id === a.matricula_id);
+      return {
+        ...a,
+        numero: i + 1,
+        promedio: prom ? prom.promedio : null,
+        nota_guardada: exp ? exp.nota : null,
+        explicacion: exp ? exp.explicacion : ''
+      };
+    });
+
+    res.json({
+      curso: {
+        id: cursoInfo.id,
+        curso_nombre: cursoInfo.curso_nombre,
+        grado: cursoInfo.grado,
+        seccion: cursoInfo.seccion,
+        nivel_nombre: cursoInfo.nivel_nombre,
+        grupo_id: cursoInfo.grupo_id
+      },
+      ciclo: cicloInt,
+      alumnos: alumnosConDatos
+    });
+  } catch (error) {
+    console.error('Error obteniendo detalle de notas:', error);
+    res.status(500).json({ error: 'Error al obtener detalle de notas' });
+  }
+});
+
+/**
+ * POST /api/docente/cursos/:cursoId/detalle-notas
+ * Guardar explicaciones (y nota snapshot) por bimestre
+ * Body: { ciclo, datos: [{ matricula_id, nota, explicacion }] }
+ */
+router.post('/cursos/:cursoId/detalle-notas', async (req, res) => {
+  try {
+    const { cursoId } = req.params;
+    const { colegio_id, personal_id } = req.user;
+    const { ciclo, datos } = req.body;
+
+    if (!personal_id) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    if (!ciclo || !Array.isArray(datos)) {
+      return res.status(400).json({ error: 'Datos incompletos' });
+    }
+
+    const cicloInt = parseInt(ciclo);
+    if (cicloInt < 1 || cicloInt > 4) {
+      return res.status(400).json({ error: 'Ciclo debe ser 1, 2, 3 o 4' });
+    }
+
+    const asignatura = await query(
+      `SELECT a.id FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ?`,
+      [cursoId, personal_id, colegio_id]
+    );
+
+    if (!asignatura || asignatura.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este curso' });
+    }
+
+    for (const item of datos) {
+      const matriculaId = parseInt(item.matricula_id);
+      if (isNaN(matriculaId)) continue;
+
+      const nota = item.nota != null && item.nota !== '' ? parseFloat(item.nota) : null;
+      const explicacion = (item.explicacion || '').trim();
+
+      await execute(
+        `INSERT INTO notas_detalle_explicaciones 
+         (asignatura_id, matricula_id, ciclo, nota, explicacion, colegio_id)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE nota = VALUES(nota), explicacion = VALUES(explicacion), updated_at = NOW()`,
+        [cursoId, matriculaId, cicloInt, nota, explicacion || null, colegio_id]
+      );
+    }
+
+    res.json({ success: true, message: 'Detalle de notas guardado correctamente' });
+  } catch (error) {
+    console.error('Error guardando detalle de notas:', error);
+    res.status(500).json({ error: 'Error al guardar detalle de notas' });
+  }
+});
+
+/**
  * GET /api/docente/cursos/:cursoId/criterios
  * Obtener criterios e indicadores de un curso (para nivel INICIAL - Registrar Indicadores)
  */
