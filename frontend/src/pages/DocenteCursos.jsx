@@ -435,33 +435,183 @@ function DocenteCursos() {
     }
   };
 
-  const exportarDetalleNotas = () => {
+  const exportarDetalleNotas = async () => {
     if (!datosDetalleNotas?.alumnos) return;
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 15;
-    let y = 20;
+    const contentWidth = pageWidth - 2 * margin;
     const curso = datosDetalleNotas.curso;
-    doc.setFontSize(14);
-    doc.text(`Detalle de Notas - Bimestre ${cicloDetalleNotas}`, margin, y);
-    y += 8;
-    doc.setFontSize(10);
-    doc.text(`${curso?.curso_nombre || ''} - ${curso?.grado || ''}° ${curso?.seccion || ''} - ${curso?.nivel_nombre || ''}`, margin, y);
-    y += 12;
-    doc.setFontSize(9);
-    datosDetalleNotas.alumnos.forEach((a, i) => {
-      if (y > 270) { doc.addPage(); y = 20; }
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${a.numero}. ${a.nombre_completo}  -  Promedio: ${a.promedio != null ? a.promedio : '-'}`, margin, y);
-      y += 6;
-      const exp = (explicacionesDetalleNotas[a.matricula_id] || '').trim();
-      if (exp) {
+    const docenteNombre = user?.apellidos ? `${user.apellidos}, ${user.nombres}` : `${[user?.apellido_paterno, user?.apellido_materno].filter(Boolean).join(' ')}, ${user?.nombres || ''}`.trim();
+
+    // Logo en esquina superior derecha
+    const logoUrl = logoNominaUrl || (process.env.REACT_APP_API_URL ? `${process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '')}/assets/logos/logo.png` : `${window.location.origin}/assets/logos/logo.png`);
+    try {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const logoImg = new Image();
+      logoImg.crossOrigin = 'anonymous';
+      await new Promise((resolve, reject) => {
+        logoImg.onload = resolve;
+        logoImg.onerror = reject;
+        logoImg.src = logoUrl;
+      });
+      canvas.width = logoImg.width;
+      canvas.height = logoImg.height;
+      ctx.drawImage(logoImg, 0, 0);
+      const logoData = canvas.toDataURL('image/png');
+      const logoW = 20;
+      const logoH = (logoImg.height / logoImg.width) * logoW;
+      doc.addImage(logoData, 'PNG', pageWidth - margin - logoW, 8, logoW, logoH);
+    } catch (e) {
+      console.warn('Logo no cargado para PDF:', e);
+    }
+
+    // Título principal
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(74, 131, 193);
+    doc.text('DETALLE DE NOTAS', pageWidth / 2, 16, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+
+    // Barra de cabecera - datos del curso
+    let y = 26;
+    const headerHeight = 28;
+    doc.setFillColor(74, 131, 193);
+    doc.rect(margin, y, contentWidth, headerHeight, 'F');
+    doc.setDrawColor(58, 100, 138);
+    doc.setLineWidth(0.3);
+    doc.rect(margin, y, contentWidth, headerHeight, 'S');
+
+    const pad = 3;
+    const anchoLabel = 14;
+    const anchoValor = 28;
+    const altoCaja = 6;
+
+    const bloquesFila1 = [
+      { label: 'CURSO:', valor: (curso?.curso_nombre || '-').substring(0, 22), colorBg: [45, 100, 160] },
+      { label: 'GRADO:', valor: `${curso?.grado || ''}° ${curso?.seccion || ''}`.substring(0, 10), colorBg: [16, 185, 129] },
+      { label: 'NIVEL:', valor: (curso?.nivel_nombre || '-').substring(0, 14), colorBg: [139, 92, 246] },
+    ];
+    const bloquesFila2 = [
+      { label: 'DOCENTE:', valor: (docenteNombre || '-').substring(0, 32), colorBg: [180, 83, 9] },
+      { label: 'BIMESTRE:', valor: `Bimestre ${cicloDetalleNotas}`, colorBg: [245, 158, 11] },
+    ];
+
+    const dibujarBloques = (bloques, filaY) => {
+      const totalW = bloques.length * (anchoLabel + anchoValor + pad * 3);
+      let xBloque = margin + (contentWidth - totalW) / 2;
+      bloques.forEach((b) => {
+        const w = anchoLabel + anchoValor + pad * 2;
+        doc.setFillColor(...b.colorBg);
+        doc.roundedRect(xBloque, filaY, w, altoCaja, 1.5, 1.5, 'F');
+        doc.setDrawColor(255, 255, 255);
+        doc.setLineWidth(0.15);
+        doc.roundedRect(xBloque, filaY, w, altoCaja, 1.5, 1.5, 'S');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(6);
+        doc.setFont('helvetica', 'bold');
+        doc.text(b.label, xBloque + pad, filaY + 3.8);
         doc.setFont('helvetica', 'normal');
-        const lineas = doc.splitTextToSize(exp, 180);
-        lineas.forEach(l => { doc.text(l, margin + 3, y); y += 5; });
+        doc.setFontSize(7);
+        doc.text(b.valor, xBloque + anchoLabel + pad, filaY + 3.8);
+        xBloque += w + pad;
+      });
+    };
+
+    dibujarBloques(bloquesFila1, y + 5);
+    dibujarBloques(bloquesFila2, y + 14);
+
+    doc.setTextColor(0, 0, 0);
+    y += headerHeight + 10;
+
+    // Encabezado de tabla
+    const colNumW = 12;
+    const colNombreW = 55;
+    const colPromW = 20;
+    const colExpW = contentWidth - colNumW - colNombreW - colPromW - 4;
+
+    doc.setFillColor(58, 100, 138);
+    doc.rect(margin, y, colNumW, 8, 'F');
+    doc.rect(margin + colNumW, y, colNombreW, 8, 'F');
+    doc.rect(margin + colNumW + colNombreW, y, colPromW, 8, 'F');
+    doc.rect(margin + colNumW + colNombreW + colPromW, y, colExpW + 4, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('N°', margin + colNumW / 2, y + 5.5, { align: 'center' });
+    doc.text('Alumno', margin + colNumW + colNombreW / 2, y + 5.5, { align: 'center' });
+    doc.text('Prom.', margin + colNumW + colNombreW + colPromW / 2, y + 5.5, { align: 'center' });
+    doc.text('Explicación para el apoderado', margin + colNumW + colNombreW + colPromW + (colExpW + 4) / 2, y + 5.5, { align: 'center' });
+    y += 10;
+
+    // Filas de alumnos
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+
+    datosDetalleNotas.alumnos.forEach((a, idx) => {
+      if (y > 270) {
+        doc.addPage();
+        y = 15;
+        doc.setFillColor(240, 244, 248);
+        doc.rect(margin, y, contentWidth, 6, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Detalle de Notas - Bimestre ${cicloDetalleNotas} (continuación)`, margin + 3, y + 4);
+        doc.setTextColor(0, 0, 0);
+        y += 12;
       }
-      y += 4;
+
+      const exp = (explicacionesDetalleNotas[a.matricula_id] || '').trim();
+      const lineasExp = exp ? doc.splitTextToSize(exp, colExpW - 4) : [];
+      const rowHeight = Math.max(12, 6 + lineasExp.length * 5);
+
+      // Fondo alternado
+      if (idx % 2 === 1) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y - 2, contentWidth + 4, rowHeight + 2, 'F');
+      }
+
+      doc.setDrawColor(226, 232, 240);
+      doc.rect(margin, y - 2, colNumW, rowHeight + 2, 'S');
+      doc.rect(margin + colNumW, y - 2, colNombreW, rowHeight + 2, 'S');
+      doc.rect(margin + colNumW + colNombreW, y - 2, colPromW, rowHeight + 2, 'S');
+      doc.rect(margin + colNumW + colNombreW + colPromW, y - 2, colExpW + 4, rowHeight + 2, 'S');
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(71, 85, 105);
+      doc.text(String(a.numero), margin + colNumW / 2, y + 4, { align: 'center' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(30, 41, 59);
+      const nomLineas = doc.splitTextToSize(a.nombre_completo || '', colNombreW - 4);
+      doc.text(nomLineas[0] || '-', margin + colNumW + 3, y + 4);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(30, 64, 175);
+      const promVal = a.promedio != null && a.promedio !== '' ? a.promedio : '-';
+      doc.text(String(promVal), margin + colNumW + colNombreW + colPromW / 2, y + 4, { align: 'center' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      let expY = y + 2;
+      if (lineasExp.length > 0) {
+        lineasExp.forEach(l => {
+          doc.text(l, margin + colNumW + colNombreW + colPromW + 3, expY);
+          expY += 4.5;
+        });
+      } else {
+        doc.setTextColor(148, 163, 184);
+        doc.text('Sin explicación', margin + colNumW + colNombreW + colPromW + 3, expY + 2);
+      }
+
+      y += rowHeight + 4;
     });
-    doc.save(`Detalle_Notas_${curso?.curso_nombre || 'curso'}_Bim${cicloDetalleNotas}.pdf`);
+
+    doc.save(`Detalle_Notas_${(curso?.curso_nombre || 'curso').replace(/\s+/g, '_')}_Bim${cicloDetalleNotas}.pdf`);
     Swal.fire({ title: 'Exportado', text: 'PDF descargado correctamente', icon: 'success', timer: 1500, showConfirmButton: false, zIndex: 100001 });
   };
 
