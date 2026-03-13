@@ -29,11 +29,7 @@ function Login() {
   }, []); // Solo calcular una vez al montar el componente
 
   // Logo siempre desde la carpeta local, sin depender de MySQL
-  const logoUrl = useMemo(() => {
-    const url = `${apiBaseUrl}/assets/logos/logo.png`;
-    console.log('🔍 Logo URL:', url); // Debug
-    return url;
-  }, [apiBaseUrl]);
+  const logoUrl = useMemo(() => `${apiBaseUrl}/assets/logos/logo.png`, [apiBaseUrl]);
 
   useEffect(() => {
     if (isAuthenticated && user) {
@@ -176,9 +172,6 @@ function Login() {
                 alt="Logo" 
                 className="form-logo"
                 crossOrigin="anonymous"
-                onLoad={() => {
-                  console.log('✅ Logo cargado correctamente desde:', logoUrl);
-                }}
                 onError={(e) => {
                   console.error('❌ Error cargando logo:', logoUrl);
                   console.error('Detalles del error:', e);

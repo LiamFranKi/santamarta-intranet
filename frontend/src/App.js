@@ -124,25 +124,37 @@ function ScrollToTop() {
 }
 
 // Componente para redirigir al dashboard correcto según el tipo de usuario
+// IMPORTANTE: Espera a que termine loading para evitar bucles de navegación y redirecciones incorrectas
 function NavigateToDashboard() {
-  const { user } = useAuth();
+  const { user, loading, isAuthenticated } = useAuth();
   const tipo = user?.tipo;
-  
-  if (tipo === 'DOCENTE') {
-    return <Navigate to="/docente/dashboard" />;
-  } else if (tipo === 'ALUMNO') {
-    return <Navigate to="/alumno/dashboard" />;
-  } else if (tipo === 'APODERADO') {
-    return <Navigate to="/apoderado/dashboard" />;
-  } else if (tipo === 'ADMINISTRADOR') {
-    return <Navigate to="/admin/dashboard" />;
-  } else if (tipo === 'ASISTENCIA') {
-    return <Navigate to="/asistencia/escaneo" />;
-  } else if (tipo === 'PROMOTORIA') {
-    return <Navigate to="/promotoria/dashboard" />;
+
+  // No redirigir hasta que se termine de verificar el token (evita ir a /admin por defecto)
+  if (loading) {
+    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>Cargando...</div>;
   }
-  
-  return <Navigate to="/admin/dashboard" />;
+
+  // Usuario no autenticado: ir al login
+  if (!isAuthenticated || !user) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (tipo === 'DOCENTE') {
+    return <Navigate to="/docente/dashboard" replace />;
+  } else if (tipo === 'ALUMNO') {
+    return <Navigate to="/alumno/dashboard" replace />;
+  } else if (tipo === 'APODERADO') {
+    return <Navigate to="/apoderado/dashboard" replace />;
+  } else if (tipo === 'ADMINISTRADOR') {
+    return <Navigate to="/admin/dashboard" replace />;
+  } else if (tipo === 'ASISTENCIA') {
+    return <Navigate to="/asistencia/escaneo" replace />;
+  } else if (tipo === 'PROMOTORIA') {
+    return <Navigate to="/promotoria/dashboard" replace />;
+  }
+
+  // Tipo desconocido: ir al login en lugar de asumir admin
+  return <Navigate to="/login" replace />;
 }
 
 function AppRoutes() {
