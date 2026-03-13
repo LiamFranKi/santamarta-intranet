@@ -108,10 +108,11 @@ function DocenteCursos() {
   const [guardandoNomina, setGuardandoNomina] = useState(false);
 
   // Estados para Detalle Notas (vista lista con explicaciones por bimestre)
-  const [datosDetalleNotas, setDatosDetalleNotas] = useState(null); // { curso, alumnos, ciclo }
+  const [datosDetalleNotas, setDatosDetalleNotas] = useState(null); // { curso, alumnos, ciclo, es_cualitativa?, indicadores? }
   const [loadingDetalleNotas, setLoadingDetalleNotas] = useState(false);
   const [cicloDetalleNotas, setCicloDetalleNotas] = useState(1);
-  const [explicacionesDetalleNotas, setExplicacionesDetalleNotas] = useState({}); // { matricula_id: texto }
+  const [explicacionesDetalleNotas, setExplicacionesDetalleNotas] = useState({}); // { matricula_id: texto } cuantitativa
+  const [explicacionesIndicadoresDetalle, setExplicacionesIndicadoresDetalle] = useState({}); // { matricula_id: { indicador_id: texto } } INICIAL
   const [guardandoDetalleNotas, setGuardandoDetalleNotas] = useState(false);
 
   // Estados para modal Registrar Indicadores (solo nivel INICIAL)
@@ -388,11 +389,24 @@ function DocenteCursos() {
       setCursoInfo(response.data.curso);
       setSelectedCurso(cursoId);
       setCicloDetalleNotas(ciclo);
-      const expMap = {};
-      (response.data.alumnos || []).forEach(a => {
-        expMap[a.matricula_id] = a.explicacion || '';
-      });
-      setExplicacionesDetalleNotas(expMap);
+      if (response.data.es_cualitativa && response.data.alumnos) {
+        const expIndMap = {};
+        response.data.alumnos.forEach(a => {
+          expIndMap[a.matricula_id] = {};
+          (a.indicadores || []).forEach(ind => {
+            expIndMap[a.matricula_id][ind.indicador_id] = ind.explicacion || '';
+          });
+        });
+        setExplicacionesIndicadoresDetalle(expIndMap);
+        setExplicacionesDetalleNotas({});
+      } else {
+        const expMap = {};
+        (response.data.alumnos || []).forEach(a => {
+          expMap[a.matricula_id] = a.explicacion || '';
+        });
+        setExplicacionesDetalleNotas(expMap);
+        setExplicacionesIndicadoresDetalle({});
+      }
       setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 100);
     } catch (error) {
       console.error('Error cargando detalle notas:', error);
@@ -412,15 +426,34 @@ function DocenteCursos() {
     setExplicacionesDetalleNotas(prev => ({ ...prev, [matriculaId]: texto }));
   };
 
+  const actualizarExplicacionIndicadorDetalle = (matriculaId, indicadorId, texto) => {
+    setExplicacionesIndicadoresDetalle(prev => ({
+      ...prev,
+      [matriculaId]: { ...(prev[matriculaId] || {}), [indicadorId]: texto }
+    }));
+  };
+
   const guardarDetalleNotas = async () => {
     if (!selectedCurso || !datosDetalleNotas) return;
     try {
       setGuardandoDetalleNotas(true);
-      const datos = (datosDetalleNotas.alumnos || []).map(a => ({
-        matricula_id: a.matricula_id,
-        nota: a.promedio != null ? a.promedio : '',
-        explicacion: explicacionesDetalleNotas[a.matricula_id] || ''
-      }));
+      let datos;
+      if (datosDetalleNotas.es_cualitativa && datosDetalleNotas.alumnos?.[0]?.indicadores) {
+        datos = (datosDetalleNotas.alumnos || []).map(a => ({
+          matricula_id: a.matricula_id,
+          indicadores: (a.indicadores || []).map(ind => ({
+            indicador_id: ind.indicador_id,
+            nota: ind.promedio || '',
+            explicacion: (explicacionesIndicadoresDetalle[a.matricula_id] || {})[ind.indicador_id] || ''
+          }))
+        }));
+      } else {
+        datos = (datosDetalleNotas.alumnos || []).map(a => ({
+          matricula_id: a.matricula_id,
+          nota: a.promedio != null ? a.promedio : '',
+          explicacion: explicacionesDetalleNotas[a.matricula_id] || ''
+        }));
+      }
       await api.post(`/docente/cursos/${selectedCurso}/detalle-notas`, {
         ciclo: cicloDetalleNotas,
         datos
@@ -525,7 +558,63 @@ function DocenteCursos() {
     doc.setTextColor(0, 0, 0);
     y += headerHeight + 10;
 
-    // Encabezado de tabla
+    // INICIAL: PDF con indicadores por alumno
+    if (datosDetalleNotas.es_cualitativa && datosDetalleNotas.alumnos?.[0]?.indicadores) {
+      const colNumW = 12;
+      const colIndW = 45;
+      const colPromW = 22;
+      const colExpW = contentWidth - colNumW - colIndW - colPromW - 6;
+      doc.setFillColor(58, 100, 138);
+      doc.rect(margin, y, colNumW, 8, 'F');
+      doc.rect(margin + colNumW, y, colIndW, 8, 'F');
+      doc.rect(margin + colNumW + colIndW, y, colPromW, 8, 'F');
+      doc.rect(margin + colNumW + colIndW + colPromW, y, colExpW + 6, 8, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'bold');
+      doc.text('N°', margin + colNumW / 2, y + 5.5, { align: 'center' });
+      doc.text('Indicador', margin + colNumW + colIndW / 2, y + 5.5, { align: 'center' });
+      doc.text('Prom.', margin + colNumW + colIndW + colPromW / 2, y + 5.5, { align: 'center' });
+      doc.text('Explicación', margin + colNumW + colIndW + colPromW + (colExpW + 6) / 2, y + 5.5, { align: 'center' });
+      y += 10;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(0, 0, 0);
+      datosDetalleNotas.alumnos.forEach((a, idx) => {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(30, 64, 175);
+        doc.text(`${a.numero}. ${a.nombre_completo || ''}`, margin, y + 5);
+        y += 10;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        (a.indicadores || []).forEach((ind) => {
+          if (y > 270) { doc.addPage(); y = 15; }
+          const exp = (explicacionesIndicadoresDetalle[a.matricula_id] || {})[ind.indicador_id] || ind.explicacion || '';
+          const lineasExp = exp ? doc.splitTextToSize(exp, colExpW - 2) : [];
+          const rowH = Math.max(10, 6 + lineasExp.length * 4);
+          if (idx % 2 === 1) doc.setFillColor(248, 250, 252);
+          else doc.setFillColor(255, 255, 255);
+          doc.rect(margin, y - 2, contentWidth + 4, rowH + 2, 'F');
+          doc.setDrawColor(226, 232, 240);
+          doc.rect(margin, y - 2, colNumW, rowH + 2, 'S');
+          doc.rect(margin + colNumW, y - 2, colIndW, rowH + 2, 'S');
+          doc.rect(margin + colNumW + colIndW, y - 2, colPromW, rowH + 2, 'S');
+          doc.rect(margin + colNumW + colIndW + colPromW, y - 2, colExpW + 6, rowH + 2, 'S');
+          doc.setTextColor(71, 85, 105);
+          doc.text((ind.descripcion || '').substring(0, 28), margin + colNumW + 2, y + 4);
+          doc.text(String(ind.promedio || '-'), margin + colNumW + colIndW + colPromW / 2, y + 4, { align: 'center' });
+          doc.setFontSize(8);
+          lineasExp.forEach((l, i) => doc.text(l, margin + colNumW + colIndW + colPromW + 2, y + 4 + i * 4));
+          y += rowH + 2;
+        });
+        y += 4;
+      });
+      doc.save(`Detalle_Notas_${curso?.curso_nombre || 'INICIAL'}_B${cicloDetalleNotas}.pdf`);
+      Swal.fire({ title: 'PDF exportado', text: 'Archivo generado correctamente', icon: 'success', timer: 1500, showConfirmButton: false, zIndex: 100001 });
+      return;
+    }
+
+    // Encabezado de tabla (cuantitativa)
     const colNumW = 12;
     const colNombreW = 55;
     const colPromW = 20;
@@ -3713,38 +3802,90 @@ function DocenteCursos() {
               <div className="loading-spinner" style={{ padding: '2rem' }}>Cargando...</div>
             ) : datosDetalleNotas?.alumnos?.length > 0 ? (
               <div className="detalle-notas-table-wrapper">
-                <table className="detalle-notas-table">
-                  <thead>
-                    <tr>
-                      <th className="col-num">N°</th>
-                      <th className="col-nombre">Alumno</th>
-                      <th className="col-promedio">Promedio</th>
-                      <th className="col-explicacion">Explicación para el apoderado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {datosDetalleNotas.alumnos.map((alumno) => (
-                      <tr key={alumno.matricula_id}>
-                        <td className="col-num">{alumno.numero}</td>
-                        <td className="col-nombre">{alumno.nombre_completo}</td>
-                        <td className="col-promedio">
-                          <div className="detalle-notas-promedio-box">
-                            {alumno.promedio != null && alumno.promedio !== '' ? alumno.promedio : '-'}
-                          </div>
-                        </td>
-                        <td className="col-explicacion">
-                          <textarea
-                            className="detalle-notas-textarea"
-                            value={explicacionesDetalleNotas[alumno.matricula_id] ?? ''}
-                            onChange={(e) => actualizarExplicacionDetalle(alumno.matricula_id, e.target.value)}
-                            placeholder="Escriba aquí la explicación para el apoderado sobre el promedio del alumno..."
-                            rows={3}
-                          />
-                        </td>
+                {datosDetalleNotas.es_cualitativa && datosDetalleNotas.alumnos?.[0]?.indicadores ? (
+                  <table className="detalle-notas-table detalle-notas-table-inicial">
+                    <thead>
+                      <tr>
+                        <th className="col-num">N°</th>
+                        <th className="col-nombre">Alumno</th>
+                        {(datosDetalleNotas.indicadores || []).map((ind) => (
+                          <th key={ind.id} colSpan={2} className="col-indicador-group">
+                            {ind.descripcion || ind.abreviatura || `Ind. ${ind.id}`}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      <tr className="sub-header">
+                        <th></th>
+                        <th></th>
+                        {(datosDetalleNotas.indicadores || []).map((ind) => (
+                          <React.Fragment key={ind.id}>
+                            <th className="col-prom-mini">Prom.</th>
+                            <th className="col-exp-mini">Explicación</th>
+                          </React.Fragment>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {datosDetalleNotas.alumnos.map((alumno) => (
+                        <tr key={alumno.matricula_id}>
+                          <td className="col-num">{alumno.numero}</td>
+                          <td className="col-nombre">{alumno.nombre_completo}</td>
+                          {(alumno.indicadores || []).map((ind) => (
+                            <React.Fragment key={ind.indicador_id}>
+                              <td className="col-prom-mini">
+                                <div className="detalle-notas-promedio-box detalle-notas-promedio-mini">
+                                  {ind.promedio || '-'}
+                                </div>
+                              </td>
+                              <td className="col-exp-mini">
+                                <textarea
+                                  className="detalle-notas-textarea detalle-notas-textarea-inicial"
+                                  value={(explicacionesIndicadoresDetalle[alumno.matricula_id] || {})[ind.indicador_id] ?? ''}
+                                  onChange={(e) => actualizarExplicacionIndicadorDetalle(alumno.matricula_id, ind.indicador_id, e.target.value)}
+                                  placeholder="Explicación..."
+                                  rows={2}
+                                />
+                              </td>
+                            </React.Fragment>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="detalle-notas-table">
+                    <thead>
+                      <tr>
+                        <th className="col-num">N°</th>
+                        <th className="col-nombre">Alumno</th>
+                        <th className="col-promedio">Promedio</th>
+                        <th className="col-explicacion">Explicación para el apoderado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {datosDetalleNotas.alumnos.map((alumno) => (
+                        <tr key={alumno.matricula_id}>
+                          <td className="col-num">{alumno.numero}</td>
+                          <td className="col-nombre">{alumno.nombre_completo}</td>
+                          <td className="col-promedio">
+                            <div className="detalle-notas-promedio-box">
+                              {alumno.promedio != null && alumno.promedio !== '' ? alumno.promedio : '-'}
+                            </div>
+                          </td>
+                          <td className="col-explicacion">
+                            <textarea
+                              className="detalle-notas-textarea"
+                              value={explicacionesDetalleNotas[alumno.matricula_id] ?? ''}
+                              onChange={(e) => actualizarExplicacionDetalle(alumno.matricula_id, e.target.value)}
+                              placeholder="Escriba aquí la explicación para el apoderado sobre el promedio del alumno..."
+                              rows={3}
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             ) : (
               <div className="empty-state mundo-card" style={{ marginTop: '2rem' }}>

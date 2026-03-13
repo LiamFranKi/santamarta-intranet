@@ -3972,7 +3972,7 @@ router.get('/cursos/:cursoId/detalle-notas', async (req, res) => {
 
     const asignatura = await query(
       `SELECT a.*, g.id as grupo_id, g.grado, g.seccion, g.anio,
-              n.nombre as nivel_nombre, c.nombre as curso_nombre
+              n.nombre as nivel_nombre, n.tipo_calificacion, c.nombre as curso_nombre
        FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN niveles n ON n.id = g.nivel_id
@@ -3986,7 +3986,105 @@ router.get('/cursos/:cursoId/detalle-notas', async (req, res) => {
     }
 
     const cursoInfo = asignatura[0];
+    const esInicial = cursoInfo.tipo_calificacion === 0 || (cursoInfo.nivel_nombre || '').toUpperCase().includes('INICIAL');
 
+    // === RAMA INICIAL (cualitativa): detalle por indicador ===
+    if (esInicial) {
+      let criterios = await query(
+        `SELECT * FROM asignaturas_criterios
+         WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = ? OR ciclo = 0)
+         ORDER BY orden ASC, id ASC`,
+        [cursoId, colegio_id, cicloInt]
+      );
+      if ((!criterios || criterios.length === 0) && [2, 3, 4].includes(cicloInt)) {
+        criterios = await query(
+          `SELECT * FROM asignaturas_criterios
+           WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = 1 OR ciclo = 0)
+           ORDER BY orden ASC, id ASC`,
+          [cursoId, colegio_id]
+        ) || [];
+      }
+      criterios = criterios || [];
+      const criterioIds = criterios.map(c => c.id);
+      let indicadores = [];
+      if (criterioIds.length > 0) {
+        indicadores = (await query(
+          `SELECT * FROM asignaturas_indicadores WHERE criterio_id IN (${criterioIds.map(() => '?').join(',')}) ORDER BY criterio_id, id`,
+          criterioIds
+        )) || [];
+      }
+
+      const alumnos = await query(
+        `SELECT a.id as alumno_id, a.nombres, a.apellido_paterno, a.apellido_materno,
+                CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
+                m.id as matricula_id
+         FROM alumnos a
+         INNER JOIN matriculas m ON m.alumno_id = a.id
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4) AND g.anio = ?
+         ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
+        [cursoInfo.grupo_id, colegio_id, anio_activo]
+      );
+
+      if (alumnos.length === 0) {
+        return res.json({
+          curso: { id: cursoInfo.id, curso_nombre: cursoInfo.curso_nombre, grado: cursoInfo.grado, seccion: cursoInfo.seccion, nivel_nombre: cursoInfo.nivel_nombre, grupo_id: cursoInfo.grupo_id, es_cualitativa: true },
+          ciclo: cicloInt,
+          es_cualitativa: true,
+          indicadores,
+          alumnos: []
+        });
+      }
+
+      const matriculaIds = alumnos.map(a => a.matricula_id);
+      const todasNotasDetalles = await query(
+        `SELECT matricula_id, data FROM notas_detalles
+         WHERE asignatura_id = ? AND matricula_id IN (${matriculaIds.map(() => '?').join(',')}) AND ciclo = ?`,
+        [cursoId, ...matriculaIds, cicloInt]
+      );
+      const explicacionesIndicadores = await query(
+        `SELECT matricula_id, indicador_id, nota, explicacion FROM notas_detalle_explicaciones_indicadores
+         WHERE asignatura_id = ? AND matricula_id IN (${matriculaIds.map(() => '?').join(',')}) AND ciclo = ? AND colegio_id = ?`,
+        [cursoId, ...matriculaIds, cicloInt, colegio_id]
+      );
+
+      const alumnosConIndicadores = alumnos.map((alumno, idx) => {
+        const matId = alumno.matricula_id;
+        const notaDet = todasNotasDetalles.find(nd => nd.matricula_id === matId);
+        const notasDet = notaDet && notaDet.data ? deserializarNotasDetalles(notaDet.data) : {};
+        const indicadoresConDatos = indicadores.map(ind => {
+          const notaCriterio = notasDet[ind.criterio_id] || notasDet[String(ind.criterio_id)];
+          const notasArr = notaCriterio && (notaCriterio[ind.id] || notaCriterio[String(ind.id)]);
+          let promedio = '-';
+          if (notasArr && Array.isArray(notasArr)) {
+            const arr = notasArr.filter(x => x != null && x !== '');
+            if (arr.length > 0) promedio = arr.length === 1 ? String(arr[0]) : arr.join(', ');
+          }
+          const expRow = explicacionesIndicadores.find(e => e.matricula_id === matId && e.indicador_id === ind.id);
+          return {
+            indicador_id: ind.id,
+            descripcion: ind.descripcion || ind.abreviatura || `Ind ${ind.id}`,
+            promedio,
+            explicacion: expRow ? (expRow.explicacion || '') : ''
+          };
+        });
+        return {
+          ...alumno,
+          numero: idx + 1,
+          indicadores: indicadoresConDatos
+        };
+      });
+
+      return res.json({
+        curso: { id: cursoInfo.id, curso_nombre: cursoInfo.curso_nombre, grado: cursoInfo.grado, seccion: cursoInfo.seccion, nivel_nombre: cursoInfo.nivel_nombre, grupo_id: cursoInfo.grupo_id, es_cualitativa: true },
+        ciclo: cicloInt,
+        es_cualitativa: true,
+        indicadores,
+        alumnos: alumnosConIndicadores
+      });
+    }
+
+    // === RAMA CUANTITATIVA (Primaria/Secundaria) ===
     const alumnos = await query(
       `SELECT a.id as alumno_id,
               a.nombres, a.apellido_paterno, a.apellido_materno,
@@ -4055,8 +4153,9 @@ router.get('/cursos/:cursoId/detalle-notas', async (req, res) => {
 
 /**
  * POST /api/docente/cursos/:cursoId/detalle-notas
- * Guardar explicaciones (y nota snapshot) por bimestre
- * Body: { ciclo, datos: [{ matricula_id, nota, explicacion }] }
+ * Guardar explicaciones por bimestre
+ * Cuantitativa: Body: { ciclo, datos: [{ matricula_id, nota, explicacion }] }
+ * INICIAL: Body: { ciclo, datos: [{ matricula_id, indicadores: [{ indicador_id, nota, explicacion }] }] }
  */
 router.post('/cursos/:cursoId/detalle-notas', async (req, res) => {
   try {
@@ -4078,8 +4177,9 @@ router.post('/cursos/:cursoId/detalle-notas', async (req, res) => {
     }
 
     const asignatura = await query(
-      `SELECT a.id FROM asignaturas a
+      `SELECT a.id, n.tipo_calificacion, n.nombre as nivel_nombre FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
        WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ?`,
       [cursoId, personal_id, colegio_id]
     );
@@ -4088,20 +4188,42 @@ router.post('/cursos/:cursoId/detalle-notas', async (req, res) => {
       return res.status(403).json({ error: 'No tienes acceso a este curso' });
     }
 
-    for (const item of datos) {
-      const matriculaId = parseInt(item.matricula_id);
-      if (isNaN(matriculaId)) continue;
+    const esInicial = asignatura[0].tipo_calificacion === 0 || (asignatura[0].nivel_nombre || '').toUpperCase().includes('INICIAL');
 
-      const nota = item.nota != null && item.nota !== '' ? parseFloat(item.nota) : null;
-      const explicacion = (item.explicacion || '').trim();
-
-      await execute(
-        `INSERT INTO notas_detalle_explicaciones 
-         (asignatura_id, matricula_id, ciclo, nota, explicacion, colegio_id)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE nota = VALUES(nota), explicacion = VALUES(explicacion), updated_at = NOW()`,
-        [cursoId, matriculaId, cicloInt, nota, explicacion || null, colegio_id]
-      );
+    if (esInicial && datos[0] && Array.isArray(datos[0].indicadores)) {
+      // INICIAL: guardar por indicador en notas_detalle_explicaciones_indicadores
+      for (const item of datos) {
+        const matriculaId = parseInt(item.matricula_id);
+        if (isNaN(matriculaId) || !Array.isArray(item.indicadores)) continue;
+        for (const ind of item.indicadores) {
+          const indicadorId = parseInt(ind.indicador_id);
+          if (isNaN(indicadorId)) continue;
+          const nota = ind.nota != null && ind.nota !== '' ? String(ind.nota).trim() : null;
+          const explicacion = (ind.explicacion || '').trim() || null;
+          await execute(
+            `INSERT INTO notas_detalle_explicaciones_indicadores 
+             (asignatura_id, indicador_id, matricula_id, ciclo, nota, explicacion, colegio_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON DUPLICATE KEY UPDATE nota = VALUES(nota), explicacion = VALUES(explicacion), updated_at = NOW()`,
+            [cursoId, indicadorId, matriculaId, cicloInt, nota, explicacion, colegio_id]
+          );
+        }
+      }
+    } else {
+      // Cuantitativa: notas_detalle_explicaciones
+      for (const item of datos) {
+        const matriculaId = parseInt(item.matricula_id);
+        if (isNaN(matriculaId)) continue;
+        const nota = item.nota != null && item.nota !== '' ? parseFloat(item.nota) : null;
+        const explicacion = (item.explicacion || '').trim();
+        await execute(
+          `INSERT INTO notas_detalle_explicaciones 
+           (asignatura_id, matricula_id, ciclo, nota, explicacion, colegio_id)
+           VALUES (?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE nota = VALUES(nota), explicacion = VALUES(explicacion), updated_at = NOW()`,
+          [cursoId, matriculaId, cicloInt, nota, explicacion || null, colegio_id]
+        );
+      }
     }
 
     res.json({ success: true, message: 'Detalle de notas guardado correctamente' });
