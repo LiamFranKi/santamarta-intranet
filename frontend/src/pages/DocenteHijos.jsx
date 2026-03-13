@@ -2733,16 +2733,21 @@ function DocenteHijos() {
         doc.setFont('helvetica', 'bold');
         doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
 
-        // Sección Detalle de Notas (explicaciones del docente por curso) - cualitativa
-        let detalleNotasCual = datosLibreta.detalle_notas || [];
-        if (detalleNotasCual.length === 0 && datosLibreta.cursos_cualitativos) {
-          detalleNotasCual = (datosLibreta.cursos_cualitativos || []).map(c => ({
+        // Sección Detalle de Notas (explicaciones del docente por curso) - siempre mostrar para INICIAL
+        const cursosCual = Array.isArray(datosLibreta.cursos_cualitativos) ? datosLibreta.cursos_cualitativos : [];
+        const detalleBackend = Array.isArray(datosLibreta.detalle_notas) ? datosLibreta.detalle_notas : [];
+        const detalleMap = {};
+        detalleBackend.forEach(d => { detalleMap[d.curso_nombre] = d; });
+        const detalleNotasCual = cursosCual.map(c => {
+          const extra = detalleMap[c.curso_nombre];
+          const prom = extra?.promedio != null && extra.promedio !== '' ? extra.promedio : (c[`promedio_b${cicloSel}`] != null && c[`promedio_b${cicloSel}`] !== '' ? c[`promedio_b${cicloSel}`] : '-');
+          return {
             curso_nombre: c.curso_nombre || '-',
-            docente_nombre: '-',
-            promedio: c[`promedio_b${cicloSel}`] != null && c[`promedio_b${cicloSel}`] !== '' ? c[`promedio_b${cicloSel}`] : '-',
-            explicacion: '-'
-          }));
-        }
+            docente_nombre: extra?.docente_nombre || '-',
+            promedio: prom,
+            explicacion: extra?.explicacion || '-'
+          };
+        });
         if (detalleNotasCual.length > 0) {
           doc.addPage();
           let yDet = margin + 12;
@@ -2771,17 +2776,23 @@ function DocenteHijos() {
           doc.setFont('helvetica', 'normal');
           detalleNotasCual.forEach((row) => {
             const expl = (row.explicacion || '').trim() || '-';
+            const curso = (row.curso_nombre || '-').trim();
+            const docente = (row.docente_nombre || '-').trim();
             const lineasExp = doc.splitTextToSize(expl, colExp - 4);
-            const filaAlt = Math.max(6, lineasExp.length * 4);
+            const lineasCurso = doc.splitTextToSize(curso, colCurso - 4);
+            const lineasDocente = doc.splitTextToSize(docente, colDocente - 4);
+            const filaAlt = Math.max(6, Math.max(lineasExp.length, lineasCurso.length, lineasDocente.length) * 4);
             if (yDet + filaAlt > pageHeight - 25) { doc.addPage(); yDet = margin; }
             doc.setFillColor(240, 247, 255);
             doc.rect(margin, yDet, colCurso, filaAlt, 'FD');
             doc.rect(margin + colCurso, yDet, colDocente, filaAlt, 'FD');
             doc.rect(margin + colCurso + colDocente, yDet, colProm, filaAlt, 'FD');
             doc.rect(margin + colCurso + colDocente + colProm, yDet, colExp, filaAlt, 'FD');
-            doc.text((row.curso_nombre || '-').substring(0, 35), margin + 2, yDet + 4);
-            doc.text((row.docente_nombre || '-').substring(0, 35), margin + colCurso + 2, yDet + 4);
-            doc.text(String(row.promedio || '-'), margin + colCurso + colDocente + colProm / 2, yDet + 4, { align: 'center' });
+            let yyCurso = yDet + 4;
+            lineasCurso.forEach((l) => { doc.text(l, margin + 2, yyCurso); yyCurso += 4; });
+            let yyDocente = yDet + 4;
+            lineasDocente.forEach((l) => { doc.text(l, margin + colCurso + 2, yyDocente); yyDocente += 4; });
+            doc.text(String(row.promedio || '-'), margin + colCurso + colDocente + colProm / 2, yDet + filaAlt / 2 + 1.5, { align: 'center' });
             let yy = yDet + 4;
             lineasExp.forEach((l) => { doc.text(l, margin + colCurso + colDocente + colProm + 2, yy); yy += 4; });
             yDet += filaAlt;
@@ -3031,17 +3042,23 @@ function DocenteHijos() {
         doc.setFont('helvetica', 'normal');
         detalleNotasDoc.forEach((row) => {
           const expl = (row.explicacion || '').trim() || '-';
+          const curso = (row.curso_nombre || '-').trim();
+          const docente = (row.docente_nombre || '-').trim();
           const lineasExp = doc.splitTextToSize(expl, colExp - 4);
-          const filaAlt = Math.max(6, lineasExp.length * 4);
+          const lineasCurso = doc.splitTextToSize(curso, colCurso - 4);
+          const lineasDocente = doc.splitTextToSize(docente, colDocente - 4);
+          const filaAlt = Math.max(6, Math.max(lineasExp.length, lineasCurso.length, lineasDocente.length) * 4);
           if (yDet + filaAlt > pageHeight - 25) { doc.addPage(); yDet = margin; }
           doc.setFillColor(240, 247, 255);
           doc.rect(margin, yDet, colCurso, filaAlt, 'FD');
           doc.rect(margin + colCurso, yDet, colDocente, filaAlt, 'FD');
           doc.rect(margin + colCurso + colDocente, yDet, colProm, filaAlt, 'FD');
           doc.rect(margin + colCurso + colDocente + colProm, yDet, colExp, filaAlt, 'FD');
-          doc.text((row.curso_nombre || '-').substring(0, 35), margin + 2, yDet + 4);
-          doc.text((row.docente_nombre || '-').substring(0, 35), margin + colCurso + 2, yDet + 4);
-          doc.text(String(row.promedio || '-'), margin + colCurso + colDocente + colProm / 2, yDet + 4, { align: 'center' });
+          let yyCurso = yDet + 4;
+          lineasCurso.forEach((l) => { doc.text(l, margin + 2, yyCurso); yyCurso += 4; });
+          let yyDocente = yDet + 4;
+          lineasDocente.forEach((l) => { doc.text(l, margin + colCurso + 2, yyDocente); yyDocente += 4; });
+          doc.text(String(row.promedio || '-'), margin + colCurso + colDocente + colProm / 2, yDet + filaAlt / 2 + 1.5, { align: 'center' });
           let yy = yDet + 4;
           lineasExp.forEach((l) => { doc.text(l, margin + colCurso + colDocente + colProm + 2, yy); yy += 4; });
           yDet += filaAlt;
