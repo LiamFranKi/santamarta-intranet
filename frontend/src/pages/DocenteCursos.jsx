@@ -5128,7 +5128,7 @@ function DocenteCursos() {
                   <div className="empty-state">
                     <p>No hay otras secciones disponibles para copiar contenido.</p>
                     <p style={{ fontSize: '0.9rem', color: '#6b7280', marginTop: '0.5rem' }}>
-                      Solo puedes copiar contenido a otras secciones del mismo grado y curso.
+                      Puedes copiar tu contenido a cualquier sección del mismo grado y curso (aunque la lleve otro docente).
                     </p>
                   </div>
                 ) : (

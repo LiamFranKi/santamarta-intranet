@@ -4460,21 +4460,20 @@ router.get('/cursos/:cursoId/copiar-contenido', async (req, res) => {
 
     const cursoInfo = curso[0];
 
-    // Obtener otras asignaturas del mismo curso, mismo grado, mismo año (pero diferente sección)
+    // Obtener otras asignaturas del mismo curso, mismo grado, mismo año (cualquier docente; el que tiene el contenido puede copiar a otras secciones)
     const otrasAsignaturas = await query(
       `SELECT a.id, a.curso_id, c.nombre as curso_nombre, g.grado, g.seccion, g.turno_id, t.nombre as turno_nombre
        FROM asignaturas a
        INNER JOIN cursos c ON c.id = a.curso_id
        INNER JOIN grupos g ON g.id = a.grupo_id
        LEFT JOIN turnos t ON t.id = g.turno_id
-       WHERE a.id != ? 
-         AND a.curso_id = ? 
-         AND a.personal_id = ?
+       WHERE a.id != ?
+         AND a.curso_id = ?
          AND a.colegio_id = ?
          AND g.anio = ?
          AND g.grado = ?
        ORDER BY g.seccion ASC`,
-      [cursoId, cursoInfo.curso_id, personal_id, colegio_id, anio_activo, cursoInfo.grado]
+      [cursoId, cursoInfo.curso_id, colegio_id, anio_activo, cursoInfo.grado]
     );
 
     // Obtener todos los temas (archivos) de la asignatura actual
@@ -4560,23 +4559,32 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       return res.status(400).json({ error: 'Debe seleccionar una asignatura destino' });
     }
 
-    // Verificar que ambas asignaturas pertenecen al docente
+    // Origen: debe ser del docente actual (solo puede copiar desde sus cursos)
     const asignaturaOrigen = await query(
-      `SELECT a.* FROM asignaturas a
+      `SELECT a.*, g.grado FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id
        WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
       [cursoId, personal_id, colegio_id, anio_activo]
     );
 
+    if (asignaturaOrigen.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a esta asignatura de origen' });
+    }
+
+    // Destino: cualquier asignatura del mismo curso y mismo grado (puede ser de otro docente)
     const asignaturaDestino = await query(
-      `SELECT a.* FROM asignaturas a
+      `SELECT a.*, g.grado FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_destino_id, personal_id, colegio_id, anio_activo]
+       WHERE a.id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [asignatura_destino_id, colegio_id, anio_activo]
     );
 
-    if (asignaturaOrigen.length === 0 || asignaturaDestino.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a una o ambas asignaturas' });
+    if (asignaturaDestino.length === 0) {
+      return res.status(403).json({ error: 'Asignatura destino no encontrada' });
+    }
+
+    if (asignaturaDestino[0].curso_id !== asignaturaOrigen[0].curso_id || asignaturaDestino[0].grado !== asignaturaOrigen[0].grado) {
+      return res.status(403).json({ error: 'Solo puedes copiar a una sección del mismo curso y grado' });
     }
 
     let copiados = {
