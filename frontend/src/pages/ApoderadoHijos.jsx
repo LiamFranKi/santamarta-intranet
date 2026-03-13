@@ -2950,7 +2950,7 @@ function ApoderadoHijos() {
           let yP = margin + 12;
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(11);
-          doc.text(`Verificación orden de mérito — Bimestre ${bimestresLabel[b - 1]}`, margin, yP);
+          doc.text(`Reporte de Orden de Mérito — Bimestre ${bimestresLabel[b - 1]}`, margin, yP);
           yP += 4;
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(8);

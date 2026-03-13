@@ -151,21 +151,25 @@
   overflow-y: auto;
 }
 
-/* Opciones por grupo en Tutoría: 9 ítems en 2 columnas. Selector doble + !important para ganar a AlumnoCursos.css */
+/* Opciones por grupo en Tutoría: 2 columnas, más ancho y padding 5mm */
 .dropdown-menu.dropdown-menu-tutoria-grupo,
 .dropdown-menu-tutoria-grupo {
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;
   justify-items: start !important;
   align-content: start !important;
-  min-width: 320px !important;
+  min-width: 480px !important;
+  width: max-content !important;
+  max-width: 560px !important;
+  padding: 5mm !important;
+  gap: 0.25rem !important;
 }
 
 .dropdown-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.75rem 1rem;
+  padding: 5mm !important;
   cursor: pointer;
   transition: all 0.2s;
   color: #374151;
@@ -1891,4 +1895,81 @@
 
 .btn-imprimir:hover {
   opacity: 0.9;
+}
+
+/* Reporte Orden de Mérito */
+.docente-tutoria-orden-merito .tutoria-content {
+  max-width: 900px;
+}
+
+.docente-tutoria-orden-merito .grupo-subtitle {
+  color: #6b7280;
+  margin-bottom: 1.5rem;
+}
+
+.docente-tutoria-orden-merito .btn-regresar {
+  margin-bottom: 1rem;
+  padding: 0.5rem 1rem;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.docente-tutoria-orden-merito .btn-regresar:hover {
+  background: #e5e7eb;
+}
+
+.docente-tutoria-orden-merito .btn-icon {
+  font-size: 1.1rem;
+}
+
+.orden-merito-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.orden-merito-bimestre {
+  break-inside: avoid;
+}
+
+.orden-merito-bimestre-title {
+  font-size: 1.1rem;
+  color: #1f2937;
+  margin-bottom: 0.75rem;
+  font-weight: 600;
+}
+
+.orden-merito-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.orden-merito-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.orden-merito-table th,
+.orden-merito-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.orden-merito-table th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.orden-merito-table tbody tr:hover {
+  background: #f9fafb;
 }

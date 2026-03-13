@@ -426,6 +426,9 @@ function DocenteTutoria() {
       case 'ver-nomina':
         await handleExportarNominaGrupo(grupo);
         break;
+      case 'orden-merito':
+        navigate(`/docente/tutoria/grupos/${grupo.id}/orden-merito`);
+        break;
       default:
         break;
     }
@@ -2339,6 +2342,7 @@ function DocenteTutoria() {
                       { id: 'cursos-asignados', label: 'Cursos Asignados', icon: '📚' },
                       { id: 'ver-horario', label: 'Ver Horario', icon: '📅' },
                       { id: 'ver-nomina', label: 'Ver Nómina', icon: '📄' },
+                      { id: 'orden-merito', label: 'Orden de Mérito', icon: '🏆' },
                       { id: 'notas-asistencia', label: 'Ver Notas', icon: '📊' },
                       { id: 'enviar-comunicado', label: 'Enviar Mensaje', icon: '✉️' },
                       { id: 'registrar-asistencia', label: 'Asistencias', icon: '✅' },

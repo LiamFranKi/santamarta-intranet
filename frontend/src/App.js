@@ -19,6 +19,7 @@ import DocenteActividades from './pages/DocenteActividades';
 import DocenteMensajes from './pages/DocenteMensajes';
 import DocenteHijos from './pages/DocenteHijos';
 import DocenteTutoria from './pages/DocenteTutoria';
+import DocenteTutoriaOrdenMerito from './pages/DocenteTutoriaOrdenMerito';
 import AdminActividades from './pages/admin/AdminActividades';
 import AdminAvatares from './pages/admin/AdminAvatares';
 import AdminComunicados from './pages/admin/AdminComunicados';
@@ -311,6 +312,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <DocenteHijoAulaVirtual />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/tutoria/grupos/:grupoId/orden-merito"
+        element={
+          <PrivateRoute>
+            <DocenteTutoriaOrdenMerito />
           </PrivateRoute>
         }
       />

@@ -6301,6 +6301,54 @@ router.get('/tutoria/grupos/:grupoId/alumnos', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/tutoria/grupos/:grupoId/orden-merito
+ * Reporte de orden de mérito del grupo (por bimestre)
+ */
+router.get('/tutoria/grupos/:grupoId/orden-merito', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    const grupoTutor = await query(
+      `SELECT g.*, n.nombre as nivel_nombre, t.nombre as turno_nombre
+       FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN turnos t ON t.id = g.turno_id
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const grupo = grupoTutor[0];
+    const primeraMatricula = await query(
+      `SELECT id FROM matriculas WHERE grupo_id = ? AND (estado = 0 OR estado = 4) LIMIT 1`,
+      [grupoId]
+    );
+    const matriculaId = primeraMatricula?.[0]?.id;
+    if (!matriculaId) return res.json({ grupo: { grado: grupo.grado, seccion: grupo.seccion, nivel_nombre: grupo.nivel_nombre, anio: grupo.anio }, detalle: { b1: [], b2: [], b3: [], b4: [] } });
+
+    const asignaturas = await query(
+      `SELECT a.id as asignatura_id FROM asignaturas a
+       WHERE a.grupo_id = ? AND a.colegio_id = ? ORDER BY a.id`,
+      [grupoId, colegio_id]
+    );
+    const asignaturasIds = (asignaturas || []).map(a => a.asignatura_id).filter(id => id !== -101);
+    const ordenMeritoResult = await obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds);
+
+    res.json({
+      grupo: { grado: grupo.grado, seccion: grupo.seccion, nivel_nombre: grupo.nivel_nombre, anio: grupo.anio },
+      detalle: ordenMeritoResult.detalle || { b1: [], b2: [], b3: [], b4: [] }
+    });
+  } catch (error) {
+    console.error('Error obteniendo orden de mérito:', error);
+    res.status(500).json({ error: 'Error al obtener orden de mérito' });
+  }
+});
+
+/**
  * GET /api/docente/tutoria/grupos/:grupoId/asistencia?fecha=YYYY-MM-DD
  * Obtener lista de alumnos del grupo con sus asistencias para una fecha
  */
