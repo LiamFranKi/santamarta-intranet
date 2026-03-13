@@ -49,6 +49,7 @@ import ApoderadoComunicados from './pages/ApoderadoComunicados';
 import ApoderadoActividades from './pages/ApoderadoActividades';
 import ApoderadoMensajes from './pages/ApoderadoMensajes';
 import ApoderadoHijoAulaVirtual from './pages/ApoderadoHijoAulaVirtual';
+import PromotoriaDashboard from './pages/promotoria/PromotoriaDashboard';
 import './App.css';
 
 // Configurar React Router para evitar warnings
@@ -94,6 +95,8 @@ function PrivateRoute({ children, requiredType = null }) {
       return <Navigate to="/apoderado/dashboard" />;
     } else if (user?.tipo === 'ASISTENCIA') {
       return <Navigate to="/asistencia/escaneo" />;
+    } else if (user?.tipo === 'PROMOTORIA') {
+      return <Navigate to="/promotoria/dashboard" />;
     } else if (user?.tipo === 'ADMINISTRADOR') {
       return <Navigate to="/admin/dashboard" />;
     }
@@ -135,6 +138,8 @@ function NavigateToDashboard() {
     return <Navigate to="/admin/dashboard" />;
   } else if (tipo === 'ASISTENCIA') {
     return <Navigate to="/asistencia/escaneo" />;
+  } else if (tipo === 'PROMOTORIA') {
+    return <Navigate to="/promotoria/dashboard" />;
   }
   
   return <Navigate to="/admin/dashboard" />;
@@ -167,6 +172,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <AsistenciaEscaneo />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/promotoria/dashboard"
+        element={
+          <PrivateRoute requiredType="PROMOTORIA">
+            <PromotoriaDashboard />
           </PrivateRoute>
         }
       />

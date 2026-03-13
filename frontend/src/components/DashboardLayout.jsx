@@ -226,7 +226,7 @@ export default function DashboardLayout({ children }) {
 
       <aside className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <div className="sidebar-logo" role="button" tabIndex={0} onClick={() => navigate(role === 'DOCENTE' ? '/docente/dashboard' : role === 'ALUMNO' ? '/alumno/dashboard' : role === 'APODERADO' ? '/apoderado/dashboard' : role === 'ADMINISTRADOR' ? '/admin/dashboard' : '/admin/dashboard')}>
+          <div className="sidebar-logo" role="button" tabIndex={0} onClick={() => navigate(role === 'DOCENTE' ? '/docente/dashboard' : role === 'ALUMNO' ? '/alumno/dashboard' : role === 'APODERADO' ? '/apoderado/dashboard' : role === 'ADMINISTRADOR' ? '/admin/dashboard' : role === 'PROMOTORIA' ? '/promotoria/dashboard' : '/admin/dashboard')}>
             {logoUrl ? (
               <img className="sidebar-logo-image" src={logoUrl} alt="Logo" />
             ) : (
@@ -421,6 +421,15 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/mensajes">
                   <span className="sidebar-icon">✉️</span>
                   <span className="sidebar-label">Mensajes</span>
+                </NavLink>
+              </div>
+            </>
+          ) : role === 'PROMOTORIA' ? (
+            <>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/promotoria/dashboard" end>
+                  <span className="sidebar-icon">📊</span>
+                  <span className="sidebar-label">Dashboard</span>
                 </NavLink>
               </div>
             </>

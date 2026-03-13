@@ -1,0 +1,215 @@
+/* Promotoría Dashboard - Colores sobrios y elegantes */
+
+.promotoria-dashboard {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #f1f5f9 0%, #e2e8f0 100%);
+  padding: 1.5rem;
+}
+
+.promotoria-header {
+  margin-bottom: 2rem;
+}
+
+.promotoria-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0 0 0.25rem 0;
+  letter-spacing: -0.02em;
+}
+
+.promotoria-subtitle {
+  font-size: 0.95rem;
+  color: #64748b;
+  margin: 0;
+}
+
+/* KPI Cards */
+.promotoria-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.promotoria-kpi-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.promotoria-kpi-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
+}
+
+.promotoria-kpi-icon {
+  font-size: 1.75rem;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.promotoria-kpi-ingresos .promotoria-kpi-icon { background: #ccfbf1; color: #0f766e; }
+.promotoria-kpi-presupuesto .promotoria-kpi-icon { background: #e0e7ff; color: #3730a3; }
+.promotoria-kpi-deuda .promotoria-kpi-icon { background: #fef3c7; color: #b45309; }
+.promotoria-kpi-alumnos .promotoria-kpi-icon { background: #dbeafe; color: #1d4ed8; }
+.promotoria-kpi-sinpagar .promotoria-kpi-icon { background: #fce7f3; color: #9d174d; }
+.promotoria-kpi-trabajadores .promotoria-kpi-icon { background: #e0f2fe; color: #0369a1; }
+.promotoria-kpi-apoderados .promotoria-kpi-icon { background: #f3e8ff; color: #6b21a8; }
+.promotoria-kpi-grados .promotoria-kpi-icon { background: #f1f5f9; color: #475569; }
+
+.promotoria-kpi-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.promotoria-kpi-subtitle {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-bottom: 0.15rem;
+}
+
+.promotoria-kpi-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #475569;
+  margin: 0 0 0.35rem 0;
+}
+
+.promotoria-kpi-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+}
+
+/* Charts */
+.promotoria-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.promotoria-chart-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e2e8f0;
+}
+
+.promotoria-chart-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #334155;
+  margin: 0 0 1.25rem 0;
+}
+
+.promotoria-chart-loading,
+.promotoria-chart-empty {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  padding: 1.5rem 0;
+  text-align: center;
+}
+
+.promotoria-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.promotoria-bar-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 100px;
+  align-items: center;
+  gap: 1rem;
+}
+
+.promotoria-bar-label {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.promotoria-bar-track {
+  height: 22px;
+  background: #f1f5f9;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.promotoria-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0f766e 0%, #14b8a6 100%);
+  border-radius: 6px;
+  transition: width 0.5s ease;
+}
+
+.promotoria-bar-fill-nivel {
+  background: linear-gradient(90deg, #1e40af 0%, #3b82f6 100%);
+}
+
+.promotoria-bar-value {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #334155;
+  text-align: right;
+}
+
+/* Deudas adicionales */
+.promotoria-deudas {
+  margin-top: 1rem;
+}
+
+.promotoria-deuda-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.promotoria-deuda-label {
+  font-size: 0.95rem;
+  color: #64748b;
+}
+
+.promotoria-deuda-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #b45309;
+}
+
+@media (max-width: 640px) {
+  .promotoria-dashboard {
+    padding: 1rem;
+  }
+  .promotoria-kpis {
+    grid-template-columns: 1fr;
+  }
+  .promotoria-bar-row {
+    grid-template-columns: 60px 1fr 70px;
+    gap: 0.5rem;
+  }
+  .promotoria-bar-value {
+    font-size: 0.75rem;
+  }
+}

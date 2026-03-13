@@ -48,6 +48,8 @@ function Login() {
         navigate('/admin/dashboard');
       } else if (user.tipo === 'ASISTENCIA') {
         navigate('/asistencia/escaneo');
+      } else if (user.tipo === 'PROMOTORIA') {
+        navigate('/promotoria/dashboard');
       } else {
         navigate('/admin/dashboard');
       }
@@ -110,6 +112,8 @@ function Login() {
         navigate('/admin/dashboard');
       } else if (result.user?.tipo === 'ASISTENCIA') {
         navigate('/asistencia/escaneo');
+      } else if (result.user?.tipo === 'PROMOTORIA') {
+        navigate('/promotoria/dashboard');
       } else {
         navigate('/admin/dashboard');
       }
