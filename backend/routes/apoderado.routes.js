@@ -2551,6 +2551,28 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       const tardanzasB3 = await obtenerTardanzas(matriculaId, 3, anio_activo);
       const tardanzasB4 = await obtenerTardanzas(matriculaId, 4, anio_activo);
 
+      // Detalle de notas: explicaciones del docente por curso (para el bimestre seleccionado)
+      const detalleNotasRowsCual = await query(
+        `SELECT a.id as asignatura_id, c.nombre as curso_nombre,
+                CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) as docente_nombre,
+                pr.promedio,
+                nde.explicacion
+         FROM asignaturas a
+         INNER JOIN cursos c ON c.id = a.curso_id
+         LEFT JOIN personal p ON p.id = a.personal_id
+         LEFT JOIN promedios pr ON pr.asignatura_id = a.id AND pr.matricula_id = ? AND pr.ciclo = ?
+         LEFT JOIN notas_detalle_explicaciones nde ON nde.asignatura_id = a.id AND nde.matricula_id = ? AND nde.ciclo = ? AND nde.colegio_id = ?
+         WHERE a.grupo_id = ? AND a.colegio_id = ? AND a.id > 0
+         ORDER BY c.nombre ASC`,
+        [matriculaId, ciclo, matriculaId, ciclo, colegio_id, grupoId, colegio_id]
+      );
+      const detalle_notas_cual = (detalleNotasRowsCual || []).map(r => ({
+        curso_nombre: r.curso_nombre || '-',
+        docente_nombre: (r.docente_nombre || '').trim() || '-',
+        promedio: r.promedio != null && r.promedio !== '' ? r.promedio : '-',
+        explicacion: (r.explicacion || '').trim() || ''
+      }));
+
       const resumenCual = {
         cantidad_cursos: { b1: cursosCualitativos.length, b2: cursosCualitativos.length, b3: cursosCualitativos.length, b4: cursosCualitativos.length },
         suma_notas: { b1: null, b2: null, b3: null, b4: null },
@@ -2585,7 +2607,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         asignaturas_sin_area: [],
         resumen: resumenCual,
         recomendaciones: recomendacionesTexto,
-        ciclo
+        ciclo,
+        detalle_notas: detalle_notas_cual
       });
     }
 
@@ -2851,6 +2874,28 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     const tardanzasB3 = await obtenerTardanzas(matriculaId, 3, anio_activo);
     const tardanzasB4 = await obtenerTardanzas(matriculaId, 4, anio_activo);
 
+    // Detalle de notas: explicaciones del docente por curso (para el bimestre seleccionado)
+    const detalleNotasRows = await query(
+      `SELECT a.id as asignatura_id, c.nombre as curso_nombre,
+              CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) as docente_nombre,
+              pr.promedio,
+              nde.explicacion
+       FROM asignaturas a
+       INNER JOIN cursos c ON c.id = a.curso_id
+       LEFT JOIN personal p ON p.id = a.personal_id
+       LEFT JOIN promedios pr ON pr.asignatura_id = a.id AND pr.matricula_id = ? AND pr.ciclo = ?
+       LEFT JOIN notas_detalle_explicaciones nde ON nde.asignatura_id = a.id AND nde.matricula_id = ? AND nde.ciclo = ? AND nde.colegio_id = ?
+       WHERE a.grupo_id = ? AND a.colegio_id = ? AND a.id > 0
+       ORDER BY c.nombre ASC`,
+      [matriculaId, ciclo, matriculaId, ciclo, colegio_id, grupoId, colegio_id]
+    );
+    const detalle_notas = (detalleNotasRows || []).map(r => ({
+      curso_nombre: r.curso_nombre || '-',
+      docente_nombre: (r.docente_nombre || '').trim() || '-',
+      promedio: r.promedio != null && r.promedio !== '' ? r.promedio : '-',
+      explicacion: (r.explicacion || '').trim() || ''
+    }));
+
     const resumen = {
       cantidad_cursos: {
         b1: cantidadCursosB1,
@@ -2917,7 +2962,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       asignaturas_sin_area: asignaturasSinArea,
       resumen,
       recomendaciones: recomendacionesTexto,
-      ciclo
+      ciclo,
+      detalle_notas
     });
   } catch (error) {
     console.error('Error obteniendo libreta:', error);

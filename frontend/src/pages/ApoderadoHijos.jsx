@@ -2737,6 +2737,56 @@ function ApoderadoHijos() {
         yPos += 12;
         doc.setFont('helvetica', 'bold');
         doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
+
+        // Sección Detalle de Notas (explicaciones del docente por curso)
+        const detalleNotasCual = datosLibreta.detalle_notas || [];
+        if (detalleNotasCual.length > 0) {
+          doc.addPage();
+          let yDet = margin + 12;
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(11);
+          doc.text('Detalle de Notas — Explicaciones por Curso', margin, yDet);
+          yDet += 5;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8);
+          doc.text(`Bimestre ${['I','II','III','IV'][(cicloSel || 1) - 1]} — ${datosLibreta.alumno?.grado}° ${datosLibreta.alumno?.seccion || ''}`, margin, yDet);
+          yDet += 10;
+
+          const colCurso = 45;
+          const colDocente = 50;
+          const colProm = 18;
+          const colExp = pageWidth - margin * 2 - colCurso - colDocente - colProm;
+          doc.setFillColor(...colorLabel);
+          doc.rect(margin, yDet, colCurso, 6, 'FD');
+          doc.rect(margin + colCurso, yDet, colDocente, 6, 'FD');
+          doc.rect(margin + colCurso + colDocente, yDet, colProm, 6, 'FD');
+          doc.rect(margin + colCurso + colDocente + colProm, yDet, colExp, 6, 'FD');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.text('Curso', margin + colCurso / 2, yDet + 4, { align: 'center' });
+          doc.text('Docente', margin + colCurso + colDocente / 2, yDet + 4, { align: 'center' });
+          doc.text('Prom.', margin + colCurso + colDocente + colProm / 2, yDet + 4, { align: 'center' });
+          doc.text('Explicación', margin + colCurso + colDocente + colProm + colExp / 2, yDet + 4, { align: 'center' });
+          yDet += 6;
+          doc.setFont('helvetica', 'normal');
+          detalleNotasCual.forEach((row) => {
+            const expl = (row.explicacion || '').trim() || '-';
+            const lineasExp = doc.splitTextToSize(expl, colExp - 4);
+            const filaAlt = Math.max(6, lineasExp.length * 4);
+            if (yDet + filaAlt > pageHeight - 25) { doc.addPage(); yDet = margin; }
+            doc.setFillColor(240, 247, 255);
+            doc.rect(margin, yDet, colCurso, filaAlt, 'FD');
+            doc.rect(margin + colCurso, yDet, colDocente, filaAlt, 'FD');
+            doc.rect(margin + colCurso + colDocente, yDet, colProm, filaAlt, 'FD');
+            doc.rect(margin + colCurso + colDocente + colProm, yDet, colExp, filaAlt, 'FD');
+            doc.text((row.curso_nombre || '-').substring(0, 35), margin + 2, yDet + 4);
+            doc.text((row.docente_nombre || '-').substring(0, 35), margin + colCurso + 2, yDet + 4);
+            doc.text(String(row.promedio || '-'), margin + colCurso + colDocente + colProm / 2, yDet + 4, { align: 'center' });
+            let yy = yDet + 4;
+            lineasExp.forEach((l) => { doc.text(l, margin + colCurso + colDocente + colProm + 2, yy); yy += 4; });
+            yDet += filaAlt;
+          });
+        }
       } else {
         // ========== LAYOUT CUANTITATIVO (PRIMARIA/SECUNDARIA) - SIN CAMBIOS ==========
       const getPromedioFinalHastaCiclo = (obj) => {
@@ -2937,6 +2987,56 @@ function ApoderadoHijos() {
 
       doc.setFont('helvetica', 'bold'); // Texto en negrita
       doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
+
+      // Sección Detalle de Notas (explicaciones del docente por curso) — antes del Reporte de Orden de Mérito
+      const detalleNotas = datosLibreta.detalle_notas || [];
+      if (detalleNotas.length > 0) {
+        doc.addPage();
+        let yDet = margin + 12;
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11);
+        doc.text('Detalle de Notas — Explicaciones por Curso', margin, yDet);
+        yDet += 5;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text(`Bimestre ${['I','II','III','IV'][(cicloSel || 1) - 1]} — ${datosLibreta.alumno?.grado}° ${datosLibreta.alumno?.seccion || ''}`, margin, yDet);
+        yDet += 10;
+
+        const colCurso = 45;
+        const colDocente = 50;
+        const colProm = 18;
+        const colExp = pageWidth - margin * 2 - colCurso - colDocente - colProm;
+        doc.setFillColor(...colorLabel);
+        doc.rect(margin, yDet, colCurso, 6, 'FD');
+        doc.rect(margin + colCurso, yDet, colDocente, 6, 'FD');
+        doc.rect(margin + colCurso + colDocente, yDet, colProm, 6, 'FD');
+        doc.rect(margin + colCurso + colDocente + colProm, yDet, colExp, 6, 'FD');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.text('Curso', margin + colCurso / 2, yDet + 4, { align: 'center' });
+        doc.text('Docente', margin + colCurso + colDocente / 2, yDet + 4, { align: 'center' });
+        doc.text('Prom.', margin + colCurso + colDocente + colProm / 2, yDet + 4, { align: 'center' });
+        doc.text('Explicación', margin + colCurso + colDocente + colProm + colExp / 2, yDet + 4, { align: 'center' });
+        yDet += 6;
+        doc.setFont('helvetica', 'normal');
+        detalleNotas.forEach((row) => {
+          const expl = (row.explicacion || '').trim() || '-';
+          const lineasExp = doc.splitTextToSize(expl, colExp - 4);
+          const filaAlt = Math.max(6, lineasExp.length * 4);
+          if (yDet + filaAlt > pageHeight - 25) { doc.addPage(); yDet = margin; }
+          doc.setFillColor(240, 247, 255);
+          doc.rect(margin, yDet, colCurso, filaAlt, 'FD');
+          doc.rect(margin + colCurso, yDet, colDocente, filaAlt, 'FD');
+          doc.rect(margin + colCurso + colDocente, yDet, colProm, filaAlt, 'FD');
+          doc.rect(margin + colCurso + colDocente + colProm, yDet, colExp, filaAlt, 'FD');
+          doc.text((row.curso_nombre || '-').substring(0, 35), margin + 2, yDet + 4);
+          doc.text((row.docente_nombre || '-').substring(0, 35), margin + colCurso + 2, yDet + 4);
+          doc.text(String(row.promedio || '-'), margin + colCurso + colDocente + colProm / 2, yDet + 4, { align: 'center' });
+          let yy = yDet + 4;
+          lineasExp.forEach((l) => { doc.text(l, margin + colCurso + colDocente + colProm + 2, yy); yy += 4; });
+          yDet += filaAlt;
+        });
+      }
 
       // Segunda hoja(s): lista de verificación orden de mérito por bimestre (solo libretas numéricas)
       const ordenMeritoDetalle = datosLibreta.resumen?.orden_merito_detalle;
