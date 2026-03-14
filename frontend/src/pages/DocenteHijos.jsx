@@ -2591,7 +2591,9 @@ function DocenteHijos() {
       const colBimestreWidth = (contentWidth - colAreaWidth) / numCols;
 
       if (esInicial) {
-        // ========== LAYOUT CUALITATIVO (INICIAL): solo bimestre elegido, explicación por indicador ==========
+        // ========== LAYOUT CUALITATIVO (INICIAL): AREAS | NOTA | DETALLE (explicación por indicador) ==========
+        const colNotaWidth = 18;
+        const colDetalleWidth = contentWidth - colAreaWidth - colNotaWidth;
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
         doc.setLineWidth(borderWidth);
@@ -2599,18 +2601,24 @@ function DocenteHijos() {
         doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
         doc.text('AREAS', margin + colAreaWidth / 2, yPos + 3.5, { align: 'center' });
         doc.setFillColor(...colorLabel);
-        doc.rect(margin + colAreaWidth, yPos, colBimestreWidth, headerHeight, 'FD');
-        doc.text(`BIMESTRE ${['I','II','III','IV'][cicloSel - 1]}`, margin + colAreaWidth + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        doc.rect(margin + colAreaWidth, yPos, colNotaWidth, headerHeight, 'FD');
+        doc.text('NOTA', margin + colAreaWidth + colNotaWidth / 2, yPos + 3.5, { align: 'center' });
+        doc.setFillColor(...colorLabel);
+        doc.rect(margin + colAreaWidth + colNotaWidth, yPos, colDetalleWidth, headerHeight, 'FD');
+        doc.text(`BIMESTRE ${['I','II','III','IV'][cicloSel - 1]}`, margin + colAreaWidth + colNotaWidth + colDetalleWidth / 2, yPos + 3.5, { align: 'center' });
         yPos += headerHeight;
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         const bimLabel = cicloSel;
-        const getTextoBimestre = (item) => {
-          const expl = (item.explicacion || '').trim();
-          if (expl) return expl;
+        const getNota = (item) => {
           const nota = item[`nota_b${bimLabel}`];
           return (nota !== null && nota !== '' && nota !== undefined) ? String(nota) : '-';
+        };
+        const getTextoDetalle = (item) => {
+          const expl = (item.explicacion || '').trim();
+          if (expl) return expl;
+          return getNota(item) !== '-' ? getNota(item) : '-';
         };
         datosLibreta.cursos_cualitativos.forEach(curso => {
           if (yPos > pageHeight - 80) { doc.addPage(); yPos = margin; }
@@ -2620,16 +2628,19 @@ function DocenteHijos() {
           doc.text(curso.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
           const vCurso = curso[`promedio_b${bimLabel}`];
           doc.setFillColor(...colorLabel);
-          doc.rect(margin + colAreaWidth, yPos, colBimestreWidth, headerHeight, 'FD');
-          doc.text((vCurso !== null && vCurso !== '' && vCurso !== '-') ? String(vCurso) : '-', margin + colAreaWidth + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+          doc.rect(margin + colAreaWidth, yPos, colNotaWidth, headerHeight, 'FD');
+          doc.text((vCurso !== null && vCurso !== '' && vCurso !== '-') ? String(vCurso) : '-', margin + colAreaWidth + colNotaWidth / 2, yPos + 3.5, { align: 'center' });
+          doc.setFillColor(...colorLabel);
+          doc.rect(margin + colAreaWidth + colNotaWidth, yPos, colDetalleWidth, headerHeight, 'FD');
+          doc.text('-', margin + colAreaWidth + colNotaWidth + colDetalleWidth / 2, yPos + 3.5, { align: 'center' });
           yPos += headerHeight;
 
           doc.setFont('helvetica', 'normal');
           curso.criterios?.forEach(cr => {
             if (cr.indicadores && cr.indicadores.length > 0) {
               cr.indicadores.forEach(ind => {
-                const textoBim = getTextoBimestre(ind);
-                const lineas = doc.splitTextToSize(textoBim || '-', colBimestreWidth - 4);
+                const textoDetalle = getTextoDetalle(ind);
+                const lineas = doc.splitTextToSize(textoDetalle || '-', colDetalleWidth - 4);
                 const rowHeight = Math.max(headerHeight, lineas.length * 4 + 4);
                 if (yPos + rowHeight > pageHeight - 25) { doc.addPage(); yPos = margin; }
                 const desc = (ind.descripcion || '').substring(0, 70);
@@ -2637,14 +2648,17 @@ function DocenteHijos() {
                 doc.rect(margin, yPos, colAreaWidth, rowHeight, 'FD');
                 doc.text(desc, margin + 2, yPos + 4);
                 doc.setFillColor(...colorData);
-                doc.rect(margin + colAreaWidth, yPos, colBimestreWidth, rowHeight, 'FD');
+                doc.rect(margin + colAreaWidth, yPos, colNotaWidth, rowHeight, 'FD');
+                doc.text(getNota(ind), margin + colAreaWidth + colNotaWidth / 2, yPos + rowHeight / 2 + 1.5, { align: 'center' });
+                doc.setFillColor(...colorData);
+                doc.rect(margin + colAreaWidth + colNotaWidth, yPos, colDetalleWidth, rowHeight, 'FD');
                 let yy = yPos + 4;
-                lineas.forEach(l => { doc.text(l, margin + colAreaWidth + 2, yy); yy += 4; });
+                lineas.forEach(l => { doc.text(l, margin + colAreaWidth + colNotaWidth + 2, yy); yy += 4; });
                 yPos += rowHeight;
               });
             } else {
-              const textoBim = getTextoBimestre(cr);
-              const lineas = doc.splitTextToSize(textoBim || '-', colBimestreWidth - 4);
+              const textoDetalle = getTextoDetalle(cr);
+              const lineas = doc.splitTextToSize(textoDetalle || '-', colDetalleWidth - 4);
               const rowHeight = Math.max(headerHeight, lineas.length * 4 + 4);
               if (yPos + rowHeight > pageHeight - 25) { doc.addPage(); yPos = margin; }
               const desc = (cr.descripcion || cr.abreviatura || '').substring(0, 70);
@@ -2652,9 +2666,12 @@ function DocenteHijos() {
               doc.rect(margin, yPos, colAreaWidth, rowHeight, 'FD');
               doc.text(desc, margin + 2, yPos + 4);
               doc.setFillColor(...colorData);
-              doc.rect(margin + colAreaWidth, yPos, colBimestreWidth, rowHeight, 'FD');
+              doc.rect(margin + colAreaWidth, yPos, colNotaWidth, rowHeight, 'FD');
+              doc.text(getNota(cr), margin + colAreaWidth + colNotaWidth / 2, yPos + rowHeight / 2 + 1.5, { align: 'center' });
+              doc.setFillColor(...colorData);
+              doc.rect(margin + colAreaWidth + colNotaWidth, yPos, colDetalleWidth, rowHeight, 'FD');
               let yy = yPos + 4;
-              lineas.forEach(l => { doc.text(l, margin + colAreaWidth + 2, yy); yy += 4; });
+              lineas.forEach(l => { doc.text(l, margin + colAreaWidth + colNotaWidth + 2, yy); yy += 4; });
               yPos += rowHeight;
             }
           });
