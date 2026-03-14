@@ -10829,6 +10829,17 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
           notasDetMap[nd.ciclo] = deserializarNotasDetallesLibreta(nd.data);
         });
 
+        let explicacionesIndicadores = [];
+        try {
+          explicacionesIndicadores = await query(
+            `SELECT indicador_id, explicacion FROM notas_detalle_explicaciones_indicadores
+             WHERE asignatura_id = ? AND matricula_id = ? AND ciclo = ? AND colegio_id = ?`,
+            [asig.asignatura_id, matriculaId, ciclo, colegio_id]
+          ) || [];
+        } catch (e) { /* ignore */ }
+        const explIndMap = {};
+        explicacionesIndicadores.forEach(e => { explIndMap[e.indicador_id] = (e.explicacion || '').trim(); });
+
         const promediosAsig = await query(
           `SELECT ciclo, promedio FROM promedios WHERE matricula_id = ? AND asignatura_id = ? AND ciclo IN (1,2,3,4)`,
           [matriculaId, asig.asignatura_id]
@@ -10846,7 +10857,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
               const arr = porCriterio[ind.id] || porCriterio[String(ind.id)] || [];
               notasB[`nota_b${cic}`] = Array.isArray(arr) && arr.length > 0 ? (arr[0] != null ? String(arr[0]) : null) : null;
             }
-            return { id: ind.id, descripcion: ind.descripcion, ...notasB };
+            const explicacionCiclo = explIndMap[ind.id] || '';
+            return { id: ind.id, descripcion: ind.descripcion, explicacion: explicacionCiclo, ...notasB };
           });
           const notasCriterio = notasCriterioMap[cr.id] || {};
           const nota_b1 = notasCriterio[1] != null ? String(notasCriterio[1]) : null;

@@ -2585,91 +2585,77 @@ function DocenteHijos() {
       yPos += headerHeight + 5; // 5mm de espacio entre cuadros
 
       const cicloSel = datosLibreta.ciclo || ciclo || 1;
-      const numCols = 5; // Siempre B-1, B-2, B-3, B-4, PF
+      const esInicial = datosLibreta.es_cualitativa && datosLibreta.cursos_cualitativos;
+      const numCols = esInicial ? 1 : 5; // INICIAL: solo bimestre elegido; cuantitativo: B-1, B-2, B-3, B-4, PF
       const colAreaWidth = 80;
       const colBimestreWidth = (contentWidth - colAreaWidth) / numCols;
 
-      if (datosLibreta.es_cualitativa && datosLibreta.cursos_cualitativos) {
-        // ========== LAYOUT CUALITATIVO (INICIAL) ==========
+      if (esInicial) {
+        // ========== LAYOUT CUALITATIVO (INICIAL): solo bimestre elegido, explicación por indicador ==========
         doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
         doc.setLineWidth(borderWidth);
         doc.setFillColor(...colorLabel);
         doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
         doc.text('AREAS', margin + colAreaWidth / 2, yPos + 3.5, { align: 'center' });
-        let xPos = margin + colAreaWidth;
-        for (let c = 1; c <= 4; c++) {
-          doc.setFillColor(...colorLabel);
-          doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-          doc.text(`BIMESTRE ${['I','II','III','IV'][c-1]}`, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-          xPos += colBimestreWidth;
-        }
         doc.setFillColor(...colorLabel);
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-        doc.text('PF', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        doc.rect(margin + colAreaWidth, yPos, colBimestreWidth, headerHeight, 'FD');
+        doc.text(`BIMESTRE ${['I','II','III','IV'][cicloSel - 1]}`, margin + colAreaWidth + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
         yPos += headerHeight;
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
+        const bimLabel = cicloSel;
+        const getTextoBimestre = (item) => {
+          const expl = (item.explicacion || '').trim();
+          if (expl) return expl;
+          const nota = item[`nota_b${bimLabel}`];
+          return (nota !== null && nota !== '' && nota !== undefined) ? String(nota) : '-';
+        };
         datosLibreta.cursos_cualitativos.forEach(curso => {
           if (yPos > pageHeight - 80) { doc.addPage(); yPos = margin; }
           doc.setFont('helvetica', 'bold');
           doc.setFillColor(...colorLabel);
           doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
           doc.text(curso.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
-          xPos = margin + colAreaWidth;
-          for (let c = 1; c <= 4; c++) {
-            const v = curso[`promedio_b${c}`];
-            doc.setFillColor(...colorLabel);
-            doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-            doc.text(c <= cicloSel && (v !== null && v !== '' && v !== '-') ? String(v) : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-            xPos += colBimestreWidth;
-          }
+          const vCurso = curso[`promedio_b${bimLabel}`];
           doc.setFillColor(...colorLabel);
-          doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-          doc.text(curso.promedio_final || '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+          doc.rect(margin + colAreaWidth, yPos, colBimestreWidth, headerHeight, 'FD');
+          doc.text((vCurso !== null && vCurso !== '' && vCurso !== '-') ? String(vCurso) : '-', margin + colAreaWidth + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
           yPos += headerHeight;
 
           doc.setFont('helvetica', 'normal');
           curso.criterios?.forEach(cr => {
             if (cr.indicadores && cr.indicadores.length > 0) {
               cr.indicadores.forEach(ind => {
-                if (yPos > pageHeight - 60) { doc.addPage(); yPos = margin; }
+                const textoBim = getTextoBimestre(ind);
+                const lineas = doc.splitTextToSize(textoBim || '-', colBimestreWidth - 4);
+                const rowHeight = Math.max(headerHeight, lineas.length * 4 + 4);
+                if (yPos + rowHeight > pageHeight - 25) { doc.addPage(); yPos = margin; }
                 const desc = (ind.descripcion || '').substring(0, 70);
                 doc.setFillColor(...colorData);
-                doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
-                doc.text(desc, margin + 2, yPos + 3.5);
-                xPos = margin + colAreaWidth;
-                for (let c = 1; c <= 4; c++) {
-                  const v = ind[`nota_b${c}`];
-                  doc.setFillColor(...colorData);
-                  doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-                  doc.text(c <= cicloSel && (v !== null && v !== '' && v !== '-') ? String(v) : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-                  xPos += colBimestreWidth;
-                }
+                doc.rect(margin, yPos, colAreaWidth, rowHeight, 'FD');
+                doc.text(desc, margin + 2, yPos + 4);
                 doc.setFillColor(...colorData);
-                doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-                doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-                yPos += headerHeight;
+                doc.rect(margin + colAreaWidth, yPos, colBimestreWidth, rowHeight, 'FD');
+                let yy = yPos + 4;
+                lineas.forEach(l => { doc.text(l, margin + colAreaWidth + 2, yy); yy += 4; });
+                yPos += rowHeight;
               });
             } else {
-              if (yPos > pageHeight - 60) { doc.addPage(); yPos = margin; }
+              const textoBim = getTextoBimestre(cr);
+              const lineas = doc.splitTextToSize(textoBim || '-', colBimestreWidth - 4);
+              const rowHeight = Math.max(headerHeight, lineas.length * 4 + 4);
+              if (yPos + rowHeight > pageHeight - 25) { doc.addPage(); yPos = margin; }
               const desc = (cr.descripcion || cr.abreviatura || '').substring(0, 70);
               doc.setFillColor(...colorData);
-              doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
-              doc.text(desc, margin + 2, yPos + 3.5);
-              xPos = margin + colAreaWidth;
-              for (let c = 1; c <= 4; c++) {
-                const v = cr[`nota_b${c}`];
-                doc.setFillColor(...colorData);
-                doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-                doc.text(c <= cicloSel && (v !== null && v !== '' && v !== '-') ? String(v) : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-                xPos += colBimestreWidth;
-              }
+              doc.rect(margin, yPos, colAreaWidth, rowHeight, 'FD');
+              doc.text(desc, margin + 2, yPos + 4);
               doc.setFillColor(...colorData);
-              doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-              doc.text('-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-              yPos += headerHeight;
+              doc.rect(margin + colAreaWidth, yPos, colBimestreWidth, rowHeight, 'FD');
+              let yy = yPos + 4;
+              lineas.forEach(l => { doc.text(l, margin + colAreaWidth + 2, yy); yy += 4; });
+              yPos += rowHeight;
             }
           });
         });
@@ -2732,72 +2718,7 @@ function DocenteHijos() {
         yPos += 12;
         doc.setFont('helvetica', 'bold');
         doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
-
-        // Sección Detalle de Notas (explicaciones del docente por curso) - siempre mostrar para INICIAL
-        const cursosCual = Array.isArray(datosLibreta.cursos_cualitativos) ? datosLibreta.cursos_cualitativos : [];
-        const detalleBackend = Array.isArray(datosLibreta.detalle_notas) ? datosLibreta.detalle_notas : [];
-        const detalleMap = {};
-        detalleBackend.forEach(d => { detalleMap[d.curso_nombre] = d; });
-        const detalleNotasCual = cursosCual.map(c => {
-          const extra = detalleMap[c.curso_nombre];
-          const prom = extra?.promedio != null && extra.promedio !== '' ? extra.promedio : (c[`promedio_b${cicloSel}`] != null && c[`promedio_b${cicloSel}`] !== '' ? c[`promedio_b${cicloSel}`] : '-');
-          return {
-            curso_nombre: c.curso_nombre || '-',
-            docente_nombre: extra?.docente_nombre || '-',
-            promedio: prom,
-            explicacion: extra?.explicacion || '-'
-          };
-        });
-        if (detalleNotasCual.length > 0) {
-          doc.addPage();
-          let yDet = margin + 12;
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(11);
-          doc.text('Detalle de Notas — Explicaciones por Curso', margin, yDet);
-          yDet += 5;
-          doc.setFont('helvetica', 'normal');
-          doc.setFontSize(8);
-          doc.text(`Bimestre ${['I','II','III','IV'][(cicloSel || 1) - 1]} — ${datosLibreta.alumno?.grado}° ${datosLibreta.alumno?.seccion || ''}`, margin, yDet);
-          yDet += 10;
-          const colCurso = 45, colDocente = 50, colProm = 18;
-          const colExp = pageWidth - margin * 2 - colCurso - colDocente - colProm;
-          doc.setFillColor(...colorLabel);
-          doc.rect(margin, yDet, colCurso, 6, 'FD');
-          doc.rect(margin + colCurso, yDet, colDocente, 6, 'FD');
-          doc.rect(margin + colCurso + colDocente, yDet, colProm, 6, 'FD');
-          doc.rect(margin + colCurso + colDocente + colProm, yDet, colExp, 6, 'FD');
-          doc.setFont('helvetica', 'bold');
-          doc.setFontSize(8);
-          doc.text('Curso', margin + colCurso / 2, yDet + 4, { align: 'center' });
-          doc.text('Docente', margin + colCurso + colDocente / 2, yDet + 4, { align: 'center' });
-          doc.text('Prom.', margin + colCurso + colDocente + colProm / 2, yDet + 4, { align: 'center' });
-          doc.text('Explicación', margin + colCurso + colDocente + colProm + colExp / 2, yDet + 4, { align: 'center' });
-          yDet += 6;
-          doc.setFont('helvetica', 'normal');
-          detalleNotasCual.forEach((row) => {
-            const expl = (row.explicacion || '').trim() || '-';
-            const curso = (row.curso_nombre || '-').trim();
-            const docente = (row.docente_nombre || '-').trim();
-            const lineasExp = doc.splitTextToSize(expl, colExp - 4);
-            const lineasCurso = doc.splitTextToSize(curso, colCurso - 4);
-            const lineasDocente = doc.splitTextToSize(docente, colDocente - 4);
-            const filaAlt = Math.max(6, Math.max(lineasExp.length, lineasCurso.length, lineasDocente.length) * 4) + 4;
-            if (yDet + filaAlt > pageHeight - 25) { doc.addPage(); yDet = margin; }
-            doc.setFillColor(240, 247, 255);
-            doc.rect(margin, yDet, colCurso, filaAlt, 'FD');
-            doc.rect(margin + colCurso, yDet, colDocente, filaAlt, 'FD');
-            doc.rect(margin + colCurso + colDocente, yDet, colProm, filaAlt, 'FD');
-            doc.rect(margin + colCurso + colDocente + colProm, yDet, colExp, filaAlt, 'FD');
-            let yyCurso = yDet + 4;
-            lineasCurso.forEach((l) => { doc.text(l, margin + 2, yyCurso); yyCurso += 4; });
-            let yyDocente = yDet + 4;
-            lineasDocente.forEach((l) => { doc.text(l, margin + colCurso + 2, yyDocente); yyDocente += 4; });
-            doc.text(String(row.promedio || '-'), margin + colCurso + colDocente + colProm / 2, yDet + filaAlt / 2 + 1.5, { align: 'center' });
-            let yy = yDet + 4;
-            lineasExp.forEach((l) => { doc.text(l, margin + colCurso + colDocente + colProm + 2, yy); yy += 4; });
-            yDet += filaAlt;
-          });
-        }
+        // INICIAL: no hay sección "Detalle de Notas" aparte; las explicaciones van en la tabla principal
       } else {
         // ========== LAYOUT CUANTITATIVO (PRIMARIA/SECUNDARIA) - SIN CAMBIOS ==========
       const getPromedioFinalHastaCiclo = (obj) => {
