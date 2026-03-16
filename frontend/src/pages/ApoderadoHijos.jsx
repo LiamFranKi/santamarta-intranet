@@ -3431,6 +3431,42 @@ function ApoderadoHijos() {
       gradient.addColorStop(1, `rgb(${blueLight[0]}, ${blueLight[1]}, ${blueLight[2]})`);
       gctx.fillStyle = gradient;
       gctx.fillRect(0, 0, gradCanvas.width, gradCanvas.height);
+      // Ondas verdes suaves sobre el fondo (como referencia del carnet)
+      const W = gradCanvas.width;
+      const H = gradCanvas.height;
+      gctx.globalAlpha = 0.18;
+      // Onda 1: curva desde la derecha hacia el centro
+      gctx.beginPath();
+      gctx.moveTo(W + 20, H * 0.3);
+      gctx.bezierCurveTo(W * 0.85, H * 0.2, W * 0.6, H * 0.5, W * 0.35, H * 0.4);
+      gctx.bezierCurveTo(W * 0.15, H * 0.32, -20, H * 0.5, -20, H * 0.6);
+      gctx.lineTo(-20, H + 20);
+      gctx.lineTo(W + 20, H + 20);
+      gctx.closePath();
+      gctx.fillStyle = 'rgb(34, 197, 94)';
+      gctx.fill();
+      // Onda 2: más abajo, tono verde más oscuro
+      gctx.globalAlpha = 0.12;
+      gctx.beginPath();
+      gctx.moveTo(W + 30, H * 0.75);
+      gctx.bezierCurveTo(W * 0.7, H * 0.7, W * 0.4, H * 0.85, W * 0.2, H * 0.75);
+      gctx.bezierCurveTo(0, H * 0.65, -20, H * 0.8, -20, H + 20);
+      gctx.lineTo(W + 30, H + 20);
+      gctx.closePath();
+      gctx.fillStyle = 'rgb(22, 163, 74)';
+      gctx.fill();
+      // Onda 3: sutil arriba
+      gctx.globalAlpha = 0.1;
+      gctx.beginPath();
+      gctx.moveTo(W * 0.9, 0);
+      gctx.bezierCurveTo(W * 0.6, -H * 0.1, W * 0.3, H * 0.25, 0, H * 0.15);
+      gctx.lineTo(-20, H + 20);
+      gctx.lineTo(W + 20, H + 20);
+      gctx.lineTo(W + 20, -20);
+      gctx.closePath();
+      gctx.fillStyle = 'rgb(74, 222, 128)';
+      gctx.fill();
+      gctx.globalAlpha = 1;
       try {
         doc.addImage(gradCanvas.toDataURL('image/png'), 'PNG', 0, 0, width, height);
       } catch (e) {
@@ -3502,6 +3538,10 @@ function ApoderadoHijos() {
         doc.setFillColor(60, 70, 90);
         doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
       }
+      // Borde naranja suave a la foto (igual que el contenedor del QR)
+      doc.setDrawColor(...orangeAccent);
+      doc.setLineWidth(0.35);
+      doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'S');
 
       // Debajo de la foto: 4mm padding; Apoderado, Cel. Apoderado, Dirección (labels amarillo; datos con más espacio, se ve todo)
       const paddingFotoApoderado = 4;   // 4mm entre foto y datos del apoderado
