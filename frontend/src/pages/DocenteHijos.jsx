@@ -3431,7 +3431,7 @@ function DocenteHijos() {
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.text(titulo, logoX + logoSize + 4, logoY + 4);
-      doc.text(subtitulo, logoX + logoSize + 4, logoY + 7.5);
+      doc.text(subtitulo, logoX + logoSize + 4, logoY + 9.5); // 2mm padding entre COLEGIO y VANGUARD SCHOOLS
       doc.setFontSize(8);
       doc.setTextColor(...orangeAccent);
       doc.text('Intranet Escolar', width - 4, logoY + 5.5, { align: 'right' });
@@ -3470,32 +3470,35 @@ function DocenteHijos() {
         doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
       }
 
-      // Debajo de la foto: Apoderado, Celular Apoderado, Dirección (3 filas con formato claro)
-      const filaY0 = bodyY + photoH + 2;
-      const labelW = 22;
+      // Debajo de la foto: 8mm padding; Apoderado, Cel. Apoderado, Dirección (labels amarillo; datos con más espacio, se ve todo)
+      const paddingFotoApoderado = 8;   // 8mm entre foto y datos del apoderado
+      const filaY0 = bodyY + photoH + paddingFotoApoderado;
+      const labelW = 20;
       const valorX = photoX + labelW;
-      const filaH = 3.2;
+      const valorMaxW = qrX - valorX - 2;   // ancho hasta antes del QR para que se vea todo
+      const filaH = 3.5;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(5.5);
-      doc.setTextColor(200, 210, 230);
+      doc.setTextColor(...orangeAccent);
       doc.text('Apoderado', photoX, filaY0 + 1.2);
-      doc.setFontSize(6);
+      doc.setFontSize(5.5);
       doc.setTextColor(...white);
       const apoderadoNombre = (qrData.apoderado_nombre || '-').trim();
-      doc.text(apoderadoNombre.length > 28 ? apoderadoNombre.slice(0, 27) + '…' : apoderadoNombre, valorX, filaY0 + 1.2, { maxWidth: photoW - labelW });
+      const lineasNombre = doc.splitTextToSize(apoderadoNombre, valorMaxW);
+      lineasNombre.slice(0, 2).forEach((line, i) => doc.text(line, valorX, filaY0 + 1.2 + i * 2.2));
       doc.setFontSize(5.5);
-      doc.setTextColor(200, 210, 230);
+      doc.setTextColor(...orangeAccent);
       doc.text('Cel. Apoderado', photoX, filaY0 + filaH + 1.2);
-      doc.setFontSize(6);
       doc.setTextColor(...white);
-      doc.text((qrData.apoderado_celular || '-').trim(), valorX, filaY0 + filaH + 1.2, { maxWidth: photoW - labelW });
-      doc.setFontSize(5.5);
-      doc.setTextColor(200, 210, 230);
+      const cel = (qrData.apoderado_celular || '-').trim();
+      const lineasCel = doc.splitTextToSize(cel, valorMaxW);
+      lineasCel.slice(0, 2).forEach((line, i) => doc.text(line, valorX, filaY0 + filaH + 1.2 + i * 2.2));
+      doc.setTextColor(...orangeAccent);
       doc.text('Dirección', photoX, filaY0 + filaH * 2 + 1.2);
-      doc.setFontSize(6);
       doc.setTextColor(...white);
       const dir = (qrData.direccion || '-').trim();
-      doc.text(dir.length > 28 ? dir.slice(0, 27) + '…' : dir, valorX, filaY0 + filaH * 2 + 1.2, { maxWidth: photoW - labelW });
+      const lineasDir = doc.splitTextToSize(dir, valorMaxW);
+      lineasDir.slice(0, 2).forEach((line, i) => doc.text(line, valorX, filaY0 + filaH * 2 + 1.2 + i * 2.2));
 
       // Nombre en una línea, apellidos debajo (blanco, bold)
       const nombres = (qrData.nombres || '').trim();
