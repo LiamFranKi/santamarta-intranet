@@ -3425,7 +3425,7 @@ function DocenteHijos() {
       // Ondas verdes suaves sobre el fondo (como referencia del carnet)
       const W = gradCanvas.width;
       const H = gradCanvas.height;
-      gctx.globalAlpha = 0.18;
+      gctx.globalAlpha = 0.07;
       gctx.beginPath();
       gctx.moveTo(W + 20, H * 0.3);
       gctx.bezierCurveTo(W * 0.85, H * 0.2, W * 0.6, H * 0.5, W * 0.35, H * 0.4);
@@ -3435,7 +3435,7 @@ function DocenteHijos() {
       gctx.closePath();
       gctx.fillStyle = 'rgb(34, 197, 94)';
       gctx.fill();
-      gctx.globalAlpha = 0.12;
+      gctx.globalAlpha = 0.05;
       gctx.beginPath();
       gctx.moveTo(W + 30, H * 0.75);
       gctx.bezierCurveTo(W * 0.7, H * 0.7, W * 0.4, H * 0.85, W * 0.2, H * 0.75);
@@ -3444,7 +3444,7 @@ function DocenteHijos() {
       gctx.closePath();
       gctx.fillStyle = 'rgb(22, 163, 74)';
       gctx.fill();
-      gctx.globalAlpha = 0.1;
+      gctx.globalAlpha = 0.04;
       gctx.beginPath();
       gctx.moveTo(W * 0.9, 0);
       gctx.bezierCurveTo(W * 0.6, -H * 0.1, W * 0.3, H * 0.25, 0, H * 0.15);
@@ -3508,16 +3508,41 @@ function DocenteHijos() {
       const qrY = 30;         // QR abajo a la derecha (con su texto debajo)
       const qrX = width - qrBoxSize - 5;
 
-      // Foto del alumno: bordes redondos suaves, sin borde amarillo.
+      // Foto del alumno: recortada dentro del contenedor redondeado (sin desbordar)
+      const photoInset = 1;
+      const photoInnerW = photoW - photoInset * 2;
+      const photoInnerH = photoH - photoInset * 2;
       let photoData = qrData.foto_base64 || null;
       if (!photoData && qrData.foto_url) photoData = await loadImageAsDataUrl(qrData.foto_url);
       if (photoData) {
         try {
-          const photoFormat = photoData.indexOf('image/png') !== -1 ? 'PNG' : 'JPEG';
           doc.setFillColor(...blueBg);
           doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
-          const inset = 1;    // inset para que se vean bien las puntas redondeadas
-          doc.addImage(photoData, photoFormat, photoX + inset, bodyY + inset, photoW - inset * 2, photoH - inset * 2);
+          const photoClipped = await new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+              const scale = 4;
+              const c = document.createElement('canvas');
+              c.width = photoInnerW * scale;
+              c.height = photoInnerH * scale;
+              const ctx = c.getContext('2d');
+              const r = Math.max(1, (photoRadius - photoInset) * scale);
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(0, 0, c.width, c.height, r);
+              else ctx.rect(0, 0, c.width, c.height);
+              ctx.closePath();
+              ctx.clip();
+              ctx.drawImage(img, 0, 0, c.width, c.height);
+              resolve(c.toDataURL('image/png'));
+            };
+            img.onerror = () => resolve(null);
+            img.src = photoData;
+          });
+          if (photoClipped) {
+            doc.addImage(photoClipped, 'PNG', photoX + photoInset, bodyY + photoInset, photoInnerW, photoInnerH);
+          } else {
+            doc.addImage(photoData, photoData.indexOf('image/png') !== -1 ? 'PNG' : 'JPEG', photoX + photoInset, bodyY + photoInset, photoInnerW, photoInnerH);
+          }
         } catch (e) {
           doc.setFillColor(60, 70, 90);
           doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
