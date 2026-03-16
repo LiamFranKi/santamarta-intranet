@@ -3547,7 +3547,8 @@ function ApoderadoHijos() {
         doc.text(`DNI: ${dni}`, centerX, textY);
       }
 
-      // QR Code: recuadro blanco abajo a la derecha; imagen QR pegada a los bordes (sin padding/borde blanco)
+      // QR Code: recuadro blanco abajo a la derecha; imagen QR con 0.5mm padding en todos los lados
+      const qrPadding = 0.5;
       const qrElement = document.querySelector('#qr-card-modal-print .qr-code-wrapper svg');
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
@@ -3565,7 +3566,8 @@ function ApoderadoHijos() {
               canvas.height = 200;
               ctx.drawImage(img, 0, 0);
               const imgData = canvas.toDataURL('image/png');
-              doc.addImage(imgData, 'PNG', qrX, qrY, qrBoxSize, qrBoxSize);
+              const qrDrawSize = qrBoxSize - qrPadding * 2;
+              doc.addImage(imgData, 'PNG', qrX + qrPadding, qrY + qrPadding, qrDrawSize, qrDrawSize);
               URL.revokeObjectURL(url);
               resolve();
             };
