@@ -3393,8 +3393,9 @@ function DocenteHijos() {
       });
 
       // Colores: azul fondo (degradado), borde verde, logo sin fondo (logoboleta.png)
-      const blueBg = [41, 65, 114];        // #294172 azul actual
-      const blueDark = [28, 48, 95];       // azul más oscuro para degradado
+      const blueBg = [41, 65, 114];        // #294172 azul actual (referencia)
+      const blueDark = [28, 48, 95];       // azul más oscuro (parte superior del degradado)
+      const blueLight = [52, 82, 138];     // azul un poco más claro (parte inferior) para que se note el degradado
       const greenBorder = [34, 197, 94];   // #22c55e borde verde
       const white = [255, 255, 255];
       const orangeAccent = [251, 191, 36]; // #fbbf24 grado/sección
@@ -3417,8 +3418,8 @@ function DocenteHijos() {
       gctx.clip();
       const gradient = gctx.createLinearGradient(0, 0, 0, gradCanvas.height);
       gradient.addColorStop(0, `rgb(${blueDark[0]}, ${blueDark[1]}, ${blueDark[2]})`);
-      gradient.addColorStop(0.5, `rgb(${Math.round((blueDark[0] + blueBg[0]) / 2)}, ${Math.round((blueDark[1] + blueBg[1]) / 2)}, ${Math.round((blueDark[2] + blueBg[2]) / 2)})`);
-      gradient.addColorStop(1, `rgb(${blueBg[0]}, ${blueBg[1]}, ${blueBg[2]})`);
+      gradient.addColorStop(0.5, `rgb(${blueBg[0]}, ${blueBg[1]}, ${blueBg[2]})`);
+      gradient.addColorStop(1, `rgb(${blueLight[0]}, ${blueLight[1]}, ${blueLight[2]})`);
       gctx.fillStyle = gradient;
       gctx.fillRect(0, 0, gradCanvas.width, gradCanvas.height);
       try {
@@ -3467,7 +3468,7 @@ function DocenteHijos() {
       const photoW = 29;   // foto más ancha
       const photoH = 28;
       const photoX = 3;
-      const photoRadius = 7;  // bordes redondos suaves en la foto
+      const photoRadius = 10; // puntas más redondeadas en la foto
       const centerX = 35;  // más espacio entre foto y datos del alumno
       const centerW = 50;
       const qrBoxSize = 24;   // recuadro blanco
@@ -3482,7 +3483,7 @@ function DocenteHijos() {
           const photoFormat = photoData.indexOf('image/png') !== -1 ? 'PNG' : 'JPEG';
           doc.setFillColor(...blueBg);
           doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
-          const inset = 0.8;  // inset para que se vean los bordes redondos suaves
+          const inset = 1;    // inset para que se vean bien las puntas redondeadas
           doc.addImage(photoData, photoFormat, photoX + inset, bodyY + inset, photoW - inset * 2, photoH - inset * 2);
         } catch (e) {
           doc.setFillColor(60, 70, 90);
