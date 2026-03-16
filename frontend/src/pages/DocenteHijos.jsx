@@ -3392,16 +3392,41 @@ function DocenteHijos() {
         format: [width, height]
       });
 
-      // Colores: azul fondo, borde verde, logo sin fondo (logoboleta.png)
-      const blueBg = [41, 65, 114];        // #294172 fondo
-      const greenBorder = [34, 197, 94];  // #22c55e borde verde
+      // Colores: azul fondo (degradado), borde verde, logo sin fondo (logoboleta.png)
+      const blueBg = [41, 65, 114];        // #294172 azul actual
+      const blueDark = [28, 48, 95];       // azul más oscuro para degradado
+      const greenBorder = [34, 197, 94];   // #22c55e borde verde
       const white = [255, 255, 255];
       const orangeAccent = [251, 191, 36]; // #fbbf24 grado/sección
       const cardRadius = 3; // mm - esquinas redondeadas del carnet
 
-      // Carnet = todo el cuadro azul: fondo con esquinas redondeadas
-      doc.setFillColor(...blueBg);
-      doc.roundedRect(0, 0, width, height, cardRadius, cardRadius, 'F');
+      // Fondo con degradado (azul más oscuro → azul actual, más énfasis en el azul)
+      const scale = 4;
+      const gradCanvas = document.createElement('canvas');
+      gradCanvas.width = width * scale;
+      gradCanvas.height = height * scale;
+      const gctx = gradCanvas.getContext('2d');
+      const r = cardRadius * scale;
+      gctx.beginPath();
+      if (gctx.roundRect) {
+        gctx.roundRect(0, 0, gradCanvas.width, gradCanvas.height, r);
+      } else {
+        gctx.rect(0, 0, gradCanvas.width, gradCanvas.height);
+      }
+      gctx.closePath();
+      gctx.clip();
+      const gradient = gctx.createLinearGradient(0, 0, 0, gradCanvas.height);
+      gradient.addColorStop(0, `rgb(${blueDark[0]}, ${blueDark[1]}, ${blueDark[2]})`);
+      gradient.addColorStop(0.5, `rgb(${Math.round((blueDark[0] + blueBg[0]) / 2)}, ${Math.round((blueDark[1] + blueBg[1]) / 2)}, ${Math.round((blueDark[2] + blueBg[2]) / 2)})`);
+      gradient.addColorStop(1, `rgb(${blueBg[0]}, ${blueBg[1]}, ${blueBg[2]})`);
+      gctx.fillStyle = gradient;
+      gctx.fillRect(0, 0, gradCanvas.width, gradCanvas.height);
+      try {
+        doc.addImage(gradCanvas.toDataURL('image/png'), 'PNG', 0, 0, width, height);
+      } catch (e) {
+        doc.setFillColor(...blueBg);
+        doc.roundedRect(0, 0, width, height, cardRadius, cardRadius, 'F');
+      }
       // Borde verde a todo el cuadro del carnet
       doc.setDrawColor(...greenBorder);
       doc.setLineWidth(0.8);
@@ -3538,11 +3563,14 @@ function DocenteHijos() {
         doc.text(`DNI: ${dni}`, centerX, textY);
       }
 
-      // QR Code: recuadro blanco abajo a la derecha; imagen QR con 0.5mm padding en todos los lados
-      const qrPadding = 0.5;
+      // QR Code: recuadro blanco con borde naranja suave; imagen QR con 1mm padding en todos los lados
+      const qrPadding = 1;
       const qrElement = document.querySelector('#qr-card-modal-print .qr-code-wrapper svg');
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
+      doc.setDrawColor(...orangeAccent);
+      doc.setLineWidth(0.35);
+      doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'S');
       if (qrElement) {
         try {
           const svgData = new XMLSerializer().serializeToString(qrElement);
