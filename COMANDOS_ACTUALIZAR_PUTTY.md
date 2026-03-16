@@ -7,8 +7,8 @@
 ## Comandos completos para actualizar
 
 ```bash
-# 1. Ir al proyecto
-cd ~/intranet2026
+# 1. Ir al proyecto (ruta en el VPS)
+cd /home/vanguard/intranet2026
 
 # 2. Descargar código de GitHub
 git pull origin main
@@ -24,10 +24,10 @@ pm2 restart all
 
 ---
 
-## Comandos en una sola línea
+## Comando en una sola línea (copiar en PuTTY)
 
 ```bash
-cd ~/intranet2026 && git pull origin main && cd frontend && npm run build && cd .. && pm2 restart all
+cd /home/vanguard/intranet2026 && git pull origin main && cd frontend && npm run build && cd .. && pm2 restart all
 ```
 
 *(Tardará 2-5 minutos por el build del frontend)*

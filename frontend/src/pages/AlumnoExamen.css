@@ -728,6 +728,24 @@
   gap: 1rem;
 }
 
+.elementos-arrastrables.pool-droppable {
+  padding: 1rem;
+  border-radius: 12px;
+  border: 2px dashed #e5e7eb;
+  min-height: 120px;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.elementos-arrastrables.pool-droppable.drag-over {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  border-style: solid;
+}
+
+.elemento-arrastrable.elemento-en-zona {
+  margin-bottom: 0.5rem;
+}
+
 .elementos-arrastrables h3 {
   margin: 0 0 1rem 0;
   color: #1f2937;

@@ -29,23 +29,34 @@ function PreguntaEmparejar({ pregunta, respuesta, onRespuestaChange }) {
 
   const handleEmparejar = (izquierdaId, derechaId) => {
     const nuevoEmparejamiento = { ...emparejamientos };
-    
-    // Si ya estaba emparejado, desemparejar
+
+    // Clic en la misma pareja: quitar emparejamiento
     if (nuevoEmparejamiento[izquierdaId] === derechaId) {
       delete nuevoEmparejamiento[izquierdaId];
-    } else {
-      // Si la derecha ya estaba emparejada con otra, desemparejar primero
-      Object.keys(nuevoEmparejamiento).forEach(key => {
-        if (nuevoEmparejamiento[key] === derechaId) {
-          delete nuevoEmparejamiento[key];
-        }
-      });
-      
-      nuevoEmparejamiento[izquierdaId] = derechaId;
+      onRespuestaChange(nuevoEmparejamiento);
+      setSeleccionadoIzquierda(null);
+      return;
     }
-    
+
+    // Si la derecha ya estaba con otra, desemparejar esa otra
+    Object.keys(nuevoEmparejamiento).forEach(key => {
+      if (nuevoEmparejamiento[key] === derechaId) {
+        delete nuevoEmparejamiento[key];
+      }
+    });
+
+    nuevoEmparejamiento[izquierdaId] = derechaId;
     onRespuestaChange(nuevoEmparejamiento);
     setSeleccionadoIzquierda(null);
+  };
+
+  // Deseleccionar: clic de nuevo en el elemento izquierdo ya seleccionado
+  const handleClicIzquierda = (altId) => {
+    if (seleccionadoIzquierda === altId) {
+      setSeleccionadoIzquierda(null);
+      return;
+    }
+    setSeleccionadoIzquierda(altId);
   };
 
   return (
@@ -56,7 +67,7 @@ function PreguntaEmparejar({ pregunta, respuesta, onRespuestaChange }) {
       />
       
       <p className="instrucciones-emparejar">
-        📌 Haz clic en un elemento de la izquierda y luego en uno de la derecha para emparejarlos
+        📌 Clic en un elemento de la izquierda y luego en uno de la derecha para emparejar. Clic de nuevo en el seleccionado para deseleccionar. Clic en la misma pareja para deshacer.
       </p>
 
       <div className="emparejar-container">
@@ -66,7 +77,7 @@ function PreguntaEmparejar({ pregunta, respuesta, onRespuestaChange }) {
             <div
               key={alt.id}
               className={`emparejar-item izquierda ${seleccionadoIzquierda === alt.id ? 'seleccionado' : ''} ${emparejamientos[alt.id] ? 'emparejado' : ''}`}
-              onClick={() => setSeleccionadoIzquierda(alt.id)}
+              onClick={() => handleClicIzquierda(alt.id)}
             >
               <div 
                 dangerouslySetInnerHTML={{ __html: alt.descripcion }}

@@ -1,6 +1,8 @@
 import React from 'react';
-import { DndContext, DragOverlay, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { DndContext, DragOverlay, pointerWithin, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
+
+const ID_POOL = 'pool-elementos-soltar';
 
 function PreguntaArrastrarSoltar({ pregunta, respuesta, onRespuestaChange }) {
   const alternativas = pregunta.alternativas || [];
@@ -12,13 +14,16 @@ function PreguntaArrastrarSoltar({ pregunta, respuesta, onRespuestaChange }) {
     .map(alt => alt.zona_drop)
     .filter(zona => zona && zona.trim() !== ''))];
 
-  // Alternativas que el estudiante puede arrastrar (sin zona asignada aún)
+  // Alternativas que aún no tienen zona (están en el “pool”)
   const alternativasArrastrables = alternativas.filter(alt => {
     const respuestaAlt = respuestasActuales[alt.id];
     return !respuestaAlt || !respuestaAlt.zona;
   });
 
-  const sensors = useSensors(useSensor(PointerSensor));
+  // Activar arrastre solo después de mover un poco (evita que un clic suelte en cualquier sitio)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   const handleDragStart = (event) => {
     setActiveId(event.active.id);
@@ -27,16 +32,27 @@ function PreguntaArrastrarSoltar({ pregunta, respuesta, onRespuestaChange }) {
   const handleDragEnd = (event) => {
     const { active, over } = event;
     setActiveId(null);
-    
+
     if (!over) return;
 
     const alternativaId = active.id;
-    const zonaId = over.id;
+    const overId = String(over.id);
 
-    onRespuestaChange({
-      ...respuestasActuales,
-      [alternativaId]: { zona: zonaId }
-    });
+    // Soltar en el área "pool" = quitar de la zona (volver a la lista)
+    if (overId === ID_POOL) {
+      const nuevo = { ...respuestasActuales };
+      delete nuevo[alternativaId];
+      onRespuestaChange(nuevo);
+      return;
+    }
+
+    // Soltar en una zona válida
+    if (zonasUnicas.includes(overId)) {
+      onRespuestaChange({
+        ...respuestasActuales,
+        [alternativaId]: { zona: overId }
+      });
+    }
   };
 
   return (
@@ -47,45 +63,41 @@ function PreguntaArrastrarSoltar({ pregunta, respuesta, onRespuestaChange }) {
       />
       
       <p className="instrucciones-arrastrar">
-        📌 Arrastra cada elemento a su zona correcta
+        📌 Arrastra cada elemento a su zona. Puedes sacarlos de la zona arrastrándolos de vuelta a la lista para cambiar.
       </p>
 
       <DndContext 
         sensors={sensors} 
-        collisionDetection={closestCenter} 
+        collisionDetection={pointerWithin} 
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
         <div className="arrastrar-soltar-container">
-          {/* Zonas de Destino */}
+          {/* Zonas de Destino (cada una es droppable; los ítems dentro son draggables) */}
           <div className="zonas-destino">
             {zonasUnicas.map((zona) => (
               <ZonaDrop 
                 key={zona} 
                 zona={zona} 
-                alternativasEnZona={
-                  Object.entries(respuestasActuales)
-                    .filter(([_, resp]) => resp.zona === zona)
-                    .map(([altId, _]) => alternativas.find(a => a.id === parseInt(altId)))
-                    .filter(Boolean)
-                } 
+                alternativas={alternativas}
+                respuestasActuales={respuestasActuales}
               />
             ))}
           </div>
 
-          {/* Elementos a Arrastrar */}
-          <div className="elementos-arrastrables">
-            <h3>Arrastra estos elementos:</h3>
+          {/* Área pool: droppable para devolver ítems y lista de ítems sin zona */}
+          <PoolDrop id={ID_POOL}>
+            <h3>Arrastra estos elementos (o suelta aquí para sacar de una zona):</h3>
             {alternativasArrastrables.map((alt) => (
               <ElementoArrastrable key={alt.id} alternativa={alt} />
             ))}
-          </div>
+          </PoolDrop>
         </div>
 
         <DragOverlay>
           {activeId ? (
             <div className="elemento-arrastrable dragging-overlay">
-              {alternativas.find(a => a.id === activeId)?.descripcion}
+              <div dangerouslySetInnerHTML={{ __html: alternativas.find(a => a.id === activeId)?.descripcion || '' }} />
             </div>
           ) : null}
         </DragOverlay>
@@ -94,7 +106,7 @@ function PreguntaArrastrarSoltar({ pregunta, respuesta, onRespuestaChange }) {
   );
 }
 
-function ElementoArrastrable({ alternativa }) {
+function ElementoArrastrable({ alternativa, enZona }) {
   const {
     attributes,
     listeners,
@@ -114,7 +126,7 @@ function ElementoArrastrable({ alternativa }) {
     <div
       ref={setNodeRef}
       style={style}
-      className="elemento-arrastrable"
+      className={`elemento-arrastrable ${enZona ? 'elemento-en-zona' : ''}`}
       {...listeners}
       {...attributes}
     >
@@ -123,10 +135,26 @@ function ElementoArrastrable({ alternativa }) {
   );
 }
 
-function ZonaDrop({ zona, alternativasEnZona }) {
-  const { setNodeRef, isOver } = useDroppable({
-    id: zona,
-  });
+function PoolDrop({ id, children }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`elementos-arrastrables pool-droppable ${isOver ? 'drag-over' : ''}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+function ZonaDrop({ zona, alternativas, respuestasActuales }) {
+  const { setNodeRef, isOver } = useDroppable({ id: zona });
+
+  const alternativasEnZona = Object.entries(respuestasActuales)
+    .filter(([_, resp]) => resp && resp.zona === zona)
+    .map(([altId]) => alternativas.find(a => a.id === parseInt(altId, 10)))
+    .filter(Boolean);
 
   return (
     <div
@@ -136,9 +164,7 @@ function ZonaDrop({ zona, alternativasEnZona }) {
       <h4>{zona}</h4>
       <div className="zona-drop-content">
         {alternativasEnZona.map((alt) => (
-          <div key={alt.id} className="elemento-en-zona">
-            <div dangerouslySetInnerHTML={{ __html: alt.descripcion }} />
-          </div>
+          <ElementoArrastrable key={alt.id} alternativa={alt} enZona />
         ))}
         {alternativasEnZona.length === 0 && (
           <div className="zona-vacia">Suelta aquí</div>
