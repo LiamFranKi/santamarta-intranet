@@ -1,6 +1,6 @@
 # Contexto: Migración a Amazon SES - vanguardschools.edu.pe
 
-**Última actualización:** 10 de marzo de 2026
+**Última actualización:** 14 de marzo de 2026
 
 ---
 
@@ -16,11 +16,25 @@ Migrar el envío de correos del sistema de múltiples cuentas Gmail a **Amazon S
 | Cuenta AWS creada (VanguardSchools) | ✅ |
 | SES configurado en región us-east-1 | ✅ |
 | Correo walter.lozano@vanguardschools.edu.pe verificado | ✅ |
-| Dominio vanguardschools.edu.pe en SES | ⏳ Verificación pendiente |
-| Registros DNS en punto.pe | ✅ Configurados correctamente |
-| Solicitar acceso a producción | ❌ Bloqueado (requiere dominio verificado) |
+| MAIL FROM mail.vanguardschools.edu.pe | ✅ Configurado correctamente (email AWS 11 mar) |
+| DKIM / verificación dominio vanguardschools.edu.pe | ❌ Fallido (AWS no detecta registros CNAME) |
+| Registros DNS en punto.pe (ns2) | ✅ Configurados correctamente |
+| Solicitar acceso a producción | ❌ Bloqueado (requiere dominio/DKIM verificado) |
 | Credenciales SMTP | Pendiente |
 | Actualizar .env y emailService.js | Pendiente |
+
+---
+
+## 2b. Correos AWS recibidos (11–12 mar 2026)
+
+| Fecha | Asunto / evento | Conclusión |
+|-------|----------------------------------|------------|
+| 11 mar | Configuración exitosa del dominio **MAIL FROM** personalizado (mail.vanguardschools.edu.pe) | ✅ SES detectó el registro MX correctamente. MAIL FROM listo. |
+| 11 mar | Evento `AWS_SES_CMF_PENDIENTE_DE_EXITO` | MAIL FROM en proceso → luego éxito. |
+| 12 mar | **Error al configurar DKIM** por correo electrónico para vanguardschools.edu.pe | SES intentó verificar DKIM durante 3 días y **no pudo detectar los registros DNS necesarios**. |
+| 12 mar | Evento `AWS_SES_DKIM_PENDING_TO_FAILED` | DKIM pasó de Pendiente a **Fallido**. |
+
+**Resumen:** MAIL FROM está bien. El problema que sigue es **solo DKIM**: AWS no ve los 3 CNAME en la resolución DNS pública, coherente con que el nameserver primario (ns.rcp.net.pe) no responda.
 
 ---
 
@@ -62,13 +76,11 @@ Se contactó a **soporte de punto.pe** para:
 
 ---
 
-## 6. Próximos pasos (cuando el dominio verifique)
-1. Esperar que punto.pe responda y/o arregle el primario
-2. SES verificará el dominio automáticamente (o al recargar)
-3. Solicitar acceso a producción en SES
-4. Crear credenciales SMTP en SES
-5. Actualizar `backend/.env` con credenciales SES
-6. Simplificar `backend/services/emailService.js` para usar una sola cuenta SES
+## 6. Próximos pasos (para que DKIM/dominio verifique)
+1. **Punto.pe:** Que respondan y/o arreglen ns.rcp.net.pe, o pongan ns2 como primario, para que las consultas DNS públicas devuelvan los CNAME DKIM.
+2. **Comprobar propagación:** Cuando el primario responda o cambie el orden de NS, verificar desde internet: `nslookup -type=CNAME <token>._domainkey.vanguardschools.edu.pe` (sin indicar servidor, para usar DNS público).
+3. **En SES:** En la consola SES → Identidades → vanguardschools.edu.pe → volver a intentar verificación DKIM o “Verificar” de nuevo una vez que DNS sea correcto.
+4. Cuando el dominio/DKIM esté verificado: solicitar acceso a producción, crear credenciales SMTP, actualizar `backend/.env` y `emailService.js`.
 
 ---
 

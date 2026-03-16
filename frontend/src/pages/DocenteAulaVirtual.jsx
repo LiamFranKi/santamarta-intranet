@@ -6762,7 +6762,7 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, onClose
                       <tr key={uniqueKey} style={{ borderBottom: '1px solid #e5e7eb' }}>
                         <td style={{ padding: '0.75rem', textAlign: 'center' }}>{index + 1}</td>
                         <td style={{ padding: '0.75rem' }}>{resultado.nombre_completo}</td>
-                        <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600' }}>{tieneResultado ? Math.round(resultado.puntaje || 0) : '-'}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600' }}>{tieneResultado ? Math.min(20, Math.round(resultado.puntaje || 0)) : '-'}</td>
                         <td style={{ padding: '0.75rem', textAlign: 'center', color: tieneResultado ? '#10b981' : '#6b7280', fontWeight: '600' }}>{tieneResultado ? resultado.correctas : '-'}</td>
                         <td style={{ padding: '0.75rem', textAlign: 'center', color: tieneResultado ? '#ef4444' : '#6b7280', fontWeight: '600' }}>{tieneResultado ? resultado.incorrectas : '-'}</td>
                         <td style={{ padding: '0.75rem', textAlign: 'center' }}>
@@ -6910,7 +6910,7 @@ function DetallesResultadoModal({ resultado, detalles, cargando, onClose }) {
                     </tr>
                     <tr>
                       <td style={{ padding: '0.4rem 0.5rem', fontWeight: '600', color: '#2e7d32', fontSize: '0.9rem' }}>PUNTAJE:</td>
-                      <td style={{ padding: '0.4rem 0.5rem', color: '#1f2937', fontWeight: '700', fontSize: '1rem' }}>{Math.round(resultadoInfo.puntaje || 0)}</td>
+                      <td style={{ padding: '0.4rem 0.5rem', color: '#1f2937', fontWeight: '700', fontSize: '1rem' }}>{Math.min(20, Math.round(resultadoInfo.puntaje || 0))}</td>
                     </tr>
                     <tr>
                       <td style={{ padding: '0.4rem 0.5rem', fontWeight: '600', color: '#2e7d32', fontSize: '0.9rem' }}>CORRECTAS:</td>

@@ -169,7 +169,7 @@ function AlumnoExamenResultados() {
             <div>
               <strong style={{ color: '#2e7d32', display: 'block', marginBottom: '0.25rem' }}>PUNTAJE:</strong>
               <span style={{ fontSize: '1.5rem', fontWeight: '700', color: '#1f2937' }}>
-                {Math.round(resultado.puntaje || 0)}
+                {Math.min(20, Math.round(resultado.puntaje || 0))}
               </span>
             </div>
             <div>

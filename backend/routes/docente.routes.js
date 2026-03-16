@@ -17481,11 +17481,8 @@ router.post('/aula-virtual/examenes/:examenId/calificar', async (req, res) => {
           }
         }
 
-        // Limitar puntaje mínimo a 0
-        if (puntosObtenidos < 0) puntosObtenidos = 0;
-        
-        // Redondear puntos obtenidos a entero
-        const puntaje = Math.round(puntosObtenidos);
+        // Limitar puntaje entre 0 y 20 (escala del sistema; si suma > 20 se capa a 20)
+        const puntaje = Math.min(20, Math.max(0, Math.round(puntosObtenidos)));
 
         // Actualizar la prueba
         await execute(

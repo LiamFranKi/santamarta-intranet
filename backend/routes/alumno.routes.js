@@ -3802,11 +3802,8 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
     
     console.log(`📊 Resumen final: correctas=${correctas}, incorrectas=${incorrectas}, puntosObtenidos=${puntosObtenidos}, puntosTotal=${puntosTotal}, totalPreguntas=${preguntas.length}`);
 
-    // Limitar puntaje mínimo a 0
-    if (puntosObtenidos < 0) puntosObtenidos = 0;
-
-    // Redondear puntos obtenidos a entero (el puntaje es la suma directa de puntos, no una conversión a escala 0-20)
-    const puntajeFinal = Math.round(puntosObtenidos);
+    // Limitar puntaje entre 0 y 20 (escala del sistema; si correctas * puntos_correcta > 20 se capa a 20)
+    const puntajeFinal = Math.min(20, Math.max(0, Math.round(puntosObtenidos)));
 
     // Actualizar prueba con puntaje, correctas e incorrectas
     await execute(

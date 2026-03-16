@@ -10,6 +10,7 @@ Puedes usar **hasta 4 cuentas** para repartir el límite diario de Gmail (~500/d
 | **EMAIL_ASISTENCIA_USER** / **EMAIL_ASISTENCIA_PASSWORD** | Asistencia por QR (entrada/salida) y asistencia manual del tutor |
 | **EMAIL_MENSAJES_USER** / **EMAIL_MENSAJES_PASSWORD** | Módulo Mensajes y Conexiones Familiares (correo solo a apoderados/docentes) |
 | **EMAIL_COMUNICADOS_USER** / **EMAIL_COMUNICADOS_PASSWORD** | Comunicados (admin, correo solo a apoderados/docentes) |
+| **EMAIL_ALERTAS_USER** / **EMAIL_ALERTAS_PASSWORD** | Alertas (módulo en desarrollo: correo solo a apoderados/docentes, push a todos incluidos alumnos) |
 | **EMAIL_TAREA_USER** / **EMAIL_TAREA_PASSWORD** | Tareas por vencer, tareas vencidas sin entrega, nota de tarea |
 | **EMAIL_EXAMEN_USER** / **EMAIL_EXAMEN_PASSWORD** | Notificaciones relacionadas con exámenes (cuando se implemente envío de correo) |
 | **EMAIL_PUBLICACIONES_USER** / **EMAIL_PUBLICACIONES_PASSWORD** | Publicaciones del colegio (correo a apoderados/docentes) |
@@ -34,6 +35,10 @@ EMAIL_MENSAJES_PASSWORD=contraseña-app-mensajes
 # Comunicados (admin, correo a apoderados/docentes)
 EMAIL_COMUNICADOS_USER=comunicados@gmail.com
 EMAIL_COMUNICADOS_PASSWORD=contraseña-app-comunicados
+
+# Alertas (módulo en desarrollo: correo a apoderados/docentes, push a todos)
+EMAIL_ALERTAS_USER=alertas@gmail.com
+EMAIL_ALERTAS_PASSWORD=contraseña-app-alertas
 
 # Tareas
 EMAIL_TAREA_USER=tareas@gmail.com
