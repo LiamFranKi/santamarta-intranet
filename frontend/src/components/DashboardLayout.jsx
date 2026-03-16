@@ -26,6 +26,7 @@ export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
   const sidebarNavRef = useRef(null);
+  const submenuRefs = useRef({ usuarios: null, academico: null, reportes: null });
 
   // Mantener abierto el submenú que contiene la ruta actual (evita que se "bloquee" la navegación en Config, etc.)
   useEffect(() => {
@@ -120,12 +121,21 @@ export default function DashboardLayout({ children }) {
     }
   }, [user]);
 
-  // Toggle submenu
+  // Toggle submenu; en móvil hacer scroll al submenú expandido para que no quede tapado
   const toggleSubmenu = (menuKey) => {
+    const isOpening = !expandedMenus[menuKey];
     setExpandedMenus(prev => ({
       ...prev,
       [menuKey]: !prev[menuKey]
     }));
+    if (isOpening && submenuRefs.current[menuKey]) {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          const el = submenuRefs.current[menuKey];
+          if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }, 350);
+      });
+    }
   };
 
   // Resolver URL base en tiempo de ejecución (no en compilación)
@@ -497,7 +507,7 @@ export default function DashboardLayout({ children }) {
                   </div>
                   <span className="sidebar-menu-arrow">▶</span>
                 </button>
-                <div className={`sidebar-submenu ${expandedMenus.usuarios ? 'expanded' : ''}`}>
+                <div ref={(el) => { submenuRefs.current.usuarios = el; }} className={`sidebar-submenu ${expandedMenus.usuarios ? 'expanded' : ''}`}>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/usuarios/administradores">
                     Administradores
                   </NavLink>
@@ -523,7 +533,7 @@ export default function DashboardLayout({ children }) {
                   </div>
                   <span className="sidebar-menu-arrow">▶</span>
                 </button>
-                <div className={`sidebar-submenu ${expandedMenus.academico ? 'expanded' : ''}`}>
+                <div ref={(el) => { submenuRefs.current.academico = el; }} className={`sidebar-submenu ${expandedMenus.academico ? 'expanded' : ''}`}>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/niveles">
                     Niveles
                   </NavLink>
@@ -582,7 +592,7 @@ export default function DashboardLayout({ children }) {
                   </div>
                   <span className="sidebar-menu-arrow">▶</span>
                 </button>
-                <div className={`sidebar-submenu ${expandedMenus.reportes ? 'expanded' : ''}`}>
+                <div ref={(el) => { submenuRefs.current.reportes = el; }} className={`sidebar-submenu ${expandedMenus.reportes ? 'expanded' : ''}`}>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/asistencias">
                     Asistencias
                   </NavLink>

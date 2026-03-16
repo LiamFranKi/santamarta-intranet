@@ -766,6 +766,38 @@
   max-height: 1000px;
 }
 
+/* Móvil/tablet: submenú visible, no tapado por barra de calendario/publicaciones */
+@media (max-width: 1024px) {
+  .dashboard-sidebar {
+    max-height: 100vh;
+    height: 100vh;
+  }
+
+  .dashboard-sidebar .sidebar-nav {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2rem;
+  }
+
+  .dashboard-sidebar .sidebar-submenu.expanded {
+    max-height: min(70vh, 400px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* Una columna en móvil para que no se salga ni se tape */
+  .dashboard-sidebar .sidebar-submenu {
+    display: block;
+  }
+
+  .dashboard-sidebar .sidebar-submenu.expanded .sidebar-sublink {
+    flex-shrink: 0;
+  }
+}
+
 .sidebar-sublink {
   display: flex;
   align-items: center;
