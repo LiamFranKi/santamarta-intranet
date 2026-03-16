@@ -3392,34 +3392,26 @@ function DocenteHijos() {
         format: [width, height]
       });
 
-      // Colores estilo VANGUARD
-      const darkBlue = [15, 23, 42];       // #0f172a fondo
-      const greenLime = [184, 233, 134];  // ondas claras
-      const greenEmerald = [13, 148, 136]; // ondas oscuras
+      // Colores: azul más claro (no tan oscuro), sin líneas verdes
+      const blueBg = [41, 65, 114];        // #294172 fondo
       const white = [255, 255, 255];
       const orangeAccent = [251, 191, 36]; // #fbbf24 grado/sección
 
-      // Fondo azul oscuro
-      doc.setFillColor(...darkBlue);
+      // Fondo azul (único, sin bandas verdes)
+      doc.setFillColor(...blueBg);
       doc.rect(0, 0, width, height, 'F');
 
-      // Ondas verdes (bandas superiores)
-      doc.setFillColor(...greenLime);
-      doc.roundedRect(0, 4, 90, 5, 2, 2, 'F');
-      doc.setFillColor(...greenEmerald);
-      doc.roundedRect(0, 9, 90, 5, 2, 2, 'F');
-
-      // Logo (esquina superior izquierda)
+      // Logo (esquina superior izquierda): preferir base64 del backend
       const logoSize = 10;
       const logoX = 3;
       const logoY = 2;
-      if (qrData.logo_url) {
-        const logoData = await loadImageAsDataUrl(qrData.logo_url);
-        if (logoData) {
-          try {
-            doc.addImage(logoData, 'PNG', logoX, logoY, logoSize, logoSize);
-          } catch (e) { /* ignorar */ }
-        }
+      let logoData = qrData.logo_base64 || null;
+      if (!logoData && qrData.logo_url) logoData = await loadImageAsDataUrl(qrData.logo_url);
+      if (logoData) {
+        try {
+          const logoFormat = logoData.indexOf('image/png') !== -1 ? 'PNG' : 'JPEG';
+          doc.addImage(logoData, logoFormat, logoX, logoY, logoSize, logoSize);
+        } catch (e) { /* ignorar */ }
       }
 
       // Nombre del colegio: VANGUARD / Schools
@@ -3442,23 +3434,21 @@ function DocenteHijos() {
       const photoX = 3;
       const centerX = 28;
       const centerW = 52;
-      const qrSize = 26;
-      const qrX = width - qrSize - 5;
+      const qrBoxSize = 24;   // recuadro blanco
+      const qrSize = 18;      // QR un poco más pequeño
+      const qrX = width - qrBoxSize - 5;
       const qrY = bodyY;
+      const qrPadding = (qrBoxSize - qrSize) / 2; // centrar QR dentro del recuadro
 
-      // Foto del alumno
-      if (qrData.foto_url) {
-        const photoData = await loadImageAsDataUrl(qrData.foto_url);
-        if (photoData) {
-          try {
-            const photoFormat = photoData.indexOf('image/png') !== -1 ? 'PNG' : 'JPEG';
-            doc.roundedRect(photoX, bodyY, photoW, photoH, 2, 2, 'F');
-            doc.addImage(photoData, photoFormat, photoX + 0.5, bodyY + 0.5, photoW - 1, photoH - 1);
-          } catch (e) {
-            doc.setFillColor(60, 70, 90);
-            doc.roundedRect(photoX, bodyY, photoW, photoH, 2, 2, 'F');
-          }
-        } else {
+      // Foto del alumno: preferir base64 del backend (evita CORS)
+      let photoData = qrData.foto_base64 || null;
+      if (!photoData && qrData.foto_url) photoData = await loadImageAsDataUrl(qrData.foto_url);
+      if (photoData) {
+        try {
+          const photoFormat = photoData.indexOf('image/png') !== -1 ? 'PNG' : 'JPEG';
+          doc.roundedRect(photoX, bodyY, photoW, photoH, 2, 2, 'F');
+          doc.addImage(photoData, photoFormat, photoX + 0.5, bodyY + 0.5, photoW - 1, photoH - 1);
+        } catch (e) {
           doc.setFillColor(60, 70, 90);
           doc.roundedRect(photoX, bodyY, photoW, photoH, 2, 2, 'F');
         }
@@ -3467,17 +3457,23 @@ function DocenteHijos() {
         doc.roundedRect(photoX, bodyY, photoW, photoH, 2, 2, 'F');
       }
 
-      // Nombre completo (blanco, bold)
-      const nombreCompleto = (qrData.nombre_completo || '').trim() || `${(qrData.nombres || '')} ${(qrData.apellido_paterno || '')} ${(qrData.apellido_materno || '')}`.trim();
+      // Nombre en una línea, apellidos debajo (blanco, bold)
+      const nombres = (qrData.nombres || '').trim();
+      const apellidos = `${(qrData.apellido_paterno || '')} ${(qrData.apellido_materno || '')}`.trim();
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
       doc.setTextColor(...white);
-      const nombreLines = doc.splitTextToSize(nombreCompleto, centerW - 2);
       let textY = bodyY + 6;
-      nombreLines.slice(0, 2).forEach((line) => {
-        doc.text(line, centerX, textY);
+      if (nombres) {
+        const nombresLines = doc.splitTextToSize(nombres, centerW - 2);
+        doc.text(nombresLines[0], centerX, textY);
         textY += 5;
-      });
+      }
+      if (apellidos) {
+        const apellidosLines = doc.splitTextToSize(apellidos, centerW - 2);
+        doc.text(apellidosLines[0], centerX, textY);
+        textY += 5;
+      }
 
       // Grado / Sección (naranja/amarillo)
       if (qrData.grupo) {
@@ -3501,8 +3497,10 @@ function DocenteHijos() {
         doc.text(`DNI: ${dni}`, centerX, textY);
       }
 
-      // QR Code (desde DOM)
+      // QR Code (desde DOM): más pequeño y centrado dentro del recuadro blanco
       const qrElement = document.querySelector('#qr-card-modal-print .qr-code-wrapper svg');
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
       if (qrElement) {
         try {
           const svgData = new XMLSerializer().serializeToString(qrElement);
@@ -3517,9 +3515,7 @@ function DocenteHijos() {
               canvas.height = 200;
               ctx.drawImage(img, 0, 0);
               const imgData = canvas.toDataURL('image/png');
-              doc.setFillColor(255, 255, 255);
-              doc.roundedRect(qrX - 0.5, qrY - 0.5, qrSize + 1, qrSize + 1, 1, 1, 'F');
-              doc.addImage(imgData, 'PNG', qrX, qrY, qrSize, qrSize);
+              doc.addImage(imgData, 'PNG', qrX + qrPadding, qrY + qrPadding, qrSize, qrSize);
               URL.revokeObjectURL(url);
               resolve();
             };
@@ -3528,11 +3524,8 @@ function DocenteHijos() {
           });
         } catch (err) {
           doc.setFillColor(240, 240, 240);
-          doc.roundedRect(qrX, qrY, qrSize, qrSize, 1, 1, 'F');
+          doc.roundedRect(qrX + qrPadding, qrY + qrPadding, qrSize, qrSize, 1, 1, 'F');
         }
-      } else {
-        doc.setFillColor(240, 240, 240);
-        doc.roundedRect(qrX, qrY, qrSize, qrSize, 1, 1, 'F');
       }
 
       // Texto bajo el QR
@@ -3540,13 +3533,7 @@ function DocenteHijos() {
       doc.setFontSize(5);
       doc.setTextColor(...white);
       const instruccion = 'Acerca el código QR a la cámara para registrar tu asistencia';
-      doc.text(instruccion, qrX + qrSize / 2, qrY + qrSize + 4, { align: 'center', maxWidth: qrSize + 8 });
-
-      // Ondas inferiores
-      doc.setFillColor(...greenEmerald);
-      doc.roundedRect(0, height - 9, 90, 5, 2, 2, 'F');
-      doc.setFillColor(...greenLime);
-      doc.roundedRect(0, height - 5, 90, 5, 2, 2, 'F');
+      doc.text(instruccion, qrX + qrBoxSize / 2, qrY + qrBoxSize + 4, { align: 'center', maxWidth: qrBoxSize + 4 });
 
       const nombreArchivo = `Carnet_${(qrData.nombre_completo || 'Alumno').replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
       doc.save(nombreArchivo);

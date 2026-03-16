@@ -7800,18 +7800,32 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
     // Generar código QR (puede ser el DNI o un ID único)
     const qrData = alumnoData.nro_documento || `ALUMNO-${alumnoData.id}`;
 
-    // URL de foto del alumno (para carnet QR)
+    // Foto y logo en base64 para el carnet (evita CORS; el backend lee desde disco)
     let foto_url = null;
+    let foto_base64 = null;
     if (alumnoData.foto && alumnoData.foto.trim() !== '') {
       const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       foto_url = isProduction
         ? `${phpSystemUrl}/Static/Image/Fotos/${alumnoData.foto}`
         : `http://localhost:5000/Static/Image/Fotos/${alumnoData.foto}`;
+      const baseFotosPath = process.env.STATIC_FOTOS_PATH || path.join(__dirname, '..', 'Static', 'Image', 'Fotos');
+      let fotoPath = path.join(baseFotosPath, path.basename(alumnoData.foto));
+      if (!fs.existsSync(fotoPath) && process.env.NODE_ENV === 'production') {
+        fotoPath = path.join('/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos', path.basename(alumnoData.foto));
+      }
+      try {
+        if (fs.existsSync(fotoPath)) {
+          const buf = fs.readFileSync(fotoPath);
+          const ext = (path.extname(alumnoData.foto) || '').toLowerCase();
+          const mime = ext === '.png' ? 'image/png' : 'image/jpeg';
+          foto_base64 = `data:${mime};base64,${buf.toString('base64')}`;
+        }
+      } catch (e) { /* ignorar */ }
     }
 
-    // URL del logo del colegio (para carnet QR; usa boleta_logo si existe)
     let logo_url = null;
+    let logo_base64 = null;
     const configLogo = await query(`SELECT valor FROM config WHERE clave = 'boleta_logo' LIMIT 1`);
     if (configLogo && configLogo.length > 0 && configLogo[0].valor) {
       const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
@@ -7819,6 +7833,19 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
       logo_url = isProduction
         ? `${phpSystemUrl}/Static/Archivos/${configLogo[0].valor}`
         : `http://localhost:5000/Static/Archivos/${configLogo[0].valor}`;
+      const baseArchivosPath = process.env.STATIC_ARCHIVOS_PATH || path.join(__dirname, '..', 'Static', 'Archivos');
+      let logoPath = path.join(baseArchivosPath, path.basename(configLogo[0].valor));
+      if (!fs.existsSync(logoPath) && process.env.NODE_ENV === 'production') {
+        logoPath = path.join('/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Archivos', path.basename(configLogo[0].valor));
+      }
+      try {
+        if (fs.existsSync(logoPath)) {
+          const buf = fs.readFileSync(logoPath);
+          const ext = (path.extname(configLogo[0].valor) || '').toLowerCase();
+          const mime = ext === '.png' ? 'image/png' : 'image/jpeg';
+          logo_base64 = `data:${mime};base64,${buf.toString('base64')}`;
+        }
+      } catch (e) { /* ignorar */ }
     }
 
     console.log(`✅ [HIJOS-QR] Datos QR obtenidos exitosamente para hijoId: ${hijoIdNum}`);
@@ -7835,7 +7862,9 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
       qr_data: qrData,
       nro_documento: alumnoData.nro_documento || '',
       foto_url,
-      logo_url
+      foto_base64,
+      logo_url,
+      logo_base64
     });
   } catch (error) {
     console.error('❌ [HIJOS-QR] Error obteniendo datos para QR:', error);
