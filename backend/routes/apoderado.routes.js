@@ -1419,9 +1419,9 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver este QR.' });
     }
 
-    // Obtener datos del alumno
+    // Obtener datos del alumno (incl. foto para carnet QR)
     const alumno = await query(
-      `SELECT a.id, a.nombres, a.apellido_paterno, a.apellido_materno, u.usuario as nro_documento
+      `SELECT a.id, a.nombres, a.apellido_paterno, a.apellido_materno, a.foto, u.usuario as nro_documento
        FROM alumnos a
        LEFT JOIN usuarios u ON u.alumno_id = a.id AND u.colegio_id = a.colegio_id AND u.estado = 'ACTIVO'
        WHERE a.id = ? AND a.colegio_id = ?`,
@@ -1468,6 +1468,27 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
     // Generar código QR
     const qrData = alumnoData.nro_documento || `ALUMNO-${alumnoData.id}`;
 
+    // URL de foto del alumno (para carnet QR)
+    let foto_url = null;
+    if (alumnoData.foto && alumnoData.foto.trim() !== '') {
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const isProduction = process.env.NODE_ENV === 'production';
+      foto_url = isProduction
+        ? `${phpSystemUrl}/Static/Image/Fotos/${alumnoData.foto}`
+        : `http://localhost:5000/Static/Image/Fotos/${alumnoData.foto}`;
+    }
+
+    // URL del logo del colegio (para carnet QR; usa boleta_logo si existe)
+    let logo_url = null;
+    const configLogo = await query(`SELECT valor FROM config WHERE clave = 'boleta_logo' LIMIT 1`);
+    if (configLogo && configLogo.length > 0 && configLogo[0].valor) {
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const isProduction = process.env.NODE_ENV === 'production';
+      logo_url = isProduction
+        ? `${phpSystemUrl}/Static/Archivos/${configLogo[0].valor}`
+        : `http://localhost:5000/Static/Archivos/${configLogo[0].valor}`;
+    }
+
     res.json({
       nombres: alumnoData.nombres || '',
       apellido_paterno: alumnoData.apellido_paterno || '',
@@ -1477,7 +1498,9 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
       colegio_nombre: colegioNombre,
       anio: anio_activo,
       qr_data: qrData,
-      nro_documento: alumnoData.nro_documento || ''
+      nro_documento: alumnoData.nro_documento || '',
+      foto_url,
+      logo_url
     });
   } catch (error) {
     console.error('Error obteniendo datos para QR:', error);

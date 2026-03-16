@@ -3346,6 +3346,20 @@ function DocenteHijos() {
     }
   };
 
+  // Cargar imagen desde URL y devolver data URL (para PDF)
+  const loadImageAsDataUrl = (url) => {
+    if (!url || typeof url !== 'string') return Promise.resolve(null);
+    return fetch(url, { mode: 'cors' })
+      .then((r) => r.blob())
+      .then((blob) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      }))
+      .catch(() => null);
+  };
+
   // Colores pastel para las cards
   const coloresPastel = [
     { bg: '#FFE5E5', border: '#FFB3B3', text: '#8B0000' }, // Rosa pastel
@@ -3369,51 +3383,125 @@ function DocenteHijos() {
     }
 
     try {
-      // Tamaño fotocheck vertical: 54mm x 89mm (portrait)
-      const width = 54;
-      const height = 89;
+      // Carnet horizontal 9x6 cm = 90x60 mm (landscape)
+      const width = 90;
+      const height = 60;
       const doc = new jsPDF({
-        orientation: 'portrait',
+        orientation: 'landscape',
         unit: 'mm',
         format: [width, height]
       });
 
-      const margin = 2.5;
-      const contentWidth = width - (margin * 2);
+      // Colores estilo VANGUARD
+      const darkBlue = [15, 23, 42];       // #0f172a fondo
+      const greenLime = [184, 233, 134];  // ondas claras
+      const greenEmerald = [13, 148, 136]; // ondas oscuras
+      const white = [255, 255, 255];
+      const orangeAccent = [251, 191, 36]; // #fbbf24 grado/sección
 
-      // Fondo con gradiente suave
-      doc.setFillColor(255, 255, 255);
+      // Fondo azul oscuro
+      doc.setFillColor(...darkBlue);
       doc.rect(0, 0, width, height, 'F');
-      doc.setFillColor(248, 250, 252);
-      doc.rect(0, 0, width, height * 0.6, 'F');
 
-      // Header con gradiente púrpura/azul
-      const headerHeight = 8;
-      doc.setFillColor(79, 70, 229); // #4f46e5
-      doc.rect(0, 0, width, headerHeight, 'F');
-      
-      // Efecto de gradiente en header (simulado con rectángulo más claro)
-      doc.setFillColor(99, 102, 241); // #6366f1
-      doc.rect(0, headerHeight * 0.5, width, headerHeight * 0.5, 'F');
+      // Ondas verdes (bandas superiores)
+      doc.setFillColor(...greenLime);
+      doc.roundedRect(0, 4, 90, 5, 2, 2, 'F');
+      doc.setFillColor(...greenEmerald);
+      doc.roundedRect(0, 9, 90, 5, 2, 2, 'F');
 
-      // Nombre del colegio - en mayúsculas
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
+      // Logo (esquina superior izquierda)
+      const logoSize = 10;
+      const logoX = 3;
+      const logoY = 2;
+      if (qrData.logo_url) {
+        const logoData = await loadImageAsDataUrl(qrData.logo_url);
+        if (logoData) {
+          try {
+            doc.addImage(logoData, 'PNG', logoX, logoY, logoSize, logoSize);
+          } catch (e) { /* ignorar */ }
+        }
+      }
+
+      // Nombre del colegio: VANGUARD / Schools
+      const colegioNombre = (qrData.colegio_nombre || 'Vanguard Schools').trim();
+      const partes = colegioNombre.toUpperCase().split(/\s+/);
+      const titulo = partes[0] || 'VANGUARD';
+      const subtitulo = partes.slice(1).join(' ') || 'Schools';
+      doc.setTextColor(...white);
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      const colegioNombre = (qrData.colegio_nombre || 'Vanguard Schools').toUpperCase();
-      doc.text(colegioNombre, width / 2, 5.5, { align: 'center' });
+      doc.text(titulo, logoX + logoSize + 4, logoY + 4);
+      doc.setFontSize(7);
+      doc.setFont('helvetica', 'normal');
+      doc.text(subtitulo, logoX + logoSize + 4, logoY + 7.5);
 
-      // Calcular espacio disponible
-      const footerHeight = 6;
-      const bodyHeight = height - headerHeight - footerHeight;
-      let yPos = headerHeight + 3;
+      // Zona central: foto (izq), datos (centro), QR (derecha)
+      const bodyY = 16;
+      const photoW = 22;
+      const photoH = 28;
+      const photoX = 3;
+      const centerX = 28;
+      const centerW = 52;
+      const qrSize = 26;
+      const qrX = width - qrSize - 5;
+      const qrY = bodyY;
 
-      // QR Code arriba centrado - centrado perfecto vertical y horizontal
-      const qrSize = 28; // Tamaño optimizado para formato vertical
-      const qrX = (width - qrSize) / 2; // Centrado horizontal perfecto
-      const qrY = yPos; // Posición vertical
+      // Foto del alumno
+      if (qrData.foto_url) {
+        const photoData = await loadImageAsDataUrl(qrData.foto_url);
+        if (photoData) {
+          try {
+            const photoFormat = photoData.indexOf('image/png') !== -1 ? 'PNG' : 'JPEG';
+            doc.roundedRect(photoX, bodyY, photoW, photoH, 2, 2, 'F');
+            doc.addImage(photoData, photoFormat, photoX + 0.5, bodyY + 0.5, photoW - 1, photoH - 1);
+          } catch (e) {
+            doc.setFillColor(60, 70, 90);
+            doc.roundedRect(photoX, bodyY, photoW, photoH, 2, 2, 'F');
+          }
+        } else {
+          doc.setFillColor(60, 70, 90);
+          doc.roundedRect(photoX, bodyY, photoW, photoH, 2, 2, 'F');
+        }
+      } else {
+        doc.setFillColor(60, 70, 90);
+        doc.roundedRect(photoX, bodyY, photoW, photoH, 2, 2, 'F');
+      }
 
-      // Obtener el elemento QR del DOM y convertirlo a imagen
+      // Nombre completo (blanco, bold)
+      const nombreCompleto = (qrData.nombre_completo || '').trim() || `${(qrData.nombres || '')} ${(qrData.apellido_paterno || '')} ${(qrData.apellido_materno || '')}`.trim();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...white);
+      const nombreLines = doc.splitTextToSize(nombreCompleto, centerW - 2);
+      let textY = bodyY + 6;
+      nombreLines.slice(0, 2).forEach((line) => {
+        doc.text(line, centerX, textY);
+        textY += 5;
+      });
+
+      // Grado / Sección (naranja/amarillo)
+      if (qrData.grupo) {
+        doc.setFontSize(8);
+        doc.setTextColor(...orangeAccent);
+        doc.setFont('helvetica', 'bold');
+        const grupoLines = doc.splitTextToSize(qrData.grupo, centerW - 2);
+        grupoLines.slice(0, 2).forEach((line) => {
+          doc.text(line, centerX, textY);
+          textY += 4.5;
+        });
+      }
+
+      // DNI
+      const dni = qrData.nro_documento || '';
+      if (dni) {
+        textY += 2;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...white);
+        doc.text(`DNI: ${dni}`, centerX, textY);
+      }
+
+      // QR Code (desde DOM)
       const qrElement = document.querySelector('#qr-card-modal-print .qr-code-wrapper svg');
       if (qrElement) {
         try {
@@ -3421,164 +3509,51 @@ function DocenteHijos() {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           const img = new Image();
-          
           const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
           const url = URL.createObjectURL(svgBlob);
-          
           await new Promise((resolve, reject) => {
             img.onload = () => {
               canvas.width = 200;
               canvas.height = 200;
               ctx.drawImage(img, 0, 0);
               const imgData = canvas.toDataURL('image/png');
-              
-              // Dibujar fondo blanco para el QR - centrado perfecto
-              const qrBoxSize = qrSize + 2;
-              const qrBoxX = (width - qrBoxSize) / 2; // Centrado horizontal perfecto
-              const qrBoxY = qrY - 1;
               doc.setFillColor(255, 255, 255);
-              doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1, 'F');
-              
-              // Borde del QR
-              doc.setDrawColor(224, 231, 255); // #e0e7ff
-              doc.setLineWidth(0.5);
-              doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1);
-              
-              // QR centrado perfecto dentro del cuadro
-              const qrImageX = qrBoxX + 1; // 1mm de padding desde el borde del cuadro
-              const qrImageY = qrBoxY + 1;
-              doc.addImage(imgData, 'PNG', qrImageX, qrImageY, qrSize, qrSize);
-              
+              doc.roundedRect(qrX - 0.5, qrY - 0.5, qrSize + 1, qrSize + 1, 1, 1, 'F');
+              doc.addImage(imgData, 'PNG', qrX, qrY, qrSize, qrSize);
               URL.revokeObjectURL(url);
               resolve();
             };
             img.onerror = reject;
             img.src = url;
           });
-        } catch (error) {
-          console.warn('Error convirtiendo QR a imagen, usando placeholder:', error);
-          const qrBoxSize = qrSize + 2;
-          const qrBoxX = (width - qrBoxSize) / 2;
-          const qrBoxY = qrY - 1;
+        } catch (err) {
           doc.setFillColor(240, 240, 240);
-          doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1, 'F');
-          doc.setDrawColor(200, 200, 200);
-          doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1);
+          doc.roundedRect(qrX, qrY, qrSize, qrSize, 1, 1, 'F');
         }
       } else {
-        const qrBoxSize = qrSize + 2;
-        const qrBoxX = (width - qrBoxSize) / 2;
-        const qrBoxY = qrY - 1;
         doc.setFillColor(240, 240, 240);
-        doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1, 'F');
-        doc.setDrawColor(200, 200, 200);
-        doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1);
+        doc.roundedRect(qrX, qrY, qrSize, qrSize, 1, 1, 'F');
       }
 
-      // Información del alumno debajo del QR - estilo card (2mm más abajo)
-      const infoStartY = qrY + qrSize + 6; // 2mm más abajo (de 4 a 6)
-      const cardPadding = 1.5;
-      const cardSpacing = 2.5;
-      let currentY = infoStartY;
-
-      // Card Nombres
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1, 'F');
-      doc.setDrawColor(224, 231, 255);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1);
-      
-      // Label Nombres - centrado
-      const labelWidth = 12;
-      const labelX = (width - labelWidth) / 2; // Centrado
-      doc.setFillColor(238, 242, 255); // #eef2ff
-      doc.roundedRect(labelX, currentY + 0.5, labelWidth, 2.5, 0.5, 0.5, 'F');
-      doc.setTextColor(99, 102, 241); // #6366f1
+      // Texto bajo el QR
+      doc.setFont('helvetica', 'normal');
       doc.setFontSize(5);
-      doc.setFont('helvetica', 'bold');
-      doc.text('NOMBRES:', width / 2, currentY + 2, { align: 'center' });
-      
-      // Valor Nombres - centrado
-      doc.setTextColor(30, 41, 59); // #1e293b
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'bold');
-      const nombres = qrData.nombres || '';
-      const nombresLines = doc.splitTextToSize(nombres, contentWidth - (cardPadding * 2) - 2);
-      nombresLines.forEach((line, idx) => {
-        doc.text(line, width / 2, currentY + 5.5 + (idx * 3.5), { align: 'center', maxWidth: contentWidth - (cardPadding * 2) });
-      });
-      currentY += 9 + cardSpacing;
+      doc.setTextColor(...white);
+      const instruccion = 'Acerca el código QR a la cámara para registrar tu asistencia';
+      doc.text(instruccion, qrX + qrSize / 2, qrY + qrSize + 4, { align: 'center', maxWidth: qrSize + 8 });
 
-      // Card Apellidos
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1, 'F');
-      doc.setDrawColor(224, 231, 255);
-      doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1);
-      
-      // Label Apellidos - centrado
-      const labelWidthApellidos = 13;
-      const labelXApellidos = (width - labelWidthApellidos) / 2; // Centrado
-      doc.setFillColor(238, 242, 255);
-      doc.roundedRect(labelXApellidos, currentY + 0.5, labelWidthApellidos, 2.5, 0.5, 0.5, 'F');
-      doc.setTextColor(99, 102, 241);
-      doc.setFontSize(5);
-      doc.setFont('helvetica', 'bold');
-      doc.text('APELLIDOS:', width / 2, currentY + 2, { align: 'center' });
-      
-      doc.setTextColor(30, 41, 59);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'bold');
-      const apellidos = `${qrData.apellido_paterno || ''} ${qrData.apellido_materno || ''}`.trim();
-      const apellidosLines = doc.splitTextToSize(apellidos, contentWidth - (cardPadding * 2) - 2);
-      apellidosLines.forEach((line, idx) => {
-        doc.text(line, width / 2, currentY + 5.5 + (idx * 3.5), { align: 'center', maxWidth: contentWidth - (cardPadding * 2) });
-      });
-      currentY += 9 + cardSpacing;
+      // Ondas inferiores
+      doc.setFillColor(...greenEmerald);
+      doc.roundedRect(0, height - 9, 90, 5, 2, 2, 'F');
+      doc.setFillColor(...greenLime);
+      doc.roundedRect(0, height - 5, 90, 5, 2, 2, 'F');
 
-      // Card Sección (si existe)
-      if (qrData.grupo) {
-        doc.setFillColor(255, 255, 255);
-        doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1, 'F');
-        doc.setDrawColor(224, 231, 255);
-        doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1);
-        
-        // Label Sección - centrado
-        const labelWidthSeccion = 11;
-        const labelXSeccion = (width - labelWidthSeccion) / 2; // Centrado
-        doc.setFillColor(238, 242, 255);
-        doc.roundedRect(labelXSeccion, currentY + 0.5, labelWidthSeccion, 2.5, 0.5, 0.5, 'F');
-        doc.setTextColor(99, 102, 241);
-        doc.setFontSize(5);
-        doc.setFont('helvetica', 'bold');
-        doc.text('SECCIÓN:', width / 2, currentY + 2, { align: 'center' });
-        
-        doc.setTextColor(30, 41, 59);
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'bold');
-        const grupoLines = doc.splitTextToSize(qrData.grupo, contentWidth - (cardPadding * 2) - 2);
-        grupoLines.forEach((line, idx) => {
-          doc.text(line, width / 2, currentY + 5.5 + (idx * 3.5), { align: 'center', maxWidth: contentWidth - (cardPadding * 2) });
-        });
-      }
-
-      // Footer con año - gradiente
-      const footerY = height - footerHeight;
-      doc.setFillColor(79, 70, 229); // #4f46e5
-      doc.rect(0, footerY, width, footerHeight, 'F');
-      doc.setFillColor(99, 102, 241); // #6366f1
-      doc.rect(0, footerY + footerHeight * 0.5, width, footerHeight * 0.5, 'F');
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(255, 255, 255);
-      doc.text(qrData.anio?.toString() || '2026', width / 2, footerY + 4, { align: 'center' });
-
-      const nombreArchivo = `Fotocheck_${qrData.nombre_completo?.replace(/\s+/g, '_') || 'Alumno'}_${new Date().getTime()}.pdf`;
+      const nombreArchivo = `Carnet_${(qrData.nombre_completo || 'Alumno').replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
       doc.save(nombreArchivo);
 
       Swal.fire({
         title: '¡PDF Generado!',
-        text: 'El fotocheck se ha exportado correctamente',
+        text: 'El carnet se ha exportado correctamente (9×6 cm).',
         icon: 'success'
       });
     } catch (error) {
