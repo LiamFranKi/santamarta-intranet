@@ -3455,9 +3455,8 @@ function ApoderadoHijos() {
       const centerX = 35;  // más espacio entre foto y datos del alumno
       const centerW = 50;
       const qrBoxSize = 24;   // recuadro blanco
-      const qrDrawSize = 22;  // QR un poco menor para centrarlo en la caja (margen 1mm cada lado)
-      const qrY = (height - qrBoxSize) / 2;  // QR centrado verticalmente en el carnet
-      const qrX = width - qrBoxSize - 5;      // QR a la derecha (horizontal)
+      const qrY = 30;         // QR abajo a la derecha (con su texto debajo)
+      const qrX = width - qrBoxSize - 5;
 
       // Foto del alumno: bordes redondos suaves, sin borde amarillo.
       let photoData = qrData.foto_base64 || null;
@@ -3548,11 +3547,10 @@ function ApoderadoHijos() {
         doc.text(`DNI: ${dni}`, centerX, textY);
       }
 
-      // QR Code: recuadro blanco centrado vertical y horizontal; imagen QR centrada dentro del recuadro
+      // QR Code: recuadro blanco abajo a la derecha; imagen QR pegada a los bordes (sin padding/borde blanco)
       const qrElement = document.querySelector('#qr-card-modal-print .qr-code-wrapper svg');
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
-      const qrInset = (qrBoxSize - qrDrawSize) / 2;  // centrar la imagen en la caja
       if (qrElement) {
         try {
           const svgData = new XMLSerializer().serializeToString(qrElement);
@@ -3567,7 +3565,7 @@ function ApoderadoHijos() {
               canvas.height = 200;
               ctx.drawImage(img, 0, 0);
               const imgData = canvas.toDataURL('image/png');
-              doc.addImage(imgData, 'PNG', qrX + qrInset, qrY + qrInset, qrDrawSize, qrDrawSize);
+              doc.addImage(imgData, 'PNG', qrX, qrY, qrBoxSize, qrBoxSize);
               URL.revokeObjectURL(url);
               resolve();
             };
@@ -3576,7 +3574,7 @@ function ApoderadoHijos() {
           });
         } catch (err) {
           doc.setFillColor(240, 240, 240);
-          doc.roundedRect(qrX + qrInset, qrY + qrInset, qrDrawSize, qrDrawSize, 1, 1, 'F');
+          doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
         }
       }
 
@@ -4346,7 +4344,7 @@ function ApoderadoHijos() {
                               value={qrData.qr_data || qrData.nro_documento || 'ALUMNO'}
                               size={220}
                               level="H"
-                              includeMargin={true}
+                              includeMargin={false}
                             />
                           </div>
                         </div>
