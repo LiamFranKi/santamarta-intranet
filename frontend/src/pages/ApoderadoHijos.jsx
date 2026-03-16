@@ -3445,18 +3445,20 @@ function ApoderadoHijos() {
       doc.text(subtitulo, logoX + logoSize + 4, logoY + 7.5);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
+      doc.setTextColor(...orangeAccent);
       doc.text('Intranet Escolar', width - 4, logoY + 5.5, { align: 'right' });
+      doc.setTextColor(...white);
 
-      // Zona central: foto (izq), datos (centro), QR (derecha)
+      // Zona central: foto (izq, más ancha), datos (centro), QR (derecha)
       const bodyY = 16;
-      const photoW = 22;
+      const photoW = 26;   // foto un poco más ancha
       const photoH = 28;
       const photoX = 3;
-      const centerX = 28;
-      const centerW = 52;
+      const centerX = 30;  // después de la foto más ancha
+      const centerW = 50;
       const qrBoxSize = 24;   // recuadro blanco
-      const qrSize = 22;     // QR casi llenando todo el recuadro
-      const qrPadding = 1;   // poco margen para que el QR ocupe casi todo
+      const qrSize = 23;     // QR aún más grande, llena casi todo el recuadro
+      const qrPadding = 0.5; // margen mínimo
       const qrY = 30;        // QR más abajo, a la altura del Grado
       const qrX = width - qrBoxSize - 5;
 
@@ -3548,12 +3550,12 @@ function ApoderadoHijos() {
         }
       }
 
-      // Texto bajo el QR
+      // Texto bajo el QR (un poco más arriba)
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(5);
       doc.setTextColor(...white);
       const instruccion = 'Acerca el código QR a la cámara para registrar tu asistencia';
-      doc.text(instruccion, qrX + qrBoxSize / 2, qrY + qrBoxSize + 4, { align: 'center', maxWidth: qrBoxSize + 4 });
+      doc.text(instruccion, qrX + qrBoxSize / 2, qrY + qrBoxSize + 2, { align: 'center', maxWidth: qrBoxSize + 4 });
 
       const nombreArchivo = `Carnet_${(qrData.nombre_completo || 'Alumno').replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
       doc.save(nombreArchivo);
