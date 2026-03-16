@@ -3434,6 +3434,9 @@ function DocenteHijos() {
       doc.setFontSize(7);
       doc.setFont('helvetica', 'normal');
       doc.text(subtitulo, logoX + logoSize + 4, logoY + 7.5);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.text('Intranet Escolar', width - 4, logoY + 5.5, { align: 'right' });
 
       // Zona central: foto (izq), datos (centro), QR (derecha)
       const bodyY = 16;
@@ -3443,10 +3446,10 @@ function DocenteHijos() {
       const centerX = 28;
       const centerW = 52;
       const qrBoxSize = 24;   // recuadro blanco
-      const qrSize = 18;      // QR un poco más pequeño
+      const qrSize = 22;     // QR casi llenando todo el recuadro
+      const qrPadding = 1;   // poco margen para que el QR ocupe casi todo
+      const qrY = 30;        // QR más abajo, a la altura del Grado
       const qrX = width - qrBoxSize - 5;
-      const qrY = bodyY;
-      const qrPadding = (qrBoxSize - qrSize) / 2; // centrar QR dentro del recuadro
 
       // Foto del alumno: preferir base64 del backend (evita CORS)
       let photoData = qrData.foto_base64 || null;
@@ -3505,7 +3508,7 @@ function DocenteHijos() {
         doc.text(`DNI: ${dni}`, centerX, textY);
       }
 
-      // QR Code (desde DOM): más pequeño y centrado dentro del recuadro blanco
+      // QR Code (desde DOM): recuadro más abajo (altura del Grado), QR grande casi llenando el recuadro
       const qrElement = document.querySelector('#qr-card-modal-print .qr-code-wrapper svg');
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
