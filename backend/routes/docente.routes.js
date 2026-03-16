@@ -6706,7 +6706,7 @@ router.post('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
     const { grupoId } = req.params;
     const { colegio_id, anio_activo, usuario_id } = req.user;
     const personalId = req.user.personal_id;
-    const { matricula_id, fecha, tipo } = req.body;
+    const { matricula_id, fecha, tipo, hora_dispositivo } = req.body;
 
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
     if (!matricula_id || !fecha || !tipo) return res.status(400).json({ error: 'Datos incompletos' });
@@ -6720,7 +6720,19 @@ router.post('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     const fechaNorm = moment(fecha).format('YYYY-MM-DD');
-    const horaActual = moment().tz('America/Lima').format('HH:mm:ss');
+    let horaActual = moment().tz('America/Lima').format('HH:mm:ss');
+    if (hora_dispositivo && typeof hora_dispositivo === 'string') {
+      const h = hora_dispositivo.trim();
+      const match = h.match(/^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/);
+      if (match) {
+        const hour = parseInt(match[1], 10);
+        const min = parseInt(match[2], 10);
+        const sec = match[3] != null ? parseInt(match[3], 10) : 0;
+        if (hour >= 0 && hour <= 23 && min >= 0 && min <= 59 && sec >= 0 && sec <= 59) {
+          horaActual = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+      }
+    }
 
     const existente = await query(
       `SELECT id, tipo FROM matriculas_asistencias WHERE matricula_id = ? AND fecha = ?`,
@@ -6793,7 +6805,7 @@ router.post('/tutoria/grupos/:grupoId/asistencia/guardar-todo', async (req, res)
     const { grupoId } = req.params;
     const { colegio_id, anio_activo, usuario_id } = req.user;
     const personalId = req.user.personal_id;
-    const { fecha } = req.body;
+    const { fecha, hora_dispositivo } = req.body;
 
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
 
@@ -6804,7 +6816,19 @@ router.post('/tutoria/grupos/:grupoId/asistencia/guardar-todo', async (req, res)
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     const fechaNorm = fecha ? moment(fecha).format('YYYY-MM-DD') : moment().tz('America/Lima').format('YYYY-MM-DD');
-    const horaActual = moment().tz('America/Lima').format('HH:mm:ss');
+    let horaActual = moment().tz('America/Lima').format('HH:mm:ss');
+    if (hora_dispositivo && typeof hora_dispositivo === 'string') {
+      const h = hora_dispositivo.trim();
+      const match = h.match(/^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/);
+      if (match) {
+        const hour = parseInt(match[1], 10);
+        const min = parseInt(match[2], 10);
+        const sec = match[3] != null ? parseInt(match[3], 10) : 0;
+        if (hour >= 0 && hour <= 23 && min >= 0 && min <= 59 && sec >= 0 && sec <= 59) {
+          horaActual = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+      }
+    }
 
     const matriculas = await query(
       `SELECT m.id as matricula_id, a.id as alumno_id, a.nombres, a.apellido_paterno, a.apellido_materno

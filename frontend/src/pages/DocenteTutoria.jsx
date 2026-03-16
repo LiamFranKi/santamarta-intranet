@@ -584,10 +584,13 @@ function DocenteTutoria() {
     if (!grupoParaAsistencias || guardandoAsistencia) return;
     setGuardandoAsistencia(matriculaId);
     try {
+      const now = new Date();
+      const hora_dispositivo = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
       await api.post(`/docente/tutoria/grupos/${grupoParaAsistencias.id}/asistencia`, {
         matricula_id: matriculaId,
         fecha: asistenciaFecha,
-        tipo
+        tipo,
+        hora_dispositivo
       });
       setAsistenciaAlumnos(prev =>
         prev.map(a =>
@@ -606,8 +609,11 @@ function DocenteTutoria() {
     if (!grupoParaAsistencias) return;
     try {
       setLoadingAsistencias(true);
+      const now = new Date();
+      const hora_dispositivo = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
       const res = await api.post(`/docente/tutoria/grupos/${grupoParaAsistencias.id}/asistencia/guardar-todo`, {
-        fecha: asistenciaFecha
+        fecha: asistenciaFecha,
+        hora_dispositivo
       });
       await cargarAsistencias(grupoParaAsistencias.id, asistenciaFecha);
       const n = res.data?.marcados_como_falta || 0;

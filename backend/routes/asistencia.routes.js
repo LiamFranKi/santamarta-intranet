@@ -18,6 +18,31 @@ router.use((req, res, next) => {
 });
 
 /**
+ * Valida y normaliza fecha/hora enviadas desde el dispositivo.
+ * Retorna { fecha, hora } si son válidas, o null para usar hora del servidor.
+ */
+function parsearFechaHoraDispositivo(fecha_dispositivo, hora_dispositivo) {
+  if (!fecha_dispositivo || !hora_dispositivo || typeof fecha_dispositivo !== 'string' || typeof hora_dispositivo !== 'string') return null;
+  const fecha = fecha_dispositivo.trim();
+  const hora = hora_dispositivo.trim();
+  const matchFecha = fecha.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!matchFecha) return null;
+  const [, y, m, d] = matchFecha.map(Number);
+  if (y < 2020 || y > moment().year() + 1 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+  let h = 0, min = 0, seg = 0;
+  if (/^\d{1,2}:\d{1,2}:\d{1,2}$/.test(hora)) {
+    const parts = hora.split(':').map(Number);
+    h = parts[0]; min = parts[1]; seg = parts[2];
+  } else if (/^\d{1,2}:\d{1,2}$/.test(hora)) {
+    const parts = hora.split(':').map(Number);
+    h = parts[0]; min = parts[1];
+  } else return null;
+  if (h < 0 || h > 23 || min < 0 || min > 59 || seg < 0 || seg > 59) return null;
+  const horaNorm = `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(seg).padStart(2, '0')}`;
+  return { fecha, hora: horaNorm };
+}
+
+/**
  * POST /api/asistencia/escaneo
  * Procesar escaneo de QR y registrar asistencia
  */
@@ -173,7 +198,7 @@ router.post('/escaneo', async (req, res) => {
  */
 router.post('/registrar', async (req, res) => {
   try {
-    const { usuario_id, tipo_usuario, tipo_registro } = req.body;
+    const { usuario_id, tipo_usuario, tipo_registro, fecha_dispositivo, hora_dispositivo } = req.body;
     const { colegio_id, anio_activo, usuario_id: asistencia_usuario_id } = req.user;
 
     if (!usuario_id || !tipo_usuario || !tipo_registro) {
@@ -184,8 +209,10 @@ router.post('/registrar', async (req, res) => {
       return res.status(400).json({ error: 'Tipo de registro inválido' });
     }
 
-    const fechaHoy = moment().tz('America/Lima').format('YYYY-MM-DD');
-    const horaActual = moment().tz('America/Lima').format('HH:mm:ss');
+    const dispositivo = parsearFechaHoraDispositivo(fecha_dispositivo, hora_dispositivo);
+    const fechaHoy = dispositivo ? dispositivo.fecha : moment().tz('America/Lima').format('YYYY-MM-DD');
+    const horaActual = dispositivo ? dispositivo.hora : moment().tz('America/Lima').format('HH:mm:ss');
+    if (dispositivo) console.log(`📋 [ASISTENCIA] Usando fecha/hora del dispositivo: ${fechaHoy} ${horaActual}`);
     
     // Variable para almacenar el tipo de asistencia (PRESENTE/TARDANZA) para usar en notificaciones
     let tipoAsistenciaParaNotificacion = null;

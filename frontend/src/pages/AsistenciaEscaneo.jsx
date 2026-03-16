@@ -340,11 +340,15 @@ function AsistenciaEscaneo() {
       setProcesando(true);
       
       console.log('📝 Registrando asistencia:', { usuarioId, tipoUsuario, tipoRegistro });
-      
+      const now = new Date();
+      const fecha_dispositivo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const hora_dispositivo = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
       const response = await api.post('/asistencia/registrar', {
         usuario_id: usuarioId,
         tipo_usuario: tipoUsuario,
-        tipo_registro: tipoRegistro
+        tipo_registro: tipoRegistro,
+        fecha_dispositivo,
+        hora_dispositivo
       });
 
       if (response.data.success) {
