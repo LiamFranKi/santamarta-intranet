@@ -499,12 +499,13 @@ function DocenteTutoria() {
 
   // Incidencias y Estrellas (tutoría - solo ver)
   const handleVerIncidenciasTutoria = async (alumno) => {
-    if (!selectedGrupo?.id) return;
+    const gid = typeof selectedGrupo === 'object' && selectedGrupo !== null ? selectedGrupo.id : selectedGrupo;
+    if (!gid) return;
     setAlumnoSeleccionadoTutoria(alumno);
     setLoadingIncidenciasTutoria(true);
     setShowModalIncidenciasTutoria(true);
     try {
-      const res = await api.get(`/docente/tutoria/grupos/${selectedGrupo.id}/alumnos/${alumno.id}/incidencias`);
+      const res = await api.get(`/docente/tutoria/grupos/${gid}/alumnos/${alumno.id}/incidencias`);
       setIncidenciasTutoria(res.data.incidencias || []);
     } catch (err) {
       console.error('Error cargando incidencias (tutoría):', err);
@@ -517,12 +518,13 @@ function DocenteTutoria() {
   };
 
   const handleVerEstrellasTutoria = async (alumno) => {
-    if (!selectedGrupo?.id) return;
+    const gid = typeof selectedGrupo === 'object' && selectedGrupo !== null ? selectedGrupo.id : selectedGrupo;
+    if (!gid) return;
     setAlumnoSeleccionadoTutoria(alumno);
     setLoadingEstrellasTutoria(true);
     setShowModalEstrellasTutoria(true);
     try {
-      const res = await api.get(`/docente/tutoria/grupos/${selectedGrupo.id}/alumnos/${alumno.id}/estrellas`);
+      const res = await api.get(`/docente/tutoria/grupos/${gid}/alumnos/${alumno.id}/estrellas`);
       setEstrellasTutoria(res.data.estrellas || []);
       setTotalEstrellasTutoria(res.data.total_estrellas || 0);
     } catch (err) {
