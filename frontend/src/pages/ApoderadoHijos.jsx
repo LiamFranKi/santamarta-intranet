@@ -497,6 +497,18 @@ function ApoderadoHijos() {
   };
 
   const handleImprimirQR = async (hijo) => {
+    // Filtro previo: el alumno debe tener foto subida para poder imprimir el QR (carnet)
+    const tieneFoto = hijo.foto != null && String(hijo.foto).trim() !== '';
+    if (!tieneFoto) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Foto requerida',
+        html: 'Para poder ver e imprimir el código QR del alumno, primero debe <strong>subir su foto</strong> en la opción <strong>Editar datos del hijo</strong>.',
+        confirmButtonText: 'Entendido'
+      });
+      return;
+    }
+
     try {
       setLoadingQR(true);
       setHijoSeleccionado(hijo);
