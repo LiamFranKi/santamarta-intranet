@@ -3392,20 +3392,28 @@ function DocenteHijos() {
         format: [width, height]
       });
 
-      // Colores: azul más claro (no tan oscuro), sin líneas verdes
+      // Colores: azul fondo, borde verde, logo sin fondo (logoboleta.png)
       const blueBg = [41, 65, 114];        // #294172 fondo
+      const greenBorder = [34, 197, 94];  // #22c55e borde verde
       const white = [255, 255, 255];
       const orangeAccent = [251, 191, 36]; // #fbbf24 grado/sección
+      const cardRadius = 3; // mm - esquinas redondeadas del carnet
 
-      // Fondo azul (único, sin bandas verdes)
+      // Carnet = todo el cuadro azul: fondo con esquinas redondeadas
       doc.setFillColor(...blueBg);
-      doc.rect(0, 0, width, height, 'F');
+      doc.roundedRect(0, 0, width, height, cardRadius, cardRadius, 'F');
+      // Borde verde a todo el cuadro del carnet
+      doc.setDrawColor(...greenBorder);
+      doc.setLineWidth(0.8);
+      doc.roundedRect(0, 0, width, height, cardRadius, cardRadius);
 
-      // Logo (esquina superior izquierda): preferir base64 del backend
+      // Logo: logoboleta.png del frontend (sin fondo) para el carnet
       const logoSize = 10;
       const logoX = 3;
       const logoY = 2;
-      let logoData = qrData.logo_base64 || null;
+      const logoUrlLocal = typeof window !== 'undefined' ? `${window.location.origin}/icons/logoboleta.png` : '';
+      let logoData = logoUrlLocal ? await loadImageAsDataUrl(logoUrlLocal) : null;
+      if (!logoData) logoData = qrData.logo_base64 || null;
       if (!logoData && qrData.logo_url) logoData = await loadImageAsDataUrl(qrData.logo_url);
       if (logoData) {
         try {
