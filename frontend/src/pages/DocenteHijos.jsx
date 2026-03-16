@@ -3501,15 +3501,15 @@ function DocenteHijos() {
       const photoW = 29;   // foto más ancha
       const photoH = 28;
       const photoX = 3;
-      const photoRadius = 10; // puntas más redondeadas en la foto
+      const photoRadius = 6;  // redondeado moderado (no tan circular)
       const centerX = 35;  // más espacio entre foto y datos del alumno
       const centerW = 50;
       const qrBoxSize = 24;   // recuadro blanco
       const qrY = 30;         // QR abajo a la derecha (con su texto debajo)
       const qrX = width - qrBoxSize - 5;
 
-      // Foto del alumno: recortada dentro del contenedor redondeado (sin desbordar)
-      const photoInset = 1;
+      // Foto del alumno: recortada dentro del contenedor, pegada al borde (sin padding)
+      const photoInset = 0;
       const photoInnerW = photoW - photoInset * 2;
       const photoInnerH = photoH - photoInset * 2;
       let photoData = qrData.foto_base64 || null;
@@ -3526,7 +3526,7 @@ function DocenteHijos() {
               c.width = photoInnerW * scale;
               c.height = photoInnerH * scale;
               const ctx = c.getContext('2d');
-              const r = Math.max(1, (photoRadius - photoInset) * scale);
+              const r = Math.max(1, photoRadius * scale);
               ctx.beginPath();
               if (ctx.roundRect) ctx.roundRect(0, 0, c.width, c.height, r);
               else ctx.rect(0, 0, c.width, c.height);
