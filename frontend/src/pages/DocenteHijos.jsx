@@ -4440,50 +4440,64 @@ function DocenteHijos() {
                   </div>
 
                   <div className="qr-card-container-modal">
-                    <div className="qr-card-modal" id="qr-card-modal-print">
-                      {/* Borde superior con nombre del colegio */}
-                      <div className="qr-card-header">
-                        <h2 className="qr-colegio-nombre">{qrData.colegio_nombre || 'Vanguard Schools'}</h2>
-                      </div>
-
-                      {/* Contenido principal - Layout Vertical */}
-                      <div className="qr-card-body">
-                        {/* QR Code arriba centrado */}
-                        <div className="qr-code-section">
-                          <div className="qr-code-wrapper">
-                            <QRCodeSVG 
-                              value={qrData.qr_data || qrData.nro_documento || 'ALUMNO'}
-                              size={220}
-                              level="H"
-                              includeMargin={false}
-                            />
+                    {/* Vista previa igual al PDF: carnet horizontal 9x6 (3:2) */}
+                    <div className="qr-card-modal qr-card-carnet-preview" id="qr-card-modal-print">
+                      <div className="carnet-preview-inner">
+                        {/* Header: logo + colegio + Intranet Escolar */}
+                        <div className="carnet-preview-header">
+                          <img
+                            src={qrData.logo_url || `${window.location.origin}/icons/logoboleta.png`}
+                            alt="Logo"
+                            className="carnet-preview-logo"
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                          <div className="carnet-preview-colegio">
+                            <span className="carnet-preview-titulo">{(() => { const p = (qrData.colegio_nombre || 'Vanguard Schools').trim().toUpperCase().split(/\s+/); return p[0] || 'COLEGIO'; })()}</span>
+                            <span className="carnet-preview-subtitulo">{(() => { const p = (qrData.colegio_nombre || 'Vanguard Schools').trim().toUpperCase().split(/\s+/); return p.slice(1).join(' ') || 'VANGUARD SCHOOLS'; })()}</span>
                           </div>
+                          <span className="carnet-preview-intranet">Intranet Escolar</span>
                         </div>
 
-                        {/* Información del alumno debajo */}
-                        <div className="qr-info-section">
-                          <div className="qr-info-item">
-                            <label className="qr-info-label">Nombres:</label>
-                            <p className="qr-info-value">{qrData.nombres || ''}</p>
-                          </div>
-                          <div className="qr-info-item">
-                            <label className="qr-info-label">Apellidos:</label>
-                            <p className="qr-info-value">
-                              {`${qrData.apellido_paterno || ''} ${qrData.apellido_materno || ''}`.trim()}
-                            </p>
-                          </div>
-                          {qrData.grupo && (
-                            <div className="qr-info-item">
-                              <label className="qr-info-label">Sección:</label>
-                              <p className="qr-info-value">{qrData.grupo}</p>
+                        {/* Body: foto | datos | QR */}
+                        <div className="carnet-preview-body">
+                          <div className="carnet-preview-left">
+                            <div className="carnet-preview-photo-wrap">
+                              {(qrData.foto_url || qrData.foto_base64) ? (
+                                <img
+                                  src={qrData.foto_url || qrData.foto_base64}
+                                  alt="Foto"
+                                  className="carnet-preview-photo"
+                                  onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling?.classList?.add('visible'); }}
+                                />
+                              ) : null}
+                              <div className={`carnet-preview-photo-placeholder ${!(qrData.foto_url || qrData.foto_base64) ? 'visible' : ''}`}>Sin foto</div>
                             </div>
-                          )}
+                            <div className="carnet-preview-apoderado">
+                              <div className="carnet-preview-fila"><span className="carnet-label">Apoderado:</span><span className="carnet-value">{qrData.apoderado_nombre || '-'}</span></div>
+                              <div className="carnet-preview-fila"><span className="carnet-label">Cel. Apoderado:</span><span className="carnet-value">{qrData.apoderado_celular || '-'}</span></div>
+                              <div className="carnet-preview-fila"><span className="carnet-label">Dirección:</span><span className="carnet-value">{qrData.direccion || '-'}</span></div>
+                            </div>
+                          </div>
+                          <div className="carnet-preview-center">
+                            <p className="carnet-preview-nombre">{(qrData.nombres || '').trim()}</p>
+                            <p className="carnet-preview-apellidos">{`${qrData.apellido_paterno || ''} ${qrData.apellido_materno || ''}`.trim()}</p>
+                            {qrData.grupo && <p className="carnet-preview-grupo">{qrData.grupo}</p>}
+                            {qrData.nro_documento && <p className="carnet-preview-dni">DNI: {qrData.nro_documento}</p>}
+                          </div>
+                          <div className="carnet-preview-right">
+                            <div className="carnet-preview-qr-box">
+                              <div className="qr-code-wrapper">
+                                <QRCodeSVG
+                                  value={qrData.qr_data || qrData.nro_documento || 'ALUMNO'}
+                                  size={120}
+                                  level="H"
+                                  includeMargin={false}
+                                />
+                              </div>
+                            </div>
+                            <p className="carnet-preview-instruccion">Acerca el código QR a la cámara para registrar tu asistencia</p>
+                          </div>
                         </div>
-                      </div>
-
-                      {/* Año en la parte inferior */}
-                      <div className="qr-card-footer">
-                        <span className="qr-anio">{qrData.anio || '2026'}</span>
                       </div>
                     </div>
                   </div>
