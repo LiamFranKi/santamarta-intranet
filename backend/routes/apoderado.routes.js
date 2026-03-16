@@ -1458,6 +1458,20 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
     const colegioNombre = colegio.length > 0 ? colegio[0].nombre : 'Vanguard Schools';
     const matriculaData = matricula.length > 0 ? matricula[0] : null;
 
+    // Datos del apoderado (para carnet: Apoderado, Celular, Dirección)
+    const apoderadoInfo = await query(
+      `SELECT CONCAT(ap.nombres, ' ', ap.apellido_paterno, ' ', ap.apellido_materno) as nombre_completo,
+              ap.telefono_celular,
+              ap.direccion
+       FROM apoderados ap
+       WHERE ap.id = ? AND ap.colegio_id = ?`,
+      [apoderado_id, colegio_id]
+    );
+    const apoderadoData = apoderadoInfo && apoderadoInfo.length > 0 ? apoderadoInfo[0] : null;
+    const apoderado_nombre = apoderadoData ? (apoderadoData.nombre_completo || '').trim() : '';
+    const apoderado_celular = apoderadoData ? (apoderadoData.telefono_celular || '').trim() : '';
+    const direccion = apoderadoData ? (apoderadoData.direccion || '').trim() : '';
+
     // Construir texto del grupo
     let grupoTexto = '';
     if (matriculaData) {
@@ -1529,7 +1543,10 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
       foto_url,
       foto_base64,
       logo_url,
-      logo_base64
+      logo_base64,
+      apoderado_nombre,
+      apoderado_celular,
+      direccion
     });
   } catch (error) {
     console.error('Error obteniendo datos para QR:', error);

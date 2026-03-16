@@ -3431,53 +3431,80 @@ function ApoderadoHijos() {
         } catch (e) { /* ignorar */ }
       }
 
-      // Nombre del colegio: VANGUARD / Schools (izq) — Intranet Escolar (derecha, misma línea)
+      // Nombre del colegio: COLEGIO y VANGUARD SCHOOLS mismo formato y tamaño (izq) — Intranet Escolar (derecha)
       const colegioNombre = (qrData.colegio_nombre || 'Vanguard Schools').trim();
       const partes = colegioNombre.toUpperCase().split(/\s+/);
-      const titulo = partes[0] || 'VANGUARD';
-      const subtitulo = partes.slice(1).join(' ') || 'Schools';
+      const titulo = partes[0] || 'COLEGIO';
+      const subtitulo = partes.slice(1).join(' ') || 'VANGUARD SCHOOLS';
       doc.setTextColor(...white);
       doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
       doc.text(titulo, logoX + logoSize + 4, logoY + 4);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'normal');
       doc.text(subtitulo, logoX + logoSize + 4, logoY + 7.5);
-      doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
       doc.setTextColor(...orangeAccent);
       doc.text('Intranet Escolar', width - 4, logoY + 5.5, { align: 'right' });
       doc.setTextColor(...white);
 
-      // Zona central: foto (izq, más ancha), datos (centro), QR (derecha)
+      // Zona central: foto (izq, más ancha y redondeada, sin borde), datos (más separados), QR (derecha)
       const bodyY = 16;
-      const photoW = 26;   // foto un poco más ancha
+      const photoW = 29;   // foto más ancha
       const photoH = 28;
       const photoX = 3;
-      const centerX = 30;  // después de la foto más ancha
+      const photoRadius = 5;  // foto más redondeada
+      const centerX = 35;  // más espacio entre foto y datos del alumno
       const centerW = 50;
       const qrBoxSize = 24;   // recuadro blanco
-      const qrSize = 23;     // QR aún más grande, llena casi todo el recuadro
-      const qrPadding = 0.5; // margen mínimo
+      const qrSize = 24;     // QR pegado a los bordes del contenedor
+      const qrPadding = 0;   // sin padding para que el QR se vea bien
       const qrY = 30;        // QR más abajo, a la altura del Grado
       const qrX = width - qrBoxSize - 5;
 
-      // Foto del alumno: preferir base64 del backend (evita CORS)
+      // Foto del alumno: preferir base64 del backend (evita CORS). Sin borde amarillo, más redondeada.
       let photoData = qrData.foto_base64 || null;
       if (!photoData && qrData.foto_url) photoData = await loadImageAsDataUrl(qrData.foto_url);
       if (photoData) {
         try {
           const photoFormat = photoData.indexOf('image/png') !== -1 ? 'PNG' : 'JPEG';
-          doc.roundedRect(photoX, bodyY, photoW, photoH, 2, 2, 'F');
-          doc.addImage(photoData, photoFormat, photoX + 0.5, bodyY + 0.5, photoW - 1, photoH - 1);
+          doc.setFillColor(...blueBg);
+          doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
+          const inset = 0.4;
+          doc.addImage(photoData, photoFormat, photoX + inset, bodyY + inset, photoW - inset * 2, photoH - inset * 2);
         } catch (e) {
           doc.setFillColor(60, 70, 90);
-          doc.roundedRect(photoX, bodyY, photoW, photoH, 2, 2, 'F');
+          doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
         }
       } else {
         doc.setFillColor(60, 70, 90);
-        doc.roundedRect(photoX, bodyY, photoW, photoH, 2, 2, 'F');
+        doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
       }
+
+      // Debajo de la foto: Apoderado, Celular Apoderado, Dirección (3 filas con formato claro)
+      const filaY0 = bodyY + photoH + 2;
+      const labelW = 22;
+      const valorX = photoX + labelW;
+      const filaH = 3.2;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.5);
+      doc.setTextColor(200, 210, 230);
+      doc.text('Apoderado', photoX, filaY0 + 1.2);
+      doc.setFontSize(6);
+      doc.setTextColor(...white);
+      const apoderadoNombre = (qrData.apoderado_nombre || '-').trim();
+      doc.text(apoderadoNombre.length > 28 ? apoderadoNombre.slice(0, 27) + '…' : apoderadoNombre, valorX, filaY0 + 1.2, { maxWidth: photoW - labelW });
+      doc.setFontSize(5.5);
+      doc.setTextColor(200, 210, 230);
+      doc.text('Cel. Apoderado', photoX, filaY0 + filaH + 1.2);
+      doc.setFontSize(6);
+      doc.setTextColor(...white);
+      doc.text((qrData.apoderado_celular || '-').trim(), valorX, filaY0 + filaH + 1.2, { maxWidth: photoW - labelW });
+      doc.setFontSize(5.5);
+      doc.setTextColor(200, 210, 230);
+      doc.text('Dirección', photoX, filaY0 + filaH * 2 + 1.2);
+      doc.setFontSize(6);
+      doc.setTextColor(...white);
+      const dir = (qrData.direccion || '-').trim();
+      doc.text(dir.length > 28 ? dir.slice(0, 27) + '…' : dir, valorX, filaY0 + filaH * 2 + 1.2, { maxWidth: photoW - labelW });
 
       // Nombre en una línea, apellidos debajo (blanco, bold)
       const nombres = (qrData.nombres || '').trim();
@@ -3519,7 +3546,7 @@ function ApoderadoHijos() {
         doc.text(`DNI: ${dni}`, centerX, textY);
       }
 
-      // QR Code (desde DOM): recuadro más abajo (altura del Grado), QR grande casi llenando el recuadro
+      // QR Code (desde DOM): recuadro blanco, QR pegado a los bordes (padding 0, sin borde extra)
       const qrElement = document.querySelector('#qr-card-modal-print .qr-code-wrapper svg');
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
@@ -3546,7 +3573,7 @@ function ApoderadoHijos() {
           });
         } catch (err) {
           doc.setFillColor(240, 240, 240);
-          doc.roundedRect(qrX + qrPadding, qrY + qrPadding, qrSize, qrSize, 1, 1, 'F');
+          doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
         }
       }
 
