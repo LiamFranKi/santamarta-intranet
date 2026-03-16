@@ -6591,6 +6591,116 @@ router.get('/tutoria/grupos/:grupoId/alumnos', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias
+ * Obtener incidencias de un alumno (solo lectura para el tutor)
+ */
+router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req, res) => {
+  try {
+    const { grupoId, alumnoId } = req.params;
+    const { colegio_id, anio_activo, personal_id } = req.user;
+
+    if (!personal_id) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const matricula = await query(
+      `SELECT m.id FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.grupo_id = ? AND m.colegio_id = ?
+         AND (m.estado = 0 OR m.estado = 4) AND g.anio = ?`,
+      [alumnoId, grupoId, colegio_id, anio_activo]
+    );
+    if (!matricula || matricula.length === 0) return res.status(404).json({ error: 'Alumno no encontrado en este grupo' });
+
+    const matriculaId = matricula[0].id;
+
+    const incidencias = await query(
+      `SELECT ei.id, ei.description, ei.created_at, ei.worker_id, ei.assignment_id,
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
+              c.nombre as curso_nombre
+       FROM enrollment_incidents ei
+       INNER JOIN matriculas m ON m.id = ei.enrollment_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       LEFT JOIN personal p ON p.id = ei.worker_id
+       LEFT JOIN asignaturas a ON a.id = ei.assignment_id
+       LEFT JOIN cursos c ON c.id = a.curso_id
+       WHERE ei.enrollment_id = ? AND ei.type = 1 AND g.anio = ?
+       ORDER BY ei.created_at DESC`,
+      [matriculaId, anio_activo]
+    );
+
+    res.json({
+      incidencias: incidencias || [],
+      total_incidencias: (incidencias || []).length
+    });
+  } catch (error) {
+    console.error('Error obteniendo incidencias (tutor):', error);
+    res.status(500).json({ error: 'Error al obtener incidencias' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas
+ * Obtener estrellas de un alumno (solo lectura para el tutor)
+ */
+router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas', async (req, res) => {
+  try {
+    const { grupoId, alumnoId } = req.params;
+    const { colegio_id, anio_activo, personal_id } = req.user;
+
+    if (!personal_id) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const matricula = await query(
+      `SELECT m.id FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.grupo_id = ? AND m.colegio_id = ?
+         AND (m.estado = 0 OR m.estado = 4) AND g.anio = ?`,
+      [alumnoId, grupoId, colegio_id, anio_activo]
+    );
+    if (!matricula || matricula.length === 0) return res.status(404).json({ error: 'Alumno no encontrado en este grupo' });
+
+    const matriculaId = matricula[0].id;
+
+    const estrellas = await query(
+      `SELECT ei.id, ei.points, ei.description, ei.created_at, ei.worker_id, ei.assignment_id,
+              CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
+              c.nombre as curso_nombre
+       FROM enrollment_incidents ei
+       INNER JOIN matriculas m ON m.id = ei.enrollment_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       LEFT JOIN personal p ON p.id = ei.worker_id
+       LEFT JOIN asignaturas a ON a.id = ei.assignment_id
+       LEFT JOIN cursos c ON c.id = a.curso_id
+       WHERE ei.enrollment_id = ? AND ei.type = 2 AND g.anio = ?
+       ORDER BY ei.created_at DESC`,
+      [matriculaId, anio_activo]
+    );
+
+    const totalEstrellas = (estrellas || []).reduce((sum, e) => sum + (e.points || 0), 0);
+
+    res.json({
+      estrellas: estrellas || [],
+      total_estrellas: totalEstrellas
+    });
+  } catch (error) {
+    console.error('Error obteniendo estrellas (tutor):', error);
+    res.status(500).json({ error: 'Error al obtener estrellas' });
+  }
+});
+
+/**
  * GET /api/docente/tutoria/grupos/:grupoId/orden-merito
  * Reporte de orden de mérito del grupo (por bimestre)
  */

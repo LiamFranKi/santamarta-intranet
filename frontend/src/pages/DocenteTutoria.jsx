@@ -12,6 +12,7 @@ import jsPDF from 'jspdf';
 import './DocenteTutoria.css';
 import './AlumnoCursos.css';
 import './AlumnoHorario.css';
+import './DocenteHijos.css';
 
 function DocenteTutoria() {
   const navigate = useNavigate();
@@ -91,6 +92,16 @@ function DocenteTutoria() {
   const [archivosAdjuntosMensajeAlumno, setArchivosAdjuntosMensajeAlumno] = useState([]);
   const [enviandoMensajeAlumno, setEnviandoMensajeAlumno] = useState(false);
   const quillRefMensajeAlumno = useRef(null);
+
+  // Estados para Incidencias y Estrellas (Tutoría - solo ver, no crear)
+  const [showModalIncidenciasTutoria, setShowModalIncidenciasTutoria] = useState(false);
+  const [showModalEstrellasTutoria, setShowModalEstrellasTutoria] = useState(false);
+  const [alumnoSeleccionadoTutoria, setAlumnoSeleccionadoTutoria] = useState(null);
+  const [incidenciasTutoria, setIncidenciasTutoria] = useState([]);
+  const [estrellasTutoria, setEstrellasTutoria] = useState([]);
+  const [totalEstrellasTutoria, setTotalEstrellasTutoria] = useState(0);
+  const [loadingIncidenciasTutoria, setLoadingIncidenciasTutoria] = useState(false);
+  const [loadingEstrellasTutoria, setLoadingEstrellasTutoria] = useState(false);
 
   useEffect(() => {
     cargarGruposTutor();
@@ -485,6 +496,91 @@ function DocenteTutoria() {
   const cerrarModalAlumno = () => {
     setAlumnoInfo(null);
   };
+
+  // Incidencias y Estrellas (tutoría - solo ver)
+  const handleVerIncidenciasTutoria = async (alumno) => {
+    if (!selectedGrupo?.id) return;
+    setAlumnoSeleccionadoTutoria(alumno);
+    setLoadingIncidenciasTutoria(true);
+    setShowModalIncidenciasTutoria(true);
+    try {
+      const res = await api.get(`/docente/tutoria/grupos/${selectedGrupo.id}/alumnos/${alumno.id}/incidencias`);
+      setIncidenciasTutoria(res.data.incidencias || []);
+    } catch (err) {
+      console.error('Error cargando incidencias (tutoría):', err);
+      Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudieron cargar las incidencias' });
+      setIncidenciasTutoria([]);
+    } finally {
+      setLoadingIncidenciasTutoria(false);
+    }
+    setOpenDropdownAlumno(null);
+  };
+
+  const handleVerEstrellasTutoria = async (alumno) => {
+    if (!selectedGrupo?.id) return;
+    setAlumnoSeleccionadoTutoria(alumno);
+    setLoadingEstrellasTutoria(true);
+    setShowModalEstrellasTutoria(true);
+    try {
+      const res = await api.get(`/docente/tutoria/grupos/${selectedGrupo.id}/alumnos/${alumno.id}/estrellas`);
+      setEstrellasTutoria(res.data.estrellas || []);
+      setTotalEstrellasTutoria(res.data.total_estrellas || 0);
+    } catch (err) {
+      console.error('Error cargando estrellas (tutoría):', err);
+      Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudieron cargar las estrellas' });
+      setEstrellasTutoria([]);
+      setTotalEstrellasTutoria(0);
+    } finally {
+      setLoadingEstrellasTutoria(false);
+    }
+    setOpenDropdownAlumno(null);
+  };
+
+  const formatearFechaTutoria = (fechaStr) => {
+    try {
+      const d = new Date(fechaStr);
+      return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return 'Sin fecha';
+    }
+  };
+
+  const obtenerMesAnioTutoria = (fechaStr) => {
+    try {
+      const d = new Date(fechaStr);
+      return d.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
+    } catch {
+      return 'Sin fecha';
+    }
+  };
+
+  const agruparIncidenciasPorMesTutoria = (lista) => {
+    const grupos = {};
+    (lista || []).forEach((item) => {
+      const key = obtenerMesAnioTutoria(item.created_at);
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(item);
+    });
+    return grupos;
+  };
+
+  const agruparEstrellasPorMesTutoria = (lista) => {
+    const grupos = {};
+    (lista || []).forEach((item) => {
+      const key = obtenerMesAnioTutoria(item.created_at);
+      if (!grupos[key]) grupos[key] = [];
+      grupos[key].push(item);
+    });
+    return grupos;
+  };
+
+  const coloresPastelTutoria = [
+    { bg: '#fef3c7', border: '#f59e0b', text: '#78350f' },
+    { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' },
+    { bg: '#d1fae5', border: '#10b981', text: '#065f46' },
+    { bg: '#fce7f3', border: '#ec4899', text: '#9d174d' },
+    { bg: '#e0e7ff', border: '#6366f1', text: '#3730a3' }
+  ];
 
   const volverAGrupos = () => {
     setSelectedGrupo(null);
@@ -2608,6 +2704,28 @@ function DocenteTutoria() {
                                         <span className="dropdown-icon">ℹ️</span>
                                         <span>Ver Información</span>
                                       </button>
+                                      <button
+                                        className="dropdown-item"
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleVerIncidenciasTutoria(alumno);
+                                        }}
+                                      >
+                                        <span className="dropdown-icon">⚠️</span>
+                                        <span>Incidencias</span>
+                                      </button>
+                                      <button
+                                        className="dropdown-item"
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleVerEstrellasTutoria(alumno);
+                                        }}
+                                      >
+                                        <span className="dropdown-icon">⭐</span>
+                                        <span>Estrellas</span>
+                                      </button>
                                     </div>,
                                     document.body
                                   )
@@ -3250,6 +3368,132 @@ function DocenteTutoria() {
                   {enviandoMensajeAlumno ? '⏳ Enviando...' : '✉️ Enviar Mensaje'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Incidencias (Tutoría - solo ver) */}
+      {showModalIncidenciasTutoria && createPortal(
+        <div className="modal-overlay-qr" onClick={() => { setShowModalIncidenciasTutoria(false); setAlumnoSeleccionadoTutoria(null); setIncidenciasTutoria([]); }}>
+          <div className="modal-content-incidencias" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-qr">
+              <h2>📋 Incidencias de {alumnoSeleccionadoTutoria?.apellido_paterno} {alumnoSeleccionadoTutoria?.apellido_materno}, {alumnoSeleccionadoTutoria?.nombres}</h2>
+              <button className="modal-close-qr" onClick={() => { setShowModalIncidenciasTutoria(false); setAlumnoSeleccionadoTutoria(null); setIncidenciasTutoria([]); }}>×</button>
+            </div>
+            <div className="modal-body-incidencias">
+              {loadingIncidenciasTutoria ? (
+                <div className="qr-loading"><div className="loading-spinner">Cargando incidencias...</div></div>
+              ) : incidenciasTutoria.length === 0 ? (
+                <div className="empty-state"><p>No hay incidencias registradas</p></div>
+              ) : (() => {
+                const gruposPorMes = agruparIncidenciasPorMesTutoria(incidenciasTutoria);
+                const mesesOrdenados = Object.keys(gruposPorMes).sort((a, b) => {
+                  const dateA = new Date(gruposPorMes[a][0].created_at);
+                  const dateB = new Date(gruposPorMes[b][0].created_at);
+                  return dateB - dateA;
+                });
+                return (
+                  <div className="grupos-mes-container">
+                    {mesesOrdenados.map((mesAnio) => {
+                      const incidenciasMes = gruposPorMes[mesAnio];
+                      return (
+                        <div key={mesAnio} className="grupo-mes">
+                          <div className="grupo-mes-header">
+                            <h3 className="mes-titulo">{mesAnio}</h3>
+                          </div>
+                          <div className="cards-container">
+                            {incidenciasMes.map((incidencia, index) => {
+                              const color = coloresPastelTutoria[index % coloresPastelTutoria.length];
+                              return (
+                                <div key={incidencia.id} className="incidencia-card" style={{ backgroundColor: color.bg, borderColor: color.border, color: color.text }}>
+                                  <div className="card-header-incidencia">
+                                    <div className="card-fecha"><span className="icon">📅</span><span>{formatearFechaTutoria(incidencia.created_at)}</span></div>
+                                  </div>
+                                  <div className="card-body-incidencia">
+                                    <div className="card-info-row"><span className="label">Docente:</span><span className="value">{incidencia.docente_nombre || 'N/A'}</span></div>
+                                    <div className="card-info-row"><span className="label">Curso:</span><span className="value">{incidencia.curso_nombre || 'N/A'}</span></div>
+                                    <div className="card-info-row card-descripcion"><span className="label">Descripción:</span><span className="value">{incidencia.description || 'Sin descripción'}</span></div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Estrellas (Tutoría - solo ver) */}
+      {showModalEstrellasTutoria && createPortal(
+        <div className="modal-overlay-qr" onClick={() => { setShowModalEstrellasTutoria(false); setAlumnoSeleccionadoTutoria(null); setEstrellasTutoria([]); setTotalEstrellasTutoria(0); }}>
+          <div className="modal-content-estrellas" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-qr">
+              <h2>⭐ Estrellas de {alumnoSeleccionadoTutoria?.apellido_paterno} {alumnoSeleccionadoTutoria?.apellido_materno}, {alumnoSeleccionadoTutoria?.nombres}</h2>
+              <button className="modal-close-qr" onClick={() => { setShowModalEstrellasTutoria(false); setAlumnoSeleccionadoTutoria(null); setEstrellasTutoria([]); setTotalEstrellasTutoria(0); }}>×</button>
+            </div>
+            <div className="modal-body-estrellas">
+              {loadingEstrellasTutoria ? (
+                <div className="qr-loading"><div className="loading-spinner">Cargando estrellas...</div></div>
+              ) : estrellasTutoria.length === 0 ? (
+                <div className="empty-state"><p>No hay estrellas registradas</p></div>
+              ) : (
+                <>
+                  <div className="total-estrellas-badge">
+                    <span className="total-label">Total de Estrellas:</span>
+                    <span className="total-value">{totalEstrellasTutoria}</span>
+                  </div>
+                  {(() => {
+                    const gruposPorMes = agruparEstrellasPorMesTutoria(estrellasTutoria);
+                    const mesesOrdenados = Object.keys(gruposPorMes).sort((a, b) => {
+                      const dateA = new Date(gruposPorMes[a][0].created_at);
+                      const dateB = new Date(gruposPorMes[b][0].created_at);
+                      return dateB - dateA;
+                    });
+                    return (
+                      <div className="grupos-mes-container">
+                        {mesesOrdenados.map((mesAnio) => {
+                          const estrellasMes = gruposPorMes[mesAnio];
+                          const totalMes = estrellasMes.reduce((sum, e) => sum + (e.points || 0), 0);
+                          return (
+                            <div key={mesAnio} className="grupo-mes">
+                              <div className="grupo-mes-header">
+                                <div><h3 className="mes-titulo">{mesAnio}</h3><span className="mes-total">Total: {totalMes} estrellas</span></div>
+                              </div>
+                              <div className="cards-container">
+                                {estrellasMes.map((estrella, index) => {
+                                  const color = coloresPastelTutoria[index % coloresPastelTutoria.length];
+                                  return (
+                                    <div key={estrella.id} className="estrella-card" style={{ backgroundColor: color.bg, borderColor: color.border, color: color.text }}>
+                                      <div className="card-header-estrella">
+                                        <div className="card-fecha"><span className="icon">📅</span><span>{formatearFechaTutoria(estrella.created_at)}</span></div>
+                                        <div className="card-estrellas-count"><span className="icon">⭐</span><span className="count">{estrella.points || 0}</span></div>
+                                      </div>
+                                      <div className="card-body-estrella">
+                                        <div className="card-info-row"><span className="label">Docente:</span><span className="value">{estrella.docente_nombre || 'N/A'}</span></div>
+                                        <div className="card-info-row"><span className="label">Curso:</span><span className="value">{estrella.curso_nombre || 'N/A'}</span></div>
+                                        <div className="card-info-row card-descripcion"><span className="label">Descripción:</span><span className="value">{estrella.description || 'Sin descripción'}</span></div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
             </div>
           </div>
         </div>,
