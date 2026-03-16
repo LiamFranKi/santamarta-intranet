@@ -3442,16 +3442,15 @@ function DocenteHijos() {
       const photoW = 29;   // foto más ancha
       const photoH = 28;
       const photoX = 3;
-      const photoRadius = 5;  // foto más redondeada
+      const photoRadius = 7;  // bordes redondos suaves en la foto
       const centerX = 35;  // más espacio entre foto y datos del alumno
       const centerW = 50;
       const qrBoxSize = 24;   // recuadro blanco
-      const qrSize = 24;     // QR pegado a los bordes del contenedor
-      const qrPadding = 0;   // sin padding para que el QR se vea bien
-      const qrY = 30;        // QR más abajo, a la altura del Grado
-      const qrX = width - qrBoxSize - 5;
+      const qrDrawSize = 22;  // QR un poco menor para centrarlo en la caja (margen 1mm cada lado)
+      const qrY = (height - qrBoxSize) / 2;  // QR centrado verticalmente en el carnet
+      const qrX = width - qrBoxSize - 5;      // QR a la derecha (horizontal)
 
-      // Foto del alumno: preferir base64 del backend (evita CORS). Sin borde amarillo, más redondeada.
+      // Foto del alumno: bordes redondos suaves, sin borde amarillo.
       let photoData = qrData.foto_base64 || null;
       if (!photoData && qrData.foto_url) photoData = await loadImageAsDataUrl(qrData.foto_url);
       if (photoData) {
@@ -3459,7 +3458,7 @@ function DocenteHijos() {
           const photoFormat = photoData.indexOf('image/png') !== -1 ? 'PNG' : 'JPEG';
           doc.setFillColor(...blueBg);
           doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
-          const inset = 0.4;
+          const inset = 0.8;  // inset para que se vean los bordes redondos suaves
           doc.addImage(photoData, photoFormat, photoX + inset, bodyY + inset, photoW - inset * 2, photoH - inset * 2);
         } catch (e) {
           doc.setFillColor(60, 70, 90);
@@ -3470,8 +3469,8 @@ function DocenteHijos() {
         doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
       }
 
-      // Debajo de la foto: 8mm padding; Apoderado, Cel. Apoderado, Dirección (labels amarillo; datos con más espacio, se ve todo)
-      const paddingFotoApoderado = 8;   // 8mm entre foto y datos del apoderado
+      // Debajo de la foto: 4mm padding; Apoderado, Cel. Apoderado, Dirección (labels amarillo; datos con más espacio, se ve todo)
+      const paddingFotoApoderado = 4;   // 4mm entre foto y datos del apoderado
       const filaY0 = bodyY + photoH + paddingFotoApoderado;
       const labelW = 20;
       const valorX = photoX + labelW;
@@ -3540,10 +3539,11 @@ function DocenteHijos() {
         doc.text(`DNI: ${dni}`, centerX, textY);
       }
 
-      // QR Code (desde DOM): recuadro blanco, QR pegado a los bordes (padding 0, sin borde extra)
+      // QR Code: recuadro blanco centrado verticalmente; imagen QR centrada dentro del recuadro
       const qrElement = document.querySelector('#qr-card-modal-print .qr-code-wrapper svg');
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
+      const qrInset = (qrBoxSize - qrDrawSize) / 2;  // centrar la imagen en la caja
       if (qrElement) {
         try {
           const svgData = new XMLSerializer().serializeToString(qrElement);
@@ -3558,7 +3558,7 @@ function DocenteHijos() {
               canvas.height = 200;
               ctx.drawImage(img, 0, 0);
               const imgData = canvas.toDataURL('image/png');
-              doc.addImage(imgData, 'PNG', qrX + qrPadding, qrY + qrPadding, qrSize, qrSize);
+              doc.addImage(imgData, 'PNG', qrX + qrInset, qrY + qrInset, qrDrawSize, qrDrawSize);
               URL.revokeObjectURL(url);
               resolve();
             };
@@ -3567,7 +3567,7 @@ function DocenteHijos() {
           });
         } catch (err) {
           doc.setFillColor(240, 240, 240);
-          doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
+          doc.roundedRect(qrX + qrInset, qrY + qrInset, qrDrawSize, qrDrawSize, 1, 1, 'F');
         }
       }
 
