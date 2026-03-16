@@ -584,6 +584,163 @@ function DocenteTutoria() {
     { bg: '#e0e7ff', border: '#6366f1', text: '#3730a3' }
   ];
 
+  // Exportar Incidencias a PDF por mes (mismo formato que Cursos Asignados / DocenteHijos)
+  const handleExportarIncidenciasPDFTutoria = async (mesAnio, incidenciasMes) => {
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const margin = 15;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - (margin * 2);
+      let yPos = margin;
+      const nombreAlumno = [alumnoSeleccionadoTutoria?.apellido_paterno, alumnoSeleccionadoTutoria?.apellido_materno, alumnoSeleccionadoTutoria?.nombres].filter(Boolean).join(' ');
+
+      doc.setFillColor(79, 70, 229);
+      doc.rect(0, 0, pageWidth, 30, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('INCIDENCIAS', pageWidth / 2, 12, { align: 'center' });
+      doc.setFontSize(12);
+      doc.text(nombreAlumno, pageWidth / 2, 20, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text(mesAnio, pageWidth / 2, 26, { align: 'center' });
+      yPos = 40;
+
+      incidenciasMes.forEach((incidencia, index) => {
+        if (yPos > pageHeight - 50) { doc.addPage(); yPos = margin; }
+        const color = coloresPastelTutoria[index % coloresPastelTutoria.length];
+        const cardHeight = 35;
+        const bgR = parseInt(color.bg.slice(1, 3), 16);
+        const bgG = parseInt(color.bg.slice(3, 5), 16);
+        const bgB = parseInt(color.bg.slice(5, 7), 16);
+        const brR = parseInt(color.border.slice(1, 3), 16);
+        const brG = parseInt(color.border.slice(3, 5), 16);
+        const brB = parseInt(color.border.slice(5, 7), 16);
+        doc.setFillColor(bgR, bgG, bgB);
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
+        doc.setDrawColor(brR, brG, brB);
+        doc.setLineWidth(1);
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
+        doc.setTextColor(30, 41, 59);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Fecha:', margin + 3, yPos + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(formatearFechaTutoria(incidencia.created_at), margin + 20, yPos + 6);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Docente:', margin + 3, yPos + 12);
+        doc.setFont('helvetica', 'normal');
+        doc.text(incidencia.docente_nombre || 'N/A', margin + 20, yPos + 12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Curso:', margin + 3, yPos + 18);
+        doc.setFont('helvetica', 'normal');
+        doc.text(incidencia.curso_nombre || 'N/A', margin + 20, yPos + 18);
+        doc.setFont('helvetica', 'bold');
+        const descY = yPos + 24;
+        doc.text('Detalle:', margin + 3, descY);
+        doc.setFont('helvetica', 'normal');
+        const descLines = doc.splitTextToSize(incidencia.description || 'Sin detalle', contentWidth - 25);
+        descLines.forEach((line, idx) => { doc.text(line, margin + 20, descY + (idx * 4)); });
+        const descHeight = descLines.length * 4;
+        yPos += Math.max(cardHeight, descY + descHeight - yPos) + 8;
+      });
+
+      const nombreArchivo = `Incidencias_${nombreAlumno.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
+      doc.save(nombreArchivo);
+      Swal.fire({ title: '¡PDF Generado!', text: 'Las incidencias se han exportado correctamente', icon: 'success' });
+    } catch (error) {
+      console.error('Error generando PDF incidencias:', error);
+      Swal.fire({ title: 'Error', text: 'No se pudo generar el PDF', icon: 'error' });
+    }
+  };
+
+  // Exportar Estrellas a PDF por mes (mismo formato que Cursos Asignados / DocenteHijos)
+  const handleExportarEstrellasPDFTutoria = async (mesAnio, estrellasMes) => {
+    try {
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const margin = 15;
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const contentWidth = pageWidth - (margin * 2);
+      let yPos = margin;
+      const nombreAlumno = [alumnoSeleccionadoTutoria?.apellido_paterno, alumnoSeleccionadoTutoria?.apellido_materno, alumnoSeleccionadoTutoria?.nombres].filter(Boolean).join(' ');
+
+      doc.setFillColor(251, 191, 36);
+      doc.rect(0, 0, pageWidth, 30, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.text('ESTRELLAS', pageWidth / 2, 12, { align: 'center' });
+      doc.setFontSize(12);
+      doc.text(nombreAlumno, pageWidth / 2, 20, { align: 'center' });
+      doc.setFontSize(10);
+      doc.text(mesAnio, pageWidth / 2, 26, { align: 'center' });
+      const totalMes = estrellasMes.reduce((sum, e) => sum + (e.points || 0), 0);
+      yPos = 40;
+      doc.setFillColor(251, 191, 36);
+      doc.roundedRect(margin, yPos, contentWidth, 10, 3, 3, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Total del mes: ${totalMes} estrellas`, pageWidth / 2, yPos + 7, { align: 'center' });
+      yPos += 15;
+
+      estrellasMes.forEach((estrella, index) => {
+        if (yPos > pageHeight - 50) { doc.addPage(); yPos = margin; }
+        const color = coloresPastelTutoria[index % coloresPastelTutoria.length];
+        const cardHeight = 35;
+        const bgR = parseInt(color.bg.slice(1, 3), 16);
+        const bgG = parseInt(color.bg.slice(3, 5), 16);
+        const bgB = parseInt(color.bg.slice(5, 7), 16);
+        const brR = parseInt(color.border.slice(1, 3), 16);
+        const brG = parseInt(color.border.slice(3, 5), 16);
+        const brB = parseInt(color.border.slice(5, 7), 16);
+        doc.setFillColor(bgR, bgG, bgB);
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
+        doc.setDrawColor(brR, brG, brB);
+        doc.setLineWidth(1);
+        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
+        doc.setTextColor(30, 41, 59);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Fecha:', margin + 3, yPos + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(formatearFechaTutoria(estrella.created_at), margin + 20, yPos + 6);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Estrellas:', margin + 3, yPos + 12);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text(`${estrella.points || 0}`, margin + 20, yPos + 12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Docente:', margin + 3, yPos + 18);
+        doc.setFont('helvetica', 'normal');
+        doc.text(estrella.docente_nombre || 'N/A', margin + 20, yPos + 18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Curso:', margin + 3, yPos + 24);
+        doc.setFont('helvetica', 'normal');
+        doc.text(estrella.curso_nombre || 'N/A', margin + 20, yPos + 24);
+        doc.setFont('helvetica', 'bold');
+        const descY = yPos + 30;
+        doc.text('Detalle:', margin + 3, descY);
+        doc.setFont('helvetica', 'normal');
+        const descLines = doc.splitTextToSize(estrella.description || 'Sin detalle', contentWidth - 25);
+        descLines.forEach((line, idx) => { doc.text(line, margin + 20, descY + (idx * 4)); });
+        const descHeight = descLines.length * 4;
+        yPos += Math.max(cardHeight, descY + descHeight - yPos) + 8;
+      });
+
+      const nombreArchivo = `Estrellas_${nombreAlumno.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
+      doc.save(nombreArchivo);
+      Swal.fire({ title: '¡PDF Generado!', text: 'Las estrellas se han exportado correctamente', icon: 'success' });
+    } catch (error) {
+      console.error('Error generando PDF estrellas:', error);
+      Swal.fire({ title: 'Error', text: 'No se pudo generar el PDF', icon: 'error' });
+    }
+  };
+
   const volverAGrupos = () => {
     setSelectedGrupo(null);
     setGrupoInfo(null);
@@ -3404,6 +3561,14 @@ function DocenteTutoria() {
                         <div key={mesAnio} className="grupo-mes">
                           <div className="grupo-mes-header">
                             <h3 className="mes-titulo">{mesAnio}</h3>
+                            <button
+                              type="button"
+                              className="btn-exportar-mes"
+                              onClick={() => handleExportarIncidenciasPDFTutoria(mesAnio, incidenciasMes)}
+                            >
+                              <span className="btn-icon">📄</span>
+                              <span>Exportar PDF</span>
+                            </button>
                           </div>
                           <div className="cards-container">
                             {incidenciasMes.map((incidencia, index) => {
@@ -3469,6 +3634,14 @@ function DocenteTutoria() {
                             <div key={mesAnio} className="grupo-mes">
                               <div className="grupo-mes-header">
                                 <div><h3 className="mes-titulo">{mesAnio}</h3><span className="mes-total">Total: {totalMes} estrellas</span></div>
+                                <button
+                                  type="button"
+                                  className="btn-exportar-mes"
+                                  onClick={() => handleExportarEstrellasPDFTutoria(mesAnio, estrellasMes)}
+                                >
+                                  <span className="btn-icon">📄</span>
+                                  <span>Exportar PDF</span>
+                                </button>
                               </div>
                               <div className="cards-container">
                                 {estrellasMes.map((estrella, index) => {
