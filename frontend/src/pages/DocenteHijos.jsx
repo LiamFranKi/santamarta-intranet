@@ -3521,18 +3521,30 @@ function DocenteHijos() {
           const photoClipped = await new Promise((resolve) => {
             const img = new Image();
             img.onload = () => {
-              const scale = 4;
+              const scale = 6;
               const c = document.createElement('canvas');
               c.width = photoInnerW * scale;
               c.height = photoInnerH * scale;
               const ctx = c.getContext('2d');
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
               const r = Math.max(1, photoRadius * scale);
               ctx.beginPath();
               if (ctx.roundRect) ctx.roundRect(0, 0, c.width, c.height, r);
               else ctx.rect(0, 0, c.width, c.height);
               ctx.closePath();
               ctx.clip();
-              ctx.drawImage(img, 0, 0, c.width, c.height);
+              const boxAspect = c.width / c.height;
+              const imgAspect = img.width / img.height;
+              let sx = 0, sy = 0, sw = img.width, sh = img.height;
+              if (imgAspect > boxAspect) {
+                sw = img.height * boxAspect;
+                sx = (img.width - sw) / 2;
+              } else {
+                sh = img.width / boxAspect;
+                sy = (img.height - sh) / 2;
+              }
+              ctx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
               resolve(c.toDataURL('image/png'));
             };
             img.onerror = () => resolve(null);
