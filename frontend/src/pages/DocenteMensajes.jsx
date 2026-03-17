@@ -453,6 +453,22 @@ function DocenteMensajes() {
     setDestinatariosSeleccionados(destinatariosSeleccionados.filter((_, i) => i !== index));
   };
 
+  // Responder a un mensaje recibido: abre redactar con el remitente como destinatario
+  const handleResponder = (mensaje) => {
+    if (!mensaje || !mensaje.remitente_id) return;
+    const destinatario = {
+      usuario_id: mensaje.remitente_id,
+      nombre_completo: mensaje.remitente_nombre_completo || 'Remitente',
+      tipo: mensaje.remitente_tipo || ''
+    };
+    setDestinatariosSeleccionados([destinatario]);
+    setAsunto('Re: ' + (mensaje.asunto || '').trim());
+    setContenido('');
+    setArchivosAdjuntos([]);
+    setMensajeSeleccionado(null);
+    setVista('nuevo');
+  };
+
   // Manejar selección de archivos
   const handleArchivoChange = (e) => {
     const files = Array.from(e.target.files);
@@ -938,6 +954,16 @@ function DocenteMensajes() {
                   }
                 }}
               />
+              <div className="mensaje-modal-footer">
+                {vista === 'recibidos' && mensajeSeleccionado?.remitente_id && (
+                  <button type="button" className="btn-responder-mensaje" onClick={() => handleResponder(mensajeSeleccionado)}>
+                    ✉️ Responder
+                  </button>
+                )}
+                <button type="button" className="mensaje-modal-cerrar" onClick={() => setMensajeSeleccionado(null)}>
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         )}

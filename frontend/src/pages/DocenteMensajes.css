@@ -824,6 +824,48 @@
   color: #374151;
 }
 
+.mensaje-modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.btn-responder-mensaje {
+  padding: 0.5rem 1rem;
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-responder-mensaje:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.mensaje-modal-cerrar {
+  padding: 0.5rem 1rem;
+  background: #f3f4f6;
+  color: #374151;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mensaje-modal-cerrar:hover {
+  background: #e5e7eb;
+}
+
 .mensaje-modal-body {
   padding: 1.5rem;
   overflow-y: auto;
