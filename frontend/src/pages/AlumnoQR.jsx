@@ -397,7 +397,7 @@ function AlumnoQR() {
                 value={qrData.qr_data || qrData.nro_documento || 'ALUMNO'}
                 size={260}
                 level="H"
-                includeMargin={true}
+                includeMargin={false}
               />
             </div>
           </div>
