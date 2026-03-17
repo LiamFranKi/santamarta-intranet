@@ -69,6 +69,41 @@
   font-size: 1.1rem;
 }
 
+/* Vista previa simple: solo fondo blanco y QR grande al medio (igual que apoderado) */
+.alumno-qr .qr-preview-simple {
+  background: #fff;
+  padding: 2rem;
+  border-radius: 12px;
+}
+
+.alumno-qr .qr-card-modal.qr-card-solo-qr {
+  width: auto;
+  max-width: 100%;
+  min-height: 0;
+  background: #fff;
+  border: none;
+  border-radius: 12px;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+}
+
+.alumno-qr .qr-card-solo-qr:hover {
+  transform: none;
+}
+
+.alumno-qr .qr-card-solo-qr .qr-code-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.alumno-qr .qr-card-solo-qr .qr-code-wrapper svg {
+  display: block;
+}
+
 /* Contenedor de la tarjeta QR */
 .qr-card-container {
   display: flex;

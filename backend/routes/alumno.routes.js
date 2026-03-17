@@ -2104,18 +2104,19 @@ router.put('/perfil/password', async (req, res) => {
 
 /**
  * GET /api/alumno/qr
- * Obtener datos del alumno para generar QR (fotocheck)
+ * Obtener datos del alumno para QR/carnet (misma estructura que apoderado/hijos/:id/qr)
  */
 router.get('/qr', async (req, res) => {
   try {
     const { usuario_id, colegio_id, anio_activo } = req.user;
 
-    // Obtener datos del alumno
+    // Obtener datos del alumno (incl. foto para carnet)
     const alumno = await query(
-      `SELECT a.id, a.nombres, a.apellido_paterno, a.apellido_materno, a.nro_documento
+      `SELECT a.id, a.nombres, a.apellido_paterno, a.apellido_materno, a.foto,
+              u.usuario as nro_documento
        FROM alumnos a
-       INNER JOIN usuarios u ON u.alumno_id = a.id
-       WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+       INNER JOIN usuarios u ON u.alumno_id = a.id AND u.colegio_id = a.colegio_id AND u.estado = 'ACTIVO'
+       WHERE u.id = ? AND a.colegio_id = ?`,
       [usuario_id, colegio_id]
     );
 
@@ -2149,6 +2150,22 @@ router.get('/qr', async (req, res) => {
     const colegioNombre = colegio.length > 0 ? colegio[0].nombre : 'Vanguard Schools';
     const matriculaData = matricula.length > 0 ? matricula[0] : null;
 
+    // Apoderado del alumno (para carnet: Apoderado, Celular, Dirección)
+    const apoderadoInfo = await query(
+      `SELECT ap.id, CONCAT(ap.nombres, ' ', ap.apellido_paterno, ' ', ap.apellido_materno) as nombre_completo,
+              ap.telefono_celular,
+              ap.direccion
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       WHERE f.alumno_id = ? AND ap.colegio_id = ?
+       LIMIT 1`,
+      [alumnoData.id, colegio_id]
+    );
+    const apoderadoData = apoderadoInfo && apoderadoInfo.length > 0 ? apoderadoInfo[0] : null;
+    const apoderado_nombre = apoderadoData ? (apoderadoData.nombre_completo || '').trim() : '';
+    const apoderado_celular = apoderadoData ? (apoderadoData.telefono_celular || '').trim() : '';
+    const direccion = apoderadoData ? (apoderadoData.direccion || '').trim() : '';
+
     // Construir texto del grupo
     let grupoTexto = '';
     if (matriculaData) {
@@ -2156,8 +2173,55 @@ router.get('/qr', async (req, res) => {
       grupoTexto = `${matriculaData.nivel_nombre || ''} ${gradoTexto} ${matriculaData.seccion || ''}`.trim();
     }
 
-    // Generar código QR (puede ser el DNI o un ID único)
     const qrData = alumnoData.nro_documento || `ALUMNO-${alumnoData.id}`;
+
+    // Foto y logo en base64 para el carnet (igual que apoderado/hijos/:id/qr)
+    let foto_url = null;
+    let foto_base64 = null;
+    if (alumnoData.foto && alumnoData.foto.trim() !== '') {
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const isProduction = process.env.NODE_ENV === 'production';
+      foto_url = isProduction
+        ? `${phpSystemUrl}/Static/Image/Fotos/${alumnoData.foto}`
+        : `http://localhost:5000/Static/Image/Fotos/${alumnoData.foto}`;
+      const baseFotosPath = process.env.STATIC_FOTOS_PATH || path.join(__dirname, '..', 'Static', 'Image', 'Fotos');
+      let fotoPath = path.join(baseFotosPath, path.basename(alumnoData.foto));
+      if (!fs.existsSync(fotoPath) && process.env.NODE_ENV === 'production') {
+        fotoPath = path.join('/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos', path.basename(alumnoData.foto));
+      }
+      try {
+        if (fs.existsSync(fotoPath)) {
+          const buf = fs.readFileSync(fotoPath);
+          const ext = (path.extname(alumnoData.foto) || '').toLowerCase();
+          const mime = ext === '.png' ? 'image/png' : 'image/jpeg';
+          foto_base64 = `data:${mime};base64,${buf.toString('base64')}`;
+        }
+      } catch (e) { /* ignorar */ }
+    }
+
+    let logo_url = null;
+    let logo_base64 = null;
+    const configLogo = await query(`SELECT valor FROM config WHERE clave = 'boleta_logo' LIMIT 1`);
+    if (configLogo && configLogo.length > 0 && configLogo[0].valor) {
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const isProduction = process.env.NODE_ENV === 'production';
+      logo_url = isProduction
+        ? `${phpSystemUrl}/Static/Archivos/${configLogo[0].valor}`
+        : `http://localhost:5000/Static/Archivos/${configLogo[0].valor}`;
+      const baseArchivosPath = process.env.STATIC_ARCHIVOS_PATH || path.join(__dirname, '..', 'Static', 'Archivos');
+      let logoPath = path.join(baseArchivosPath, path.basename(configLogo[0].valor));
+      if (!fs.existsSync(logoPath) && process.env.NODE_ENV === 'production') {
+        logoPath = path.join('/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Archivos', path.basename(configLogo[0].valor));
+      }
+      try {
+        if (fs.existsSync(logoPath)) {
+          const buf = fs.readFileSync(logoPath);
+          const ext = (path.extname(configLogo[0].valor) || '').toLowerCase();
+          const mime = ext === '.png' ? 'image/png' : 'image/jpeg';
+          logo_base64 = `data:${mime};base64,${buf.toString('base64')}`;
+        }
+      } catch (e) { /* ignorar */ }
+    }
 
     res.json({
       nombres: alumnoData.nombres || '',
@@ -2167,7 +2231,15 @@ router.get('/qr', async (req, res) => {
       grupo: grupoTexto,
       colegio_nombre: colegioNombre,
       anio: anio_activo,
-      qr_data: qrData
+      qr_data: qrData,
+      nro_documento: alumnoData.nro_documento || '',
+      foto_url: foto_url || null,
+      foto_base64: foto_base64 || null,
+      logo_url: logo_url || null,
+      logo_base64: logo_base64 || null,
+      apoderado_nombre,
+      apoderado_celular,
+      direccion
     });
   } catch (error) {
     console.error('Error obteniendo datos para QR:', error);

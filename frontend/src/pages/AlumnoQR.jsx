@@ -31,6 +31,19 @@ function AlumnoQR() {
     }
   };
 
+  const loadImageAsDataUrl = (url) => {
+    if (!url || typeof url !== 'string') return Promise.resolve(null);
+    return fetch(url, { mode: 'cors' })
+      .then((r) => r.blob())
+      .then((blob) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      }))
+      .catch(() => null);
+  };
+
   const handleExportarPDF = async () => {
     if (!qrData) {
       Swal.fire({
@@ -42,216 +55,290 @@ function AlumnoQR() {
     }
 
     try {
-      // Tamaño fotocheck vertical: 54mm x 89mm (portrait)
-      const width = 54;
-      const height = 89;
+      const width = 90;
+      const height = 60;
       const doc = new jsPDF({
-        orientation: 'portrait',
+        orientation: 'landscape',
         unit: 'mm',
         format: [width, height]
       });
 
-      const margin = 2.5;
-      const contentWidth = width - (margin * 2);
+      const blueBg = [41, 65, 114];
+      const blueDark = [28, 48, 95];
+      const blueLight = [52, 82, 138];
+      const greenBorder = [34, 197, 94];
+      const white = [255, 255, 255];
+      const orangeAccent = [251, 191, 36];
+      const cardRadius = 3;
 
-      // Fondo con gradiente suave
-      doc.setFillColor(255, 255, 255);
-      doc.rect(0, 0, width, height, 'F');
-      doc.setFillColor(248, 250, 252);
-      doc.rect(0, 0, width, height * 0.6, 'F');
+      const scale = 4;
+      const gradCanvas = document.createElement('canvas');
+      gradCanvas.width = width * scale;
+      gradCanvas.height = height * scale;
+      const gctx = gradCanvas.getContext('2d');
+      const r = cardRadius * scale;
+      gctx.beginPath();
+      if (gctx.roundRect) {
+        gctx.roundRect(0, 0, gradCanvas.width, gradCanvas.height, r);
+      } else {
+        gctx.rect(0, 0, gradCanvas.width, gradCanvas.height);
+      }
+      gctx.closePath();
+      gctx.clip();
+      const gradient = gctx.createLinearGradient(0, 0, 0, gradCanvas.height);
+      gradient.addColorStop(0, `rgb(${blueDark[0]}, ${blueDark[1]}, ${blueDark[2]})`);
+      gradient.addColorStop(0.5, `rgb(${blueBg[0]}, ${blueBg[1]}, ${blueBg[2]})`);
+      gradient.addColorStop(1, `rgb(${blueLight[0]}, ${blueLight[1]}, ${blueLight[2]})`);
+      gctx.fillStyle = gradient;
+      gctx.fillRect(0, 0, gradCanvas.width, gradCanvas.height);
+      const W = gradCanvas.width;
+      const H = gradCanvas.height;
+      gctx.globalAlpha = 0.07;
+      gctx.beginPath();
+      gctx.moveTo(W + 20, H * 0.3);
+      gctx.bezierCurveTo(W * 0.85, H * 0.2, W * 0.6, H * 0.5, W * 0.35, H * 0.4);
+      gctx.bezierCurveTo(W * 0.15, H * 0.32, -20, H * 0.5, -20, H * 0.6);
+      gctx.lineTo(-20, H + 20);
+      gctx.lineTo(W + 20, H + 20);
+      gctx.closePath();
+      gctx.fillStyle = 'rgb(34, 197, 94)';
+      gctx.fill();
+      gctx.globalAlpha = 0.05;
+      gctx.beginPath();
+      gctx.moveTo(W + 30, H * 0.75);
+      gctx.bezierCurveTo(W * 0.7, H * 0.7, W * 0.4, H * 0.85, W * 0.2, H * 0.75);
+      gctx.bezierCurveTo(0, H * 0.65, -20, H * 0.8, -20, H + 20);
+      gctx.lineTo(W + 30, H + 20);
+      gctx.closePath();
+      gctx.fillStyle = 'rgb(22, 163, 74)';
+      gctx.fill();
+      gctx.globalAlpha = 0.04;
+      gctx.beginPath();
+      gctx.moveTo(W * 0.9, 0);
+      gctx.bezierCurveTo(W * 0.6, -H * 0.1, W * 0.3, H * 0.25, 0, H * 0.15);
+      gctx.lineTo(-20, H + 20);
+      gctx.lineTo(W + 20, H + 20);
+      gctx.lineTo(W + 20, -20);
+      gctx.closePath();
+      gctx.fillStyle = 'rgb(74, 222, 128)';
+      gctx.fill();
+      gctx.globalAlpha = 1;
+      try {
+        doc.addImage(gradCanvas.toDataURL('image/png'), 'PNG', 0, 0, width, height);
+      } catch (e) {
+        doc.setFillColor(...blueBg);
+        doc.roundedRect(0, 0, width, height, cardRadius, cardRadius, 'F');
+      }
+      doc.setDrawColor(...greenBorder);
+      doc.setLineWidth(0.8);
+      doc.roundedRect(0, 0, width, height, cardRadius, cardRadius);
 
-      // Header con gradiente púrpura/azul
-      const headerHeight = 8;
-      doc.setFillColor(79, 70, 229); // #4f46e5
-      doc.rect(0, 0, width, headerHeight, 'F');
-      
-      // Efecto de gradiente en header (simulado con rectángulo más claro)
-      doc.setFillColor(99, 102, 241); // #6366f1
-      doc.rect(0, headerHeight * 0.5, width, headerHeight * 0.5, 'F');
+      const logoSize = 10;
+      const logoX = 3;
+      const logoY = 2;
+      const logoUrlLocal = typeof window !== 'undefined' ? `${window.location.origin}/icons/logoboleta.png` : '';
+      let logoData = logoUrlLocal ? await loadImageAsDataUrl(logoUrlLocal) : null;
+      if (!logoData) logoData = qrData.logo_base64 || null;
+      if (!logoData && qrData.logo_url) logoData = await loadImageAsDataUrl(qrData.logo_url);
+      if (logoData) {
+        try {
+          const logoFormat = logoData.indexOf('image/png') !== -1 ? 'PNG' : 'JPEG';
+          doc.addImage(logoData, logoFormat, logoX, logoY, logoSize, logoSize);
+        } catch (e) { /* ignorar */ }
+      }
 
-      // Nombre del colegio - en mayúsculas
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
+      const colegioNombre = (qrData.colegio_nombre || 'Vanguard Schools').trim();
+      const partes = colegioNombre.toUpperCase().split(/\s+/);
+      const titulo = partes[0] || 'COLEGIO';
+      const subtitulo = partes.slice(1).join(' ') || 'VANGUARD SCHOOLS';
+      doc.setTextColor(...white);
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      const colegioNombre = (qrData.colegio_nombre || 'Vanguard Schools').toUpperCase();
-      doc.text(colegioNombre, width / 2, 5.5, { align: 'center' });
+      doc.text(titulo, logoX + logoSize + 4, logoY + 4);
+      doc.text(subtitulo, logoX + logoSize + 4, logoY + 9.5);
+      doc.setFontSize(8);
+      doc.setTextColor(...orangeAccent);
+      doc.text('Intranet Escolar', width - 4, logoY + 5.5, { align: 'right' });
+      doc.setTextColor(...white);
 
-      // Calcular espacio disponible
-      const footerHeight = 6;
-      const bodyHeight = height - headerHeight - footerHeight;
-      let yPos = headerHeight + 3;
+      const bodyY = 16;
+      const photoW = 29;
+      const photoH = 28;
+      const photoX = 3;
+      const photoRadius = 6;
+      const centerX = 35;
+      const centerW = 50;
+      const qrBoxSize = 24;
+      const qrY = 30;
+      const qrX = width - qrBoxSize - 5;
 
-      // QR Code arriba centrado - centrado perfecto vertical y horizontal
-      const qrSize = 28; // Tamaño optimizado para formato vertical
-      const qrX = (width - qrSize) / 2; // Centrado horizontal perfecto
-      const qrY = yPos; // Posición vertical
+      let photoData = qrData.foto_base64 || null;
+      if (!photoData && qrData.foto_url) photoData = await loadImageAsDataUrl(qrData.foto_url);
+      if (photoData) {
+        try {
+          const photoInset = 0;
+          const photoInnerW = photoW - photoInset * 2;
+          const photoInnerH = photoH - photoInset * 2;
+          doc.setFillColor(...blueBg);
+          doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
+          const photoClipped = await new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+              const scale = 6;
+              const c = document.createElement('canvas');
+              c.width = photoInnerW * scale;
+              c.height = photoInnerH * scale;
+              const ctx = c.getContext('2d');
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              const r = Math.max(1, photoRadius * scale);
+              ctx.beginPath();
+              if (ctx.roundRect) ctx.roundRect(0, 0, c.width, c.height, r);
+              else ctx.rect(0, 0, c.width, c.height);
+              ctx.closePath();
+              ctx.clip();
+              const boxAspect = c.width / c.height;
+              const imgAspect = img.width / img.height;
+              let sx = 0, sy = 0, sw = img.width, sh = img.height;
+              if (imgAspect > boxAspect) {
+                sw = img.height * boxAspect;
+                sx = (img.width - sw) / 2;
+              } else {
+                sh = img.width / boxAspect;
+                sy = (img.height - sh) / 2;
+              }
+              ctx.drawImage(img, sx, sy, sw, sh, 0, 0, c.width, c.height);
+              resolve(c.toDataURL('image/png'));
+            };
+            img.onerror = () => resolve(null);
+            img.src = photoData;
+          });
+          if (photoClipped) {
+            doc.addImage(photoClipped, 'PNG', photoX + photoInset, bodyY + photoInset, photoInnerW, photoInnerH);
+          } else {
+            doc.addImage(photoData, photoData.indexOf('image/png') !== -1 ? 'PNG' : 'JPEG', photoX + photoInset, bodyY + photoInset, photoInnerW, photoInnerH);
+          }
+        } catch (e) {
+          doc.setFillColor(60, 70, 90);
+          doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
+        }
+      } else {
+        doc.setFillColor(60, 70, 90);
+        doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'F');
+      }
+      doc.setDrawColor(...orangeAccent);
+      doc.setLineWidth(0.35);
+      doc.roundedRect(photoX, bodyY, photoW, photoH, photoRadius, photoRadius, 'S');
 
-      // Obtener el elemento QR del DOM y convertirlo a imagen
-      const qrElement = document.querySelector('#qr-card-print .qr-code-wrapper svg');
+      const paddingFotoApoderado = 4;
+      const filaY0 = bodyY + photoH + paddingFotoApoderado;
+      const labelW = 20;
+      const valorX = photoX + labelW;
+      const valorMaxW = qrX - valorX - 2;
+      const filaH = 3.5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.5);
+      doc.setTextColor(...orangeAccent);
+      doc.text('Apoderado', photoX, filaY0 + 1.2);
+      doc.setFontSize(5.5);
+      doc.setTextColor(...white);
+      const apoderadoNombre = (qrData.apoderado_nombre || '-').trim();
+      const lineasNombre = doc.splitTextToSize(apoderadoNombre, valorMaxW);
+      lineasNombre.slice(0, 2).forEach((line, i) => doc.text(line, valorX, filaY0 + 1.2 + i * 2.2));
+      doc.setFontSize(5.5);
+      doc.setTextColor(...orangeAccent);
+      doc.text('Cel. Apoderado', photoX, filaY0 + filaH + 1.2);
+      doc.setTextColor(...white);
+      const cel = (qrData.apoderado_celular || '-').trim();
+      const lineasCel = doc.splitTextToSize(cel, valorMaxW);
+      lineasCel.slice(0, 2).forEach((line, i) => doc.text(line, valorX, filaY0 + filaH + 1.2 + i * 2.2));
+      doc.setTextColor(...orangeAccent);
+      doc.text('Dirección', photoX, filaY0 + filaH * 2 + 1.2);
+      doc.setTextColor(...white);
+      const dir = (qrData.direccion || '-').trim();
+      const lineasDir = doc.splitTextToSize(dir, valorMaxW);
+      lineasDir.slice(0, 2).forEach((line, i) => doc.text(line, valorX, filaY0 + filaH * 2 + 1.2 + i * 2.2));
+
+      const nombres = (qrData.nombres || '').trim();
+      const apellidos = `${(qrData.apellido_paterno || '')} ${(qrData.apellido_materno || '')}`.trim();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...white);
+      let textY = bodyY + 6;
+      if (nombres) {
+        const nombresLines = doc.splitTextToSize(nombres, centerW - 2);
+        doc.text(nombresLines[0], centerX, textY);
+        textY += 5;
+      }
+      if (apellidos) {
+        const apellidosLines = doc.splitTextToSize(apellidos, centerW - 2);
+        doc.text(apellidosLines[0], centerX, textY);
+        textY += 5;
+      }
+      if (qrData.grupo) {
+        doc.setFontSize(8);
+        doc.setTextColor(...orangeAccent);
+        doc.setFont('helvetica', 'bold');
+        const grupoLines = doc.splitTextToSize(qrData.grupo, centerW - 2);
+        grupoLines.slice(0, 2).forEach((line) => {
+          doc.text(line, centerX, textY);
+          textY += 4.5;
+        });
+      }
+      const dni = qrData.nro_documento || '';
+      if (dni) {
+        textY += 2;
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...white);
+        doc.text(`DNI: ${dni}`, centerX, textY);
+      }
+
+      const qrPadding = 1;
+      const qrElement = document.querySelector('#qr-card-modal-print .qr-code-wrapper svg');
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
+      doc.setDrawColor(...orangeAccent);
+      doc.setLineWidth(0.35);
+      doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'S');
       if (qrElement) {
         try {
           const svgData = new XMLSerializer().serializeToString(qrElement);
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           const img = new Image();
-          
           const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
           const url = URL.createObjectURL(svgBlob);
-          
           await new Promise((resolve, reject) => {
             img.onload = () => {
               canvas.width = 200;
               canvas.height = 200;
               ctx.drawImage(img, 0, 0);
               const imgData = canvas.toDataURL('image/png');
-              
-              // Dibujar fondo blanco para el QR - centrado perfecto
-              const qrBoxSize = qrSize + 2;
-              const qrBoxX = (width - qrBoxSize) / 2; // Centrado horizontal perfecto
-              const qrBoxY = qrY - 1;
-              doc.setFillColor(255, 255, 255);
-              doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1, 'F');
-              
-              // Borde del QR
-              doc.setDrawColor(224, 231, 255); // #e0e7ff
-              doc.setLineWidth(0.5);
-              doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1);
-              
-              // QR centrado perfecto dentro del cuadro
-              const qrImageX = qrBoxX + 1; // 1mm de padding desde el borde del cuadro
-              const qrImageY = qrBoxY + 1;
-              doc.addImage(imgData, 'PNG', qrImageX, qrImageY, qrSize, qrSize);
-              
+              const qrDrawSize = qrBoxSize - qrPadding * 2;
+              doc.addImage(imgData, 'PNG', qrX + qrPadding, qrY + qrPadding, qrDrawSize, qrDrawSize);
               URL.revokeObjectURL(url);
               resolve();
             };
             img.onerror = reject;
             img.src = url;
           });
-        } catch (error) {
-          console.warn('Error convirtiendo QR a imagen, usando placeholder:', error);
-          const qrBoxSize = qrSize + 2;
-          const qrBoxX = (width - qrBoxSize) / 2;
-          const qrBoxY = qrY - 1;
+        } catch (err) {
           doc.setFillColor(240, 240, 240);
-          doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1, 'F');
-          doc.setDrawColor(200, 200, 200);
-          doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1);
+          doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
         }
-      } else {
-        const qrBoxSize = qrSize + 2;
-        const qrBoxX = (width - qrBoxSize) / 2;
-        const qrBoxY = qrY - 1;
-        doc.setFillColor(240, 240, 240);
-        doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1, 'F');
-        doc.setDrawColor(200, 200, 200);
-        doc.roundedRect(qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 1, 1);
       }
-
-      // Información del alumno debajo del QR - estilo card (2mm más abajo)
-      const infoStartY = qrY + qrSize + 6; // 2mm más abajo (de 4 a 6)
-      const cardPadding = 1.5;
-      const cardSpacing = 2.5;
-      let currentY = infoStartY;
-
-      // Card Nombres
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1, 'F');
-      doc.setDrawColor(224, 231, 255);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1);
-      
-      // Label Nombres - centrado
-      const labelWidth = 12;
-      const labelX = (width - labelWidth) / 2; // Centrado
-      doc.setFillColor(238, 242, 255); // #eef2ff
-      doc.roundedRect(labelX, currentY + 0.5, labelWidth, 2.5, 0.5, 0.5, 'F');
-      doc.setTextColor(99, 102, 241); // #6366f1
+      doc.setFont('helvetica', 'normal');
       doc.setFontSize(5);
-      doc.setFont('helvetica', 'bold');
-      doc.text('NOMBRES:', width / 2, currentY + 2, { align: 'center' });
-      
-      // Valor Nombres - centrado
-      doc.setTextColor(30, 41, 59); // #1e293b
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'bold');
-      const nombres = qrData.nombres || '';
-      const nombresLines = doc.splitTextToSize(nombres, contentWidth - (cardPadding * 2) - 2);
-      nombresLines.forEach((line, idx) => {
-        doc.text(line, width / 2, currentY + 5.5 + (idx * 3.5), { align: 'center', maxWidth: contentWidth - (cardPadding * 2) });
-      });
-      currentY += 9 + cardSpacing;
+      doc.setTextColor(...white);
+      doc.text('Acerca el código QR a la cámara para registrar tu asistencia', qrX + qrBoxSize / 2, qrY + qrBoxSize + 2, { align: 'center', maxWidth: qrBoxSize + 4 });
 
-      // Card Apellidos
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1, 'F');
-      doc.setDrawColor(224, 231, 255);
-      doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1);
-      
-      // Label Apellidos - centrado
-      const labelWidthApellidos = 13;
-      const labelXApellidos = (width - labelWidthApellidos) / 2; // Centrado
-      doc.setFillColor(238, 242, 255);
-      doc.roundedRect(labelXApellidos, currentY + 0.5, labelWidthApellidos, 2.5, 0.5, 0.5, 'F');
-      doc.setTextColor(99, 102, 241);
-      doc.setFontSize(5);
-      doc.setFont('helvetica', 'bold');
-      doc.text('APELLIDOS:', width / 2, currentY + 2, { align: 'center' });
-      
-      doc.setTextColor(30, 41, 59);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'bold');
-      const apellidos = `${qrData.apellido_paterno || ''} ${qrData.apellido_materno || ''}`.trim();
-      const apellidosLines = doc.splitTextToSize(apellidos, contentWidth - (cardPadding * 2) - 2);
-      apellidosLines.forEach((line, idx) => {
-        doc.text(line, width / 2, currentY + 5.5 + (idx * 3.5), { align: 'center', maxWidth: contentWidth - (cardPadding * 2) });
-      });
-      currentY += 9 + cardSpacing;
-
-      // Card Sección (si existe)
-      if (qrData.grupo) {
-        doc.setFillColor(255, 255, 255);
-        doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1, 'F');
-        doc.setDrawColor(224, 231, 255);
-        doc.roundedRect(margin, currentY, contentWidth, 9, 1, 1);
-        
-        // Label Sección - centrado
-        const labelWidthSeccion = 11;
-        const labelXSeccion = (width - labelWidthSeccion) / 2; // Centrado
-        doc.setFillColor(238, 242, 255);
-        doc.roundedRect(labelXSeccion, currentY + 0.5, labelWidthSeccion, 2.5, 0.5, 0.5, 'F');
-        doc.setTextColor(99, 102, 241);
-        doc.setFontSize(5);
-        doc.setFont('helvetica', 'bold');
-        doc.text('SECCIÓN:', width / 2, currentY + 2, { align: 'center' });
-        
-        doc.setTextColor(30, 41, 59);
-        doc.setFontSize(7);
-        doc.setFont('helvetica', 'bold');
-        const grupoLines = doc.splitTextToSize(qrData.grupo, contentWidth - (cardPadding * 2) - 2);
-        grupoLines.forEach((line, idx) => {
-          doc.text(line, width / 2, currentY + 5.5 + (idx * 3.5), { align: 'center', maxWidth: contentWidth - (cardPadding * 2) });
-        });
-      }
-
-      // Footer con año - gradiente
-      const footerY = height - footerHeight;
-      doc.setFillColor(79, 70, 229); // #4f46e5
-      doc.rect(0, footerY, width, footerHeight, 'F');
-      doc.setFillColor(99, 102, 241); // #6366f1
-      doc.rect(0, footerY + footerHeight * 0.5, width, footerHeight * 0.5, 'F');
-      
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(255, 255, 255);
-      doc.text(qrData.anio?.toString() || '2026', width / 2, footerY + 4, { align: 'center' });
-
-      const nombreArchivo = `Fotocheck_${qrData.nombre_completo?.replace(/\s+/g, '_') || 'Alumno'}_${new Date().getTime()}.pdf`;
+      const nombreArchivo = `Carnet_${(qrData.nombre_completo || 'Alumno').replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
       doc.save(nombreArchivo);
 
       Swal.fire({
         title: '¡PDF Generado!',
-        text: 'El fotocheck se ha exportado correctamente',
+        text: 'El carnet se ha exportado correctamente (9×6 cm).',
         icon: 'success'
       });
     } catch (error) {
@@ -294,7 +381,7 @@ function AlumnoQR() {
           <div className="header-content">
             <div>
               <h1>📱 Mi QR</h1>
-              <p>Fotocheck de identificación estudiantil</p>
+              <p>Carnet de identificación estudiantil</p>
             </div>
             <button className="btn-exportar" onClick={handleExportarPDF}>
               <span className="btn-icon">📄</span>
@@ -303,51 +390,15 @@ function AlumnoQR() {
           </div>
         </div>
 
-        <div className="qr-card-container">
-          <div className="qr-card" id="qr-card-print">
-            {/* Borde superior con nombre del colegio */}
-            <div className="qr-card-header">
-              <h2 className="qr-colegio-nombre">{qrData.colegio_nombre || 'Vanguard Schools'}</h2>
-            </div>
-
-            {/* Contenido principal - Layout Vertical */}
-            <div className="qr-card-body">
-              {/* QR Code arriba centrado */}
-              <div className="qr-code-section">
-                <div className="qr-code-wrapper">
-                  <QRCodeSVG 
-                    value={qrData.qr_data || qrData.nro_documento || 'ALUMNO'}
-                    size={220}
-                    level="H"
-                    includeMargin={true}
-                  />
-                </div>
-              </div>
-
-              {/* Información del alumno debajo */}
-              <div className="qr-info-section">
-                <div className="qr-info-item">
-                  <label className="qr-info-label">Nombres:</label>
-                  <p className="qr-info-value">{qrData.nombres || ''}</p>
-                </div>
-                <div className="qr-info-item">
-                  <label className="qr-info-label">Apellidos:</label>
-                  <p className="qr-info-value">
-                    {`${qrData.apellido_paterno || ''} ${qrData.apellido_materno || ''}`.trim()}
-                  </p>
-                </div>
-                {qrData.grupo && (
-                  <div className="qr-info-item">
-                    <label className="qr-info-label">Sección:</label>
-                    <p className="qr-info-value">{qrData.grupo}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Año en la parte inferior */}
-            <div className="qr-card-footer">
-              <span className="qr-anio">{qrData.anio || '2026'}</span>
+        <div className="qr-card-container qr-preview-simple">
+          <div className="qr-card qr-card-modal qr-card-solo-qr" id="qr-card-modal-print">
+            <div className="qr-code-wrapper">
+              <QRCodeSVG
+                value={qrData.qr_data || qrData.nro_documento || 'ALUMNO'}
+                size={260}
+                level="H"
+                includeMargin={true}
+              />
             </div>
           </div>
         </div>
