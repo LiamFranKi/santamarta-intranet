@@ -1,0 +1,36 @@
+.admin-estadisticas {
+  padding: 0;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.admin-estadisticas-header {
+  margin-bottom: 1.5rem;
+}
+
+.admin-estadisticas-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 0 0.5rem 0;
+}
+
+.admin-estadisticas-desc {
+  font-size: 1rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.admin-estadisticas-content {
+  background: #fff;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.admin-estadisticas-placeholder {
+  color: #9ca3af;
+  text-align: center;
+  padding: 2rem;
+  margin: 0;
+}

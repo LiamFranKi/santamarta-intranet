@@ -491,6 +491,12 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/estadisticas">
+                  <span className="sidebar-icon">📈</span>
+                  <span className="sidebar-label">Estadísticas</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/matriculas">
                   <span className="sidebar-icon">📋</span>
                   <span className="sidebar-label">Matrículas</span>

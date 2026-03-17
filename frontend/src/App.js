@@ -23,6 +23,7 @@ import DocenteTutoriaOrdenMerito from './pages/DocenteTutoriaOrdenMerito';
 import AdminActividades from './pages/admin/AdminActividades';
 import AdminAvatares from './pages/admin/AdminAvatares';
 import AdminComunicados from './pages/admin/AdminComunicados';
+import AdminEstadisticas from './pages/admin/AdminEstadisticas';
 import DashboardLayout from './components/DashboardLayout';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
 import AlumnoDashboard from './pages/AlumnoDashboard';
@@ -167,6 +168,14 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/estadisticas"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <AdminEstadisticas />
           </PrivateRoute>
         }
       />
