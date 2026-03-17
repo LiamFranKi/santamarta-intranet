@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import EventoModal from './EventoModal';
@@ -264,7 +265,7 @@ function CalendarioWidget() {
         </div>
       </div>
 
-      {mostrarModal && actividadesDelDiaSeleccionado.length > 0 && (
+      {mostrarModal && actividadesDelDiaSeleccionado.length > 0 && createPortal(
         <EventoModal
           actividades={actividadesDelDiaSeleccionado}
           fechaSeleccionada={fechaSeleccionada}
@@ -273,7 +274,8 @@ function CalendarioWidget() {
             setMostrarModal(false);
             setActividadSeleccionada(null);
           }}
-        />
+        />,
+        document.body
       )}
     </>
   );
