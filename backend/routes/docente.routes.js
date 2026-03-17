@@ -1731,15 +1731,21 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
       return res.status(400).json({ error: 'Parámetros requeridos' });
     }
 
-    // Verificar que el docente tiene acceso al grupo
-    const tieneAcceso = await query(
+    // Verificar que el docente tiene acceso al grupo (asignatura en el grupo O tutor del grupo)
+    const tieneAccesoAsignatura = await query(
       `SELECT 1 FROM asignaturas a
        INNER JOIN grupos g ON g.id = a.grupo_id
        WHERE a.personal_id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ? LIMIT 1`,
       [personal_id, grupoId, colegio_id, anio_activo]
     );
+    const esTutorDelGrupo = await query(
+      `SELECT 1 FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+      [grupoId, personal_id, colegio_id, anio_activo]
+    );
 
-    if (!tieneAcceso || tieneAcceso.length === 0) {
+    if ((!tieneAccesoAsignatura || tieneAccesoAsignatura.length === 0) &&
+        (!esTutorDelGrupo || esTutorDelGrupo.length === 0)) {
       return res.status(403).json({ error: 'No tienes acceso a este grupo' });
     }
 
