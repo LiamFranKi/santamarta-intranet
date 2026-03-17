@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -5820,13 +5820,46 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
   const quillRefDescripcion = useRef(null);
   const quillRefsAlternativas = useRef({});
 
+  // Normalizar alternativas EMPAREJAR: una fila por par (descripción + emparejar_con_text), sin duplicar inversos
+  const normalizarEmparejar = (alts) => {
+    if (!alts || alts.length === 0) return [];
+    const vistos = new Set();
+    const filas = [];
+    for (const alt of alts) {
+      const parId = alt.par_id != null ? (typeof alt.par_id === 'number' ? alt.par_id : parseInt(alt.par_id, 10)) : null;
+      if (parId == null) continue;
+      const idA = typeof alt.id === 'number' ? alt.id : parseInt(alt.id, 10);
+      const idB = typeof parId === 'number' ? parId : parseInt(parId, 10);
+      const key = [Math.min(idA, idB), Math.max(idA, idB)].join('-');
+      if (vistos.has(key)) continue;
+      vistos.add(key);
+      const otra = alts.find(a => (typeof a.id === 'number' ? a.id : parseInt(a.id, 10)) === idB);
+      const textoDerecho = otra && otra.descripcion ? otra.descripcion.replace(/<[^>]*>/g, '').trim() : '';
+      filas.push({
+        id: alt.id,
+        descripcion: alt.descripcion,
+        correcta: alt.correcta || 'NO',
+        orden_posicion: alt.orden_posicion,
+        par_id: alt.par_id,
+        zona_drop: alt.zona_drop,
+        emparejar_con_text: textoDerecho
+      });
+    }
+    return filas;
+  };
+
   // Cargar alternativas cuando se edita una pregunta
   useEffect(() => {
     if (pregunta && pregunta.id) {
       const cargarAlternativas = async () => {
         try {
           const response = await api.get(`/docente/aula-virtual/preguntas/${pregunta.id}/alternativas`);
-          setAlternativas(response.data.alternativas || []);
+          const alts = response.data.alternativas || [];
+          if (pregunta.tipo === 'EMPAREJAR' && alts.length > 0) {
+            setAlternativas(normalizarEmparejar(alts));
+          } else {
+            setAlternativas(alts);
+          }
         } catch (error) {
           console.error('Error cargando alternativas:', error);
           setAlternativas([]);
@@ -5845,7 +5878,8 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
       correcta: 'NO',
       orden_posicion: formPregunta.tipo === 'ORDENAR' ? alternativas.length + 1 : null,
       par_id: null,
-      zona_drop: null
+      zona_drop: null,
+      ...(formPregunta.tipo === 'EMPAREJAR' && { emparejar_con_text: '' })
     };
     setAlternativas([...alternativas, nuevaAlternativa]);
   };
@@ -5874,6 +5908,13 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
       return nuevasAlternativas;
     });
   }, []); // Sin dependencias para evitar recrear la función
+
+  // Pool de opciones "Emparejar con" para EMPAREJAR: valores únicos ya usados (para reutilizar o escribir nuevo)
+  const poolEmparejarCon = useMemo(() => {
+    if (formPregunta.tipo !== 'EMPAREJAR') return [];
+    const textos = alternativas.map(a => (a.emparejar_con_text != null ? String(a.emparejar_con_text).replace(/<[^>]*>/g, '').trim() : '')).filter(Boolean);
+    return [...new Set(textos)];
+  }, [formPregunta.tipo, alternativas]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -5904,6 +5945,27 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
           timer: 3000
         });
         return;
+      }
+
+      // Para EMPAREJAR: cada fila debe tener descripción y "Emparejar con", y al menos 2 pares válidos
+      if (formPregunta.tipo === 'EMPAREJAR') {
+        const paresValidos = alternativas.filter(a => {
+          const desc = (a.descripcion || '').replace(/<[^>]*>/g, '').trim();
+          const der = (a.emparejar_con_text != null ? String(a.emparejar_con_text).replace(/<[^>]*>/g, '').trim() : '');
+          return desc && der;
+        });
+        if (paresValidos.length < 2) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Debe completar al menos 2 pares: descripción y "Emparejar con" en cada fila',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000
+          });
+          return;
+        }
       }
 
       // Para ALTERNATIVAS y VERDADERO_FALSO, debe haber al menos una correcta
@@ -5949,62 +6011,85 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
 
       // Guardar/actualizar alternativas
       if (formPregunta.tipo !== 'RESPUESTA_CORTA' && formPregunta.tipo !== 'COMPLETAR') {
-        // Obtener alternativas existentes para comparar
-        const alternativasExistentes = pregunta && pregunta.id 
+        const alternativasExistentes = pregunta && pregunta.id
           ? (await api.get(`/docente/aula-virtual/preguntas/${pregunta.id}/alternativas`)).data.alternativas || []
           : [];
 
-        // Eliminar alternativas que ya no están
-        for (const altExistente of alternativasExistentes) {
-          if (!alternativas.find(alt => alt.id === altExistente.id)) {
-            await api.delete(`/docente/aula-virtual/alternativas/${altExistente.id}`);
-          }
-        }
-
-        // Crear/actualizar alternativas
-        // Primero crear todas las alternativas para obtener sus IDs
-        const alternativasConIds = [];
-        
-        for (let i = 0; i < alternativas.length; i++) {
-          const alternativa = alternativas[i];
-          if (!alternativa.descripcion || alternativa.descripcion.trim() === '') continue;
-
-          // Para EMPAREJAR, no enviar par_id todavía si es un índice temporal
-          let parIdParaGuardar = alternativa.par_id;
-          if (formPregunta.tipo === 'EMPAREJAR' && parIdParaGuardar !== null && typeof parIdParaGuardar === 'number' && parIdParaGuardar < alternativas.length) {
-            // Es un índice temporal, no enviarlo todavía
-            parIdParaGuardar = null;
-          }
-
-          const datosAlternativa = {
-            descripcion: alternativa.descripcion,
-            correcta: alternativa.correcta === 'SI' || alternativa.correcta === true,
-            orden_posicion: alternativa.orden_posicion || null,
-            par_id: parIdParaGuardar,
-            zona_drop: alternativa.zona_drop || null
-          };
-
-          if (alternativa.id) {
-            // Actualizar alternativa existente
-            await api.put(`/docente/aula-virtual/alternativas/${alternativa.id}`, datosAlternativa);
-            alternativasConIds.push({ ...alternativa, id: alternativa.id, par_id_temporal: alternativa.par_id });
-          } else {
-            // Crear nueva alternativa
-            const response = await api.post(`/docente/aula-virtual/preguntas/${preguntaId}/alternativas`, datosAlternativa);
-            alternativasConIds.push({ ...alternativa, id: response.data.alternativa_id, par_id_temporal: alternativa.par_id });
-          }
-        }
-
-        // Ahora actualizar los par_id con los IDs reales para tipo EMPAREJAR
         if (formPregunta.tipo === 'EMPAREJAR') {
-          for (let i = 0; i < alternativasConIds.length; i++) {
-            const alt = alternativasConIds[i];
-            if (alt.par_id_temporal !== null && alt.par_id_temporal !== undefined && typeof alt.par_id_temporal === 'number') {
-              // Si es un índice, buscar la alternativa correspondiente
-              if (alt.par_id_temporal < alternativasConIds.length) {
+          // EMPAREJAR: una fila = un par. Crear opciones derechas únicas y enlazar par_id.
+          const filasEmparejar = alternativas.filter(a => {
+            const desc = (a.descripcion || '').replace(/<[^>]*>/g, '').trim();
+            const der = (a.emparejar_con_text != null ? String(a.emparejar_con_text).replace(/<[^>]*>/g, '').trim() : '');
+            return desc && der;
+          });
+          for (const alt of alternativasExistentes) {
+            await api.delete(`/docente/aula-virtual/alternativas/${alt.id}`);
+          }
+          const textosDerecha = [...new Set(filasEmparejar.map(f => (f.emparejar_con_text != null ? String(f.emparejar_con_text).replace(/<[^>]*>/g, '').trim() : '')))];
+          const mapaDerechaId = {};
+          for (const texto of textosDerecha) {
+            const res = await api.post(`/docente/aula-virtual/preguntas/${preguntaId}/alternativas`, {
+              descripcion: texto,
+              correcta: false,
+              orden_posicion: null,
+              par_id: null,
+              zona_drop: null
+            });
+            mapaDerechaId[texto] = res.data.alternativa_id;
+          }
+          for (const fila of filasEmparejar) {
+            const textoDer = (fila.emparejar_con_text != null ? String(fila.emparejar_con_text).replace(/<[^>]*>/g, '').trim() : '');
+            const parId = mapaDerechaId[textoDer];
+            if (parId == null) continue;
+            await api.post(`/docente/aula-virtual/preguntas/${preguntaId}/alternativas`, {
+              descripcion: fila.descripcion,
+              correcta: false,
+              orden_posicion: null,
+              par_id: parId,
+              zona_drop: null
+            });
+          }
+        } else {
+          // Eliminar alternativas que ya no están
+          for (const altExistente of alternativasExistentes) {
+            if (!alternativas.find(alt => alt.id === altExistente.id)) {
+              await api.delete(`/docente/aula-virtual/alternativas/${altExistente.id}`);
+            }
+          }
+
+          const alternativasConIds = [];
+          for (let i = 0; i < alternativas.length; i++) {
+            const alternativa = alternativas[i];
+            if (!alternativa.descripcion || alternativa.descripcion.trim() === '') continue;
+
+            let parIdParaGuardar = alternativa.par_id;
+            if (formPregunta.tipo === 'EMPAREJAR' && parIdParaGuardar !== null && typeof parIdParaGuardar === 'number' && parIdParaGuardar < alternativas.length) {
+              parIdParaGuardar = null;
+            }
+
+            const datosAlternativa = {
+              descripcion: alternativa.descripcion,
+              correcta: alternativa.correcta === 'SI' || alternativa.correcta === true,
+              orden_posicion: alternativa.orden_posicion || null,
+              par_id: parIdParaGuardar,
+              zona_drop: alternativa.zona_drop || null
+            };
+
+            if (alternativa.id) {
+              await api.put(`/docente/aula-virtual/alternativas/${alternativa.id}`, datosAlternativa);
+              alternativasConIds.push({ ...alternativa, id: alternativa.id, par_id_temporal: alternativa.par_id });
+            } else {
+              const response = await api.post(`/docente/aula-virtual/preguntas/${preguntaId}/alternativas`, datosAlternativa);
+              alternativasConIds.push({ ...alternativa, id: response.data.alternativa_id, par_id_temporal: alternativa.par_id });
+            }
+          }
+
+          if (formPregunta.tipo === 'EMPAREJAR') {
+            for (let i = 0; i < alternativasConIds.length; i++) {
+              const alt = alternativasConIds[i];
+              if (alt.par_id_temporal !== null && alt.par_id_temporal !== undefined && typeof alt.par_id_temporal === 'number' && alt.par_id_temporal < alternativasConIds.length) {
                 const alternativaPar = alternativasConIds[alt.par_id_temporal];
                 if (alternativaPar && alternativaPar.id) {
-                  // Actualizar con el ID real
                   await api.put(`/docente/aula-virtual/alternativas/${alt.id}`, {
                     descripcion: alt.descripcion,
                     correcta: alt.correcta,
@@ -6267,12 +6352,12 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
                   </div>
                 )}
 
-                {/* Vista de pares para EMPAREJAR */}
+                {/* Vista de pares para EMPAREJAR (una fila = un par: descripción ↔ emparejar con) */}
                 {formPregunta.tipo === 'EMPAREJAR' && alternativas.length > 0 && (
-                  <div style={{ 
-                    marginBottom: '1.5rem', 
-                    padding: '1rem', 
-                    background: '#f3f4f6', 
+                  <div style={{
+                    marginBottom: '1.5rem',
+                    padding: '1rem',
+                    background: '#f3f4f6',
                     borderRadius: '8px',
                     border: '1px solid #e5e7eb'
                   }}>
@@ -6281,47 +6366,31 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       {(() => {
-                        // Mostrar solo una vez cada par (evitar duplicados)
-                        const paresMostrados = new Set();
-                        const pares = [];
-                        
-                        alternativas.forEach((alt, i) => {
-                          const parIndex = typeof alt.par_id === 'number' && alt.par_id < alternativas.length ? alt.par_id : null;
-                          if (parIndex !== null && !paresMostrados.has(`${Math.min(i, parIndex)}-${Math.max(i, parIndex)}`)) {
-                            paresMostrados.add(`${Math.min(i, parIndex)}-${Math.max(i, parIndex)}`);
-                            const parAlt = alternativas[parIndex];
-                            const descripcionAlt = alt.descripcion ? alt.descripcion.replace(/<[^>]*>/g, '').trim() : '';
-                            const descripcionPar = parAlt && parAlt.descripcion ? parAlt.descripcion.replace(/<[^>]*>/g, '').trim() : '';
-                            
-                            pares.push({
-                              index1: i,
-                              index2: parIndex,
-                              desc1: descripcionAlt || `Alternativa ${i + 1}`,
-                              desc2: descripcionPar || `Alternativa ${parIndex + 1}`
-                            });
-                          }
-                        });
-                        
+                        const pares = alternativas
+                          .map((alt, i) => {
+                            const desc1 = alt.descripcion ? alt.descripcion.replace(/<[^>]*>/g, '').trim() : '';
+                            const desc2 = (alt.emparejar_con_text != null ? String(alt.emparejar_con_text).replace(/<[^>]*>/g, '').trim() : '') || '';
+                            return { desc1: desc1 || `Fila ${i + 1}`, desc2 };
+                          })
+                          .filter(p => p.desc1 || p.desc2);
                         if (pares.length === 0) {
                           return (
-                            <div style={{ 
-                              padding: '1rem', 
-                              background: '#fef3c7', 
+                            <div style={{
+                              padding: '1rem',
+                              background: '#fef3c7',
                               borderRadius: '6px',
                               border: '1px solid #fbbf24'
                             }}>
                               <p style={{ margin: 0, color: '#78350f', fontSize: '0.875rem' }}>
-                                <strong>📌 Instrucciones:</strong> Agrega alternativas y luego selecciona un par para cada una en la columna "EMPAREJAR CON". 
-                                Cada alternativa se empareja con otra alternativa de la lista.
+                                <strong>📌 Instrucciones:</strong> Escribe en DESCRIPCIÓN (columna izquierda) y en EMPAREJAR CON (columna derecha). Puedes reutilizar un valor ya escrito; no hace falta crear la pareja al revés.
                               </p>
                             </div>
                           );
                         }
-                        
                         return pares.map((par, idx) => (
-                          <div key={idx} style={{ 
-                            padding: '0.75rem', 
-                            background: 'white', 
+                          <div key={idx} style={{
+                            padding: '0.75rem',
+                            background: 'white',
                             borderRadius: '6px',
                             display: 'flex',
                             alignItems: 'center',
@@ -6407,106 +6476,20 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
                             )}
                             {formPregunta.tipo === 'EMPAREJAR' && (
                               <td style={{ padding: '1rem', textAlign: 'center' }}>
-                                <select
+                                <input
+                                  type="text"
                                   className="form-input"
-                                  value={
-                                    alternativa.par_id !== null && alternativa.par_id !== undefined
-                                      ? (() => {
-                                          // Si par_id es un índice (número menor que el número de alternativas), usarlo directamente
-                                          if (typeof alternativa.par_id === 'number' && alternativa.par_id < alternativas.length) {
-                                            return alternativa.par_id;
-                                          }
-                                          // Si es un ID real, buscar el índice de la alternativa con ese ID
-                                          if (typeof alternativa.par_id === 'number') {
-                                            const indicePar = alternativas.findIndex(alt => alt.id === alternativa.par_id);
-                                            return indicePar !== -1 ? indicePar : '';
-                                          }
-                                          return '';
-                                        })()
-                                      : ''
-                                  }
-                          onChange={(e) => {
-                                    const valorSeleccionado = e.target.value;
-                                    if (valorSeleccionado === '') {
-                                      actualizarAlternativa(index, 'par_id', null);
-                                    } else {
-                                      const indicePar = parseInt(valorSeleccionado);
-                                      
-                                      // Verificar que no se empareje consigo mismo
-                                      if (indicePar === index) {
-                                        Swal.fire({
-                                          icon: 'warning',
-                                          title: 'Error',
-                                          text: 'No puedes emparejar una alternativa consigo misma',
-                                          toast: true,
-                                          position: 'top-end',
-                                          showConfirmButton: false,
-                                          timer: 2000
-                                        });
-                                        return;
-                                      }
-                                      
-                                      // Verificar si la alternativa destino ya está emparejada con otra
-                                      const destinoYaEmparejada = alternativas[indicePar] && 
-                                        alternativas[indicePar].par_id !== null && 
-                                        alternativas[indicePar].par_id !== undefined &&
-                                        alternativas[indicePar].par_id !== index;
-                                      
-                                      if (destinoYaEmparejada) {
-                                        Swal.fire({
-                                          icon: 'warning',
-                                          title: 'Ya está emparejada',
-                                          text: 'Esta alternativa ya está emparejada con otra. Desempareja primero la otra alternativa.',
-                                          toast: true,
-                                          position: 'top-end',
-                                          showConfirmButton: false,
-                                          timer: 3000
-                                        });
-                                        return;
-                                      }
-                                      
-                                      actualizarAlternativa(index, 'par_id', indicePar);
-                                    }
-                                  }}
+                                  list="emparejar-pool-datalist"
+                                  value={alternativa.emparejar_con_text != null ? String(alternativa.emparejar_con_text).replace(/<[^>]*>/g, '').trim() : ''}
+                                  onChange={(e) => actualizarAlternativa(index, 'emparejar_con_text', e.target.value)}
+                                  placeholder="Escribe o elige con qué emparejar..."
                                   style={{ width: '100%', minWidth: '200px' }}
-                                >
-                                  <option value="">🔗 Seleccionar par...</option>
-                                  {alternativas.map((alt, i) => {
-                                    // No mostrar la misma alternativa en el select
-                                    if (i === index) return null;
-                                    
-                                    // Verificar si ya está emparejada con otra alternativa (excepto la actual)
-                                    const yaEmparejada = typeof alt.par_id === 'number' && 
-                                      alt.par_id < alternativas.length && 
-                                      alt.par_id !== index;
-                                    
-                                    // Obtener una descripción corta de la alternativa para mostrar
-                                    let descripcionCorta = `Alternativa ${i + 1}`;
-                                    if (alt.descripcion) {
-                                      // Remover HTML tags y obtener texto plano
-                                      const textoPlano = alt.descripcion.replace(/<[^>]*>/g, '').trim();
-                                      if (textoPlano) {
-                                        descripcionCorta = textoPlano.length > 35 
-                                          ? textoPlano.substring(0, 35) + '...' 
-                                          : textoPlano;
-                                      }
-                                    }
-                                    
-                                    return (
-                                      <option 
-                                        key={i} 
-                                        value={i}
-                                        disabled={yaEmparejada}
-                                        style={{ 
-                                          color: yaEmparejada ? '#9ca3af' : '#1f2937',
-                                          fontStyle: yaEmparejada ? 'italic' : 'normal'
-                                        }}
-                                      >
-                                        {yaEmparejada ? `🔒 ${descripcionCorta} (ya emparejada)` : `✓ ${descripcionCorta}`}
-                                      </option>
-                                    );
-                                  })}
-                                </select>
+                                />
+                                <datalist id="emparejar-pool-datalist">
+                                  {poolEmparejarCon.map((texto, i) => (
+                                    <option key={i} value={texto} />
+                                  ))}
+                                </datalist>
                               </td>
                             )}
                             {formPregunta.tipo === 'ARRASTRAR_Y_SOLTAR' && (
