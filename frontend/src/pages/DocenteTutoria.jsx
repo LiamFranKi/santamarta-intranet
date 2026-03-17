@@ -411,13 +411,8 @@ function DocenteTutoria() {
       case 'notas-asistencia':
         await handleVerNotasPDF(grupo);
         break;
-      case 'enviar-comunicado':
-        setGrupoParaMensaje(grupo);
-        setMostrarModalMensajeGrupo(true);
-        setAsuntoMensajeGrupo('');
-        setContenidoMensajeGrupo('');
-        setArchivosAdjuntosMensajeGrupo([]);
-        setEnviarAMensajeGrupo('todos');
+      case 'conexiones-familiares':
+        navigate(`/docente/grupos/${grupo.id}/conexiones-familiares`, { state: { grupo } });
         break;
       case 'registrar-asistencia':
         await handleAbrirAsistencias(grupo);
@@ -2692,7 +2687,7 @@ function DocenteTutoria() {
                       { id: 'ver-nomina', label: 'Ver Nómina', icon: '📄' },
                       { id: 'orden-merito', label: 'Orden de Mérito', icon: '🏆' },
                       { id: 'notas-asistencia', label: 'Ver Notas', icon: '📊' },
-                      { id: 'enviar-comunicado', label: 'Enviar Mensaje', icon: '✉️' },
+                      { id: 'conexiones-familiares', label: 'Conexiones familiares', icon: '✉️' },
                       { id: 'registrar-asistencia', label: 'Asistencias', icon: '✅' },
                       { id: 'apreciaciones-recomendaciones', label: 'Recomendaciones', icon: '💬' },
                       { id: 'registrar-conducta', label: 'Registrar Conducta', icon: '📝' }
