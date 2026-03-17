@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
@@ -936,8 +937,8 @@ function ApoderadoMensajes() {
           </div>
         </div>
 
-        {/* Modal de detalle de mensaje */}
-        {mensajeSeleccionado && (
+        {/* Modal de detalle de mensaje (Portal para que quede por encima del navbar) */}
+        {mensajeSeleccionado && createPortal(
           <div className="mensaje-modal-overlay" onClick={() => setMensajeSeleccionado(null)}>
             <div className="mensaje-modal" onClick={(e) => e.stopPropagation()}>
               <div className="mensaje-modal-header">
@@ -970,7 +971,8 @@ function ApoderadoMensajes() {
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </DashboardLayout>
