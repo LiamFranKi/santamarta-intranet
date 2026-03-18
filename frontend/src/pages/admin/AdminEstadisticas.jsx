@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
-import '../Dashboard.css';
+import './Dashboard.css';
 import './AdminEstadisticas.css';
 
 const coloresPasteles = [
