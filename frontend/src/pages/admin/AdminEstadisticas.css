@@ -54,3 +54,58 @@
   color: #6b7280;
   margin-top: 0.15rem;
 }
+
+.admin-estadisticas-table-wrapper {
+  margin-top: 2rem;
+}
+
+.admin-estadisticas-subtitle {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin: 0 0 1rem 0;
+}
+
+.admin-estadisticas-table-card {
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  background: #fff;
+}
+
+.admin-estadisticas-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.admin-estadisticas-table thead {
+  background: #f3f4f6;
+}
+
+.admin-estadisticas-table th,
+.admin-estadisticas-table td {
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  text-align: left;
+}
+
+.admin-estadisticas-table th {
+  font-weight: 600;
+  color: #4b5563;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.admin-estadisticas-table tbody tr:nth-child(even) {
+  background: #f9fafb;
+}
+
+.admin-estadisticas-table tbody tr:hover {
+  background: #eef2ff;
+}
+
+.admin-estadisticas-table td:nth-child(2),
+.admin-estadisticas-table td:nth-child(3),
+.admin-estadisticas-table td:nth-child(4) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

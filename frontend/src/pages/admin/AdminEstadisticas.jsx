@@ -68,22 +68,54 @@ function AdminEstadisticas() {
           <div className="admin-estadisticas-content">
             <p className="admin-estadisticas-placeholder">Cargando KPIs...</p>
           </div>
-        ) : kpis && cards.length > 0 ? (
-          <div className="admin-stats-grid admin-estadisticas-grid">
-            {cards.map((card) => (
-              <div key={card.key} className="admin-stat-card" style={{ background: card.color }}>
-                <div className="admin-stat-icon">{card.icon}</div>
-                <div className="admin-stat-content">
-                  <h3 className="admin-stat-title">{card.title}</h3>
-                  {card.subtitle && <span className="admin-stat-subtitle">{card.subtitle}</span>}
-                  <div className="admin-stat-value">{card.value}</div>
-                </div>
-              </div>
-            ))}
-          </div>
         ) : (
           <div className="admin-estadisticas-content">
-            <p className="admin-estadisticas-placeholder">No hay datos de KPIs disponibles.</p>
+            {kpis && cards.length > 0 ? (
+              <>
+                <div className="admin-stats-grid admin-estadisticas-grid">
+                  {cards.map((card) => (
+                    <div key={card.key} className="admin-stat-card" style={{ background: card.color }}>
+                      <div className="admin-stat-icon">{card.icon}</div>
+                      <div className="admin-stat-content">
+                        <h3 className="admin-stat-title">{card.title}</h3>
+                        {card.subtitle && <span className="admin-stat-subtitle">{card.subtitle}</span>}
+                        <div className="admin-stat-value">{card.value}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {Array.isArray(kpis.conceptos) && kpis.conceptos.length > 0 && (
+                  <div className="admin-estadisticas-table-wrapper">
+                    <h2 className="admin-estadisticas-subtitle">Estadísticas por Matrícula y Meses</h2>
+                    <div className="admin-estadisticas-table-card">
+                      <table className="admin-estadisticas-table">
+                        <thead>
+                          <tr>
+                            <th>Concepto</th>
+                            <th>Total a Pagar</th>
+                            <th>Pagado</th>
+                            <th>Deuda</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {kpis.conceptos.map((row) => (
+                            <tr key={row.tipo}>
+                              <td>{row.concepto}</td>
+                              <td>{fmtMonto(row.total_pagar, kpis.moneda)}</td>
+                              <td>{fmtMonto(row.pagado, kpis.moneda)}</td>
+                              <td>{fmtMonto(row.deuda, kpis.moneda)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <p className="admin-estadisticas-placeholder">No hay datos de KPIs disponibles.</p>
+            )}
           </div>
         )}
       </div>
