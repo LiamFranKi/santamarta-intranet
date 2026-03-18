@@ -266,16 +266,20 @@ router.get('/estadisticas/kpis', async (req, res) => {
         pagadoPorTipo[row.tipo] = parseFloat(row.total || 0);
       });
 
+      // Pensiones: en la BD son tipo=1 y el mes viene en nro_pago (1=primera pensión, 2=segunda, …)
       const pagosPensiones = await query(
-        `SELECT p.tipo, COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as total
+        `SELECT p.tipo, p.nro_pago, COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as total
          FROM pagos p
          WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.matricula_id IN (${ph}) AND p.tipo > 0 AND YEAR(p.fecha_hora) = ?
-         GROUP BY p.tipo`,
-        [colegio_id, ...matIdsPagadas, anio]
+           AND p.matricula_id IN (${ph}) AND p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND YEAR(p.fecha_hora) = ?
+         GROUP BY p.tipo, p.nro_pago`,
+        [colegio_id, ...matIdsPagadas, totalPensiones, anio]
       );
       (pagosPensiones || []).forEach((row) => {
-        pagadoPorTipo[row.tipo] = parseFloat(row.total || 0);
+        const idx = parseInt(row.nro_pago, 10);
+        if (idx >= 1 && idx <= totalPensiones) {
+          pagadoPorTipo[idx] = parseFloat(row.total || 0);
+        }
       });
     }
 

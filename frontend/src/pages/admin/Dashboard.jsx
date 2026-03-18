@@ -265,6 +265,14 @@ function Dashboard() {
                             </tr>
                           ))}
                         </tbody>
+                        <tfoot>
+                          <tr>
+                            <td><strong>Total</strong></td>
+                            <td>{fmtMonto(kpis.conceptos.reduce((s, r) => s + (parseFloat(r.total_pagar) || 0), 0), kpis.moneda)}</td>
+                            <td>{fmtMonto(kpis.conceptos.reduce((s, r) => s + (parseFloat(r.pagado) || 0), 0), kpis.moneda)}</td>
+                            <td>{fmtMonto(kpis.conceptos.reduce((s, r) => s + (parseFloat(r.deuda) || 0), 0), kpis.moneda)}</td>
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
                   </div>
