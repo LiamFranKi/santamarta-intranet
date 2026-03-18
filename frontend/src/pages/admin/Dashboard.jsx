@@ -271,14 +271,18 @@ function Dashboard() {
         </div>
       `;
 
+      // Etiqueta sin año: solo nivel y grado (ej. "SECUNDARIA - 1° UNICA - 2026" → "SECUNDARIA - 1° UNICA")
+      const labelSinAnio = (aula) => (aula || '').replace(/\s*-\s*\d{4}\s*$/, '').trim() || aula;
+
       const barrasChart = aulas.map((a) => {
         const saldo = parseFloat(a.saldo) || 0;
         const pct = maxSaldo > 0 ? (saldo / maxSaldo) * 100 : 2;
+        const label = labelSinAnio(a.aula);
         return `<div class="admin-modal-deudas-bar-group" title="${a.aula}: Saldo ${fmtM(a.saldo)}">
           <div class="admin-modal-deudas-bar-wrap">
             <div class="admin-modal-deudas-bar-fill" style="height:${Math.max(pct, 2)}%"></div>
           </div>
-          <div class="admin-modal-deudas-bar-label">${a.aula}</div>
+          <div class="admin-modal-deudas-bar-label">${label}</div>
         </div>`;
       }).join('');
 
