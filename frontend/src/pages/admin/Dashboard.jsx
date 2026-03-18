@@ -233,65 +233,74 @@ function Dashboard() {
       const maxSaldo = Math.max(...aulas.map(a => parseFloat(a.saldo) || 0), 1);
 
       const filasTabla = aulas.map(
-        (a) => `<tr>
-          <td style="text-align:left;padding:8px 10px">${a.aula}</td>
-          <td style="text-align:right;padding:8px 10px">${fmtM(a.deuda_total)}</td>
-          <td style="text-align:right;padding:8px 10px">${fmtM(a.pagado)}</td>
-          <td style="text-align:right;padding:8px 10px;font-weight:700;color:#e65100">${fmtM(a.saldo)}</td>
-        </tr>`
+        (a, i) => {
+          const par = i % 2 === 0;
+          const rowBg = par ? 'background:linear-gradient(135deg,#faf8fc 0%,#f5f0fa 100%)' : 'background:linear-gradient(135deg,#f5f0fa 0%,#efe8f5 100%)';
+          return `<tr style="${rowBg}">
+          <td style="text-align:left;padding:12px 14px;border-bottom:1px solid #e8e0e8">${a.aula}</td>
+          <td style="text-align:right;padding:12px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtM(a.deuda_total)}</td>
+          <td style="text-align:right;padding:12px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtM(a.pagado)}</td>
+          <td style="text-align:right;padding:12px 14px;border-bottom:1px solid #e8e0e8;font-weight:700;color:#c43e00;font-variant-numeric:tabular-nums">${fmtM(a.saldo)}</td>
+        </tr>`;
+        }
       ).join('');
 
       const tablaHtml = `
-        <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:0.9rem">
+        <div class="admin-modal-deudas-tabla-wrap">
+        <table class="admin-modal-deudas-tabla">
           <thead>
-            <tr style="background:#A9C6E9;color:#1a237e">
-              <th style="text-align:left;padding:10px 10px">Aula</th>
-              <th style="text-align:right;padding:10px 10px">Deuda</th>
-              <th style="text-align:right;padding:10px 10px">Pagado</th>
-              <th style="text-align:right;padding:10px 10px">Saldo</th>
+            <tr>
+              <th>Aula</th>
+              <th>Deuda</th>
+              <th>Pagado</th>
+              <th>Saldo</th>
             </tr>
           </thead>
           <tbody>
             ${filasTabla}
           </tbody>
           <tfoot>
-            <tr style="background:#e3f2fd;font-weight:700;border-top:2px solid #90caf9">
-              <td style="text-align:left;padding:10px 10px">Total</td>
-              <td style="text-align:right;padding:10px 10px">${fmtM(totalDeuda)}</td>
-              <td style="text-align:right;padding:10px 10px">${fmtM(totalPagado)}</td>
-              <td style="text-align:right;padding:10px 10px;color:#e65100">${fmtM(totalSaldo)}</td>
+            <tr>
+              <td>Total</td>
+              <td>${fmtM(totalDeuda)}</td>
+              <td>${fmtM(totalPagado)}</td>
+              <td class="admin-modal-deudas-saldo-total">${fmtM(totalSaldo)}</td>
             </tr>
           </tfoot>
         </table>
+        </div>
       `;
 
       const barrasChart = aulas.map((a) => {
         const saldo = parseFloat(a.saldo) || 0;
-        const pct = maxSaldo > 0 ? (saldo / maxSaldo) * 100 : 0;
-        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;max-width:120px">
-          <div style="display:flex;align-items:flex-end;justify-content:center;height:180px;width:100%;gap:6px">
-            <div style="width:32px;min-width:32px;height:${Math.max(pct, 2)}%;background:linear-gradient(180deg,#ffb74d 0%,#f9a825 100%);border-radius:6px 6px 0 0" title="${a.aula}: Saldo ${fmtM(a.saldo)}"></div>
+        const pct = maxSaldo > 0 ? (saldo / maxSaldo) * 100 : 2;
+        return `<div class="admin-modal-deudas-bar-group" title="${a.aula}: Saldo ${fmtM(a.saldo)}">
+          <div class="admin-modal-deudas-bar-wrap">
+            <div class="admin-modal-deudas-bar-fill" style="height:${Math.max(pct, 2)}%"></div>
           </div>
-          <div style="font-size:0.65rem;color:#37474f;margin-top:6px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;transform:rotate(-35deg);transform-origin:top center">${a.aula}</div>
+          <div class="admin-modal-deudas-bar-label">${a.aula}</div>
         </div>`;
       }).join('');
 
       const chartHtml = `
-        <div style="margin-top:16px;padding-top:16px;border-top:1px solid #e0e0e0">
-          <div style="font-weight:600;margin-bottom:10px;text-align:center;color:#37474f">Saldo pendiente por grado (mayor a menor)</div>
-          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:4px;min-height:220px;padding-bottom:8px">
-            ${barrasChart}
+        <div class="admin-modal-deudas-chart-section">
+          <div class="admin-modal-deudas-chart-title">Saldo pendiente por grado (mayor a menor)</div>
+          <div class="admin-modal-deudas-chart-scroll">
+            <div class="admin-modal-deudas-chart-bars">
+              ${barrasChart}
+            </div>
           </div>
         </div>
       `;
 
       Swal.fire({
         title: titulo,
-        html: tablaHtml + chartHtml,
-        width: 720,
+        html: `<div class="admin-modal-deudas-body">${tablaHtml}${chartHtml}</div>`,
+        width: '92%',
+        padding: 0,
         showCloseButton: true,
         confirmButtonText: 'Cerrar',
-        customClass: { popup: 'admin-modal-deudas-aula' },
+        customClass: { popup: 'admin-modal-deudas-aula', htmlContainer: 'admin-modal-deudas-html' },
       });
     } catch (err) {
       Swal.fire({
