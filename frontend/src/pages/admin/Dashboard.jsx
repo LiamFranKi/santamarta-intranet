@@ -239,11 +239,11 @@ function Dashboard() {
           const rowBg = par ? 'background:linear-gradient(135deg,#faf8fc 0%,#f5f0fa 100%)' : 'background:linear-gradient(135deg,#f5f0fa 0%,#efe8f5 100%)';
           const aulaEsc = (a.aula || '').replace(/"/g, '&quot;');
           return `<tr style="${rowBg}">
-          <td style="text-align:left;padding:12px 14px;border-bottom:1px solid #e8e0e8">${a.aula}</td>
-          <td style="text-align:right;padding:12px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtM(a.deuda_total)}</td>
-          <td style="text-align:right;padding:12px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtM(a.pagado)}</td>
-          <td style="text-align:right;padding:12px 14px;border-bottom:1px solid #e8e0e8;font-weight:700;color:#c43e00;font-variant-numeric:tabular-nums">${fmtM(a.saldo)}</td>
-          <td class="admin-modal-deudas-ver-col"><button type="button" class="admin-modal-ver-detalle-btn" data-grupo-id="${a.grupo_id}" data-aula="${aulaEsc}" data-tipo="${row.tipo}" data-anio="${anioResp}" data-concepto="${(conceptoNombre).replace(/"/g, '&quot;')}" title="Ver Detalle">Ver Detalle</button></td>
+          <td style="text-align:center;padding:12px 14px;border-bottom:1px solid #e8e0e8">${a.aula}</td>
+          <td style="text-align:center;padding:12px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtM(a.deuda_total)}</td>
+          <td style="text-align:center;padding:12px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtM(a.pagado)}</td>
+          <td style="text-align:center;padding:12px 14px;border-bottom:1px solid #e8e0e8;font-weight:700;color:#c43e00;font-variant-numeric:tabular-nums">${fmtM(a.saldo)}</td>
+          <td class="admin-modal-deudas-ver-col"><button type="button" class="admin-modal-ver-detalle-btn" data-grupo-id="${a.grupo_id}" data-aula="${aulaEsc}" data-tipo="${row.tipo}" data-anio="${anioResp}" data-concepto="${(conceptoNombre).replace(/"/g, '&quot;')}" title="Ver Detalle" aria-label="Ver Detalle">👁️</button></td>
         </tr>`;
         }
       ).join('');
@@ -282,7 +282,7 @@ function Dashboard() {
         width: '92%',
         padding: 0,
         showCloseButton: true,
-        confirmButtonText: 'Cerrar',
+        showConfirmButton: false,
         customClass: { popup: 'admin-modal-deudas-aula', htmlContainer: 'admin-modal-deudas-html' },
         didOpen: (container) => {
           container.querySelectorAll('.admin-modal-ver-detalle-btn').forEach((btn) => {
@@ -305,27 +305,31 @@ function Dashboard() {
                 const filasAl = alumnos.map((al, idx) => {
                   const par = idx % 2 === 0;
                   const bg = par ? 'background:linear-gradient(135deg,#faf8fc 0%,#f5f0fa 100%)' : 'background:linear-gradient(135deg,#f5f0fa 0%,#efe8f5 100%)';
-                  return `<tr style="${bg}"><td style="text-align:left;padding:10px 14px;border-bottom:1px solid #e8e0e8">${al.nombre || '—'}</td><td style="text-align:right;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtAl(al.deuda_total)}</td><td style="text-align:right;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtAl(al.pagado)}</td><td style="text-align:right;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-weight:700;color:#c43e00;font-variant-numeric:tabular-nums">${fmtAl(al.saldo)}</td></tr>`;
+                  return `<tr style="${bg}"><td style="text-align:center;padding:10px 14px;border-bottom:1px solid #e8e0e8">${al.nombre || '—'}</td><td style="text-align:center;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtAl(al.deuda_total)}</td><td style="text-align:center;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtAl(al.pagado)}</td><td style="text-align:center;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-weight:700;color:#c43e00;font-variant-numeric:tabular-nums">${fmtAl(al.saldo)}</td></tr>`;
                 }).join('');
                 const totalD = alumnos.reduce((s, al) => s + (parseFloat(al.deuda_total) || 0), 0);
                 const totalP = alumnos.reduce((s, al) => s + (parseFloat(al.pagado) || 0), 0);
                 const totalS = alumnos.reduce((s, al) => s + (parseFloat(al.saldo) || 0), 0);
                 const tablaAl = `
                   <div class="admin-modal-deudas-tabla-wrap">
-                  <table class="admin-modal-deudas-tabla">
+                  <table class="admin-modal-deudas-tabla admin-modal-deudas-tabla-centrada">
                     <thead><tr><th>Alumno</th><th>Deuda</th><th>Pagado</th><th>Saldo</th></tr></thead>
                     <tbody>${filasAl}</tbody>
-                    <tfoot><tr style="background:linear-gradient(135deg,#d4c8e8 0%,#c4b0dc 100%);font-weight:700"><td>Total</td><td style="text-align:right">${fmtAl(totalD)}</td><td style="text-align:right">${fmtAl(totalP)}</td><td class="admin-modal-deudas-saldo-total" style="text-align:right">${fmtAl(totalS)}</td></tr></tfoot>
+                    <tfoot><tr style="background:linear-gradient(135deg,#d4c8e8 0%,#c4b0dc 100%);font-weight:700"><td style="text-align:center">Total</td><td style="text-align:center">${fmtAl(totalD)}</td><td style="text-align:center">${fmtAl(totalP)}</td><td class="admin-modal-deudas-saldo-total" style="text-align:center">${fmtAl(totalS)}</td></tr></tfoot>
                   </table>
                   </div>`;
+                const htmlAlumnos = `<div class="admin-modal-deudas-body"><div class="admin-modal-volver-wrap"><button type="button" class="admin-modal-volver-btn" title="Volver">← Volver</button></div>${tablaAl}</div>`;
                 Swal.fire({
                   title: `Alumnos - ${aula.replace(/&quot;/g, '"')} (${concepto})`,
-                  html: `<div class="admin-modal-deudas-body">${tablaAl}</div>`,
+                  html: htmlAlumnos,
                   width: '92%',
                   padding: 0,
                   showCloseButton: true,
-                  confirmButtonText: 'Cerrar',
+                  showConfirmButton: false,
                   customClass: { popup: 'admin-modal-deudas-aula', htmlContainer: 'admin-modal-deudas-html' },
+                  didOpen: (c) => {
+                    c.querySelector('.admin-modal-volver-btn')?.addEventListener('click', () => Swal.close());
+                  },
                 });
               } catch (e) {
                 Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar el detalle de alumnos.', confirmButtonText: 'Cerrar' });

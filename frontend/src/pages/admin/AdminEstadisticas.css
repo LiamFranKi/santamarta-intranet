@@ -338,15 +338,9 @@
 .admin-modal-deudas-tabla thead th {
   color: #4a3f6b;
   font-weight: 600;
-  text-align: left;
+  text-align: center;
   padding: 14px 16px;
   border-bottom: 2px solid #c4b8d4;
-}
-
-.admin-modal-deudas-tabla thead th:nth-child(2),
-.admin-modal-deudas-tabla thead th:nth-child(3),
-.admin-modal-deudas-tabla thead th:nth-child(4) {
-  text-align: right;
 }
 
 .admin-modal-deudas-ver-col {
@@ -357,18 +351,41 @@
   background: linear-gradient(135deg, #e8e0f0 0%, #d4c8e8 100%);
   border: 1px solid #c4b8d4;
   color: #3d3552;
-  border-radius: 8px;
-  padding: 0.4rem 0.75rem;
+  border-radius: 10px;
+  padding: 0.35rem 0.6rem;
   cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 1.1rem;
+  line-height: 1;
   transition: transform 0.12s ease, opacity 0.12s ease;
 }
 .admin-modal-ver-detalle-btn:hover {
-  transform: scale(1.03);
+  transform: scale(1.05);
   opacity: 0.95;
 }
 .admin-modal-ver-detalle-btn:active {
+  transform: scale(0.98);
+}
+
+.admin-modal-volver-wrap {
+  margin-bottom: 1rem;
+  text-align: left;
+}
+.admin-modal-volver-btn {
+  background: linear-gradient(135deg, #d4c8e8 0%, #c4b0dc 100%);
+  border: 1px solid #a898c4;
+  color: #3d3552;
+  border-radius: 10px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+.admin-modal-volver-btn:hover {
+  transform: scale(1.02);
+  opacity: 0.95;
+}
+.admin-modal-volver-btn:active {
   transform: scale(0.98);
 }
 
@@ -381,10 +398,8 @@
   border-bottom: 1px solid #e8e0e8;
 }
 
-.admin-modal-deudas-tabla tbody td:nth-child(2),
-.admin-modal-deudas-tabla tbody td:nth-child(3),
-.admin-modal-deudas-tabla tbody td:nth-child(4) {
-  text-align: right;
+.admin-modal-deudas-tabla tbody td {
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 .admin-modal-deudas-tabla tbody td.admin-modal-deudas-ver-col {
@@ -402,10 +417,8 @@
   padding: 14px 16px;
 }
 
-.admin-modal-deudas-tabla tfoot td:nth-child(2),
-.admin-modal-deudas-tabla tfoot td:nth-child(3),
-.admin-modal-deudas-tabla tfoot td:nth-child(4) {
-  text-align: right;
+.admin-modal-deudas-tabla tfoot td {
+  text-align: center;
   font-variant-numeric: tabular-nums;
 }
 .admin-modal-deudas-tabla tfoot td.admin-modal-deudas-ver-col {
