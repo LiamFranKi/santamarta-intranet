@@ -200,32 +200,107 @@ function Dashboard() {
     );
   }
 
-  const handleVerDeudas = (row) => {
+  const handleVerDeudas = async (row) => {
     const moneda = kpis?.moneda || stats?.moneda || 'S/';
-    const deuda = parseFloat(row.deuda) || 0;
-    const pagado = parseFloat(row.pagado) || 0;
-    const totalPagar = parseFloat(row.total_pagar) || 0;
+    const anio = kpis?.anio || stats?.anio_activo || new Date().getFullYear();
 
-    const fmt = (n) =>
+    const fmtM = (n) =>
       n == null || n === '' ? '—' : `${moneda} ${parseFloat(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-    Swal.fire({
-      icon: deuda > 0 ? 'warning' : 'success',
-      title: 'Ver Deudas',
-      html: `
-        <div style="text-align:left">
-          <div style="font-weight:700;margin-bottom:6px">${row.concepto}</div>
-          <div><b>Total a pagar:</b> ${fmt(totalPagar)}</div>
-          <div><b>Pagado:</b> ${fmt(pagado)}</div>
-          <div><b>Deuda:</b> ${fmt(deuda)}</div>
-          <div style="margin-top:10px;color:#6b7280;font-size:0.9rem">
-            Este botón muestra el resumen de deuda del concepto (sin detalle individual por alumno).
+    Swal.fire({ title: 'Cargando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+    try {
+      const { data } = await api.get('/admin/estadisticas/deudas-por-aula', {
+        params: { tipo: row.tipo, anio }
+      });
+      Swal.close();
+
+      const aulas = (data.aulas || []).slice();
+      const titulo = `Saldo Pendiente por Aula - ${data.concepto || row.concepto} (${data.anio || anio})`;
+
+      if (aulas.length === 0) {
+        Swal.fire({
+          title: titulo,
+          html: '<p style="color:#6b7280">No hay datos por aula para este concepto.</p>',
+          confirmButtonText: 'Cerrar',
+          width: 520,
+        });
+        return;
+      }
+
+      const totalDeuda = aulas.reduce((s, a) => s + (parseFloat(a.deuda_total) || 0), 0);
+      const totalPagado = aulas.reduce((s, a) => s + (parseFloat(a.pagado) || 0), 0);
+      const totalSaldo = aulas.reduce((s, a) => s + (parseFloat(a.saldo) || 0), 0);
+      const maxSaldo = Math.max(...aulas.map(a => parseFloat(a.saldo) || 0), 1);
+
+      const filasTabla = aulas.map(
+        (a) => `<tr>
+          <td style="text-align:left;padding:8px 10px">${a.aula}</td>
+          <td style="text-align:right;padding:8px 10px">${fmtM(a.deuda_total)}</td>
+          <td style="text-align:right;padding:8px 10px">${fmtM(a.pagado)}</td>
+          <td style="text-align:right;padding:8px 10px;font-weight:700;color:#e65100">${fmtM(a.saldo)}</td>
+        </tr>`
+      ).join('');
+
+      const tablaHtml = `
+        <table style="width:100%;border-collapse:collapse;margin-bottom:20px;font-size:0.9rem">
+          <thead>
+            <tr style="background:#A9C6E9;color:#1a237e">
+              <th style="text-align:left;padding:10px 10px">Aula</th>
+              <th style="text-align:right;padding:10px 10px">Deuda</th>
+              <th style="text-align:right;padding:10px 10px">Pagado</th>
+              <th style="text-align:right;padding:10px 10px">Saldo</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filasTabla}
+          </tbody>
+          <tfoot>
+            <tr style="background:#e3f2fd;font-weight:700;border-top:2px solid #90caf9">
+              <td style="text-align:left;padding:10px 10px">Total</td>
+              <td style="text-align:right;padding:10px 10px">${fmtM(totalDeuda)}</td>
+              <td style="text-align:right;padding:10px 10px">${fmtM(totalPagado)}</td>
+              <td style="text-align:right;padding:10px 10px;color:#e65100">${fmtM(totalSaldo)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      `;
+
+      const barrasChart = aulas.map((a) => {
+        const saldo = parseFloat(a.saldo) || 0;
+        const pct = maxSaldo > 0 ? (saldo / maxSaldo) * 100 : 0;
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;min-width:0;max-width:120px">
+          <div style="display:flex;align-items:flex-end;justify-content:center;height:180px;width:100%;gap:6px">
+            <div style="width:32px;min-width:32px;height:${Math.max(pct, 2)}%;background:linear-gradient(180deg,#ffb74d 0%,#f9a825 100%);border-radius:6px 6px 0 0" title="${a.aula}: Saldo ${fmtM(a.saldo)}"></div>
+          </div>
+          <div style="font-size:0.65rem;color:#37474f;margin-top:6px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;transform:rotate(-35deg);transform-origin:top center">${a.aula}</div>
+        </div>`;
+      }).join('');
+
+      const chartHtml = `
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid #e0e0e0">
+          <div style="font-weight:600;margin-bottom:10px;text-align:center;color:#37474f">Saldo pendiente por grado (mayor a menor)</div>
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:4px;min-height:220px;padding-bottom:8px">
+            ${barrasChart}
           </div>
         </div>
-      `,
-      confirmButtonText: 'Cerrar',
-      width: 520,
-    });
+      `;
+
+      Swal.fire({
+        title: titulo,
+        html: tablaHtml + chartHtml,
+        width: 720,
+        showCloseButton: true,
+        confirmButtonText: 'Cerrar',
+        customClass: { popup: 'admin-modal-deudas-aula' },
+      });
+    } catch (err) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err.response?.data?.error || 'No se pudo cargar el detalle por aula.',
+        confirmButtonText: 'Cerrar',
+      });
+    }
   };
 
   const fmt = (n) => (n == null || n === '' ? '—' : typeof n === 'number' ? n.toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : String(n));

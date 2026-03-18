@@ -369,6 +369,140 @@ router.get('/estadisticas/kpis', async (req, res) => {
 });
 
 /**
+ * GET /api/admin/estadisticas/deudas-por-aula
+ * Saldo pendiente por aula (grupo) para un concepto. Query: tipo (0=matrícula, 1..N=nro_pago pensión), anio
+ * Respuesta: aulas ordenadas por saldo descendente (mayor deuda primero).
+ */
+router.get('/estadisticas/deudas-por-aula', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const tipoParam = parseInt(req.query.tipo, 10);
+    const anioParam = parseInt(req.query.anio, 10);
+
+    const [colegio] = await query(
+      'SELECT anio_activo, total_pensiones, moneda FROM colegios WHERE id = ? LIMIT 1',
+      [colegio_id]
+    );
+    const anio = !isNaN(anioParam) && anioParam > 0 ? anioParam : parseInt(colegio?.anio_activo || new Date().getFullYear(), 10);
+    const totalPensiones = parseInt(colegio?.total_pensiones || 10);
+
+    if (isNaN(tipoParam) || tipoParam < 0) {
+      return res.status(400).json({ error: 'Parámetro tipo requerido (0=matrícula, 1..N=mes pensión)' });
+    }
+
+    // Grupos del año con nivel (para etiqueta Aula)
+    const gruposAnio = await query(
+      `SELECT g.id, g.grado, g.seccion, g.anio, n.nombre as nivel_nombre
+       FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.colegio_id = ? AND g.anio = ?`,
+      [colegio_id, anio]
+    );
+    if (!gruposAnio || gruposAnio.length === 0) {
+      return res.json({ anio, moneda: colegio?.moneda || 'S/', aulas: [] });
+    }
+
+    const grupoIds = gruposAnio.map(g => g.id);
+    const ph = grupoIds.map(() => '?').join(',');
+
+    if (tipoParam === 0) {
+      // Matrícula: total esperado por grupo (solo matrículas que ya pagaron matrícula) y lo pagado
+      const esperadoPorGrupo = await query(
+        `SELECT m.grupo_id, SUM(c.matricula) as total_esperado
+         FROM matriculas m
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         INNER JOIN costos c ON c.id = m.costo_id
+         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)
+           AND EXISTS (
+             SELECT 1 FROM pagos p
+             WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
+               AND p.tipo = 0 AND p.estado_pago = 'CANCELADO'
+           )
+         GROUP BY m.grupo_id`,
+        [colegio_id, anio, colegio_id]
+      );
+      const pagadoPorGrupo = await query(
+        `SELECT m.grupo_id, COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as pagado
+         FROM pagos p
+         INNER JOIN matriculas m ON m.id = p.matricula_id
+         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO' AND p.tipo = 0
+           AND m.grupo_id IN (${ph})
+         GROUP BY m.grupo_id`,
+        [colegio_id, ...grupoIds]
+      );
+
+      const mapEsperado = {};
+      (esperadoPorGrupo || []).forEach(r => { mapEsperado[r.grupo_id] = parseFloat(r.total_esperado || 0); });
+      const mapPagado = {};
+      (pagadoPorGrupo || []).forEach(r => { mapPagado[r.grupo_id] = parseFloat(r.pagado || 0); });
+
+      const aulas = gruposAnio.map(g => {
+        const deudaTotal = mapEsperado[g.id] || 0;
+        const pagado = mapPagado[g.id] || 0;
+        const saldo = Math.max(0, deudaTotal - pagado);
+        const aula = `${(g.nivel_nombre || '').toUpperCase()} - ${g.grado}° ${g.seccion || ''} - ${g.anio}`.trim();
+        return { grupo_id: g.id, aula, deuda_total: deudaTotal, pagado, saldo };
+      });
+      aulas.sort((a, b) => (b.saldo - a.saldo));
+      return res.json({ anio, moneda: colegio?.moneda || 'S/', concepto_tipo: 0, concepto: 'Matrícula', aulas });
+    }
+
+    // Pensión (tipo 1..totalPensiones = nro_pago)
+    const nroPago = tipoParam;
+    if (nroPago < 1 || nroPago > totalPensiones) {
+      return res.json({ anio, moneda: colegio?.moneda || 'S/', concepto_tipo: nroPago, aulas: [] });
+    }
+
+    const esperadoPension = await query(
+      `SELECT m.grupo_id, SUM(c.pension) as total_esperado
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN costos c ON c.id = m.costo_id
+       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)
+         AND EXISTS (
+           SELECT 1 FROM pagos p
+           WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
+             AND p.tipo = 0 AND p.estado_pago = 'CANCELADO'
+         )
+       GROUP BY m.grupo_id`,
+      [colegio_id, anio, colegio_id]
+    );
+    const pagadoPension = await query(
+      `SELECT m.grupo_id, COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as pagado
+       FROM pagos p
+       INNER JOIN matriculas m ON m.id = p.matricula_id
+       WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+         AND p.tipo = 1 AND p.nro_pago = ? AND YEAR(p.fecha_hora) = ?
+         AND m.grupo_id IN (${ph})
+       GROUP BY m.grupo_id`,
+      [colegio_id, nroPago, anio, ...grupoIds]
+    );
+
+    const nombresMes = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const indiceMes = 2 + nroPago;
+    const nombreMes = indiceMes <= 12 ? (nombresMes[indiceMes] || `Mes ${nroPago}`) : `Mes ${nroPago}`;
+
+    const mapEsperado = {};
+    (esperadoPension || []).forEach(r => { mapEsperado[r.grupo_id] = parseFloat(r.total_esperado || 0); });
+    const mapPagado = {};
+    (pagadoPension || []).forEach(r => { mapPagado[r.grupo_id] = parseFloat(r.pagado || 0); });
+
+    const aulas = gruposAnio.map(g => {
+      const deudaTotal = mapEsperado[g.id] || 0;
+      const pagado = mapPagado[g.id] || 0;
+      const saldo = Math.max(0, deudaTotal - pagado);
+      const aula = `${(g.nivel_nombre || '').toUpperCase()} - ${g.grado}° ${g.seccion || ''} - ${g.anio}`.trim();
+      return { grupo_id: g.id, aula, deuda_total: deudaTotal, pagado, saldo };
+    });
+    aulas.sort((a, b) => (b.saldo - a.saldo));
+    return res.json({ anio, moneda: colegio?.moneda || 'S/', concepto_tipo: nroPago, concepto: nombreMes, aulas });
+  } catch (error) {
+    console.error('Error deudas por aula:', error);
+    res.status(500).json({ error: 'Error al obtener deudas por aula' });
+  }
+});
+
+/**
  * GET /api/admin/configuracion
  * Obtener configuración del colegio
  */
