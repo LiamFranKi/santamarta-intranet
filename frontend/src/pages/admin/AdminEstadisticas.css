@@ -213,14 +213,14 @@
   flex-direction: column;
   align-items: center;
   min-width: 0;
-  max-width: 60px;
+  max-width: 90px;
 }
 
 .admin-estadisticas-chart-bars {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 4px;
+  gap: 8px;
   width: 100%;
   height: 200px;
   min-height: 200px;
@@ -228,7 +228,7 @@
 
 .admin-estadisticas-bar {
   width: 100%;
-  max-width: 14px;
+  max-width: 20px;
   min-height: 2px;
   border-radius: 4px 4px 0 0;
   transition: opacity 0.2s;
@@ -247,7 +247,7 @@
 }
 
 .admin-estadisticas-chart-x-label {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   color: #4b5563;
   margin-top: 0.35rem;
   text-align: center;
@@ -257,4 +257,28 @@
   max-width: 100%;
   transform: rotate(-28deg);
   transform-origin: top center;
+}
+
+.admin-estadisticas-deudas-col {
+  width: 90px;
+}
+
+.admin-estadisticas-deudas-btn {
+  background: linear-gradient(135deg, #e8e0f0 0%, #d4c8e8 100%);
+  border: 1px solid #c4b8d4;
+  color: #3d3552;
+  border-radius: 10px;
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+
+.admin-estadisticas-deudas-btn:hover {
+  transform: scale(1.05);
+  opacity: 0.95;
+}
+
+.admin-estadisticas-deudas-btn:active {
+  transform: scale(0.98);
 }

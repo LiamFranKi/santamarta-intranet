@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import BirthdayWidget from '../../components/BirthdayWidget';
 import api from '../../services/api';
+import Swal from 'sweetalert2';
 import './Dashboard.css';
 import './AdminEstadisticas.css';
 
@@ -199,6 +200,34 @@ function Dashboard() {
     );
   }
 
+  const handleVerDeudas = (row) => {
+    const moneda = kpis?.moneda || stats?.moneda || 'S/';
+    const deuda = parseFloat(row.deuda) || 0;
+    const pagado = parseFloat(row.pagado) || 0;
+    const totalPagar = parseFloat(row.total_pagar) || 0;
+
+    const fmt = (n) =>
+      n == null || n === '' ? '—' : `${moneda} ${parseFloat(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    Swal.fire({
+      icon: deuda > 0 ? 'warning' : 'success',
+      title: 'Ver Deudas',
+      html: `
+        <div style="text-align:left">
+          <div style="font-weight:700;margin-bottom:6px">${row.concepto}</div>
+          <div><b>Total a pagar:</b> ${fmt(totalPagar)}</div>
+          <div><b>Pagado:</b> ${fmt(pagado)}</div>
+          <div><b>Deuda:</b> ${fmt(deuda)}</div>
+          <div style="margin-top:10px;color:#6b7280;font-size:0.9rem">
+            Este botón muestra el resumen de deuda del concepto (sin detalle individual por alumno).
+          </div>
+        </div>
+      `,
+      confirmButtonText: 'Cerrar',
+      width: 520,
+    });
+  };
+
   const fmt = (n) => (n == null || n === '' ? '—' : typeof n === 'number' ? n.toLocaleString('es-PE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : String(n));
   const fmtMonto = (n, moneda = stats?.moneda || 'S/') => (n == null || n === '' ? '—' : `${moneda} ${parseFloat(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 
@@ -253,6 +282,7 @@ function Dashboard() {
                             <th>Total a Pagar</th>
                             <th>Pagado</th>
                             <th>Deuda</th>
+                            <th className="admin-estadisticas-deudas-col">Ver</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -262,6 +292,17 @@ function Dashboard() {
                               <td>{fmtMonto(row.total_pagar, kpis.moneda)}</td>
                               <td>{fmtMonto(row.pagado, kpis.moneda)}</td>
                               <td>{fmtMonto(row.deuda, kpis.moneda)}</td>
+                              <td className="admin-estadisticas-deudas-col">
+                                <button
+                                  className="admin-estadisticas-deudas-btn"
+                                  type="button"
+                                  onClick={() => handleVerDeudas(row)}
+                                  title="Ver Deudas"
+                                  aria-label="Ver Deudas"
+                                >
+                                  👁️
+                                </button>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -271,6 +312,7 @@ function Dashboard() {
                             <td>{fmtMonto(kpis.conceptos.reduce((s, r) => s + (parseFloat(r.total_pagar) || 0), 0), kpis.moneda)}</td>
                             <td>{fmtMonto(kpis.conceptos.reduce((s, r) => s + (parseFloat(r.pagado) || 0), 0), kpis.moneda)}</td>
                             <td>{fmtMonto(kpis.conceptos.reduce((s, r) => s + (parseFloat(r.deuda) || 0), 0), kpis.moneda)}</td>
+                            <td className="admin-estadisticas-deudas-col"></td>
                           </tr>
                         </tfoot>
                       </table>
