@@ -34,3 +34,23 @@
   padding: 2rem;
   margin: 0;
 }
+
+.admin-estadisticas-error {
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 1rem 1.25rem;
+  border-radius: 10px;
+  margin-bottom: 1.5rem;
+  border: 1px solid #fecaca;
+}
+
+.admin-estadisticas-grid {
+  margin-top: 0.5rem;
+}
+
+.admin-stat-subtitle {
+  display: block;
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-top: 0.15rem;
+}

@@ -175,6 +175,99 @@ router.get('/dashboard', async (req, res) => {
 });
 
 /**
+ * GET /api/admin/estadisticas/kpis
+ * KPIs para la página Estadísticas (pagos/pensiones). Opcional: ?anio=2026
+ */
+router.get('/estadisticas/kpis', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const anioParam = parseInt(req.query.anio, 10);
+    const [colegio] = await query(
+      'SELECT anio_activo, total_pensiones, moneda FROM colegios WHERE id = ? LIMIT 1',
+      [colegio_id]
+    );
+    const anio = !isNaN(anioParam) && anioParam > 0 ? anioParam : parseInt(colegio?.anio_activo || new Date().getFullYear(), 10);
+    const totalPensiones = parseInt(colegio?.total_pensiones || 10);
+    const moneda = colegio?.moneda || 'S/';
+
+    // Matrículas del año: pagaron matrícula, no retirados
+    const matriculasPagadas = await query(
+      `SELECT m.id, m.alumno_id, c.pension, c.matricula
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN costos c ON c.id = m.costo_id
+       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)
+         AND EXISTS (
+           SELECT 1 FROM pagos p
+           WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
+             AND p.tipo = 0 AND p.estado_pago = 'CANCELADO'
+         )`,
+      [colegio_id, anio, colegio_id]
+    );
+    const matIdsPagadas = (matriculasPagadas || []).map(m => m.id);
+    const alumnosTotal = [...new Set((matriculasPagadas || []).map(m => m.alumno_id))].length;
+
+    // Presupuesto anual (matrícula + pensiones por alumno)
+    let presupuestoAnual = 0;
+    for (const mat of matriculasPagadas || []) {
+      presupuestoAnual += parseFloat(mat.matricula || 0) + (parseFloat(mat.pension || 0) * totalPensiones);
+    }
+
+    // Total cobrado (ingresos) del año para esas matrículas
+    let totalCobrado = 0;
+    if (matIdsPagadas.length > 0) {
+      const ph = matIdsPagadas.map(() => '?').join(',');
+      const [rIng] = await query(
+        `SELECT COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as total
+         FROM pagos p
+         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+           AND p.matricula_id IN (${ph})`,
+        [colegio_id, ...matIdsPagadas]
+      );
+      totalCobrado = parseFloat(rIng?.total || 0);
+    }
+
+    const totalDeuda = Math.max(0, presupuestoAnual - totalCobrado);
+
+    // Cantidad de deudores: matrículas que aún deben (lo pagado < lo esperado) — una sola consulta
+    let cantidadDeudores = 0;
+    if (matIdsPagadas.length > 0) {
+      const ph = matIdsPagadas.map(() => '?').join(',');
+      const pagadoPorMatricula = await query(
+        `SELECT p.matricula_id, COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as pagado
+         FROM pagos p
+         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+           AND p.matricula_id IN (${ph})
+         GROUP BY p.matricula_id`,
+        [colegio_id, ...matIdsPagadas]
+      );
+      const mapPagado = {};
+      (pagadoPorMatricula || []).forEach(row => { mapPagado[row.matricula_id] = parseFloat(row.pagado || 0); });
+      for (const mat of matriculasPagadas || []) {
+        const pagado = mapPagado[mat.id] || 0;
+        const esperado = parseFloat(mat.matricula || 0) + (parseFloat(mat.pension || 0) * totalPensiones);
+        if (pagado < esperado) cantidadDeudores += 1;
+      }
+    }
+    const alumnosAlDia = Math.max(0, alumnosTotal - cantidadDeudores);
+
+    res.json({
+      anio,
+      moneda,
+      total_cobrado: totalCobrado,
+      total_deuda: totalDeuda,
+      presupuesto_anual: presupuestoAnual,
+      alumnos_total: alumnosTotal,
+      alumnos_al_dia: alumnosAlDia,
+      cantidad_deudores: cantidadDeudores
+    });
+  } catch (error) {
+    console.error('Error estadísticas KPIs:', error);
+    res.status(500).json({ error: 'Error al obtener KPIs de estadísticas' });
+  }
+});
+
+/**
  * GET /api/admin/configuracion
  * Obtener configuración del colegio
  */
