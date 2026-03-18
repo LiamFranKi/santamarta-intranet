@@ -5,6 +5,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import BirthdayWidget from '../../components/BirthdayWidget';
 import api from '../../services/api';
 import './Dashboard.css';
+import './AdminEstadisticas.css';
 
 const coloresPasteles = [
   'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',   // Verde menta
@@ -21,6 +22,9 @@ function Dashboard() {
   const { user } = useAuth();
   const [stats, setStats] = useState(null);
   const [loadingStats, setLoadingStats] = useState(true);
+  const [kpis, setKpis] = useState(null);
+  const [loadingKpis, setLoadingKpis] = useState(true);
+  const [errorKpis, setErrorKpis] = useState(null);
 
   useEffect(() => {
     api.get('/admin/dashboard').then(res => {
@@ -201,6 +205,14 @@ function Dashboard() {
     { key: 'deudas_ant', title: 'Deudas Anteriores', icon: '📜', value: loadingStats ? '—' : fmtMonto(stats?.deudas_anteriores), color: coloresPasteles[7] },
   ];
 
+  // Cargar KPIs de pagos/pensiones para el cuadro por concepto
+  useEffect(() => {
+    api.get('/admin/estadisticas/kpis')
+      .then((res) => setKpis(res.data))
+      .catch((err) => setErrorKpis(err.response?.data?.error || 'Error al cargar estadísticas por concepto'))
+      .finally(() => setLoadingKpis(false));
+  }, []);
+
   return (
     <DashboardLayout>
       <BirthdayWidget comunicadoAbierto={false} />
@@ -216,6 +228,52 @@ function Dashboard() {
             </div>
           ))}
         </div>
+
+        {/* Cuadro de Estadísticas por Matrícula y Meses (pagos/pensiones) */}
+        {user?.tipo === 'ADMINISTRADOR' && (
+          <div className="admin-estadisticas-content" style={{ marginTop: '1.5rem' }}>
+            {errorKpis && (
+              <div className="admin-estadisticas-error">
+                {errorKpis}
+              </div>
+            )}
+            {loadingKpis ? (
+              <p className="admin-estadisticas-placeholder">Cargando estadísticas por concepto...</p>
+            ) : (
+              <>
+                {kpis && Array.isArray(kpis.conceptos) && kpis.conceptos.length > 0 ? (
+                  <div className="admin-estadisticas-table-wrapper">
+                    <h2 className="admin-estadisticas-subtitle">Estadísticas por Matrícula y Meses</h2>
+                    <div className="admin-estadisticas-table-card">
+                      <table className="admin-estadisticas-table">
+                        <thead>
+                          <tr>
+                            <th>Concepto</th>
+                            <th>Total a Pagar</th>
+                            <th>Pagado</th>
+                            <th>Deuda</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {kpis.conceptos.map((row) => (
+                            <tr key={row.tipo}>
+                              <td>{row.concepto}</td>
+                              <td>{fmtMonto(row.total_pagar, kpis.moneda)}</td>
+                              <td>{fmtMonto(row.pagado, kpis.moneda)}</td>
+                              <td>{fmtMonto(row.deuda, kpis.moneda)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="admin-estadisticas-placeholder">No hay datos de estadísticas por concepto disponibles.</p>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
