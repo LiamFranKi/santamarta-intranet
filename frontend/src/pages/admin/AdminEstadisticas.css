@@ -349,6 +349,29 @@
   text-align: right;
 }
 
+.admin-modal-deudas-ver-col {
+  width: 110px;
+  text-align: center;
+}
+.admin-modal-ver-detalle-btn {
+  background: linear-gradient(135deg, #e8e0f0 0%, #d4c8e8 100%);
+  border: 1px solid #c4b8d4;
+  color: #3d3552;
+  border-radius: 8px;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: transform 0.12s ease, opacity 0.12s ease;
+}
+.admin-modal-ver-detalle-btn:hover {
+  transform: scale(1.03);
+  opacity: 0.95;
+}
+.admin-modal-ver-detalle-btn:active {
+  transform: scale(0.98);
+}
+
 .admin-modal-deudas-tabla tbody tr:hover {
   background: linear-gradient(135deg, #ebe0f5 0%, #e2d4ef 100%) !important;
 }
@@ -363,6 +386,9 @@
 .admin-modal-deudas-tabla tbody td:nth-child(4) {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+.admin-modal-deudas-tabla tbody td.admin-modal-deudas-ver-col {
+  text-align: center;
 }
 
 .admin-modal-deudas-tabla tfoot tr {
@@ -382,96 +408,12 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+.admin-modal-deudas-tabla tfoot td.admin-modal-deudas-ver-col {
+  text-align: center;
+}
 
 .admin-modal-deudas-saldo-total {
   color: #c43e00 !important;
   font-weight: 700;
 }
 
-/* Gráfico de barras en modal */
-.admin-modal-deudas-chart-section {
-  margin-top: 8px;
-  padding-top: 24px;
-  border-top: 1px solid #e8e0e8;
-}
-
-.admin-modal-deudas-chart-title {
-  font-weight: 600;
-  margin-bottom: 16px;
-  text-align: center;
-  color: #4a3f6b;
-  font-size: 1rem;
-}
-
-.admin-modal-deudas-chart-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  padding: 16px 8px 24px;
-  margin: 0 -8px;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.admin-modal-deudas-chart-scroll::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
-}
-
-.admin-modal-deudas-chart-bars {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-start;
-  gap: 10px;
-  height: 240px;
-  padding: 0 4px;
-}
-
-.admin-modal-deudas-bar-group {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  min-width: 78px;
-  max-width: 98px;
-  height: 240px;
-}
-
-.admin-modal-deudas-bar-wrap {
-  flex: 0 0 200px;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  width: 100%;
-  height: 200px;
-  min-height: 200px;
-}
-
-.admin-modal-deudas-bar-fill {
-  width: 30px;
-  min-width: 30px;
-  min-height: 3px;
-  border-radius: 8px 8px 0 0;
-  background: linear-gradient(180deg, #ffb74d 0%, #f9a825 100%);
-  transition: opacity 0.2s;
-  align-self: flex-end;
-}
-
-.admin-modal-deudas-bar-group:hover .admin-modal-deudas-bar-fill {
-  opacity: 0.9;
-}
-
-.admin-modal-deudas-bar-label {
-  font-size: 0.66rem;
-  color: #4a3f6b;
-  margin-top: 0;
-  text-align: center;
-  line-height: 1;
-  white-space: nowrap;
-  word-break: break-word;
-  max-width: 80px;
-  /* Etiqueta vertical tipo "grado" para que no coma ancho */
-  writing-mode: vertical-rl;
-  transform: rotate(180deg);
-}

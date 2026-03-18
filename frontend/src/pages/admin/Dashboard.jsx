@@ -230,17 +230,20 @@ function Dashboard() {
       const totalDeuda = aulas.reduce((s, a) => s + (parseFloat(a.deuda_total) || 0), 0);
       const totalPagado = aulas.reduce((s, a) => s + (parseFloat(a.pagado) || 0), 0);
       const totalSaldo = aulas.reduce((s, a) => s + (parseFloat(a.saldo) || 0), 0);
-      const maxSaldo = Math.max(...aulas.map(a => parseFloat(a.saldo) || 0), 1);
+      const conceptoNombre = data.concepto || row.concepto || '';
+      const anioResp = data.anio || anio;
 
       const filasTabla = aulas.map(
         (a, i) => {
           const par = i % 2 === 0;
           const rowBg = par ? 'background:linear-gradient(135deg,#faf8fc 0%,#f5f0fa 100%)' : 'background:linear-gradient(135deg,#f5f0fa 0%,#efe8f5 100%)';
+          const aulaEsc = (a.aula || '').replace(/"/g, '&quot;');
           return `<tr style="${rowBg}">
           <td style="text-align:left;padding:12px 14px;border-bottom:1px solid #e8e0e8">${a.aula}</td>
           <td style="text-align:right;padding:12px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtM(a.deuda_total)}</td>
           <td style="text-align:right;padding:12px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtM(a.pagado)}</td>
           <td style="text-align:right;padding:12px 14px;border-bottom:1px solid #e8e0e8;font-weight:700;color:#c43e00;font-variant-numeric:tabular-nums">${fmtM(a.saldo)}</td>
+          <td class="admin-modal-deudas-ver-col"><button type="button" class="admin-modal-ver-detalle-btn" data-grupo-id="${a.grupo_id}" data-aula="${aulaEsc}" data-tipo="${row.tipo}" data-anio="${anioResp}" data-concepto="${(conceptoNombre).replace(/"/g, '&quot;')}" title="Ver Detalle">Ver Detalle</button></td>
         </tr>`;
         }
       ).join('');
@@ -254,6 +257,7 @@ function Dashboard() {
               <th>Deuda</th>
               <th>Pagado</th>
               <th>Saldo</th>
+              <th class="admin-modal-deudas-ver-col">Ver</th>
             </tr>
           </thead>
           <tbody>
@@ -265,46 +269,70 @@ function Dashboard() {
               <td>${fmtM(totalDeuda)}</td>
               <td>${fmtM(totalPagado)}</td>
               <td class="admin-modal-deudas-saldo-total">${fmtM(totalSaldo)}</td>
+              <td class="admin-modal-deudas-ver-col"></td>
             </tr>
           </tfoot>
         </table>
         </div>
       `;
 
-      // Etiqueta sin año: solo nivel y grado (ej. "SECUNDARIA - 1° UNICA - 2026" → "SECUNDARIA - 1° UNICA")
-      const labelSinAnio = (aula) => (aula || '').replace(/\s*-\s*\d{4}\s*$/, '').trim() || aula;
-
-      const barrasChart = aulas.map((a) => {
-        const saldo = parseFloat(a.saldo) || 0;
-        const pct = maxSaldo > 0 ? (saldo / maxSaldo) * 100 : 2;
-        const label = labelSinAnio(a.aula);
-        return `<div class="admin-modal-deudas-bar-group" title="${a.aula}: Saldo ${fmtM(a.saldo)}">
-          <div class="admin-modal-deudas-bar-wrap">
-            <div class="admin-modal-deudas-bar-fill" style="height:${Math.max(pct, 2)}%"></div>
-          </div>
-          <div class="admin-modal-deudas-bar-label">${label}</div>
-        </div>`;
-      }).join('');
-
-      const chartHtml = `
-        <div class="admin-modal-deudas-chart-section">
-          <div class="admin-modal-deudas-chart-title">Saldo pendiente por grado (mayor a menor)</div>
-          <div class="admin-modal-deudas-chart-scroll">
-            <div class="admin-modal-deudas-chart-bars">
-              ${barrasChart}
-            </div>
-          </div>
-        </div>
-      `;
-
       Swal.fire({
         title: titulo,
-        html: `<div class="admin-modal-deudas-body">${tablaHtml}${chartHtml}</div>`,
+        html: `<div class="admin-modal-deudas-body" data-tipo="${row.tipo}" data-anio="${anioResp}" data-concepto="${(conceptoNombre).replace(/"/g, '&quot;')}">${tablaHtml}</div>`,
         width: '92%',
         padding: 0,
         showCloseButton: true,
         confirmButtonText: 'Cerrar',
         customClass: { popup: 'admin-modal-deudas-aula', htmlContainer: 'admin-modal-deudas-html' },
+        didOpen: (container) => {
+          container.querySelectorAll('.admin-modal-ver-detalle-btn').forEach((btn) => {
+            btn.addEventListener('click', async () => {
+              const grupoId = btn.getAttribute('data-grupo-id');
+              const aula = btn.getAttribute('data-aula') || '';
+              const tipo = btn.getAttribute('data-tipo');
+              const anioVal = btn.getAttribute('data-anio');
+              const concepto = btn.getAttribute('data-concepto') || '';
+              if (!grupoId) return;
+              Swal.fire({ title: 'Cargando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+              try {
+                const { data: res } = await api.get('/admin/estadisticas/deudas-por-aula/alumnos', {
+                  params: { tipo, anio: anioVal, grupo_id: grupoId }
+                });
+                Swal.close();
+                const alumnos = res.alumnos || [];
+                const monedaAl = res.moneda || moneda;
+                const fmtAl = (n) => n == null || n === '' ? '—' : `${monedaAl} ${parseFloat(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                const filasAl = alumnos.map((al, idx) => {
+                  const par = idx % 2 === 0;
+                  const bg = par ? 'background:linear-gradient(135deg,#faf8fc 0%,#f5f0fa 100%)' : 'background:linear-gradient(135deg,#f5f0fa 0%,#efe8f5 100%)';
+                  return `<tr style="${bg}"><td style="text-align:left;padding:10px 14px;border-bottom:1px solid #e8e0e8">${al.nombre || '—'}</td><td style="text-align:right;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtAl(al.deuda_total)}</td><td style="text-align:right;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtAl(al.pagado)}</td><td style="text-align:right;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-weight:700;color:#c43e00;font-variant-numeric:tabular-nums">${fmtAl(al.saldo)}</td></tr>`;
+                }).join('');
+                const totalD = alumnos.reduce((s, al) => s + (parseFloat(al.deuda_total) || 0), 0);
+                const totalP = alumnos.reduce((s, al) => s + (parseFloat(al.pagado) || 0), 0);
+                const totalS = alumnos.reduce((s, al) => s + (parseFloat(al.saldo) || 0), 0);
+                const tablaAl = `
+                  <div class="admin-modal-deudas-tabla-wrap">
+                  <table class="admin-modal-deudas-tabla">
+                    <thead><tr><th>Alumno</th><th>Deuda</th><th>Pagado</th><th>Saldo</th></tr></thead>
+                    <tbody>${filasAl}</tbody>
+                    <tfoot><tr style="background:linear-gradient(135deg,#d4c8e8 0%,#c4b0dc 100%);font-weight:700"><td>Total</td><td style="text-align:right">${fmtAl(totalD)}</td><td style="text-align:right">${fmtAl(totalP)}</td><td class="admin-modal-deudas-saldo-total" style="text-align:right">${fmtAl(totalS)}</td></tr></tfoot>
+                  </table>
+                  </div>`;
+                Swal.fire({
+                  title: `Alumnos - ${aula.replace(/&quot;/g, '"')} (${concepto})`,
+                  html: `<div class="admin-modal-deudas-body">${tablaAl}</div>`,
+                  width: '92%',
+                  padding: 0,
+                  showCloseButton: true,
+                  confirmButtonText: 'Cerrar',
+                  customClass: { popup: 'admin-modal-deudas-aula', htmlContainer: 'admin-modal-deudas-html' },
+                });
+              } catch (e) {
+                Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar el detalle de alumnos.', confirmButtonText: 'Cerrar' });
+              }
+            });
+          });
+        },
       });
     } catch (err) {
       Swal.fire({

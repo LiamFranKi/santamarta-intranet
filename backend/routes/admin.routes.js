@@ -503,6 +503,113 @@ router.get('/estadisticas/deudas-por-aula', async (req, res) => {
 });
 
 /**
+ * GET /api/admin/estadisticas/deudas-por-aula/alumnos
+ * Alumnos de un grupo con deuda/pagado/saldo para un concepto. Query: tipo, anio, grupo_id
+ * Respuesta: alumnos ordenados por saldo descendente (mayor a menor).
+ */
+router.get('/estadisticas/deudas-por-aula/alumnos', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const tipoParam = parseInt(req.query.tipo, 10);
+    const anioParam = parseInt(req.query.anio, 10);
+    const grupoId = parseInt(req.query.grupo_id, 10);
+
+    if (!grupoId || isNaN(tipoParam) || tipoParam < 0) {
+      return res.status(400).json({ error: 'Parámetros tipo y grupo_id requeridos' });
+    }
+
+    const [colegio] = await query(
+      'SELECT anio_activo, total_pensiones, moneda FROM colegios WHERE id = ? LIMIT 1',
+      [colegio_id]
+    );
+    const anio = !isNaN(anioParam) && anioParam > 0 ? anioParam : parseInt(colegio?.anio_activo || new Date().getFullYear(), 10);
+    const totalPensiones = parseInt(colegio?.total_pensiones || 10);
+
+    const nombreAlumno = (a) => [a.apellido_paterno, a.apellido_materno, a.nombres].filter(Boolean).join(' ').trim() || '—';
+
+    if (tipoParam === 0) {
+      const rows = await query(
+        `SELECT m.id as matricula_id, m.alumno_id,
+         a.nombres, a.apellido_paterno, a.apellido_materno,
+         c.matricula as deuda_total,
+         (SELECT COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0)
+          FROM pagos p
+          WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
+            AND p.estado_pago = 'CANCELADO' AND p.tipo = 0) as pagado
+         FROM matriculas m
+         INNER JOIN costos c ON c.id = m.costo_id
+         INNER JOIN alumnos a ON a.id = m.alumno_id
+         WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+           AND EXISTS (
+             SELECT 1 FROM pagos p
+             WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
+               AND p.tipo = 0 AND p.estado_pago = 'CANCELADO'
+           )`,
+        [colegio_id, grupoId, colegio_id, colegio_id]
+      );
+      const alumnos = (rows || []).map(r => {
+        const deudaTotal = parseFloat(r.deuda_total) || 0;
+        const pagado = parseFloat(r.pagado) || 0;
+        const saldo = Math.max(0, deudaTotal - pagado);
+        return {
+          alumno_id: r.alumno_id,
+          nombre: nombreAlumno(r),
+          deuda_total: deudaTotal,
+          pagado,
+          saldo
+        };
+      });
+      alumnos.sort((a, b) => (b.saldo - a.saldo));
+      return res.json({ anio, moneda: colegio?.moneda || 'S/', concepto: 'Matrícula', grupo_id: grupoId, alumnos });
+    }
+
+    const nroPago = tipoParam;
+    if (nroPago < 1 || nroPago > totalPensiones) {
+      return res.json({ anio, moneda: colegio?.moneda || 'S/', concepto: `Mes ${nroPago}`, grupo_id: grupoId, alumnos: [] });
+    }
+
+    const rows = await query(
+      `SELECT m.id as matricula_id, m.alumno_id,
+       a.nombres, a.apellido_paterno, a.apellido_materno,
+       c.pension as deuda_total,
+       (SELECT COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0)
+        FROM pagos p
+        WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
+          AND p.estado_pago = 'CANCELADO' AND p.tipo = 1 AND p.nro_pago = ? AND YEAR(p.fecha_hora) = ?) as pagado
+       FROM matriculas m
+       INNER JOIN costos c ON c.id = m.costo_id
+       INNER JOIN alumnos a ON a.id = m.alumno_id
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+         AND EXISTS (
+           SELECT 1 FROM pagos p
+           WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
+             AND p.tipo = 0 AND p.estado_pago = 'CANCELADO'
+         )`,
+      [colegio_id, nroPago, anio, grupoId, colegio_id, colegio_id]
+    );
+    const nombresMes = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    const nombreMes = (2 + nroPago) <= 12 ? (nombresMes[2 + nroPago] || `Mes ${nroPago}`) : `Mes ${nroPago}`;
+    const alumnos = (rows || []).map(r => {
+      const deudaTotal = parseFloat(r.deuda_total) || 0;
+      const pagado = parseFloat(r.pagado) || 0;
+      const saldo = Math.max(0, deudaTotal - pagado);
+      return {
+        alumno_id: r.alumno_id,
+        nombre: nombreAlumno(r),
+        deuda_total: deudaTotal,
+        pagado,
+        saldo
+      };
+    });
+    alumnos.sort((a, b) => (b.saldo - a.saldo));
+    return res.json({ anio, moneda: colegio?.moneda || 'S/', concepto: nombreMes, grupo_id: grupoId, alumnos });
+  } catch (error) {
+    console.error('Error deudas por aula alumnos:', error);
+    res.status(500).json({ error: 'Error al obtener alumnos del grupo' });
+  }
+});
+
+/**
  * GET /api/admin/configuracion
  * Obtener configuración del colegio
  */
