@@ -188,7 +188,6 @@ router.get('/estadisticas/kpis', async (req, res) => {
     );
     const anio = !isNaN(anioParam) && anioParam > 0 ? anioParam : parseInt(colegio?.anio_activo || new Date().getFullYear(), 10);
     const totalPensiones = parseInt(colegio?.total_pensiones || 10);
-    const inicioPensiones = parseInt(colegio?.inicio_pensiones || 3, 10);
     const moneda = colegio?.moneda || 'S/';
 
     // Matrículas del año: pagaron matrícula, no retirados
@@ -218,11 +217,9 @@ router.get('/estadisticas/kpis', async (req, res) => {
       presupuestoAnual += matriculaCosto + (pensionCosto * totalPensiones);
       totalMatriculaEsperado += matriculaCosto;
 
-      // Distribuir pensiones esperadas por tipo de pago (mes)
-      for (let i = 0; i < totalPensiones; i += 1) {
-        const tipoMes = inicioPensiones + i;
-        if (tipoMes > 12) continue;
-        esperadoPensionPorTipo[tipoMes] = (esperadoPensionPorTipo[tipoMes] || 0) + pensionCosto;
+      // Distribuir pensiones esperadas por tipo de pago (1..totalPensiones)
+      for (let i = 1; i <= totalPensiones; i += 1) {
+        esperadoPensionPorTipo[i] = (esperadoPensionPorTipo[i] || 0) + pensionCosto;
       }
     }
 
@@ -231,26 +228,53 @@ router.get('/estadisticas/kpis', async (req, res) => {
     let pagadoPorTipo = {};
     if (matIdsPagadas.length > 0) {
       const ph = matIdsPagadas.map(() => '?').join(',');
-      const [rIng] = await query(
+
+      // Matrícula: considerar pagos sin filtrar por año (algunos se pagan el año anterior)
+      const [rIngMat] = await query(
         `SELECT COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as total
          FROM pagos p
          WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.matricula_id IN (${ph}) AND YEAR(p.fecha_hora) = ?`,
+           AND p.matricula_id IN (${ph}) AND p.tipo = 0`,
+        [colegio_id, ...matIdsPagadas]
+      );
+
+      // Pensiones: solo pagos del año consultado (ciclos de pensiones)
+      const [rIngPens] = await query(
+        `SELECT COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as total
+         FROM pagos p
+         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+           AND p.matricula_id IN (${ph}) AND p.tipo > 0 AND YEAR(p.fecha_hora) = ?`,
         [colegio_id, ...matIdsPagadas, anio]
       );
-      totalCobrado = parseFloat(rIng?.total || 0);
 
-      // Pagado por tipo (matrícula / cada mes)
-      const pagosPorTipo = await query(
+      totalCobrado = parseFloat(rIngMat?.total || 0) + parseFloat(rIngPens?.total || 0);
+
+      // Pagado por tipo:
+      // - tipo = 0 (matrícula): sin filtro por año
+      // - tipo > 0 (pensiones): solo pagos del año consultado
+      pagadoPorTipo = {};
+
+      const pagosMatricula = await query(
         `SELECT p.tipo, COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as total
          FROM pagos p
          WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.matricula_id IN (${ph}) AND YEAR(p.fecha_hora) = ?
+           AND p.matricula_id IN (${ph}) AND p.tipo = 0
+         GROUP BY p.tipo`,
+        [colegio_id, ...matIdsPagadas]
+      );
+      (pagosMatricula || []).forEach((row) => {
+        pagadoPorTipo[row.tipo] = parseFloat(row.total || 0);
+      });
+
+      const pagosPensiones = await query(
+        `SELECT p.tipo, COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as total
+         FROM pagos p
+         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+           AND p.matricula_id IN (${ph}) AND p.tipo > 0 AND YEAR(p.fecha_hora) = ?
          GROUP BY p.tipo`,
         [colegio_id, ...matIdsPagadas, anio]
       );
-      pagadoPorTipo = {};
-      (pagosPorTipo || []).forEach((row) => {
+      (pagosPensiones || []).forEach((row) => {
         pagadoPorTipo[row.tipo] = parseFloat(row.total || 0);
       });
     }
@@ -307,15 +331,15 @@ router.get('/estadisticas/kpis', async (req, res) => {
       deuda: Math.max(0, totalMatriculaEsperado - pagadoMatricula)
     });
 
-    // Meses de pensión
-    for (let i = 0; i < totalPensiones; i += 1) {
-      const tipoMes = inicioPensiones + i;
-      if (tipoMes > 12) continue;
-      const nombreMes = nombresMes[tipoMes] || `Mes ${tipoMes}`;
-      const totalMes = esperadoPensionPorTipo[tipoMes] || 0;
-      const pagadoMes = pagadoPorTipo[tipoMes] || 0;
+    // Meses de pensión: index 1..totalPensiones mapeado a Marzo..Diciembre
+    for (let i = 1; i <= totalPensiones; i += 1) {
+      const indiceMesCalendario = 2 + i; // i=1 -> 3 (Marzo), i=10 -> 12 (Diciembre)
+      if (indiceMesCalendario > 12) continue;
+      const nombreMes = nombresMes[indiceMesCalendario] || `Mes ${i}`;
+      const totalMes = esperadoPensionPorTipo[i] || 0;
+      const pagadoMes = pagadoPorTipo[i] || 0;
       conceptos.push({
-        tipo: tipoMes,
+        tipo: i,
         concepto: nombreMes,
         total_pagar: totalMes,
         pagado: pagadoMes,

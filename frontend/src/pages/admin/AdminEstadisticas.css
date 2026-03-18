@@ -56,7 +56,7 @@
 }
 
 .admin-estadisticas-table-wrapper {
-  margin-top: 2rem;
+  margin-top: 0.75rem;
 }
 
 .admin-estadisticas-subtitle {
@@ -86,7 +86,7 @@
 .admin-estadisticas-table td {
   padding: 0.75rem 1rem;
   font-size: 0.95rem;
-  text-align: left;
+  text-align: center;
 }
 
 .admin-estadisticas-table th {
@@ -103,9 +103,6 @@
   background: #eef2ff;
 }
 
-.admin-estadisticas-table td:nth-child(2),
-.admin-estadisticas-table td:nth-child(3),
-.admin-estadisticas-table td:nth-child(4) {
-  text-align: right;
+.admin-estadisticas-table td {
   font-variant-numeric: tabular-nums;
 }

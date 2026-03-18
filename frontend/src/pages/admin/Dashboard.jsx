@@ -232,7 +232,7 @@ function Dashboard() {
 
         {/* Cuadro de Estadísticas por Matrícula y Meses (pagos/pensiones) */}
         {user?.tipo === 'ADMINISTRADOR' && (
-          <div className="admin-estadisticas-content" style={{ marginTop: '1.5rem' }}>
+          <div className="admin-estadisticas-content" style={{ marginTop: '0.75rem' }}>
             {errorKpis && (
               <div className="admin-estadisticas-error">
                 {errorKpis}
