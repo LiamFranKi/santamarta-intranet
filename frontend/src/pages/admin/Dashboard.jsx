@@ -31,6 +31,15 @@ function Dashboard() {
       setStats(res.data);
     }).catch(() => setStats(null)).finally(() => setLoadingStats(false));
   }, []);
+
+  // Cargar KPIs de pagos/pensiones para el cuadro por concepto
+  useEffect(() => {
+    api.get('/admin/estadisticas/kpis')
+      .then((res) => setKpis(res.data))
+      .catch((err) => setErrorKpis(err.response?.data?.error || 'Error al cargar estadísticas por concepto'))
+      .finally(() => setLoadingKpis(false));
+  }, []);
+
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -204,14 +213,6 @@ function Dashboard() {
     { key: 'deuda', title: `Total Deuda (${anio})`, icon: '⚠️', value: loadingStats ? '—' : fmtMonto(stats?.total_deuda), color: coloresPasteles[6] },
     { key: 'deudas_ant', title: 'Deudas Anteriores', icon: '📜', value: loadingStats ? '—' : fmtMonto(stats?.deudas_anteriores), color: coloresPasteles[7] },
   ];
-
-  // Cargar KPIs de pagos/pensiones para el cuadro por concepto
-  useEffect(() => {
-    api.get('/admin/estadisticas/kpis')
-      .then((res) => setKpis(res.data))
-      .catch((err) => setErrorKpis(err.response?.data?.error || 'Error al cargar estadísticas por concepto'))
-      .finally(() => setLoadingKpis(false));
-  }, []);
 
   return (
     <DashboardLayout>
