@@ -244,7 +244,7 @@ function Dashboard() {
               <>
                 {kpis && Array.isArray(kpis.conceptos) && kpis.conceptos.length > 0 ? (
                   <div className="admin-estadisticas-table-wrapper">
-                    <h2 className="admin-estadisticas-subtitle">Estadísticas por Matrícula y Meses</h2>
+                    <h2 className="admin-estadisticas-subtitle">Estadisticas de Pagos (Matriculas y Pensiones)</h2>
                     <div className="admin-estadisticas-table-card">
                       <table className="admin-estadisticas-table">
                         <thead>
@@ -274,6 +274,62 @@ function Dashboard() {
                           </tr>
                         </tfoot>
                       </table>
+                    </div>
+
+                    {/* Gráfico Pagado vs Deuda por concepto */}
+                    <div className="admin-estadisticas-chart-card">
+                      <h3 className="admin-estadisticas-chart-title">Pagado vs Deuda por Mes</h3>
+                      <div className="admin-estadisticas-chart-legend">
+                        <span className="admin-estadisticas-chart-legend-item admin-estadisticas-legend-pagado">Pagado</span>
+                        <span className="admin-estadisticas-chart-legend-item admin-estadisticas-legend-deuda">Deuda</span>
+                      </div>
+                      <div className="admin-estadisticas-chart-wrapper">
+                        {(() => {
+                          const conceptos = kpis.conceptos;
+                          const maxVal = Math.max(
+                            ...conceptos.flatMap(r => [parseFloat(r.pagado) || 0, parseFloat(r.deuda) || 0]),
+                            1
+                          );
+                          const step = maxVal <= 0 ? 1 : Math.ceil(maxVal / 5 / 10000) * 10000;
+                          const yMax = Math.ceil(maxVal / step) * step || 1;
+                          return (
+                            <>
+                              <div className="admin-estadisticas-chart-y-axis">
+                                {[yMax, yMax * 0.8, yMax * 0.6, yMax * 0.4, yMax * 0.2, 0].map((v, i) => (
+                                  <div key={i} className="admin-estadisticas-chart-y-tick">
+                                    {v.toLocaleString('es-PE', { maximumFractionDigits: 0 })}
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="admin-estadisticas-chart-bars-container">
+                                {conceptos.map((row) => {
+                                  const pagado = parseFloat(row.pagado) || 0;
+                                  const deuda = parseFloat(row.deuda) || 0;
+                                  const pctPagado = yMax > 0 ? (pagado / yMax) * 100 : 0;
+                                  const pctDeuda = yMax > 0 ? (deuda / yMax) * 100 : 0;
+                                  return (
+                                    <div key={row.tipo} className="admin-estadisticas-chart-group">
+                                      <div className="admin-estadisticas-chart-bars">
+                                        <div
+                                          className="admin-estadisticas-bar admin-estadisticas-bar-pagado"
+                                          style={{ height: `${Math.max(pctPagado, 0.5)}%` }}
+                                          title={`${row.concepto}: Pagado ${pagado.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                                        />
+                                        <div
+                                          className="admin-estadisticas-bar admin-estadisticas-bar-deuda"
+                                          style={{ height: `${Math.max(pctDeuda, 0.5)}%` }}
+                                          title={`${row.concepto}: Deuda ${deuda.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                                        />
+                                      </div>
+                                      <div className="admin-estadisticas-chart-x-label">{row.concepto}</div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
                   </div>
                 ) : (
