@@ -93,6 +93,19 @@ function DocenteTutoria() {
   const [enviandoMensajeAlumno, setEnviandoMensajeAlumno] = useState(false);
   const quillRefMensajeAlumno = useRef(null);
 
+  // Estados para modal de mensaje exclusivo a apoderados (por alumno seleccionado)
+  const [mostrarModalMensajeApoderados, setMostrarModalMensajeApoderados] = useState(false);
+  const [alumnoParaMensajeApoderados, setAlumnoParaMensajeApoderados] = useState(null);
+  const [cargandoDestinatariosApoderados, setCargandoDestinatariosApoderados] = useState(false);
+  const [destinatariosApoderadosPreview, setDestinatariosApoderadosPreview] = useState([]);
+  const [usuarioIdsApoderadosMensaje, setUsuarioIdsApoderadosMensaje] = useState([]);
+
+  const [asuntoMensajeApoderados, setAsuntoMensajeApoderados] = useState('');
+  const [contenidoMensajeApoderados, setContenidoMensajeApoderados] = useState('');
+  const [archivosAdjuntosMensajeApoderados, setArchivosAdjuntosMensajeApoderados] = useState([]);
+  const [enviandoMensajeApoderados, setEnviandoMensajeApoderados] = useState(false);
+  const quillRefMensajeApoderados = useRef(null);
+
   // Estados para Incidencias y Estrellas (Tutoría - solo ver, no crear)
   const [showModalIncidenciasTutoria, setShowModalIncidenciasTutoria] = useState(false);
   const [showModalEstrellasTutoria, setShowModalEstrellasTutoria] = useState(false);
@@ -274,6 +287,70 @@ function DocenteTutoria() {
       };
     }
   }, [mostrarModalMensajeAlumno]);
+
+  // Configurar handler de imágenes para ReactQuill en modal de mensaje a apoderados
+  useEffect(() => {
+    if (quillRefMensajeApoderados.current && mostrarModalMensajeApoderados) {
+      const timeoutId = setTimeout(() => {
+        const quill = quillRefMensajeApoderados.current?.getEditor();
+        if (!quill) return;
+
+        const toolbar = quill.getModule('toolbar');
+        if (!toolbar) return;
+
+        const imageHandler = async () => {
+          const input = document.createElement('input');
+          input.setAttribute('type', 'file');
+          input.setAttribute('accept', 'image/*');
+          input.click();
+
+          input.onchange = async () => {
+            const file = input.files[0];
+            if (!file) return;
+
+            // Validar tamaño (máximo 5MB)
+            if (file.size > 5 * 1024 * 1024) {
+              Swal.fire('Error', 'La imagen no puede ser mayor a 5MB', 'error');
+              return;
+            }
+
+            // Validar tipo
+            if (!file.type.startsWith('image/')) {
+              Swal.fire('Error', 'Solo se permiten archivos de imagen', 'error');
+              return;
+            }
+
+            try {
+              const formData = new FormData();
+              formData.append('imagen', file);
+
+              const response = await api.post('/docente/mensajes/subir-imagen', formData, {
+                headers: {
+                  'Content-Type': 'multipart/form-data',
+                },
+              });
+
+              const imagenUrl = response.data.url;
+
+              // Insertar la imagen en el editor
+              const range = quill.getSelection(true);
+              quill.insertEmbed(range.index, 'image', imagenUrl);
+              quill.setSelection(range.index + 1);
+            } catch (error) {
+              console.error('❌ [TUTORIA-APODERADOS] Error subiendo imagen:', error);
+              Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+            }
+          };
+        };
+
+        toolbar.addHandler('image', imageHandler);
+      }, 100);
+
+      return () => {
+        clearTimeout(timeoutId);
+      };
+    }
+  }, [mostrarModalMensajeApoderados]);
 
   // Configurar handler de imágenes para ReactQuill en modal de mensaje al docente
   useEffect(() => {
@@ -1847,6 +1924,127 @@ function DocenteTutoria() {
     setArchivosAdjuntosMensajeAlumno(archivosAdjuntosMensajeAlumno.filter((_, i) => i !== index));
   };
 
+  // Manejar selección de archivos para mensaje a apoderados
+  const handleArchivoChangeMensajeApoderados = (e) => {
+    const files = Array.from(e.target.files);
+    setArchivosAdjuntosMensajeApoderados([...archivosAdjuntosMensajeApoderados, ...files]);
+  };
+
+  // Eliminar archivo adjunto del mensaje a apoderados
+  const eliminarArchivoMensajeApoderados = (index) => {
+    setArchivosAdjuntosMensajeApoderados(archivosAdjuntosMensajeApoderados.filter((_, i) => i !== index));
+  };
+
+  // Cerrar modal mensaje apoderados y reset
+  const cerrarModalMensajeApoderados = () => {
+    setMostrarModalMensajeApoderados(false);
+    setAlumnoParaMensajeApoderados(null);
+    setDestinatariosApoderadosPreview([]);
+    setUsuarioIdsApoderadosMensaje([]);
+    setAsuntoMensajeApoderados('');
+    setContenidoMensajeApoderados('');
+    setArchivosAdjuntosMensajeApoderados([]);
+  };
+
+  // Abrir modal: cargar apoderados con cuenta activa (incluye docentes que también son apoderados)
+  const abrirModalMensajeApoderados = async (alumno) => {
+    if (!alumno) return;
+
+    setCargandoDestinatariosApoderados(true);
+    try {
+      // Siempre limpiar formularios al abrir
+      setAlumnoParaMensajeApoderados(alumno);
+      setDestinatariosApoderadosPreview([]);
+      setUsuarioIdsApoderadosMensaje([]);
+      setAsuntoMensajeApoderados('');
+      setContenidoMensajeApoderados('');
+      setArchivosAdjuntosMensajeApoderados([]);
+
+      const response = await api.get(`/docente/mensajes/alumno/${alumno.id}/apoderados-destinatarios`);
+      const lista = response.data.destinatarios || [];
+
+      if (!lista.length) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Sin apoderados con cuenta activa',
+          text: 'No se encontraron apoderados vinculados con usuario activo para este alumno.',
+          confirmButtonText: 'Entendido',
+        });
+        return;
+      }
+
+      setDestinatariosApoderadosPreview(lista);
+      setUsuarioIdsApoderadosMensaje(lista.map((d) => d.usuario_id));
+      setMostrarModalMensajeApoderados(true);
+    } catch (error) {
+      console.error('Error cargando apoderados destinatarios:', error);
+      Swal.fire('Error', error.response?.data?.error || 'No se pudo cargar apoderados', 'error');
+    } finally {
+      setCargandoDestinatariosApoderados(false);
+    }
+  };
+
+  // Enviar mensaje exclusivo a apoderados del alumno
+  const enviarMensajeApoderadosAlumno = async () => {
+    if (!alumnoParaMensajeApoderados) {
+      Swal.fire('Error', 'No se ha seleccionado un alumno', 'error');
+      return;
+    }
+
+    if (!asuntoMensajeApoderados.trim()) {
+      Swal.fire('Error', 'El asunto es requerido', 'error');
+      return;
+    }
+
+    const contenidoLimpio = contenidoMensajeApoderados.replace(/<[^>]*>/g, '').trim();
+    if (!contenidoLimpio) {
+      Swal.fire('Error', 'El mensaje es requerido', 'error');
+      return;
+    }
+
+    if (enviandoMensajeApoderados) return;
+
+    if (!usuarioIdsApoderadosMensaje.length) {
+      Swal.fire('Error', 'No hay destinatarios (apoderados)', 'error');
+      return;
+    }
+
+    setEnviandoMensajeApoderados(true);
+    try {
+      const formData = new FormData();
+      formData.append('destinatarios', JSON.stringify(usuarioIdsApoderadosMensaje));
+      formData.append('grupos', JSON.stringify([]));
+      // Asegurar que si un apoderado también es docente (mismo usuario), aparezca en la bandeja DOCENTE también
+      formData.append('expand_apoderados_roles', 'true');
+      formData.append('asunto', asuntoMensajeApoderados.trim());
+      formData.append('mensaje', contenidoMensajeApoderados);
+
+      archivosAdjuntosMensajeApoderados.forEach((archivo) => {
+        formData.append('archivos', archivo);
+      });
+
+      await api.post('/docente/mensajes/enviar', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      Swal.fire({
+        title: '¡Mensaje enviado!',
+        html: `Se envió a <strong>${usuarioIdsApoderadosMensaje.length}</strong> apoderado(s) vinculados a <strong>${alumnoParaMensajeApoderados.apellido_paterno} ${alumnoParaMensajeApoderados.apellido_materno}, ${alumnoParaMensajeApoderados.nombres}</strong>.`,
+        icon: 'success',
+        confirmButtonText: 'Aceptar',
+      });
+
+      cerrarModalMensajeApoderados();
+    } catch (error) {
+      console.error('Error enviando mensaje a apoderados:', error);
+      Swal.fire('Error', error.response?.data?.error || 'Error al enviar el mensaje', 'error');
+    } finally {
+      setEnviandoMensajeApoderados(false);
+    }
+  };
+
   // Enviar mensaje al grupo
   const enviarMensajeAlGrupo = async () => {
     if (!grupoParaMensaje) {
@@ -2787,8 +2985,8 @@ function DocenteTutoria() {
                                       setOpenDropdownAlumno(null);
                                     } else {
                                       // Calcular posición del dropdown
-                                      const dropdownWidth = 180;
-                                      const dropdownHeight = 90; // Aproximado
+                                      const dropdownWidth = 230;
+                                      const dropdownHeight = 170; // Aproximado (más opciones: Enviar + Información + Incidencias + Estrellas + Apoderados)
                                       let left = rect.left;
                                       let top = rect.bottom + 2;
                                       
@@ -2879,6 +3077,20 @@ function DocenteTutoria() {
                                       >
                                         <span className="dropdown-icon">⭐</span>
                                         <span>Estrellas</span>
+                                      </button>
+                                      <button
+                                        className="dropdown-item"
+                                        type="button"
+                                        disabled={cargandoDestinatariosApoderados}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          e.preventDefault();
+                                          setOpenDropdownAlumno(null);
+                                          abrirModalMensajeApoderados(alumno);
+                                        }}
+                                      >
+                                        <span className="dropdown-icon">👨‍👩‍👧</span>
+                                        <span>{cargandoDestinatariosApoderados ? 'Cargando…' : 'MENSAJE APODERADOS'}</span>
                                       </button>
                                     </div>,
                                     document.body
@@ -3520,6 +3732,161 @@ function DocenteTutoria() {
                   type="button"
                 >
                   {enviandoMensajeAlumno ? '⏳ Enviando...' : '✉️ Enviar Mensaje'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Mensaje Apoderados (Tutoría) */}
+      {mostrarModalMensajeApoderados && alumnoParaMensajeApoderados && createPortal(
+        <div
+          className="modal-mensaje-overlay"
+          onClick={() => cerrarModalMensajeApoderados()}
+          style={{ zIndex: 100000 }}
+        >
+          <div
+            className="modal-mensaje-container"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-mensaje-apoderados-title"
+          >
+            <div className="modal-mensaje-header">
+              <h2 id="modal-mensaje-apoderados-title">✉️ MENSAJE APODERADOS</h2>
+              <button
+                className="modal-mensaje-close"
+                onClick={() => cerrarModalMensajeApoderados()}
+                type="button"
+                aria-label="Cerrar modal"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-mensaje-body">
+              <div className="mensaje-grupo-info">
+                <p>
+                  <strong>Alumno:</strong>{' '}
+                  {alumnoParaMensajeApoderados.apellido_paterno} {alumnoParaMensajeApoderados.apellido_materno}, {alumnoParaMensajeApoderados.nombres}
+                </p>
+                <p className="mensaje-info-text">
+                  Este mensaje se enviará exclusivamente a los <strong>apoderados</strong> del alumno seleccionado.
+                </p>
+                <p>
+                  <strong>Destinatarios apoderados:</strong> {destinatariosApoderadosPreview.length}
+                </p>
+                {destinatariosApoderadosPreview.length > 0 && (
+                  <div style={{ marginTop: '0.75rem' }}>
+                    {destinatariosApoderadosPreview.slice(0, 6).map((d) => (
+                      <div key={d.usuario_id} style={{ fontSize: '0.9rem', color: '#374151' }}>
+                        • {d.nombre_completo} {d.tipo === 'docente_apoderado' ? '(Docente)' : ''}
+                      </div>
+                    ))}
+                    {destinatariosApoderadosPreview.length > 6 && (
+                      <div style={{ fontSize: '0.85rem', color: '#6b7280', marginTop: '0.25rem' }}>
+                        +{destinatariosApoderadosPreview.length - 6} más…
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="asunto-mensaje-apoderados">Asunto:</label>
+                <input
+                  type="text"
+                  id="asunto-mensaje-apoderados"
+                  name="asunto-mensaje-apoderados"
+                  className="form-input"
+                  value={asuntoMensajeApoderados}
+                  onChange={(e) => setAsuntoMensajeApoderados(e.target.value)}
+                  placeholder="Asunto del mensaje"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="mensaje-editor-apoderados">Mensaje:</label>
+                <div id="mensaje-editor-wrapper-apoderados">
+                  <ReactQuill
+                    ref={quillRefMensajeApoderados}
+                    theme="snow"
+                    value={contenidoMensajeApoderados}
+                    onChange={setContenidoMensajeApoderados}
+                    placeholder="Escribe tu mensaje aquí..."
+                    modules={{
+                      toolbar: [
+                        [{ 'header': [1, 2, 3, false] }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                        [{ 'color': [] }, { 'background': [] }],
+                        [{ 'align': [] }],
+                        ['link', 'image'],
+                        ['clean'],
+                      ],
+                    }}
+                    formats={[
+                      'header', 'bold', 'italic', 'underline', 'strike',
+                      'list', 'bullet', 'color', 'background', 'align',
+                      'link', 'image',
+                    ]}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="archivos-input-apoderados">Archivos Adjuntos:</label>
+                <div className="archivos-container">
+                  <input
+                    type="file"
+                    id="archivos-input-apoderados"
+                    name="archivos-input-apoderados"
+                    multiple
+                    onChange={handleArchivoChangeMensajeApoderados}
+                    style={{ display: 'none' }}
+                  />
+                  <label htmlFor="archivos-input-apoderados" className="btn-adjuntar-archivo">
+                    📎 Adjuntar Archivos
+                  </label>
+                  {archivosAdjuntosMensajeApoderados.length > 0 && (
+                    <div className="archivos-lista">
+                      {archivosAdjuntosMensajeApoderados.map((archivo, index) => (
+                        <div key={index} className="archivo-item">
+                          <span className="archivo-nombre">{archivo.name}</span>
+                          <span className="archivo-tamaño">
+                            {(archivo.size / 1024).toFixed(2)} KB
+                          </span>
+                          <button
+                            type="button"
+                            className="archivo-eliminar"
+                            onClick={() => eliminarArchivoMensajeApoderados(index)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <button
+                  className="btn-cancelar"
+                  onClick={cerrarModalMensajeApoderados}
+                  type="button"
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="btn-enviar"
+                  onClick={enviarMensajeApoderadosAlumno}
+                  disabled={enviandoMensajeApoderados}
+                  type="button"
+                >
+                  {enviandoMensajeApoderados ? '⏳ Enviando...' : '✉️ Enviar Mensaje'}
                 </button>
               </div>
             </div>
