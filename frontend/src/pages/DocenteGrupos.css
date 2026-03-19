@@ -1552,6 +1552,128 @@
   border-top: none;
 }
 
+/* Modal Mensaje a Apoderados (lista de alumnos) */
+.modal-mensaje-apoderados-header {
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 50%, #115e59 100%);
+  color: #fff;
+}
+
+.modal-mensaje-apoderados-header h2 {
+  color: #fff !important;
+}
+
+.modal-mensaje-apoderados-header .modal-mensaje-close {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.modal-mensaje-apoderados-header .modal-mensaje-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.mensaje-apoderados-alumno-banner {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #6ee7b7;
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+}
+
+.mensaje-apoderados-exclusivo {
+  font-size: 0.9rem;
+  color: #065f46 !important;
+  margin-top: 0.5rem !important;
+}
+
+.mensaje-apoderados-destinatarios-card {
+  margin: 1rem 0 1.25rem;
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #faf5ff 0%, #f3e8ff 100%);
+  border: 1px solid #d8b4fe;
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.08);
+}
+
+.mensaje-apoderados-destinatarios-label {
+  font-weight: 700;
+  color: #5b21b6;
+  margin-bottom: 0.65rem;
+  font-size: 0.95rem;
+}
+
+.mensaje-apoderados-chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.mensaje-apoderado-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: #fff;
+  border: 1px solid #c4b5fd;
+  color: #4c1d95;
+}
+
+.mensaje-apoderado-chip--docente_apoderado {
+  border-color: #93c5fd;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  color: #1e40af;
+}
+
+.mensaje-apoderado-chip-badge {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 6px;
+  background: #3b82f6;
+  color: #fff;
+  font-weight: 700;
+}
+
+.modal-mensaje-body .btn-enviar-apoderados {
+  background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+  box-shadow: 0 2px 10px rgba(13, 148, 136, 0.35);
+}
+
+.modal-mensaje-body .btn-enviar-apoderados:hover:not(:disabled) {
+  box-shadow: 0 4px 16px rgba(13, 148, 136, 0.45);
+}
+
+#mensaje-editor-wrapper-apoderados .quill {
+  background: white;
+  border-radius: 10px;
+}
+
+#mensaje-editor-wrapper-apoderados .quill .ql-container {
+  min-height: 250px;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+  font-size: 0.95rem;
+  border: 2px solid #e5e7eb;
+  border-top: none;
+}
+
+#mensaje-editor-wrapper-apoderados .quill .ql-editor {
+  min-height: 250px;
+  padding: 1rem;
+}
+
+#mensaje-editor-wrapper-apoderados .quill .ql-toolbar {
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  border: 2px solid #e5e7eb;
+  border-bottom: none;
+}
+
 /* Conexiones Familiares - Historial de mensajes (grilla) */
 .historial-mensajes-grid-container {
   overflow-x: auto;

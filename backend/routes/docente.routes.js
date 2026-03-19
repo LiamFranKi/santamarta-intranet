@@ -12853,6 +12853,99 @@ router.get('/mensajes/alumno/:alumnoId/usuario', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/mensajes/alumno/:alumnoId/apoderados-destinatarios
+ * Usuarios (apoderados + docentes que son apoderados) para enviar mensaje solo a padres/madres del alumno
+ */
+router.get('/mensajes/alumno/:alumnoId/apoderados-destinatarios', async (req, res) => {
+  try {
+    const { alumnoId } = req.params;
+    const { colegio_id } = req.user;
+    const alumnoIdNum = parseInt(alumnoId, 10);
+    if (!alumnoIdNum) {
+      return res.status(400).json({ error: 'ID de alumno inválido' });
+    }
+
+    const al = await query(
+      `SELECT a.id, a.nombres, a.apellido_paterno, a.apellido_materno
+       FROM alumnos a WHERE a.id = ? AND a.colegio_id = ?`,
+      [alumnoIdNum, colegio_id]
+    );
+    if (!al || al.length === 0) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    const apoderados = await query(
+      `SELECT DISTINCT u.id as usuario_id, ap.nro_documento, ap.nombres, ap.apellido_paterno, ap.apellido_materno
+       FROM apoderados ap
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN usuarios u ON u.apoderado_id = ap.id
+       WHERE f.alumno_id = ?
+         AND ap.colegio_id = ?
+         AND u.colegio_id = ?
+         AND u.estado = 'ACTIVO'`,
+      [alumnoIdNum, colegio_id, colegio_id]
+    );
+
+    const destinatarios = [];
+    const vistos = new Set();
+    for (const a of apoderados || []) {
+      if (vistos.has(a.usuario_id)) continue;
+      vistos.add(a.usuario_id);
+      destinatarios.push({
+        usuario_id: a.usuario_id,
+        nombre_completo: `${a.nombres || ''} ${a.apellido_paterno || ''} ${a.apellido_materno || ''}`.trim() || 'Apoderado',
+        tipo: 'apoderado',
+      });
+    }
+
+    let apoderadoUsuarioIds = apoderados.map((x) => x.usuario_id);
+    const apoderadoDnis = apoderados.map((x) => x.nro_documento).filter((d) => d && String(d).trim());
+
+    if (apoderadoDnis.length > 0) {
+      try {
+        const placeholdersDni = apoderadoDnis.map(() => '?').join(',');
+        let sqlQuery = `SELECT DISTINCT u.id as usuario_id,
+          CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellido_paterno,''), ' ', COALESCE(p.apellido_materno,'')) as nombre_completo
+         FROM usuarios u
+         INNER JOIN personal p ON p.id = u.personal_id
+         WHERE u.colegio_id = ?
+           AND u.estado = 'ACTIVO'
+           AND u.tipo = 'DOCENTE'
+           AND (p.nro_documento IN (${placeholdersDni})
+                OR u.usuario IN (${placeholdersDni}))`;
+        const queryParams = [colegio_id, ...apoderadoDnis, ...apoderadoDnis];
+        if (apoderadoUsuarioIds.length > 0) {
+          sqlQuery += ` AND u.id NOT IN (${apoderadoUsuarioIds.map(() => '?').join(',')})`;
+          queryParams.push(...apoderadoUsuarioIds);
+        }
+        const docentesApoderados = await query(sqlQuery, queryParams);
+        for (const d of docentesApoderados || []) {
+          if (vistos.has(d.usuario_id)) continue;
+          vistos.add(d.usuario_id);
+          destinatarios.push({
+            usuario_id: d.usuario_id,
+            nombre_completo: (d.nombre_completo || '').trim() || 'Docente / Apoderado',
+            tipo: 'docente_apoderado',
+          });
+        }
+      } catch (e) {
+        console.warn('[apoderados-destinatarios] docentes-apoderados:', e.message);
+      }
+    }
+
+    const alumnoNombre = `${al[0].apellido_paterno || ''} ${al[0].apellido_materno || ''}, ${al[0].nombres || ''}`.trim();
+
+    res.json({
+      alumno: { id: al[0].id, nombre_completo: alumnoNombre },
+      destinatarios,
+    });
+  } catch (error) {
+    console.error('Error obteniendo apoderados-destinatarios:', error);
+    res.status(500).json({ error: 'Error al obtener apoderados del alumno' });
+  }
+});
+
+/**
  * POST /api/docente/mensajes/subir-imagen
  * Subir imagen desde el editor de texto enriquecido
  */
