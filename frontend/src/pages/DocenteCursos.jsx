@@ -3597,14 +3597,23 @@ function DocenteCursos() {
       const bottomNavBar = isMobile ? 70 : 0;
       const spaceBelow = window.innerHeight - rect.bottom - padding - bottomNavBar;
       const spaceAbove = rect.top - padding;
-      const openUpward = spaceBelow < DROPDOWN_EST_HEIGHT || rect.bottom > window.innerHeight * 0.6;
+      // En móvil: abrir hacia arriba si hay poco espacio abajo o el botón está en la mitad inferior
+      const openUpward = isMobile
+        ? (spaceBelow < 300 || rect.bottom > window.innerHeight - 200)
+        : (spaceBelow < DROPDOWN_EST_HEIGHT || rect.bottom > window.innerHeight * 0.6);
       const availableHeight = openUpward ? spaceAbove : spaceBelow;
-      const maxHeight = Math.min(DROPDOWN_EST_HEIGHT, Math.max(150, availableHeight));
+      const maxHeight = openUpward
+        ? Math.min(DROPDOWN_EST_HEIGHT, Math.max(150, spaceAbove - 20))
+        : Math.min(DROPDOWN_EST_HEIGHT, Math.max(150, spaceBelow - 20));
       let left = rect.left;
-      const dropdownMinWidth = 280; /* 2 columnas en Opciones por curso */
-      const dropdownWidth = Math.max(rect.width, dropdownMinWidth);
-      if (left + dropdownWidth > window.innerWidth - padding) left = window.innerWidth - dropdownWidth - padding;
-      if (left < padding) left = padding;
+      let dropdownWidth = Math.max(rect.width, 280);
+      if (isMobile) {
+        left = 16;
+        dropdownWidth = window.innerWidth - 32;
+      } else {
+        if (left + dropdownWidth > window.innerWidth - padding) left = window.innerWidth - dropdownWidth - padding;
+        if (left < padding) left = padding;
+      }
       setDropdownPosition({
         top: openUpward ? undefined : rect.bottom + 8,
         bottom: openUpward ? (window.innerHeight - rect.top + 8) : undefined,
