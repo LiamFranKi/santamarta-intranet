@@ -224,6 +224,23 @@
   flex-shrink: 0;
 }
 
+/* Móvil: submenú OPCIONES en 1 columna y sin cortarse por abajo */
+@media (max-width: 768px) {
+  .dropdown-menu.dropdown-menu-hijo.dropdown-menu-hijo-portal,
+  .dropdown-menu-hijo.dropdown-menu-hijo-portal,
+  .dropdown-menu.dropdown-menu-hijo,
+  .dropdown-menu-hijo {
+    grid-template-columns: 1fr !important;
+    max-width: calc(100vw - 2rem) !important;
+    min-width: 0 !important;
+    width: calc(100vw - 2rem) !important;
+    max-height: calc(100vh - 100px) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
 .hijo-avatar {
   width: 80px;
   height: 80px;

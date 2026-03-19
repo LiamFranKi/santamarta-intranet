@@ -171,7 +171,7 @@
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
-/* Opciones por curso: 2 columnas (6-7 ítems) */
+/* Opciones por curso: 2 columnas (6-7 ítems). En móvil: 1 columna y no cortarse por abajo */
 .dropdown-menu-portal-cursos .dropdown-menu {
   flex-wrap: nowrap !important;
   min-width: 280px;
@@ -179,6 +179,19 @@
   grid-template-columns: 1fr 1fr !important;
   justify-items: start !important;
   align-content: start !important;
+}
+
+@media (max-width: 768px) {
+  .dropdown-menu-portal-cursos .dropdown-menu {
+    grid-template-columns: 1fr !important;
+    max-width: calc(100vw - 2rem) !important;
+    min-width: 0 !important;
+    width: calc(100vw - 2rem) !important;
+    max-height: calc(100vh - 100px) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 .dropdown-menu {

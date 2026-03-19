@@ -4179,14 +4179,19 @@ function DocenteHijos() {
         const hijo = hijos.find(h => h.id === openDropdown.hijoId);
         if (!hijo) return null;
         const rect = openDropdown.rect;
+        const maxDropHeight = window.innerHeight - 100;
+        const spaceBelow = window.innerHeight - rect.bottom - 20;
+        const openAbove = window.innerWidth <= 768 && spaceBelow < Math.min(400, maxDropHeight * 0.6);
+        const top = openAbove ? Math.max(20, rect.top - maxDropHeight - 4) : rect.bottom + 4;
         return createPortal(
           <div
             ref={dropdownRef}
             className="dropdown-menu dropdown-menu-hijo dropdown-menu-hijo-portal"
             style={{
               position: 'fixed',
-              top: rect.bottom + 4,
-              left: rect.left,
+              top,
+              left: window.innerWidth <= 768 ? 16 : rect.left,
+              right: window.innerWidth <= 768 ? 16 : undefined,
               zIndex: 10001
             }}
             onClick={(e) => e.stopPropagation()}

@@ -594,17 +594,26 @@
     justify-content: center;
   }
 
-  /* Dropdown Menu en móvil - ajustar posición para que no se corte */
+  /* Dropdown Menu en móvil - 1 columna, ancho y alto limitados para que no se corte */
   .dropdown-menu {
     min-width: calc(100vw - 2rem) !important;
     max-width: calc(100vw - 2rem) !important;
-    max-height: calc(100vh - 20px) !important;
+    max-height: calc(100vh - 100px) !important;
     left: 1rem !important;
     right: 1rem !important;
     transform: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
 
-  /* Si el dropdown está cerca del final de la pantalla, ajustarlo hacia arriba */
+  .dropdown-menu.dropdown-menu-tutoria-grupo,
+  .dropdown-menu-tutoria-grupo {
+    grid-template-columns: 1fr !important;
+    min-width: 0 !important;
+    width: calc(100vw - 2rem) !important;
+  }
+
   .dropdown-menu {
     position: fixed !important;
   }

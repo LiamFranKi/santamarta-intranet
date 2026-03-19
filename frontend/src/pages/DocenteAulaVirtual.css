@@ -369,6 +369,14 @@
   .header-actions {
     width: 100%;
   }
+
+  /* Dropdown OPCIONES: no cortarse por abajo en móvil */
+  .dropdown-menu-opciones {
+    max-width: calc(100vw - 2rem) !important;
+    max-height: calc(100vh - 100px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 

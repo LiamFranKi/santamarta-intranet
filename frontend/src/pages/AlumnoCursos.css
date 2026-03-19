@@ -312,6 +312,14 @@
     width: 120px;
     height: 120px;
   }
+
+  /* Dropdown OPCIONES: no cortarse por abajo en móvil */
+  .dropdown-menu {
+    max-width: calc(100vw - 2rem) !important;
+    max-height: calc(100vh - 100px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 /* Estilos para el editor de mensajes en el modal */
