@@ -394,6 +394,47 @@ function Dashboard() {
                 {kpis && Array.isArray(kpis.conceptos) && kpis.conceptos.length > 0 ? (
                   <div className="admin-estadisticas-table-wrapper">
                     <h2 className="admin-estadisticas-subtitle">Estadisticas de Pagos (Matriculas y Pensiones)</h2>
+
+                    {/* Solo móvil: cards por concepto */}
+                    <div className="admin-estadisticas-mobile-cards">
+                      {kpis.conceptos.map((row, index) => (
+                        <div
+                          key={row.tipo}
+                          className="admin-estadisticas-concept-card"
+                          style={{ background: coloresPasteles[index % coloresPasteles.length] }}
+                        >
+                          <div className="admin-estadisticas-concept-card-header">
+                            <span className="admin-estadisticas-concept-card-title">{row.concepto}</span>
+                            <button
+                              type="button"
+                              className="admin-estadisticas-concept-card-btn"
+                              onClick={() => handleVerDeudas(row)}
+                              title="Ver Deudas"
+                              aria-label="Ver Deudas"
+                            >
+                              👁️
+                            </button>
+                          </div>
+                          <div className="admin-estadisticas-concept-card-body">
+                            <div className="admin-estadisticas-concept-card-row">
+                              <span className="admin-estadisticas-concept-card-label">Total a pagar</span>
+                              <span className="admin-estadisticas-concept-card-value">{fmtMonto(row.total_pagar, kpis.moneda)}</span>
+                            </div>
+                            <div className="admin-estadisticas-concept-card-row">
+                              <span className="admin-estadisticas-concept-card-label">Pagado</span>
+                              <span className="admin-estadisticas-concept-card-value admin-estadisticas-concept-card-pagado">{fmtMonto(row.pagado, kpis.moneda)}</span>
+                            </div>
+                            <div className="admin-estadisticas-concept-card-row">
+                              <span className="admin-estadisticas-concept-card-label">Saldo</span>
+                              <span className="admin-estadisticas-concept-card-value admin-estadisticas-concept-card-saldo">{fmtMonto(row.deuda, kpis.moneda)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Solo escritorio: tabla + gráfico */}
+                    <div className="admin-estadisticas-desktop">
                     <div className="admin-estadisticas-table-card">
                       <table className="admin-estadisticas-table">
                         <thead>
@@ -492,6 +533,7 @@ function Dashboard() {
                           );
                         })()}
                       </div>
+                    </div>
                     </div>
                   </div>
                 ) : (
