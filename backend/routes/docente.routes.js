@@ -12981,8 +12981,9 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
   try {
     console.log('📨 [ENVIAR MENSAJE] Inicio de procesamiento -', new Date().toISOString());
     const { usuario_id, colegio_id } = req.user;
-    const { destinatarios, grupos, asunto, mensaje, enviar_a } = req.body;
+    const { destinatarios, grupos, asunto, mensaje, enviar_a, expand_apoderados_roles } = req.body;
     const enviarATipo = (enviar_a === 'apoderados' || enviar_a === 'alumnos') ? enviar_a : 'todos';
+    const expandApoderadosRoles = expand_apoderados_roles === 'true' || expand_apoderados_roles === true;
 
     // Parsear destinatarios y grupos si vienen como string JSON
     const destinatariosArray = typeof destinatarios === 'string' ? JSON.parse(destinatarios) : destinatarios;
@@ -13015,6 +13016,63 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         // Agregar destinatarios directos
         if (destinatariosArray && destinatariosArray.length > 0) {
           usuariosDestinatarios.push(...destinatariosArray);
+        }
+
+        // Expansión opcional:
+        // si el destinatario enviado corresponde a una cuenta APODERADO, buscar la cuenta DOCENTE
+        // del mismo padre/madre (mismo DNI) y agregarla como destinatario también.
+        // Esto permite que quien entra como DOCENTE vea el mensaje en "Hijos a cargo".
+        if (expandApoderadosRoles && usuariosDestinatarios.length > 0) {
+          const usuariosIdsNumericos = Array.from(new Set(
+            usuariosDestinatarios
+              .map((id) => parseInt(id))
+              .filter((n) => !isNaN(n))
+          ));
+          if (usuariosIdsNumericos.length > 0) {
+            try {
+              const apoderadosData = await query(
+                `SELECT u.id as usuario_id, ap.nro_documento
+                 FROM usuarios u
+                 INNER JOIN apoderados ap ON ap.id = u.apoderado_id
+                 WHERE u.id IN (${usuariosIdsNumericos.map(() => '?').join(',')})
+                   AND u.colegio_id = ?
+                   AND u.estado = 'ACTIVO'
+                   AND u.tipo = 'APODERADO'
+                   AND ap.colegio_id = ?
+                   AND ap.nro_documento IS NOT NULL
+                   AND TRIM(CAST(ap.nro_documento AS CHAR)) != ''`,
+                [...usuariosIdsNumericos, colegio_id, colegio_id]
+              );
+
+              const dnis = (apoderadosData || [])
+                .map((x) => (x.nro_documento != null ? String(x.nro_documento).trim() : ''))
+                .filter(Boolean);
+
+              if (dnis.length > 0) {
+                const docentesData = await query(
+                  `SELECT DISTINCT u.id as usuario_id
+                   FROM usuarios u
+                   INNER JOIN personal p ON p.id = u.personal_id
+                   WHERE u.colegio_id = ?
+                     AND u.estado = 'ACTIVO'
+                     AND u.tipo = 'DOCENTE'
+                     AND p.nro_documento IS NOT NULL
+                     AND TRIM(CAST(p.nro_documento AS CHAR)) != ''
+                     AND p.nro_documento IN (${dnis.map(() => '?').join(',')})`,
+                  [colegio_id, ...dnis]
+                );
+
+                const docentesIds = (docentesData || []).map((x) => x.usuario_id);
+                for (const docenteId of docentesIds) {
+                  if (!usuariosDestinatarios.includes(docenteId)) {
+                    usuariosDestinatarios.push(docenteId);
+                  }
+                }
+              }
+            } catch (expandErr) {
+              console.warn('⚠️ [MENSAJES] Error expandiendo destinatarios apoderados roles:', expandErr.message);
+            }
+          }
         }
 
         // Si hay grupos, obtener alumnos y/o apoderados según enviar_a

@@ -538,6 +538,9 @@ function DocenteGrupos() {
     try {
       const formData = new FormData();
       formData.append('destinatarios', JSON.stringify(usuarioIdsApoderadosMensaje));
+      // Si el apoderado también tiene cuenta DOCENTE (mismo DNI),
+      // asegurar que el mensaje se inserte para la cuenta DOCENTE también.
+      formData.append('expand_apoderados_roles', 'true');
       formData.append('grupos', JSON.stringify([]));
       formData.append('asunto', asuntoMensajeApoderados.trim());
       formData.append('mensaje', contenidoMensajeApoderados);
