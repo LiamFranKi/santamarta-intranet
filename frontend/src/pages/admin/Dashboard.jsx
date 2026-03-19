@@ -328,14 +328,31 @@ function Dashboard() {
                 const totalP = alumnos.reduce((s, al) => s + (parseFloat(al.pagado) || 0), 0);
                 const totalS = alumnos.reduce((s, al) => s + (parseFloat(al.saldo) || 0), 0);
                 const tablaAl = `
+                  <div class="admin-modal-deudas-alumno-desktop-table">
                   <div class="admin-modal-deudas-tabla-wrap">
                   <table class="admin-modal-deudas-tabla admin-modal-deudas-tabla-centrada">
                     <thead><tr><th>Alumno</th><th>Deuda</th><th>Pagado</th><th>Saldo</th></tr></thead>
                     <tbody>${filasAl}</tbody>
                     <tfoot><tr style="background:linear-gradient(135deg,#d4c8e8 0%,#c4b0dc 100%);font-weight:700"><td style="text-align:center">Total</td><td style="text-align:center">${fmtAl(totalD)}</td><td style="text-align:center">${fmtAl(totalP)}</td><td class="admin-modal-deudas-saldo-total" style="text-align:center">${fmtAl(totalS)}</td></tr></tfoot>
                   </table>
+                  </div>
                   </div>`;
-                const htmlAlumnos = `<div class="admin-modal-deudas-body"><div class="admin-modal-volver-wrap"><button type="button" class="admin-modal-volver-btn" title="Volver">← Volver</button></div>${tablaAl}</div>`;
+                const cardsAlumnosHtml = alumnos.map((al, i) => {
+                  const color = coloresPasteles[i % coloresPasteles.length];
+                  const nombreEsc = (al.nombre || '—').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                  return `
+                    <div class="admin-modal-alumno-card" style="background:${color}">
+                      <div class="admin-modal-alumno-card-header">
+                        <span class="admin-modal-alumno-card-title">${nombreEsc}</span>
+                      </div>
+                      <div class="admin-modal-alumno-card-body">
+                        <div class="admin-modal-alumno-card-row"><span class="admin-modal-alumno-card-label">Deuda</span><span class="admin-modal-alumno-card-value">${fmtAl(al.deuda_total)}</span></div>
+                        <div class="admin-modal-alumno-card-row"><span class="admin-modal-alumno-card-label">Pagado</span><span class="admin-modal-alumno-card-value admin-modal-alumno-card-pagado">${fmtAl(al.pagado)}</span></div>
+                        <div class="admin-modal-alumno-card-row"><span class="admin-modal-alumno-card-label">Saldo</span><span class="admin-modal-alumno-card-value admin-modal-alumno-card-saldo">${fmtAl(al.saldo)}</span></div>
+                      </div>
+                    </div>`;
+                }).join('');
+                const htmlAlumnos = `<div class="admin-modal-deudas-body"><div class="admin-modal-volver-wrap"><button type="button" class="admin-modal-volver-btn" title="Volver">← Volver</button></div>${tablaAl}<div class="admin-modal-deudas-alumno-cards">${cardsAlumnosHtml}</div></div>`;
                 Swal.fire({
                   title: `Alumnos - ${aula.replace(/&quot;/g, '"')} (${concepto})`,
                   html: htmlAlumnos,
@@ -343,7 +360,7 @@ function Dashboard() {
                   padding: 0,
                   showCloseButton: true,
                   showConfirmButton: false,
-                  customClass: { popup: 'admin-modal-deudas-aula', htmlContainer: 'admin-modal-deudas-html' },
+                  customClass: { popup: 'admin-modal-deudas-aula admin-modal-deudas-alumnos', htmlContainer: 'admin-modal-deudas-html' },
                   didOpen: (c) => {
                     c.querySelector('.admin-modal-volver-btn')?.addEventListener('click', () => Swal.close());
                   },

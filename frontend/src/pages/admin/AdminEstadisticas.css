@@ -550,6 +550,100 @@
   }
 }
 
+/* Modal "Alumnos" (deudas por alumno): en móvil mostrar cards en lugar de tabla */
+.admin-modal-deudas-alumnos .admin-modal-deudas-alumno-desktop-table {
+  display: block;
+}
+
+.admin-modal-deudas-alumnos .admin-modal-deudas-alumno-cards {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .admin-modal-deudas-alumnos .admin-modal-deudas-alumno-desktop-table {
+    display: none !important;
+  }
+
+  .admin-modal-deudas-alumnos .admin-modal-deudas-alumno-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .admin-modal-deudas-alumnos .admin-modal-alumno-card {
+    border-radius: 16px;
+    padding: 1.2rem 1.3rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .admin-modal-deudas-alumnos .admin-modal-alumno-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, rgba(255,255,255,0.6), transparent);
+    pointer-events: none;
+  }
+
+  .admin-modal-deudas-alumnos .admin-modal-alumno-card-header {
+    margin-bottom: 1rem;
+  }
+
+  .admin-modal-deudas-alumnos .admin-modal-alumno-card-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #2d2a3a;
+    letter-spacing: 0.02em;
+    line-height: 1.3;
+    display: block;
+  }
+
+  .admin-modal-deudas-alumnos .admin-modal-alumno-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .admin-modal-deudas-alumnos .admin-modal-alumno-card-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  }
+
+  .admin-modal-deudas-alumnos .admin-modal-alumno-card-row:last-child {
+    border-bottom: none;
+  }
+
+  .admin-modal-deudas-alumnos .admin-modal-alumno-card-label {
+    font-size: 0.85rem;
+    color: #5a5568;
+    font-weight: 500;
+  }
+
+  .admin-modal-deudas-alumnos .admin-modal-alumno-card-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #2d2a3a;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .admin-modal-deudas-alumnos .admin-modal-alumno-card-pagado {
+    color: #0d9488;
+  }
+
+  .admin-modal-deudas-alumnos .admin-modal-alumno-card-saldo {
+    color: #c43e00;
+    font-weight: 700;
+  }
+}
+
 /* ========== Solo móvil: cards por concepto (Estadísticas de Pagos) ========== */
 .admin-estadisticas-mobile-cards {
   display: none;
