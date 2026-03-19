@@ -3090,7 +3090,7 @@ function DocenteTutoria() {
                                         }}
                                       >
                                         <span className="dropdown-icon">👨‍👩‍👧</span>
-                                        <span>{cargandoDestinatariosApoderados ? 'Cargando…' : 'MENSAJE APODERADOS'}</span>
+                                        <span>{cargandoDestinatariosApoderados ? 'Cargando…' : 'Mensaje Apoderados'}</span>
                                       </button>
                                     </div>,
                                     document.body
@@ -3755,7 +3755,7 @@ function DocenteTutoria() {
             aria-labelledby="modal-mensaje-apoderados-title"
           >
             <div className="modal-mensaje-header">
-              <h2 id="modal-mensaje-apoderados-title">✉️ MENSAJE APODERADOS</h2>
+              <h2 id="modal-mensaje-apoderados-title">✉️ Mensaje Apoderados</h2>
               <button
                 className="modal-mensaje-close"
                 onClick={() => cerrarModalMensajeApoderados()}
