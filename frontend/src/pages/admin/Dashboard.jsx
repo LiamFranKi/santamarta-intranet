@@ -276,9 +276,26 @@ function Dashboard() {
         </div>
       `;
 
+      const cardsAulasHtml = aulas.map((a, i) => {
+        const aulaEsc = (a.aula || '').replace(/"/g, '&quot;');
+        const color = coloresPasteles[i % coloresPasteles.length];
+        return `
+        <div class="admin-modal-aula-card" style="background:${color}">
+          <div class="admin-modal-aula-card-header">
+            <span class="admin-modal-aula-card-title">${a.aula}</span>
+            <button type="button" class="admin-modal-ver-detalle-btn" data-grupo-id="${a.grupo_id}" data-aula="${aulaEsc}" data-tipo="${row.tipo}" data-anio="${anioResp}" data-concepto="${(conceptoNombre).replace(/"/g, '&quot;')}" title="Ver Detalle" aria-label="Ver Detalle">👁️</button>
+          </div>
+          <div class="admin-modal-aula-card-body">
+            <div class="admin-modal-aula-card-row"><span class="admin-modal-aula-card-label">Deuda</span><span class="admin-modal-aula-card-value">${fmtM(a.deuda_total)}</span></div>
+            <div class="admin-modal-aula-card-row"><span class="admin-modal-aula-card-label">Pagado</span><span class="admin-modal-aula-card-value admin-modal-aula-card-pagado">${fmtM(a.pagado)}</span></div>
+            <div class="admin-modal-aula-card-row"><span class="admin-modal-aula-card-label">Saldo</span><span class="admin-modal-aula-card-value admin-modal-aula-card-saldo">${fmtM(a.saldo)}</span></div>
+          </div>
+        </div>`;
+      }).join('');
+
       Swal.fire({
         title: titulo,
-        html: `<div class="admin-modal-deudas-body" data-tipo="${row.tipo}" data-anio="${anioResp}" data-concepto="${(conceptoNombre).replace(/"/g, '&quot;')}">${tablaHtml}</div>`,
+        html: `<div class="admin-modal-deudas-body" data-tipo="${row.tipo}" data-anio="${anioResp}" data-concepto="${(conceptoNombre).replace(/"/g, '&quot;')}"><div class="admin-modal-deudas-desktop-table">${tablaHtml}</div><div class="admin-modal-deudas-aula-cards">${cardsAulasHtml}</div></div>`,
         width: '92%',
         padding: 0,
         showCloseButton: true,
