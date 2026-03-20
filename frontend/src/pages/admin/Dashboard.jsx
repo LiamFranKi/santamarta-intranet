@@ -414,7 +414,7 @@ function Dashboard() {
         </div>
 
         {/* Cuadro de Estadísticas por Matrícula y Meses (pagos/pensiones) */}
-        {user?.tipo === 'ADMINISTRADOR' && (
+        {(user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') && (
           <div className="admin-estadisticas-content" style={{ marginTop: '0.75rem' }}>
             {errorKpis && (
               <div className="admin-estadisticas-error">

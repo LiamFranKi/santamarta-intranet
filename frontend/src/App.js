@@ -50,7 +50,6 @@ import ApoderadoComunicados from './pages/ApoderadoComunicados';
 import ApoderadoActividades from './pages/ApoderadoActividades';
 import ApoderadoMensajes from './pages/ApoderadoMensajes';
 import ApoderadoHijoAulaVirtual from './pages/ApoderadoHijoAulaVirtual';
-import PromotoriaDashboard from './pages/promotoria/PromotoriaDashboard';
 import './App.css';
 
 // Configurar React Router para evitar warnings
@@ -208,7 +207,7 @@ function AppRoutes() {
         path="/promotoria/dashboard"
         element={
           <PrivateRoute requiredType="PROMOTORIA">
-            <PromotoriaDashboard />
+            <Dashboard />
           </PrivateRoute>
         }
       />

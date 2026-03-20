@@ -4,7 +4,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { query, execute } = require('../utils/mysql');
-const { authenticateToken, requireUserType } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 const phpSerialize = require('php-serialize');
 
 // Configurar multer para subir archivos de configuración
@@ -41,9 +41,31 @@ const uploadConfig = multer({
   fileFilter: fileFilterConfig
 });
 
-// Todas las rutas requieren autenticación y ser ADMINISTRADOR
+// Autenticación: ADMINISTRADOR en todas las rutas; PROMOTORIA solo en dashboard y estadísticas de pagos (mismo panel que admin)
 router.use(authenticateToken);
-router.use(requireUserType('ADMINISTRADOR'));
+router.use((req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ error: 'Usuario no autenticado' });
+  }
+  if (req.user.tipo === 'ADMINISTRADOR') {
+    return next();
+  }
+  if (req.user.tipo === 'PROMOTORIA') {
+    const p = req.path || '';
+    const permitidasPromotoria = [
+      '/dashboard',
+      '/estadisticas/kpis',
+      '/estadisticas/deudas-por-aula',
+      '/estadisticas/deudas-por-aula/alumnos'
+    ];
+    if (permitidasPromotoria.includes(p)) {
+      return next();
+    }
+  }
+  return res.status(403).json({
+    error: 'No tienes permisos para acceder a este recurso'
+  });
+});
 
 /**
  * GET /api/admin/dashboard
