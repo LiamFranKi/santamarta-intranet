@@ -176,7 +176,7 @@ function Dashboard() {
               Esta funcionalidad está siendo desarrollada. Pronto estará disponible para su uso.
             </p>
             <button
-              onClick={() => navigate('/admin/dashboard')}
+              onClick={() => navigate(user?.tipo === 'PROMOTORIA' ? '/promotoria/dashboard' : '/admin/dashboard')}
               style={{
                 marginTop: '2rem',
                 padding: '0.75rem 2rem',

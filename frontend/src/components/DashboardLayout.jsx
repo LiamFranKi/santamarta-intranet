@@ -442,6 +442,54 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Dashboard</span>
                 </NavLink>
               </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/actividades">
+                  <span className="sidebar-icon">📅</span>
+                  <span className="sidebar-label">Actividades</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicados">
+                  <span className="sidebar-icon">📢</span>
+                  <span className="sidebar-label">Comunicados</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/notificaciones">
+                  <span className="sidebar-icon">🔔</span>
+                  <span className="sidebar-label">Notificaciones</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.reportes ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('reportes')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">📈</span>
+                    <span className="sidebar-label">Reportes</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div ref={(el) => { submenuRefs.current.reportes = el; }} className={`sidebar-submenu ${expandedMenus.reportes ? 'expanded' : ''}`}>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/asistencias">
+                    Asistencias
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/notas">
+                    Notas
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/estadisticas">
+                    Estadísticas
+                  </NavLink>
+                </div>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/mensajes">
+                  <span className="sidebar-icon">✉️</span>
+                  <span className="sidebar-label">Mensajes</span>
+                </NavLink>
+              </div>
             </>
           ) : role === 'APODERADO' ? (
             <>
@@ -685,7 +733,7 @@ export default function DashboardLayout({ children }) {
           </div>
         </header>
 
-        <div className={`dashboard-main-wrapper ${role === 'ADMINISTRADOR' ? 'dashboard-main-wrapper-no-sidebar' : ''}`}>
+        <div className={`dashboard-main-wrapper ${role === 'ADMINISTRADOR' || role === 'PROMOTORIA' ? 'dashboard-main-wrapper-no-sidebar' : ''}`}>
           <main className="dashboard-main">{children}</main>
           
           {/* Columna derecha (calendario, publicaciones): no se muestra para ADMINISTRADOR */}

@@ -74,7 +74,9 @@ const theme = createTheme({
 });
 
 // Componente para rutas protegidas
-function PrivateRoute({ children, requiredType = null }) {
+// `requiredTypes` (array): el usuario debe ser uno de esos tipos (p. ej. admin + promotoría comparten rutas).
+// `requiredType` (string): un solo tipo; si no se pasa `requiredTypes`, se interpreta como [requiredType].
+function PrivateRoute({ children, requiredType = null, requiredTypes = null }) {
   const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
@@ -85,8 +87,14 @@ function PrivateRoute({ children, requiredType = null }) {
     return <Navigate to="/login" />;
   }
 
-  // Si se especifica un tipo requerido, verificar que el usuario tenga ese tipo
-  if (requiredType && user?.tipo !== requiredType) {
+  const allowedTipos = Array.isArray(requiredTypes) && requiredTypes.length
+    ? requiredTypes
+    : requiredType
+      ? [requiredType]
+      : null;
+
+  // Si se especifica tipo(s) requerido(s), verificar que el usuario coincida
+  if (allowedTipos && (!user?.tipo || !allowedTipos.includes(user.tipo))) {
     // Redirigir al dashboard correspondiente según el tipo de usuario
     if (user?.tipo === 'DOCENTE') {
       return <Navigate to="/docente/dashboard" />;
@@ -627,7 +635,7 @@ function AppRoutes() {
       <Route
         path="/admin/actividades"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <AdminActividades />
           </PrivateRoute>
         }
@@ -635,7 +643,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicados"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <AdminComunicados />
           </PrivateRoute>
         }
@@ -643,7 +651,7 @@ function AppRoutes() {
       <Route
         path="/admin/notificaciones"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -659,7 +667,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/asistencias"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -667,7 +675,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/notas"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -675,7 +683,7 @@ function AppRoutes() {
       <Route
         path="/admin/reportes/estadisticas"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -695,7 +703,7 @@ function AppRoutes() {
       <Route
         path="/admin/mensajes"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <DocenteMensajes />
           </PrivateRoute>
         }
