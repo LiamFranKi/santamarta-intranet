@@ -9,7 +9,7 @@ const { query } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 
 router.use(authenticateToken);
-router.use(requireUserType('DOCENTE', 'ALUMNO', 'APODERADO', 'ADMINISTRADOR'));
+router.use(requireUserType('DOCENTE', 'ALUMNO', 'APODERADO', 'ADMINISTRADOR', 'PROMOTORIA'));
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -72,8 +72,8 @@ router.get('/', async (req, res) => {
 
     // Alumnos y Apoderados según el alcance del rol
     let grupoIds = [];
-    if (tipo === 'ADMINISTRADOR') {
-      grupoIds = null; // Todos los grupos del colegio en el año activo
+    if (tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA') {
+      grupoIds = null; // Todos los grupos del colegio en el año activo (igual que admin)
     } else if (tipo === 'DOCENTE' && personal_id) {
       const grupos = await query(
         `SELECT DISTINCT g.id FROM asignaturas a
