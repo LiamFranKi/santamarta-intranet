@@ -16,6 +16,10 @@ const {
   obtenerContextoAlumnoGrupoParaMensaje,
   enriquecerMensajeApoderadoADocente
 } = require('../utils/mensajesHijoDocenteContexto');
+const {
+  obtenerMetaGruposConexiones,
+  enriquecerMensajeConexionesFamiliares
+} = require('../utils/mensajesGrupoConexionesContexto');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
@@ -13399,6 +13403,26 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
     // Continuar el procesamiento en segundo plano
     setImmediate(async () => {
       try {
+        let asuntoEnviar = asunto;
+        let mensajeEnviar = mensaje;
+        let refGrupoNotif = '';
+        if (gruposArray && gruposArray.length > 0) {
+          try {
+            const gruposMeta = await obtenerMetaGruposConexiones(colegio_id, gruposArray);
+            const enr = enriquecerMensajeConexionesFamiliares({
+              asuntoOriginal: asunto,
+              mensajeOriginal: mensaje,
+              gruposMeta,
+              personal_id: req.user.personal_id
+            });
+            asuntoEnviar = enr.asuntoFinal;
+            mensajeEnviar = enr.mensajeFinal;
+            refGrupoNotif = enr.refCorta || '';
+          } catch (enrErr) {
+            console.warn('⚠️ [MENSAJES] Enriquecimiento Conexiones familiares (grupo):', enrErr.message);
+          }
+        }
+
         // Obtener todos los usuarios destinatarios
         const usuariosDestinatarios = [];
 
@@ -13551,7 +13575,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               await execute(
                 `INSERT INTO mensajes_grupos (remitente_id, grupo_id, asunto, mensaje, fecha_hora)
                  VALUES (?, ?, ?, ?, ?)`,
-                [usuario_id, grupoId, asunto, mensaje, fechaHora]
+                [usuario_id, grupoId, asuntoEnviar, mensajeEnviar, fechaHora]
               );
               console.log(`📨 [MENSAJES_GRUPOS] Registro historial - grupo_id: ${grupoId}`);
             }
@@ -13568,7 +13592,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             const resultEnviado = await execute(
               `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
                VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO')`,
-              [usuario_id, destinatarioId, asunto, mensaje, fechaHora]
+              [usuario_id, destinatarioId, asuntoEnviar, mensajeEnviar, fechaHora]
             );
             console.log(`📨 [ENVIAR MENSAJE] Mensaje ENVIADO creado - ID: ${resultEnviado.insertId}, destinatario: ${destinatarioId}`);
 
@@ -13576,7 +13600,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             const resultRecibido = await execute(
               `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
                VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO')`,
-              [usuario_id, destinatarioId, asunto, mensaje, fechaHora]
+              [usuario_id, destinatarioId, asuntoEnviar, mensajeEnviar, fechaHora]
             );
             console.log(`📨 [ENVIAR MENSAJE] Mensaje RECIBIDO creado - ID: ${resultRecibido.insertId}, destinatario: ${destinatarioId}`);
 
@@ -13638,12 +13662,13 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             entidad: 'mensajes',
             descripcion: descripcionAuditoria,
             datos_nuevos: {
-              asunto: asunto,
+              asunto: asuntoEnviar,
               total_destinatarios: usuariosDestinatarios.length,
               grupos_seleccionados: gruposArray?.length || 0,
               alumnos_en_grupos: totalAlumnosGrupos,
               destinatarios_directos: destinatariosArray?.length || 0,
-              archivos_adjuntos: req.files?.length || 0
+              archivos_adjuntos: req.files?.length || 0,
+              ref_grupo_conexiones: refGrupoNotif || undefined
             },
             resultado: mensajesInsertados > 0 ? 'EXITOSO' : 'ERROR'
           });
@@ -13667,9 +13692,9 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             );
             const subscriptions = (subsData || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
             if (subscriptions.length > 0) {
-              const asuntoCorto = (asunto || 'Sin asunto').substring(0, 60);
+              const asuntoCorto = (asuntoEnviar || 'Sin asunto').substring(0, 72);
               enviarPushNotificationMultiple(subscriptions, {
-                title: 'Nuevo mensaje',
+                title: refGrupoNotif ? 'Mensaje (Conexiones familiares)' : 'Nuevo mensaje',
                 body: asuntoCorto,
                 icon: '/icons/icon-192x192.png',
                 badge: '/icons/icon-192x192.png',
@@ -13704,8 +13729,9 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           });
           const colegioInfo = await query(`SELECT nombre FROM colegios WHERE id = ?`, [colegio_id]);
           const colegioNombre = colegioInfo.length > 0 ? colegioInfo[0].nombre : 'Vanguard Schools';
-          const tituloNotif = 'Nuevo mensaje del docente';
-          const contenidoNotif = `Tiene un nuevo mensaje: "${(asunto || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
+          const tituloNotif = refGrupoNotif ? 'Mensaje — Conexiones familiares' : 'Nuevo mensaje del docente';
+          const refMail = refGrupoNotif ? ` Origen: ${refGrupoNotif}.` : '';
+          const contenidoNotif = `Tiene un nuevo mensaje:${refMail} "${(asuntoEnviar || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
           for (const email of emailsUnicos.values()) {
             enviarCorreoNotificacion(email, tituloNotif, contenidoNotif, colegioNombre, 'MENSAJES')
               .catch(err => console.warn(`❌ [MENSAJES] Error correo a ${email}:`, err.message));
@@ -13740,8 +13766,9 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               apoderadosUnicos.push(ap);
             }
             if (apoderadosUnicos.length > 0) {
-              const tituloNotif = 'Mensaje del docente al grupo';
-              const contenidoNotif = `Se ha enviado un mensaje al grupo: "${(asunto || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
+              const tituloNotif = 'Conexiones familiares';
+              const refTxt = refGrupoNotif ? `${refGrupoNotif}. ` : '';
+              const contenidoNotif = `Se ha enviado un mensaje. ${refTxt}Asunto: "${(asuntoEnviar || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
               for (const ap of apoderadosUnicos) {
                 try {
                   await execute(
@@ -13762,9 +13789,12 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               );
               const subsApodList = (subsApod || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
               if (subsApodList.length > 0) {
+                const bodyPush = refGrupoNotif
+                  ? `${refGrupoNotif.substring(0, 55)}${refGrupoNotif.length > 55 ? '…' : ''} — ${(asuntoEnviar || '').substring(0, 50)}`
+                  : (asuntoEnviar || 'Nuevo mensaje al grupo').substring(0, 72);
                 enviarPushNotificationMultiple(subsApodList, {
-                  title: 'Mensaje del docente',
-                  body: (asunto || 'Nuevo mensaje al grupo').substring(0, 60),
+                  title: 'Conexiones familiares',
+                  body: bodyPush,
                   icon: '/icons/icon-192x192.png',
                   badge: '/icons/icon-192x192.png',
                   vibrate: [200, 100, 200],
