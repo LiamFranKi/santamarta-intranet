@@ -10,6 +10,7 @@ import 'react-quill/dist/quill.snow.css';
 import { generarPDFNotasTutoria } from '../utils/pdfNotasTutoria';
 import jsPDF from 'jspdf';
 import './DocenteTutoria.css';
+import './DocenteCursos.css';
 import './AlumnoCursos.css';
 import './AlumnoHorario.css';
 import './DocenteHijos.css';
@@ -106,15 +107,40 @@ function DocenteTutoria() {
   const [enviandoMensajeApoderados, setEnviandoMensajeApoderados] = useState(false);
   const quillRefMensajeApoderados = useRef(null);
 
-  // Estados para Incidencias y Estrellas (Tutoría - solo ver, no crear)
+  // Incidencias y Estrellas (Tutoría — mismo flujo que Cursos asignados)
   const [showModalIncidenciasTutoria, setShowModalIncidenciasTutoria] = useState(false);
   const [showModalEstrellasTutoria, setShowModalEstrellasTutoria] = useState(false);
   const [alumnoSeleccionadoTutoria, setAlumnoSeleccionadoTutoria] = useState(null);
   const [incidenciasTutoria, setIncidenciasTutoria] = useState([]);
   const [estrellasTutoria, setEstrellasTutoria] = useState([]);
+  const [totalIncidenciasTutoria, setTotalIncidenciasTutoria] = useState(0);
   const [totalEstrellasTutoria, setTotalEstrellasTutoria] = useState(0);
   const [loadingIncidenciasTutoria, setLoadingIncidenciasTutoria] = useState(false);
   const [loadingEstrellasTutoria, setLoadingEstrellasTutoria] = useState(false);
+  const [formEstrellasTutoria, setFormEstrellasTutoria] = useState({ points: '', description: '' });
+  const [formIncidenciasTutoria, setFormIncidenciasTutoria] = useState({ description: '' });
+  const [guardandoEstrellasTutoria, setGuardandoEstrellasTutoria] = useState(false);
+  const [guardandoIncidenciasTutoria, setGuardandoIncidenciasTutoria] = useState(false);
+
+  const cursoInfoTutoriaPDF = useMemo(() => {
+    if (!grupoInfo) return null;
+    return {
+      curso_nombre: 'Tutoría',
+      grado: grupoInfo.grado ?? '',
+      seccion: grupoInfo.seccion || '',
+      nivel_nombre: grupoInfo.nivel_nombre || '',
+      turno_nombre: grupoInfo.turno_nombre || 'N/A'
+    };
+  }, [grupoInfo]);
+
+  const getGrupoIdTutoria = () =>
+    typeof selectedGrupo === 'object' && selectedGrupo !== null ? selectedGrupo.id : selectedGrupo;
+
+  const nombreCompletoAlumnoTutoria = (a) => {
+    if (!a) return '';
+    if (a.nombre_completo) return a.nombre_completo;
+    return [a.apellido_paterno, a.apellido_materno, a.nombres].filter(Boolean).join(' ');
+  };
 
   useEffect(() => {
     cargarGruposTutor();
@@ -569,20 +595,43 @@ function DocenteTutoria() {
     setAlumnoInfo(null);
   };
 
-  // Incidencias y Estrellas (tutoría - solo ver)
+  const cerrarModalIncidenciasTutoria = () => {
+    setShowModalIncidenciasTutoria(false);
+    setAlumnoSeleccionadoTutoria(null);
+    setIncidenciasTutoria([]);
+    setTotalIncidenciasTutoria(0);
+    setFormIncidenciasTutoria({ description: '' });
+  };
+
+  const cerrarModalEstrellasTutoria = () => {
+    setShowModalEstrellasTutoria(false);
+    setAlumnoSeleccionadoTutoria(null);
+    setEstrellasTutoria([]);
+    setTotalEstrellasTutoria(0);
+    setFormEstrellasTutoria({ points: '', description: '' });
+  };
+
   const handleVerIncidenciasTutoria = async (alumno) => {
-    const gid = typeof selectedGrupo === 'object' && selectedGrupo !== null ? selectedGrupo.id : selectedGrupo;
+    const gid = getGrupoIdTutoria();
     if (!gid) return;
     setAlumnoSeleccionadoTutoria(alumno);
+    setFormIncidenciasTutoria({ description: '' });
     setLoadingIncidenciasTutoria(true);
     setShowModalIncidenciasTutoria(true);
     try {
       const res = await api.get(`/docente/tutoria/grupos/${gid}/alumnos/${alumno.id}/incidencias`);
       setIncidenciasTutoria(res.data.incidencias || []);
+      setTotalIncidenciasTutoria(res.data.total_incidencias ?? (res.data.incidencias || []).length);
     } catch (err) {
       console.error('Error cargando incidencias (tutoría):', err);
-      Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudieron cargar las incidencias' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err.response?.data?.error || 'No se pudieron cargar las incidencias',
+        zIndex: 100001
+      });
       setIncidenciasTutoria([]);
+      setTotalIncidenciasTutoria(0);
     } finally {
       setLoadingIncidenciasTutoria(false);
     }
@@ -590,9 +639,10 @@ function DocenteTutoria() {
   };
 
   const handleVerEstrellasTutoria = async (alumno) => {
-    const gid = typeof selectedGrupo === 'object' && selectedGrupo !== null ? selectedGrupo.id : selectedGrupo;
+    const gid = getGrupoIdTutoria();
     if (!gid) return;
     setAlumnoSeleccionadoTutoria(alumno);
+    setFormEstrellasTutoria({ points: '', description: '' });
     setLoadingEstrellasTutoria(true);
     setShowModalEstrellasTutoria(true);
     try {
@@ -601,7 +651,12 @@ function DocenteTutoria() {
       setTotalEstrellasTutoria(res.data.total_estrellas || 0);
     } catch (err) {
       console.error('Error cargando estrellas (tutoría):', err);
-      Swal.fire({ icon: 'error', title: 'Error', text: err.response?.data?.error || 'No se pudieron cargar las estrellas' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err.response?.data?.error || 'No se pudieron cargar las estrellas',
+        zIndex: 100001
+      });
       setEstrellasTutoria([]);
       setTotalEstrellasTutoria(0);
     } finally {
@@ -610,207 +665,568 @@ function DocenteTutoria() {
     setOpenDropdownAlumno(null);
   };
 
-  const formatearFechaTutoria = (fechaStr) => {
+  const formatearFechaIncEstTutoria = (fecha) => {
+    if (!fecha) return '';
+    const date = new Date(fecha);
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const año = date.getFullYear();
+    let horas = date.getHours();
+    const minutos = String(date.getMinutes()).padStart(2, '0');
+    const ampm = horas >= 12 ? 'PM' : 'AM';
+    horas = horas % 12;
+    horas = horas || 12;
+    return `${dia}-${mes}-${año} ${String(horas).padStart(2, '0')}:${minutos} ${ampm}`;
+  };
+
+  const formatearFechaPDFIncEstTutoria = (fecha) => {
+    if (!fecha) return '';
+    const date = new Date(fecha);
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const año = date.getFullYear();
+    let horas = date.getHours();
+    const minutos = String(date.getMinutes()).padStart(2, '0');
+    const ampm = horas >= 12 ? 'PM' : 'AM';
+    horas = horas % 12;
+    horas = horas || 12;
+    return `${dia}/${mes}/${año} ${String(horas).padStart(2, '0')}:${minutos} ${ampm}`;
+  };
+
+  const recargarIncidenciasTutoria = async () => {
+    const gid = getGrupoIdTutoria();
+    const alumno = alumnoSeleccionadoTutoria;
+    if (!gid || !alumno?.id) return;
     try {
-      const d = new Date(fechaStr);
-      return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    } catch {
-      return 'Sin fecha';
+      setLoadingIncidenciasTutoria(true);
+      const res = await api.get(`/docente/tutoria/grupos/${gid}/alumnos/${alumno.id}/incidencias`);
+      setIncidenciasTutoria(res.data.incidencias || []);
+      setTotalIncidenciasTutoria(res.data.total_incidencias ?? (res.data.incidencias || []).length);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingIncidenciasTutoria(false);
     }
   };
 
-  const obtenerMesAnioTutoria = (fechaStr) => {
+  const recargarEstrellasTutoria = async () => {
+    const gid = getGrupoIdTutoria();
+    const alumno = alumnoSeleccionadoTutoria;
+    if (!gid || !alumno?.id) return;
     try {
-      const d = new Date(fechaStr);
-      return d.toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
-    } catch {
-      return 'Sin fecha';
+      setLoadingEstrellasTutoria(true);
+      const res = await api.get(`/docente/tutoria/grupos/${gid}/alumnos/${alumno.id}/estrellas`);
+      setEstrellasTutoria(res.data.estrellas || []);
+      setTotalEstrellasTutoria(res.data.total_estrellas || 0);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingEstrellasTutoria(false);
     }
   };
 
-  const agruparIncidenciasPorMesTutoria = (lista) => {
-    const grupos = {};
-    (lista || []).forEach((item) => {
-      const key = obtenerMesAnioTutoria(item.created_at);
-      if (!grupos[key]) grupos[key] = [];
-      grupos[key].push(item);
-    });
-    return grupos;
-  };
-
-  const agruparEstrellasPorMesTutoria = (lista) => {
-    const grupos = {};
-    (lista || []).forEach((item) => {
-      const key = obtenerMesAnioTutoria(item.created_at);
-      if (!grupos[key]) grupos[key] = [];
-      grupos[key].push(item);
-    });
-    return grupos;
-  };
-
-  const coloresPastelTutoria = [
-    { bg: '#fef3c7', border: '#f59e0b', text: '#78350f' },
-    { bg: '#dbeafe', border: '#3b82f6', text: '#1e40af' },
-    { bg: '#d1fae5', border: '#10b981', text: '#065f46' },
-    { bg: '#fce7f3', border: '#ec4899', text: '#9d174d' },
-    { bg: '#e0e7ff', border: '#6366f1', text: '#3730a3' }
-  ];
-
-  // Exportar Incidencias a PDF por mes (mismo formato que Cursos Asignados / DocenteHijos)
-  const handleExportarIncidenciasPDFTutoria = async (mesAnio, incidenciasMes) => {
+  const handleRegistrarIncidenciaTutoria = async (e) => {
+    e.preventDefault();
+    const gid = getGrupoIdTutoria();
+    if (!gid || !alumnoSeleccionadoTutoria?.id) return;
+    if (!formIncidenciasTutoria.description?.trim()) {
+      Swal.fire({ title: 'Error', text: 'La descripción es requerida', icon: 'error', zIndex: 100001 });
+      return;
+    }
     try {
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const margin = 15;
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const contentWidth = pageWidth - (margin * 2);
-      let yPos = margin;
-      const nombreAlumno = [alumnoSeleccionadoTutoria?.apellido_paterno, alumnoSeleccionadoTutoria?.apellido_materno, alumnoSeleccionadoTutoria?.nombres].filter(Boolean).join(' ');
-
-      doc.setFillColor(79, 70, 229);
-      doc.rect(0, 0, pageWidth, 30, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
-      doc.setFont('helvetica', 'bold');
-      doc.text('INCIDENCIAS', pageWidth / 2, 12, { align: 'center' });
-      doc.setFontSize(12);
-      doc.text(nombreAlumno, pageWidth / 2, 20, { align: 'center' });
-      doc.setFontSize(10);
-      doc.text(mesAnio, pageWidth / 2, 26, { align: 'center' });
-      yPos = 40;
-
-      incidenciasMes.forEach((incidencia, index) => {
-        if (yPos > pageHeight - 50) { doc.addPage(); yPos = margin; }
-        const color = coloresPastelTutoria[index % coloresPastelTutoria.length];
-        const cardHeight = 35;
-        const bgR = parseInt(color.bg.slice(1, 3), 16);
-        const bgG = parseInt(color.bg.slice(3, 5), 16);
-        const bgB = parseInt(color.bg.slice(5, 7), 16);
-        const brR = parseInt(color.border.slice(1, 3), 16);
-        const brG = parseInt(color.border.slice(3, 5), 16);
-        const brB = parseInt(color.border.slice(5, 7), 16);
-        doc.setFillColor(bgR, bgG, bgB);
-        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
-        doc.setDrawColor(brR, brG, brB);
-        doc.setLineWidth(1);
-        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
-        doc.setTextColor(30, 41, 59);
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Fecha:', margin + 3, yPos + 6);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.text(formatearFechaTutoria(incidencia.created_at), margin + 20, yPos + 6);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Docente:', margin + 3, yPos + 12);
-        doc.setFont('helvetica', 'normal');
-        doc.text(incidencia.docente_nombre || 'N/A', margin + 20, yPos + 12);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Curso:', margin + 3, yPos + 18);
-        doc.setFont('helvetica', 'normal');
-        doc.text(incidencia.curso_nombre || 'N/A', margin + 20, yPos + 18);
-        doc.setFont('helvetica', 'bold');
-        const descY = yPos + 24;
-        doc.text('Detalle:', margin + 3, descY);
-        doc.setFont('helvetica', 'normal');
-        const descLines = doc.splitTextToSize(incidencia.description || 'Sin detalle', contentWidth - 25);
-        descLines.forEach((line, idx) => { doc.text(line, margin + 20, descY + (idx * 4)); });
-        const descHeight = descLines.length * 4;
-        yPos += Math.max(cardHeight, descY + descHeight - yPos) + 8;
-      });
-
-      const nombreArchivo = `Incidencias_${nombreAlumno.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
-      doc.save(nombreArchivo);
-      Swal.fire({ title: '¡PDF Generado!', text: 'Las incidencias se han exportado correctamente', icon: 'success' });
+      setGuardandoIncidenciasTutoria(true);
+      await api.post(
+        `/docente/tutoria/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/incidencias`,
+        { description: formIncidenciasTutoria.description.trim() }
+      );
+      Swal.fire({ title: '¡Éxito!', text: 'Incidencia registrada correctamente', icon: 'success', zIndex: 100001 });
+      setFormIncidenciasTutoria({ description: '' });
+      await recargarIncidenciasTutoria();
     } catch (error) {
-      console.error('Error generando PDF incidencias:', error);
-      Swal.fire({ title: 'Error', text: 'No se pudo generar el PDF', icon: 'error' });
+      console.error(error);
+      Swal.fire({
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo registrar la incidencia',
+        icon: 'error',
+        zIndex: 100001
+      });
+    } finally {
+      setGuardandoIncidenciasTutoria(false);
     }
   };
 
-  // Exportar Estrellas a PDF por mes (mismo formato que Cursos Asignados / DocenteHijos)
-  const handleExportarEstrellasPDFTutoria = async (mesAnio, estrellasMes) => {
+  const handleEliminarIncidenciaTutoria = async (incidentId) => {
+    const gid = getGrupoIdTutoria();
+    if (!gid || !alumnoSeleccionadoTutoria?.id) return;
+    const result = await Swal.fire({
+      title: '¿Estás seguro?',
+      text: 'Se eliminará esta incidencia. Esta acción no se puede deshacer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      zIndex: 100001
+    });
+    if (!result.isConfirmed) return;
     try {
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const margin = 15;
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const contentWidth = pageWidth - (margin * 2);
-      let yPos = margin;
-      const nombreAlumno = [alumnoSeleccionadoTutoria?.apellido_paterno, alumnoSeleccionadoTutoria?.apellido_materno, alumnoSeleccionadoTutoria?.nombres].filter(Boolean).join(' ');
+      await api.delete(
+        `/docente/tutoria/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/incidencias/${incidentId}`
+      );
+      Swal.fire({ title: '¡Eliminado!', text: 'La incidencia ha sido eliminada correctamente', icon: 'success', zIndex: 100001 });
+      await recargarIncidenciasTutoria();
+    } catch (error) {
+      console.error(error);
+      Swal.fire({
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo eliminar la incidencia',
+        icon: 'error',
+        zIndex: 100001
+      });
+    }
+  };
 
-      doc.setFillColor(251, 191, 36);
-      doc.rect(0, 0, pageWidth, 30, 'F');
+  const handleDarEstrellasTutoria = async (e) => {
+    e.preventDefault();
+    const gid = getGrupoIdTutoria();
+    if (!gid || !alumnoSeleccionadoTutoria?.id) return;
+    const pts = parseInt(formEstrellasTutoria.points, 10);
+    if (!pts || pts <= 0) {
+      Swal.fire({ title: 'Error', text: 'La cantidad de estrellas debe ser mayor a 0', icon: 'error', zIndex: 100001 });
+      return;
+    }
+    if (!formEstrellasTutoria.description?.trim()) {
+      Swal.fire({ title: 'Error', text: 'La descripción es requerida', icon: 'error', zIndex: 100001 });
+      return;
+    }
+    try {
+      setGuardandoEstrellasTutoria(true);
+      await api.post(`/docente/tutoria/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/estrellas`, {
+        points: pts,
+        description: formEstrellasTutoria.description.trim()
+      });
+      Swal.fire({ title: '¡Éxito!', text: `${pts} estrella(s) asignada(s) correctamente`, icon: 'success', zIndex: 100001 });
+      setFormEstrellasTutoria({ points: '', description: '' });
+      await recargarEstrellasTutoria();
+    } catch (error) {
+      console.error(error);
+      Swal.fire({
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudieron asignar las estrellas',
+        icon: 'error',
+        zIndex: 100001
+      });
+    } finally {
+      setGuardandoEstrellasTutoria(false);
+    }
+  };
+
+  const handleEliminarEstrellasTutoria = async (incidentId, points) => {
+    const gid = getGrupoIdTutoria();
+    if (!gid || !alumnoSeleccionadoTutoria?.id) return;
+    const result = await Swal.fire({
+      title: '¿Estás seguro?',
+      text: `Se eliminarán ${points} estrella(s). Esta acción no se puede deshacer.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      zIndex: 100001
+    });
+    if (!result.isConfirmed) return;
+    try {
+      await api.delete(
+        `/docente/tutoria/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/estrellas/${incidentId}`
+      );
+      Swal.fire({ title: '¡Eliminado!', text: 'Las estrellas han sido eliminadas correctamente', icon: 'success', zIndex: 100001 });
+      await recargarEstrellasTutoria();
+    } catch (error) {
+      console.error(error);
+      Swal.fire({
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudieron eliminar las estrellas',
+        icon: 'error',
+        zIndex: 100001
+      });
+    }
+  };
+
+  const exportarPDFEstrellasTutoria = () => {
+    if (!alumnoSeleccionadoTutoria || estrellasTutoria.length === 0) {
+      Swal.fire({ title: 'Sin datos', text: 'No hay estrellas para exportar', icon: 'info', zIndex: 100001 });
+      return;
+    }
+    const nombreAlumno = nombreCompletoAlumnoTutoria(alumnoSeleccionadoTutoria);
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const contentWidth = pageWidth - margin * 2;
+    let yPosition = margin;
+    const colorHeader = [96, 165, 250];
+    const colorBorder = [59, 130, 246];
+    const colorText = [30, 41, 59];
+    const colorLight = [219, 234, 254];
+    const colorDark = [30, 64, 175];
+
+    doc.setFillColor(...colorHeader);
+    doc.rect(margin, yPosition, contentWidth, 30, 'F');
+    doc.setDrawColor(...colorBorder);
+    doc.setLineWidth(0.5);
+    doc.rect(margin, yPosition, contentWidth, 30);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPORTE DE ESTRELLAS', margin + 5, yPosition + 12);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Alumno: ${nombreAlumno}`, margin + 5, yPosition + 22);
+    yPosition += 35;
+
+    if (cursoInfoTutoriaPDF) {
+      doc.setFillColor(...colorLight);
+      doc.rect(margin, yPosition, contentWidth, 25, 'F');
+      doc.setDrawColor(...colorBorder);
+      doc.setLineWidth(0.3);
+      doc.rect(margin, yPosition, contentWidth, 25);
+      doc.setFillColor(...colorHeader);
+      doc.rect(margin, yPosition, contentWidth, 7, 'F');
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(18);
+      doc.setFontSize(11);
       doc.setFont('helvetica', 'bold');
-      doc.text('ESTRELLAS', pageWidth / 2, 12, { align: 'center' });
-      doc.setFontSize(12);
-      doc.text(nombreAlumno, pageWidth / 2, 20, { align: 'center' });
+      doc.text('INFORMACIÓN DEL CURSO', margin + 5, yPosition + 5);
+      yPosition += 10;
+      doc.setTextColor(...colorText);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(`Curso: ${cursoInfoTutoriaPDF.curso_nombre}`, margin + 5, yPosition);
+      yPosition += 5;
+      doc.text(`Grado: ${cursoInfoTutoriaPDF.grado}° ${cursoInfoTutoriaPDF.seccion}`, margin + 5, yPosition);
+      yPosition += 5;
+      doc.text(`Nivel: ${cursoInfoTutoriaPDF.nivel_nombre} - Turno: ${cursoInfoTutoriaPDF.turno_nombre}`, margin + 5, yPosition);
+      yPosition += 5;
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(10);
-      doc.text(mesAnio, pageWidth / 2, 26, { align: 'center' });
-      const totalMes = estrellasMes.reduce((sum, e) => sum + (e.points || 0), 0);
-      yPos = 40;
-      doc.setFillColor(251, 191, 36);
-      doc.roundedRect(margin, yPos, contentWidth, 10, 3, 3, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`Total del mes: ${totalMes} estrellas`, pageWidth / 2, yPos + 7, { align: 'center' });
-      yPos += 15;
+      doc.setTextColor(...colorDark);
+      doc.text(`Total de Estrellas: ${totalEstrellasTutoria}`, margin + 5, yPosition - 2);
+      yPosition += 12;
+    }
 
-      estrellasMes.forEach((estrella, index) => {
-        if (yPos > pageHeight - 50) { doc.addPage(); yPos = margin; }
-        const color = coloresPastelTutoria[index % coloresPastelTutoria.length];
-        const cardHeight = 35;
-        const bgR = parseInt(color.bg.slice(1, 3), 16);
-        const bgG = parseInt(color.bg.slice(3, 5), 16);
-        const bgB = parseInt(color.bg.slice(5, 7), 16);
-        const brR = parseInt(color.border.slice(1, 3), 16);
-        const brG = parseInt(color.border.slice(3, 5), 16);
-        const brB = parseInt(color.border.slice(5, 7), 16);
-        doc.setFillColor(bgR, bgG, bgB);
-        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3, 'F');
-        doc.setDrawColor(brR, brG, brB);
-        doc.setLineWidth(1);
-        doc.roundedRect(margin, yPos, contentWidth, cardHeight, 3, 3);
-        doc.setTextColor(30, 41, 59);
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Fecha:', margin + 3, yPos + 6);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
-        doc.text(formatearFechaTutoria(estrella.created_at), margin + 20, yPos + 6);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Estrellas:', margin + 3, yPos + 12);
-        doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...colorText);
+    doc.text('HISTORIAL DE ESTRELLAS', margin, yPosition);
+    yPosition += 8;
+    doc.setFillColor(...colorHeader);
+    doc.rect(margin, yPosition, contentWidth, 9, 'F');
+    doc.setDrawColor(...colorBorder);
+    doc.setLineWidth(0.3);
+    doc.rect(margin, yPosition, contentWidth, 9);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(0.2);
+    doc.line(margin + 50, yPosition, margin + 50, yPosition + 9);
+    doc.line(margin + 75, yPosition, margin + 75, yPosition + 9);
+    doc.line(margin + 135, yPosition, margin + 135, yPosition + 9);
+    doc.text('DOCENTE', margin + 25, yPosition + 6, { align: 'center' });
+    doc.text('ESTRELLAS', margin + 62.5, yPosition + 6, { align: 'center' });
+    doc.text('DESCRIPCIÓN', margin + 105, yPosition + 6, { align: 'center' });
+    doc.text('FECHA', margin + 157.5, yPosition + 6, { align: 'center' });
+    yPosition += 11;
+    doc.setTextColor(...colorText);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setDrawColor(...colorBorder);
+
+    estrellasTutoria.forEach((item, index) => {
+      if (yPosition > pageHeight - 35) {
+        doc.addPage();
+        yPosition = margin;
+        doc.setFillColor(...colorHeader);
+        doc.rect(margin, yPosition, contentWidth, 9, 'F');
+        doc.setDrawColor(...colorBorder);
+        doc.rect(margin, yPosition, contentWidth, 9);
+        doc.setTextColor(255, 255, 255);
         doc.setFontSize(9);
-        doc.text(`${estrella.points || 0}`, margin + 20, yPos + 12);
         doc.setFont('helvetica', 'bold');
-        doc.text('Docente:', margin + 3, yPos + 18);
+        doc.setDrawColor(255, 255, 255);
+        doc.line(margin + 50, yPosition, margin + 50, yPosition + 9);
+        doc.line(margin + 75, yPosition, margin + 75, yPosition + 9);
+        doc.line(margin + 135, yPosition, margin + 135, yPosition + 9);
+        doc.line(margin + 160, yPosition, margin + 160, yPosition + 9);
+        doc.text('DOCENTE', margin + 25, yPosition + 6, { align: 'center' });
+        doc.text('ESTRELLAS', margin + 62.5, yPosition + 6, { align: 'center' });
+        doc.text('DESCRIPCIÓN', margin + 105, yPosition + 6, { align: 'center' });
+        doc.text('FECHA', margin + 147.5, yPosition + 6, { align: 'center' });
+        yPosition += 11;
+        doc.setTextColor(...colorText);
         doc.setFont('helvetica', 'normal');
-        doc.text(estrella.docente_nombre || 'N/A', margin + 20, yPos + 18);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Curso:', margin + 3, yPos + 24);
-        doc.setFont('helvetica', 'normal');
-        doc.text(estrella.curso_nombre || 'N/A', margin + 20, yPos + 24);
-        doc.setFont('helvetica', 'bold');
-        const descY = yPos + 30;
-        doc.text('Detalle:', margin + 3, descY);
-        doc.setFont('helvetica', 'normal');
-        const descLines = doc.splitTextToSize(estrella.description || 'Sin detalle', contentWidth - 25);
-        descLines.forEach((line, idx) => { doc.text(line, margin + 20, descY + (idx * 4)); });
-        const descHeight = descLines.length * 4;
-        yPos += Math.max(cardHeight, descY + descHeight - yPos) + 8;
+        doc.setFontSize(8);
+        doc.setDrawColor(...colorBorder);
+      }
+      doc.setTextColor(...colorText);
+      const docente = item.docente_nombre || 'N/A';
+      const descripcion = item.description || '-';
+      const fecha = formatearFechaPDFIncEstTutoria(item.created_at);
+      const maxWidth = 65;
+      const descripcionLines = doc.splitTextToSize(descripcion, maxWidth);
+      const alturaDescripcion = descripcionLines.length * 4;
+      const alturaFila = Math.max(9, alturaDescripcion + 2);
+      if (index % 2 === 0) {
+        doc.setFillColor(...colorLight);
+        doc.rect(margin, yPosition - 3, contentWidth, alturaFila, 'F');
+      }
+      doc.setDrawColor(...colorBorder);
+      doc.setLineWidth(0.2);
+      doc.rect(margin, yPosition - 3, contentWidth, alturaFila);
+      doc.setLineWidth(0.1);
+      doc.line(margin + 50, yPosition - 3, margin + 50, yPosition - 3 + alturaFila);
+      doc.line(margin + 75, yPosition - 3, margin + 75, yPosition - 3 + alturaFila);
+      doc.line(margin + 135, yPosition - 3, margin + 135, yPosition - 3 + alturaFila);
+      const centroDocente = margin + 25;
+      const centroEstrellas = margin + 62.5;
+      const centroDescripcion = margin + 105;
+      const centroFecha = margin + 157.5;
+      const anchoDocente = 45;
+      const anchoDescripcion = 60;
+      const docenteLines = doc.splitTextToSize(docente, anchoDocente);
+      let docenteY = yPosition + 2.5;
+      docenteLines.forEach((line, lineIndex) => {
+        if (lineIndex === 0) doc.text(line, centroDocente, docenteY, { align: 'center' });
+        else {
+          docenteY += 4;
+          doc.text(line, centroDocente, docenteY, { align: 'center' });
+        }
       });
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${item.points}`, centroEstrellas, yPosition + 2.5, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      let descY = yPosition + 2.5;
+      descripcionLines.forEach((line, lineIndex) => {
+        if (lineIndex === 0) doc.text(line, centroDescripcion, descY, { align: 'center', maxWidth: anchoDescripcion });
+        else {
+          descY += 4;
+          doc.text(line, centroDescripcion, descY, { align: 'center', maxWidth: anchoDescripcion });
+        }
+      });
+      doc.text(fecha, centroFecha, yPosition + 2.5, { align: 'center' });
+      yPosition += alturaFila;
+    });
 
-      const nombreArchivo = `Estrellas_${nombreAlumno.replace(/\s+/g, '_')}_${mesAnio.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`;
-      doc.save(nombreArchivo);
-      Swal.fire({ title: '¡PDF Generado!', text: 'Las estrellas se han exportado correctamente', icon: 'success' });
-    } catch (error) {
-      console.error('Error generando PDF estrellas:', error);
-      Swal.fire({ title: 'Error', text: 'No se pudo generar el PDF', icon: 'error' });
+    const fechaGeneracion = new Date().toLocaleDateString('es-PE', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'italic');
+    doc.text(`Generado el: ${fechaGeneracion}`, margin, pageHeight - 10);
+    doc.save(`Estrellas_${nombreAlumno.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`);
+    Swal.fire({
+      title: '¡PDF Generado!',
+      text: 'El reporte de estrellas se ha descargado correctamente',
+      icon: 'success',
+      zIndex: 100001
+    });
+  };
+
+  const exportarPDFIncidenciasTutoria = () => {
+    if (!alumnoSeleccionadoTutoria || incidenciasTutoria.length === 0) {
+      Swal.fire({ title: 'Sin datos', text: 'No hay incidencias para exportar', icon: 'info', zIndex: 100001 });
+      return;
     }
+    const nombreAlumno = nombreCompletoAlumnoTutoria(alumnoSeleccionadoTutoria);
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const contentWidth = pageWidth - margin * 2;
+    let yPosition = margin;
+    const colorHeader = [167, 139, 250];
+    const colorBorder = [139, 92, 246];
+    const colorText = [30, 41, 59];
+    const colorLight = [233, 213, 255];
+    const colorDark = [107, 33, 168];
+
+    doc.setFillColor(...colorHeader);
+    doc.rect(margin, yPosition, contentWidth, 30, 'F');
+    doc.setDrawColor(...colorBorder);
+    doc.setLineWidth(0.5);
+    doc.rect(margin, yPosition, contentWidth, 30);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPORTE DE INCIDENCIAS', margin + 5, yPosition + 12);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Alumno: ${nombreAlumno}`, margin + 5, yPosition + 22);
+    yPosition += 35;
+
+    if (cursoInfoTutoriaPDF) {
+      doc.setFillColor(...colorLight);
+      doc.rect(margin, yPosition, contentWidth, 25, 'F');
+      doc.setDrawColor(...colorBorder);
+      doc.setLineWidth(0.3);
+      doc.rect(margin, yPosition, contentWidth, 25);
+      doc.setFillColor(...colorHeader);
+      doc.rect(margin, yPosition, contentWidth, 7, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.text('INFORMACIÓN DEL CURSO', margin + 5, yPosition + 5);
+      yPosition += 10;
+      doc.setTextColor(...colorText);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(`Curso: ${cursoInfoTutoriaPDF.curso_nombre}`, margin + 5, yPosition);
+      yPosition += 5;
+      doc.text(`Grado: ${cursoInfoTutoriaPDF.grado}° ${cursoInfoTutoriaPDF.seccion}`, margin + 5, yPosition);
+      yPosition += 5;
+      doc.text(`Nivel: ${cursoInfoTutoriaPDF.nivel_nombre} - Turno: ${cursoInfoTutoriaPDF.turno_nombre}`, margin + 5, yPosition);
+      yPosition += 5;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...colorDark);
+      doc.text(`Total de Incidencias: ${totalIncidenciasTutoria}`, margin + 5, yPosition - 2);
+      yPosition += 12;
+    }
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...colorText);
+    doc.text('HISTORIAL DE INCIDENCIAS', margin, yPosition);
+    yPosition += 8;
+    doc.setFillColor(...colorHeader);
+    doc.rect(margin, yPosition, contentWidth, 9, 'F');
+    doc.setDrawColor(...colorBorder);
+    doc.setLineWidth(0.3);
+    doc.rect(margin, yPosition, contentWidth, 9);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(0.2);
+    doc.line(margin + 45, yPosition, margin + 45, yPosition + 9);
+    doc.line(margin + 75, yPosition, margin + 75, yPosition + 9);
+    doc.line(margin + 140, yPosition, margin + 140, yPosition + 9);
+    doc.text('DOCENTE', margin + 22.5, yPosition + 6, { align: 'center' });
+    doc.text('CURSO', margin + 60, yPosition + 6, { align: 'center' });
+    doc.text('DESCRIPCIÓN', margin + 107.5, yPosition + 6, { align: 'center' });
+    doc.text('FECHA', margin + 157.5, yPosition + 6, { align: 'center' });
+    yPosition += 11;
+    doc.setTextColor(...colorText);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setDrawColor(...colorBorder);
+
+    incidenciasTutoria.forEach((item, index) => {
+      if (yPosition > pageHeight - 35) {
+        doc.addPage();
+        yPosition = margin;
+        doc.setFillColor(...colorHeader);
+        doc.rect(margin, yPosition, contentWidth, 9, 'F');
+        doc.setDrawColor(...colorBorder);
+        doc.rect(margin, yPosition, contentWidth, 9);
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.setDrawColor(255, 255, 255);
+        doc.line(margin + 45, yPosition, margin + 45, yPosition + 9);
+        doc.line(margin + 75, yPosition, margin + 75, yPosition + 9);
+        doc.line(margin + 140, yPosition, margin + 140, yPosition + 9);
+        doc.text('DOCENTE', margin + 22.5, yPosition + 6, { align: 'center' });
+        doc.text('CURSO', margin + 60, yPosition + 6, { align: 'center' });
+        doc.text('DESCRIPCIÓN', margin + 107.5, yPosition + 6, { align: 'center' });
+        doc.text('FECHA', margin + 157.5, yPosition + 6, { align: 'center' });
+        yPosition += 11;
+        doc.setTextColor(...colorText);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setDrawColor(...colorBorder);
+      }
+      doc.setTextColor(...colorText);
+      const docente = item.docente_nombre || 'N/A';
+      const curso = item.curso_nombre || 'N/A';
+      const descripcion = item.description || '-';
+      const fecha = formatearFechaPDFIncEstTutoria(item.created_at);
+      const maxWidth = 65;
+      const descripcionLines = doc.splitTextToSize(descripcion, maxWidth);
+      const alturaDescripcion = descripcionLines.length * 4;
+      const alturaFila = Math.max(9, alturaDescripcion + 2);
+      if (index % 2 === 0) {
+        doc.setFillColor(...colorLight);
+        doc.rect(margin, yPosition - 3, contentWidth, alturaFila, 'F');
+      }
+      doc.setDrawColor(...colorBorder);
+      doc.setLineWidth(0.2);
+      doc.rect(margin, yPosition - 3, contentWidth, alturaFila);
+      doc.setLineWidth(0.1);
+      doc.line(margin + 45, yPosition - 3, margin + 45, yPosition - 3 + alturaFila);
+      doc.line(margin + 75, yPosition - 3, margin + 75, yPosition - 3 + alturaFila);
+      doc.line(margin + 140, yPosition - 3, margin + 140, yPosition - 3 + alturaFila);
+      const centroDocente = margin + 22.5;
+      const centroCurso = margin + 60;
+      const centroDescripcion = margin + 107.5;
+      const centroFecha = margin + 157.5;
+      const anchoDocente = 40;
+      const anchoCurso = 55;
+      const anchoDescripcion = 60;
+      const docenteLines = doc.splitTextToSize(docente, anchoDocente);
+      let docenteY = yPosition + 2.5;
+      docenteLines.forEach((line, lineIndex) => {
+        if (lineIndex === 0) doc.text(line, centroDocente, docenteY, { align: 'center' });
+        else {
+          docenteY += 4;
+          doc.text(line, centroDocente, docenteY, { align: 'center' });
+        }
+      });
+      const cursoLines = doc.splitTextToSize(curso, anchoCurso);
+      let cursoY = yPosition + 2.5;
+      cursoLines.forEach((line, lineIndex) => {
+        if (lineIndex === 0) doc.text(line, centroCurso, cursoY, { align: 'center' });
+        else {
+          cursoY += 4;
+          doc.text(line, centroCurso, cursoY, { align: 'center' });
+        }
+      });
+      let descY = yPosition + 2.5;
+      descripcionLines.forEach((line, lineIndex) => {
+        if (lineIndex === 0) doc.text(line, centroDescripcion, descY, { align: 'center', maxWidth: anchoDescripcion });
+        else {
+          descY += 4;
+          doc.text(line, centroDescripcion, descY, { align: 'center', maxWidth: anchoDescripcion });
+        }
+      });
+      doc.text(fecha, centroFecha, yPosition + 2.5, { align: 'center' });
+      yPosition += alturaFila;
+    });
+
+    const fechaGeneracion = new Date().toLocaleDateString('es-PE', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'italic');
+    doc.text(`Generado el: ${fechaGeneracion}`, margin, pageHeight - 10);
+    doc.save(`Incidencias_${nombreAlumno.replace(/\s+/g, '_')}_${new Date().getTime()}.pdf`);
+    Swal.fire({
+      title: '¡PDF Generado!',
+      text: 'El reporte de incidencias se ha descargado correctamente',
+      icon: 'success',
+      zIndex: 100001
+    });
   };
 
   const volverAGrupos = () => {
@@ -3895,142 +4311,247 @@ function DocenteTutoria() {
         document.body
       )}
 
-      {/* Modal Incidencias (Tutoría - solo ver) */}
-      {showModalIncidenciasTutoria && createPortal(
-        <div className="modal-overlay-qr" onClick={() => { setShowModalIncidenciasTutoria(false); setAlumnoSeleccionadoTutoria(null); setIncidenciasTutoria([]); }}>
-          <div className="modal-content-incidencias" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header-qr">
-              <h2>📋 Incidencias de {alumnoSeleccionadoTutoria?.apellido_paterno} {alumnoSeleccionadoTutoria?.apellido_materno}, {alumnoSeleccionadoTutoria?.nombres}</h2>
-              <button className="modal-close-qr" onClick={() => { setShowModalIncidenciasTutoria(false); setAlumnoSeleccionadoTutoria(null); setIncidenciasTutoria([]); }}>×</button>
+      {/* Modal Incidencias (Tutoría — igual que Cursos asignados) */}
+      {showModalIncidenciasTutoria && alumnoSeleccionadoTutoria && createPortal(
+        <div className="modal-incidencias-overlay" onClick={cerrarModalIncidenciasTutoria}>
+          <div className="modal-incidencias-container" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-incidencias-header">
+              <div className="modal-incidencias-title-section">
+                <h2 className="modal-incidencias-title">📋 Gestión de Incidencias</h2>
+                <p className="modal-incidencias-subtitle">
+                  {nombreCompletoAlumnoTutoria(alumnoSeleccionadoTutoria)}
+                </p>
+                <div className="modal-incidencias-total">
+                  <span className="total-label">Total de Incidencias:</span>
+                  <span className="total-value">{totalIncidenciasTutoria}</span>
+                </div>
+              </div>
+              <div className="modal-incidencias-actions">
+                <button
+                  className="btn-exportar-pdf-incidencias"
+                  onClick={exportarPDFIncidenciasTutoria}
+                  type="button"
+                  title="Exportar todo a PDF"
+                >
+                  📄 Exportar PDF
+                </button>
+                <button className="modal-incidencias-close" onClick={cerrarModalIncidenciasTutoria} type="button">
+                  ✕
+                </button>
+              </div>
             </div>
-            <div className="modal-body-incidencias">
-              {loadingIncidenciasTutoria ? (
-                <div className="qr-loading"><div className="loading-spinner">Cargando incidencias...</div></div>
-              ) : incidenciasTutoria.length === 0 ? (
-                <div className="empty-state"><p>No hay incidencias registradas</p></div>
-              ) : (() => {
-                const gruposPorMes = agruparIncidenciasPorMesTutoria(incidenciasTutoria);
-                const mesesOrdenados = Object.keys(gruposPorMes).sort((a, b) => {
-                  const dateA = new Date(gruposPorMes[a][0].created_at);
-                  const dateB = new Date(gruposPorMes[b][0].created_at);
-                  return dateB - dateA;
-                });
-                return (
-                  <div className="grupos-mes-container">
-                    {mesesOrdenados.map((mesAnio) => {
-                      const incidenciasMes = gruposPorMes[mesAnio];
-                      return (
-                        <div key={mesAnio} className="grupo-mes">
-                          <div className="grupo-mes-header">
-                            <h3 className="mes-titulo">{mesAnio}</h3>
-                            <button
-                              type="button"
-                              className="btn-exportar-mes"
-                              onClick={() => handleExportarIncidenciasPDFTutoria(mesAnio, incidenciasMes)}
-                            >
-                              <span className="btn-icon">📄</span>
-                              <span>Exportar PDF</span>
-                            </button>
-                          </div>
-                          <div className="cards-container">
-                            {incidenciasMes.map((incidencia, index) => {
-                              const color = coloresPastelTutoria[index % coloresPastelTutoria.length];
-                              return (
-                                <div key={incidencia.id} className="incidencia-card" style={{ backgroundColor: color.bg, borderColor: color.border, color: color.text }}>
-                                  <div className="card-header-incidencia">
-                                    <div className="card-fecha"><span className="icon">📅</span><span>{formatearFechaTutoria(incidencia.created_at)}</span></div>
-                                  </div>
-                                  <div className="card-body-incidencia">
-                                    <div className="card-info-row"><span className="label">Docente:</span><span className="value">{incidencia.docente_nombre || 'N/A'}</span></div>
-                                    <div className="card-info-row"><span className="label">Curso:</span><span className="value">{incidencia.curso_nombre || 'N/A'}</span></div>
-                                    <div className="card-info-row card-descripcion"><span className="label">Descripción:</span><span className="value">{incidencia.description || 'Sin descripción'}</span></div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+
+            <div className="modal-incidencias-body">
+              <div className="incidencias-form-section">
+                <h3 className="section-title-incidencias">Registrar Incidencia</h3>
+                <form onSubmit={handleRegistrarIncidenciaTutoria} className="form-incidencias">
+                  <div className="form-group-incidencias">
+                    <label htmlFor="description-incidencia-tutoria">Descripción de la Incidencia *</label>
+                    <textarea
+                      id="description-incidencia-tutoria"
+                      value={formIncidenciasTutoria.description}
+                      onChange={(e) =>
+                        setFormIncidenciasTutoria({ ...formIncidenciasTutoria, description: e.target.value })
+                      }
+                      className="form-textarea-incidencias"
+                      placeholder="Ej: Comportamiento o situación observada en tutoría..."
+                      rows="4"
+                      required
+                    />
                   </div>
-                );
-              })()}
+                  <button
+                    type="submit"
+                    className="btn-registrar-incidencia"
+                    disabled={guardandoIncidenciasTutoria}
+                  >
+                    {guardandoIncidenciasTutoria ? 'Guardando...' : '📋 Registrar Incidencia'}
+                  </button>
+                </form>
+              </div>
+
+              <div className="incidencias-historial-section">
+                <h3 className="section-title-incidencias">Historial de Incidencias</h3>
+                {loadingIncidenciasTutoria ? (
+                  <div className="loading-incidencias">Cargando historial...</div>
+                ) : incidenciasTutoria.length > 0 ? (
+                  <div className="historial-table-container">
+                    <table className="historial-table-incidencias">
+                      <thead>
+                        <tr>
+                          <th>Docente</th>
+                          <th>Curso</th>
+                          <th>Descripción</th>
+                          <th>Fecha</th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {incidenciasTutoria.map((item) => (
+                          <tr key={item.id}>
+                            <td>{item.docente_nombre || 'N/A'}</td>
+                            <td>
+                              <span className="curso-badge-incidencia">{item.curso_nombre || 'N/A'}</span>
+                            </td>
+                            <td className="descripcion-cell">{item.description || '-'}</td>
+                            <td>{formatearFechaIncEstTutoria(item.created_at)}</td>
+                            <td>
+                              {item.puede_eliminar ? (
+                                <button
+                                  className="btn-eliminar-incidencia"
+                                  onClick={() => handleEliminarIncidenciaTutoria(item.id)}
+                                  type="button"
+                                  title="Eliminar esta incidencia"
+                                >
+                                  🗑️
+                                </button>
+                              ) : (
+                                <span className="no-eliminar">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="empty-historial">
+                    <p>No hay incidencias registradas aún</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>,
         document.body
       )}
 
-      {/* Modal Estrellas (Tutoría - solo ver) */}
-      {showModalEstrellasTutoria && createPortal(
-        <div className="modal-overlay-qr" onClick={() => { setShowModalEstrellasTutoria(false); setAlumnoSeleccionadoTutoria(null); setEstrellasTutoria([]); setTotalEstrellasTutoria(0); }}>
-          <div className="modal-content-estrellas" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header-qr">
-              <h2>⭐ Estrellas de {alumnoSeleccionadoTutoria?.apellido_paterno} {alumnoSeleccionadoTutoria?.apellido_materno}, {alumnoSeleccionadoTutoria?.nombres}</h2>
-              <button className="modal-close-qr" onClick={() => { setShowModalEstrellasTutoria(false); setAlumnoSeleccionadoTutoria(null); setEstrellasTutoria([]); setTotalEstrellasTutoria(0); }}>×</button>
+      {/* Modal Estrellas (Tutoría — igual que Cursos asignados) */}
+      {showModalEstrellasTutoria && alumnoSeleccionadoTutoria && createPortal(
+        <div className="modal-estrellas-overlay" onClick={cerrarModalEstrellasTutoria}>
+          <div className="modal-estrellas-container" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-estrellas-header">
+              <div className="modal-estrellas-title-section">
+                <h2 className="modal-estrellas-title">⭐ Gestión de Estrellas</h2>
+                <p className="modal-estrellas-subtitle">
+                  {nombreCompletoAlumnoTutoria(alumnoSeleccionadoTutoria)}
+                </p>
+                <div className="modal-estrellas-total">
+                  <span className="total-label">Total de Estrellas:</span>
+                  <span className="total-value">{totalEstrellasTutoria}</span>
+                </div>
+              </div>
+              <div className="modal-estrellas-actions">
+                <button
+                  className="btn-exportar-pdf"
+                  onClick={exportarPDFEstrellasTutoria}
+                  type="button"
+                  title="Exportar todo a PDF"
+                >
+                  📄 Exportar PDF
+                </button>
+                <button className="modal-estrellas-close" onClick={cerrarModalEstrellasTutoria} type="button">
+                  ✕
+                </button>
+              </div>
             </div>
-            <div className="modal-body-estrellas">
-              {loadingEstrellasTutoria ? (
-                <div className="qr-loading"><div className="loading-spinner">Cargando estrellas...</div></div>
-              ) : estrellasTutoria.length === 0 ? (
-                <div className="empty-state"><p>No hay estrellas registradas</p></div>
-              ) : (
-                <>
-                  <div className="total-estrellas-badge">
-                    <span className="total-label">Total de Estrellas:</span>
-                    <span className="total-value">{totalEstrellasTutoria}</span>
+
+            <div className="modal-estrellas-body">
+              <div className="estrellas-form-section">
+                <h3 className="section-title-estrellas">Dar Estrellas</h3>
+                <form onSubmit={handleDarEstrellasTutoria} className="form-estrellas">
+                  <div className="form-group-estrellas">
+                    <label htmlFor="points-tutoria">Cantidad de Estrellas *</label>
+                    <select
+                      id="points-tutoria"
+                      value={formEstrellasTutoria.points}
+                      onChange={(e) =>
+                        setFormEstrellasTutoria({ ...formEstrellasTutoria, points: e.target.value })
+                      }
+                      className="form-select-estrellas"
+                      required
+                    >
+                      <option value="">Seleccione cantidad</option>
+                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
+                        <option key={num} value={num}>
+                          {num} estrella{num > 1 ? 's' : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                  {(() => {
-                    const gruposPorMes = agruparEstrellasPorMesTutoria(estrellasTutoria);
-                    const mesesOrdenados = Object.keys(gruposPorMes).sort((a, b) => {
-                      const dateA = new Date(gruposPorMes[a][0].created_at);
-                      const dateB = new Date(gruposPorMes[b][0].created_at);
-                      return dateB - dateA;
-                    });
-                    return (
-                      <div className="grupos-mes-container">
-                        {mesesOrdenados.map((mesAnio) => {
-                          const estrellasMes = gruposPorMes[mesAnio];
-                          const totalMes = estrellasMes.reduce((sum, e) => sum + (e.points || 0), 0);
-                          return (
-                            <div key={mesAnio} className="grupo-mes">
-                              <div className="grupo-mes-header">
-                                <div><h3 className="mes-titulo">{mesAnio}</h3><span className="mes-total">Total: {totalMes} estrellas</span></div>
+                  <div className="form-group-estrellas">
+                    <label htmlFor="description-estrellas-tutoria">Descripción *</label>
+                    <textarea
+                      id="description-estrellas-tutoria"
+                      value={formEstrellasTutoria.description}
+                      onChange={(e) =>
+                        setFormEstrellasTutoria({ ...formEstrellasTutoria, description: e.target.value })
+                      }
+                      className="form-textarea-estrellas"
+                      placeholder="Ej: Comportamiento ejemplar, ayuda a sus compañeros..."
+                      rows="3"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="btn-dar-estrellas"
+                    disabled={guardandoEstrellasTutoria}
+                  >
+                    {guardandoEstrellasTutoria ? 'Guardando...' : '⭐ Dar Estrellas'}
+                  </button>
+                </form>
+              </div>
+
+              <div className="estrellas-historial-section">
+                <h3 className="section-title-estrellas">Historial de Estrellas</h3>
+                {loadingEstrellasTutoria ? (
+                  <div className="loading-estrellas">Cargando historial...</div>
+                ) : estrellasTutoria.length > 0 ? (
+                  <div className="historial-table-container">
+                    <table className="historial-table">
+                      <thead>
+                        <tr>
+                          <th>Docente</th>
+                          <th>Estrellas</th>
+                          <th>Descripción</th>
+                          <th>Fecha</th>
+                          <th />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {estrellasTutoria.map((item) => (
+                          <tr key={item.id}>
+                            <td>{item.docente_nombre || 'N/A'}</td>
+                            <td>
+                              <span className="estrellas-badge-small">⭐ {item.points}</span>
+                            </td>
+                            <td className="descripcion-cell">{item.description || '-'}</td>
+                            <td>{formatearFechaIncEstTutoria(item.created_at)}</td>
+                            <td>
+                              {item.puede_eliminar ? (
                                 <button
+                                  className="btn-eliminar-estrella"
+                                  onClick={() => handleEliminarEstrellasTutoria(item.id, item.points)}
                                   type="button"
-                                  className="btn-exportar-mes"
-                                  onClick={() => handleExportarEstrellasPDFTutoria(mesAnio, estrellasMes)}
+                                  title="Eliminar estas estrellas"
                                 >
-                                  <span className="btn-icon">📄</span>
-                                  <span>Exportar PDF</span>
+                                  🗑️
                                 </button>
-                              </div>
-                              <div className="cards-container">
-                                {estrellasMes.map((estrella, index) => {
-                                  const color = coloresPastelTutoria[index % coloresPastelTutoria.length];
-                                  return (
-                                    <div key={estrella.id} className="estrella-card" style={{ backgroundColor: color.bg, borderColor: color.border, color: color.text }}>
-                                      <div className="card-header-estrella">
-                                        <div className="card-fecha"><span className="icon">📅</span><span>{formatearFechaTutoria(estrella.created_at)}</span></div>
-                                        <div className="card-estrellas-count"><span className="icon">⭐</span><span className="count">{estrella.points || 0}</span></div>
-                                      </div>
-                                      <div className="card-body-estrella">
-                                        <div className="card-info-row"><span className="label">Docente:</span><span className="value">{estrella.docente_nombre || 'N/A'}</span></div>
-                                        <div className="card-info-row"><span className="label">Curso:</span><span className="value">{estrella.curso_nombre || 'N/A'}</span></div>
-                                        <div className="card-info-row card-descripcion"><span className="label">Descripción:</span><span className="value">{estrella.description || 'Sin descripción'}</span></div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-                </>
-              )}
+                              ) : (
+                                <span className="no-eliminar">-</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="empty-historial">
+                    <p>No hay estrellas registradas aún</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>,

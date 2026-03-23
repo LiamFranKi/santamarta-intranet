@@ -18,6 +18,9 @@ function esAdminOPromotoria(tipo) {
   return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA';
 }
 
+/** enrollment_incidents.assignment_id cuando el registro es del tutor (no hay asignatura) */
+const ASSIGNMENT_ID_TUTORIA = -102;
+
 /**
  * Función auxiliar para crear notificaciones de Aula Virtual
  * @param {Object} params - Parámetros de la notificación
@@ -6603,7 +6606,7 @@ router.get('/tutoria/grupos/:grupoId/alumnos', async (req, res) => {
 
 /**
  * GET /api/docente/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias
- * Obtener incidencias de un alumno (solo lectura para el tutor)
+ * Incidencias del alumno (todas las del año); curso_nombre "Tutoría" si assignment_id es sentinel; puede_eliminar si el tutor las registró.
  */
 router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req, res) => {
   try {
@@ -6633,7 +6636,8 @@ router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req,
     const incidencias = await query(
       `SELECT ei.id, ei.description, ei.created_at, ei.worker_id, ei.assignment_id,
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
-              c.nombre as curso_nombre
+              CASE WHEN ei.assignment_id = ? THEN 'Tutoría' ELSE c.nombre END as curso_nombre,
+              CASE WHEN ei.worker_id = ? THEN 1 ELSE 0 END as puede_eliminar
        FROM enrollment_incidents ei
        INNER JOIN matriculas m ON m.id = ei.enrollment_id
        INNER JOIN grupos g ON g.id = m.grupo_id
@@ -6642,12 +6646,13 @@ router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req,
        LEFT JOIN cursos c ON c.id = a.curso_id
        WHERE ei.enrollment_id = ? AND ei.type = 1 AND g.anio = ?
        ORDER BY ei.created_at DESC`,
-      [matriculaId, anio_activo]
+      [ASSIGNMENT_ID_TUTORIA, personal_id, matriculaId, anio_activo]
     );
 
     res.json({
       incidencias: incidencias || [],
-      total_incidencias: (incidencias || []).length
+      total_incidencias: (incidencias || []).length,
+      matricula_id: matriculaId
     });
   } catch (error) {
     console.error('Error obteniendo incidencias (tutor):', error);
@@ -6657,7 +6662,7 @@ router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req,
 
 /**
  * GET /api/docente/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas
- * Obtener estrellas de un alumno (solo lectura para el tutor)
+ * Estrellas del alumno (todas las del año); curso_nombre "Tutoría" si assignment_id es sentinel; puede_eliminar si el tutor las registró.
  */
 router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas', async (req, res) => {
   try {
@@ -6687,7 +6692,8 @@ router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas', async (req, r
     const estrellas = await query(
       `SELECT ei.id, ei.points, ei.description, ei.created_at, ei.worker_id, ei.assignment_id,
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
-              c.nombre as curso_nombre
+              CASE WHEN ei.assignment_id = ? THEN 'Tutoría' ELSE c.nombre END as curso_nombre,
+              CASE WHEN ei.worker_id = ? THEN 1 ELSE 0 END as puede_eliminar
        FROM enrollment_incidents ei
        INNER JOIN matriculas m ON m.id = ei.enrollment_id
        INNER JOIN grupos g ON g.id = m.grupo_id
@@ -6696,18 +6702,331 @@ router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas', async (req, r
        LEFT JOIN cursos c ON c.id = a.curso_id
        WHERE ei.enrollment_id = ? AND ei.type = 2 AND g.anio = ?
        ORDER BY ei.created_at DESC`,
-      [matriculaId, anio_activo]
+      [ASSIGNMENT_ID_TUTORIA, personal_id, matriculaId, anio_activo]
     );
 
     const totalEstrellas = (estrellas || []).reduce((sum, e) => sum + (e.points || 0), 0);
 
     res.json({
       estrellas: estrellas || [],
-      total_estrellas: totalEstrellas
+      total_estrellas: totalEstrellas,
+      matricula_id: matriculaId
     });
   } catch (error) {
     console.error('Error obteniendo estrellas (tutor):', error);
     res.status(500).json({ error: 'Error al obtener estrellas' });
+  }
+});
+
+/**
+ * POST /api/docente/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias
+ * Registrar incidencia como tutor (curso mostrado: Tutoría)
+ */
+router.post('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req, res) => {
+  try {
+    const { grupoId, alumnoId } = req.params;
+    const { colegio_id, anio_activo, personal_id, usuario_id } = req.user;
+    const { description } = req.body;
+
+    if (!personal_id) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!description || String(description).trim() === '') {
+      return res.status(400).json({ error: 'La descripción es requerida' });
+    }
+
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const matricula = await query(
+      `SELECT m.id FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.grupo_id = ? AND m.colegio_id = ?
+         AND (m.estado = 0 OR m.estado = 4) AND g.anio = ?`,
+      [alumnoId, grupoId, colegio_id, anio_activo]
+    );
+    if (!matricula || matricula.length === 0) {
+      return res.status(404).json({ error: 'Alumno no encontrado en este grupo para el año activo' });
+    }
+
+    const matriculaId = matricula[0].id;
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const result = await execute(
+      `INSERT INTO enrollment_incidents 
+       (enrollment_id, assignment_id, worker_id, type, points, description, created_at, updated_at)
+       VALUES (?, ?, ?, 1, 0, ?, ?, ?)`,
+      [matriculaId, ASSIGNMENT_ID_TUTORIA, personal_id, String(description).trim(), now, now]
+    );
+
+    registrarAccion({
+      usuario_id,
+      colegio_id,
+      tipo_usuario: 'DOCENTE',
+      accion: 'CREAR',
+      modulo: 'INCIDENCIAS',
+      entidad: 'enrollment_incidents',
+      entidad_id: result.insertId,
+      descripcion: `Registró incidencia (Tutoría) alumno ID ${alumnoId} grupo ${grupoId}`,
+      url: req.originalUrl,
+      metodo_http: 'POST',
+      ip_address: req.ip || req.connection.remoteAddress,
+      user_agent: req.get('user-agent'),
+      resultado: 'EXITOSO'
+    }).catch(() => {});
+    req.skipAudit = true;
+
+    setImmediate(async () => {
+      try {
+        const alumnoInfo = await query(
+          `SELECT a.id as alumno_id, CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', COALESCE(a.apellido_materno, '')) as alumno_nombre
+           FROM alumnos a WHERE a.id = ? LIMIT 1`,
+          [alumnoId]
+        );
+        const docRow = await query(
+          `SELECT CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre FROM personal p WHERE p.id = ? LIMIT 1`,
+          [personal_id]
+        );
+        const docenteNombre = docRow[0]?.docente_nombre || 'Tutor';
+        if (alumnoInfo.length > 0) {
+          await crearNotificacionesApoderados({
+            alumno_id: parseInt(alumnoInfo[0].alumno_id, 10),
+            usuario_id,
+            colegio_id,
+            anio_activo,
+            tituloNotificacion: 'Incidencia Registrada',
+            mensajeNotificacion: `Se registró una incidencia para ${alumnoInfo[0].alumno_nombre} en Tutoría - Docente: ${docenteNombre}`,
+            tipoNotificacion: 'incidencia',
+            dataExtra: { tutor_grupo_id: parseInt(grupoId, 10), incident_id: result.insertId }
+          });
+        }
+      } catch (e) {
+        console.error('❌ [INCIDENCIAS TUTORÍA] Notificaciones:', e);
+      }
+    });
+
+    res.json({ success: true, message: 'Incidencia registrada correctamente', incident_id: result.insertId });
+  } catch (error) {
+    console.error('Error registrando incidencia (tutor):', error);
+    res.status(500).json({ error: 'Error al registrar la incidencia' });
+  }
+});
+
+/**
+ * DELETE /api/docente/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentId
+ */
+router.delete('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentId', async (req, res) => {
+  try {
+    const { grupoId, alumnoId, incidentId } = req.params;
+    const { colegio_id, anio_activo, personal_id, usuario_id } = req.user;
+
+    if (!personal_id) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const incidente = await query(
+      `SELECT ei.* FROM enrollment_incidents ei
+       INNER JOIN matriculas m ON m.id = ei.enrollment_id
+       INNER JOIN alumnos al ON al.id = m.alumno_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE ei.id = ? AND ei.worker_id = ? AND ei.type = 1
+         AND m.alumno_id = ? AND m.grupo_id = ? AND g.anio = ?`,
+      [incidentId, personal_id, alumnoId, grupoId, anio_activo]
+    );
+
+    if (!incidente || incidente.length === 0) {
+      return res.status(403).json({
+        error: 'No puedes eliminar esta incidencia. Solo las que registraste para este alumno en tu grupo de tutoría.'
+      });
+    }
+
+    await execute(`DELETE FROM enrollment_incidents WHERE id = ?`, [incidentId]);
+
+    registrarAccion({
+      usuario_id,
+      colegio_id,
+      tipo_usuario: 'DOCENTE',
+      accion: 'ELIMINAR',
+      modulo: 'INCIDENCIAS',
+      entidad: 'enrollment_incidents',
+      entidad_id: incidentId,
+      descripcion: `Eliminó incidencia (tutoría) alumno ${alumnoId}`,
+      url: req.originalUrl,
+      metodo_http: 'DELETE',
+      ip_address: req.ip || req.connection.remoteAddress,
+      user_agent: req.get('user-agent'),
+      datos_anteriores: JSON.stringify(incidente[0]),
+      resultado: 'EXITOSO'
+    }).catch(() => {});
+    req.skipAudit = true;
+
+    res.json({ success: true, message: 'Incidencia eliminada correctamente' });
+  } catch (error) {
+    console.error('Error eliminando incidencia (tutor):', error);
+    res.status(500).json({ error: 'Error al eliminar la incidencia' });
+  }
+});
+
+/**
+ * POST /api/docente/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas
+ */
+router.post('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas', async (req, res) => {
+  try {
+    const { grupoId, alumnoId } = req.params;
+    const { colegio_id, anio_activo, personal_id, usuario_id } = req.user;
+    const { points, description } = req.body;
+
+    if (!personal_id) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!points || parseInt(points, 10) <= 0) {
+      return res.status(400).json({ error: 'La cantidad de estrellas debe ser mayor a 0' });
+    }
+    if (!description || String(description).trim() === '') {
+      return res.status(400).json({ error: 'La descripción es requerida' });
+    }
+
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const matricula = await query(
+      `SELECT m.id FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.grupo_id = ? AND m.colegio_id = ?
+         AND (m.estado = 0 OR m.estado = 4) AND g.anio = ?`,
+      [alumnoId, grupoId, colegio_id, anio_activo]
+    );
+    if (!matricula || matricula.length === 0) {
+      return res.status(404).json({ error: 'Alumno no encontrado en este grupo para el año activo' });
+    }
+
+    const matriculaId = matricula[0].id;
+    const pts = parseInt(points, 10);
+    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const result = await execute(
+      `INSERT INTO enrollment_incidents 
+       (enrollment_id, assignment_id, worker_id, type, points, description, created_at, updated_at)
+       VALUES (?, ?, ?, 2, ?, ?, ?, ?)`,
+      [matriculaId, ASSIGNMENT_ID_TUTORIA, personal_id, pts, String(description).trim(), now, now]
+    );
+
+    registrarAccion({
+      usuario_id,
+      colegio_id,
+      tipo_usuario: 'DOCENTE',
+      accion: 'CREAR',
+      modulo: 'ESTRELLAS',
+      entidad: 'enrollment_incidents',
+      entidad_id: result.insertId,
+      descripcion: `Dio ${pts} estrella(s) (Tutoría) alumno ${alumnoId} grupo ${grupoId}`,
+      url: req.originalUrl,
+      metodo_http: 'POST',
+      ip_address: req.ip || req.connection.remoteAddress,
+      user_agent: req.get('user-agent'),
+      resultado: 'EXITOSO'
+    }).catch(() => {});
+    req.skipAudit = true;
+
+    setImmediate(async () => {
+      try {
+        const alumnoInfo = await query(
+          `SELECT a.id as alumno_id, CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', COALESCE(a.apellido_materno, '')) as alumno_nombre
+           FROM alumnos a WHERE a.id = ? LIMIT 1`,
+          [alumnoId]
+        );
+        const docRow = await query(
+          `SELECT CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre FROM personal p WHERE p.id = ? LIMIT 1`,
+          [personal_id]
+        );
+        const docenteNombre = docRow[0]?.docente_nombre || 'Tutor';
+        if (alumnoInfo.length > 0) {
+          await crearNotificacionesApoderados({
+            alumno_id: parseInt(alumnoInfo[0].alumno_id, 10),
+            usuario_id,
+            colegio_id,
+            anio_activo,
+            tituloNotificacion: 'Estrella Asignada',
+            mensajeNotificacion: `${alumnoInfo[0].alumno_nombre} recibió ${pts} estrella(s) en Tutoría - Docente: ${docenteNombre}`,
+            tipoNotificacion: 'estrella',
+            dataExtra: { tutor_grupo_id: parseInt(grupoId, 10), incident_id: result.insertId, points: pts }
+          });
+        }
+      } catch (e) {
+        console.error('❌ [ESTRELLAS TUTORÍA] Notificaciones:', e);
+      }
+    });
+
+    res.json({ success: true, message: `${pts} estrella(s) asignada(s) correctamente`, incident_id: result.insertId });
+  } catch (error) {
+    console.error('Error dando estrellas (tutor):', error);
+    res.status(500).json({ error: 'Error al asignar estrellas' });
+  }
+});
+
+/**
+ * DELETE /api/docente/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas/:incidentId
+ */
+router.delete('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas/:incidentId', async (req, res) => {
+  try {
+    const { grupoId, alumnoId, incidentId } = req.params;
+    const { colegio_id, anio_activo, personal_id, usuario_id } = req.user;
+
+    if (!personal_id) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, colegio_id, anio_activo]
+    );
+    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const incidente = await query(
+      `SELECT ei.* FROM enrollment_incidents ei
+       INNER JOIN matriculas m ON m.id = ei.enrollment_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE ei.id = ? AND ei.worker_id = ? AND ei.type = 2
+         AND m.alumno_id = ? AND m.grupo_id = ? AND g.anio = ?`,
+      [incidentId, personal_id, alumnoId, grupoId, anio_activo]
+    );
+
+    if (!incidente || incidente.length === 0) {
+      return res.status(403).json({
+        error: 'No puedes eliminar estas estrellas. Solo las que tú mismo asignaste a este alumno en tu grupo de tutoría.'
+      });
+    }
+
+    await execute(`DELETE FROM enrollment_incidents WHERE id = ?`, [incidentId]);
+
+    registrarAccion({
+      usuario_id,
+      colegio_id,
+      tipo_usuario: 'DOCENTE',
+      accion: 'ELIMINAR',
+      modulo: 'ESTRELLAS',
+      entidad: 'enrollment_incidents',
+      entidad_id: incidentId,
+      descripcion: `Eliminó estrellas (tutoría) alumno ${alumnoId}`,
+      url: req.originalUrl,
+      metodo_http: 'DELETE',
+      ip_address: req.ip || req.connection.remoteAddress,
+      user_agent: req.get('user-agent'),
+      datos_anteriores: JSON.stringify(incidente[0]),
+      resultado: 'EXITOSO'
+    }).catch(() => {});
+    req.skipAudit = true;
+
+    res.json({ success: true, message: 'Estrellas eliminadas correctamente' });
+  } catch (error) {
+    console.error('Error eliminando estrellas (tutor):', error);
+    res.status(500).json({ error: 'Error al eliminar estrellas' });
   }
 });
 
