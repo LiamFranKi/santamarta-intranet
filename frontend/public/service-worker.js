@@ -156,27 +156,42 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Manejar clics en notificaciones
+// Manejar clics en notificaciones (deep links: ruta relativa o absoluta)
 self.addEventListener('notificationclick', (event) => {
   console.log('👆 Service Worker: Notificación clickeada', event);
   
   event.notification.close();
 
-  const urlToOpen = event.notification.data?.url || '/';
+  const raw = (event.notification.data && event.notification.data.url) ? String(event.notification.data.url) : '/';
+  let pathForRouter = raw;
+  try {
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      const u = new URL(raw);
+      pathForRouter = u.pathname + u.search + u.hash;
+    } else if (!raw.startsWith('/')) {
+      pathForRouter = '/' + raw;
+    }
+  } catch (e) {
+    pathForRouter = '/';
+  }
+  const fullUrl = new URL(pathForRouter, self.location.origin).href;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((clientList) => {
-        // Si ya hay una ventana abierta, enfocarla
         for (let i = 0; i < clientList.length; i++) {
           const client = clientList[i];
-          if (client.url === urlToOpen && 'focus' in client) {
+          if ('focus' in client) {
+            try {
+              client.postMessage({ type: 'NAVIGATE_FROM_SW', path: pathForRouter });
+            } catch (err) {
+              console.warn('SW: postMessage falló', err);
+            }
             return client.focus();
           }
         }
-        // Si no hay ventana abierta, abrir una nueva
         if (clients.openWindow) {
-          return clients.openWindow(urlToOpen);
+          return clients.openWindow(fullUrl);
         }
       })
   );

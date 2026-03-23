@@ -840,6 +840,10 @@ router.get('/notificaciones', async (req, res) => {
          n.fecha_hora,
          n.estado,
          COALESCE(n.leida, 0) as leida,
+         n.accion_tipo,
+         n.accion_payload,
+         n.url_destino,
+         n.destinatario_id,
          'NOTIFICACION' as tipo_origen
        FROM notificaciones n
        WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
@@ -848,6 +852,16 @@ router.get('/notificaciones', async (req, res) => {
       [usuario_id]
     );
 
+    const parsePayload = (raw) => {
+      if (raw == null || raw === '') return null;
+      if (typeof raw === 'object') return raw;
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    };
+
     // Mapear campos para compatibilidad con el frontend
     const notificacionesMapeadas = (notificaciones || []).map(n => ({
       id: n.id,
@@ -855,7 +869,11 @@ router.get('/notificaciones', async (req, res) => {
       mensaje: n.mensaje || n.contenido || '',
       fecha_hora: n.fecha_hora,
       estado: (n.leida === 1 || n.leida === true) ? 'LEIDO' : 'NO_LEIDO',
-      tipo_origen: n.tipo_origen || 'NOTIFICACION'
+      tipo_origen: n.tipo_origen || 'NOTIFICACION',
+      accion_tipo: n.accion_tipo || null,
+      accion_payload: parsePayload(n.accion_payload),
+      url_destino: n.url_destino || null,
+      destinatario_id: n.destinatario_id
     }));
 
     res.json({ notificaciones: notificacionesMapeadas });

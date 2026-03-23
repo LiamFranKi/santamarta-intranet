@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { normalizarUrlNotificacion } from '../utils/notificacionNavigate';
 import './NotificacionesWidget.css';
 
 function NotificacionesWidget() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [notificaciones, setNotificaciones] = useState([]);
   const [mostrarDropdown, setMostrarDropdown] = useState(false);
 
@@ -69,6 +72,23 @@ function NotificacionesWidget() {
     }
   };
 
+  const handleClickNotificacion = async (notif) => {
+    try {
+      if (notif.estado === 'NO_LEIDO') {
+        const ruta = getRutaMarcarLeido();
+        await api.put(`${ruta}/${notif.id}/marcar-leido`);
+        setNotificaciones(prev =>
+          prev.map(n => (n.id === notif.id ? { ...n, estado: 'LEIDO' } : n))
+        );
+      }
+    } catch (err) {
+      console.error('Error al marcar leído antes de navegar:', err);
+    }
+    const destino = normalizarUrlNotificacion(notif, user);
+    setMostrarDropdown(false);
+    navigate(destino);
+  };
+
   return (
     <div className="notificaciones-widget">
       <button
@@ -100,8 +120,16 @@ function NotificacionesWidget() {
                 notificaciones.map((notif) => (
                   <div
                     key={notif.id}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleClickNotificacion(notif);
+                      }
+                    }}
                     className={`notificacion-item ${notif.estado === 'NO_LEIDO' ? 'no-leida' : ''}`}
-                    onClick={() => notif.estado === 'NO_LEIDO' && marcarComoLeido(notif.id)}
+                    onClick={() => handleClickNotificacion(notif)}
                   >
                     <div className="notificacion-icon">🔔</div>
                     <div className="notificacion-content">

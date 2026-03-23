@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './context/AuthContext';
@@ -128,6 +128,22 @@ function ScrollToTop() {
     });
   }, [pathname]);
 
+  return null;
+}
+
+/** Navegación SPA cuando el usuario toca una push y la app ya estaba abierta (postMessage desde service worker). */
+function SwNotificationNavigateBridge() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (typeof window === 'undefined' || !navigator.serviceWorker?.addEventListener) return undefined;
+    const handler = (event) => {
+      const d = event.data;
+      if (!d || d.type !== 'NAVIGATE_FROM_SW' || typeof d.path !== 'string') return;
+      navigate(d.path);
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
+  }, [navigate]);
   return null;
 }
 
@@ -727,6 +743,7 @@ function App() {
             }}
           >
             <ScrollToTop />
+            <SwNotificationNavigateBridge />
             <AppRoutes />
           </Router>
         </ColegioProvider>

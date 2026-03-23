@@ -8,7 +8,14 @@ const PDFDocument = require('pdfkit');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { registrarAccion } = require('../utils/auditoria');
 const { uploadToPHPServer } = require('../utils/ftpUpload');
-const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
+const { enviarPushNotificationMultiple, enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
+const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
+const {
+  obtenerUrlAulaVirtual,
+  obtenerUrlExamenActivado,
+  inferirUrlApoderadoNotificacion,
+  urlPublicacionPorTipoUsuario
+} = require('../utils/notificacionUrls');
 const { enviarCorreoNotificacion } = require('../services/emailService');
 const mensajesConfig = require('../config/mensajes.json');
 const moment = require('moment-timezone');
@@ -163,21 +170,35 @@ async function crearNotificacionesAulaVirtual(params) {
     
     console.log(`📚 [AULA VIRTUAL] Encontrados ${todosDestinatarios.length} destinatarios (${alumnoUsuarioIds.length} alumnos, ${apoderadoUsuarioIds.length} apoderados incluyendo docentes)`);
     
-    // Crear notificaciones en la BD
+    // Crear notificaciones en la BD (deep link por destinatario)
     if (todosDestinatarios.length > 0) {
       for (const destinatarioId of todosDestinatarios) {
         try {
-          await execute(
-            `INSERT INTO notificaciones 
-             (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
-             VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
-            [
-              usuario_id, // Usuario que crea (docente)
-              destinatarioId, // Destinatario
-              tituloNotificacion, // TÍTULO (asunto)
-              mensajeNotificacion // MENSAJE (contenido)
-            ]
-          );
+          const urlDestino = await obtenerUrlAulaVirtual(query, destinatarioId, {
+            asignatura_id,
+            grupo_id,
+            recurso_tipo: tipo,
+            recurso_id: entidad_id
+          });
+          const uRows = await query(`SELECT tipo, alumno_id FROM usuarios WHERE id = ? LIMIT 1`, [destinatarioId]);
+          const u0 = uRows[0] || {};
+          const accion_payload = {
+            asignatura_id,
+            grupo_id,
+            recurso_tipo: tipo,
+            recurso_id: entidad_id,
+            ...(u0.tipo === 'ALUMNO' && u0.alumno_id ? { alumno_id: u0.alumno_id } : {})
+          };
+          await insertNotificacionUsuario(execute, {
+            usuario_id,
+            destinatario_id: destinatarioId,
+            asunto: tituloNotificacion,
+            contenido: mensajeNotificacion,
+            estado: 'NO ENVIADO',
+            accion_tipo: `aula_virtual_${tipo}`,
+            accion_payload,
+            url_destino: urlDestino
+          });
         } catch (error) {
           console.error(`❌ [AULA VIRTUAL] Error creando notificación para usuario ${destinatarioId}:`, error);
         }
@@ -188,40 +209,48 @@ async function crearNotificacionesAulaVirtual(params) {
       // Enviar push notifications
       if (todosDestinatarios.length > 0) {
         const subscriptionsData = await query(
-          `SELECT endpoint, p256dh, auth 
+          `SELECT usuario_id, endpoint, p256dh, auth 
            FROM push_subscriptions 
            WHERE usuario_id IN (${todosDestinatarios.map(() => '?').join(',')}) 
              AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
           [...todosDestinatarios, colegio_id]
         );
         
-        const subscriptions = subscriptionsData.map(sub => ({
-          endpoint: sub.endpoint,
-          keys: {
-            p256dh: sub.p256dh,
-            auth: sub.auth
+        if (subscriptionsData.length > 0) {
+          const baseTag = `aula-virtual-${tipo}-${entidad_id || Date.now()}`;
+          const pushItems = [];
+          for (const sub of subscriptionsData) {
+            const urlPush = await obtenerUrlAulaVirtual(query, sub.usuario_id, {
+              asignatura_id,
+              grupo_id,
+              recurso_tipo: tipo,
+              recurso_id: entidad_id
+            });
+            pushItems.push({
+              subscription: {
+                endpoint: sub.endpoint,
+                keys: { p256dh: sub.p256dh, auth: sub.auth }
+              },
+              payload: {
+                title: tituloNotificacion,
+                body: mensajeNotificacion,
+                icon: '/icons/icon-192x192.png',
+                badge: '/icons/icon-192x192.png',
+                vibrate: [200, 100, 200],
+                tag: baseTag,
+                data: {
+                  url: urlPush,
+                  tipo: `aula_virtual_${tipo}`,
+                  asignatura_id,
+                  entidad_id
+                }
+              }
+            });
           }
-        }));
-        
-        if (subscriptions.length > 0) {
-          const payloadPush = {
-            title: tituloNotificacion,
-            body: mensajeNotificacion,
-            icon: '/icons/icon-192x192.png',
-            badge: '/icons/icon-192x192.png',
-            vibrate: [200, 100, 200],
-            tag: `aula-virtual-${tipo}-${entidad_id || Date.now()}`,
-            data: {
-              url: '/alumno/dashboard',
-              tipo: `aula_virtual_${tipo}`,
-              asignatura_id: asignatura_id,
-              entidad_id: entidad_id
-            }
-          };
           
-          console.log(`📱 [AULA VIRTUAL] Enviando ${subscriptions.length} push notifications...`);
+          console.log(`📱 [AULA VIRTUAL] Enviando ${pushItems.length} push notifications...`);
           
-          enviarPushNotificationMultiple(subscriptions, payloadPush)
+          enviarPushNotificacionesIndividuales(pushItems)
             .then(resultadosPush => {
               const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
               const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
@@ -259,7 +288,17 @@ async function crearNotificacionesAulaVirtual(params) {
  * @param {Object} params.dataExtra - Datos extra para el payload push (opcional)
  */
 async function crearNotificacionesApoderados(params) {
-  const { alumno_id, usuario_id, colegio_id, anio_activo, tituloNotificacion, mensajeNotificacion, tipoNotificacion, dataExtra = {} } = params;
+  const {
+    alumno_id,
+    usuario_id,
+    colegio_id,
+    anio_activo,
+    tituloNotificacion,
+    mensajeNotificacion,
+    tipoNotificacion,
+    dataExtra = {},
+    url_destino: urlDestinoParam = null
+  } = params;
   
   try {
     // Asegurar que alumno_id sea un número
@@ -397,17 +436,19 @@ async function crearNotificacionesApoderados(params) {
             continue;
           }
           
-          await execute(
-            `INSERT INTO notificaciones 
-             (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
-             VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
-            [
-              usuarioIdNum, // Usuario que crea (docente)
-              destinatarioIdNum, // Destinatario
-              String(tituloNotificacion), // TÍTULO (asunto)
-              String(mensajeNotificacion) // MENSAJE (contenido)
-            ]
-          );
+          const urlDestino =
+            urlDestinoParam ||
+            inferirUrlApoderadoNotificacion(tipoNotificacion, dataExtra, alumnoIdNum);
+          await insertNotificacionUsuario(execute, {
+            usuario_id: usuarioIdNum,
+            destinatario_id: destinatarioIdNum,
+            asunto: String(tituloNotificacion),
+            contenido: String(mensajeNotificacion),
+            estado: 'NO ENVIADO',
+            accion_tipo: String(tipoNotificacion || 'apoderado'),
+            accion_payload: { alumno_id: alumnoIdNum, ...dataExtra },
+            url_destino: urlDestino
+          });
         } catch (error) {
           console.error(`❌ [NOTIFICACIONES APODERADOS] Error creando notificación para usuario ${destinatarioId}:`, error);
           console.error(`❌ [NOTIFICACIONES APODERADOS] Error details:`, error.message);
@@ -421,40 +462,42 @@ async function crearNotificacionesApoderados(params) {
         const placeholdersDestinatarios = todosDestinatarios.map(() => '?').join(',');
         console.log(`📱 [NOTIFICACIONES APODERADOS] Buscando suscripciones push para ${todosDestinatarios.length} usuarios...`);
         const subscriptionsData = await query(
-          `SELECT endpoint, p256dh, auth 
+          `SELECT usuario_id, endpoint, p256dh, auth 
            FROM push_subscriptions 
            WHERE usuario_id IN (${placeholdersDestinatarios}) 
              AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
           [...todosDestinatarios.map(id => parseInt(id)), parseInt(colegio_id)]
         );
         
-        const subscriptions = subscriptionsData.map(sub => ({
-          endpoint: sub.endpoint,
-          keys: {
-            p256dh: sub.p256dh,
-            auth: sub.auth
+        const urlPushBase =
+          urlDestinoParam ||
+          inferirUrlApoderadoNotificacion(tipoNotificacion, dataExtra, alumnoIdNum);
+        
+        if (subscriptionsData.length > 0) {
+        const pushItems = subscriptionsData.map((sub) => ({
+          subscription: {
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth }
+          },
+          payload: {
+            title: tituloNotificacion,
+            body: mensajeNotificacion,
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-192x192.png',
+            vibrate: [200, 100, 200],
+            tag: `${tipoNotificacion}-${alumno_id}-${Date.now()}`,
+            data: {
+              url: urlPushBase,
+              tipo: tipoNotificacion,
+              alumno_id: alumno_id,
+              ...dataExtra
+            }
           }
         }));
         
-        if (subscriptions.length > 0) {
-        const payloadPush = {
-          title: tituloNotificacion,
-          body: mensajeNotificacion,
-          icon: '/icons/icon-192x192.png',
-          badge: '/icons/icon-192x192.png',
-          vibrate: [200, 100, 200],
-          tag: `${tipoNotificacion}-${alumno_id}-${Date.now()}`,
-          data: {
-            url: '/apoderado/dashboard',
-            tipo: tipoNotificacion,
-            alumno_id: alumno_id,
-            ...dataExtra
-          }
-        };
+        console.log(`📱 [NOTIFICACIONES APODERADOS] Enviando ${pushItems.length} push notifications...`);
         
-        console.log(`📱 [NOTIFICACIONES APODERADOS] Enviando ${subscriptions.length} push notifications...`);
-        
-        enviarPushNotificationMultiple(subscriptions, payloadPush)
+        enviarPushNotificacionesIndividuales(pushItems)
           .then(resultadosPush => {
             const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
             const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
@@ -13771,11 +13814,16 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               const contenidoNotif = `Se ha enviado un mensaje. ${refTxt}Asunto: "${(asuntoEnviar || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
               for (const ap of apoderadosUnicos) {
                 try {
-                  await execute(
-                    `INSERT INTO notificaciones (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
-                     VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'ENVIADO')`,
-                    [usuario_id, ap.usuario_id, tituloNotif, contenidoNotif]
-                  );
+                  await insertNotificacionUsuario(execute, {
+                    usuario_id,
+                    destinatario_id: ap.usuario_id,
+                    asunto: tituloNotif,
+                    contenido: contenidoNotif,
+                    estado: 'ENVIADO',
+                    accion_tipo: 'mensajes_conexiones',
+                    accion_payload: { grupos: gruposArray },
+                    url_destino: '/apoderado/mensajes'
+                  });
                 } catch (insErr) {
                   console.warn('Notificación BD apoderado:', insErr.message);
                 }
@@ -14086,6 +14134,10 @@ router.get('/notificaciones', async (req, res) => {
          n.fecha_hora,
          n.estado,
          COALESCE(n.leida, 0) as leida,
+         n.accion_tipo,
+         n.accion_payload,
+         n.url_destino,
+         n.destinatario_id,
          'NOTIFICACION' as tipo_origen
        FROM notificaciones n
        WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
@@ -14094,6 +14146,16 @@ router.get('/notificaciones', async (req, res) => {
       [usuario_id]
     );
 
+    const parsePayloadDoc = (raw) => {
+      if (raw == null || raw === '') return null;
+      if (typeof raw === 'object') return raw;
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    };
+
     // Mapear campos para compatibilidad con el frontend (usar leida si existe, sino estado antiguo)
     const notificacionesMapeadas = (notificaciones || []).map(n => ({
       id: n.id,
@@ -14101,7 +14163,11 @@ router.get('/notificaciones', async (req, res) => {
       mensaje: n.mensaje || n.contenido || '',
       fecha_hora: n.fecha_hora,
       estado: (n.leida === 1 || n.leida === true) ? 'LEIDO' : 'NO_LEIDO',
-      tipo_origen: n.tipo_origen || 'NOTIFICACION'
+      tipo_origen: n.tipo_origen || 'NOTIFICACION',
+      accion_tipo: n.accion_tipo || null,
+      accion_payload: parsePayloadDoc(n.accion_payload),
+      url_destino: n.url_destino || null,
+      destinatario_id: n.destinatario_id
     }));
 
     res.json({ notificaciones: notificacionesMapeadas });
@@ -14734,17 +14800,17 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
           
           for (const destinatario of destinatarios) {
             try {
-              await execute(
-                `INSERT INTO notificaciones 
-                 (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
-                 VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
-                [
-                  usuario_id, // Usuario que crea (docente)
-                  destinatario.usuario_id, // Destinatario
-                  tituloNotificacion, // TÍTULO (asunto)
-                  mensajeNotificacion // MENSAJE (contenido)
-                ]
-              );
+              const urlPub = urlPublicacionPorTipoUsuario(destinatario.tipo);
+              await insertNotificacionUsuario(execute, {
+                usuario_id,
+                destinatario_id: destinatario.usuario_id,
+                asunto: tituloNotificacion,
+                contenido: mensajeNotificacion,
+                estado: 'NO ENVIADO',
+                accion_tipo: 'publicacion',
+                accion_payload: { publicacion_id: publicacionId },
+                url_destino: urlPub
+              });
             } catch (error) {
               console.error(`❌ [PUBLICACIONES] Error creando notificación para usuario ${destinatario.usuario_id}:`, error);
             }
@@ -14758,48 +14824,49 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
             const usuarioIds = destinatarios.map(d => d.usuario_id);
             
             if (usuarioIds.length > 0) {
-              // Obtener suscripciones push de usuarios directos
+              const tipoPorUsuario = new Map(
+                destinatarios.map((d) => [d.usuario_id, d.tipo])
+              );
               const subscriptionsData = await query(
-                `SELECT endpoint, p256dh, auth 
+                `SELECT usuario_id, endpoint, p256dh, auth 
                  FROM push_subscriptions 
                  WHERE usuario_id IN (${usuarioIds.map(() => '?').join(',')}) 
                    AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
                 [...usuarioIds, colegio_id]
               );
               
-              let subscriptions = subscriptionsData.map(sub => ({
-                endpoint: sub.endpoint,
-                keys: {
-                  p256dh: sub.p256dh,
-                  auth: sub.auth
-                }
-              }));
-              
               // NOTA: Los docentes-apoderados ya están incluidos en 'destinatarios' desde la sección anterior,
               // por lo que no es necesario buscarlos nuevamente aquí para evitar duplicados.
               // Esta sección solo se mantiene para compatibilidad con código anterior, pero ya no es necesaria.
               
-              // Enviar push notifications
-              if (subscriptions.length > 0) {
-                const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
+              if (subscriptionsData.length > 0) {
+                const pushItems = subscriptionsData.map((sub) => {
+                  const tipoU = tipoPorUsuario.get(sub.usuario_id) || 'DOCENTE';
+                  const urlPush = urlPublicacionPorTipoUsuario(tipoU);
+                  return {
+                    subscription: {
+                      endpoint: sub.endpoint,
+                      keys: { p256dh: sub.p256dh, auth: sub.auth }
+                    },
+                    payload: {
+                      title: tituloNotificacion,
+                      body: mensajeNotificacion,
+                      icon: '/icons/icon-192x192.png',
+                      badge: '/icons/icon-192x192.png',
+                      vibrate: [200, 100, 200],
+                      tag: `publicacion-${publicacionId}`,
+                      data: {
+                        url: urlPush,
+                        tipo: 'publicacion',
+                        publicacion_id: publicacionId
+                      }
+                    }
+                  };
+                });
                 
-                const payloadPush = {
-                  title: tituloNotificacion,
-                  body: mensajeNotificacion,
-                  icon: '/icons/icon-192x192.png',
-                  badge: '/icons/icon-192x192.png',
-                  vibrate: [200, 100, 200],
-                  tag: `publicacion-${publicacionId}`,
-                  data: {
-                    url: '/docente/dashboard', // URL genérica, se puede ajustar según destinatario
-                    tipo: 'publicacion',
-                    publicacion_id: publicacionId
-                  }
-                };
+                console.log(`📱 [PUBLICACIONES] Enviando ${pushItems.length} push notifications...`);
                 
-                console.log(`📱 [PUBLICACIONES] Enviando ${subscriptions.length} push notifications...`);
-                
-                enviarPushNotificationMultiple(subscriptions, payloadPush)
+                enviarPushNotificacionesIndividuales(pushItems)
                   .then(async (resultadosPush) => {
                     const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
                     const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
@@ -17246,21 +17313,33 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
             const tituloNotificacion = 'Examen Activado';
             const mensajeNotificacion = `Examen: "${titulo}" - Curso: ${curso_nombre} - Docente: ${docente_nombre_completo}`;
             
+            const asignatura_id_ex = examenInfo[0].asignatura_id;
             // Crear notificaciones en la BD
             if (todosDestinatarios.length > 0) {
               for (const destinatarioId of todosDestinatarios) {
                 try {
-                  await execute(
-                    `INSERT INTO notificaciones 
-                     (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
-                     VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
-                    [
-                      usuario_id, // Usuario que activa (docente)
-                      destinatarioId, // Destinatario
-                      tituloNotificacion, // TÍTULO (asunto)
-                      mensajeNotificacion // MENSAJE (contenido)
-                    ]
-                  );
+                  const urlEx = await obtenerUrlExamenActivado(query, destinatarioId, {
+                    asignatura_id: asignatura_id_ex,
+                    grupo_id,
+                    examen_id: parseInt(examenId, 10)
+                  });
+                  const uRows = await query(`SELECT tipo, alumno_id FROM usuarios WHERE id = ? LIMIT 1`, [destinatarioId]);
+                  const u0 = uRows[0] || {};
+                  await insertNotificacionUsuario(execute, {
+                    usuario_id,
+                    destinatario_id: destinatarioId,
+                    asunto: tituloNotificacion,
+                    contenido: mensajeNotificacion,
+                    estado: 'NO ENVIADO',
+                    accion_tipo: 'examen_activado',
+                    accion_payload: {
+                      examen_id: parseInt(examenId, 10),
+                      asignatura_id: asignatura_id_ex,
+                      grupo_id,
+                      ...(u0.tipo === 'ALUMNO' && u0.alumno_id ? { alumno_id: u0.alumno_id } : {})
+                    },
+                    url_destino: urlEx
+                  });
                 } catch (error) {
                   console.error(`❌ [EXAMEN ACTIVADO] Error creando notificación para usuario ${destinatarioId}:`, error);
                 }
@@ -17268,41 +17347,46 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
               
               console.log(`✅ [EXAMEN ACTIVADO] ${todosDestinatarios.length} notificaciones creadas en BD`);
               
-              // Enviar push notifications
               const subscriptionsData = await query(
-                `SELECT endpoint, p256dh, auth 
+                `SELECT usuario_id, endpoint, p256dh, auth 
                  FROM push_subscriptions 
                  WHERE usuario_id IN (${todosDestinatarios.map(() => '?').join(',')}) 
                    AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
                 [...todosDestinatarios, colegio_id]
               );
               
-              const subscriptions = subscriptionsData.map(sub => ({
-                endpoint: sub.endpoint,
-                keys: {
-                  p256dh: sub.p256dh,
-                  auth: sub.auth
+              if (subscriptionsData.length > 0) {
+                const pushItems = [];
+                for (const sub of subscriptionsData) {
+                  const urlPush = await obtenerUrlExamenActivado(query, sub.usuario_id, {
+                    asignatura_id: asignatura_id_ex,
+                    grupo_id,
+                    examen_id: parseInt(examenId, 10)
+                  });
+                  pushItems.push({
+                    subscription: {
+                      endpoint: sub.endpoint,
+                      keys: { p256dh: sub.p256dh, auth: sub.auth }
+                    },
+                    payload: {
+                      title: tituloNotificacion,
+                      body: mensajeNotificacion,
+                      icon: '/icons/icon-192x192.png',
+                      badge: '/icons/icon-192x192.png',
+                      vibrate: [200, 100, 200],
+                      tag: `examen-activado-${examenId}`,
+                      data: {
+                        url: urlPush,
+                        tipo: 'examen_activado',
+                        examen_id: parseInt(examenId, 10)
+                      }
+                    }
+                  });
                 }
-              }));
-              
-              if (subscriptions.length > 0) {
-                const payloadPush = {
-                  title: tituloNotificacion,
-                  body: mensajeNotificacion,
-                  icon: '/icons/icon-192x192.png',
-                  badge: '/icons/icon-192x192.png',
-                  vibrate: [200, 100, 200],
-                  tag: `examen-activado-${examenId}`,
-                  data: {
-                    url: '/alumno/dashboard',
-                    tipo: 'examen_activado',
-                    examen_id: parseInt(examenId)
-                  }
-                };
                 
-                console.log(`📱 [EXAMEN ACTIVADO] Enviando ${subscriptions.length} push notifications...`);
+                console.log(`📱 [EXAMEN ACTIVADO] Enviando ${pushItems.length} push notifications...`);
                 
-                enviarPushNotificationMultiple(subscriptions, payloadPush)
+                enviarPushNotificacionesIndividuales(pushItems)
                   .then(resultadosPush => {
                     const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
                     const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
@@ -21142,20 +21226,34 @@ async function verificarTareasPorVencer() {
         
         console.log(`📅 [TAREAS POR VENCER] Enviando notificaciones para tarea "${tarea.titulo}" (${tipoNotificacion}) a ${todosDestinatarios.length} destinatarios`);
         
+        const asignaturaTarea = tarea.asignatura_id;
         // Crear notificaciones en la BD
         for (const destinatarioId of todosDestinatarios) {
           try {
-            await execute(
-              `INSERT INTO notificaciones 
-               (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
-               VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
-              [
-                tarea.personal_id, // Usuario que crea (docente)
-                destinatarioId, // Destinatario
-                tituloNotificacion, // TÍTULO (asunto)
-                mensajeNotificacion // MENSAJE (contenido)
-              ]
-            );
+            const urlT = await obtenerUrlAulaVirtual(query, destinatarioId, {
+              asignatura_id: asignaturaTarea,
+              grupo_id: tarea.grupo_id,
+              recurso_tipo: 'tarea',
+              recurso_id: tarea.id
+            });
+            const uRows = await query(`SELECT tipo, alumno_id FROM usuarios WHERE id = ? LIMIT 1`, [destinatarioId]);
+            const u0 = uRows[0] || {};
+            await insertNotificacionUsuario(execute, {
+              usuario_id: tarea.personal_id,
+              destinatario_id: destinatarioId,
+              asunto: tituloNotificacion,
+              contenido: mensajeNotificacion,
+              estado: 'NO ENVIADO',
+              accion_tipo: 'tarea_por_vencer',
+              accion_payload: {
+                tarea_id: tarea.id,
+                asignatura_id: asignaturaTarea,
+                grupo_id: tarea.grupo_id,
+                dias_restantes: diasRestantes,
+                ...(u0.tipo === 'ALUMNO' && u0.alumno_id ? { alumno_id: u0.alumno_id } : {})
+              },
+              url_destino: urlT
+            });
           } catch (error) {
             console.error(`❌ [TAREAS POR VENCER] Error creando notificación para usuario ${destinatarioId}:`, error);
           }
@@ -21163,40 +21261,46 @@ async function verificarTareasPorVencer() {
         
         console.log(`✅ [TAREAS POR VENCER] ${todosDestinatarios.length} notificaciones creadas para tarea "${tarea.titulo}"`);
         
-        // Enviar push notifications
         const subscriptionsData = await query(
-          `SELECT endpoint, p256dh, auth 
+          `SELECT usuario_id, endpoint, p256dh, auth 
            FROM push_subscriptions 
            WHERE usuario_id IN (${todosDestinatarios.map(() => '?').join(',')}) 
              AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
           [...todosDestinatarios, tarea.colegio_id]
         );
         
-        const subscriptions = subscriptionsData.map(sub => ({
-          endpoint: sub.endpoint,
-          keys: {
-            p256dh: sub.p256dh,
-            auth: sub.auth
+        if (subscriptionsData.length > 0) {
+          const pushItems = [];
+          for (const sub of subscriptionsData) {
+            const urlPush = await obtenerUrlAulaVirtual(query, sub.usuario_id, {
+              asignatura_id: asignaturaTarea,
+              grupo_id: tarea.grupo_id,
+              recurso_tipo: 'tarea',
+              recurso_id: tarea.id
+            });
+            pushItems.push({
+              subscription: {
+                endpoint: sub.endpoint,
+                keys: { p256dh: sub.p256dh, auth: sub.auth }
+              },
+              payload: {
+                title: tituloNotificacion,
+                body: mensajeNotificacion,
+                icon: '/icons/icon-192x192.png',
+                badge: '/icons/icon-192x192.png',
+                vibrate: [200, 100, 200],
+                tag: `tarea-por-vencer-${tarea.id}-${tipoNotificacion}`,
+                data: {
+                  url: urlPush,
+                  tipo: 'tarea_por_vencer',
+                  tarea_id: tarea.id,
+                  dias_restantes: diasRestantes
+                }
+              }
+            });
           }
-        }));
-        
-        if (subscriptions.length > 0) {
-          const payloadPush = {
-            title: tituloNotificacion,
-            body: mensajeNotificacion,
-            icon: '/icons/icon-192x192.png',
-            badge: '/icons/icon-192x192.png',
-            vibrate: [200, 100, 200],
-            tag: `tarea-por-vencer-${tarea.id}-${tipoNotificacion}`,
-            data: {
-              url: '/alumno/dashboard',
-              tipo: 'tarea_por_vencer',
-              tarea_id: tarea.id,
-              dias_restantes: diasRestantes
-            }
-          };
           
-          enviarPushNotificationMultiple(subscriptions, payloadPush)
+          enviarPushNotificacionesIndividuales(pushItems)
             .then(resultadosPush => {
               const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
               const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
@@ -21388,40 +21492,63 @@ async function verificarTareasVencidasSinEntrega() {
 
         const tituloNotificacion = 'Proyecto vencido sin entrega';
         const mensajeNotificacion = `⚠️ Su hijo(a) no entregó el proyecto "${tarea.titulo}" dentro del plazo. Se le asignó nota 0. - Curso: ${tarea.curso_nombre}`;
+        const refAlumno = alumnosSinEntregaYSinNota[0];
+        const urlRefApoderado =
+          refAlumno && tarea.asignatura_id
+            ? `/apoderado/hijos/${refAlumno.alumno_id}/aula-virtual/${tarea.asignatura_id}?abrir=tarea&id=${tarea.id}`
+            : '/apoderado/hijos';
 
         for (const destinatarioId of apoderadoUsuarioIds) {
           try {
-            await execute(
-              `INSERT INTO notificaciones 
-               (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
-               VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'NO ENVIADO')`,
-              [tarea.personal_id, destinatarioId, tituloNotificacion, mensajeNotificacion]
-            );
+            await insertNotificacionUsuario(execute, {
+              usuario_id: tarea.personal_id,
+              destinatario_id: destinatarioId,
+              asunto: tituloNotificacion,
+              contenido: mensajeNotificacion,
+              estado: 'NO ENVIADO',
+              accion_tipo: 'tarea_vencida_sin_entrega',
+              accion_payload: {
+                tarea_id: tarea.id,
+                asignatura_id: tarea.asignatura_id,
+                grupo_id: tarea.grupo_id,
+                alumno_ids_afectados: alumnoIdsParaApoderados
+              },
+              url_destino: urlRefApoderado
+            });
           } catch (err) {
             console.error(`❌ [TAREAS VENCIDAS SIN ENTREGA] Error creando notificación:`, err);
           }
         }
 
         const subscriptionsData = await query(
-          `SELECT endpoint, p256dh, auth FROM push_subscriptions 
+          `SELECT usuario_id, endpoint, p256dh, auth FROM push_subscriptions 
            WHERE usuario_id IN (${apoderadoUsuarioIds.map(() => '?').join(',')}) 
              AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
           [...apoderadoUsuarioIds, tarea.colegio_id]
         );
-        const subscriptions = subscriptionsData.map(sub => ({
-          endpoint: sub.endpoint,
-          keys: { p256dh: sub.p256dh, auth: sub.auth }
-        }));
-        if (subscriptions.length > 0) {
-          enviarPushNotificationMultiple(subscriptions, {
-            title: tituloNotificacion,
-            body: mensajeNotificacion,
-            icon: '/icons/icon-192x192.png',
-            badge: '/icons/icon-192x192.png',
-            vibrate: [200, 100, 200],
-            tag: `tarea-vencida-sin-entrega-${tarea.id}`,
-            data: { url: '/apoderado/dashboard', tipo: 'tarea_vencida_sin_entrega', tarea_id: tarea.id }
-          }).catch(err => console.error('❌ [TAREAS VENCIDAS SIN ENTREGA] Error push:', err));
+        if (subscriptionsData.length > 0) {
+          const pushItems = subscriptionsData.map((sub) => ({
+            subscription: {
+              endpoint: sub.endpoint,
+              keys: { p256dh: sub.p256dh, auth: sub.auth }
+            },
+            payload: {
+              title: tituloNotificacion,
+              body: mensajeNotificacion,
+              icon: '/icons/icon-192x192.png',
+              badge: '/icons/icon-192x192.png',
+              vibrate: [200, 100, 200],
+              tag: `tarea-vencida-sin-entrega-${tarea.id}`,
+              data: {
+                url: urlRefApoderado,
+                tipo: 'tarea_vencida_sin_entrega',
+                tarea_id: tarea.id
+              }
+            }
+          }));
+          enviarPushNotificacionesIndividuales(pushItems).catch(err =>
+            console.error('❌ [TAREAS VENCIDAS SIN ENTREGA] Error push:', err)
+          );
         }
 
         // Correo solo a apoderados (cuenta principal GENERAL)

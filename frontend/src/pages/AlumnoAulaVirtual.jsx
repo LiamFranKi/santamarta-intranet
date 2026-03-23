@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
@@ -10,6 +10,7 @@ import './DocenteAulaVirtual-gamificado.css';
 function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId = null, grupoId = null }) {
   const { cursoId: cursoIdParam } = useParams(); // asignatura_id
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   // Usar prop si está disponible, sino usar parámetro de la URL
   const cursoId = cursoIdProp || cursoIdParam;
@@ -492,6 +493,38 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
       navigate(`/alumno/examen/${examen.id}`);
     }
   };
+
+  // Deep link desde notificaciones: ?abrir=tarea&id= / ?abrir=examen&id=
+  useEffect(() => {
+    if (loading || !asignaturaId) return;
+    const abrir = searchParams.get('abrir');
+    const idRaw = searchParams.get('id');
+    if (!abrir || idRaw == null || idRaw === '') return;
+    const id = parseInt(idRaw, 10);
+    if (Number.isNaN(id)) return;
+
+    const limpiarQuery = () => {
+      const next = new URLSearchParams(searchParams);
+      next.delete('abrir');
+      next.delete('id');
+      setSearchParams(next, { replace: true });
+    };
+
+    if (abrir === 'tarea') {
+      setExpandedCard('tareas');
+      abrirModalTarea(id);
+      limpiarQuery();
+      return;
+    }
+
+    if (abrir === 'examen') {
+      if (examenes.length === 0) return;
+      setExpandedCard('examenes');
+      const ex = examenes.find((e) => Number(e.id) === id);
+      limpiarQuery();
+      if (ex) handleIniciarExamen(ex);
+    }
+  }, [loading, asignaturaId, searchParams, examenes, setSearchParams, navigate]);
 
   const renderExamenesContent = () => {
     // Asegurar comparación correcta de ciclo (puede ser número o cadena)

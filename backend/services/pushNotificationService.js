@@ -85,8 +85,30 @@ async function enviarPushNotificationMultiple(subscriptions, payload) {
   return resultados;
 }
 
+/**
+ * Envía un payload distinto por suscripción (misma notificación, distinta URL / data).
+ * @param {Array<{ subscription: object, payload: object }>} items
+ */
+async function enviarPushNotificacionesIndividuales(items) {
+  const resultados = [];
+  for (let i = 0; i < items.length; i += BATCH_SIZE) {
+    const lote = items.slice(i, i + BATCH_SIZE);
+    const promesas = lote.map(async ({ subscription, payload }) => {
+      const resultado = await enviarPushNotification(subscription, payload);
+      return { subscription, resultado };
+    });
+    const loteResultados = await Promise.all(promesas);
+    resultados.push(...loteResultados);
+    if (i + BATCH_SIZE < items.length) {
+      await sleep(150);
+    }
+  }
+  return resultados;
+}
+
 module.exports = {
   enviarPushNotification,
-  enviarPushNotificationMultiple
+  enviarPushNotificationMultiple,
+  enviarPushNotificacionesIndividuales
 };
 

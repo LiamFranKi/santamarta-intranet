@@ -4,7 +4,8 @@ const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 const moment = require('moment-timezone');
 const { enviarCorreoAsistencia } = require('../services/emailService');
-const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
+const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
+const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const mensajesConfig = require('../config/mensajes.json');
 
 // Todas las rutas requieren autenticación y ser ASISTENCIA o ADMINISTRADOR
@@ -511,7 +512,7 @@ router.post('/registrar', async (req, res) => {
           if (usuarioIds.length > 0) {
             console.log(`📱 [ASISTENCIA] Buscando suscripciones push para ${usuarioIds.length} usuarios (apoderados + docentes-apoderados)`);
             const subscriptionsData = await query(
-              `SELECT endpoint, p256dh, auth 
+              `SELECT usuario_id, endpoint, p256dh, auth 
                FROM push_subscriptions 
                WHERE usuario_id IN (${usuarioIds.map(() => '?').join(',')}) 
                  AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
@@ -519,6 +520,7 @@ router.post('/registrar', async (req, res) => {
             );
             
             subscriptions = subscriptionsData.map(sub => ({
+              usuario_id: sub.usuario_id,
               endpoint: sub.endpoint,
               keys: {
                 p256dh: sub.p256dh,
@@ -559,6 +561,8 @@ router.post('/registrar', async (req, res) => {
         
         console.log(`📧 [ASISTENCIA] Título notificación: ${tituloNotificacion}`);
         console.log(`📧 [ASISTENCIA] Mensaje notificación: ${mensajeNotificacion}`);
+
+        const urlAsistenciaApoderado = '/apoderado/hijos';
 
         // Crear notificaciones en la BD para los apoderados (incluyendo docentes que son apoderados)
         if (apoderados.length > 0) {
@@ -601,17 +605,19 @@ router.post('/registrar', async (req, res) => {
             // Crear notificaciones para todos los usuarios encontrados
             for (const usuarioId of todosUsuarioIds) {
               try {
-                await execute(
-                  `INSERT INTO notificaciones 
-                   (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
-                   VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'ENVIADO')`,
-                  [
-                    asistencia_usuario_id, // Usuario que registró (ASISTENCIA)
-                    usuarioId, // Destinatario (apoderado o docente-apoderado)
-                    tituloNotificacion, // TÍTULO (asunto)
-                    mensajeNotificacion // MENSAJE (contenido)
-                  ]
-                );
+                await insertNotificacionUsuario(execute, {
+                  usuario_id: asistencia_usuario_id,
+                  destinatario_id: usuarioId,
+                  asunto: tituloNotificacion,
+                  contenido: mensajeNotificacion,
+                  estado: 'ENVIADO',
+                  accion_tipo: 'asistencia_alumno',
+                  accion_payload: {
+                    alumno_id: datosUsuario.id,
+                    tipo_registro
+                  },
+                  url_destino: urlAsistenciaApoderado
+                });
                 console.log(`✅ [ASISTENCIA] Notificación creada en BD para usuario ID: ${usuarioId}`);
               } catch (error) {
                 console.error(`❌ [ASISTENCIA] Error creando notificación para usuario ${usuarioId}:`, error);
@@ -627,7 +633,7 @@ router.post('/registrar', async (req, res) => {
           console.log(`⚠️ [ASISTENCIA] No se encontraron apoderados para crear notificaciones (tipo_registro: ${tipo_registro})`);
         }
 
-        const payloadPush = {
+        const payloadPushBase = {
           title: tituloNotificacion,
           body: mensajeNotificacion,
           icon: '/icons/icon-192x192.png',
@@ -635,7 +641,7 @@ router.post('/registrar', async (req, res) => {
           vibrate: [200, 100, 200],
           tag: `asistencia-${tipo_registro}-${datosUsuario.id}`,
           data: {
-            url: '/alumno/dashboard',
+            url: urlAsistenciaApoderado,
             tipo: 'asistencia',
             alumno_id: datosUsuario.id
           }
@@ -691,7 +697,11 @@ router.post('/registrar', async (req, res) => {
           try {
             if (subscriptions && subscriptions.length > 0) {
               console.log(`📱 [ASISTENCIA] Enviando ${subscriptions.length} notificación(es) push...`);
-              enviarPushNotificationMultiple(subscriptions, payloadPush)
+              const pushItemsAsist = subscriptions.map((sub) => ({
+                subscription: { endpoint: sub.endpoint, keys: sub.keys },
+                payload: payloadPushBase
+              }));
+              enviarPushNotificacionesIndividuales(pushItemsAsist)
                 .then(async (resultadosPush) => {
                   const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
                   const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
@@ -758,17 +768,16 @@ router.post('/registrar', async (req, res) => {
 
         // Crear notificación en la BD para el docente
         try {
-          await execute(
-            `INSERT INTO notificaciones 
-             (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado)
-             VALUES ('USUARIO', ?, ?, ?, ?, NOW(), 'ENVIADO')`,
-            [
-              asistencia_usuario_id, // Usuario que registró (ASISTENCIA)
-              usuario_id, // Destinatario (docente)
-              tituloNotificacionDocente, // TÍTULO (asunto)
-              mensajeNotificacionDocente // MENSAJE (contenido)
-            ]
-          );
+          await insertNotificacionUsuario(execute, {
+            usuario_id: asistencia_usuario_id,
+            destinatario_id: usuario_id,
+            asunto: tituloNotificacionDocente,
+            contenido: mensajeNotificacionDocente,
+            estado: 'ENVIADO',
+            accion_tipo: 'asistencia_docente',
+            accion_payload: { tipo_registro, personal_id: datosUsuario.id },
+            url_destino: '/docente/dashboard'
+          });
           console.log(`✅ [ASISTENCIA] Notificación creada en BD para docente ID: ${usuario_id}`);
         } catch (error) {
           console.error(`❌ [ASISTENCIA] Error creando notificación en BD para docente:`, error);
@@ -797,7 +806,11 @@ router.post('/registrar', async (req, res) => {
               console.log(`📱 [ASISTENCIA] Payload docente:`, JSON.stringify(payloadPushDocente, null, 2));
               
               // No esperar a que terminen, solo iniciar el proceso
-              enviarPushNotificationMultiple(subscriptions, payloadPushDocente)
+              const pushItemsDoc = subscriptions.map((sub) => ({
+                subscription: { endpoint: sub.endpoint, keys: sub.keys },
+                payload: payloadPushDocente
+              }));
+              enviarPushNotificacionesIndividuales(pushItemsDoc)
                 .then(resultadosPush => {
                   const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;
                   const fallidas = resultadosPush.filter(r => !r.resultado || !r.resultado.success).length;
