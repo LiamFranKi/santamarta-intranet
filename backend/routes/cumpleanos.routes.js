@@ -75,13 +75,23 @@ router.get('/', async (req, res) => {
     if (tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA') {
       grupoIds = null; // Todos los grupos del colegio en el año activo (igual que admin)
     } else if (tipo === 'DOCENTE' && personal_id) {
-      const grupos = await query(
+      // Para docentes, combinar grupos por asignaturas dictadas + grupos donde es tutor.
+      // Esto cubre casos donde no dicta cursos pero sí tiene tutoría.
+      const gruposDocente = await query(
         `SELECT DISTINCT g.id FROM asignaturas a
          INNER JOIN grupos g ON g.id = a.grupo_id
          WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
         [personal_id, colegio_id, anio_activo]
       );
-      grupoIds = grupos.map(g => g.id);
+
+      const gruposTutor = await query(
+        `SELECT DISTINCT g.id
+         FROM grupos g
+         WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+        [personal_id, colegio_id, anio_activo]
+      );
+
+      grupoIds = [...new Set([...(gruposDocente || []).map(g => g.id), ...(gruposTutor || []).map(g => g.id)])];
     } else if (tipo === 'ALUMNO' && alumno_id) {
       const grupos = await query(
         `SELECT m.grupo_id as id FROM matriculas m
