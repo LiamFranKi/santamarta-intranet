@@ -12,6 +12,10 @@ const { enviarPushNotificationMultiple } = require('../services/pushNotification
 const { enviarCorreoNotificacion } = require('../services/emailService');
 const mensajesConfig = require('../config/mensajes.json');
 const moment = require('moment-timezone');
+const {
+  obtenerContextoAlumnoGrupoParaMensaje,
+  enriquecerMensajeApoderadoADocente
+} = require('../utils/mensajesHijoDocenteContexto');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
@@ -9422,6 +9426,63 @@ router.get('/hijos/:hijoId/horario', async (req, res) => {
 });
 
 /**
+ * Misma vinculación apoderado–alumno que verificarHijoYUsuario (por DNI del personal),
+ * sin exigir que el alumno tenga usuario activo (mensajes al docente como padre/madre).
+ */
+async function verificarHijoDocenteSoloVinculo(req, hijoId) {
+  const { colegio_id, usuario_id, personal_id } = req.user;
+
+  if (!hijoId || isNaN(parseInt(hijoId))) {
+    throw new Error('ID de alumno inválido');
+  }
+  const hijoIdNum = parseInt(hijoId, 10);
+
+  if (!personal_id) {
+    throw new Error('Información de usuario incompleta. No se encontró personal_id.');
+  }
+
+  let nroDocumento = null;
+  const personalData = await query(
+    `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+    [personal_id, colegio_id]
+  );
+
+  if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
+    nroDocumento = personalData[0].nro_documento;
+  } else {
+    const usuarioData = await query(
+      `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
+      [usuario_id, colegio_id, personal_id]
+    );
+    if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
+      nroDocumento = usuarioData[0].usuario;
+    }
+  }
+
+  if (!nroDocumento) {
+    throw new Error('No se encontró tu número de documento. Contacta al administrador.');
+  }
+
+  const esHijo = await query(
+    `SELECT COUNT(*) as count
+     FROM apoderados ap
+     INNER JOIN familias f ON f.apoderado_id = ap.id
+     INNER JOIN alumnos a ON a.id = f.alumno_id
+     WHERE ap.colegio_id = ?
+       AND ap.nro_documento = ?
+       AND a.id = ?
+       AND a.colegio_id = ?`,
+    [colegio_id, nroDocumento, hijoIdNum, colegio_id]
+  );
+
+  if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+    throw new Error('No tienes permisos. El alumno no está registrado como tu hijo.');
+  }
+
+  return { hijoIdNum };
+}
+
+/**
  * Helper: Verificar que el docente tiene permisos sobre el hijo y obtener usuario_id del hijo
  */
 async function verificarHijoYUsuario(req, hijoId) {
@@ -9518,15 +9579,20 @@ async function verificarHijoYUsuario(req, hijoId) {
 
 /**
  * POST /api/docente/hijos/:hijoId/mensajes/enviar
- * Enviar mensaje en nombre del hijo
+ * Docente que también es apoderado: remitente = su usuario (sesión docente); asunto/cuerpo con referencia al hijo/grado.
  */
 router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req, res) => {
   try {
     const { hijoId } = req.params;
     const { destinatarios, asunto, mensaje } = req.body;
+    const { colegio_id, anio_activo, usuario_id: usuarioIdRemitente } = req.user;
 
-    // Verificar permisos y obtener usuario_id del hijo
-    const { usuarioIdHijo } = await verificarHijoYUsuario(req, hijoId);
+    if (!usuarioIdRemitente) {
+      return res.status(400).json({ error: 'No se pudo identificar al usuario.' });
+    }
+
+    await verificarHijoDocenteSoloVinculo(req, hijoId);
+    const hijoIdNum = parseInt(hijoId, 10);
 
     const destinatariosArray = typeof destinatarios === 'string' ? JSON.parse(destinatarios) : destinatarios;
 
@@ -9538,44 +9604,44 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
       return res.status(400).json({ error: 'Asunto y mensaje son requeridos' });
     }
 
-    // Responder inmediatamente
+    const ctxAlumno = await obtenerContextoAlumnoGrupoParaMensaje(colegio_id, anio_activo, hijoIdNum);
+    const { asuntoFinal, mensajeFinal } = enriquecerMensajeApoderadoADocente({
+      asuntoOriginal: asunto,
+      mensajeOriginal: mensaje,
+      ctx: ctxAlumno
+    });
+
     res.json({
       success: true,
       message: 'Mensaje Enviado',
       procesando: false
     });
 
-    // Procesar en segundo plano usando el usuario_id del hijo como remitente
     setImmediate(async () => {
       try {
         const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
-        let mensajesInsertados = 0;
         const mensajesIds = [];
 
         for (const destinatarioId of destinatariosArray) {
           try {
-            // Mensaje para el remitente (tipo ENVIADO) - usando usuario_id del hijo
             const resultEnviado = await execute(
               `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
                VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO')`,
-              [usuarioIdHijo, destinatarioId, asunto, mensaje, fechaHora]
+              [usuarioIdRemitente, destinatarioId, asuntoFinal, mensajeFinal, fechaHora]
             );
 
-            // Mensaje para el destinatario (tipo RECIBIDO) - usando usuario_id del hijo
             const resultRecibido = await execute(
               `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
                VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO')`,
-              [usuarioIdHijo, destinatarioId, asunto, mensaje, fechaHora]
+              [usuarioIdRemitente, destinatarioId, asuntoFinal, mensajeFinal, fechaHora]
             );
 
             mensajesIds.push(resultEnviado.insertId, resultRecibido.insertId);
-            mensajesInsertados += 2;
           } catch (error) {
             console.error(`Error insertando mensaje para destinatario ${destinatarioId}:`, error);
           }
         }
 
-        // Guardar archivos adjuntos si existen
         if (req.files && req.files.length > 0) {
           for (const file of req.files) {
             try {
@@ -9592,7 +9658,6 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
           }
         }
 
-        // Push notifications a destinatarios
         try {
           if (destinatariosArray.length > 0 && req.user?.colegio_id) {
             const subsData = await query(
@@ -9603,9 +9668,9 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
             );
             const subscriptions = (subsData || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
             if (subscriptions.length > 0) {
-              const asuntoCorto = (asunto || 'Sin asunto').substring(0, 60);
+              const asuntoCorto = (asuntoFinal || 'Sin asunto').substring(0, 80);
               enviarPushNotificationMultiple(subscriptions, {
-                title: 'Nuevo mensaje',
+                title: 'Nuevo mensaje (apoderado)',
                 body: asuntoCorto,
                 icon: '/icons/icon-192x192.png',
                 badge: '/icons/icon-192x192.png',
@@ -9619,7 +9684,7 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
           console.error('❌ [MENSAJES] Error push:', pushErr);
         }
 
-        console.log('✅ Mensaje enviado exitosamente en nombre del hijo');
+        console.log('✅ [DOCENTE-HIJOS] Mensaje al docente enviado por usuario docente/apoderado (remitente = cuenta docente)');
       } catch (bgError) {
         console.error('Error en procesamiento en segundo plano:', bgError);
       }

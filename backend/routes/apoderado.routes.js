@@ -8,6 +8,10 @@ const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
 const { enviarCorreoNotificacion } = require('../services/emailService');
 const phpSerialize = require('php-serialize');
+const {
+  obtenerContextoAlumnoGrupoParaMensaje,
+  enriquecerMensajeApoderadoADocente
+} = require('../utils/mensajesHijoDocenteContexto');
 
 // Configurar multer para subir archivos de mensajes
 const mensajesStorage = multer.diskStorage({
@@ -914,6 +918,34 @@ async function verificarHijoYUsuarioApoderado(req, hijoId) {
     usuarioIdHijo: usuarioHijo[0].usuario_id,
     alumnoId: usuarioHijo[0].alumno_id
   };
+}
+
+/**
+ * Verifica que el alumno es hijo del apoderado (sin exigir que el alumno tenga usuario activo).
+ */
+async function verificarSoloVinculoApoderadoAlumno(req, hijoId) {
+  const { colegio_id, apoderado_id } = req.user;
+  if (!hijoId || isNaN(parseInt(hijoId))) {
+    throw new Error('ID de alumno inválido');
+  }
+  const hijoIdNum = parseInt(hijoId, 10);
+  if (!apoderado_id) {
+    throw new Error('Información de usuario incompleta. No se encontró apoderado_id.');
+  }
+  const esHijo = await query(
+    `SELECT COUNT(*) as count
+     FROM apoderados ap
+     INNER JOIN familias f ON f.apoderado_id = ap.id
+     INNER JOIN alumnos a ON a.id = f.alumno_id
+     WHERE ap.id = ?
+       AND a.id = ?
+       AND a.colegio_id = ?`,
+    [apoderado_id, hijoIdNum, colegio_id]
+  );
+  if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
+    throw new Error('No tienes permisos. El alumno no está registrado como tu hijo.');
+  }
+  return { hijoIdNum };
 }
 
 /**
@@ -3186,15 +3218,20 @@ async function obtenerOrdenMerito(grupoId, matriculaId, asignaturasIds) {
 
 /**
  * POST /api/apoderado/hijos/:hijoId/mensajes/enviar
- * Enviar mensaje en nombre del hijo
+ * Enviar mensaje al docente: remitente = apoderado; asunto y cuerpo incluyen referencia al alumno/grado/sección/nivel.
  */
 router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req, res) => {
   try {
     const { hijoId } = req.params;
     const { destinatarios, asunto, mensaje } = req.body;
+    const { colegio_id, anio_activo, usuario_id: usuarioIdApoderado } = req.user;
 
-    // Verificar permisos y obtener usuario_id del hijo
-    const { usuarioIdHijo } = await verificarHijoYUsuarioApoderado(req, hijoId);
+    if (!usuarioIdApoderado) {
+      return res.status(400).json({ error: 'No se pudo identificar al usuario apoderado.' });
+    }
+
+    await verificarSoloVinculoApoderadoAlumno(req, hijoId);
+    const hijoIdNum = parseInt(hijoId, 10);
 
     const destinatariosArray = typeof destinatarios === 'string' ? JSON.parse(destinatarios) : destinatarios;
 
@@ -3205,6 +3242,13 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
     if (!asunto || !mensaje) {
       return res.status(400).json({ error: 'Asunto y mensaje son requeridos' });
     }
+
+    const ctxAlumno = await obtenerContextoAlumnoGrupoParaMensaje(colegio_id, anio_activo, hijoIdNum);
+    const { asuntoFinal, mensajeFinal } = enriquecerMensajeApoderadoADocente({
+      asuntoOriginal: asunto,
+      mensajeOriginal: mensaje,
+      ctx: ctxAlumno
+    });
 
     // Responder inmediatamente
     res.json({
@@ -3222,18 +3266,17 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
 
         for (const destinatarioId of destinatariosArray) {
           try {
-            // Mensaje para el remitente (tipo ENVIADO)
+            // Remitente = apoderado (ENVIADO y RECIBIDO guardan el mismo remitente real)
             const resultEnviado = await execute(
               `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
                VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO')`,
-              [usuarioIdHijo, destinatarioId, asunto, mensaje, fechaHora]
+              [usuarioIdApoderado, destinatarioId, asuntoFinal, mensajeFinal, fechaHora]
             );
 
-            // Mensaje para el destinatario (tipo RECIBIDO)
             const resultRecibido = await execute(
               `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
                VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO')`,
-              [usuarioIdHijo, destinatarioId, asunto, mensaje, fechaHora]
+              [usuarioIdApoderado, destinatarioId, asuntoFinal, mensajeFinal, fechaHora]
             );
 
             mensajesIds.push(resultEnviado.insertId, resultRecibido.insertId);
@@ -3271,9 +3314,9 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
             );
             const subscriptions = (subsData || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
             if (subscriptions.length > 0) {
-              const asuntoCorto = (asunto || 'Sin asunto').substring(0, 60);
+              const asuntoCorto = (asuntoFinal || 'Sin asunto').substring(0, 80);
               enviarPushNotificationMultiple(subscriptions, {
-                title: 'Nuevo mensaje',
+                title: 'Nuevo mensaje (apoderado)',
                 body: asuntoCorto,
                 icon: '/icons/icon-192x192.png',
                 badge: '/icons/icon-192x192.png',
@@ -3287,7 +3330,7 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
           console.error('❌ [MENSAJES] Error push:', pushErr);
         }
 
-        console.log('✅ Mensaje enviado exitosamente en nombre del hijo');
+        console.log('✅ Mensaje al docente enviado por apoderado (con referencia al alumno)');
       } catch (bgError) {
         console.error('Error en procesamiento en segundo plano:', bgError);
       }
