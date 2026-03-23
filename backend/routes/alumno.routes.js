@@ -1649,10 +1649,11 @@ router.get('/publicaciones', async (req, res) => {
            LEFT JOIN alumnos al ON al.id = u.alumno_id
            WHERE p.colegio_id = ?
            AND (p.privacidad = '-1' OR p.privacidad = '' OR p.privacidad IS NULL 
-                OR (p.privacidad LIKE ? OR p.privacidad LIKE ? OR p.privacidad = ?))
+                OR (p.privacidad LIKE ? OR p.privacidad LIKE ? OR p.privacidad LIKE ? OR p.privacidad = ?))
            ORDER BY p.fecha_hora DESC
            LIMIT 50`,
-          [colegio_id, `%,${grupoId},%`, `${grupoId},%`, String(grupoId)]
+          // Coincidir grupo en lista CSV: medio, primero, último, o único (antes faltaba el último → no veían el 3er grupo)
+          [colegio_id, `%,${grupoId},%`, `${grupoId},%`, `%,${grupoId}`, String(grupoId)]
         );
       } else {
         // Si no tiene grupo, solo mostrar publicaciones de TODOS

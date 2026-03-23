@@ -3954,12 +3954,13 @@ router.get('/publicaciones', async (req, res) => {
       if (gruposIds.length > 0) {
         // Construir condiciones para LIKE (buscar cada grupoId en privacidad)
         const condicionesGrupos = gruposIds.map(grupoId => 
-          `(p.privacidad LIKE ? OR p.privacidad LIKE ? OR p.privacidad = ?)`
+          `(p.privacidad LIKE ? OR p.privacidad LIKE ? OR p.privacidad LIKE ? OR p.privacidad = ?)`
         ).join(' OR ');
         
         const params = [colegio_id];
         gruposIds.forEach(grupoId => {
-          params.push(`%,${grupoId},%`, `${grupoId},%`, String(grupoId));
+          // Medio, primero, último en lista CSV, o único grupo
+          params.push(`%,${grupoId},%`, `${grupoId},%`, `%,${grupoId}`, String(grupoId));
         });
 
         publicaciones = await query(
