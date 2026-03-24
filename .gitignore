@@ -52,6 +52,7 @@ sistema-anterior/
 !restaurar_backup_preguntas.sql
 !agregar-perfiles-usuarios.sql
 !database/alter_notificaciones_deep_link.sql
+!database/gestion_documentos.sql
 
 # Archivos PNG subidos directamente al VPS (evitar conflictos)
 frontend/public/icons/*.backup

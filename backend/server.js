@@ -149,7 +149,13 @@ if (!fs.existsSync(uploadsPath)) {
       fs.mkdirSync(path.join(uploadsPath, 'publicaciones'), { recursive: true });
       fs.mkdirSync(path.join(uploadsPath, 'comunicados'), { recursive: true }); // Para comunicados del sistema nuevo
       fs.mkdirSync(path.join(uploadsPath, 'aula-virtual'), { recursive: true }); // Para archivos del aula virtual
+      fs.mkdirSync(path.join(uploadsPath, 'gestion-documentos'), { recursive: true }); // PDFs Documento De Gestión
     }
+const gestionDocsUploadPath = path.join(uploadsPath, 'gestion-documentos');
+if (!fs.existsSync(gestionDocsUploadPath)) {
+  fs.mkdirSync(gestionDocsUploadPath, { recursive: true });
+}
+
 app.use('/uploads', express.static(uploadsPath, {
   setHeaders: (res, filePath) => {
     res.set('Access-Control-Allow-Origin', '*');

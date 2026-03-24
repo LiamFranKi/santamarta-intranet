@@ -41,6 +41,54 @@ const uploadConfig = multer({
   fileFilter: fileFilterConfig
 });
 
+/** PDFs — Documento De Gestión (admin) */
+const gestionDocsDir = path.join(__dirname, '../uploads/gestion-documentos');
+const gestionDocsStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (!fs.existsSync(gestionDocsDir)) {
+      fs.mkdirSync(gestionDocsDir, { recursive: true });
+    }
+    cb(null, gestionDocsDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = (path.extname(file.originalname) || '').toLowerCase();
+    const safe = ext === '.pdf' ? ext : '.pdf';
+    cb(null, `gd-${Date.now()}-${Math.round(Math.random() * 1e9)}${safe}`);
+  }
+});
+const gestionDocsFileFilter = (req, file, cb) => {
+  const ext = (path.extname(file.originalname) || '').toLowerCase();
+  if (file.mimetype === 'application/pdf' && ext === '.pdf') {
+    return cb(null, true);
+  }
+  cb(new Error('Solo se permiten archivos PDF'));
+};
+const uploadGestionDocumento = multer({
+  storage: gestionDocsStorage,
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: gestionDocsFileFilter
+});
+
+const ETIQUETAS_PERFIL_GESTION = {
+  TODOS: 'Todos los perfiles',
+  ADMINISTRADOR: 'Administrador',
+  PROMOTORIA: 'Promotoría',
+  DOCENTE: 'Docente',
+  ALUMNO: 'Alumno',
+  APODERADO: 'Apoderado',
+  ASISTENCIA: 'Asistencia',
+  PSICOLOGIA: 'Psicología',
+  PSICOLOGO: 'Psicólogo'
+};
+function etiquetaPerfilGestion(codigo) {
+  if (!codigo) return '';
+  if (ETIQUETAS_PERFIL_GESTION[codigo]) return ETIQUETAS_PERFIL_GESTION[codigo];
+  return String(codigo)
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (l) => l.toUpperCase());
+}
+
 // Autenticación: ADMINISTRADOR en todas las rutas; PROMOTORIA solo en dashboard y estadísticas de pagos (mismo panel que admin)
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -1345,6 +1393,290 @@ router.post('/configuracion/reiniciar-accesos', async (req, res) => {
   } catch (error) {
     console.error('Error reiniciando accesos:', error);
     res.status(500).json({ error: 'Error al reiniciar accesos' });
+  }
+});
+
+// ========== Documento De Gestión (PDFs por categoría y perfil) ==========
+
+router.get('/gestion-documentos/perfiles-tipos', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const base = [
+      'TODOS',
+      'ADMINISTRADOR',
+      'PROMOTORIA',
+      'DOCENTE',
+      'ALUMNO',
+      'APODERADO',
+      'ASISTENCIA'
+    ];
+    const rows = await query(
+      `SELECT DISTINCT TRIM(tipo) as tipo FROM usuarios 
+       WHERE colegio_id = ? AND tipo IS NOT NULL AND TRIM(tipo) != ''`,
+      [colegio_id]
+    );
+    const set = new Set([...base, ...rows.map((r) => r.tipo)]);
+    const list = Array.from(set).sort((a, b) => {
+      if (a === 'TODOS') return -1;
+      if (b === 'TODOS') return 1;
+      return String(a).localeCompare(String(b), 'es');
+    });
+    res.json({
+      perfiles: list.map((value) => ({ value, label: etiquetaPerfilGestion(value) }))
+    });
+  } catch (err) {
+    console.error('perfiles-tipos gestión documentos:', err);
+    res.status(500).json({ error: 'Error al cargar perfiles' });
+  }
+});
+
+router.get('/gestion-documentos/categorias', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const categorias = await query(
+      `SELECT id, nombre, descripcion, orden, activo, created_at
+       FROM gestion_documentos_categorias
+       WHERE colegio_id = ?
+       ORDER BY orden ASC, nombre ASC`,
+      [colegio_id]
+    );
+    res.json({ categorias: categorias || [] });
+  } catch (err) {
+    console.error('list categorías gestión documentos:', err);
+    res.status(500).json({ error: err.message || 'Error al listar categorías' });
+  }
+});
+
+router.post('/gestion-documentos/categorias', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const { nombre, descripcion = '', orden = 0 } = req.body || {};
+    if (!nombre || !String(nombre).trim()) {
+      return res.status(400).json({ error: 'El nombre es obligatorio' });
+    }
+    const r = await execute(
+      `INSERT INTO gestion_documentos_categorias (colegio_id, nombre, descripcion, orden, activo)
+       VALUES (?, ?, ?, ?, 1)`,
+      [colegio_id, String(nombre).trim(), String(descripcion || '').trim(), parseInt(orden, 10) || 0]
+    );
+    res.status(201).json({ success: true, id: r.insertId });
+  } catch (err) {
+    console.error('create categoría gestión documentos:', err);
+    res.status(500).json({ error: err.message || 'Error al crear categoría' });
+  }
+});
+
+router.put('/gestion-documentos/categorias/:id', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const { nombre, descripcion, orden, activo } = req.body || {};
+    const rows = await query(
+      `SELECT * FROM gestion_documentos_categorias WHERE id = ? AND colegio_id = ?`,
+      [id, colegio_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Categoría no encontrada' });
+    const cur = rows[0];
+    const nNombre = nombre != null ? String(nombre).trim() : cur.nombre;
+    const nDesc = descripcion !== undefined ? String(descripcion) : cur.descripcion;
+    const nOrden = orden != null ? parseInt(orden, 10) : cur.orden;
+    const nActivo = activo != null ? (activo ? 1 : 0) : cur.activo;
+    await execute(
+      `UPDATE gestion_documentos_categorias SET nombre = ?, descripcion = ?, orden = ?, activo = ?
+       WHERE id = ? AND colegio_id = ?`,
+      [nNombre, nDesc, nOrden, nActivo, id, colegio_id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('update categoría gestión documentos:', err);
+    res.status(500).json({ error: err.message || 'Error al actualizar categoría' });
+  }
+});
+
+router.delete('/gestion-documentos/categorias/:id', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const [cnt] = await query(
+      `SELECT COUNT(*) as c FROM gestion_documentos WHERE categoria_id = ? AND colegio_id = ?`,
+      [id, colegio_id]
+    );
+    if ((cnt?.c || 0) > 0) {
+      return res.status(400).json({
+        error: 'Hay documentos en esta categoría. Reasígnelos o elimínelos antes.'
+      });
+    }
+    const r = await execute(
+      `DELETE FROM gestion_documentos_categorias WHERE id = ? AND colegio_id = ?`,
+      [id, colegio_id]
+    );
+    if (!r.affectedRows) return res.status(404).json({ error: 'Categoría no encontrada' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('delete categoría gestión documentos:', err);
+    res.status(500).json({ error: err.message || 'Error al eliminar categoría' });
+  }
+});
+
+router.get('/gestion-documentos', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const { categoria_id, perfil_destino } = req.query;
+    let sql = `
+      SELECT d.id, d.titulo, d.nombre_archivo_original, d.ruta_almacenamiento, d.perfil_destino,
+             d.fecha_publicacion, d.created_at, d.activo,
+             c.id as categoria_id, c.nombre as categoria_nombre, c.orden as categoria_orden
+      FROM gestion_documentos d
+      INNER JOIN gestion_documentos_categorias c ON c.id = d.categoria_id AND c.colegio_id = d.colegio_id
+      WHERE d.colegio_id = ?
+    `;
+    const params = [colegio_id];
+    if (categoria_id) {
+      sql += ' AND d.categoria_id = ?';
+      params.push(parseInt(categoria_id, 10));
+    }
+    if (perfil_destino && String(perfil_destino).trim()) {
+      sql += ' AND d.perfil_destino = ?';
+      params.push(String(perfil_destino).trim());
+    }
+    sql += ' ORDER BY c.orden ASC, d.created_at DESC';
+    const documentos = await query(sql, params);
+    const list = (documentos || []).map((d) => ({
+      ...d,
+      archivo_url: `/uploads/${d.ruta_almacenamiento}`
+    }));
+    res.json({ documentos: list });
+  } catch (err) {
+    console.error('list gestión documentos:', err);
+    res.status(500).json({ error: err.message || 'Error al listar documentos' });
+  }
+});
+
+router.post('/gestion-documentos', uploadGestionDocumento.single('archivo'), async (req, res) => {
+  try {
+    const { colegio_id, usuario_id } = req.user;
+    if (!req.file) {
+      return res.status(400).json({ error: 'Debe subir un archivo PDF' });
+    }
+    const categoria_id = parseInt(req.body.categoria_id, 10);
+    const titulo = (req.body.titulo || '').trim();
+    const perfil_destino = (req.body.perfil_destino || 'DOCENTE').trim();
+    const fecha_publicacion = req.body.fecha_publicacion || null;
+    if (!categoria_id || !titulo) {
+      if (req.file.path) fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: 'Categoría y título son obligatorios' });
+    }
+    const cat = await query(
+      `SELECT id FROM gestion_documentos_categorias WHERE id = ? AND colegio_id = ?`,
+      [categoria_id, colegio_id]
+    );
+    if (!cat.length) {
+      if (req.file.path) fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: 'Categoría no válida' });
+    }
+    const relPath = `gestion-documentos/${req.file.filename}`;
+    await execute(
+      `INSERT INTO gestion_documentos
+       (colegio_id, categoria_id, titulo, nombre_archivo_original, ruta_almacenamiento, perfil_destino, fecha_publicacion, subido_por_usuario_id, activo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      [
+        colegio_id,
+        categoria_id,
+        titulo,
+        req.file.originalname,
+        relPath,
+        perfil_destino,
+        fecha_publicacion || null,
+        usuario_id
+      ]
+    );
+    res.status(201).json({ success: true });
+  } catch (err) {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    console.error('create gestión documento:', err);
+    res.status(500).json({ error: err.message || 'Error al guardar documento' });
+  }
+});
+
+router.put('/gestion-documentos/:id', uploadGestionDocumento.single('archivo'), async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const rows = await query(
+      `SELECT * FROM gestion_documentos WHERE id = ? AND colegio_id = ?`,
+      [id, colegio_id]
+    );
+    if (!rows.length) {
+      if (req.file?.path) fs.unlink(req.file.path, () => {});
+      return res.status(404).json({ error: 'Documento no encontrado' });
+    }
+    const cur = rows[0];
+    let ruta = cur.ruta_almacenamiento;
+    let nombreOrig = cur.nombre_archivo_original;
+    if (req.file) {
+      const oldAbs = path.join(__dirname, '../uploads', cur.ruta_almacenamiento);
+      if (fs.existsSync(oldAbs)) {
+        try {
+          fs.unlinkSync(oldAbs);
+        } catch (e) {
+          console.warn('No se pudo borrar PDF anterior:', e.message);
+        }
+      }
+      ruta = `gestion-documentos/${req.file.filename}`;
+      nombreOrig = req.file.originalname;
+    }
+    const titulo = req.body.titulo != null ? String(req.body.titulo).trim() : cur.titulo;
+    const categoria_id =
+      req.body.categoria_id != null ? parseInt(req.body.categoria_id, 10) : cur.categoria_id;
+    const perfil_destino =
+      req.body.perfil_destino != null ? String(req.body.perfil_destino).trim() : cur.perfil_destino;
+    const fecha_publicacion =
+      req.body.fecha_publicacion !== undefined ? req.body.fecha_publicacion || null : cur.fecha_publicacion;
+    const cat = await query(
+      `SELECT id FROM gestion_documentos_categorias WHERE id = ? AND colegio_id = ?`,
+      [categoria_id, colegio_id]
+    );
+    if (!cat.length) {
+      if (req.file?.path) fs.unlink(req.file.path, () => {});
+      return res.status(400).json({ error: 'Categoría no válida' });
+    }
+    await execute(
+      `UPDATE gestion_documentos SET
+         titulo = ?, categoria_id = ?, nombre_archivo_original = ?, ruta_almacenamiento = ?,
+         perfil_destino = ?, fecha_publicacion = ?
+       WHERE id = ? AND colegio_id = ?`,
+      [titulo, categoria_id, nombreOrig, ruta, perfil_destino, fecha_publicacion, id, colegio_id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    console.error('update gestión documento:', err);
+    res.status(500).json({ error: err.message || 'Error al actualizar documento' });
+  }
+});
+
+router.delete('/gestion-documentos/:id', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const rows = await query(
+      `SELECT ruta_almacenamiento FROM gestion_documentos WHERE id = ? AND colegio_id = ?`,
+      [id, colegio_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Documento no encontrado' });
+    const abs = path.join(__dirname, '../uploads', rows[0].ruta_almacenamiento);
+    await execute(`DELETE FROM gestion_documentos WHERE id = ? AND colegio_id = ?`, [id, colegio_id]);
+    if (fs.existsSync(abs)) {
+      try {
+        fs.unlinkSync(abs);
+      } catch (e) {
+        console.warn('unlink pdf:', e.message);
+      }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('delete gestión documento:', err);
+    res.status(500).json({ error: err.message || 'Error al eliminar documento' });
   }
 });
 

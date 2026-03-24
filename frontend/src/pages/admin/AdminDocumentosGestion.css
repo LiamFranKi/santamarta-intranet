@@ -1,0 +1,288 @@
+/* Documento De Gestión — admin (responsive, alineado al resto del intranet) */
+.dg-page {
+  padding: clamp(1rem, 3vw, 2rem);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.dg-page-header {
+  margin-bottom: 1.75rem;
+}
+
+.dg-page-header h1 {
+  font-size: clamp(1.35rem, 4vw, 2rem);
+  font-weight: 800;
+  color: #4a83c1;
+  margin: 0 0 0.35rem 0;
+  line-height: 1.2;
+}
+
+.dg-page-header p {
+  color: #6b7280;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.dg-section {
+  background: linear-gradient(145deg, #f8fafc 0%, #ffffff 100%);
+  border: 1px solid rgba(74, 131, 193, 0.15);
+  border-radius: 16px;
+  padding: clamp(1rem, 3vw, 1.5rem);
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 20px rgba(74, 131, 193, 0.08);
+}
+
+.dg-section-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0 0 1rem 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e3a5f;
+}
+
+.dg-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1rem;
+  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.dg-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(74, 131, 193, 0.35);
+}
+
+.dg-btn-ghost {
+  padding: 0.45rem 0.85rem;
+  background: #fff;
+  border: 1px solid rgba(74, 131, 193, 0.35);
+  color: #4a83c1;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.dg-categorias-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 1rem;
+}
+
+.dg-cat-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dg-cat-card h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: #111827;
+}
+
+.dg-cat-meta {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.dg-cat-actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
+.dg-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  align-items: flex-end;
+}
+
+.dg-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  min-width: min(100%, 200px);
+}
+
+.dg-filters select,
+.dg-filters input[type='text'] {
+  padding: 0.5rem 0.65rem;
+  border: 2px solid rgba(74, 131, 193, 0.2);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.dg-table-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+}
+
+.dg-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.dg-table th,
+.dg-table td {
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.dg-table th {
+  background: linear-gradient(180deg, #eef2ff, #f8fafc);
+  font-weight: 700;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.dg-table tr:hover td {
+  background: #f9fafb;
+}
+
+.dg-doc-titulo {
+  font-weight: 600;
+  color: #111827;
+  max-width: 220px;
+}
+
+.dg-icon-actions {
+  display: flex;
+  gap: 0.15rem;
+  flex-wrap: wrap;
+}
+
+.dg-badge-perfil {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.dg-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.dg-modal {
+  background: #fff;
+  border-radius: 16px;
+  max-width: 480px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+
+.dg-modal-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #1e3a5f;
+}
+
+.dg-modal-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dg-modal-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.dg-modal-body input,
+.dg-modal-body select,
+.dg-modal-body textarea {
+  padding: 0.55rem 0.65rem;
+  border: 2px solid rgba(74, 131, 193, 0.2);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.dg-modal-body textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.dg-modal-footer {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.dg-btn-cancel {
+  padding: 0.5rem 1rem;
+  background: #f3f4f6;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dg-empty {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: #6b7280;
+  font-size: 0.95rem;
+}
+
+.dg-loading {
+  display: flex;
+  justify-content: center;
+  padding: 3rem;
+  color: #4a83c1;
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .dg-table th:nth-child(4),
+  .dg-table td:nth-child(4) {
+    display: none;
+  }
+}

@@ -14,6 +14,13 @@ function getInitials(nombre) {
   return parts.map((p) => p[0]?.toUpperCase()).join('') || 'D';
 }
 
+function perfilPdfAbsUrl(rutaRelativa) {
+  if (!rutaRelativa) return '';
+  const base = (api.defaults.baseURL || '').replace(/\/api\/?$/, '');
+  const p = rutaRelativa.startsWith('/') ? rutaRelativa : `/${rutaRelativa}`;
+  return `${base}${p}`;
+}
+
 function DocentePerfil() {
   const navigate = useNavigate();
   const { user, setUser } = useAuth();
@@ -42,10 +49,29 @@ function DocentePerfil() {
   const [activandoNotificaciones, setActivandoNotificaciones] = useState(false);
   const [desuscribiendoNotificaciones, setDesuscribiendoNotificaciones] = useState(false);
   const [tieneSuscripcionPush, setTieneSuscripcionPush] = useState(null);
+  const [docsGestion, setDocsGestion] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(true);
 
   useEffect(() => {
     cargarPerfil();
     verificarNotificaciones();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get('/docente/documentos-gestion');
+        if (!cancelled) setDocsGestion(res.data.documentos || []);
+      } catch {
+        if (!cancelled) setDocsGestion([]);
+      } finally {
+        if (!cancelled) setLoadingDocs(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const verificarNotificaciones = async () => {
@@ -653,6 +679,54 @@ function DocentePerfil() {
             </button>
           </div>
         </form>
+
+        {/* Documento De Gestión */}
+        <div className="perfil-section mundo-card perfil-docs-gestion">
+          <h2 className="section-title">Documento De Gestión</h2>
+          <p className="perfil-docs-gestion-sub">
+            Documentos institucionales disponibles para su perfil (PDF).
+          </p>
+          {loadingDocs ? (
+            <p className="perfil-docs-gestion-loading">Cargando documentos…</p>
+          ) : docsGestion.length === 0 ? (
+            <p className="perfil-docs-gestion-empty">No hay documentos asignados por el momento.</p>
+          ) : (
+            <div className="perfil-docs-gestion-list">
+              {Object.entries(
+                docsGestion.reduce((acc, d) => {
+                  const k = d.categoria_nombre || 'General';
+                  if (!acc[k]) acc[k] = [];
+                  acc[k].push(d);
+                  return acc;
+                }, {})
+              ).map(([categoria, items]) => (
+                <div key={categoria} className="perfil-docs-gestion-grupo">
+                  <h3 className="perfil-docs-gestion-cat">{categoria}</h3>
+                  <ul className="perfil-docs-gestion-ul">
+                    {items.map((d) => (
+                      <li key={d.id} className="perfil-docs-gestion-li">
+                        <a
+                          href={perfilPdfAbsUrl(d.archivo_url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="perfil-docs-gestion-link"
+                        >
+                          <span className="perfil-docs-gestion-icon" aria-hidden="true">📄</span>
+                          <span className="perfil-docs-gestion-titulo">{d.titulo}</span>
+                        </a>
+                        <span className="perfil-docs-gestion-meta">
+                          {d.fecha_publicacion
+                            ? new Date(d.fecha_publicacion).toLocaleDateString('es-PE')
+                            : new Date(d.created_at).toLocaleDateString('es-PE')}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Notificaciones Push */}
         <div className="perfil-section mundo-card">

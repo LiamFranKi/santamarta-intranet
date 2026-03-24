@@ -7711,6 +7711,36 @@ router.get('/roles-adicionales', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/documentos-gestion
+ * PDFs de gestión visibles para docentes (perfil DOCENTE o TODOS)
+ */
+router.get('/documentos-gestion', async (req, res) => {
+  try {
+    const { colegio_id, tipo } = req.user;
+    const tipoUsuario = tipo || 'DOCENTE';
+    const documentos = await query(
+      `SELECT d.id, d.titulo, d.nombre_archivo_original, d.ruta_almacenamiento, d.perfil_destino,
+              d.fecha_publicacion, d.created_at,
+              c.nombre as categoria_nombre, c.orden as categoria_orden
+       FROM gestion_documentos d
+       INNER JOIN gestion_documentos_categorias c ON c.id = d.categoria_id AND c.colegio_id = d.colegio_id
+       WHERE d.colegio_id = ? AND d.activo = 1 AND c.activo = 1
+         AND (d.perfil_destino = 'TODOS' OR d.perfil_destino = ?)
+       ORDER BY c.orden ASC, d.created_at DESC`,
+      [colegio_id, tipoUsuario]
+    );
+    const list = (documentos || []).map((d) => ({
+      ...d,
+      archivo_url: `/uploads/${d.ruta_almacenamiento}`
+    }));
+    res.json({ documentos: list });
+  } catch (error) {
+    console.error('Error listando documentos de gestión (docente):', error);
+    res.status(500).json({ error: error.message || 'Error al listar documentos' });
+  }
+});
+
+/**
  * GET /api/docente/hijos/:hijoId/datos
  * Obtener datos completos de un hijo para editar
  */
