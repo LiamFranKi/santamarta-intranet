@@ -545,6 +545,9 @@ function DocenteGrupos() {
       if (alumnoParaMensajeApoderados?.id) {
         formData.append('contexto_alumno_id', String(alumnoParaMensajeApoderados.id));
       }
+      if (selectedGrupo != null && selectedGrupo !== '') {
+        formData.append('contexto_grupo_id', String(selectedGrupo));
+      }
       formData.append('asunto', asuntoMensajeApoderados.trim());
       formData.append('mensaje', contenidoMensajeApoderados);
       archivosAdjuntosMensajeApoderados.forEach((archivo) => {

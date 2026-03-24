@@ -13457,6 +13457,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
       enviar_a,
       expand_apoderados_roles,
       contexto_alumno_id,
+      contexto_grupo_id,
       mensaje_desde_tutoria
     } = req.body;
     const enviarATipo = (enviar_a === 'apoderados' || enviar_a === 'alumnos') ? enviar_a : 'todos';
@@ -13683,6 +13684,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                 asuntoOriginal: asuntoEnviar,
                 mensajeOriginal: mensajeEnviar,
                 contexto_alumno_id,
+                contexto_grupo_id,
                 gruposIds: gruposArray && gruposArray.length ? gruposArray : [],
                 mensaje_desde_tutoria
               });

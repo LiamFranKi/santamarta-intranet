@@ -2435,6 +2435,11 @@ function DocenteTutoria() {
       if (alumnoParaMensajeApoderados?.id) {
         formData.append('contexto_alumno_id', String(alumnoParaMensajeApoderados.id));
       }
+      const grupoCtxId =
+        typeof selectedGrupo === 'object' && selectedGrupo !== null ? selectedGrupo.id : selectedGrupo;
+      if (grupoCtxId != null && grupoCtxId !== '') {
+        formData.append('contexto_grupo_id', String(grupoCtxId));
+      }
       formData.append('mensaje_desde_tutoria', 'true');
       formData.append('asunto', asuntoMensajeApoderados.trim());
       formData.append('mensaje', contenidoMensajeApoderados);

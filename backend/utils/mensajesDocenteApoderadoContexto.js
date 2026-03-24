@@ -2,6 +2,7 @@
  * Contexto para mensajes DOCENTE → APODERADO (quién escribe, sobre qué hijo/grado/asignatura o tutoría).
  */
 const { query } = require('./mysql');
+const { obtenerContextoAlumnoGrupoParaMensaje } = require('./mensajesHijoDocenteContexto');
 
 function escaparHtmlBasico(str) {
   if (str == null || str === '') return '';
@@ -25,10 +26,10 @@ async function apoderadoEsPadreDeAlumno(apoderadoUsuarioId, alumnoId, colegio_id
     `SELECT 1 AS ok
      FROM usuarios u
      INNER JOIN apoderados ap ON ap.id = u.apoderado_id AND ap.colegio_id = ?
-     INNER JOIN familias f ON f.apoderado_id = ap.id
-     WHERE u.id = ? AND u.colegio_id = ? AND f.alumno_id = ?
+     INNER JOIN familias f ON f.apoderado_id = ap.id AND f.alumno_id = ?
+     WHERE u.id = ? AND u.colegio_id = ?
      LIMIT 1`,
-    [colegio_id, apoderadoUsuarioId, colegio_id, alumnoId]
+    [colegio_id, alumnoId, apoderadoUsuarioId, colegio_id]
   );
   return !!(r && r[0]);
 }
@@ -43,21 +44,32 @@ async function obtenerNombreDocente(personal_id) {
 }
 
 /**
- * Matrícula vigente + datos alumno/grupo
+ * Matrícula + grupo del año activo. Si viene grupo_id_preferido (p. ej. lista "Grupos asignados"),
+ * prioriza esa matrícula para que coincida con la pantalla desde la que envía el docente.
  */
-async function datosAlumnoGrupo(colegio_id, anio_activo, alumno_id) {
-  const rows = await query(
-    `SELECT m.grupo_id, g.grado, g.seccion, n.nombre AS nivel_nombre,
+async function datosAlumnoGrupo(colegio_id, anio_activo, alumno_id, grupo_id_preferido) {
+  const gid =
+    grupo_id_preferido != null && grupo_id_preferido !== ''
+      ? parseInt(grupo_id_preferido, 10)
+      : NaN;
+  const baseSql = `SELECT m.grupo_id, g.grado, g.seccion, n.nombre AS nivel_nombre,
             TRIM(CONCAT(COALESCE(a.apellido_paterno,''), ' ', COALESCE(a.apellido_materno,''), ', ', COALESCE(a.nombres,''))) AS nombre_alumno
      FROM matriculas m
      INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ? AND g.colegio_id = ?
      INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = ?
      LEFT JOIN niveles n ON n.id = g.nivel_id
-     WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
-     ORDER BY m.fecha_registro DESC
-     LIMIT 1`,
-    [anio_activo, colegio_id, colegio_id, alumno_id, colegio_id]
-  );
+     WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)`;
+  const baseParams = [anio_activo, colegio_id, colegio_id, alumno_id, colegio_id];
+
+  if (!isNaN(gid) && gid > 0) {
+    const rowsPref = await query(
+      `${baseSql} AND m.grupo_id = ? ORDER BY m.fecha_registro DESC LIMIT 1`,
+      [...baseParams, gid]
+    );
+    if (rowsPref && rowsPref[0]) return rowsPref[0];
+  }
+
+  const rows = await query(`${baseSql} ORDER BY m.fecha_registro DESC LIMIT 1`, baseParams);
   return rows && rows[0] ? rows[0] : null;
 }
 
@@ -86,8 +98,8 @@ async function esTutorDeGrupo(personal_id, grupo_id, colegio_id, anio_activo) {
 /**
  * Resume rol del docente respecto a un alumno concreto.
  */
-async function contextoDocenteParaAlumno(colegio_id, anio_activo, personal_id, alumno_id) {
-  const base = await datosAlumnoGrupo(colegio_id, anio_activo, alumno_id);
+async function contextoDocenteParaAlumno(colegio_id, anio_activo, personal_id, alumno_id, grupo_id_preferido) {
+  const base = await datosAlumnoGrupo(colegio_id, anio_activo, alumno_id, grupo_id_preferido);
   if (!base) return null;
   const gradoTxt = [base.grado != null ? `${base.grado}°` : '', base.seccion ? String(base.seccion).trim() : '']
     .filter(Boolean)
@@ -142,7 +154,12 @@ function lineaRolDocente(ctx) {
   if (ctx.esTutor) {
     partes.push('Tutor(a) de este grupo');
   }
-  if (!partes.length) return 'Sin asignaturas registradas a su nombre en el grupo del alumno (mensaje general).';
+  if (!partes.length) {
+    return (
+      ctx.rolFallback ||
+      'Comunicación referida a este estudiante y su grupo (sin asignatura registrada a nombre de este docente en el sistema).'
+    );
+  }
   return partes.join(' · ');
 }
 
@@ -166,6 +183,7 @@ async function enriquecerMensajeDocenteParaDestinatario({
   asuntoOriginal,
   mensajeOriginal,
   contexto_alumno_id,
+  contexto_grupo_id,
   gruposIds,
   mensaje_desde_tutoria
 }) {
@@ -178,28 +196,77 @@ async function enriquecerMensajeDocenteParaDestinatario({
 
   let items = [];
 
-  const alumnoIdNum = contexto_alumno_id != null && contexto_alumno_id !== '' ? parseInt(contexto_alumno_id, 10) : NaN;
+  const grupoCtx =
+    contexto_grupo_id != null && contexto_grupo_id !== '' ? parseInt(contexto_grupo_id, 10) : NaN;
+  const grupoPreferido = !isNaN(grupoCtx) && grupoCtx > 0 ? grupoCtx : null;
+
+  const alumnoIdNum =
+    contexto_alumno_id != null && contexto_alumno_id !== '' && contexto_alumno_id !== 'undefined'
+      ? parseInt(String(contexto_alumno_id).trim(), 10)
+      : NaN;
+
   if (!isNaN(alumnoIdNum) && alumnoIdNum > 0) {
     const esPadre = await apoderadoEsPadreDeAlumno(destinatarioUsuarioId, alumnoIdNum, colegio_id);
     if (esPadre) {
-      const ctx = await contextoDocenteParaAlumno(colegio_id, anio_activo, personal_id, alumnoIdNum);
-      if (ctx) {
-        items.push({
-          titulo: 'Estudiante',
-          nombre: ctx.nombre_alumno,
-          grado: ctx.gradoTxt,
-          nivel: ctx.nivel_nombre,
-          rol: lineaRolDocente(ctx)
-        });
+      let ctx = await contextoDocenteParaAlumno(
+        colegio_id,
+        anio_activo,
+        personal_id,
+        alumnoIdNum,
+        grupoPreferido
+      );
+      if (!ctx) {
+        const simple = await obtenerContextoAlumnoGrupoParaMensaje(colegio_id, anio_activo, alumnoIdNum);
+        const baseRow = await datosAlumnoGrupo(colegio_id, anio_activo, alumnoIdNum, grupoPreferido);
+        const nombreAl =
+          (simple && simple.nombre_completo_alumno && simple.nombre_completo_alumno.trim()) ||
+          (baseRow && baseRow.nombre_alumno) ||
+          'Estudiante';
+        const gradoTxt = simple
+          ? [simple.grado != null ? `${simple.grado}°` : null, simple.seccion ? String(simple.seccion).trim() : null]
+              .filter(Boolean)
+              .join(' ')
+              .trim() || '—'
+          : '—';
+        const nivelNom = (simple && simple.nivel_nombre) || (baseRow && baseRow.nivel_nombre) || '';
+        let cursos = [];
+        let tutor = false;
+        if (baseRow && baseRow.grupo_id) {
+          cursos = await cursosDocenteEnGrupo(personal_id, baseRow.grupo_id, colegio_id);
+          tutor = await esTutorDeGrupo(personal_id, baseRow.grupo_id, colegio_id, anio_activo);
+        }
+        ctx = {
+          nombre_alumno: nombreAl,
+          gradoTxt,
+          nivel_nombre: nivelNom,
+          cursos,
+          esTutor: tutor,
+          rolFallback:
+            'Mensaje asociado a este estudiante desde el listado de su grupo (detalle académico en intranet).'
+        };
       }
+      items.push({
+        titulo: 'Estudiante',
+        nombre: ctx.nombre_alumno,
+        grado: ctx.gradoTxt,
+        nivel: ctx.nivel_nombre,
+        rol: lineaRolDocente(ctx)
+      });
     }
   }
 
   if (items.length === 0 && gruposIds && gruposIds.length > 0) {
     const hijosEnGrupo = await hijosApoderadoEnGrupos(destinatarioUsuarioId, colegio_id, anio_activo, gruposIds);
     const unicos = [...new Set(hijosEnGrupo)];
+    const g0 = parseInt(gruposIds[0], 10);
     for (const aid of unicos) {
-      const ctx = await contextoDocenteParaAlumno(colegio_id, anio_activo, personal_id, aid);
+      const ctx = await contextoDocenteParaAlumno(
+        colegio_id,
+        anio_activo,
+        personal_id,
+        aid,
+        !isNaN(g0) && g0 > 0 ? g0 : null
+      );
       if (ctx) {
         const rol = lineaRolDocente(ctx);
         items.push({
@@ -216,10 +283,9 @@ async function enriquecerMensajeDocenteParaDestinatario({
   if (items.length === 0) {
     const todosHijos = await hijosDelApoderadoUsuario(destinatarioUsuarioId, colegio_id);
     for (const aid of todosHijos) {
-      const ctx = await contextoDocenteParaAlumno(colegio_id, anio_activo, personal_id, aid);
+      const ctx = await contextoDocenteParaAlumno(colegio_id, anio_activo, personal_id, aid, null);
       if (!ctx) continue;
       const rol = lineaRolDocente(ctx);
-      if (rol.includes('Sin asignaturas') && !ctx.esTutor) continue;
       items.push({
         titulo: 'Estudiante',
         nombre: ctx.nombre_alumno,
