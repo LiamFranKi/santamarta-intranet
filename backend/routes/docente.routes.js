@@ -19,6 +19,7 @@ const {
 const { enviarCorreoNotificacion } = require('../services/emailService');
 const mensajesConfig = require('../config/mensajes.json');
 const moment = require('moment-timezone');
+const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const {
   obtenerContextoAlumnoGrupoParaMensaje,
   enriquecerMensajeApoderadoADocente
@@ -9696,7 +9697,7 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
 
     setImmediate(async () => {
       try {
-        const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const fechaHora = fechaHoraMySQLLima();
         const mensajesIds = [];
 
         for (const destinatarioId of destinatariosArray) {
@@ -13637,7 +13638,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         }
 
         // Crear un mensaje para cada destinatario
-        const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const fechaHora = fechaHoraMySQLLima();
         let mensajesInsertados = 0;
         const mensajesIds = []; // Para asociar archivos
 
@@ -14644,7 +14645,7 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
 
     // Insertar publicación en MySQL
     // La tabla publicaciones tiene: id, colegio_id, usuario_id, contenido, tipo_video, video_id, images, archivos, privacidad, fecha_hora
-    const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const fechaHora = fechaHoraMySQLLima();
     const result = await execute(
       `INSERT INTO publicaciones 
        (colegio_id, usuario_id, contenido, tipo_video, video_id, images, archivos, privacidad, fecha_hora)

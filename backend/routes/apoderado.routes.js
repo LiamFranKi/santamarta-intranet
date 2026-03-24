@@ -12,6 +12,7 @@ const {
   obtenerContextoAlumnoGrupoParaMensaje,
   enriquecerMensajeApoderadoADocente
 } = require('../utils/mensajesHijoDocenteContexto');
+const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 
 // Configurar multer para subir archivos de mensajes
 const mensajesStorage = multer.diskStorage({
@@ -3282,7 +3283,7 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
     // Procesar en segundo plano
     setImmediate(async () => {
       try {
-        const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const fechaHora = fechaHoraMySQLLima();
         let mensajesInsertados = 0;
         const mensajesIds = [];
 
@@ -4580,7 +4581,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
     // Procesar en segundo plano
     setImmediate(async () => {
       try {
-        const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const fechaHora = fechaHoraMySQLLima();
         let mensajesInsertados = 0;
         const mensajesIds = [];
         let alumnosEnGrupos = 0;

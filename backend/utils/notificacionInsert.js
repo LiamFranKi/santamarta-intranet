@@ -2,6 +2,8 @@
  * Insert en tabla notificaciones con campos opcionales de deep link.
  * Requiere ejecutar database/alter_notificaciones_deep_link.sql antes.
  */
+const { fechaHoraMySQLLima } = require('./fechaHoraLima');
+
 async function insertNotificacionUsuario(execute, params) {
   const {
     para = 'USUARIO',
@@ -25,13 +27,14 @@ async function insertNotificacionUsuario(execute, params) {
   await execute(
     `INSERT INTO notificaciones 
      (para, usuario_id, destinatario_id, asunto, contenido, fecha_hora, estado, accion_tipo, accion_payload, url_destino)
-     VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       para,
       usuario_id,
       destinatario_id,
       asunto,
       contenido,
+      fechaHoraMySQLLima(),
       estado,
       accion_tipo,
       payloadStr,
