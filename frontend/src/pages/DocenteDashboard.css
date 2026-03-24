@@ -675,3 +675,340 @@
   }
 }
 
+/* —— Documento De Gestión (dashboard docente) —— */
+.docs-gestion-wrap {
+  margin-bottom: 2.25rem;
+}
+
+.docs-gestion-hero {
+  margin-bottom: 1.25rem;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(74, 131, 193, 0.22);
+  box-shadow: 0 10px 32px rgba(30, 58, 95, 0.08);
+  background: linear-gradient(135deg, #f0f7ff 0%, #e8f0fe 45%, #fdfbff 100%);
+}
+
+.docs-gestion-hero-inner {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.35rem 1.5rem;
+}
+
+.docs-gestion-hero-icon {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  background: linear-gradient(145deg, #6ba3d4, #4a83c1);
+  border-radius: 16px;
+  box-shadow: 0 6px 18px rgba(74, 131, 193, 0.35);
+}
+
+.docs-gestion-hero-title {
+  margin-bottom: 0.35rem !important;
+  color: #1e3a5f !important;
+}
+
+.docs-gestion-hero-sub {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #64748b;
+  line-height: 1.45;
+  max-width: 42rem;
+}
+
+.docs-gestion-loading {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.docs-gestion-skeleton-row {
+  height: 14px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #e2e8f0 0%, #f1f5f9 50%, #e2e8f0 100%);
+  background-size: 200% 100%;
+  animation: docs-gestion-shimmer 1.2s ease-in-out infinite;
+}
+
+.docs-gestion-skeleton-row.short {
+  width: 55%;
+}
+
+@keyframes docs-gestion-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.docs-gestion-empty {
+  text-align: center;
+  padding: 2rem 1.5rem;
+  color: #64748b;
+  border: 1px dashed rgba(74, 131, 193, 0.35);
+  background: #fafbfc;
+}
+
+.docs-gestion-empty-icon {
+  display: block;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.docs-gestion-empty p {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.docs-gestion-categorias {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.docs-gestion-categoria {
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(74, 131, 193, 0.16);
+  box-shadow: 0 8px 28px rgba(30, 58, 95, 0.07);
+  transition: box-shadow 0.25s ease, transform 0.2s ease;
+}
+
+.docs-gestion-categoria:hover {
+  box-shadow: 0 14px 40px rgba(30, 58, 95, 0.11);
+}
+
+.docs-gestion-categoria--tone-0 {
+  --dg-accent: #4a83c1;
+  --dg-accent-soft: rgba(74, 131, 193, 0.12);
+  --dg-gradient: linear-gradient(135deg, #eff6ff 0%, #ffffff 60%);
+}
+
+.docs-gestion-categoria--tone-1 {
+  --dg-accent: #0d9488;
+  --dg-accent-soft: rgba(13, 148, 136, 0.12);
+  --dg-gradient: linear-gradient(135deg, #ecfdf5 0%, #ffffff 60%);
+}
+
+.docs-gestion-categoria--tone-2 {
+  --dg-accent: #7c3aed;
+  --dg-accent-soft: rgba(124, 58, 237, 0.12);
+  --dg-gradient: linear-gradient(135deg, #f5f3ff 0%, #ffffff 60%);
+}
+
+.docs-gestion-categoria--tone-3 {
+  --dg-accent: #ea580c;
+  --dg-accent-soft: rgba(234, 88, 12, 0.12);
+  --dg-gradient: linear-gradient(135deg, #fff7ed 0%, #ffffff 60%);
+}
+
+.docs-gestion-categoria--tone-4 {
+  --dg-accent: #db2777;
+  --dg-accent-soft: rgba(219, 39, 119, 0.12);
+  --dg-gradient: linear-gradient(135deg, #fdf2f8 0%, #ffffff 60%);
+}
+
+.docs-gestion-categoria-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: var(--dg-gradient);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-left: 4px solid var(--dg-accent);
+}
+
+.docs-gestion-categoria-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.docs-gestion-categoria-chip {
+  flex-shrink: 0;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #fff;
+  background: var(--dg-accent);
+  border-radius: 10px;
+  box-shadow: 0 2px 8px var(--dg-accent-soft);
+}
+
+.docs-gestion-categoria-title {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.docs-gestion-categoria-hint {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--dg-accent);
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: var(--dg-accent-soft);
+}
+
+.docs-gestion-doc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.85rem;
+  padding: 1.1rem 1.25rem 1.25rem;
+  background: #fff;
+}
+
+@media (max-width: 1100px) {
+  .docs-gestion-doc-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .docs-gestion-doc-grid {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+    padding: 0.85rem 1rem 1rem;
+  }
+
+  .docs-gestion-hero-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    padding: 1.1rem 1.15rem;
+  }
+
+  .docs-gestion-categoria-title {
+    white-space: normal;
+    line-height: 1.25;
+  }
+
+  .docs-gestion-categoria-head {
+    flex-wrap: wrap;
+    padding: 0.85rem 1rem;
+  }
+}
+
+.docs-gestion-doc-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 72px;
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  text-decoration: none;
+  color: inherit;
+  background: linear-gradient(180deg, #fafbfc 0%, #ffffff 100%);
+  border: 1px solid #e8ecf1;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.docs-gestion-doc-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(74, 131, 193, 0.35);
+  box-shadow: 0 10px 26px rgba(74, 131, 193, 0.15);
+}
+
+.docs-gestion-doc-card:active {
+  transform: translateY(-1px);
+}
+
+.docs-gestion-doc-icon-wrap {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, #fee2e2 0%, #fecaca 100%);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.docs-gestion-doc-icon {
+  font-size: 0.65rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  color: #b91c1c;
+}
+
+.docs-gestion-doc-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.docs-gestion-doc-titulo {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.docs-gestion-doc-meta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.docs-gestion-doc-open {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #4a83c1;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(74, 131, 193, 0.1);
+}
+
+.docs-gestion-doc-card:hover .docs-gestion-doc-open {
+  background: rgba(74, 131, 193, 0.18);
+}
+
+@media (max-width: 600px) {
+  .docs-gestion-doc-open {
+    align-self: flex-end;
+  }
+
+  .docs-gestion-doc-card {
+    flex-wrap: wrap;
+  }
+
+  .docs-gestion-doc-text {
+    flex: 1 1 calc(100% - 60px);
+  }
+}
+
