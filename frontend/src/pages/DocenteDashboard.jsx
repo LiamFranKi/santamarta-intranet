@@ -669,7 +669,7 @@ function DocenteDashboard() {
                     <span className="docs-gestion-categoria-hint">PDF</span>
                   </div>
                   <div className="docs-gestion-doc-grid">
-                    {grupo.items.map((d) => {
+                    {grupo.items.map((d, di) => {
                       const fechaStr = d.fecha_publicacion
                         ? new Date(d.fecha_publicacion).toLocaleDateString('es-PE', {
                             day: '2-digit',
@@ -683,13 +683,16 @@ function DocenteDashboard() {
                               year: 'numeric'
                             })
                           : '';
+                      const pastelIdx = (gi * 3 + di) % 6;
                       return (
                         <a
                           key={d.id}
-                          className="docs-gestion-doc-card"
+                          className={`docs-gestion-doc-card docs-gestion-doc-card--pastel-${pastelIdx}`}
                           href={gestionPdfFullUrl(d.archivo_url)}
                           target="_blank"
                           rel="noopener noreferrer"
+                          title={d.titulo}
+                          aria-label={`Ver PDF: ${d.titulo}`}
                         >
                           <div className="docs-gestion-doc-icon-wrap" aria-hidden="true">
                             <span className="docs-gestion-doc-icon">PDF</span>
@@ -700,8 +703,28 @@ function DocenteDashboard() {
                               <span className="docs-gestion-doc-meta">{fechaStr}</span>
                             ) : null}
                           </div>
-                          <span className="docs-gestion-doc-open" aria-hidden="true">
-                            Abrir
+                          <span className="docs-gestion-doc-view" aria-hidden="true">
+                            <svg
+                              className="docs-gestion-doc-view-svg"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              xmlns="http://www.w3.org/2000/svg"
+                            >
+                              <path
+                                d="M1 12s4.5-7 11-7 11 7 11 7-4.5 7-11 7S1 12 1 12z"
+                                stroke="currentColor"
+                                strokeWidth="1.65"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                              <circle
+                                cx="12"
+                                cy="12"
+                                r="3.25"
+                                stroke="currentColor"
+                                strokeWidth="1.65"
+                              />
+                            </svg>
                           </span>
                         </a>
                       );
