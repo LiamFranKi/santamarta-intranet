@@ -542,6 +542,9 @@ function DocenteGrupos() {
       // asegurar que el mensaje se inserte para la cuenta DOCENTE también.
       formData.append('expand_apoderados_roles', 'true');
       formData.append('grupos', JSON.stringify([]));
+      if (alumnoParaMensajeApoderados?.id) {
+        formData.append('contexto_alumno_id', String(alumnoParaMensajeApoderados.id));
+      }
       formData.append('asunto', asuntoMensajeApoderados.trim());
       formData.append('mensaje', contenidoMensajeApoderados);
       archivosAdjuntosMensajeApoderados.forEach((archivo) => {

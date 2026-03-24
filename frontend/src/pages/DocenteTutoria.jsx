@@ -2432,6 +2432,10 @@ function DocenteTutoria() {
       formData.append('grupos', JSON.stringify([]));
       // Asegurar que si un apoderado también es docente (mismo usuario), aparezca en la bandeja DOCENTE también
       formData.append('expand_apoderados_roles', 'true');
+      if (alumnoParaMensajeApoderados?.id) {
+        formData.append('contexto_alumno_id', String(alumnoParaMensajeApoderados.id));
+      }
+      formData.append('mensaje_desde_tutoria', 'true');
       formData.append('asunto', asuntoMensajeApoderados.trim());
       formData.append('mensaje', contenidoMensajeApoderados);
 
@@ -2495,6 +2499,7 @@ function DocenteTutoria() {
       formData.append('asunto', asuntoMensajeGrupo.trim());
       formData.append('mensaje', contenidoMensajeGrupo);
       formData.append('enviar_a', enviarAMensajeGrupo);
+      formData.append('mensaje_desde_tutoria', 'true');
 
       // Agregar archivos
       archivosAdjuntosMensajeGrupo.forEach((archivo) => {

@@ -28,6 +28,7 @@ const {
   obtenerMetaGruposConexiones,
   enriquecerMensajeConexionesFamiliares
 } = require('../utils/mensajesGrupoConexionesContexto');
+const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
@@ -13447,8 +13448,17 @@ router.post('/mensajes/subir-imagen', uploadMensajes.single('imagen'), async (re
 router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req, res) => {
   try {
     console.log('📨 [ENVIAR MENSAJE] Inicio de procesamiento -', new Date().toISOString());
-    const { usuario_id, colegio_id } = req.user;
-    const { destinatarios, grupos, asunto, mensaje, enviar_a, expand_apoderados_roles } = req.body;
+    const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
+    const {
+      destinatarios,
+      grupos,
+      asunto,
+      mensaje,
+      enviar_a,
+      expand_apoderados_roles,
+      contexto_alumno_id,
+      mensaje_desde_tutoria
+    } = req.body;
     const enviarATipo = (enviar_a === 'apoderados' || enviar_a === 'alumnos') ? enviar_a : 'todos';
     const expandApoderadosRoles = expand_apoderados_roles === 'true' || expand_apoderados_roles === true;
 
@@ -13662,11 +13672,33 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         console.log(`📨 [ENVIAR MENSAJE] Procesando ${usuariosDestinatarios.length} destinatario(s)`);
         for (const destinatarioId of usuariosDestinatarios) {
           try {
+            let asuntoDest = asuntoEnviar;
+            let mensajeDest = mensajeEnviar;
+            try {
+              const enrDocApod = await enriquecerMensajeDocenteParaDestinatario({
+                colegio_id,
+                anio_activo,
+                personal_id,
+                destinatarioUsuarioId: destinatarioId,
+                asuntoOriginal: asuntoEnviar,
+                mensajeOriginal: mensajeEnviar,
+                contexto_alumno_id,
+                gruposIds: gruposArray && gruposArray.length ? gruposArray : [],
+                mensaje_desde_tutoria
+              });
+              if (enrDocApod) {
+                asuntoDest = enrDocApod.asuntoFinal;
+                mensajeDest = enrDocApod.mensajeFinal;
+              }
+            } catch (enrErr) {
+              console.warn('⚠️ [ENVIAR MENSAJE] Contexto docente→apoderado:', enrErr.message);
+            }
+
             // Mensaje para el remitente (tipo ENVIADO)
             const resultEnviado = await execute(
               `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
                VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO')`,
-              [usuario_id, destinatarioId, asuntoEnviar, mensajeEnviar, fechaHora]
+              [usuario_id, destinatarioId, asuntoDest, mensajeDest, fechaHora]
             );
             console.log(`📨 [ENVIAR MENSAJE] Mensaje ENVIADO creado - ID: ${resultEnviado.insertId}, destinatario: ${destinatarioId}`);
 
@@ -13674,7 +13706,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             const resultRecibido = await execute(
               `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
                VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO')`,
-              [usuario_id, destinatarioId, asuntoEnviar, mensajeEnviar, fechaHora]
+              [usuario_id, destinatarioId, asuntoDest, mensajeDest, fechaHora]
             );
             console.log(`📨 [ENVIAR MENSAJE] Mensaje RECIBIDO creado - ID: ${resultRecibido.insertId}, destinatario: ${destinatarioId}`);
 
