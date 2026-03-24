@@ -485,7 +485,8 @@ function DocenteGrupos() {
         });
         return;
       }
-      setAlumnoParaMensajeApoderados(alumno);
+      const idAlumnoConfirmado = data.alumno?.id ?? alumno.id;
+      setAlumnoParaMensajeApoderados({ ...alumno, id: idAlumnoConfirmado, contexto_alumno_id: idAlumnoConfirmado });
       setDestinatariosApoderadosPreview(lista);
       setUsuarioIdsApoderadosMensaje(lista.map((d) => d.usuario_id));
       setAsuntoMensajeApoderados('');
@@ -542,8 +543,12 @@ function DocenteGrupos() {
       // asegurar que el mensaje se inserte para la cuenta DOCENTE también.
       formData.append('expand_apoderados_roles', 'true');
       formData.append('grupos', JSON.stringify([]));
-      if (alumnoParaMensajeApoderados?.id) {
-        formData.append('contexto_alumno_id', String(alumnoParaMensajeApoderados.id));
+      const idCtx =
+        alumnoParaMensajeApoderados?.contexto_alumno_id ??
+        alumnoParaMensajeApoderados?.alumno_id ??
+        alumnoParaMensajeApoderados?.id;
+      if (idCtx != null && idCtx !== '' && String(idCtx) !== 'undefined') {
+        formData.append('contexto_alumno_id', String(idCtx));
       }
       if (selectedGrupo != null && selectedGrupo !== '') {
         formData.append('contexto_grupo_id', String(selectedGrupo));

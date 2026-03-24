@@ -1767,7 +1767,7 @@ router.get('/grupos/:grupoId/alumnos', async (req, res) => {
               ) as telefono
        FROM alumnos a
        INNER JOIN matriculas m ON m.alumno_id = a.id
-       WHERE m.grupo_id = ? AND m.colegio_id = ? AND m.estado = 0
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
        ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
       [grupoId, colegio_id]
     );
@@ -13460,6 +13460,13 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
       contexto_grupo_id,
       mensaje_desde_tutoria
     } = req.body;
+    // Multer puede dejar campos repetidos como array; capturar valores fijos para setImmediate
+    const primerValorMultipart = (v) => {
+      if (v === undefined || v === null) return undefined;
+      return Array.isArray(v) ? v[0] : v;
+    };
+    const contextoAlumnoIdEnvio = primerValorMultipart(contexto_alumno_id);
+    const contextoGrupoIdEnvio = primerValorMultipart(contexto_grupo_id);
     const enviarATipo = (enviar_a === 'apoderados' || enviar_a === 'alumnos') ? enviar_a : 'todos';
     const expandApoderadosRoles = expand_apoderados_roles === 'true' || expand_apoderados_roles === true;
 
@@ -13683,8 +13690,8 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                 destinatarioUsuarioId: destinatarioId,
                 asuntoOriginal: asuntoEnviar,
                 mensajeOriginal: mensajeEnviar,
-                contexto_alumno_id,
-                contexto_grupo_id,
+                contexto_alumno_id: contextoAlumnoIdEnvio,
+                contexto_grupo_id: contextoGrupoIdEnvio,
                 gruposIds: gruposArray && gruposArray.length ? gruposArray : [],
                 mensaje_desde_tutoria
               });

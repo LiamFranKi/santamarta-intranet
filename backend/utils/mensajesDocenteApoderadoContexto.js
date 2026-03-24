@@ -34,6 +34,26 @@ async function apoderadoEsPadreDeAlumno(apoderadoUsuarioId, alumnoId, colegio_id
   return !!(r && r[0]);
 }
 
+/** Misma lógica que expand_apoderados_roles: cuenta DOCENTE con DNI = apoderado del alumno en familias */
+async function docenteUsuarioComparteApoderadoConAlumno(usuarioDocenteId, alumnoId, colegio_id) {
+  const r = await query(
+    `SELECT 1 AS ok
+     FROM usuarios u
+     INNER JOIN personal p ON p.id = u.personal_id
+     INNER JOIN apoderados ap ON ap.colegio_id = ?
+       AND ap.nro_documento IS NOT NULL
+       AND TRIM(CAST(ap.nro_documento AS CHAR)) != ''
+       AND p.nro_documento IS NOT NULL
+       AND TRIM(CAST(p.nro_documento AS CHAR)) != ''
+       AND TRIM(CAST(ap.nro_documento AS CHAR)) = TRIM(CAST(p.nro_documento AS CHAR))
+     INNER JOIN familias f ON f.apoderado_id = ap.id AND f.alumno_id = ?
+     WHERE u.id = ? AND u.colegio_id = ? AND u.tipo = 'DOCENTE' AND u.estado = 'ACTIVO'
+     LIMIT 1`,
+    [colegio_id, alumnoId, usuarioDocenteId, colegio_id]
+  );
+  return !!(r && r[0]);
+}
+
 async function obtenerNombreDocente(personal_id) {
   const r = await query(
     `SELECT TRIM(CONCAT(COALESCE(nombres,''), ' ', COALESCE(apellidos,''))) AS nombre FROM personal WHERE id = ? LIMIT 1`,
@@ -190,7 +210,23 @@ async function enriquecerMensajeDocenteParaDestinatario({
   if (!personal_id) return null;
 
   const meta = await obtenerApoderadoMeta(destinatarioUsuarioId, colegio_id);
-  if (!meta || meta.apoderado_id == null) return null;
+  if (!meta) return null;
+
+  let aplicarBloqueContexto = meta.apoderado_id != null;
+  if (!aplicarBloqueContexto && meta.tipo === 'DOCENTE') {
+    const preAid =
+      contexto_alumno_id != null && contexto_alumno_id !== '' && String(contexto_alumno_id) !== 'undefined'
+        ? parseInt(String(contexto_alumno_id).trim(), 10)
+        : NaN;
+    if (!isNaN(preAid) && preAid > 0) {
+      aplicarBloqueContexto = await docenteUsuarioComparteApoderadoConAlumno(
+        destinatarioUsuarioId,
+        preAid,
+        colegio_id
+      );
+    }
+  }
+  if (!aplicarBloqueContexto) return null;
 
   const docenteNombre = await obtenerNombreDocente(personal_id);
 
@@ -207,7 +243,11 @@ async function enriquecerMensajeDocenteParaDestinatario({
 
   if (!isNaN(alumnoIdNum) && alumnoIdNum > 0) {
     const esPadre = await apoderadoEsPadreDeAlumno(destinatarioUsuarioId, alumnoIdNum, colegio_id);
-    if (esPadre) {
+    const mismoFamiliarDocente =
+      !esPadre && meta.tipo === 'DOCENTE'
+        ? await docenteUsuarioComparteApoderadoConAlumno(destinatarioUsuarioId, alumnoIdNum, colegio_id)
+        : false;
+    if (esPadre || mismoFamiliarDocente) {
       let ctx = await contextoDocenteParaAlumno(
         colegio_id,
         anio_activo,
