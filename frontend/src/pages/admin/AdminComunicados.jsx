@@ -341,6 +341,17 @@ function AdminComunicados() {
     return `${dia}-${mes}-${año} ${String(horas).padStart(2, '0')}:${minutos} ${ampm}`;
   };
 
+  const handleVerComunicado = (comunicado) => {
+    marcarComoLeido(comunicado.id);
+    Swal.fire({
+      title: comunicado.descripcion || 'Comunicado',
+      html: comunicado.contenido || '<p>Sin contenido adicional.</p>',
+      width: 760,
+      confirmButtonText: 'Cerrar',
+      customClass: { popup: 'swal2-comunicado-popup' }
+    });
+  };
+
   const renderPagination = () => {
     const pages = [];
     const maxPagesToShow = 5;
@@ -496,6 +507,12 @@ function AdminComunicados() {
                     </div>
                   </div>
                   <div className="comunicado-card-footer" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', justifyContent: 'flex-end' }}>
+                    <button
+                      className="btn-ver-archivo"
+                      onClick={() => handleVerComunicado(comunicado)}
+                    >
+                      👁️ Ver
+                    </button>
                     {comunicado.archivo_url && (
                       <button
                         className="btn-ver-archivo"
@@ -505,15 +522,7 @@ function AdminComunicados() {
                           handleVerArchivo(comunicado.id, comunicado.archivo_url);
                         }}
                       >
-                        👁️ Ver
-                      </button>
-                    )}
-                    {!comunicado.archivo_url && comunicado.tipo === 'TEXTO' && (
-                      <button
-                        className="btn-ver-archivo"
-                        onClick={() => marcarComoLeido(comunicado.id)}
-                      >
-                        ✓ Leído
+                        📎 Archivo
                       </button>
                     )}
                     <button

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
+import Swal from 'sweetalert2';
 import './DocenteComunicados.css';
 
 function DocenteComunicados() {
@@ -168,6 +169,17 @@ function DocenteComunicados() {
     return `${dia}-${mes}-${año} ${String(horas).padStart(2, '0')}:${minutos} ${ampm}`;
   };
 
+  const handleVerComunicado = (comunicado) => {
+    marcarComoLeido(comunicado.id);
+    Swal.fire({
+      title: comunicado.descripcion || 'Comunicado',
+      html: comunicado.contenido || '<p>Sin contenido adicional.</p>',
+      width: 760,
+      confirmButtonText: 'Cerrar',
+      customClass: { popup: 'swal2-comunicado-popup' }
+    });
+  };
+
   const renderPagination = () => {
     const pages = [];
     const maxPagesToShow = 5;
@@ -306,6 +318,12 @@ function DocenteComunicados() {
                     </div>
                   </div>
                   <div className="comunicado-card-footer">
+                    <button
+                      className="btn-ver-archivo"
+                      onClick={() => handleVerComunicado(comunicado)}
+                    >
+                      👁️ Ver
+                    </button>
                     {comunicado.archivo_url && (
                       <button
                         className="btn-ver-archivo"
@@ -317,15 +335,7 @@ function DocenteComunicados() {
                           handleVerArchivo(comunicado.id, comunicado.archivo_url);
                         }}
                       >
-                        👁️ Ver
-                      </button>
-                    )}
-                    {!comunicado.archivo_url && comunicado.tipo === 'TEXTO' && (
-                      <button
-                        className="btn-ver-archivo"
-                        onClick={() => marcarComoLeido(comunicado.id)}
-                      >
-                        ✓ Leído
+                        📎 Archivo
                       </button>
                     )}
                   </div>
