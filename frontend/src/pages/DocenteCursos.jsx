@@ -558,56 +558,148 @@ function DocenteCursos() {
     doc.setTextColor(0, 0, 0);
     y += headerHeight + 10;
 
-    // INICIAL: PDF con indicadores por alumno
+    // INICIAL: PDF alineado con pantalla — N° | Alumno (bloque) | Criterio | Prom. | Explicación
     if (datosDetalleNotas.es_cualitativa && datosDetalleNotas.alumnos?.[0]?.indicadores) {
-      const colNumW = 12;
-      const colIndW = 45;
-      const colPromW = 22;
-      const colExpW = contentWidth - colNumW - colIndW - colPromW - 6;
-      doc.setFillColor(58, 100, 138);
-      doc.rect(margin, y, colNumW, 8, 'F');
-      doc.rect(margin + colNumW, y, colIndW, 8, 'F');
-      doc.rect(margin + colNumW + colIndW, y, colPromW, 8, 'F');
-      doc.rect(margin + colNumW + colIndW + colPromW, y, colExpW + 6, 8, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
-      doc.text('N°', margin + colNumW / 2, y + 5.5, { align: 'center' });
-      doc.text('Indicador', margin + colNumW + colIndW / 2, y + 5.5, { align: 'center' });
-      doc.text('Prom.', margin + colNumW + colIndW + colPromW / 2, y + 5.5, { align: 'center' });
-      doc.text('Explicación', margin + colNumW + colIndW + colPromW + (colExpW + 6) / 2, y + 5.5, { align: 'center' });
-      y += 10;
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(0, 0, 0);
-      datosDetalleNotas.alumnos.forEach((a, idx) => {
+      const colNumW = 11;
+      const colNombreW = 46;
+      const colCriterioW = 38;
+      const colPromW = 16;
+      const colExpW = Math.max(48, contentWidth - colNumW - colNombreW - colCriterioW - colPromW);
+      const headerInicialH = 8;
+      const pastelFills = [
+        [232, 244, 252], [252, 231, 243], [220, 252, 231], [254, 249, 195],
+        [237, 233, 254], [207, 250, 254], [254, 226, 226], [232, 245, 233],
+      ];
+
+      const dibujarEncabezadoTablaInicial = (yy) => {
+        doc.setFillColor(58, 100, 138);
+        doc.rect(margin, yy, colNumW, headerInicialH, 'F');
+        doc.rect(margin + colNumW, yy, colNombreW, headerInicialH, 'F');
+        doc.rect(margin + colNumW + colNombreW, yy, colCriterioW, headerInicialH, 'F');
+        doc.rect(margin + colNumW + colNombreW + colCriterioW, yy, colPromW, headerInicialH, 'F');
+        doc.rect(margin + colNumW + colNombreW + colCriterioW + colPromW, yy, colExpW, headerInicialH, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(7.5);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.setTextColor(30, 64, 175);
-        doc.text(`${a.numero}. ${a.nombre_completo || ''}`, margin, y + 5);
-        y += 10;
+        doc.text('N°', margin + colNumW / 2, yy + 5.2, { align: 'center' });
+        doc.text('Alumno', margin + colNumW + colNombreW / 2, yy + 5.2, { align: 'center' });
+        doc.text('Criterio', margin + colNumW + colNombreW + colCriterioW / 2, yy + 5.2, { align: 'center' });
+        doc.text('Prom.', margin + colNumW + colNombreW + colCriterioW + colPromW / 2, yy + 5.2, { align: 'center' });
+        doc.text('Explicación', margin + colNumW + colNombreW + colCriterioW + colPromW + colExpW / 2, yy + 5.2, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(9);
-        (a.indicadores || []).forEach((ind) => {
-          if (y > 270) { doc.addPage(); y = 15; }
-          const exp = (explicacionesIndicadoresDetalle[a.matricula_id] || {})[ind.indicador_id] || ind.explicacion || '';
-          const lineasExp = exp ? doc.splitTextToSize(exp, colExpW - 2) : [];
-          const rowH = Math.max(10, 6 + lineasExp.length * 4);
-          if (idx % 2 === 1) doc.setFillColor(248, 250, 252);
-          else doc.setFillColor(255, 255, 255);
-          doc.rect(margin, y - 2, contentWidth + 4, rowH + 2, 'F');
+        return yy + headerInicialH + 2;
+      };
+
+      y = dibujarEncabezadoTablaInicial(y);
+
+      const nuevaPaginaInicial = () => {
+        doc.addPage();
+        let yy = 15;
+        doc.setFillColor(240, 244, 248);
+        doc.rect(margin, yy, contentWidth, 6, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Detalle de Notas - Bimestre ${cicloDetalleNotas} (continuación)`, margin + 3, yy + 4);
+        yy += 10;
+        return dibujarEncabezadoTablaInicial(yy);
+      };
+
+      datosDetalleNotas.alumnos.forEach((a, idx) => {
+        const inds = a.indicadores || [];
+        const rgb = pastelFills[idx % 8];
+        const xCriterios = margin + colNumW + colNombreW;
+
+        if (inds.length === 0) {
+          const rowH = 10;
+          if (y + rowH > 275) y = nuevaPaginaInicial();
+          const wResto = colCriterioW + colPromW + colExpW;
+          doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+          doc.rect(margin, y - 1, colNumW, rowH + 2, 'F');
+          doc.rect(margin + colNumW, y - 1, colNombreW, rowH + 2, 'F');
+          doc.rect(xCriterios, y - 1, wResto, rowH + 2, 'F');
           doc.setDrawColor(226, 232, 240);
-          doc.rect(margin, y - 2, colNumW, rowH + 2, 'S');
-          doc.rect(margin + colNumW, y - 2, colIndW, rowH + 2, 'S');
-          doc.rect(margin + colNumW + colIndW, y - 2, colPromW, rowH + 2, 'S');
-          doc.rect(margin + colNumW + colIndW + colPromW, y - 2, colExpW + 6, rowH + 2, 'S');
-          doc.setTextColor(71, 85, 105);
-          doc.text((ind.descripcion || '').substring(0, 28), margin + colNumW + 2, y + 4);
-          doc.text(String(ind.promedio || '-'), margin + colNumW + colIndW + colPromW / 2, y + 4, { align: 'center' });
+          doc.setLineWidth(0.2);
+          doc.rect(margin, y - 1, colNumW, rowH + 2, 'S');
+          doc.rect(margin + colNumW, y - 1, colNombreW, rowH + 2, 'S');
+          doc.rect(xCriterios, y - 1, wResto, rowH + 2, 'S');
           doc.setFontSize(8);
-          lineasExp.forEach((l, i) => doc.text(l, margin + colNumW + colIndW + colPromW + 2, y + 4 + i * 4));
-          y += rowH + 2;
+          doc.setTextColor(71, 85, 105);
+          doc.text(String(a.numero), margin + colNumW / 2, y + 5, { align: 'center' });
+          const nom0 = (doc.splitTextToSize(a.nombre_completo || '', colNombreW - 2)[0]) || '-';
+          doc.text(nom0, margin + colNumW + 2, y + 5);
+          doc.setFont('helvetica', 'italic');
+          doc.setTextColor(100, 116, 139);
+          doc.text('Sin criterios para este bimestre', xCriterios + 2, y + 5);
+          doc.setFont('helvetica', 'normal');
+          y += rowH + 4;
+          return;
+        }
+
+        const filas = inds.map((ind) => {
+          const exp = (explicacionesIndicadoresDetalle[a.matricula_id] || {})[ind.indicador_id] || ind.explicacion || '';
+          const crit = (ind.descripcion || ind.abreviatura || `Ind. ${ind.indicador_id}`).trim();
+          const lineasCrit = doc.splitTextToSize(crit, colCriterioW - 2);
+          const lineasExp = exp ? doc.splitTextToSize(exp, colExpW - 2) : [];
+          const lh = 3.6;
+          const hCrit = 3 + lineasCrit.length * lh;
+          const hExp = lineasExp.length > 0 ? 3 + lineasExp.length * lh : 8;
+          const h = Math.max(hCrit, hExp, 9);
+          return { ind, lineasCrit, lineasExp, h };
         });
-        y += 4;
+
+        const totalBlockH = filas.reduce((acc, r, i) => acc + r.h + (i < filas.length - 1 ? 2 : 0), 0);
+
+        if (y + totalBlockH + 8 > 278) {
+          y = nuevaPaginaInicial();
+        }
+
+        const y0 = y;
+        doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+        doc.rect(margin, y0 - 1, colNumW, totalBlockH + 2, 'F');
+        doc.rect(margin + colNumW, y0 - 1, colNombreW, totalBlockH + 2, 'F');
+
+        const lh = 3.6;
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+        doc.setFont('helvetica', 'bold');
+        doc.text(String(a.numero), margin + colNumW / 2, y0 + (totalBlockH + 2) / 2 + 1, { align: 'center' });
+        doc.setFont('helvetica', 'normal');
+        const nomLineas = doc.splitTextToSize(a.nombre_completo || '', colNombreW - 2);
+        const nomH = nomLineas.length * lh;
+        let yNom = y0 + Math.max(2, ((totalBlockH + 2) - nomH) / 2);
+        nomLineas.forEach((l, i) => doc.text(l, margin + colNumW + 1, yNom + i * lh));
+
+        let yCursor = y0;
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.2);
+        filas.forEach((r) => {
+          doc.setFillColor(rgb[0], rgb[1], rgb[2]);
+          doc.rect(xCriterios, yCursor - 1, colCriterioW, r.h + 2, 'F');
+          doc.rect(xCriterios + colCriterioW, yCursor - 1, colPromW, r.h + 2, 'F');
+          doc.rect(xCriterios + colCriterioW + colPromW, yCursor - 1, colExpW, r.h + 2, 'F');
+          doc.rect(xCriterios, yCursor - 1, colCriterioW, r.h + 2, 'S');
+          doc.rect(xCriterios + colCriterioW, yCursor - 1, colPromW, r.h + 2, 'S');
+          doc.rect(xCriterios + colCriterioW + colPromW, yCursor - 1, colExpW, r.h + 2, 'S');
+          doc.setFontSize(7.5);
+          doc.setTextColor(51, 65, 85);
+          r.lineasCrit.forEach((l, i) => doc.text(l, xCriterios + 1, yCursor + 3 + i * lh));
+          doc.setFont('helvetica', 'bold');
+          const promVal = r.ind.promedio != null && r.ind.promedio !== '' ? r.ind.promedio : '-';
+          doc.text(String(promVal), xCriterios + colCriterioW + colPromW / 2, yCursor + 5, { align: 'center' });
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          if (r.lineasExp.length > 0) {
+            r.lineasExp.forEach((l, i) => doc.text(l, xCriterios + colCriterioW + colPromW + 1, yCursor + 3 + i * lh));
+          }
+          yCursor += r.h + 2;
+        });
+
+        doc.rect(margin, y0 - 1, colNumW, totalBlockH + 2, 'S');
+        doc.rect(margin + colNumW, y0 - 1, colNombreW, totalBlockH + 2, 'S');
+
+        y = yCursor + 4;
       });
       doc.save(`Detalle_Notas_${curso?.curso_nombre || 'INICIAL'}_B${cicloDetalleNotas}.pdf`);
       Swal.fire({ title: 'PDF exportado', text: 'Archivo generado correctamente', icon: 'success', timer: 1500, showConfirmButton: false, zIndex: 100001 });
@@ -3810,55 +3902,68 @@ function DocenteCursos() {
             {loadingDetalleNotas ? (
               <div className="loading-spinner" style={{ padding: '2rem' }}>Cargando...</div>
             ) : datosDetalleNotas?.alumnos?.length > 0 ? (
-              <div className="detalle-notas-table-wrapper">
+              <div
+                className={
+                  datosDetalleNotas.es_cualitativa && datosDetalleNotas.alumnos?.[0]?.indicadores
+                    ? 'detalle-notas-table-wrapper detalle-notas-wrapper-inicial'
+                    : 'detalle-notas-table-wrapper'
+                }
+              >
                 {datosDetalleNotas.es_cualitativa && datosDetalleNotas.alumnos?.[0]?.indicadores ? (
                   <table className="detalle-notas-table detalle-notas-table-inicial">
                     <thead>
                       <tr>
                         <th className="col-num">N°</th>
                         <th className="col-nombre">Alumno</th>
-                        {(datosDetalleNotas.indicadores || []).map((ind) => (
-                          <th key={ind.id} colSpan={2} className="col-indicador-group">
-                            {ind.descripcion || ind.abreviatura || `Ind. ${ind.id}`}
-                          </th>
-                        ))}
-                      </tr>
-                      <tr className="sub-header">
-                        <th></th>
-                        <th></th>
-                        {(datosDetalleNotas.indicadores || []).map((ind) => (
-                          <React.Fragment key={ind.id}>
-                            <th className="col-prom-mini">Prom.</th>
-                            <th className="col-exp-mini">Explicación</th>
-                          </React.Fragment>
-                        ))}
+                        <th className="col-criterio-inicial">Criterio</th>
+                        <th className="col-prom-inicial">Prom.</th>
+                        <th className="col-exp-inicial">Explicación</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {datosDetalleNotas.alumnos.map((alumno) => (
-                        <tr key={alumno.matricula_id}>
-                          <td className="col-num">{alumno.numero}</td>
-                          <td className="col-nombre">{alumno.nombre_completo}</td>
-                          {(alumno.indicadores || []).map((ind) => (
-                            <React.Fragment key={ind.indicador_id}>
-                              <td className="col-prom-mini">
-                                <div className="detalle-notas-promedio-box detalle-notas-promedio-mini">
-                                  {ind.promedio || '-'}
-                                </div>
+                      {datosDetalleNotas.alumnos.flatMap((alumno, alumnoIdx) => {
+                        const inds = alumno.indicadores || [];
+                        const bandClass = `detalle-notas-inicial-band-${alumnoIdx % 8}`;
+                        if (inds.length === 0) {
+                          return [(
+                            <tr key={`${alumno.matricula_id}-sin-criterios`} className={bandClass}>
+                              <td className="col-num">{alumno.numero}</td>
+                              <td className="col-nombre">{alumno.nombre_completo}</td>
+                              <td className="col-criterio-inicial" colSpan={3}>
+                                <span className="detalle-notas-inicial-vacio">Sin criterios para este bimestre</span>
                               </td>
-                              <td className="col-exp-mini">
-                                <textarea
-                                  className="detalle-notas-textarea detalle-notas-textarea-inicial"
-                                  value={(explicacionesIndicadoresDetalle[alumno.matricula_id] || {})[ind.indicador_id] ?? ''}
-                                  onChange={(e) => actualizarExplicacionIndicadorDetalle(alumno.matricula_id, ind.indicador_id, e.target.value)}
-                                  placeholder="Explicación..."
-                                  rows={2}
-                                />
-                              </td>
-                            </React.Fragment>
-                          ))}
-                        </tr>
-                      ))}
+                            </tr>
+                          )];
+                        }
+                        const rowSpan = inds.length;
+                        return inds.map((ind, i) => (
+                          <tr key={`${alumno.matricula_id}-${ind.indicador_id}`} className={bandClass}>
+                            {i === 0 ? (
+                              <>
+                                <td rowSpan={rowSpan} className="col-num">{alumno.numero}</td>
+                                <td rowSpan={rowSpan} className="col-nombre">{alumno.nombre_completo}</td>
+                              </>
+                            ) : null}
+                            <td className="col-criterio-inicial">
+                              {ind.descripcion || ind.abreviatura || `Ind. ${ind.indicador_id}`}
+                            </td>
+                            <td className="col-prom-inicial">
+                              <div className="detalle-notas-promedio-box detalle-notas-promedio-mini" title="Nota del registro de notas (solo lectura aquí)">
+                                {ind.promedio != null && ind.promedio !== '' ? ind.promedio : '-'}
+                              </div>
+                            </td>
+                            <td className="col-exp-inicial">
+                              <textarea
+                                className="detalle-notas-textarea detalle-notas-textarea-inicial"
+                                value={(explicacionesIndicadoresDetalle[alumno.matricula_id] || {})[ind.indicador_id] ?? ''}
+                                onChange={(e) => actualizarExplicacionIndicadorDetalle(alumno.matricula_id, ind.indicador_id, e.target.value)}
+                                placeholder="Explicación para el apoderado sobre este criterio…"
+                                rows={4}
+                              />
+                            </td>
+                          </tr>
+                        ));
+                      })}
                     </tbody>
                   </table>
                 ) : (

@@ -3632,53 +3632,112 @@
   color: #94a3b8;
 }
 
-/* Detalle Notas INICIAL - tabla por indicador */
+/* Detalle Notas INICIAL - una fila por criterio, franjas por alumno */
 .detalle-notas-table-inicial {
   table-layout: fixed;
 }
 
-.detalle-notas-table-inicial th.col-indicador-group {
-  background: linear-gradient(135deg, #5b8fc9 0%, #3d6b9e 100%);
-  color: white;
-  font-size: 0.8rem;
-  padding: 0.5rem 0.35rem;
-  text-align: center;
-  border: 1px solid rgba(255,255,255,0.3);
+/* Anula zebra y hover global de .detalle-notas-table (las franjas van por alumno en las celdas) */
+.detalle-notas-table.detalle-notas-table-inicial tbody tr:nth-child(odd),
+.detalle-notas-table.detalle-notas-table-inicial tbody tr:nth-child(even) {
+  background: transparent;
 }
 
-.detalle-notas-table-inicial tr.sub-header th {
-  background: linear-gradient(180deg, #7aa8d9 0%, #5b8fc9 100%);
-  color: white;
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 0.35rem 0.25rem;
-  text-align: center;
+.detalle-notas-table.detalle-notas-table-inicial tbody tr:hover {
+  background: transparent !important;
 }
 
-.detalle-notas-table-inicial .col-prom-mini {
-  width: 50px;
-  min-width: 50px;
-  text-align: center;
-  padding: 0.4rem 0.25rem;
-  vertical-align: middle;
-}
-
-.detalle-notas-table-inicial .col-exp-mini {
+.detalle-notas-table-inicial .col-criterio-inicial {
+  width: 22%;
   min-width: 140px;
-  padding: 0.35rem;
+  font-size: 13px;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.detalle-notas-table-inicial .col-prom-inicial {
+  width: 72px;
+  min-width: 72px;
+  max-width: 88px;
+  text-align: center;
   vertical-align: middle;
+  padding: 10px 8px;
+}
+
+.detalle-notas-table-inicial .col-exp-inicial {
+  width: auto;
+  min-width: 240px;
+  vertical-align: top;
+  padding: 10px 12px;
+}
+
+.detalle-notas-table-inicial .detalle-notas-inicial-vacio {
+  color: #64748b;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Franjas pastel por bloque de alumno */
+.detalle-notas-table.detalle-notas-table-inicial tbody tr:hover td {
+  filter: brightness(0.97);
+}
+
+.detalle-notas-table.detalle-notas-table-inicial tbody tr.detalle-notas-inicial-band-0 td {
+  background-color: #e8f4fc;
+}
+.detalle-notas-table.detalle-notas-table-inicial tbody tr.detalle-notas-inicial-band-1 td {
+  background-color: #fce7f3;
+}
+.detalle-notas-table.detalle-notas-table-inicial tbody tr.detalle-notas-inicial-band-2 td {
+  background-color: #dcfce7;
+}
+.detalle-notas-table.detalle-notas-table-inicial tbody tr.detalle-notas-inicial-band-3 td {
+  background-color: #fef9c3;
+}
+.detalle-notas-table.detalle-notas-table-inicial tbody tr.detalle-notas-inicial-band-4 td {
+  background-color: #ede9fe;
+}
+.detalle-notas-table.detalle-notas-table-inicial tbody tr.detalle-notas-inicial-band-5 td {
+  background-color: #cffafe;
+}
+.detalle-notas-table.detalle-notas-table-inicial tbody tr.detalle-notas-inicial-band-6 td {
+  background-color: #fee2e2;
+}
+.detalle-notas-table.detalle-notas-table-inicial tbody tr.detalle-notas-inicial-band-7 td {
+  background-color: #e8f5e9;
 }
 
 .detalle-notas-promedio-mini {
-  padding: 0.35rem 0.25rem !important;
-  font-size: 0.85rem !important;
+  padding: 6px 8px !important;
+  font-size: 0.9rem !important;
+  min-width: auto;
 }
 
 .detalle-notas-textarea-inicial {
   width: 100%;
-  min-height: 48px;
-  padding: 0.4rem 0.5rem !important;
-  font-size: 0.8rem !important;
+  min-height: 100px;
+  padding: 12px 14px !important;
+  font-size: 13px !important;
+  line-height: 1.45;
+  resize: vertical;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(100, 116, 139, 0.35);
+}
+
+.detalle-notas-textarea-inicial:focus {
+  background: #fff;
+  border-color: #4a83c1;
+}
+
+@media (max-width: 900px) {
+  .detalle-notas-wrapper-inicial {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .detalle-notas-table-inicial {
+    min-width: 640px;
+  }
 }
 
 /* Contenedor de cuadros */
