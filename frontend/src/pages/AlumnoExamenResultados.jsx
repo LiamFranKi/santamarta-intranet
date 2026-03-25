@@ -15,14 +15,9 @@ function AlumnoExamenResultados() {
   const [resultado, setResultado] = useState(null);
   const [detalles, setDetalles] = useState(null);
   const [cargandoDetalles, setCargandoDetalles] = useState(false);
-  const [resultadosTutor, setResultadosTutor] = useState([]);
-  const [resultadoTutorSeleccionadoId, setResultadoTutorSeleccionadoId] = useState(null);
-  
   // Detectar si viene de apoderado
   const hijoId = location.state?.hijoId || null;
   const isApoderado = location.state?.isApoderado || false;
-  const isTutor = location.state?.isTutor || false;
-  const grupoId = location.state?.grupoId || null;
   const interceptorIdRef = useRef(null);
   const hijoIdRef = useRef(hijoId);
 
@@ -79,22 +74,6 @@ function AlumnoExamenResultados() {
   const cargarResultado = async () => {
     try {
       setLoading(true);
-      if (isTutor && grupoId) {
-        const responseTutor = await api.get(`/docente/tutoria/grupos/${grupoId}/aula-virtual/examenes/${examenId}/resultado/detalles`);
-        const resultadosTutor = responseTutor.data?.resultados || [];
-        if (!resultadosTutor.length) {
-          return resNoResult();
-        }
-        setExamen(responseTutor.data.examen);
-        setResultadosTutor(resultadosTutor);
-        setResultadoTutorSeleccionadoId(resultadosTutor[0].id);
-        setResultado(resultadosTutor[0]);
-        setDetalles({
-          preguntas: responseTutor.data.preguntas || [],
-          respuestas: resultadosTutor[0].respuestas || {}
-        });
-        return;
-      }
       // Obtener resultado básico del examen
       const response = await api.get(`/alumno/examenes/${examenId}/resultado`);
       setExamen(response.data.examen);
@@ -120,8 +99,6 @@ function AlumnoExamenResultados() {
     setExamen(null);
     setResultado(null);
     setDetalles(null);
-    setResultadosTutor([]);
-    setResultadoTutorSeleccionadoId(null);
   };
 
   const cargarDetalles = async (resultadoId) => {
@@ -145,22 +122,9 @@ function AlumnoExamenResultados() {
     // Si es apoderado, volver a la página de hijos
     if (isApoderado && hijoId) {
       navigate(`/docente/hijos`);
-    } else if (isTutor && grupoId) {
-      navigate('/docente/tutoria');
     } else {
       navigate(-1);
     }
-  };
-
-  const handleCambioResultadoTutor = (resultadoId) => {
-    const sel = resultadosTutor.find((r) => String(r.id) === String(resultadoId));
-    if (!sel) return;
-    setResultadoTutorSeleccionadoId(sel.id);
-    setResultado(sel);
-    setDetalles((prev) => ({
-      preguntas: prev?.preguntas || [],
-      respuestas: sel.respuestas || {}
-    }));
   };
 
   if (loading) {
@@ -195,23 +159,6 @@ function AlumnoExamenResultados() {
             ← Volver
           </button>
         </div>
-
-        {isTutor && resultadosTutor.length > 0 && (
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ fontWeight: 600, color: '#374151', marginRight: 10 }}>Alumno:</label>
-            <select
-              value={resultadoTutorSeleccionadoId || ''}
-              onChange={(e) => handleCambioResultadoTutor(e.target.value)}
-              style={{ padding: '0.45rem 0.7rem', borderRadius: 8, border: '1px solid #d1d5db' }}
-            >
-              {resultadosTutor.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.alumno_nombre || `${r.apellido_paterno || ''} ${r.apellido_materno || ''}, ${r.nombres || ''}`}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
 
         {/* Información del examen */}
         <div style={{ 

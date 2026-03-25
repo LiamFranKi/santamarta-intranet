@@ -12,7 +12,7 @@ import Swal from 'sweetalert2';
 import './DocenteAulaVirtual-gamificado.css';
 
 // Componente SortableItem para drag and drop
-function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown, dropdownPosition, buttonRef }) {
+function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown, dropdownPosition, buttonRef, readOnly = false }) {
   const {
     attributes,
     listeners,
@@ -20,7 +20,7 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: archivo.id });
+  } = useSortable({ id: archivo.id, disabled: readOnly });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -36,10 +36,10 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
       className={isDragging ? 'dragging' : ''}
     >
       <td 
-        {...attributes} 
-        {...listeners}
-        className="drag-handle"
-        style={{ cursor: 'grab', userSelect: 'none' }}
+        {...(readOnly ? {} : attributes)} 
+        {...(readOnly ? {} : listeners)}
+        className={readOnly ? '' : 'drag-handle'}
+        style={{ cursor: readOnly ? 'default' : 'grab', userSelect: 'none' }}
       >
         {archivo.nombre}
       </td>
@@ -87,12 +87,16 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
                     🔗 Abrir URL
                   </a>
                 )}
-                <a href="#" onClick={(e) => { e.preventDefault(); onEdit(archivo); }}>
-                  ✏️ Editar Tema
-                </a>
-                <a href="#" onClick={(e) => { e.preventDefault(); onDelete(archivo); }}>
-                  🗑️ Borrar Tema
-                </a>
+                {!readOnly && (
+                  <>
+                    <a href="#" onClick={(e) => { e.preventDefault(); onEdit(archivo); }}>
+                      ✏️ Editar Tema
+                    </a>
+                    <a href="#" onClick={(e) => { e.preventDefault(); onDelete(archivo); }}>
+                      🗑️ Borrar Tema
+                    </a>
+                  </>
+                )}
               </div>
             </div>,
             document.body
@@ -103,10 +107,15 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
   );
 }
 
-function DocenteAulaVirtual() {
+function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const { cursoId } = useParams(); // En realidad es asignatura_id
   const navigate = useNavigate();
-  const asignaturaId = parseInt(cursoId);
+  const asignaturaId = parseInt(
+    String(cursoIdTutor != null && cursoIdTutor !== '' ? cursoIdTutor : cursoId),
+    10
+  );
+  const soloLecturaTutor =
+    tutorGrupoId != null && tutorGrupoId !== undefined && String(tutorGrupoId).trim() !== '';
   
   const [loading, setLoading] = useState(true);
   const [curso, setCurso] = useState(null);
@@ -532,6 +541,7 @@ function DocenteAulaVirtual() {
 
   // Biblioteca: abrir modal y cargar datos (temas, tareas, examenes, videos, enlaces)
   const abrirModalBiblioteca = async (tipo = 'temas') => {
+    if (soloLecturaTutor) return;
     setTipoBiblioteca(tipo);
     setMostrarModalBiblioteca(true);
     setBibliotecaSeleccionados([]);
@@ -1157,6 +1167,7 @@ function DocenteAulaVirtual() {
   };
 
   const handleGuardarTodasLasNotas = async () => {
+    if (soloLecturaTutor) return;
     if (!tareaParaEntregas) return;
 
     const notasAGuardar = Object.keys(notasTemporales).filter(matriculaId => {
@@ -1507,56 +1518,65 @@ function DocenteAulaVirtual() {
     // Filtrar archivos por el bimestre global
     const archivosFiltrados = archivos.filter(archivo => archivo.ciclo === bimestreGlobal);
 
+    const temasTable = (
+      <table>
+        <thead>
+          <tr>
+            <th>NOMBRE</th>
+            <th>FECHA</th>
+            <th>ACCIONES</th>
+          </tr>
+        </thead>
+        <SortableContext
+          items={archivosFiltrados.map((archivo) => archivo.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <tbody>
+            {archivosFiltrados.map((archivo) => (
+              <SortableItem
+                key={archivo.id}
+                archivo={archivo}
+                onEdit={handleEditarTema}
+                onDelete={handleEliminarTema}
+                openDropdown={openDropdown}
+                toggleDropdown={toggleDropdown}
+                dropdownPosition={dropdownPosition}
+                buttonRef={buttonRef}
+                readOnly={soloLecturaTutor}
+              />
+            ))}
+          </tbody>
+        </SortableContext>
+      </table>
+    );
+
     return (
       <div className="card-content-expanded">
-        <div className="temas-toolbar">
-          <button
-            type="button"
-            className="btn-biblioteca-inline"
-            onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca(); }}
-          >
-            📖 Biblioteca de temas
-          </button>
-        </div>
+        {!soloLecturaTutor && (
+          <div className="temas-toolbar">
+            <button
+              type="button"
+              className="btn-biblioteca-inline"
+              onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca(); }}
+            >
+              📖 Biblioteca de temas
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="empty-state">
             <p>Cargando temas interactivos...</p>
           </div>
         ) : archivosFiltrados.length > 0 ? (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <table>
-              <thead>
-                <tr>
-                  <th>NOMBRE</th>
-                  <th>FECHA</th>
-                  <th>ACCIONES</th>
-                </tr>
-              </thead>
-              <SortableContext
-                items={archivosFiltrados.map(archivo => archivo.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <tbody>
-                  {archivosFiltrados.map((archivo) => (
-                    <SortableItem
-                      key={archivo.id}
-                      archivo={archivo}
-                      onEdit={handleEditarTema}
-                      onDelete={handleEliminarTema}
-                      openDropdown={openDropdown}
-                      toggleDropdown={toggleDropdown}
-                      dropdownPosition={dropdownPosition}
-                      buttonRef={buttonRef}
-                    />
-                  ))}
-                </tbody>
-              </SortableContext>
-            </table>
-          </DndContext>
+          soloLecturaTutor ? (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={() => {}}>
+              {temasTable}
+            </DndContext>
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              {temasTable}
+            </DndContext>
+          )
         ) : (
           <div className="empty-state">
             <p>No hay temas interactivos para este bimestre</p>
@@ -1568,11 +1588,13 @@ function DocenteAulaVirtual() {
 
   const renderTareasContent = () => (
     <div className="card-content-expanded">
-      <div className="temas-toolbar">
-        <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('tareas'); }}>
-          📖 Biblioteca de proyectos
-        </button>
-      </div>
+      {!soloLecturaTutor && (
+        <div className="temas-toolbar">
+          <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('tareas'); }}>
+            📖 Biblioteca de proyectos
+          </button>
+        </div>
+      )}
       {/* Modal de Detalles de Tarea */}
       {mostrarDetallesTarea && tareaDetalle && createPortal(
         <div 
@@ -1732,17 +1754,21 @@ function DocenteAulaVirtual() {
                             ℹ️ Ver Detalles
                           </a>
                           <a href="#" onClick={(e) => { e.preventDefault(); handleMarcarEntregas(tarea); }}>
-                            ✓ Marcar Entregas
+                            {soloLecturaTutor ? '👁️ Ver Entregas' : '✓ Marcar Entregas'}
                           </a>
-                          <a href="#" onClick={(e) => { e.preventDefault(); handleAsignarRegistro(tarea); }}>
-                            📋 Asignar a Registro
-                          </a>
-                          <a href="#" onClick={(e) => { e.preventDefault(); handleEditarTarea(tarea); }}>
-                            ✏️ Editar Proyecto
-                          </a>
-                          <a href="#" onClick={(e) => { e.preventDefault(); handleEliminarTarea(tarea); }}>
-                            🗑️ Borrar Proyecto
-                          </a>
+                          {!soloLecturaTutor && (
+                            <>
+                              <a href="#" onClick={(e) => { e.preventDefault(); handleAsignarRegistro(tarea); }}>
+                                📋 Asignar a Registro
+                              </a>
+                              <a href="#" onClick={(e) => { e.preventDefault(); handleEditarTarea(tarea); }}>
+                                ✏️ Editar Proyecto
+                              </a>
+                              <a href="#" onClick={(e) => { e.preventDefault(); handleEliminarTarea(tarea); }}>
+                                🗑️ Borrar Proyecto
+                              </a>
+                            </>
+                          )}
                         </div>
                       </div>,
                       document.body
@@ -1808,12 +1834,16 @@ function DocenteAulaVirtual() {
                                 📄 Ver Archivo
                               </a>
                             )}
-                            <a href="#" onClick={(e) => { e.preventDefault(); setOpenDropdown(null); handleEditarSesion(sesion); }}>
-                              ✏️ Editar Sesión
-                            </a>
-                            <a href="#" onClick={(e) => { e.preventDefault(); setOpenDropdown(null); handleEliminarSesion(sesion); }}>
-                              🗑️ Eliminar
-                            </a>
+                            {!soloLecturaTutor && (
+                              <>
+                                <a href="#" onClick={(e) => { e.preventDefault(); setOpenDropdown(null); handleEditarSesion(sesion); }}>
+                                  ✏️ Editar Sesión
+                                </a>
+                                <a href="#" onClick={(e) => { e.preventDefault(); setOpenDropdown(null); handleEliminarSesion(sesion); }}>
+                                  🗑️ Eliminar
+                                </a>
+                              </>
+                            )}
                           </div>
                         </div>,
                         document.body
@@ -1835,11 +1865,13 @@ function DocenteAulaVirtual() {
 
   const renderExamenesContent = () => (
     <div className="card-content-expanded">
-      <div className="temas-toolbar">
-        <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('examenes'); }}>
-          📖 Biblioteca de exámenes
-        </button>
-      </div>
+      {!soloLecturaTutor && (
+        <div className="temas-toolbar">
+          <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('examenes'); }}>
+            📖 Biblioteca de exámenes
+          </button>
+        </div>
+      )}
       {examenes.length > 0 ? (
         <table>
           <thead>
@@ -1885,24 +1917,30 @@ function DocenteAulaVirtual() {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="dropdown-menu-opciones">
-                          <a href="#" onClick={(e) => { e.preventDefault(); handlePreguntasAlternativas(examen); }}>
-                            📝 Preguntas / Alternativas
-                          </a>
+                          {!soloLecturaTutor && (
+                            <a href="#" onClick={(e) => { e.preventDefault(); handlePreguntasAlternativas(examen); }}>
+                              📝 Preguntas / Alternativas
+                            </a>
+                          )}
                           <a href="#" onClick={(e) => { e.preventDefault(); handleVerResultados(examen); }}>
                             📊 Ver Resultados
                           </a>
-                          <a href="#" onClick={(e) => { e.preventDefault(); handleAsignarRegistroExamen(examen); }}>
-                            📋 Asignar al Registro
-                          </a>
-                          <a href="#" onClick={(e) => { e.preventDefault(); handleHabilitarDeshabilitarExamen(examen); }}>
-                            🔒 Habilitar / Deshabilitar
-                          </a>
-                          <a href="#" onClick={(e) => { e.preventDefault(); handleEditarExamen(examen); }}>
-                            ✏️ Editar Examen
-                          </a>
-                          <a href="#" onClick={(e) => { e.preventDefault(); handleEliminarExamen(examen); }}>
-                            🗑️ Eliminar Examen
-                          </a>
+                          {!soloLecturaTutor && (
+                            <>
+                              <a href="#" onClick={(e) => { e.preventDefault(); handleAsignarRegistroExamen(examen); }}>
+                                📋 Asignar al Registro
+                              </a>
+                              <a href="#" onClick={(e) => { e.preventDefault(); handleHabilitarDeshabilitarExamen(examen); }}>
+                                🔒 Habilitar / Deshabilitar
+                              </a>
+                              <a href="#" onClick={(e) => { e.preventDefault(); handleEditarExamen(examen); }}>
+                                ✏️ Editar Examen
+                              </a>
+                              <a href="#" onClick={(e) => { e.preventDefault(); handleEliminarExamen(examen); }}>
+                                🗑️ Eliminar Examen
+                              </a>
+                            </>
+                          )}
                         </div>
                       </div>,
                       document.body
@@ -2892,11 +2930,13 @@ function DocenteAulaVirtual() {
     
     return (
     <div className="card-content-expanded">
-        <div className="temas-toolbar">
-          <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('videos'); }}>
-            📖 Biblioteca de videos
-          </button>
-        </div>
+        {!soloLecturaTutor && (
+          <div className="temas-toolbar">
+            <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('videos'); }}>
+              📖 Biblioteca de videos
+            </button>
+          </div>
+        )}
         {/* Modal de Formulario de Video */}
         {mostrarFormVideo && createPortal(
           <div 
@@ -3060,12 +3100,16 @@ function DocenteAulaVirtual() {
                               🎥 Ver Video
                             </a>
                           )}
-                            <a href="#" onClick={(e) => { e.preventDefault(); handleEditarVideo(video); }}>
-                            ✏️ Editar Video
-                          </a>
-                            <a href="#" onClick={(e) => { e.preventDefault(); handleEliminarVideo(video); }}>
-                            🗑️ Borrar Video
-                          </a>
+                          {!soloLecturaTutor && (
+                            <>
+                              <a href="#" onClick={(e) => { e.preventDefault(); handleEditarVideo(video); }}>
+                                ✏️ Editar Video
+                              </a>
+                              <a href="#" onClick={(e) => { e.preventDefault(); handleEliminarVideo(video); }}>
+                                🗑️ Borrar Video
+                              </a>
+                            </>
+                          )}
                         </div>
                       </div>,
                       document.body
@@ -3091,11 +3135,13 @@ function DocenteAulaVirtual() {
     
     return (
     <div className="card-content-expanded">
-        <div className="temas-toolbar">
-          <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('enlaces'); }}>
-            📖 Biblioteca de enlaces
-          </button>
-        </div>
+        {!soloLecturaTutor && (
+          <div className="temas-toolbar">
+            <button type="button" className="btn-biblioteca-inline" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('enlaces'); }}>
+              📖 Biblioteca de enlaces
+            </button>
+          </div>
+        )}
         {/* Modal de Formulario de Enlace */}
         {mostrarFormEnlace && createPortal(
           <div 
@@ -3259,12 +3305,16 @@ function DocenteAulaVirtual() {
                               🔗 Visitar Enlace
                             </a>
                           )}
-                            <a href="#" onClick={(e) => { e.preventDefault(); handleEditarEnlace(enlace); }}>
-                            ✏️ Editar Enlace
-                          </a>
-                            <a href="#" onClick={(e) => { e.preventDefault(); handleEliminarEnlace(enlace); }}>
-                            🗑️ Borrar Enlace
-                          </a>
+                          {!soloLecturaTutor && (
+                            <>
+                              <a href="#" onClick={(e) => { e.preventDefault(); handleEditarEnlace(enlace); }}>
+                                ✏️ Editar Enlace
+                              </a>
+                              <a href="#" onClick={(e) => { e.preventDefault(); handleEliminarEnlace(enlace); }}>
+                                🗑️ Borrar Enlace
+                              </a>
+                            </>
+                          )}
                         </div>
                       </div>,
                       document.body
@@ -3288,10 +3338,20 @@ function DocenteAulaVirtual() {
     <DashboardLayout>
       <div className="docente-aula-virtual">
         <div className="page-header">
-          <button className="btn-back" onClick={() => navigate('/docente/cursos')}>
-            ← Volver a Cursos
+          <button
+            className="btn-back"
+            onClick={() => navigate(soloLecturaTutor ? '/docente/tutoria' : '/docente/cursos')}
+          >
+            {soloLecturaTutor ? '← Volver a Tutoría' : '← Volver a Cursos'}
           </button>
-          <h1>🎓 Aula Virtual</h1>
+          <h1>
+            🎓 Aula Virtual
+            {soloLecturaTutor && (
+              <span style={{ fontSize: '0.55em', color: '#6b7280', fontWeight: 'normal', marginLeft: 10 }}>
+                (Tutor · solo lectura)
+              </span>
+            )}
+          </h1>
           <p>{curso?.curso_nombre || 'Curso'} - {curso?.grado}° {curso?.seccion} - {curso?.anio}</p>
         </div>
 
@@ -3323,27 +3383,31 @@ function DocenteAulaVirtual() {
                 <p className="card-subtitle">Temas disponibles</p>
               </div>
               <div className="card-action-btns">
-                <button 
-                  className="card-action-btn card-action-btn-secondary"
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    abrirModalBiblioteca('temas'); 
-                  }}
-                  title="Ver temas de años anteriores"
-                >
-                  📖 Biblioteca
-                </button>
-                <button 
-                  className="card-action-btn"
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    setTemaEditando(null);
-                    setFormTema({ nombre: '', archivo: null, archivoNombre: '', enlace: '', ciclo: bimestreGlobal });
-                    setMostrarFormTema(true); 
-                  }}
-                >
-                  + Nuevo
-                </button>
+                {!soloLecturaTutor && (
+                  <>
+                    <button 
+                      className="card-action-btn card-action-btn-secondary"
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        abrirModalBiblioteca('temas'); 
+                      }}
+                      title="Ver temas de años anteriores"
+                    >
+                      📖 Biblioteca
+                    </button>
+                    <button 
+                      className="card-action-btn"
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setTemaEditando(null);
+                        setFormTema({ nombre: '', archivo: null, archivoNombre: '', enlace: '', ciclo: bimestreGlobal });
+                        setMostrarFormTema(true); 
+                      }}
+                    >
+                      + Nuevo
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             {expandedCard === 'temas' && renderCardContent('temas')}
@@ -3362,12 +3426,16 @@ function DocenteAulaVirtual() {
                 <p className="card-subtitle">Proyectos asignados</p>
               </div>
               <div className="card-action-btns">
-                <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('tareas'); }} title="Ver proyectos de años anteriores">
-                  📖 Biblioteca
-                </button>
-                <button className="card-action-btn" onClick={(e) => { e.stopPropagation(); setMostrarFormTarea(true); }}>
-                  + Nuevo
-                </button>
+                {!soloLecturaTutor && (
+                  <>
+                    <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('tareas'); }} title="Ver proyectos de años anteriores">
+                      📖 Biblioteca
+                    </button>
+                    <button className="card-action-btn" onClick={(e) => { e.stopPropagation(); setMostrarFormTarea(true); }}>
+                      + Nuevo
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             {expandedCard === 'tareas' && renderCardContent('tareas')}
@@ -3386,19 +3454,21 @@ function DocenteAulaVirtual() {
                 <p className="card-subtitle">PDFs vinculados a temas</p>
               </div>
               <div className="card-action-btns" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
-                <button 
-                  type="button"
-                  className="card-action-btn" 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    e.preventDefault();
-                    setSesionEditando(null);
-                    setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
-                    setMostrarFormSesion(true); 
-                  }}
-                >
-                  + Nuevo
-                </button>
+                {!soloLecturaTutor && (
+                  <button 
+                    type="button"
+                    className="card-action-btn" 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      e.preventDefault();
+                      setSesionEditando(null);
+                      setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+                      setMostrarFormSesion(true); 
+                    }}
+                  >
+                    + Nuevo
+                  </button>
+                )}
               </div>
             </div>
             {expandedCard === 'sesiones' && renderCardContent('sesiones')}
@@ -3417,39 +3487,43 @@ function DocenteAulaVirtual() {
                 <p className="card-subtitle">Exámenes creados</p>
               </div>
               <div className="card-action-btns">
-                <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('examenes'); }} title="Ver exámenes de años anteriores">
-                  📖 Biblioteca
-                </button>
-                <button 
-                  className="card-action-btn"
-                onClick={(e) => { 
-                  e.stopPropagation(); 
-                  setFormExamen({
-                    titulo: '',
-                    tipo: 'VIRTUAL',
-                    tipo_puntaje: 'GENERAL',
-                    puntos_correcta: 1,
-                    penalizar_incorrecta: 'NO',
-                    penalizacion_incorrecta: 0,
-                    tiempo: 60,
-                    intentos: 1,
-                    orden_preguntas: 'PREDETERMINADO',
-                    preguntas_max: 1,
-                    ciclo: bimestreGlobal,
-                    estado: 'INACTIVO',
-                    habilitar_fecha_hora: false,
-                    fecha_desde: '',
-                    fecha_hasta: '',
-                    hora_desde: '08:00',
-                    hora_hasta: '20:00',
-                    archivo_pdf: null
-                  });
-                  setExamenEditando(null);
-                  setMostrarFormExamen(true); 
-                }}
-              >
-                + Nuevo
-              </button>
+                {!soloLecturaTutor && (
+                  <>
+                    <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('examenes'); }} title="Ver exámenes de años anteriores">
+                      📖 Biblioteca
+                    </button>
+                    <button 
+                      className="card-action-btn"
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        setFormExamen({
+                          titulo: '',
+                          tipo: 'VIRTUAL',
+                          tipo_puntaje: 'GENERAL',
+                          puntos_correcta: 1,
+                          penalizar_incorrecta: 'NO',
+                          penalizacion_incorrecta: 0,
+                          tiempo: 60,
+                          intentos: 1,
+                          orden_preguntas: 'PREDETERMINADO',
+                          preguntas_max: 1,
+                          ciclo: bimestreGlobal,
+                          estado: 'INACTIVO',
+                          habilitar_fecha_hora: false,
+                          fecha_desde: '',
+                          fecha_hasta: '',
+                          hora_desde: '08:00',
+                          hora_hasta: '20:00',
+                          archivo_pdf: null
+                        });
+                        setExamenEditando(null);
+                        setMostrarFormExamen(true); 
+                      }}
+                    >
+                      + Nuevo
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             {expandedCard === 'examenes' && renderCardContent('examenes')}
@@ -3468,21 +3542,25 @@ function DocenteAulaVirtual() {
                 <p className="card-subtitle">Videos disponibles</p>
               </div>
               <div className="card-action-btns">
-                <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('videos'); }} title="Ver videos de años anteriores">
-                  📖 Biblioteca
-                </button>
-                <button 
-                  className="card-action-btn"
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    if (expandedCard !== 'videos') toggleCard('videos');
-                    setVideoEditando(null);
-                    setFormVideo({ descripcion: '', enlace: '', ciclo: bimestreGlobal });
-                    setMostrarFormVideo(true);
-                  }}
-                >
-                  + Nuevo
-                </button>
+                {!soloLecturaTutor && (
+                  <>
+                    <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('videos'); }} title="Ver videos de años anteriores">
+                      📖 Biblioteca
+                    </button>
+                    <button 
+                      className="card-action-btn"
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (expandedCard !== 'videos') toggleCard('videos');
+                        setVideoEditando(null);
+                        setFormVideo({ descripcion: '', enlace: '', ciclo: bimestreGlobal });
+                        setMostrarFormVideo(true);
+                      }}
+                    >
+                      + Nuevo
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             {expandedCard === 'videos' && renderCardContent('videos')}
@@ -3501,21 +3579,25 @@ function DocenteAulaVirtual() {
                 <p className="card-subtitle">Enlaces compartidos</p>
               </div>
               <div className="card-action-btns">
-                <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('enlaces'); }} title="Ver enlaces de años anteriores">
-                  📖 Biblioteca
-                </button>
-                <button 
-                  className="card-action-btn"
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    if (expandedCard !== 'enlaces') toggleCard('enlaces');
-                    setEnlaceEditando(null);
-                    setFormEnlace({ descripcion: '', enlace: '', ciclo: bimestreGlobal });
-                    setMostrarFormEnlace(true);
-                  }}
-                >
-                  + Nuevo
-                </button>
+                {!soloLecturaTutor && (
+                  <>
+                    <button className="card-action-btn card-action-btn-secondary" onClick={(e) => { e.stopPropagation(); abrirModalBiblioteca('enlaces'); }} title="Ver enlaces de años anteriores">
+                      📖 Biblioteca
+                    </button>
+                    <button 
+                      className="card-action-btn"
+                      onClick={(e) => { 
+                        e.stopPropagation(); 
+                        if (expandedCard !== 'enlaces') toggleCard('enlaces');
+                        setEnlaceEditando(null);
+                        setFormEnlace({ descripcion: '', enlace: '', ciclo: bimestreGlobal });
+                        setMostrarFormEnlace(true);
+                      }}
+                    >
+                      + Nuevo
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             {expandedCard === 'enlaces' && renderCardContent('enlaces')}
@@ -4181,7 +4263,7 @@ function DocenteAulaVirtual() {
           >
             <div className="modal-tema-header">
               <h2 id="modal-entregas-title">
-                📋 Registrar Entregas
+                {soloLecturaTutor ? '📋 Entregas del proyecto' : '📋 Registrar Entregas'}
                 {infoTareaEntregas && (
                   <span style={{ fontSize: '0.9rem', fontWeight: 'normal', marginLeft: '10px', color: '#ffffff' }}>
                     - {infoTareaEntregas.curso_nombre} - {infoTareaEntregas.grado}° {infoTareaEntregas.seccion}
@@ -4210,17 +4292,18 @@ function DocenteAulaVirtual() {
                 </div>
               ) : (
                 <>
-                  {/* Botón Guardar arriba */}
-                  <div style={{ marginBottom: '1rem', textAlign: 'right' }}>
-                    <button
-                      type="button"
-                      className="btn-guardar"
-                      onClick={handleGuardarTodasLasNotas}
-                      style={{ padding: '0.5rem 1.5rem' }}
-                    >
-                      💾 Guardar Todas las Notas
-                    </button>
-                  </div>
+                  {!soloLecturaTutor && (
+                    <div style={{ marginBottom: '1rem', textAlign: 'right' }}>
+                      <button
+                        type="button"
+                        className="btn-guardar"
+                        onClick={handleGuardarTodasLasNotas}
+                        style={{ padding: '0.5rem 1.5rem' }}
+                      >
+                        💾 Guardar Todas las Notas
+                      </button>
+                    </div>
+                  )}
 
                   {/* Tabla de alumnos */}
                   <div style={{ overflowX: 'auto' }}>
@@ -4244,25 +4327,31 @@ function DocenteAulaVirtual() {
                               {alumno.nombre_completo}
                             </td>
                             <td style={{ padding: '8px', textAlign: 'center', borderRight: '1px solid #ddd' }}>
-                              <input
-                                type="text"
-                                value={notasTemporales[alumno.matricula_id] || ''}
-                                onChange={(e) => {
-                                  setNotasTemporales({
-                                    ...notasTemporales,
-                                    [alumno.matricula_id]: e.target.value
-                                  });
-                                }}
-                                placeholder="0-20"
-                                style={{
-                                  width: '100px',
-                                  padding: '8px',
-                                  border: '1px solid #ddd',
-                                  borderRadius: '4px',
-                                  textAlign: 'center',
-                                  fontSize: '0.9rem'
-                                }}
-                              />
+                              {soloLecturaTutor ? (
+                                <span style={{ fontWeight: 600, color: '#111827' }}>
+                                  {alumno.nota !== '' && alumno.nota != null ? alumno.nota : '—'}
+                                </span>
+                              ) : (
+                                <input
+                                  type="text"
+                                  value={notasTemporales[alumno.matricula_id] || ''}
+                                  onChange={(e) => {
+                                    setNotasTemporales({
+                                      ...notasTemporales,
+                                      [alumno.matricula_id]: e.target.value
+                                    });
+                                  }}
+                                  placeholder="0-20"
+                                  style={{
+                                    width: '100px',
+                                    padding: '8px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    textAlign: 'center',
+                                    fontSize: '0.9rem'
+                                  }}
+                                />
+                              )}
                             </td>
                             <td style={{ padding: '12px', textAlign: 'center', borderRight: '1px solid #ddd' }}>
                               <span style={{
@@ -4324,17 +4413,18 @@ function DocenteAulaVirtual() {
                     </table>
                   </div>
 
-                  {/* Botón Guardar abajo */}
-                  <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
-                    <button
-                      type="button"
-                      className="btn-guardar"
-                      onClick={handleGuardarTodasLasNotas}
-                      style={{ padding: '0.5rem 1.5rem' }}
-                    >
-                      💾 Guardar Todas las Notas
-                    </button>
-                  </div>
+                  {!soloLecturaTutor && (
+                    <div style={{ marginTop: '1.5rem', textAlign: 'right' }}>
+                      <button
+                        type="button"
+                        className="btn-guardar"
+                        onClick={handleGuardarTodasLasNotas}
+                        style={{ padding: '0.5rem 1.5rem' }}
+                      >
+                        💾 Guardar Todas las Notas
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -4806,6 +4896,7 @@ function DocenteAulaVirtual() {
           examen={examenParaResultados}
           resultados={resultadosExamen}
           cargandoResultados={cargandoResultados}
+          soloLectura={soloLecturaTutor}
           onClose={() => {
             setMostrarResultadosExamen(false);
             setExamenParaResultados(null);
@@ -6609,7 +6700,7 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
 }
 
 // Componente Modal de Resultados de Examen
-function ResultadosExamenModal({ examen, resultados, cargandoResultados, onClose, onVerDetalles, onBorrarResultado, onDescargarPDF, onVolverCalificar, onBorrarTodosResultados }) {
+function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLectura = false, onClose, onVerDetalles, onBorrarResultado, onDescargarPDF, onVolverCalificar, onBorrarTodosResultados }) {
   const [openDropdown, setOpenDropdown] = useState(null);
   const [dropdownPosition, setDropdownPosition] = useState(null);
   const buttonRef = useRef({});
@@ -6680,28 +6771,29 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, onClose
               </div>
         
         <div className="modal-tema-body" style={{ padding: '1.5rem' }}>
-          {/* Botones de acción */}
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-            <button 
-              className="btn-guardar" 
-              onClick={onDescargarPDF}
-            >
-              📥 Descargar
-            </button>
-            <button 
-              className="btn-cancelar" 
-              onClick={onVolverCalificar}
-            >
-              ✏️ Volver a Calificar
-            </button>
-            <button 
-              className="btn-cancelar" 
-              onClick={onBorrarTodosResultados}
-              style={{ backgroundColor: '#ef4444', color: 'white', borderColor: '#ef4444' }}
-            >
-              🗑️ Eliminar Resultados
-            </button>
-          </div>
+          {!soloLectura && (
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button 
+                className="btn-guardar" 
+                onClick={onDescargarPDF}
+              >
+                📥 Descargar
+              </button>
+              <button 
+                className="btn-cancelar" 
+                onClick={onVolverCalificar}
+              >
+                ✏️ Volver a Calificar
+              </button>
+              <button 
+                className="btn-cancelar" 
+                onClick={onBorrarTodosResultados}
+                style={{ backgroundColor: '#ef4444', color: 'white', borderColor: '#ef4444' }}
+              >
+                🗑️ Eliminar Resultados
+              </button>
+            </div>
+          )}
 
           {/* Información del examen */}
           <div style={{ marginBottom: '1.5rem', padding: '1rem', background: '#f3f4f6', borderRadius: '8px' }}>
@@ -6787,7 +6879,7 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, onClose
                                   }}>
                                     📄 Ver Detalles
                                   </a>
-                                  {tieneResultado && (
+                                  {tieneResultado && !soloLectura && (
                                     <a href="#" onClick={(e) => { 
                                       e.preventDefault(); 
                                       e.stopPropagation();

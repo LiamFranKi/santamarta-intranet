@@ -5934,6 +5934,373 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas/:tareaId', async (req, 
 });
 
 /**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/config
+ * Igual que /aula-virtual/config (tutor del grupo)
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/config', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    const colegio = await query(`SELECT total_notas FROM colegios WHERE id = ?`, [colegio_id]);
+    if (!colegio.length) return res.status(404).json({ error: 'Colegio no encontrado' });
+    res.json({ total_notas: colegio[0].total_notas || 4 });
+  } catch (error) {
+    console.error('Error config aula tutor:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener configuración' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/temas
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/temas', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    const { asignatura_id, ciclo } = req.query;
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!asignatura_id) return res.status(400).json({ error: 'asignatura_id es requerido' });
+    const asignatura = await query(
+      `SELECT a.id FROM asignaturas a WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ?`,
+      [asignatura_id, grupoId, colegio_id]
+    );
+    if (!asignatura.length) return res.status(403).json({ error: 'La asignatura no pertenece a este grupo' });
+    const temas = await query(
+      `SELECT * FROM asignaturas_temas WHERE asignatura_id = ? ORDER BY fecha DESC, id DESC`,
+      [asignatura_id]
+    );
+    res.json({ temas: temas || [] });
+  } catch (error) {
+    console.error('Error temas aula tutor:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener temas' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/sesiones
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/sesiones', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    const { asignatura_id, ciclo } = req.query;
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!asignatura_id) return res.status(400).json({ error: 'asignatura_id es requerido' });
+    const cicloFiltro = ciclo ? parseInt(ciclo, 10) : 1;
+    const asignatura = await query(
+      `SELECT a.id FROM asignaturas a WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ?`,
+      [asignatura_id, grupoId, colegio_id]
+    );
+    if (!asignatura.length) return res.status(403).json({ error: 'La asignatura no pertenece a este grupo' });
+    const sesiones = await query(
+      `SELECT s.*, aa.nombre as tema_nombre
+       FROM asignaturas_sesion_pdf s
+       INNER JOIN asignaturas_archivos aa ON aa.id = s.tema_id
+       WHERE s.asignatura_id = ? AND s.ciclo = ?
+       ORDER BY s.id ASC`,
+      [asignatura_id, cicloFiltro]
+    );
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const sesionesConUrl = (sesiones || []).map((s) => {
+      let archivoUrl = null;
+      if (s.archivo && s.archivo !== '') {
+        const nombre = String(s.archivo).startsWith('/Static/Archivos/')
+          ? String(s.archivo).replace(/^\/Static\/Archivos\//, '')
+          : s.archivo;
+        archivoUrl = isDevelopment
+          ? `http://localhost:5000/Static/Archivos/${nombre}`
+          : `${phpSystemUrl}/Static/Archivos/${nombre}`;
+      }
+      return { ...s, archivo_url: archivoUrl };
+    });
+    res.json({ sesiones: sesionesConUrl });
+  } catch (error) {
+    console.error('Error sesiones aula tutor:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener sesiones' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/tareas/:tareaId/entregas
+ * Misma respuesta que /aula-virtual/tareas/:tareaId/entregas (solo lectura para tutor)
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas/:tareaId/entregas', async (req, res) => {
+  try {
+    const { grupoId, tareaId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    const tarea = await query(
+      `SELECT t.*, a.grupo_id, g.grado, g.seccion, g.id as grupo_id_real, c.nombre as curso_nombre
+       FROM asignaturas_tareas t
+       INNER JOIN asignaturas a ON a.id = t.asignatura_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN cursos c ON c.id = a.curso_id
+       WHERE t.id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [tareaId, grupoId, colegio_id, anio_activo]
+    );
+    if (!tarea.length) return res.status(404).json({ error: 'Tarea no encontrada o sin acceso' });
+    const tareaInfo = tarea[0];
+    const gid = tareaInfo.grupo_id_real || tareaInfo.grupo_id;
+    const alumnos = await query(
+      `SELECT a.id as alumno_id, a.nombres, a.apellido_paterno, a.apellido_materno,
+              CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
+              m.id as matricula_id
+       FROM alumnos a
+       INNER JOIN matriculas m ON m.alumno_id = a.id
+       INNER JOIN grupos g2 ON g2.id = m.grupo_id
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4) AND g2.anio = ?
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
+      [gid, colegio_id, anio_activo]
+    );
+    const entregas = await query(
+      `SELECT * FROM asignaturas_tareas_entregas WHERE tarea_id = ? AND tipo = 'ALUMNO' ORDER BY fecha_hora DESC`,
+      [tareaId]
+    );
+    const notas = await query(`SELECT * FROM asignaturas_tareas_notas WHERE tarea_id = ?`, [tareaId]);
+    let vistos = [];
+    try {
+      if (tareaInfo.visto && tareaInfo.visto !== '') {
+        const phpSerialize = require('php-serialize');
+        const deserialized = phpSerialize.unserialize(tareaInfo.visto);
+        vistos = Array.isArray(deserialized) ? deserialized : [];
+      }
+    } catch (e) {
+      vistos = [];
+    }
+    const entregasPorAlumno = {};
+    entregas.forEach((entrega) => {
+      if (!entregasPorAlumno[entrega.alumno_id]) entregasPorAlumno[entrega.alumno_id] = [];
+      entregasPorAlumno[entrega.alumno_id].push({
+        id: entrega.id,
+        url: entrega.url,
+        nombre: entrega.nombre,
+        fecha_hora: entrega.fecha_hora
+      });
+    });
+    const notasPorMatricula = {};
+    notas.forEach((n) => {
+      notasPorMatricula[n.matricula_id] = n.nota;
+    });
+    const alumnosConDatos = alumnos.map((alumno, index) => {
+      const entregasAlumno = entregasPorAlumno[alumno.alumno_id] || [];
+      const nota = notasPorMatricula[alumno.matricula_id] || '';
+      const visto = Array.isArray(vistos) && vistos.includes(alumno.alumno_id) ? 'SI' : 'NO';
+      return {
+        numero: index + 1,
+        alumno_id: alumno.alumno_id,
+        matricula_id: alumno.matricula_id,
+        nombre_completo: alumno.nombre_completo,
+        nota,
+        visto,
+        archivos: entregasAlumno
+      };
+    });
+    res.json({
+      alumnos: alumnosConDatos,
+      tarea: {
+        id: tareaInfo.id,
+        titulo: tareaInfo.titulo,
+        curso_nombre: tareaInfo.curso_nombre,
+        grado: tareaInfo.grado,
+        seccion: tareaInfo.seccion
+      }
+    });
+  } catch (error) {
+    console.error('Error entregas tarea tutor:', error);
+    res.status(500).json({ error: 'Error al obtener entregas' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultados
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultados', async (req, res) => {
+  try {
+    const { grupoId, examenId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    const examen = await query(
+      `SELECT ae.* FROM asignaturas_examenes ae
+       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE ae.id = ? AND a.grupo_id = ? AND ae.colegio_id = ? AND g.anio = ?`,
+      [examenId, grupoId, colegio_id, anio_activo]
+    );
+    if (!examen.length) return res.status(403).json({ error: 'No tienes acceso a este examen' });
+    const resultados = await query(
+      `SELECT COALESCE(aep.id, NULL) as resultado_id, m.id as matricula_id,
+              COALESCE(aep.fecha_hora, NULL) as fecha_hora, aep.puntaje as puntaje,
+              aep.correctas as correctas, aep.incorrectas as incorrectas,
+              COALESCE(aep.estado, NULL) as estado,
+              CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
+              a.nombres, a.apellido_paterno, a.apellido_materno
+       FROM alumnos a
+       INNER JOIN matriculas m ON m.alumno_id = a.id
+       LEFT JOIN asignaturas_examenes_pruebas aep ON aep.matricula_id = m.id AND aep.examen_id = ?
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres ASC`,
+      [examenId, grupoId, colegio_id]
+    );
+    res.json({ examen: examen[0], resultados: resultados || [] });
+  } catch (error) {
+    console.error('Error resultados examen tutor:', error);
+    res.status(500).json({ error: 'Error al obtener resultados del examen' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/resultados/:resultadoId/detalles
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/resultados/:resultadoId/detalles', async (req, res) => {
+  try {
+    const { grupoId, resultadoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    const resultado = await query(
+      `SELECT aep.*, ae.titulo as examen_titulo, ae.tipo_puntaje, ae.puntos_correcta,
+              CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo
+       FROM asignaturas_examenes_pruebas aep
+       INNER JOIN asignaturas_examenes ae ON ae.id = aep.examen_id
+       INNER JOIN asignaturas a_asig ON a_asig.id = ae.asignatura_id
+       INNER JOIN grupos g ON g.id = a_asig.grupo_id
+       INNER JOIN matriculas m ON m.id = aep.matricula_id
+       INNER JOIN alumnos a ON a.id = m.alumno_id
+       WHERE aep.id = ? AND a_asig.grupo_id = ? AND a_asig.colegio_id = ? AND g.anio = ?`,
+      [resultadoId, grupoId, colegio_id, anio_activo]
+    );
+    if (!resultado.length) return res.status(403).json({ error: 'No tienes acceso a este resultado' });
+    const resultadoInfo = resultado[0];
+    const examenId = resultadoInfo.examen_id;
+    let preguntaIds = [];
+    try {
+      if (resultadoInfo.preguntas && String(resultadoInfo.preguntas).trim() !== '') {
+        try {
+          preguntaIds = JSON.parse(resultadoInfo.preguntas);
+          if (!Array.isArray(preguntaIds)) preguntaIds = [];
+        } catch (jsonError) {
+          try {
+            const phpSerialize = require('php-serialize');
+            const decoded = Buffer.from(resultadoInfo.preguntas, 'base64').toString('utf-8');
+            preguntaIds = phpSerialize.unserialize(decoded) || [];
+            if (!Array.isArray(preguntaIds)) preguntaIds = [];
+          } catch (phpError) {
+            preguntaIds = [];
+          }
+        }
+      }
+    } catch (e) {
+      preguntaIds = [];
+    }
+    let preguntasRows = [];
+    if (preguntaIds.length > 0) {
+      const placeholders = preguntaIds.map(() => '?').join(',');
+      preguntasRows = await query(
+        `SELECT * FROM asignaturas_examenes_preguntas
+         WHERE examen_id = ? AND id IN (${placeholders})
+         ORDER BY FIELD(id, ${placeholders})`,
+        [examenId, ...preguntaIds, ...preguntaIds]
+      );
+    } else {
+      preguntasRows = await query(
+        `SELECT * FROM asignaturas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC`,
+        [examenId]
+      );
+    }
+    const preguntasConAlternativas = [];
+    for (const pregunta of preguntasRows || []) {
+      const alts = await query(
+        `SELECT * FROM asignaturas_examenes_preguntas_alternativas WHERE pregunta_id = ? ORDER BY id ASC`,
+        [pregunta.id]
+      );
+      preguntasConAlternativas.push({
+        ...pregunta,
+        alternativas: (alts || []).map((a) => ({
+          id: a.id,
+          descripcion: a.descripcion || '',
+          correcta:
+            a.correcta === 1 || a.correcta === '1' || a.correcta === true || a.correcta === 'SI'
+              ? 'SI'
+              : 'NO',
+          orden_posicion: a.orden_posicion,
+          par_id: a.par_id,
+          zona_drop: a.zona_drop
+        }))
+      });
+    }
+    let respuestasAlumno = {};
+    try {
+      if (resultadoInfo.respuestas && String(resultadoInfo.respuestas).trim() !== '') {
+        try {
+          respuestasAlumno = JSON.parse(resultadoInfo.respuestas);
+        } catch (jsonError) {
+          try {
+            const phpSerialize = require('php-serialize');
+            const decoded = Buffer.from(resultadoInfo.respuestas, 'base64').toString('utf-8');
+            respuestasAlumno = phpSerialize.unserialize(decoded) || {};
+          } catch (phpError) {
+            respuestasAlumno = {};
+          }
+        }
+        const respuestasNormalizadas = {};
+        Object.keys(respuestasAlumno).forEach((key) => {
+          respuestasNormalizadas[key.toString()] = respuestasAlumno[key];
+        });
+        respuestasAlumno = respuestasNormalizadas;
+      }
+    } catch (parseError) {
+      respuestasAlumno = {};
+    }
+    res.json({
+      resultado: resultadoInfo,
+      preguntas: preguntasConAlternativas,
+      respuestas: respuestasAlumno
+    });
+  } catch (error) {
+    console.error('Error detalles resultado tutor:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener detalles del resultado' });
+  }
+});
+
+/**
  * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/examenes
  * Obtener lista de exámenes (para tutores - modo solo lectura)
  */
@@ -6485,39 +6852,32 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado/d
       return res.status(403).json({ error: 'El examen no pertenece a este grupo' });
     }
 
-    // Preguntas del examen (con alternativas)
-    const preguntasRaw = await query(
-      `SELECT 
-          aep.*,
-          GROUP_CONCAT(
-            CONCAT(aepa.id, ':', aepa.descripcion, ':', aepa.correcta, ':', COALESCE(aepa.orden_posicion, ''), ':', COALESCE(aepa.par_id, ''), ':', COALESCE(aepa.zona_drop, ''))
-            ORDER BY aepa.id ASC
-            SEPARATOR '||'
-          ) as alternativas_raw
-       FROM asignaturas_examenes_preguntas aep
-       LEFT JOIN asignaturas_examenes_preguntas_alternativas aepa ON aepa.pregunta_id = aep.id
-       WHERE aep.examen_id = ?
-       GROUP BY aep.id
-       ORDER BY aep.orden ASC`,
+    // Preguntas + alternativas sin GROUP_CONCAT (evita error 500 con sql_mode estricto / datos con ":")
+    const preguntasRows = await query(
+      `SELECT * FROM asignaturas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC`,
       [examenId]
     );
-    const preguntas = (preguntasRaw || []).map((pregunta) => {
-      const alternativas = [];
-      if (pregunta.alternativas_raw) {
-        pregunta.alternativas_raw.split('||').forEach((alt) => {
-          const [id, descripcion, correcta, orden_posicion, par_id, zona_drop] = alt.split(':');
-          alternativas.push({
-            id: parseInt(id, 10),
-            descripcion: descripcion || '',
-            correcta: correcta === '1' || correcta === 'true' || correcta === 'SI',
-            orden_posicion: orden_posicion || null,
-            par_id: par_id || null,
-            zona_drop: zona_drop || null
-          });
-        });
-      }
-      return { ...pregunta, alternativas };
-    });
+    const preguntas = [];
+    for (const pregunta of preguntasRows || []) {
+      const alts = await query(
+        `SELECT * FROM asignaturas_examenes_preguntas_alternativas WHERE pregunta_id = ? ORDER BY id ASC`,
+        [pregunta.id]
+      );
+      preguntas.push({
+        ...pregunta,
+        alternativas: (alts || []).map((a) => ({
+          id: a.id,
+          descripcion: a.descripcion || '',
+          correcta:
+            a.correcta === 1 || a.correcta === '1' || a.correcta === true || a.correcta === 'SI'
+              ? 'SI'
+              : 'NO',
+          orden_posicion: a.orden_posicion,
+          par_id: a.par_id,
+          zona_drop: a.zona_drop
+        }))
+      });
+    }
 
     const pruebas = await query(
       `SELECT aep.*,
