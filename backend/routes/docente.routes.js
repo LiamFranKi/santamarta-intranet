@@ -6156,7 +6156,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultados'
       `SELECT ae.* FROM asignaturas_examenes ae
        INNER JOIN asignaturas a ON a.id = ae.asignatura_id
        INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ae.id = ? AND a.grupo_id = ? AND ae.colegio_id = ? AND g.anio = ?`,
+       WHERE ae.id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?`,
       [examenId, grupoId, colegio_id, anio_activo]
     );
     if (!examen.length) return res.status(403).json({ error: 'No tienes acceso a este examen' });
@@ -6781,7 +6781,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado',
       `SELECT ae.*, a.grupo_id
        FROM asignaturas_examenes ae
        INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       WHERE ae.id = ? AND a.grupo_id = ? AND ae.colegio_id = ?`,
+       WHERE ae.id = ? AND a.grupo_id = ? AND a.colegio_id = ?`,
       [examenId, grupoId, colegio_id]
     );
 
@@ -6844,7 +6844,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado/d
       `SELECT ae.*, a.grupo_id
        FROM asignaturas_examenes ae
        INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       WHERE ae.id = ? AND a.grupo_id = ? AND ae.colegio_id = ?`,
+       WHERE ae.id = ? AND a.grupo_id = ? AND a.colegio_id = ?`,
       [examenId, grupoId, colegio_id]
     );
 
