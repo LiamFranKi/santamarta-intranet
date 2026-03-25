@@ -10253,6 +10253,7 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
       try {
         const fechaHora = fechaHoraMySQLLima();
         const mensajesIds = [];
+        const campanaDocenteHijoMsg = [];
 
         for (const destinatarioId of destinatariosArray) {
           try {
@@ -10269,6 +10270,10 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
             );
 
             mensajesIds.push(resultEnviado.insertId, resultRecibido.insertId);
+            campanaDocenteHijoMsg.push({
+              destinatarioId: parseInt(destinatarioId, 10),
+              mensajeRecibidoId: resultRecibido.insertId
+            });
           } catch (error) {
             console.error(`Error insertando mensaje para destinatario ${destinatarioId}:`, error);
           }
@@ -10290,26 +10295,78 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
           }
         }
 
+        const idsTipoDh = destinatariosArray.map((id) => parseInt(id, 10));
+        let mapTipoDocenteHijo = new Map();
+        if (idsTipoDh.length > 0 && req.user?.colegio_id) {
+          const trDh = await query(
+            `SELECT id, tipo FROM usuarios WHERE id IN (${idsTipoDh.map(() => '?').join(',')}) AND colegio_id = ?`,
+            [...idsTipoDh, req.user.colegio_id]
+          );
+          mapTipoDocenteHijo = new Map((trDh || []).map((r) => [parseInt(r.id, 10), r.tipo]));
+        }
+        try {
+          if (campanaDocenteHijoMsg.length > 0) {
+            const contenidoBell = `Nuevo mensaje: "${(asuntoFinal || 'Sin asunto').substring(0, 150)}".`;
+            for (const row of campanaDocenteHijoMsg) {
+              const td = mapTipoDocenteHijo.get(row.destinatarioId) || 'DOCENTE';
+              let urlDest = '/docente/mensajes';
+              if (td === 'APODERADO') urlDest = '/apoderado/mensajes';
+              else if (td === 'ALUMNO') urlDest = '/alumno/mensajes';
+              try {
+                await insertNotificacionUsuario(execute, {
+                  usuario_id: usuarioIdRemitente,
+                  destinatario_id: row.destinatarioId,
+                  asunto: 'Nuevo mensaje',
+                  contenido: contenidoBell,
+                  estado: 'ENVIADO',
+                  accion_tipo: 'mensaje_nuevo',
+                  accion_payload: { mensaje_id: row.mensajeRecibidoId, hijo_id: hijoIdNum },
+                  url_destino: urlDest
+                });
+              } catch (bellErr) {
+                console.warn(`[DOCENTE-HIJOS MENSAJES] Campanita:`, bellErr.message);
+              }
+            }
+          }
+        } catch (bellErr2) {
+          console.warn('[DOCENTE-HIJOS MENSAJES] Notificaciones in-app:', bellErr2.message);
+        }
+
         try {
           if (destinatariosArray.length > 0 && req.user?.colegio_id) {
             const subsData = await query(
-              `SELECT endpoint, p256dh, auth FROM push_subscriptions
+              `SELECT usuario_id, endpoint, p256dh, auth FROM push_subscriptions
                WHERE usuario_id IN (${destinatariosArray.map(() => '?').join(',')})
                  AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
               [...destinatariosArray.map(id => parseInt(id)), req.user.colegio_id]
             );
-            const subscriptions = (subsData || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
-            if (subscriptions.length > 0) {
+            if ((subsData || []).length > 0) {
               const asuntoCorto = (asuntoFinal || 'Sin asunto').substring(0, 80);
-              enviarPushNotificationMultiple(subscriptions, {
-                title: 'Nuevo mensaje (apoderado)',
-                body: asuntoCorto,
-                icon: '/icons/icon-192x192.png',
-                badge: '/icons/icon-192x192.png',
-                vibrate: [200, 100, 200],
-                tag: `mensaje-${Date.now()}`,
-                data: { url: '/', tipo: 'mensaje' }
-              }).catch(err => console.error('❌ [MENSAJES] Error push:', err));
+              const pushItemsDh = (subsData || []).map((sub) => {
+                const uid = parseInt(sub.usuario_id, 10);
+                const td = mapTipoDocenteHijo.get(uid) || 'DOCENTE';
+                let urlPush = '/docente/mensajes';
+                if (td === 'APODERADO') urlPush = '/apoderado/mensajes';
+                else if (td === 'ALUMNO') urlPush = '/alumno/mensajes';
+                return {
+                  subscription: {
+                    endpoint: sub.endpoint,
+                    keys: { p256dh: sub.p256dh, auth: sub.auth }
+                  },
+                  payload: {
+                    title: 'Nuevo mensaje',
+                    body: asuntoCorto,
+                    icon: '/icons/icon-192x192.png',
+                    badge: '/icons/icon-192x192.png',
+                    vibrate: [200, 100, 200],
+                    tag: `mensaje-${Date.now()}`,
+                    data: { url: urlPush, tipo: 'mensaje' }
+                  }
+                };
+              });
+              enviarPushNotificacionesIndividuales(pushItemsDh).catch((err) =>
+                console.error('❌ [MENSAJES] Error push:', err)
+              );
             }
           }
         } catch (pushErr) {
