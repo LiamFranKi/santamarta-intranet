@@ -466,7 +466,9 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
       Swal.fire({
         icon: 'info',
         title: 'Solo lectura',
-        text: 'Como apoderado, solo puedes ver el contenido. El alumno debe realizar los exámenes desde su cuenta.'
+        text: grupoId
+          ? 'Como tutor, solo puedes ver resultados y detalles. El alumno debe realizar los exámenes desde su cuenta.'
+          : 'Como apoderado, solo puedes ver el contenido. El alumno debe realizar los exámenes desde su cuenta.'
       });
       return;
     }
@@ -581,7 +583,27 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                       </span>
                     </td>
                     <td className="text-center">
-                      {puedeIniciar ? (
+                      {modoSoloLectura && grupoId ? (
+                        <button
+                          onClick={() => navigate(`/alumno/examen/${examen.id}/resultados`, {
+                            state: { isTutor: true, grupoId }
+                          })}
+                          style={{
+                            padding: '0.5rem 1.25rem',
+                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                          }}
+                        >
+                          📊 Ver Resultados
+                        </button>
+                      ) : puedeIniciar ? (
                         <button
                           onClick={() => handleIniciarExamen(examen)}
                           disabled={modoSoloLectura}
@@ -1153,8 +1175,21 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                       <td style={{ padding: '0.75rem', backgroundColor: 'white' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                           <tbody>
+                            {modoSoloLectura && grupoId && (
+                              <tr>
+                                <th style={{ textAlign: 'left', fontSize: '0.8rem', color: '#6b7280', paddingBottom: '0.35rem' }}>Alumno</th>
+                                <th style={{ textAlign: 'left', fontSize: '0.8rem', color: '#6b7280', paddingBottom: '0.35rem' }}>Entrega</th>
+                                <th style={{ textAlign: 'center', fontSize: '0.8rem', color: '#6b7280', paddingBottom: '0.35rem' }}>Fecha</th>
+                                <th style={{ textAlign: 'center', fontSize: '0.8rem', color: '#6b7280', paddingBottom: '0.35rem' }}>Nota</th>
+                              </tr>
+                            )}
                             {tareaDetalle.entregas.map((entrega, idx) => (
                               <tr key={idx}>
+                                {modoSoloLectura && grupoId && (
+                                  <td style={{ padding: '0.5rem 0.35rem 0.5rem 0', fontSize: '0.85rem', color: '#374151' }}>
+                                    {entrega.alumno_nombre || '-'}
+                                  </td>
+                                )}
                                 <td style={{ padding: '0.5rem 0' }}>
                                   {entrega.url && (
                                     <a
@@ -1182,6 +1217,11 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                                     })
                                   ) : '-'}
                                 </td>
+                                {modoSoloLectura && grupoId && (
+                                  <td style={{ padding: '0.5rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: 700, color: '#111827' }}>
+                                    {entrega.nota ?? '-'}
+                                  </td>
+                                )}
                               </tr>
                             ))}
                           </tbody>
@@ -1189,20 +1229,22 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                       </td>
                     </tr>
                   )}
-                  <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <th style={{ 
-                      padding: '0.75rem', 
-                      textAlign: 'left',
-                      backgroundColor: '#f0f9ff',
-                      fontWeight: '600',
-                      color: '#374151'
-                    }}>
-                      NOTA
-                    </th>
-                    <td style={{ padding: '0.75rem', backgroundColor: 'white', fontWeight: '700', fontSize: '1.1rem' }}>
-                      {tareaDetalle.nota || '-'}
-                    </td>
-                  </tr>
+                  {!(modoSoloLectura && grupoId) && (
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <th style={{ 
+                        padding: '0.75rem', 
+                        textAlign: 'left',
+                        backgroundColor: '#f0f9ff',
+                        fontWeight: '600',
+                        color: '#374151'
+                      }}>
+                        NOTA
+                      </th>
+                      <td style={{ padding: '0.75rem', backgroundColor: 'white', fontWeight: '700', fontSize: '1.1rem' }}>
+                        {tareaDetalle.nota || '-'}
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

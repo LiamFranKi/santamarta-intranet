@@ -5826,6 +5826,114 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/tareas/:tareaId
+ * Detalle de tarea para tutor (solo lectura): incluye entregas de alumnos y notas registradas por docente
+ */
+router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas/:tareaId', async (req, res) => {
+  try {
+    const { grupoId, tareaId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+
+    if (!personalId) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+
+    const grupoTutor = await query(
+      `SELECT g.id
+       FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!grupoTutor || grupoTutor.length === 0) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+
+    const tarea = await query(
+      `SELECT t.*,
+              CONCAT(p.nombres, ' ', p.apellidos) AS docente_nombre,
+              a.id AS asignatura_id,
+              a.grupo_id
+       FROM asignaturas_tareas t
+       INNER JOIN personal p ON p.id = t.trabajador_id
+       INNER JOIN asignaturas a ON a.id = t.asignatura_id
+       WHERE t.id = ? AND a.grupo_id = ? AND a.colegio_id = ?
+       LIMIT 1`,
+      [tareaId, grupoId, colegio_id]
+    );
+    if (!tarea || tarea.length === 0) {
+      return res.status(404).json({ error: 'Tarea no encontrada o sin acceso' });
+    }
+    const tareaData = tarea[0];
+
+    const archivos = await query(
+      `SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`,
+      [tareaId]
+    );
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const archivosConUrls = (archivos || []).map((archivo) => {
+      let archivoUrl = null;
+      if (archivo.archivo && archivo.archivo !== '') {
+        if (archivo.archivo.startsWith('http')) {
+          archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl);
+        } else if (archivo.archivo.startsWith('/Static/')) {
+          const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
+          archivoUrl = isDevelopment
+            ? `http://localhost:5000/Static/Archivos/${nombreArchivo}`
+            : `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
+        } else {
+          archivoUrl = isDevelopment
+            ? `http://localhost:5000/Static/Archivos/${archivo.archivo}`
+            : `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
+        }
+      }
+      return { ...archivo, archivo_url: archivoUrl };
+    });
+
+    const entregas = await query(
+      `SELECT ate.*,
+              ate.alumno_id,
+              CONCAT(COALESCE(al.apellido_paterno,''), ' ', COALESCE(al.apellido_materno,''), ', ', COALESCE(al.nombres,'')) AS alumno_nombre
+       FROM asignaturas_tareas_entregas ate
+       LEFT JOIN alumnos al ON al.id = ate.alumno_id
+       WHERE ate.tarea_id = ? AND ate.tipo = 'ALUMNO'
+       ORDER BY ate.fecha_hora DESC`,
+      [tareaId]
+    );
+
+    const notas = await query(
+      `SELECT atn.matricula_id, atn.nota,
+              m.alumno_id,
+              CONCAT(COALESCE(al.apellido_paterno,''), ' ', COALESCE(al.apellido_materno,''), ', ', COALESCE(al.nombres,'')) AS alumno_nombre
+       FROM asignaturas_tareas_notas atn
+       INNER JOIN matriculas m ON m.id = atn.matricula_id
+       INNER JOIN alumnos al ON al.id = m.alumno_id
+       WHERE atn.tarea_id = ?`,
+      [tareaId]
+    );
+    const notaPorAlumno = new Map((notas || []).map((n) => [String(n.alumno_id), n.nota]));
+    const entregasConNota = (entregas || []).map((e) => ({
+      ...e,
+      nota: notaPorAlumno.has(String(e.alumno_id)) ? notaPorAlumno.get(String(e.alumno_id)) : null
+    }));
+
+    res.json({
+      tarea: {
+        ...tareaData,
+        archivos: archivosConUrls,
+        entregas: entregasConNota,
+        nota: null,
+        enlace_url: tareaData.enlace ? String(tareaData.enlace).trim() : null
+      }
+    });
+  } catch (error) {
+    console.error('Error obteniendo detalle de tarea (tutor):', error);
+    res.status(500).json({ error: error.message || 'Error al obtener detalle de la tarea' });
+  }
+});
+
+/**
  * GET /api/docente/tutoria/grupos/:grupoId/aula-virtual/examenes
  * Obtener lista de exámenes (para tutores - modo solo lectura)
  */
@@ -5922,7 +6030,21 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes', async (req, res) =>
       [asignatura_id, cicloFiltro]
     );
 
-    res.json({ examenes: examenes || [] });
+    const examenesConInfo = await Promise.all((examenes || []).map(async (ex) => {
+      const r = await query(
+        `SELECT COUNT(*) AS total
+         FROM asignaturas_examenes_pruebas aep
+         INNER JOIN matriculas m ON m.id = aep.matricula_id
+         WHERE aep.examen_id = ? AND m.grupo_id = ?`,
+        [ex.id, grupoId]
+      );
+      return {
+        ...ex,
+        tiene_resultados: (r && r[0] && r[0].total > 0) || false
+      };
+    }));
+
+    res.json({ examenes: examenesConInfo || [] });
   } catch (error) {
     console.error('❌ [TUTOR-EXAMENES] Error obteniendo exámenes:', error);
     console.error('❌ [TUTOR-EXAMENES] Stack:', error.stack);
@@ -6289,10 +6411,10 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado',
 
     // Obtener el examen y verificar que pertenece a una asignatura del grupo
     const examen = await query(
-      `SELECT e.*, a.grupo_id
-       FROM examenes e
-       INNER JOIN asignaturas a ON a.id = e.asignatura_id
-       WHERE e.id = ? AND a.grupo_id = ? AND e.colegio_id = ?`,
+      `SELECT ae.*, a.grupo_id
+       FROM asignaturas_examenes ae
+       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+       WHERE ae.id = ? AND a.grupo_id = ? AND ae.colegio_id = ?`,
       [examenId, grupoId, colegio_id]
     );
 
@@ -6302,15 +6424,16 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado',
 
     // Obtener resultados del examen (para todos los alumnos del grupo)
     const resultados = await query(
-      `SELECT er.*, 
-              a.nombres, a.apellido_paterno, a.apellido_materno,
-              m.id as matricula_id
-       FROM examenes_resultados er
-       INNER JOIN alumnos a ON a.id = er.alumno_id
-       INNER JOIN matriculas m ON m.alumno_id = a.id AND m.grupo_id = ?
-       WHERE er.examen_id = ? AND er.colegio_id = ?
-       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
-      [grupoId, examenId, colegio_id]
+      `SELECT aep.*,
+              m.id AS matricula_id,
+              m.alumno_id,
+              al.nombres, al.apellido_paterno, al.apellido_materno
+       FROM asignaturas_examenes_pruebas aep
+       INNER JOIN matriculas m ON m.id = aep.matricula_id
+       INNER JOIN alumnos al ON al.id = m.alumno_id
+       WHERE aep.examen_id = ? AND m.grupo_id = ? AND m.colegio_id = ?
+       ORDER BY al.apellido_paterno, al.apellido_materno, al.nombres`,
+      [examenId, grupoId, colegio_id]
     );
 
     res.json({
@@ -6351,10 +6474,10 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado/d
 
     // Obtener el examen y verificar que pertenece a una asignatura del grupo
     const examen = await query(
-      `SELECT e.*, a.grupo_id
-       FROM examenes e
-       INNER JOIN asignaturas a ON a.id = e.asignatura_id
-       WHERE e.id = ? AND a.grupo_id = ? AND e.colegio_id = ?`,
+      `SELECT ae.*, a.grupo_id
+       FROM asignaturas_examenes ae
+       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+       WHERE ae.id = ? AND a.grupo_id = ? AND ae.colegio_id = ?`,
       [examenId, grupoId, colegio_id]
     );
 
@@ -6362,35 +6485,81 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado/d
       return res.status(403).json({ error: 'El examen no pertenece a este grupo' });
     }
 
-    // Obtener detalles de resultados del examen (para todos los alumnos del grupo)
-    const resultados = await query(
-      `SELECT er.*, 
-              a.nombres, a.apellido_paterno, a.apellido_materno,
-              m.id as matricula_id
-       FROM examenes_resultados er
-       INNER JOIN alumnos a ON a.id = er.alumno_id
-       INNER JOIN matriculas m ON m.alumno_id = a.id AND m.grupo_id = ?
-       WHERE er.examen_id = ? AND er.colegio_id = ?
-       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
-      [grupoId, examenId, colegio_id]
+    // Preguntas del examen (con alternativas)
+    const preguntasRaw = await query(
+      `SELECT 
+          aep.*,
+          GROUP_CONCAT(
+            CONCAT(aepa.id, ':', aepa.descripcion, ':', aepa.correcta, ':', COALESCE(aepa.orden_posicion, ''), ':', COALESCE(aepa.par_id, ''), ':', COALESCE(aepa.zona_drop, ''))
+            ORDER BY aepa.id ASC
+            SEPARATOR '||'
+          ) as alternativas_raw
+       FROM asignaturas_examenes_preguntas aep
+       LEFT JOIN asignaturas_examenes_preguntas_alternativas aepa ON aepa.pregunta_id = aep.id
+       WHERE aep.examen_id = ?
+       GROUP BY aep.id
+       ORDER BY aep.orden ASC`,
+      [examenId]
+    );
+    const preguntas = (preguntasRaw || []).map((pregunta) => {
+      const alternativas = [];
+      if (pregunta.alternativas_raw) {
+        pregunta.alternativas_raw.split('||').forEach((alt) => {
+          const [id, descripcion, correcta, orden_posicion, par_id, zona_drop] = alt.split(':');
+          alternativas.push({
+            id: parseInt(id, 10),
+            descripcion: descripcion || '',
+            correcta: correcta === '1' || correcta === 'true' || correcta === 'SI',
+            orden_posicion: orden_posicion || null,
+            par_id: par_id || null,
+            zona_drop: zona_drop || null
+          });
+        });
+      }
+      return { ...pregunta, alternativas };
+    });
+
+    const pruebas = await query(
+      `SELECT aep.*,
+              m.id AS matricula_id, m.alumno_id,
+              al.nombres, al.apellido_paterno, al.apellido_materno
+       FROM asignaturas_examenes_pruebas aep
+       INNER JOIN matriculas m ON m.id = aep.matricula_id
+       INNER JOIN alumnos al ON al.id = m.alumno_id
+       WHERE aep.examen_id = ? AND m.grupo_id = ? AND m.colegio_id = ?
+       ORDER BY al.apellido_paterno, al.apellido_materno, al.nombres, aep.fecha_hora DESC`,
+      [examenId, grupoId, colegio_id]
     );
 
-    // Obtener respuestas detalladas para cada resultado
-    const resultadosConDetalles = await Promise.all(resultados.map(async (resultado) => {
-      const respuestas = await query(
-        `SELECT * FROM examenes_respuestas 
-         WHERE resultado_id = ? 
-         ORDER BY pregunta_id ASC`,
-        [resultado.id]
-      );
+    const resultadosConDetalles = (pruebas || []).map((prueba) => {
+      let respuestasAlumno = {};
+      try {
+        if (prueba.respuestas && String(prueba.respuestas).trim() !== '') {
+          try {
+            respuestasAlumno = JSON.parse(prueba.respuestas);
+          } catch (jsonError) {
+            try {
+              const phpSerialize = require('php-serialize');
+              const decoded = Buffer.from(prueba.respuestas, 'base64').toString('utf-8');
+              respuestasAlumno = phpSerialize.unserialize(decoded) || {};
+            } catch (phpError) {
+              respuestasAlumno = {};
+            }
+          }
+        }
+      } catch (e) {
+        respuestasAlumno = {};
+      }
       return {
-        ...resultado,
-        respuestas: respuestas || []
+        ...prueba,
+        alumno_nombre: `${prueba.apellido_paterno || ''} ${prueba.apellido_materno || ''}, ${prueba.nombres || ''}`.trim(),
+        respuestas: respuestasAlumno
       };
-    }));
+    });
 
     res.json({
       examen: examen[0],
+      preguntas,
       resultados: resultadosConDetalles
     });
   } catch (error) {
