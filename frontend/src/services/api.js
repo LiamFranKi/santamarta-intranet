@@ -74,6 +74,25 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Si el usuario es APODERADO y eligió un año histórico,
+    // adjuntar `anio_consulta` a todos los GET para que backend pueda consultar el mismo año.
+    try {
+      const userRaw = localStorage.getItem('user');
+      const user = userRaw ? JSON.parse(userRaw) : null;
+      const anioConsulta = localStorage.getItem('anio_consulta_apoderado');
+      const method = String(config.method || 'get').toLowerCase();
+
+      if (user?.tipo === 'APODERADO' && anioConsulta && method === 'get') {
+        config.params = {
+          ...(config.params || {}),
+          anio_consulta: anioConsulta
+        };
+      }
+    } catch {
+      // no-op
+    }
+
     // FormData: no fijar Content-Type para que el navegador agregue multipart/form-data con boundary
     if (config.data instanceof FormData) {
       delete config.headers['Content-Type'];
@@ -128,6 +147,7 @@ api.interceptors.response.use(
     const urlForMatch = reqUrl + base;
 
     const isHijosRoute = reqUrl.includes('/hijos/') && reqUrl.includes('/datos');
+    const isApoderadoHijosRoute = reqUrl.includes('/apoderado/hijos');
     const isHijosProxyRoute =
       (reqUrl.includes('/docente/hijos/') || reqUrl.includes('docente/hijos/')) &&
       (reqUrl.includes('aula-virtual') || reqUrl.includes('/mensajes') || reqUrl.includes('/cursos'));
@@ -151,6 +171,7 @@ api.interceptors.response.use(
       status &&
       criticalErrors[status] &&
       !isHijosRoute &&
+      !isApoderadoHijosRoute &&
       !isHijosProxyRoute &&
       !isTutoriaProxyRoute &&
       !is403DocenteAulaVirtual &&

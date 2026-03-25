@@ -99,6 +99,185 @@ router.use(authenticateToken);
 router.use(requireUserType('APODERADO'));
 
 /**
+ * ===============================
+ * Modo histórico APODERADO (sin deuda)
+ * ===============================
+ *
+ * Objetivo:
+ * - Permitir consultar un año distinto al `anio_activo` del JWT mediante `anio_consulta` (query param).
+ * - Solo permitir si el apoderado tiene hijos matriculados en ese año y NO tiene deuda de pensiones.
+ */
+
+async function apoderadoTieneDeudaParaAnio(apoderado_id, colegio_id, anioConsulta) {
+  // Reutiliza la misma lógica conceptual que `verificarDeudas` en auth.routes.js,
+  // pero limitada al caso APODERADO y para un año arbitrario (anioConsulta).
+  if (!apoderado_id || !colegio_id || !anioConsulta || isNaN(anioConsulta)) return { tieneMatriculas: false, tieneDeuda: false };
+
+  const colegios = await query(
+    `SELECT bloquear_deudores, dias_tolerancia, pensiones_vencimiento, inicio_pensiones
+     FROM colegios WHERE id = ?`,
+    [colegio_id]
+  );
+
+  if (!colegios || colegios.length === 0) {
+    return { tieneMatriculas: false, tieneDeuda: false };
+  }
+
+  const colegio = colegios[0];
+  const diasTolerancia = colegio.dias_tolerancia || 0;
+  const inicioPensiones = colegio.inicio_pensiones || 2;
+
+  let vencimientosPensiones = {};
+  if (colegio.pensiones_vencimiento && colegio.pensiones_vencimiento !== '') {
+    try {
+      const decoded = Buffer.from(String(colegio.pensiones_vencimiento), 'base64').toString('utf-8');
+      const deserialized = phpSerialize.unserialize(decoded);
+      vencimientosPensiones = deserialized || {};
+    } catch {
+      vencimientosPensiones = {};
+    }
+  }
+
+  const calcularFechaVencimiento = (nroPension, anio, inicioPensionesLocal) => {
+    const vencimiento = vencimientosPensiones[nroPension];
+
+    if (!vencimiento || vencimiento === '') {
+      // Fórmula por defecto (misma idea que auth): mes = nroPension + 2
+      const mesPension = nroPension + 2;
+      const ultimoDia = new Date(anio, mesPension, 0).getDate();
+      const fechaCalculada = `${ultimoDia}-${String(mesPension).padStart(2, '0')}-${anio}`;
+      return fechaCalculada;
+    }
+
+    const partes = String(vencimiento).trim().split('-');
+    if (partes.length === 1) {
+      const mesPension = nroPension + 2;
+      return `${partes[0].padStart(2, '0')}-${String(mesPension).padStart(2, '0')}-${anio}`;
+    }
+    if (partes.length === 2) {
+      return `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${anio}`;
+    }
+
+    // dd-mm-yyyy o dd-mm-yy
+    let añoFinal = partes[2];
+    if (String(añoFinal).length === 2) {
+      añoFinal = String(anio);
+    }
+    return `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${añoFinal}`;
+  };
+
+  const currentMonth = new Date().getMonth() + 1; // 1-12
+  const nroPago = currentMonth - inicioPensiones;
+
+  const pensionesAVerificar = nroPago > 0
+    ? Array.from({ length: nroPago }, (_, i) => i + 1)
+    : Object.keys(vencimientosPensiones)
+        .map(k => parseInt(k, 10))
+        .filter(k => k > 0 && !isNaN(k));
+
+  if (pensionesAVerificar.length === 0) {
+    // Si no hay pensiones configuradas, no consideramos deuda.
+    return { tieneMatriculas: false, tieneDeuda: false };
+  }
+
+  const matriculasHijos = await query(
+    `SELECT m.id
+     FROM matriculas m
+     INNER JOIN alumnos a ON a.id = m.alumno_id
+     INNER JOIN familias f ON f.alumno_id = a.id
+     INNER JOIN grupos g ON g.id = m.grupo_id
+     WHERE f.apoderado_id = ?
+       AND m.colegio_id = ?
+       AND m.estado = 0
+       AND g.anio = ?`,
+    [apoderado_id, colegio_id, anioConsulta]
+  );
+
+  if (!matriculasHijos || matriculasHijos.length === 0) {
+    return { tieneMatriculas: false, tieneDeuda: false };
+  }
+
+  const fechaActual = new Date();
+  fechaActual.setHours(0, 0, 0, 0);
+
+  // Si alguna pensión está vencida (con tolerancia) y no hay pago cancelado => tiene deuda
+  for (const matricula of matriculasHijos) {
+    for (const i of pensionesAVerificar) {
+      if (!i || isNaN(i) || i <= 0) continue;
+
+      const fechaVencimientoStr = calcularFechaVencimiento(i, anioConsulta, inicioPensiones);
+      const partesFecha = String(fechaVencimientoStr).split('-');
+      if (partesFecha.length !== 3) continue;
+
+      const fechaVencimiento = new Date(
+        parseInt(partesFecha[2], 10),
+        parseInt(partesFecha[1], 10) - 1,
+        parseInt(partesFecha[0], 10)
+      );
+
+      const fechaLimite = new Date(fechaVencimiento);
+      fechaLimite.setDate(fechaLimite.getDate() + diasTolerancia);
+      fechaLimite.setHours(23, 59, 59, 999);
+
+      if (fechaActual > fechaLimite) {
+        const pagosCancelados = await query(
+          `SELECT COUNT(*) as total
+           FROM pagos p
+           WHERE p.matricula_id = ?
+             AND p.tipo = 1
+             AND p.nro_pago = ?
+             AND p.estado_pago = 'CANCELADO'
+             AND p.estado = 'ACTIVO'`,
+          [matricula.id, i]
+        );
+
+        if ((pagosCancelados?.[0]?.total || 0) === 0) {
+          return { tieneMatriculas: true, tieneDeuda: true };
+        }
+      }
+    }
+  }
+
+  return { tieneMatriculas: true, tieneDeuda: false };
+}
+
+/**
+ * Middleware: permite override temporal de `req.user.anio_activo` por `anio_consulta`,
+ * validando previamente que el apoderado no tenga deuda en ese año.
+ */
+router.use(async (req, res, next) => {
+  try {
+    const anioConsultaRaw = req.query?.anio_consulta;
+    if (!anioConsultaRaw) return next();
+
+    const anioConsulta = parseInt(String(anioConsultaRaw), 10);
+    if (Number.isNaN(anioConsulta)) {
+      return res.status(400).json({ error: 'anio_consulta inválido' });
+    }
+
+    const anioToken = req.user?.anio_activo != null ? parseInt(String(req.user.anio_activo), 10) : null;
+    const apoderado_id = req.user?.apoderado_id;
+    const colegio_id = req.user?.colegio_id;
+
+    // Si es el mismo año del token, no re-verificamos (evita cambios en comportamiento actual)
+    if (anioToken != null && anioConsulta === anioToken) {
+      req.user.anio_activo = anioConsulta;
+      return next();
+    }
+
+    const estado = await apoderadoTieneDeudaParaAnio(apoderado_id, colegio_id, anioConsulta);
+    if (!estado.tieneMatriculas || estado.tieneDeuda) {
+      return res.status(403).json({ error: 'Acceso histórico bloqueado por deuda de pensiones' });
+    }
+
+    req.user.anio_activo = anioConsulta;
+    return next();
+  } catch (e) {
+    return res.status(500).json({ error: 'Error validando anio_consulta' });
+  }
+});
+
+/**
  * GET /api/apoderado/dashboard
  * Obtener datos del dashboard del apoderado
  */
@@ -446,6 +625,50 @@ router.get('/hijos', async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo hijos:', error);
     res.status(500).json({ error: 'Error al obtener hijos' });
+  }
+});
+
+/**
+ * GET /api/apoderado/hijos/anios-historico
+ * Devuelve años históricos donde el apoderado tiene hijos (matriculados) y NO tiene deuda.
+ */
+router.get('/hijos/anios-historico', async (req, res) => {
+  try {
+    const { apoderado_id, colegio_id, anio_activo } = req.user;
+    const anioActual = anio_activo != null ? parseInt(String(anio_activo), 10) : new Date().getFullYear();
+
+    // Años que tuvieron matrículas en años anteriores
+    const aniosCandidatos = await query(
+      `SELECT DISTINCT g.anio
+       FROM familias f
+       INNER JOIN alumnos a ON a.id = f.alumno_id
+       INNER JOIN matriculas m ON m.alumno_id = a.id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE f.apoderado_id = ?
+         AND a.colegio_id = ?
+         AND m.colegio_id = ?
+         AND m.estado = 0
+         AND g.anio < ?
+       ORDER BY g.anio DESC`,
+      [apoderado_id, colegio_id, colegio_id, anioActual]
+    );
+
+    const lista = (aniosCandidatos || []).map(r => parseInt(r.anio, 10)).filter(a => !isNaN(a));
+    const limite = 8; // Evita loops enormes
+    const seleccion = lista.slice(0, limite);
+
+    const aniosPermitidos = [];
+    for (const anio of seleccion) {
+      const estado = await apoderadoTieneDeudaParaAnio(apoderado_id, colegio_id, anio);
+      if (estado.tieneMatriculas && !estado.tieneDeuda) {
+        aniosPermitidos.push(anio);
+      }
+    }
+
+    res.json({ anios: aniosPermitidos });
+  } catch (error) {
+    console.error('Error obteniendo anios historico apoderado:', error);
+    res.status(500).json({ error: 'Error al obtener años históricos' });
   }
 });
 

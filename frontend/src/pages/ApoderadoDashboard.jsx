@@ -285,7 +285,23 @@ function ApoderadoDashboard() {
     setLoadingHijos(true);
     try {
       const response = await api.get('/apoderado/hijos');
-      setHijos(response.data.hijos || []);
+      const hijosCargados = response.data.hijos || [];
+      if (hijosCargados.length === 0) {
+        try {
+          const responseYears = await api.get('/apoderado/hijos/anios-historico');
+          const anios = Array.isArray(responseYears.data?.anios) ? responseYears.data.anios : [];
+          if (anios.length > 0) {
+            localStorage.setItem('anio_consulta_apoderado', String(anios[0]));
+            const response2 = await api.get('/apoderado/hijos');
+            setHijos(response2.data.hijos || []);
+            return;
+          }
+        } catch (e) {
+          // Si falla el historial, mostramos como antes (vacío)
+          console.error('Error cargando años históricos (modal hijos):', e);
+        }
+      }
+      setHijos(hijosCargados);
     } catch (error) {
       console.error('Error cargando hijos:', error);
       setHijos([]);

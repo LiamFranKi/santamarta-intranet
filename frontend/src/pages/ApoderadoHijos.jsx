@@ -80,11 +80,33 @@ function ApoderadoHijos() {
   const [loadingPagos, setLoadingPagos] = useState(false);
   const [tabAnioActivo, setTabAnioActivo] = useState(null);
   const [tieneDeudasBloqueadas, setTieneDeudasBloqueadas] = useState(false);
+  const [aniosHistoricoDisponibles, setAniosHistoricoDisponibles] = useState([]);
+  const [anioHistoricoSeleccionado, setAnioHistoricoSeleccionado] = useState(null);
+  const [modoHistorico, setModoHistorico] = useState(false);
 
   useEffect(() => {
     console.log('[FRONTEND] ApoderadoHijos useEffect ejecutado - Iniciando carga de hijos y verificación de deudas');
-    cargarHijos();
-    verificarDeudasBloqueadas();
+    const init = async () => {
+      try {
+        await cargarHijosConHistorico();
+      } finally {
+        // Si estamos en modo histórico, no bloqueamos opciones por deudas del año activo.
+        const userRaw = localStorage.getItem('user');
+        const anioConsultaStored = localStorage.getItem('anio_consulta_apoderado');
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        const anioToken = user?.anio_activo != null ? parseInt(String(user.anio_activo), 10) : null;
+        const anioConsultaNum = anioConsultaStored ? parseInt(String(anioConsultaStored), 10) : null;
+        const esHistoricoInicial =
+          anioToken != null && anioConsultaNum != null && !Number.isNaN(anioToken) && !Number.isNaN(anioConsultaNum) && anioConsultaNum !== anioToken;
+
+        if (!esHistoricoInicial) {
+          verificarDeudasBloqueadas();
+        } else {
+          setTieneDeudasBloqueadas(false);
+        }
+      }
+    };
+    init();
   }, []);
 
   // Verificar si el usuario tiene deudas bloqueadas
@@ -142,12 +164,68 @@ function ApoderadoHijos() {
         console.log('[FRONTEND] Primer hijo completo:', response.data.hijos[0]);
         console.log('[FRONTEND] DNI del primer hijo:', response.data.hijos[0].dni || response.data.hijos[0].nro_documento || 'NO DISPONIBLE');
       }
-      setHijos(response.data.hijos || []);
+      const hijosCargados = response.data.hijos || [];
+      setHijos(hijosCargados);
+      return hijosCargados;
     } catch (error) {
       console.error('Error cargando hijos:', error);
+      setHijos([]);
+      return [];
     } finally {
       setLoading(false);
     }
+  };
+
+  const cargarHijosConHistorico = async () => {
+    // 1) Intenta cargar para el año actual del token o el año seleccionado (si existe en localStorage)
+    const hijosCargados = await cargarHijos();
+
+    const userRaw = localStorage.getItem('user');
+    const user = userRaw ? JSON.parse(userRaw) : null;
+    const anioToken = user?.anio_activo != null ? parseInt(String(user.anio_activo), 10) : null;
+    const anioConsultaStored = localStorage.getItem('anio_consulta_apoderado');
+    const anioConsultaNum = anioConsultaStored ? parseInt(String(anioConsultaStored), 10) : null;
+
+    const esHistoricoInicial =
+      anioToken != null && anioConsultaNum != null && !Number.isNaN(anioToken) && !Number.isNaN(anioConsultaNum) && anioConsultaNum !== anioToken;
+
+    setModoHistorico(Boolean(esHistoricoInicial));
+    setAnioHistoricoSeleccionado(esHistoricoInicial ? anioConsultaNum : null);
+
+    // 2) Si no hay hijos en ese año, intentamos con el modo histórico sin deuda
+    if (!hijosCargados || hijosCargados.length === 0) {
+      try {
+        const response = await api.get('/apoderado/hijos/anios-historico');
+        const anios = Array.isArray(response.data?.anios) ? response.data.anios : [];
+        setAniosHistoricoDisponibles(anios);
+
+        if (anios.length > 0) {
+          const anioSeleccionar = anios[0];
+          setAnioHistoricoSeleccionado(anioSeleccionar);
+          setModoHistorico(true);
+          localStorage.setItem('anio_consulta_apoderado', String(anioSeleccionar));
+          setTieneDeudasBloqueadas(false);
+          await cargarHijos();
+        } else {
+          localStorage.removeItem('anio_consulta_apoderado');
+          setAnioHistoricoSeleccionado(null);
+          setModoHistorico(false);
+        }
+      } catch (e) {
+        console.error('Error cargando anios historico apoderado:', e);
+      }
+    }
+  };
+
+  const seleccionarAnioHistorico = async (anio) => {
+    if (!anio || isNaN(parseInt(anio, 10))) return;
+    const anioNum = parseInt(String(anio), 10);
+    localStorage.setItem('anio_consulta_apoderado', String(anioNum));
+    setAnioHistoricoSeleccionado(anioNum);
+    setModoHistorico(true);
+    setTieneDeudasBloqueadas(false);
+    // Recargar hijos para ese año (backend aplicará la validación sin deuda)
+    await cargarHijos();
   };
 
   const handleOpcionesClick = (e, hijoId) => {
@@ -4165,7 +4243,37 @@ function ApoderadoHijos() {
         ) : (
           <div className="hijos-content mundo-card">
             <div className="empty-state">
-              <p>No se encontraron hijos registrados.</p>
+              {aniosHistoricoDisponibles.length > 0 ? (
+                <>
+                  <p>
+                    No se encontraron hijos en el año activo. Puedes consultar tu historial
+                    (solo años sin deuda de pensiones).
+                  </p>
+                  <label style={{ display: 'block', textAlign: 'left', marginBottom: '0.25rem', fontWeight: 600 }}>
+                    Año histórico:
+                  </label>
+                  <select
+                    value={anioHistoricoSeleccionado || ''}
+                    onChange={(e) => seleccionarAnioHistorico(e.target.value)}
+                    style={{
+                      width: '100%',
+                      maxWidth: '420px',
+                      padding: '0.6rem 0.75rem',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: 8,
+                      background: 'white'
+                    }}
+                  >
+                    {aniosHistoricoDisponibles.map((anio) => (
+                      <option key={anio} value={anio}>
+                        {anio}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : (
+                <p>No se encontraron hijos registrados.</p>
+              )}
             </div>
           </div>
         )}
