@@ -123,24 +123,43 @@ api.interceptors.response.use(
     // EXCEPCIÓN: No cerrar sesión para errores 401/403 en rutas proxy de tutores (aula virtual, mensajes, etc.)
     // EXCEPCIÓN: No cerrar sesión para errores 403 en publicaciones cuando el usuario es APODERADO (se resuelve con endpoint correcto)
     // EXCEPCIÓN: No cerrar sesión para errores 401/403 en push notifications (es opcional y no crítico)
-    const isHijosRoute = error.config?.url?.includes('/hijos/') && error.config?.url?.includes('/datos');
-    const isHijosProxyRoute = error.config?.url?.includes('/docente/hijos/') && (
-      error.config?.url?.includes('/aula-virtual/') ||
-      error.config?.url?.includes('/mensajes/') ||
-      error.config?.url?.includes('/cursos')
-    );
-    const isTutoriaProxyRoute = error.config?.url?.includes('/docente/tutoria/grupos/') && (
-      error.config?.url?.includes('/aula-virtual/') ||
-      error.config?.url?.includes('/mensajes/') ||
-      error.config?.url?.includes('/cursos')
-    );
+    const reqUrl = String(error.config?.url || '');
+    const base = String(error.config?.baseURL || '');
+    const urlForMatch = reqUrl + base;
+
+    const isHijosRoute = reqUrl.includes('/hijos/') && reqUrl.includes('/datos');
+    const isHijosProxyRoute =
+      (reqUrl.includes('/docente/hijos/') || reqUrl.includes('docente/hijos/')) &&
+      (reqUrl.includes('aula-virtual') || reqUrl.includes('/mensajes') || reqUrl.includes('/cursos'));
+    // Tutoría: path puede venir sin "/" inicial o mezclado con baseURL; no cerrar sesión por 401/403 aquí
+    const isTutoriaProxyRoute =
+      (urlForMatch.includes('tutoria/grupos') || urlForMatch.includes('/tutoria/grupos')) &&
+      (urlForMatch.includes('aula-virtual') ||
+        urlForMatch.includes('/cursos') ||
+        urlForMatch.includes('/mensajes'));
+    // 403 en aula virtual docente (p. ej. tutor si el rewrite falló): no desloguear; el 401 sigue cerrando sesión
+    const is403DocenteAulaVirtual =
+      status === 403 &&
+      (reqUrl.includes('docente/aula-virtual') || reqUrl.includes('/docente/aula-virtual'));
     const isPublicacionesRoute = error.config?.url?.includes('/publicaciones');
     const isPushRoute = error.config?.url?.includes('/push/');
     const isNotificacionesRoute = error.config?.url?.includes('/notificaciones');
     const isActividadesRoute = error.config?.url?.includes('/actividades');
     const isGruposRoute = error.config?.url?.includes('/grupos');
     
-    if (status && criticalErrors[status] && !isHijosRoute && !isHijosProxyRoute && !isTutoriaProxyRoute && !isPublicacionesRoute && !isPushRoute && !isNotificacionesRoute && !isActividadesRoute && !isGruposRoute) {
+    if (
+      status &&
+      criticalErrors[status] &&
+      !isHijosRoute &&
+      !isHijosProxyRoute &&
+      !isTutoriaProxyRoute &&
+      !is403DocenteAulaVirtual &&
+      !isPublicacionesRoute &&
+      !isPushRoute &&
+      !isNotificacionesRoute &&
+      !isActividadesRoute &&
+      !isGruposRoute
+    ) {
       const errorInfo = criticalErrors[status];
       console.warn(`⚠️ Error crítico detectado (${status}):`, errorInfo.reason);
       

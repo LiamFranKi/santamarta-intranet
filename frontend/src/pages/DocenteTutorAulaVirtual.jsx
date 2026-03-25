@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useLayoutEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import DocenteAulaVirtual from './DocenteAulaVirtual';
 import api from '../services/api';
@@ -12,25 +12,35 @@ function DocenteTutorAulaVirtual() {
   const interceptorIdRef = useRef(null);
   const grupoIdRef = useRef(grupoId);
 
-  useEffect(() => {
+  // useLayoutEffect: el interceptor debe existir ANTES de los useEffect del hijo que llaman a la API
+  useLayoutEffect(() => {
     grupoIdRef.current = grupoId;
   }, [grupoId]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     interceptorIdRef.current = api.interceptors.request.use((config) => {
       const g = grupoIdRef.current;
+      if (g == null || String(g).trim() === '') {
+        return config;
+      }
       const token = localStorage.getItem('token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
-      const url = config.url || '';
-      if (url === '/docente/cursos' || url.startsWith('/docente/cursos?')) {
+      const url = String(config.url || '');
+      // Axios a veces usa path sin "/" inicial; hay que reconocer ambos
+      if (
+        url === '/docente/cursos' ||
+        url.startsWith('/docente/cursos?') ||
+        url === 'docente/cursos' ||
+        url.startsWith('docente/cursos?')
+      ) {
         config.url = `/docente/tutoria/grupos/${g}/cursos`;
         return config;
       }
-      if (url.startsWith('/docente/aula-virtual')) {
+      if (/^\/?docente\/aula-virtual/.test(url)) {
         config.url = url.replace(
-          '/docente/aula-virtual',
+          /^\/?docente\/aula-virtual/,
           `/docente/tutoria/grupos/${g}/aula-virtual`
         );
       }
