@@ -645,7 +645,7 @@ router.get('/comunicados', async (req, res) => {
     let querySql = `
       SELECT c.*
        FROM comunicados c
-       WHERE c.colegio_id = ? AND YEAR(c.fecha_hora) = ?
+       WHERE c.colegio_id = ? AND YEAR(c.fecha_hora) = ? AND c.estado = 'ACTIVO'
     `;
     const params = [colegio_id, anio_activo];
 

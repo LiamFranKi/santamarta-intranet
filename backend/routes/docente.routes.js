@@ -12208,11 +12208,14 @@ router.post('/comunicados', uploadComunicado.single('archivo'), async (req, res)
 
     const estadoComunicado = (estado === 'INACTIVO') ? 'INACTIVO' : 'ACTIVO';
 
+    const showInHomeFlag =
+      show_in_home === true || show_in_home === 1 || show_in_home === '1' || show_in_home === 'true' ? 1 : 0;
+
     // Insertar comunicado
     const result = await execute(
       `INSERT INTO comunicados (colegio_id, descripcion, contenido, archivo, privacidad, fecha_hora, tipo, estado, show_in_home)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [colegio_id, descripcion, contenido || '', archivoPath, privacidad || '', fechaHora, tipoComunicado, estadoComunicado, show_in_home ? 1 : 0]
+      [colegio_id, descripcion, contenido || '', archivoPath, privacidad || '', fechaHora, tipoComunicado, estadoComunicado, showInHomeFlag]
     );
 
     // Registrar auditoría
@@ -12355,12 +12358,15 @@ router.put('/comunicados/:id', uploadComunicado.single('archivo'), async (req, r
     const tipoComunicado = tipo || (archivoPath ? 'ARCHIVO' : 'TEXTO');
     const estadoComunicado = (estado === 'INACTIVO') ? 'INACTIVO' : 'ACTIVO';
 
+    const showInHomeFlag =
+      show_in_home === true || show_in_home === 1 || show_in_home === '1' || show_in_home === 'true' ? 1 : 0;
+
     // Actualizar comunicado
     await execute(
       `UPDATE comunicados 
        SET descripcion = ?, contenido = ?, archivo = ?, privacidad = ?, tipo = ?, estado = ?, show_in_home = ?
        WHERE id = ? AND colegio_id = ?`,
-      [descripcion, contenido || '', archivoPath, privacidad || '', tipoComunicado, estadoComunicado, show_in_home ? 1 : 0, id, colegio_id]
+      [descripcion, contenido || '', archivoPath, privacidad || '', tipoComunicado, estadoComunicado, showInHomeFlag, id, colegio_id]
     );
 
     // Registrar auditoría
@@ -12466,8 +12472,8 @@ router.get('/comunicados', async (req, res) => {
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     // Construir query base
-    // - Todos los usuarios (excepto admin): mostrar activos e inactivos del año activo
-    // - Administrador: mostrar todos los años (activos e inactivos)
+    // - Usuarios no-admin: solo ACTIVO del año activo
+    // - Administrador/promotoría: todos los años y estados
     let querySql = `
       SELECT c.*
        FROM comunicados c
@@ -12479,8 +12485,8 @@ router.get('/comunicados', async (req, res) => {
     if (!esAdminOPromotoria(tipo)) {
       querySql += ` AND YEAR(c.fecha_hora) = ?`;
       params.push(anio_activo);
+      querySql += ` AND c.estado = 'ACTIVO'`;
     }
-    // Nota: No filtramos por estado, mostramos activos e inactivos
 
     // Agregar búsqueda si existe
     if (search && search.trim() !== '') {

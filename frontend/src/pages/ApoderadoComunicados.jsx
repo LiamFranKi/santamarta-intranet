@@ -132,9 +132,19 @@ function ApoderadoComunicados() {
 
   const handleVerComunicado = (comunicado) => {
     marcarComoLeido(comunicado.id);
+    const contenidoHtml = comunicado.contenido && String(comunicado.contenido).trim()
+      ? comunicado.contenido
+      : '<p>Sin contenido adicional.</p>';
+    const bloqueArchivo = comunicado.archivo_url
+      ? `<div class="comunicado-modal-archivo"><a href="${comunicado.archivo_url}" target="_blank" rel="noopener noreferrer">📎 Ver archivo adjunto</a></div>`
+      : '';
     Swal.fire({
       title: comunicado.descripcion || 'Comunicado',
-      html: comunicado.contenido || '<p>Sin contenido adicional.</p>',
+      html: `
+        <div class="comunicado-modal-meta">📅 ${formatearFecha(comunicado.fecha_hora)}</div>
+        <div class="comunicado-modal-contenido">${contenidoHtml}</div>
+        ${bloqueArchivo}
+      `,
       width: 760,
       confirmButtonText: 'Cerrar',
       customClass: { popup: 'swal2-comunicado-popup' }

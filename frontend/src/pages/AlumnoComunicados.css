@@ -82,6 +82,62 @@
   transform: translateY(0);
 }
 
+/* Modal de visualización completa del comunicado */
+.swal2-comunicado-popup {
+  border-radius: 14px !important;
+}
+
+.swal2-comunicado-popup .swal2-title {
+  font-size: 1.35rem !important;
+  text-align: left !important;
+  color: #1f2937 !important;
+  line-height: 1.35 !important;
+}
+
+.swal2-comunicado-popup .swal2-html-container {
+  text-align: left !important;
+  margin-top: 0.4rem !important;
+  color: #374151 !important;
+}
+
+.comunicado-modal-meta {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin-bottom: 0.85rem;
+}
+
+.comunicado-modal-contenido {
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 1rem 1.1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  line-height: 1.65;
+}
+
+.comunicado-modal-contenido p {
+  margin: 0 0 0.75rem;
+}
+
+.comunicado-modal-contenido p:last-child {
+  margin-bottom: 0;
+}
+
+.comunicado-modal-archivo {
+  margin-top: 0.9rem;
+}
+
+.comunicado-modal-archivo a {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.comunicado-modal-archivo a:hover {
+  text-decoration: underline;
+}
+
 /* Grid de cards */
 .comunicados-grid {
   display: grid;
