@@ -17006,15 +17006,20 @@ router.post('/aula-virtual/examenes/:examenId/asignar-registro', async (req, res
       const matriculaId = matricula.matricula_id;
       const mejorPuntaje = puntajesPorMatricula[matriculaId];
 
-      // Si no hay puntaje para esta matrícula, continuar
-      if (!mejorPuntaje || mejorPuntaje === null || mejorPuntaje === undefined) {
+      // Solo omitir si el alumno no tiene ninguna prueba registrada para este examen
+      // (el 0 es una nota válida y antes se saltaba por error al usar !mejorPuntaje)
+      if (mejorPuntaje === undefined) {
         continue;
       }
 
       // Limitar el puntaje entre 0 y 20 (como en el sistema)
       let puntajeFinal = parseFloat(mejorPuntaje);
+      if (Number.isNaN(puntajeFinal)) continue;
       if (puntajeFinal < 0) puntajeFinal = 0;
       if (puntajeFinal > 20) puntajeFinal = 20;
+
+      // En registro de notas la nota mínima mostrada es 06 cuando el examen sale 0
+      const valorCuadro = puntajeFinal === 0 ? '06' : puntajeFinal.toString();
 
       // Obtener o crear Nota_Detalle
       let detalles = await query(
@@ -17042,7 +17047,7 @@ router.post('/aula-virtual/examenes/:examenId/asignar-registro', async (req, res
       }
 
       // Asignar el puntaje en la posición del cuadro
-      datosDetalles[criterioId][indicadorId][cuadroIndex] = puntajeFinal.toString();
+      datosDetalles[criterioId][indicadorId][cuadroIndex] = valorCuadro;
 
       // Serializar y guardar
       const dataSerializada = phpSerialize.serialize(datosDetalles);
