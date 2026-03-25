@@ -14,6 +14,7 @@ const {
   obtenerUrlAulaVirtual,
   obtenerUrlExamenActivado,
   inferirUrlApoderadoNotificacion,
+  inferirUrlNotificacionFamiliaPorDestinatario,
   urlPublicacionPorTipoUsuario
 } = require('../utils/notificacionUrls');
 const { enviarCorreoNotificacion } = require('../services/emailService');
@@ -426,6 +427,15 @@ async function crearNotificacionesApoderados(params) {
     
     // Crear notificaciones en la BD
     if (todosDestinatarios.length > 0) {
+      const placeholdersU = todosDestinatarios.map(() => '?').join(',');
+      const destTiposRows = await query(
+        `SELECT id, tipo FROM usuarios WHERE id IN (${placeholdersU}) AND colegio_id = ?`,
+        [...todosDestinatarios.map((id) => parseInt(id, 10)), parseInt(colegio_id, 10)]
+      );
+      const tipoPorDestinatario = new Map(
+        (destTiposRows || []).map((r) => [parseInt(r.id, 10), r.tipo])
+      );
+
       console.log(`📝 [NOTIFICACIONES APODERADOS] Creando ${todosDestinatarios.length} notificaciones en BD...`);
       for (const destinatarioId of todosDestinatarios) {
         try {
@@ -438,9 +448,15 @@ async function crearNotificacionesApoderados(params) {
             continue;
           }
           
+          const tipoDest = tipoPorDestinatario.get(destinatarioIdNum) || 'APODERADO';
           const urlDestino =
             urlDestinoParam ||
-            inferirUrlApoderadoNotificacion(tipoNotificacion, dataExtra, alumnoIdNum);
+            inferirUrlNotificacionFamiliaPorDestinatario(
+              tipoNotificacion,
+              dataExtra,
+              alumnoIdNum,
+              tipoDest
+            );
           await insertNotificacionUsuario(execute, {
             usuario_id: usuarioIdNum,
             destinatario_id: destinatarioIdNum,
@@ -471,12 +487,19 @@ async function crearNotificacionesApoderados(params) {
           [...todosDestinatarios.map(id => parseInt(id)), parseInt(colegio_id)]
         );
         
-        const urlPushBase =
-          urlDestinoParam ||
-          inferirUrlApoderadoNotificacion(tipoNotificacion, dataExtra, alumnoIdNum);
-        
         if (subscriptionsData.length > 0) {
-        const pushItems = subscriptionsData.map((sub) => ({
+        const pushItems = subscriptionsData.map((sub) => {
+          const uid = parseInt(sub.usuario_id, 10);
+          const tipoDestPush = tipoPorDestinatario.get(uid) || 'APODERADO';
+          const urlPush =
+            urlDestinoParam ||
+            inferirUrlNotificacionFamiliaPorDestinatario(
+              tipoNotificacion,
+              dataExtra,
+              alumnoIdNum,
+              tipoDestPush
+            );
+          return {
           subscription: {
             endpoint: sub.endpoint,
             keys: { p256dh: sub.p256dh, auth: sub.auth }
@@ -489,13 +512,14 @@ async function crearNotificacionesApoderados(params) {
             vibrate: [200, 100, 200],
             tag: `${tipoNotificacion}-${alumno_id}-${Date.now()}`,
             data: {
-              url: urlPushBase,
+              url: urlPush,
               tipo: tipoNotificacion,
               alumno_id: alumno_id,
               ...dataExtra
             }
           }
-        }));
+        };
+        });
         
         console.log(`📱 [NOTIFICACIONES APODERADOS] Enviando ${pushItems.length} push notifications...`);
         
@@ -14213,6 +14237,8 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
 
         // Insertar mensajes en la base de datos
         console.log(`📨 [ENVIAR MENSAJE] Procesando ${usuariosDestinatarios.length} destinatario(s)`);
+        /** Para campanita in-app: un registro por destinatario con el id del mensaje RECIBIDO */
+        const campanaMensajesDocente = [];
         for (const destinatarioId of usuariosDestinatarios) {
           try {
             let asuntoDest = asuntoEnviar;
@@ -14256,6 +14282,10 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
 
             mensajesIds.push(resultEnviado.insertId, resultRecibido.insertId);
             mensajesInsertados += 2;
+            campanaMensajesDocente.push({
+              destinatarioId: parseInt(destinatarioId, 10),
+              mensajeRecibidoId: resultRecibido.insertId
+            });
           } catch (error) {
             console.error(`Error insertando mensaje para destinatario ${destinatarioId}:`, error);
             // Continuar con los demás destinatarios aunque uno falle
@@ -14331,27 +14361,90 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           return;
         }
 
+        // Campanita: una notificación por destinatario (incluye alumnos, apoderados, docentes y conexiones)
+        try {
+          if (campanaMensajesDocente.length > 0) {
+            const idsCampana = [...new Set(campanaMensajesDocente.map((c) => c.destinatarioId))];
+            const phC = idsCampana.map(() => '?').join(',');
+            const tiposCampana = await query(
+              `SELECT id, tipo FROM usuarios WHERE id IN (${phC}) AND colegio_id = ?`,
+              [...idsCampana, colegio_id]
+            );
+            const tipoPorIdCampana = new Map((tiposCampana || []).map((r) => [parseInt(r.id, 10), r.tipo]));
+            const tituloBell = refGrupoNotif ? 'Conexiones familiares' : 'Nuevo mensaje del docente';
+            const refTxtBell = refGrupoNotif ? `${refGrupoNotif}. ` : '';
+            const contenidoBell = `Tiene un nuevo mensaje. ${refTxtBell}"${(asuntoEnviar || 'Sin asunto').substring(0, 150)}".`;
+            const accionTipoBell = gruposArray?.length ? 'mensajes_conexiones' : 'mensaje_nuevo';
+            for (const row of campanaMensajesDocente) {
+              const tipoD = tipoPorIdCampana.get(row.destinatarioId) || 'APODERADO';
+              let urlDest = '/alumno/mensajes';
+              if (tipoD === 'APODERADO') urlDest = '/apoderado/mensajes';
+              else if (tipoD === 'DOCENTE') urlDest = '/docente/mensajes';
+              try {
+                await insertNotificacionUsuario(execute, {
+                  usuario_id,
+                  destinatario_id: row.destinatarioId,
+                  asunto: tituloBell,
+                  contenido: contenidoBell,
+                  estado: 'ENVIADO',
+                  accion_tipo: accionTipoBell,
+                  accion_payload: {
+                    mensaje_id: row.mensajeRecibidoId,
+                    grupos: gruposArray?.length ? gruposArray : undefined
+                  },
+                  url_destino: urlDest
+                });
+              } catch (campErr) {
+                console.warn(`[MENSAJES] Notificación campanita destinatario ${row.destinatarioId}:`, campErr.message);
+              }
+            }
+          }
+        } catch (campanaErr) {
+          console.warn('[MENSAJES] Error notificaciones campanita (no crítico):', campanaErr.message);
+        }
+
         // Push notifications a todos los destinatarios (alumnos, apoderados, docentes)
         try {
           if (usuariosDestinatarios.length > 0) {
+            const idsPushD = [...new Set(usuariosDestinatarios.map((id) => parseInt(id, 10)))];
+            const trP = await query(
+              `SELECT id, tipo FROM usuarios WHERE id IN (${idsPushD.map(() => '?').join(',')}) AND colegio_id = ?`,
+              [...idsPushD, colegio_id]
+            );
+            const mapPushDocenteMsg = new Map((trP || []).map((r) => [parseInt(r.id, 10), r.tipo]));
             const subsData = await query(
-              `SELECT endpoint, p256dh, auth FROM push_subscriptions
+              `SELECT usuario_id, endpoint, p256dh, auth FROM push_subscriptions
                WHERE usuario_id IN (${usuariosDestinatarios.map(() => '?').join(',')})
                  AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
               [...usuariosDestinatarios, colegio_id]
             );
-            const subscriptions = (subsData || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
-            if (subscriptions.length > 0) {
+            if ((subsData || []).length > 0) {
               const asuntoCorto = (asuntoEnviar || 'Sin asunto').substring(0, 72);
-              enviarPushNotificationMultiple(subscriptions, {
-                title: refGrupoNotif ? 'Mensaje (Conexiones familiares)' : 'Nuevo mensaje',
-                body: asuntoCorto,
-                icon: '/icons/icon-192x192.png',
-                badge: '/icons/icon-192x192.png',
-                vibrate: [200, 100, 200],
-                tag: `mensaje-${Date.now()}`,
-                data: { url: '/', tipo: 'mensaje' }
-              }).catch(err => console.error('❌ [MENSAJES] Error push:', err));
+              const pushItemsDoc = (subsData || []).map((sub) => {
+                const uid = parseInt(sub.usuario_id, 10);
+                const td = mapPushDocenteMsg.get(uid) || 'DOCENTE';
+                let urlPush = '/docente/mensajes';
+                if (td === 'APODERADO') urlPush = '/apoderado/mensajes';
+                else if (td === 'ALUMNO') urlPush = '/alumno/mensajes';
+                return {
+                  subscription: {
+                    endpoint: sub.endpoint,
+                    keys: { p256dh: sub.p256dh, auth: sub.auth }
+                  },
+                  payload: {
+                    title: refGrupoNotif ? 'Mensaje (Conexiones familiares)' : 'Nuevo mensaje',
+                    body: asuntoCorto,
+                    icon: '/icons/icon-192x192.png',
+                    badge: '/icons/icon-192x192.png',
+                    vibrate: [200, 100, 200],
+                    tag: `mensaje-${Date.now()}`,
+                    data: { url: urlPush, tipo: 'mensaje' }
+                  }
+                };
+              });
+              enviarPushNotificacionesIndividuales(pushItemsDoc).catch((err) =>
+                console.error('❌ [MENSAJES] Error push:', err)
+              );
             }
           }
         } catch (pushErr) {
@@ -14416,25 +14509,6 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               apoderadosUnicos.push(ap);
             }
             if (apoderadosUnicos.length > 0) {
-              const tituloNotif = 'Conexiones familiares';
-              const refTxt = refGrupoNotif ? `${refGrupoNotif}. ` : '';
-              const contenidoNotif = `Se ha enviado un mensaje. ${refTxt}Asunto: "${(asuntoEnviar || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
-              for (const ap of apoderadosUnicos) {
-                try {
-                  await insertNotificacionUsuario(execute, {
-                    usuario_id,
-                    destinatario_id: ap.usuario_id,
-                    asunto: tituloNotif,
-                    contenido: contenidoNotif,
-                    estado: 'ENVIADO',
-                    accion_tipo: 'mensajes_conexiones',
-                    accion_payload: { grupos: gruposArray },
-                    url_destino: '/apoderado/mensajes'
-                  });
-                } catch (insErr) {
-                  console.warn('Notificación BD apoderado:', insErr.message);
-                }
-              }
               const apoderadoUsuarioIds = apoderadosUnicos.map(a => a.usuario_id);
               const subsApod = await query(
                 `SELECT endpoint, p256dh, auth FROM push_subscriptions
@@ -14457,7 +14531,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                   data: { url: '/apoderado/mensajes', tipo: 'mensaje' }
                 }).catch(err => console.error('❌ [MENSAJES] Push apoderados:', err));
               }
-              console.log(`📧 [MENSAJES] Conexiones Familiares: ${apoderadosUnicos.length} apoderado(s) - BD + push (correo enviado en bloque unificado arriba)`);
+              console.log(`📧 [MENSAJES] Conexiones Familiares: push extra a ${apoderadosUnicos.length} apoderado(s) (campanita unificada arriba; correo en bloque unificado)`);
             }
           } catch (errApod) {
             console.error('❌ [MENSAJES] Error notificando apoderados:', errApod);

@@ -5,7 +5,11 @@ const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
-const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
+const {
+  enviarPushNotificationMultiple,
+  enviarPushNotificacionesIndividuales
+} = require('../services/pushNotificationService');
+const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { enviarCorreoNotificacion } = require('../services/emailService');
 const phpSerialize = require('php-serialize');
 const {
@@ -3286,6 +3290,7 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
         const fechaHora = fechaHoraMySQLLima();
         let mensajesInsertados = 0;
         const mensajesIds = [];
+        const campanaApoderadoMensajes = [];
 
         for (const destinatarioId of destinatariosArray) {
           try {
@@ -3304,6 +3309,10 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
 
             mensajesIds.push(resultEnviado.insertId, resultRecibido.insertId);
             mensajesInsertados += 2;
+            campanaApoderadoMensajes.push({
+              destinatarioId: parseInt(destinatarioId, 10),
+              mensajeRecibidoId: resultRecibido.insertId
+            });
           } catch (error) {
             console.error(`Error insertando mensaje para destinatario ${destinatarioId}:`, error);
           }
@@ -3326,27 +3335,77 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
           }
         }
 
+        let mapTipoApodMensajes = new Map();
+        try {
+          if (campanaApoderadoMensajes.length > 0 && req.user?.colegio_id) {
+            const idsC = [...new Set(campanaApoderadoMensajes.map((c) => c.destinatarioId))];
+            const tiposC = await query(
+              `SELECT id, tipo FROM usuarios WHERE id IN (${idsC.map(() => '?').join(',')}) AND colegio_id = ?`,
+              [...idsC, req.user.colegio_id]
+            );
+            mapTipoApodMensajes = new Map((tiposC || []).map((r) => [parseInt(r.id, 10), r.tipo]));
+            const contenidoBell = `Mensaje de apoderado/familia: "${(asuntoFinal || 'Sin asunto').substring(0, 150)}".`;
+            for (const row of campanaApoderadoMensajes) {
+              const td = mapTipoApodMensajes.get(row.destinatarioId) || 'DOCENTE';
+              let urlDest = '/docente/mensajes';
+              if (td === 'APODERADO') urlDest = '/apoderado/mensajes';
+              else if (td === 'ALUMNO') urlDest = '/alumno/mensajes';
+              try {
+                await insertNotificacionUsuario(execute, {
+                  usuario_id: usuarioIdApoderado,
+                  destinatario_id: row.destinatarioId,
+                  asunto: 'Nuevo mensaje (apoderado)',
+                  contenido: contenidoBell,
+                  estado: 'ENVIADO',
+                  accion_tipo: 'mensaje_nuevo',
+                  accion_payload: { mensaje_id: row.mensajeRecibidoId, hijo_id: hijoIdNum },
+                  url_destino: urlDest
+                });
+              } catch (bellErr) {
+                console.warn('[MENSAJES APODERADO] Campanita:', bellErr.message);
+              }
+            }
+          }
+        } catch (bellErr2) {
+          console.warn('[MENSAJES APODERADO] Notificaciones in-app:', bellErr2.message);
+        }
+
         // Push notifications a destinatarios
         try {
           if (destinatariosArray.length > 0 && req.user?.colegio_id) {
             const subsData = await query(
-              `SELECT endpoint, p256dh, auth FROM push_subscriptions
+              `SELECT usuario_id, endpoint, p256dh, auth FROM push_subscriptions
                WHERE usuario_id IN (${destinatariosArray.map(() => '?').join(',')})
                  AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
               [...destinatariosArray.map(id => parseInt(id)), req.user.colegio_id]
             );
-            const subscriptions = (subsData || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
-            if (subscriptions.length > 0) {
+            if ((subsData || []).length > 0) {
               const asuntoCorto = (asuntoFinal || 'Sin asunto').substring(0, 80);
-              enviarPushNotificationMultiple(subscriptions, {
-                title: 'Nuevo mensaje (apoderado)',
-                body: asuntoCorto,
-                icon: '/icons/icon-192x192.png',
-                badge: '/icons/icon-192x192.png',
-                vibrate: [200, 100, 200],
-                tag: `mensaje-${Date.now()}`,
-                data: { url: '/', tipo: 'mensaje' }
-              }).catch(err => console.error('❌ [MENSAJES] Error push:', err));
+              const pushItemsAp = (subsData || []).map((sub) => {
+                const uid = parseInt(sub.usuario_id, 10);
+                const td = mapTipoApodMensajes.get(uid) || 'DOCENTE';
+                let urlPush = '/docente/mensajes';
+                if (td === 'APODERADO') urlPush = '/apoderado/mensajes';
+                else if (td === 'ALUMNO') urlPush = '/alumno/mensajes';
+                return {
+                  subscription: {
+                    endpoint: sub.endpoint,
+                    keys: { p256dh: sub.p256dh, auth: sub.auth }
+                  },
+                  payload: {
+                    title: 'Nuevo mensaje (apoderado)',
+                    body: asuntoCorto,
+                    icon: '/icons/icon-192x192.png',
+                    badge: '/icons/icon-192x192.png',
+                    vibrate: [200, 100, 200],
+                    tag: `mensaje-${Date.now()}`,
+                    data: { url: urlPush, tipo: 'mensaje' }
+                  }
+                };
+              });
+              enviarPushNotificacionesIndividuales(pushItemsAp).catch((err) =>
+                console.error('❌ [MENSAJES] Error push:', err)
+              );
             }
           }
         } catch (pushErr) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
@@ -12,6 +12,7 @@ import './DocenteGrupos.css';
 
 function ApoderadoDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
@@ -39,6 +40,17 @@ function ApoderadoDashboard() {
   useEffect(() => {
     cargarDashboard();
   }, []);
+
+  useEffect(() => {
+    if (location.hash !== '#publicaciones') return;
+    const t = window.setTimeout(() => {
+      document.getElementById('dashboard-publicaciones')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start'
+      });
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [location.hash, location.pathname, loading]);
 
   // Extraer datos del dashboard (con valores por defecto para evitar errores)
   const { apoderado, estadisticas, proximosExamenes, proximasTareas, proximasActividades, comunicadoHome } = dashboardData || {};
@@ -428,7 +440,7 @@ function ApoderadoDashboard() {
         </div>
 
         {/* Card amarillo - Solo en móvil */}
-        <div className="dashboard-section card-amarillo-section">
+        <div id="dashboard-publicaciones" className="dashboard-section card-amarillo-section">
           <div className="card-amarillo-vacio">
             <h3 className="card-amarillo-title">Publicaciones</h3>
             <div className="card-amarillo-separator"></div>

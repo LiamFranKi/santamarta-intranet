@@ -97,34 +97,81 @@ async function obtenerUrlExamenActivado(query, destinatarioUsuarioId, ctx) {
 }
 
 /**
- * URL para notificaciones dirigidas a apoderados/docente-apoderado (helper docente).
+ * Portal hijos según rol del destinatario (evita enviar a /apoderado/* a un usuario con sesión DOCENTE).
  */
-function inferirUrlApoderadoNotificacion(tipoNotificacion, dataExtra = {}, alumno_id) {
+function urlPortalHijoPorTipoUsuario(tipoDestinatario, alumno_id) {
+  const td = String(tipoDestinatario || '').toUpperCase();
+  const aid =
+    alumno_id != null && alumno_id !== ''
+      ? parseInt(String(alumno_id), 10)
+      : NaN;
+  const valid = !Number.isNaN(aid);
+  if (td === 'DOCENTE') {
+    return valid ? `/docente/hijos/${aid}` : '/docente/hijos';
+  }
+  if (td === 'APODERADO') {
+    return valid ? `/apoderado/hijos/${aid}` : '/apoderado/hijos';
+  }
+  return '/';
+}
+
+/**
+ * URL in-app según tipo de notificación y tipo de usuario destinatario (apoderado vs docente-apoderado).
+ */
+function inferirUrlNotificacionFamiliaPorDestinatario(
+  tipoNotificacion,
+  dataExtra = {},
+  alumno_id,
+  tipoDestinatario
+) {
   const tipo = String(tipoNotificacion || '');
+  const td = String(tipoDestinatario || 'APODERADO').toUpperCase();
   if (tipo.includes('mensaje') || tipo === 'conexion' || (dataExtra && dataExtra.mensaje_id)) {
+    if (td === 'DOCENTE') return '/docente/mensajes';
     return '/apoderado/mensajes';
   }
   if (tipo.includes('publicacion') || tipo.includes('comunicado')) {
+    if (td === 'DOCENTE') return '/docente/comunicados';
     return '/apoderado/comunicados';
   }
   if (tipo.includes('asistencia')) {
-    return '/apoderado/hijos';
+    return urlPortalHijoPorTipoUsuario(td, alumno_id);
   }
-  if (tipo === 'examen_finalizado' && alumno_id) {
-    return '/apoderado/hijos';
+  if (tipo === 'examen_finalizado') {
+    return urlPortalHijoPorTipoUsuario(td, alumno_id);
   }
+  if (tipo === 'nota_tarea') {
+    return urlPortalHijoPorTipoUsuario(td, alumno_id);
+  }
+  if (td === 'DOCENTE') return '/docente/dashboard';
   return '/apoderado/dashboard';
 }
 
+/**
+ * URL para notificaciones dirigidas a apoderados/docente-apoderado (helper docente).
+ * @deprecated Preferir inferirUrlNotificacionFamiliaPorDestinatario con tipo destinatario.
+ */
+function inferirUrlApoderadoNotificacion(tipoNotificacion, dataExtra = {}, alumno_id) {
+  return inferirUrlNotificacionFamiliaPorDestinatario(
+    tipoNotificacion,
+    dataExtra,
+    alumno_id,
+    'APODERADO'
+  );
+}
+
+/** Dashboard + ancla al feed de publicaciones (misma pantalla que Comunicados en feed móvil). */
 function urlPublicacionPorTipoUsuario(tipoUsuario) {
-  if (tipoUsuario === 'ALUMNO') return '/alumno/comunicados';
-  if (tipoUsuario === 'APODERADO') return '/apoderado/comunicados';
-  return '/docente/comunicados';
+  if (tipoUsuario === 'ALUMNO') return '/alumno/dashboard#publicaciones';
+  if (tipoUsuario === 'APODERADO') return '/apoderado/dashboard#publicaciones';
+  return '/docente/dashboard#publicaciones';
 }
 
 module.exports = {
   obtenerUrlAulaVirtual,
   obtenerUrlExamenActivado,
   inferirUrlApoderadoNotificacion,
+  inferirUrlNotificacionFamiliaPorDestinatario,
+  urlPortalHijoPorTipoUsuario,
   urlPublicacionPorTipoUsuario
 };

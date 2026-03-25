@@ -46,6 +46,28 @@ export function normalizarUrlNotificacion(notif, user) {
     return `/docente/hijos/${payload.alumno_id}/aula-virtual/${payload.asignatura_id}${qs}`;
   }
 
+  // Notificaciones viejas: URL de apoderado pero sesión docente (docente-apoderado) → evitar 403 y logout
+  if (user?.tipo === 'DOCENTE' && url.startsWith('/apoderado/hijos')) {
+    return url.replace('/apoderado/hijos', '/docente/hijos');
+  }
+  if (user?.tipo === 'DOCENTE' && (url === '/apoderado/dashboard' || url.startsWith('/apoderado/mensajes'))) {
+    return url.replace('/apoderado/', '/docente/');
+  }
+  if (user?.tipo === 'DOCENTE' && url.startsWith('/apoderado/comunicados')) {
+    return url.replace('/apoderado/comunicados', '/docente/comunicados');
+  }
+
+  // Publicación: centralizar en dashboard (feed) aunque en BD siga /comunicados (datos antiguos)
+  if (
+    tipoAccion === 'publicacion' &&
+    url &&
+    url.includes('/comunicados')
+  ) {
+    if (user?.tipo === 'ALUMNO') return '/alumno/dashboard#publicaciones';
+    if (user?.tipo === 'APODERADO') return '/apoderado/dashboard#publicaciones';
+    return '/docente/dashboard#publicaciones';
+  }
+
   if (url) return url;
 
   // ——— Respaldo: sin url_destino (datos viejos o respuesta parcial) ———
@@ -83,9 +105,9 @@ export function normalizarUrlNotificacion(notif, user) {
   }
 
   if (tipoAccion === 'publicacion') {
-    if (user?.tipo === 'ALUMNO') return '/alumno/comunicados';
-    if (user?.tipo === 'APODERADO') return '/apoderado/comunicados';
-    return '/docente/comunicados';
+    if (user?.tipo === 'ALUMNO') return '/alumno/dashboard#publicaciones';
+    if (user?.tipo === 'APODERADO') return '/apoderado/dashboard#publicaciones';
+    return '/docente/dashboard#publicaciones';
   }
 
   if (tipoAccion === 'mensajes_conexiones' || tipoAccion.includes('mensaje')) {
@@ -94,7 +116,12 @@ export function normalizarUrlNotificacion(notif, user) {
     return '/alumno/mensajes';
   }
 
-  if (tipoAccion === 'asistencia_alumno') return '/apoderado/hijos';
+  if (tipoAccion === 'asistencia_alumno') {
+    if (user?.tipo === 'DOCENTE') {
+      return payload.alumno_id ? `/docente/hijos/${payload.alumno_id}` : '/docente/hijos';
+    }
+    return payload.alumno_id ? `/apoderado/hijos/${payload.alumno_id}` : '/apoderado/hijos';
+  }
   if (tipoAccion === 'asistencia_docente') return '/docente/dashboard';
 
   if ((tipoAccion === 'tarea_por_vencer' || tipoAccion === 'tarea_vencida_sin_entrega') && payload.asignatura_id) {
@@ -105,7 +132,10 @@ export function normalizarUrlNotificacion(notif, user) {
   }
 
   if (tipoAccion === 'examen_finalizado') {
-    return '/apoderado/hijos';
+    if (user?.tipo === 'DOCENTE') {
+      return payload.alumno_id ? `/docente/hijos/${payload.alumno_id}` : '/docente/hijos';
+    }
+    return payload.alumno_id ? `/apoderado/hijos/${payload.alumno_id}` : '/apoderado/hijos';
   }
 
   return dashboardPorTipoUsuario(user?.tipo);

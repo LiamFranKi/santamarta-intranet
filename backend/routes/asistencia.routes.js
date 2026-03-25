@@ -6,6 +6,7 @@ const moment = require('moment-timezone');
 const { enviarCorreoAsistencia } = require('../services/emailService');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
+const { urlPortalHijoPorTipoUsuario } = require('../utils/notificacionUrls');
 const mensajesConfig = require('../config/mensajes.json');
 
 // Todas las rutas requieren autenticación y ser ASISTENCIA o ADMINISTRADOR
@@ -562,7 +563,15 @@ router.post('/registrar', async (req, res) => {
         console.log(`📧 [ASISTENCIA] Título notificación: ${tituloNotificacion}`);
         console.log(`📧 [ASISTENCIA] Mensaje notificación: ${mensajeNotificacion}`);
 
-        const urlAsistenciaApoderado = '/apoderado/hijos';
+        const idsPushTipos = [...new Set((subscriptions || []).map((s) => parseInt(s.usuario_id, 10)))];
+        let tipoPorUsuarioAsistenciaPush = new Map();
+        if (idsPushTipos.length > 0) {
+          const trPush = await query(
+            `SELECT id, tipo FROM usuarios WHERE id IN (${idsPushTipos.map(() => '?').join(',')}) AND colegio_id = ?`,
+            [...idsPushTipos, colegio_id]
+          );
+          tipoPorUsuarioAsistenciaPush = new Map((trPush || []).map((r) => [parseInt(r.id, 10), r.tipo]));
+        }
 
         // Crear notificaciones en la BD para los apoderados (incluyendo docentes que son apoderados)
         if (apoderados.length > 0) {
@@ -601,10 +610,22 @@ router.post('/registrar', async (req, res) => {
             
             // Eliminar duplicados
             todosUsuarioIds = [...new Set(todosUsuarioIds)];
+
+            const phTipo = todosUsuarioIds.map(() => '?').join(',');
+            const tiposDestRows = await query(
+              `SELECT id, tipo FROM usuarios WHERE id IN (${phTipo}) AND colegio_id = ?`,
+              [...todosUsuarioIds.map((x) => parseInt(x, 10)), colegio_id]
+            );
+            const tipoPorDestAsistencia = new Map(
+              (tiposDestRows || []).map((r) => [parseInt(r.id, 10), r.tipo])
+            );
             
             // Crear notificaciones para todos los usuarios encontrados
             for (const usuarioId of todosUsuarioIds) {
               try {
+                const uidNum = parseInt(usuarioId, 10);
+                const tipoDest = tipoPorDestAsistencia.get(uidNum) || 'APODERADO';
+                const urlDestinoAsist = urlPortalHijoPorTipoUsuario(tipoDest, datosUsuario.id);
                 await insertNotificacionUsuario(execute, {
                   usuario_id: asistencia_usuario_id,
                   destinatario_id: usuarioId,
@@ -616,7 +637,7 @@ router.post('/registrar', async (req, res) => {
                     alumno_id: datosUsuario.id,
                     tipo_registro
                   },
-                  url_destino: urlAsistenciaApoderado
+                  url_destino: urlDestinoAsist
                 });
                 console.log(`✅ [ASISTENCIA] Notificación creada en BD para usuario ID: ${usuarioId}`);
               } catch (error) {
@@ -632,20 +653,6 @@ router.post('/registrar', async (req, res) => {
         } else {
           console.log(`⚠️ [ASISTENCIA] No se encontraron apoderados para crear notificaciones (tipo_registro: ${tipo_registro})`);
         }
-
-        const payloadPushBase = {
-          title: tituloNotificacion,
-          body: mensajeNotificacion,
-          icon: '/icons/icon-192x192.png',
-          badge: '/icons/icon-192x192.png',
-          vibrate: [200, 100, 200],
-          tag: `asistencia-${tipo_registro}-${datosUsuario.id}`,
-          data: {
-            url: urlAsistenciaApoderado,
-            tipo: 'asistencia',
-            alumno_id: datosUsuario.id
-          }
-        };
 
         // Una sola ejecución por escaneo: solo ENTRADA envía correo a apoderados; SALIDA y todo lo demás solo push.
         setImmediate(async () => {
@@ -697,10 +704,27 @@ router.post('/registrar', async (req, res) => {
           try {
             if (subscriptions && subscriptions.length > 0) {
               console.log(`📱 [ASISTENCIA] Enviando ${subscriptions.length} notificación(es) push...`);
-              const pushItemsAsist = subscriptions.map((sub) => ({
-                subscription: { endpoint: sub.endpoint, keys: sub.keys },
-                payload: payloadPushBase
-              }));
+              const pushItemsAsist = subscriptions.map((sub) => {
+                const uid = parseInt(sub.usuario_id, 10);
+                const tipoD = tipoPorUsuarioAsistenciaPush.get(uid) || 'APODERADO';
+                const url = urlPortalHijoPorTipoUsuario(tipoD, datosUsuario.id);
+                return {
+                  subscription: { endpoint: sub.endpoint, keys: sub.keys },
+                  payload: {
+                    title: tituloNotificacion,
+                    body: mensajeNotificacion,
+                    icon: '/icons/icon-192x192.png',
+                    badge: '/icons/icon-192x192.png',
+                    vibrate: [200, 100, 200],
+                    tag: `asistencia-${tipo_registro}-${datosUsuario.id}`,
+                    data: {
+                      url,
+                      tipo: 'asistencia',
+                      alumno_id: datosUsuario.id
+                    }
+                  }
+                };
+              });
               enviarPushNotificacionesIndividuales(pushItemsAsist)
                 .then(async (resultadosPush) => {
                   const exitosas = resultadosPush.filter(r => r.resultado && r.resultado.success).length;

@@ -118,16 +118,18 @@ function PrivateRoute({ children, requiredType = null, requiredTypes = null }) {
 
 // Componente para hacer scroll al top cuando cambia la ruta
 function ScrollToTop() {
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
 
   useEffect(() => {
-    // Hacer scroll al top cuando cambia la ruta
+    if (hash === '#publicaciones') {
+      return;
+    }
     window.scrollTo({
       top: 0,
       left: 0,
-      behavior: 'smooth' // Scroll suave
+      behavior: 'smooth'
     });
-  }, [pathname]);
+  }, [pathname, hash]);
 
   return null;
 }

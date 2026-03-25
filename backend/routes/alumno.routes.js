@@ -5,7 +5,8 @@ const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
-const { enviarPushNotificationMultiple } = require('../services/pushNotificationService');
+const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
+const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const phpSerialize = require('php-serialize');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 
@@ -2699,6 +2700,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         let mensajesInsertados = 0;
         const mensajesIds = [];
 
+        const campanaAlumnoMensajes = [];
         for (const destinatarioId of destinatariosArray) {
           try {
             // Mensaje para el remitente (tipo ENVIADO)
@@ -2717,6 +2719,10 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
 
             mensajesIds.push(resultEnviado.insertId, resultRecibido.insertId);
             mensajesInsertados += 2;
+            campanaAlumnoMensajes.push({
+              destinatarioId: parseInt(destinatarioId, 10),
+              mensajeRecibidoId: resultRecibido.insertId
+            });
           } catch (error) {
             console.error(`Error insertando mensaje para destinatario ${destinatarioId}:`, error);
           }
@@ -2739,30 +2745,77 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           }
         }
 
+        let mapTipoAlumnoMensajes = new Map();
+        try {
+          if (campanaAlumnoMensajes.length > 0) {
+            const idsC = [...new Set(campanaAlumnoMensajes.map((c) => c.destinatarioId))];
+            const tiposC = await query(
+              `SELECT id, tipo FROM usuarios WHERE id IN (${idsC.map(() => '?').join(',')}) AND colegio_id = ?`,
+              [...idsC, colegio_id]
+            );
+            mapTipoAlumnoMensajes = new Map((tiposC || []).map((r) => [parseInt(r.id, 10), r.tipo]));
+            const contenidoBell = `Nuevo mensaje de alumno: "${(asunto || 'Sin asunto').substring(0, 150)}".`;
+            for (const row of campanaAlumnoMensajes) {
+              const td = mapTipoAlumnoMensajes.get(row.destinatarioId) || 'DOCENTE';
+              let urlDest = '/docente/mensajes';
+              if (td === 'APODERADO') urlDest = '/apoderado/mensajes';
+              else if (td === 'ALUMNO') urlDest = '/alumno/mensajes';
+              try {
+                await insertNotificacionUsuario(execute, {
+                  usuario_id,
+                  destinatario_id: row.destinatarioId,
+                  asunto: 'Nuevo mensaje (alumno)',
+                  contenido: contenidoBell,
+                  estado: 'ENVIADO',
+                  accion_tipo: 'mensaje_nuevo',
+                  accion_payload: { mensaje_id: row.mensajeRecibidoId },
+                  url_destino: urlDest
+                });
+              } catch (bellErr) {
+                console.warn('[MENSAJES ALUMNO] Campanita:', bellErr.message);
+              }
+            }
+          }
+        } catch (bellErr2) {
+          console.warn('[MENSAJES ALUMNO] Notificaciones in-app:', bellErr2.message);
+        }
+
         // Enviar push notifications a los destinatarios
         try {
           if (destinatariosArray.length > 0) {
             const subsData = await query(
-              `SELECT endpoint, p256dh, auth FROM push_subscriptions
+              `SELECT usuario_id, endpoint, p256dh, auth FROM push_subscriptions
                WHERE usuario_id IN (${destinatariosArray.map(() => '?').join(',')})
                  AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
               [...destinatariosArray.map(id => parseInt(id)), colegio_id]
             );
-            const subscriptions = (subsData || []).map(s => ({
-              endpoint: s.endpoint,
-              keys: { p256dh: s.p256dh, auth: s.auth }
-            }));
-            if (subscriptions.length > 0) {
+            if ((subsData || []).length > 0) {
               const asuntoCorto = (asunto || 'Sin asunto').substring(0, 60);
-              enviarPushNotificationMultiple(subscriptions, {
-                title: 'Nuevo mensaje',
-                body: asuntoCorto,
-                icon: '/icons/icon-192x192.png',
-                badge: '/icons/icon-192x192.png',
-                vibrate: [200, 100, 200],
-                tag: `mensaje-${Date.now()}`,
-                data: { url: '/', tipo: 'mensaje' }
-              }).catch(err => console.error('❌ [MENSAJES] Error push:', err));
+              const pushItemsAl = (subsData || []).map((sub) => {
+                const uid = parseInt(sub.usuario_id, 10);
+                const td = mapTipoAlumnoMensajes.get(uid) || 'DOCENTE';
+                let urlPush = '/docente/mensajes';
+                if (td === 'APODERADO') urlPush = '/apoderado/mensajes';
+                else if (td === 'ALUMNO') urlPush = '/alumno/mensajes';
+                return {
+                  subscription: {
+                    endpoint: sub.endpoint,
+                    keys: { p256dh: sub.p256dh, auth: sub.auth }
+                  },
+                  payload: {
+                    title: 'Nuevo mensaje',
+                    body: asuntoCorto,
+                    icon: '/icons/icon-192x192.png',
+                    badge: '/icons/icon-192x192.png',
+                    vibrate: [200, 100, 200],
+                    tag: `mensaje-${Date.now()}`,
+                    data: { url: urlPush, tipo: 'mensaje' }
+                  }
+                };
+              });
+              enviarPushNotificacionesIndividuales(pushItemsAl).catch((err) =>
+                console.error('❌ [MENSAJES] Error push:', err)
+              );
             }
           }
         } catch (pushErr) {
