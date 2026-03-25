@@ -604,7 +604,14 @@
 
 .lista-pagination {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
+}
+
+.pagination-info {
+  font-size: 0.85rem;
+  color: #6b7280;
+  white-space: nowrap;
 }
 
 .btn-pagination {
@@ -626,6 +633,12 @@
   background: #f3f4f6;
   border-color: #4a83c1;
   color: #4a83c1;
+}
+
+.btn-pagination:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .mensajes-table {

@@ -7,6 +7,8 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './AlumnoMensajes.css';
 
+const MENSAJES_PAGE_SIZE = 50;
+
 // Componente para el contenido del modal (para poder usar useEffect para marcar como leído)
 function MensajeModalContent({ mensaje, vista, onClose, onMensajeLeido }) {
   // Marcar mensaje como leído cuando se abre el modal (solo para mensajes recibidos)
@@ -142,6 +144,24 @@ function AlumnoMensajes() {
   const [mensajeSeleccionado, setMensajeSeleccionado] = useState(null);
   const [mensajesSeleccionados, setMensajesSeleccionados] = useState(new Set());
   const [anioFiltro, setAnioFiltro] = useState(null); // null = todos los años
+  const [pageRecibidos, setPageRecibidos] = useState(1);
+  const [pageEnviados, setPageEnviados] = useState(1);
+  const [filtroRemitenteId, setFiltroRemitenteId] = useState('');
+  const [filtroDestinatarioId, setFiltroDestinatarioId] = useState('');
+  const [opcionesRemitentes, setOpcionesRemitentes] = useState([]);
+  const [opcionesDestinatarios, setOpcionesDestinatarios] = useState([]);
+  const [paginationRecibidos, setPaginationRecibidos] = useState({
+    page: 1,
+    limit: MENSAJES_PAGE_SIZE,
+    total: 0,
+    totalPages: 0
+  });
+  const [paginationEnviados, setPaginationEnviados] = useState({
+    page: 1,
+    limit: MENSAJES_PAGE_SIZE,
+    total: 0,
+    totalPages: 0
+  });
   const quillRef = React.useRef(null);
   
   // Estados para nuevo mensaje
@@ -215,13 +235,23 @@ function AlumnoMensajes() {
     try {
       setLoading(true);
       console.log('📥 [ALUMNO MENSAJES] Cargando mensajes recibidos...');
-      const params = {};
+      const params = { page: pageRecibidos, limit: MENSAJES_PAGE_SIZE };
       if (anioFiltro) {
         params.anio = anioFiltro;
+      }
+      if (filtroRemitenteId) {
+        params.remitente_id = filtroRemitenteId;
       }
       const response = await api.get('/alumno/mensajes/recibidos', { params });
       console.log('✅ [ALUMNO MENSAJES] Mensajes recibidos cargados:', response.data.mensajes?.length || 0);
       const mensajes = response.data.mensajes || [];
+      const pag = response.data.pagination || {};
+      setPaginationRecibidos({
+        page: pag.page || 1,
+        limit: pag.limit || MENSAJES_PAGE_SIZE,
+        total: pag.total ?? 0,
+        totalPages: pag.totalPages ?? 0
+      });
       // Debug: verificar archivos en mensajes
       mensajes.forEach((mensaje, index) => {
         if (mensaje.archivos && mensaje.archivos.length > 0) {
@@ -230,10 +260,11 @@ function AlumnoMensajes() {
       });
       setMensajesRecibidos(mensajes);
       setMensajesSeleccionados(new Set()); // Limpiar selección al cargar
-      
-      // Si no hay mensajes y había un filtro de año, limpiarlo
-      if (mensajes.length === 0 && anioFiltro) {
+
+      const total = pag.total ?? 0;
+      if (total === 0 && anioFiltro && !filtroRemitenteId) {
         setAnioFiltro(null);
+        setPageRecibidos(1);
       }
     } catch (error) {
       console.error('❌ [ALUMNO MENSAJES] Error cargando mensajes recibidos:', error);
@@ -244,18 +275,28 @@ function AlumnoMensajes() {
     } finally {
       setLoading(false);
     }
-  }, [anioFiltro]);
+  }, [anioFiltro, pageRecibidos, filtroRemitenteId]);
 
   // Cargar mensajes enviados
   const cargarMensajesEnviados = useCallback(async () => {
     try {
       setLoading(true);
-      const params = {};
+      const params = { page: pageEnviados, limit: MENSAJES_PAGE_SIZE };
       if (anioFiltro) {
         params.anio = anioFiltro;
       }
+      if (filtroDestinatarioId) {
+        params.destinatario_id = filtroDestinatarioId;
+      }
       const response = await api.get('/alumno/mensajes/enviados', { params });
       const mensajes = response.data.mensajes || [];
+      const pag = response.data.pagination || {};
+      setPaginationEnviados({
+        page: pag.page || 1,
+        limit: pag.limit || MENSAJES_PAGE_SIZE,
+        total: pag.total ?? 0,
+        totalPages: pag.totalPages ?? 0
+      });
       // Debug: verificar archivos en mensajes
       mensajes.forEach((mensaje, index) => {
         if (mensaje.archivos && mensaje.archivos.length > 0) {
@@ -264,11 +305,11 @@ function AlumnoMensajes() {
       });
       setMensajesEnviados(mensajes);
       setMensajesSeleccionados(new Set()); // Limpiar selección al cargar
-      
-      // Si no hay mensajes y había un filtro de año, limpiarlo y recargar sin filtro
-      if (mensajes.length === 0 && anioFiltro) {
+
+      const total = pag.total ?? 0;
+      if (total === 0 && anioFiltro && !filtroDestinatarioId) {
         setAnioFiltro(null);
-        // No recargar aquí porque causaría un loop, el useEffect lo hará
+        setPageEnviados(1);
       }
     } catch (error) {
       console.error('Error cargando mensajes enviados:', error);
@@ -278,7 +319,7 @@ function AlumnoMensajes() {
     } finally {
       setLoading(false);
     }
-  }, [anioFiltro]);
+  }, [anioFiltro, pageEnviados, filtroDestinatarioId]);
 
   // Buscar destinatarios
   const buscarDestinatarios = useCallback(async (termino) => {
@@ -319,6 +360,42 @@ function AlumnoMensajes() {
 
     return () => clearTimeout(timeoutId);
   }, [busquedaDestinatario, buscarDestinatarios]);
+
+  const cargarOpcionesRemitentes = useCallback(async () => {
+    try {
+      const params = {};
+      if (anioFiltro) params.anio = anioFiltro;
+      const r = await api.get('/alumno/mensajes/remitentes-opciones', { params });
+      setOpcionesRemitentes(Array.isArray(r.data.opciones) ? r.data.opciones : []);
+    } catch (e) {
+      console.error('Error cargando remitentes para filtro:', e);
+      setOpcionesRemitentes([]);
+    }
+  }, [anioFiltro]);
+
+  const cargarOpcionesDestinatarios = useCallback(async () => {
+    try {
+      const params = {};
+      if (anioFiltro) params.anio = anioFiltro;
+      const r = await api.get('/alumno/mensajes/destinatarios-opciones', { params });
+      setOpcionesDestinatarios(Array.isArray(r.data.opciones) ? r.data.opciones : []);
+    } catch (e) {
+      console.error('Error cargando destinatarios para filtro:', e);
+      setOpcionesDestinatarios([]);
+    }
+  }, [anioFiltro]);
+
+  useEffect(() => {
+    if (vista === 'recibidos') {
+      cargarOpcionesRemitentes();
+    }
+  }, [vista, cargarOpcionesRemitentes]);
+
+  useEffect(() => {
+    if (vista === 'enviados') {
+      cargarOpcionesDestinatarios();
+    }
+  }, [vista, cargarOpcionesDestinatarios]);
 
   // Cargar mensajes según la vista
   useEffect(() => {
@@ -610,6 +687,8 @@ function AlumnoMensajes() {
 
   const mensajes = vista === 'recibidos' ? mensajesRecibidos : mensajesEnviados;
   const tituloLista = vista === 'recibidos' ? 'Mensajes Recibidos' : 'Mensajes Enviados';
+  const paginationLista = vista === 'recibidos' ? paginationRecibidos : paginationEnviados;
+  const setPageLista = vista === 'recibidos' ? setPageRecibidos : setPageEnviados;
 
   return (
     <DashboardLayout>
@@ -834,7 +913,13 @@ function AlumnoMensajes() {
                       <select
                         id="filtro-anio-select"
                         value={anioFiltro || ''}
-                        onChange={(e) => setAnioFiltro(e.target.value ? parseInt(e.target.value) : null)}
+                        onChange={(e) => {
+                          setAnioFiltro(e.target.value ? parseInt(e.target.value, 10) : null);
+                          setFiltroRemitenteId('');
+                          setFiltroDestinatarioId('');
+                          setPageRecibidos(1);
+                          setPageEnviados(1);
+                        }}
                         className="select-anio"
                       >
                         <option value="">Todos los años</option>
@@ -843,6 +928,44 @@ function AlumnoMensajes() {
                         ))}
                       </select>
                     </div>
+                    {vista === 'recibidos' && (
+                      <div className="filtro-anio">
+                        <label htmlFor="filtro-remitente-select">Remitente:</label>
+                        <select
+                          id="filtro-remitente-select"
+                          value={filtroRemitenteId === '' ? '' : String(filtroRemitenteId)}
+                          onChange={(e) => {
+                            setFiltroRemitenteId(e.target.value ? parseInt(e.target.value, 10) : '');
+                            setPageRecibidos(1);
+                          }}
+                          className="select-anio"
+                        >
+                          <option value="">Todos los remitentes</option>
+                          {opcionesRemitentes.map((o) => (
+                            <option key={o.id} value={o.id}>{o.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {vista === 'enviados' && (
+                      <div className="filtro-anio">
+                        <label htmlFor="filtro-destinatario-select">Destinatario:</label>
+                        <select
+                          id="filtro-destinatario-select"
+                          value={filtroDestinatarioId === '' ? '' : String(filtroDestinatarioId)}
+                          onChange={(e) => {
+                            setFiltroDestinatarioId(e.target.value ? parseInt(e.target.value, 10) : '');
+                            setPageEnviados(1);
+                          }}
+                          className="select-anio"
+                        >
+                          <option value="">Todos los destinatarios</option>
+                          {opcionesDestinatarios.map((o) => (
+                            <option key={o.id} value={o.id}>{o.nombre}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                     {/* Botones de acción */}
                     {mensajesSeleccionados.size > 0 && (
                       <button
@@ -853,8 +976,32 @@ function AlumnoMensajes() {
                       </button>
                     )}
                     <div className="lista-pagination">
-                      <button className="btn-pagination">‹</button>
-                      <button className="btn-pagination">›</button>
+                      {paginationLista.total > 0 && (
+                        <span className="pagination-info">
+                          Pág. {paginationLista.page} / {Math.max(1, paginationLista.totalPages)} · {paginationLista.total} mensajes
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className="btn-pagination"
+                        disabled={paginationLista.total === 0 || paginationLista.page <= 1}
+                        onClick={() => setPageLista((p) => Math.max(1, p - 1))}
+                        aria-label="Página anterior"
+                      >
+                        ‹
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-pagination"
+                        disabled={
+                          paginationLista.total === 0 ||
+                          paginationLista.page >= Math.max(1, paginationLista.totalPages)
+                        }
+                        onClick={() => setPageLista((p) => p + 1)}
+                        aria-label="Página siguiente"
+                      >
+                        ›
+                      </button>
                     </div>
                   </div>
                 </div>

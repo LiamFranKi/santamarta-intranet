@@ -2433,6 +2433,14 @@ router.get('/mensajes/recibidos', async (req, res) => {
       querySQL += ` AND YEAR(m.fecha_hora) = ?`;
       queryParams.push(anioFiltro);
     }
+
+    const remitenteFiltro = req.query.remitente_id != null && String(req.query.remitente_id).trim() !== ''
+      ? parseInt(String(req.query.remitente_id), 10)
+      : null;
+    if (remitenteFiltro != null && !Number.isNaN(remitenteFiltro)) {
+      querySQL += ` AND m.remitente_id = ?`;
+      queryParams.push(remitenteFiltro);
+    }
     
     querySQL += ` ORDER BY m.fecha_hora DESC LIMIT ? OFFSET ?`;
     queryParams.push(parseInt(limit), offset);
@@ -2476,6 +2484,10 @@ router.get('/mensajes/recibidos', async (req, res) => {
     if (anioFiltro) {
       countSQL += ` AND YEAR(m.fecha_hora) = ?`;
       countParams.push(anioFiltro);
+    }
+    if (remitenteFiltro != null && !Number.isNaN(remitenteFiltro)) {
+      countSQL += ` AND m.remitente_id = ?`;
+      countParams.push(remitenteFiltro);
     }
     
     const total = await query(countSQL, countParams);
@@ -2531,6 +2543,14 @@ router.get('/mensajes/enviados', async (req, res) => {
       querySQL += ` AND YEAR(m.fecha_hora) = ?`;
       queryParams.push(anioFiltro);
     }
+
+    const destinatarioFiltro = req.query.destinatario_id != null && String(req.query.destinatario_id).trim() !== ''
+      ? parseInt(String(req.query.destinatario_id), 10)
+      : null;
+    if (destinatarioFiltro != null && !Number.isNaN(destinatarioFiltro)) {
+      querySQL += ` AND m.destinatario_id = ?`;
+      queryParams.push(destinatarioFiltro);
+    }
     
     querySQL += ` ORDER BY m.fecha_hora DESC LIMIT ? OFFSET ?`;
     queryParams.push(parseInt(limit), offset);
@@ -2574,6 +2594,10 @@ router.get('/mensajes/enviados', async (req, res) => {
     if (anioFiltro) {
       countSQL += ` AND YEAR(m.fecha_hora) = ?`;
       countParams.push(anioFiltro);
+    }
+    if (destinatarioFiltro != null && !Number.isNaN(destinatarioFiltro)) {
+      countSQL += ` AND m.destinatario_id = ?`;
+      countParams.push(destinatarioFiltro);
     }
     
     const total = await query(countSQL, countParams);
@@ -2865,6 +2889,82 @@ router.put('/mensajes/:mensajeId/marcar-leido', async (req, res) => {
   } catch (error) {
     console.error('Error marcando mensaje como leído:', error);
     res.status(500).json({ error: 'Error al marcar mensaje como leído' });
+  }
+});
+
+/**
+ * GET /api/alumno/mensajes/remitentes-opciones
+ * Lista de remitentes distintos (bandeja recibidos) para filtro
+ */
+router.get('/mensajes/remitentes-opciones', async (req, res) => {
+  try {
+    const { usuario_id } = req.user;
+    const anioFiltro = req.query.anio ? parseInt(req.query.anio) : null;
+
+    let sql = `SELECT DISTINCT m.remitente_id AS id,
+              CASE
+                WHEN p.id IS NOT NULL THEN CONCAT(p.nombres, ' ', p.apellidos)
+                WHEN a.id IS NOT NULL THEN CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', a.apellido_materno)
+                WHEN ap.id IS NOT NULL THEN CONCAT(ap.nombres, ' ', ap.apellido_paterno, ' ', ap.apellido_materno)
+                ELSE 'Usuario desconocido'
+              END AS nombre
+       FROM mensajes m
+       INNER JOIN usuarios u1 ON u1.id = m.remitente_id
+       LEFT JOIN personal p ON p.id = u1.personal_id
+       LEFT JOIN alumnos a ON a.id = u1.alumno_id
+       LEFT JOIN apoderados ap ON ap.id = u1.apoderado_id
+       WHERE m.destinatario_id = ?
+         AND m.tipo = 'RECIBIDO'
+         AND m.borrado = 'NO'`;
+    const params = [usuario_id];
+    if (anioFiltro) {
+      sql += ` AND YEAR(m.fecha_hora) = ?`;
+      params.push(anioFiltro);
+    }
+    sql += ` ORDER BY nombre ASC`;
+    const rows = await query(sql, params);
+    res.json({ opciones: (rows || []).map((r) => ({ id: r.id, nombre: r.nombre || 'Usuario' })) });
+  } catch (error) {
+    console.error('Error obteniendo remitentes-opciones:', error);
+    res.status(500).json({ error: 'Error al obtener opciones de remitentes' });
+  }
+});
+
+/**
+ * GET /api/alumno/mensajes/destinatarios-opciones
+ * Lista de destinatarios distintos (bandeja enviados) para filtro
+ */
+router.get('/mensajes/destinatarios-opciones', async (req, res) => {
+  try {
+    const { usuario_id } = req.user;
+    const anioFiltro = req.query.anio ? parseInt(req.query.anio) : null;
+
+    let sql = `SELECT DISTINCT m.destinatario_id AS id,
+              CASE
+                WHEN p.id IS NOT NULL THEN CONCAT(p.nombres, ' ', p.apellidos)
+                WHEN a.id IS NOT NULL THEN CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', a.apellido_materno)
+                WHEN ap.id IS NOT NULL THEN CONCAT(ap.nombres, ' ', ap.apellido_paterno, ' ', ap.apellido_materno)
+                ELSE 'Usuario desconocido'
+              END AS nombre
+       FROM mensajes m
+       INNER JOIN usuarios u2 ON u2.id = m.destinatario_id
+       LEFT JOIN personal p ON p.id = u2.personal_id
+       LEFT JOIN alumnos a ON a.id = u2.alumno_id
+       LEFT JOIN apoderados ap ON ap.id = u2.apoderado_id
+       WHERE m.remitente_id = ?
+         AND m.tipo = 'ENVIADO'
+         AND m.borrado = 'NO'`;
+    const params = [usuario_id];
+    if (anioFiltro) {
+      sql += ` AND YEAR(m.fecha_hora) = ?`;
+      params.push(anioFiltro);
+    }
+    sql += ` ORDER BY nombre ASC`;
+    const rows = await query(sql, params);
+    res.json({ opciones: (rows || []).map((r) => ({ id: r.id, nombre: r.nombre || 'Usuario' })) });
+  } catch (error) {
+    console.error('Error obteniendo destinatarios-opciones:', error);
+    res.status(500).json({ error: 'Error al obtener opciones de destinatarios' });
   }
 });
 
