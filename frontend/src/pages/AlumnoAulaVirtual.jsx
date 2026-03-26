@@ -526,6 +526,15 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
             <tbody>
               {examenesFiltrados.map((examen) => {
                 const puedeIniciar = examen.puede_iniciar || false;
+                const estadoNormalizado = (examen.estado || '')
+                  .toString()
+                  .trim()
+                  .toUpperCase();
+                const tieneNota =
+                  examen.tiene_nota === true ||
+                  examen.tiene_nota === 1 ||
+                  examen.tiene_nota === '1' ||
+                  (examen.tiene_nota || '').toString().trim().toUpperCase() === 'SI';
                 return (
                   <tr key={examen.id}>
                     <td>{examen.titulo}</td>
@@ -538,7 +547,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                           borderRadius: '20px',
                           fontSize: '0.75rem',
                           fontWeight: '600',
-                          background: examen.estado === 'ACTIVO' 
+                          background: estadoNormalizado === 'ACTIVO' 
                             ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' 
                             : 'linear-gradient(135deg, #6b7280 0%, #4b5563 100%)',
                           color: 'white',
@@ -549,24 +558,55 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                       </span>
                     </td>
                     <td className="text-center">
-                      {puedeIniciar ? (
+                      {modoSoloLectura ? (
+                        tieneNota ? (
+                          <button
+                            onClick={() => navigate(`/alumno/examen/${examen.id}/resultados`, {
+                              state: hijoId ? { hijoId, isApoderado: true } : null
+                            })}
+                            style={{
+                              padding: '0.5rem 1.25rem',
+                              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '8px',
+                              fontSize: '0.875rem',
+                              fontWeight: '600',
+                              cursor: 'pointer',
+                              transition: 'all 0.2s',
+                              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.target.style.transform = 'scale(1.05)';
+                              e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.target.style.transform = 'scale(1)';
+                              e.target.style.boxShadow = '0 2px 8px rgba(16, 185, 129, 0.3)';
+                            }}
+                          >
+                            📊 Ver Resultado
+                          </button>
+                        ) : (
+                          <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                            No disponible
+                          </span>
+                        )
+                      ) : puedeIniciar ? (
                         <button
                           onClick={() => handleIniciarExamen(examen)}
                           disabled={modoSoloLectura}
                           style={{
                             padding: '0.5rem 1.25rem',
-                            background: modoSoloLectura 
-                              ? 'linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)'
-                              : 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
                             color: 'white',
                             border: 'none',
                             borderRadius: '8px',
                             fontSize: '0.875rem',
                             fontWeight: '600',
-                            cursor: modoSoloLectura ? 'not-allowed' : 'pointer',
+                            cursor: 'pointer',
                             transition: 'all 0.2s',
-                            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)',
-                            opacity: modoSoloLectura ? 0.6 : 1
+                            boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)'
                           }}
                           onMouseEnter={(e) => {
                             e.target.style.transform = 'scale(1.05)';
@@ -579,10 +619,10 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                         >
                           ▶️ Iniciar Prueba
                         </button>
-                      ) : examen.tiene_nota && examen.estado === 'INACTIVO' ? (
+                      ) : tieneNota && estadoNormalizado === 'INACTIVO' ? (
                         <button
                           onClick={() => navigate(`/alumno/examen/${examen.id}/resultados`, {
-                            state: modoSoloLectura && hijoId ? { hijoId, isApoderado: true } : null
+                            state: null
                           })}
                           style={{
                             padding: '0.5rem 1.25rem',
@@ -609,7 +649,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                         </button>
                       ) : (
                         <span style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                          {examen.estado === 'ACTIVO' ? 'En proceso...' : 'No disponible'}
+                          {estadoNormalizado === 'ACTIVO' ? 'En proceso...' : 'No disponible'}
                         </span>
                       )}
                     </td>
