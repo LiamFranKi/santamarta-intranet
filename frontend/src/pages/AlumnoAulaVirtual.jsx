@@ -562,7 +562,9 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                         tieneNota ? (
                           <button
                             onClick={() => navigate(`/alumno/examen/${examen.id}/resultados`, {
-                              state: hijoId ? { hijoId, isApoderado: true } : null
+                              state: hijoId
+                                ? { hijoId, isApoderado: true, asignatura_id: asignaturaId }
+                                : null
                             })}
                             style={{
                               padding: '0.5rem 1.25rem',
@@ -622,7 +624,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                       ) : tieneNota && estadoNormalizado === 'INACTIVO' ? (
                         <button
                           onClick={() => navigate(`/alumno/examen/${examen.id}/resultados`, {
-                            state: null
+                            state: { asignatura_id: asignaturaId }
                           })}
                           style={{
                             padding: '0.5rem 1.25rem',

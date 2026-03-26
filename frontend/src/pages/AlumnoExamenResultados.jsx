@@ -17,9 +17,12 @@ function AlumnoExamenResultados() {
   const [resultado, setResultado] = useState(null);
   const [detalles, setDetalles] = useState(null);
   const [cargandoDetalles, setCargandoDetalles] = useState(false);
-  // Detectar si viene de apoderado
+  // Detectar si viene de apoderado (vista hijo) y asignatura del curso
   const hijoId = location.state?.hijoId || null;
   const isApoderado = location.state?.isApoderado || false;
+  const asignaturaIdState = location.state?.asignatura_id
+    ? Number(location.state.asignatura_id)
+    : null;
   const interceptorIdRef = useRef(null);
   const hijoIdRef = useRef(hijoId);
 
@@ -81,8 +84,12 @@ function AlumnoExamenResultados() {
   const cargarResultado = async () => {
     try {
       setLoading(true);
-      // Obtener resultado básico del examen
-      const response = await api.get(`/alumno/examenes/${examenId}/resultado`);
+      const params =
+        isApoderado && hijoId && asignaturaIdState
+          ? { asignatura_id: asignaturaIdState }
+          : {};
+      // Obtener resultado básico del examen (el interceptor reescribe URL si es apoderado/docente viendo hijo)
+      const response = await api.get(`/alumno/examenes/${examenId}/resultado`, { params });
       setExamen(response.data.examen);
       setResultado(response.data.resultado);
       
@@ -111,7 +118,11 @@ function AlumnoExamenResultados() {
   const cargarDetalles = async (resultadoId) => {
     try {
       setCargandoDetalles(true);
-      const response = await api.get(`/alumno/examenes/${examenId}/resultado/detalles`);
+      const params =
+        isApoderado && hijoId && asignaturaIdState
+          ? { asignatura_id: asignaturaIdState }
+          : {};
+      const response = await api.get(`/alumno/examenes/${examenId}/resultado/detalles`, { params });
       setDetalles(response.data);
     } catch (error) {
       console.error('Error cargando detalles:', error);
@@ -126,9 +137,12 @@ function AlumnoExamenResultados() {
   };
 
   const handleVolver = () => {
-    // Si es apoderado, volver a la página de hijos
     if (isApoderado && hijoId) {
-      navigate(`/docente/hijos`);
+      if (user?.tipo === 'DOCENTE') {
+        navigate('/docente/hijos');
+      } else {
+        navigate('/apoderado/hijos');
+      }
     } else {
       navigate(-1);
     }
