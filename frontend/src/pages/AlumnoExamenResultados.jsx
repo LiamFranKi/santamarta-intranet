@@ -4,12 +4,14 @@ import { createPortal } from 'react-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
+import { useAuth } from '../context/AuthContext';
 import './DocenteAulaVirtual-gamificado.css';
 
 function AlumnoExamenResultados() {
   const { examenId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [examen, setExamen] = useState(null);
   const [resultado, setResultado] = useState(null);
@@ -26,12 +28,17 @@ function AlumnoExamenResultados() {
     hijoIdRef.current = hijoId;
   }, [hijoId]);
 
-  // Configurar interceptor si es apoderado
+  // Configurar interceptor si es apoderado (alumno visto desde apoderado o docente-apoderado)
   useEffect(() => {
     if (isApoderado && hijoId) {
       interceptorIdRef.current = api.interceptors.request.use(
         (config) => {
           const currentHijoId = hijoIdRef.current;
+          const tipoUsuario = user?.tipo;
+          const basePath =
+            tipoUsuario === 'DOCENTE'
+              ? '/docente/hijos'
+              : '/apoderado/hijos';
           
           // Asegurarse de que el token esté presente
           const token = localStorage.getItem('token');
@@ -46,9 +53,9 @@ function AlumnoExamenResultados() {
               if (match) {
                 const examenIdFromUrl = match[2];
                 if (config.url.includes('/detalles')) {
-                  config.url = `/docente/hijos/${currentHijoId}/aula-virtual/examenes/${examenIdFromUrl}/resultado/detalles`;
+                  config.url = `${basePath}/${currentHijoId}/aula-virtual/examenes/${examenIdFromUrl}/resultado/detalles`;
                 } else {
-                  config.url = `/docente/hijos/${currentHijoId}/aula-virtual/examenes/${examenIdFromUrl}/resultado`;
+                  config.url = `${basePath}/${currentHijoId}/aula-virtual/examenes/${examenIdFromUrl}/resultado`;
                 }
               }
             }
@@ -65,7 +72,7 @@ function AlumnoExamenResultados() {
         api.interceptors.request.eject(interceptorIdRef.current);
       }
     };
-  }, [isApoderado, hijoId]);
+  }, [isApoderado, hijoId, user?.tipo]);
 
   useEffect(() => {
     cargarResultado();
