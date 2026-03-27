@@ -352,15 +352,15 @@ export default function AdminUsuariosAlumnos() {
         </button>
       </div>
 
-      <div className="admin-usu-table-card">
-        <table className="admin-usu-table">
+      <div className="admin-usu-table-card admin-usu-table-card--alumnos">
+        <table className="admin-usu-table admin-usu-table--alumnos">
           <thead>
             <tr>
-              <th style={{ width: 56 }} />
+              <th className="admin-usu-th-avatar" style={{ width: 72 }} />
               <th>Apellidos y nombres</th>
               <th>Fecha de nacimiento</th>
               <th>DNI</th>
-              <th style={{ width: 120 }}>Opciones</th>
+              <th className="admin-usu-th-actions" style={{ width: 148 }}>Opciones</th>
             </tr>
           </thead>
           <tbody>
@@ -382,23 +382,26 @@ export default function AdminUsuariosAlumnos() {
                 const ini = (row.nombres || 'A')[0]?.toUpperCase();
                 return (
                   <tr key={row.id}>
-                    <td>
+                    <td className="admin-usu-td-avatar">
                       {url ? <img className="admin-usu-avatar" src={url} alt="" /> : <div className="admin-usu-avatar-ph">{ini}</div>}
                     </td>
                     <td>{nombreAlumno(row)}</td>
                     <td>{formatFechaNacimiento(row.fecha_nacimiento)}</td>
                     <td>{row.nro_documento}</td>
-                    <td>
-                      <div className="admin-usu-actions-wrap">
+                    <td className="admin-usu-td-actions">
+                      <div className="admin-usu-actions-wrap admin-usu-actions-wrap--center">
                         <button
                           type="button"
-                          className="admin-usu-actions-btn"
+                          className="admin-usu-actions-btn admin-usu-actions-btn-primary"
                           onClick={(e) => {
                             e.stopPropagation();
                             setOpenMenu(openMenu === row.id ? null : row.id);
                           }}
                         >
-                          Opciones ▾
+                          <span className="admin-usu-actions-btn-label">Opciones</span>
+                          <span className="admin-usu-actions-btn-caret" aria-hidden>
+                            ▼
+                          </span>
                         </button>
                         {openMenu === row.id && (
                           <div className="admin-usu-dropdown" onClick={(e) => e.stopPropagation()}>
