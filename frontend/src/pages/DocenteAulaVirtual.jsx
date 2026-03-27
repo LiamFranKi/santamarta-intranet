@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -110,6 +110,7 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
 function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const { cursoId } = useParams(); // En realidad es asignatura_id
   const navigate = useNavigate();
+  const location = useLocation();
   const asignaturaId = parseInt(
     String(cursoIdTutor != null && cursoIdTutor !== '' ? cursoIdTutor : cursoId),
     10
@@ -3342,9 +3343,19 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
             className="btn-back"
             onClick={() => {
               if (soloLecturaTutor) {
-                // En modo tutor, volver solo un nivel atrás (Cursos Asignados)
-                if (window.history.length > 1) navigate(-1);
-                else navigate('/docente/tutoria');
+                // Preferir retorno explícito a Cursos Asignados para restaurar estado local
+                const returnTo = location.state?.returnTo;
+                if (returnTo) {
+                  const nextState = {
+                    reopenCursos: true,
+                    grupoId: location.state?.grupoId || tutorGrupoId || null,
+                  };
+                  navigate(returnTo, { state: nextState });
+                } else if (window.history.length > 1) {
+                  navigate(-1);
+                } else {
+                  navigate('/docente/tutoria');
+                }
               } else {
                 navigate('/docente/cursos');
               }

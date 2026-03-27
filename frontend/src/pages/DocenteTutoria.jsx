@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
@@ -17,6 +17,7 @@ import './DocenteHijos.css';
 
 function DocenteTutoria() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [esTutor, setEsTutor] = useState(false);
   const [gruposTutor, setGruposTutor] = useState([]);
@@ -2212,8 +2213,14 @@ function DocenteTutoria() {
   const handleAulaVirtual = (curso) => {
     if (grupoSeleccionadoCursos && curso.asignatura_id) {
       // Navegar a una ruta especial para tutores (modo solo lectura)
-      // Usar navigate en lugar de window.location.href para mantener el estado
-      navigate(`/docente/tutoria/grupos/${grupoSeleccionadoCursos.id}/aula-virtual/${curso.asignatura_id}?modo=solo-lectura`);
+      // Pasamos estado de retorno para reabrir "Cursos Asignados" al volver.
+      navigate(`/docente/tutoria/grupos/${grupoSeleccionadoCursos.id}/aula-virtual/${curso.asignatura_id}?modo=solo-lectura`, {
+        state: {
+          returnTo: '/docente/tutoria',
+          reopenCursos: true,
+          grupoId: grupoSeleccionadoCursos.id
+        }
+      });
     } else {
       Swal.fire({
         icon: 'error',
@@ -2223,6 +2230,16 @@ function DocenteTutoria() {
       });
     }
   };
+
+  // Restaurar "Cursos Asignados" al volver desde Aula Virtual del tutor
+  useEffect(() => {
+    const state = location.state;
+    if (!state?.reopenCursos || !state?.grupoId || gruposTutor.length === 0) return;
+    const grupo = gruposTutor.find((g) => Number(g.id) === Number(state.grupoId));
+    if (!grupo) return;
+    handleVerCursos(grupo);
+    navigate('/docente/tutoria', { replace: true, state: null });
+  }, [location.state, gruposTutor]);
 
   // Abrir modal para enviar mensaje al docente
   const handleEnviarMensajeDocente = (curso) => {

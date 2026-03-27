@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
@@ -10,6 +10,7 @@ import './DocenteAulaVirtual-gamificado.css';
 function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId = null }) {
   const { cursoId: cursoIdParam } = useParams(); // asignatura_id
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   // Usar prop si está disponible, sino usar parámetro de la URL
@@ -823,8 +824,16 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
         <div className="page-header">
           <button className="btn-back" onClick={() => {
             if (modoSoloLectura && hijoId) {
-              // En vista de hijo: volver solo un nivel atrás (Cursos Asignados)
-              if (window.history.length > 1) {
+              // Preferir retorno explícito a la pantalla de Cursos Asignados
+              // para restaurar el estado local de esa vista.
+              const returnTo = location.state?.returnTo;
+              if (returnTo) {
+                const nextState = {
+                  reopenCursos: true,
+                  hijoId: location.state?.hijoId || hijoId,
+                };
+                navigate(returnTo, { state: nextState });
+              } else if (window.history.length > 1) {
                 navigate(-1);
               } else if (esApoderadoPuro) {
                 navigate('/apoderado/hijos');

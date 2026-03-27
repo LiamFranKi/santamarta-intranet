@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import { QRCodeSVG } from 'qrcode.react';
@@ -21,6 +21,7 @@ function getInitials(nombre) {
 function ApoderadoHijos() {
   console.log('[FRONTEND] ========== APODERADOHIJOS COMPONENTE RENDERIZADO ==========');
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [hijos, setHijos] = useState([]);
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -708,7 +709,13 @@ function ApoderadoHijos() {
   const handleAulaVirtual = (curso) => {
     if (hijoSeleccionado) {
       // Navegar a una ruta especial para apoderados
-      navigate(`/apoderado/hijos/${hijoSeleccionado.id}/aula-virtual/${curso.asignatura_id}`);
+      navigate(`/apoderado/hijos/${hijoSeleccionado.id}/aula-virtual/${curso.asignatura_id}`, {
+        state: {
+          returnTo: '/apoderado/hijos',
+          reopenCursos: true,
+          hijoId: hijoSeleccionado.id
+        }
+      });
     } else {
       Swal.fire({
         icon: 'error',
@@ -718,6 +725,16 @@ function ApoderadoHijos() {
       });
     }
   };
+
+  // Restaurar "Cursos Asignados" al volver desde Aula Virtual
+  useEffect(() => {
+    const state = location.state;
+    if (!state?.reopenCursos || !state?.hijoId || hijos.length === 0) return;
+    const hijo = hijos.find((h) => Number(h.id) === Number(state.hijoId));
+    if (!hijo) return;
+    handleVerCursos(hijo);
+    navigate('/apoderado/hijos', { replace: true, state: null });
+  }, [location.state, hijos]);
 
   const handleEnviarMensaje = (curso) => {
     const docenteData = {
