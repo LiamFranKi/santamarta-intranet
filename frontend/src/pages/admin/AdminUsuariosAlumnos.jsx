@@ -329,7 +329,7 @@ export default function AdminUsuariosAlumnos() {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
-    <div className="admin-usu-wrap">
+    <div className="admin-usu-wrap admin-usu-wrap--alumnos">
       <div className="admin-usu-header">
         <h1>Alumnos</h1>
         <p>Listado del colegio con acceso al aula. Usuario y contraseña por defecto: DNI.</p>
@@ -356,7 +356,7 @@ export default function AdminUsuariosAlumnos() {
         <table className="admin-usu-table admin-usu-table--alumnos">
           <thead>
             <tr>
-              <th className="admin-usu-th-avatar" style={{ width: 72 }} />
+              <th className="admin-usu-th-avatar" style={{ width: 84 }} />
               <th>Apellidos y nombres</th>
               <th>Fecha de nacimiento</th>
               <th>DNI</th>
@@ -379,11 +379,19 @@ export default function AdminUsuariosAlumnos() {
             ) : (
               items.map((row) => {
                 const url = fotoUsuarioAdmin(row.foto);
-                const ini = (row.nombres || 'A')[0]?.toUpperCase();
+                const iniNombre = (row.nombres || '').trim()[0]?.toUpperCase() || '?';
+                const iniApellido = (row.apellido_paterno || '').trim()[0]?.toUpperCase() || '';
+                const iniciales = iniApellido ? `${iniNombre}${iniApellido}` : iniNombre;
                 return (
                   <tr key={row.id}>
                     <td className="admin-usu-td-avatar">
-                      {url ? <img className="admin-usu-avatar" src={url} alt="" /> : <div className="admin-usu-avatar-ph">{ini}</div>}
+                      {url ? (
+                        <img className="admin-usu-avatar admin-usu-avatar--alumno" src={url} alt="" />
+                      ) : (
+                        <div className="admin-usu-avatar-ph admin-usu-avatar-ph--alumno" title={nombreAlumno(row)}>
+                          <span className="admin-usu-avatar-ph-text">{iniciales}</span>
+                        </div>
+                      )}
                     </td>
                     <td>{nombreAlumno(row)}</td>
                     <td>{formatFechaNacimiento(row.fecha_nacimiento)}</td>
