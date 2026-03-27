@@ -565,7 +565,7 @@ export default function DashboardLayout({ children }) {
                 </button>
                 <div ref={(el) => { submenuRefs.current.usuarios = el; }} className={`sidebar-submenu ${expandedMenus.usuarios ? 'expanded' : ''}`}>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/usuarios/equipo">
-                    Personal y perfiles
+                    Personal
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/usuarios/alumnos">
                     Alumnos

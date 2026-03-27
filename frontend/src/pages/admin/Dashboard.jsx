@@ -55,7 +55,7 @@ function Dashboard() {
       icon: '📋'
     },
     '/admin/usuarios/equipo': {
-      title: '👥 Personal y perfiles',
+      title: '👥 Personal',
       description: 'Personal del colegio (docentes, administración, etc.) y tipo de usuario',
       icon: '👥'
     },

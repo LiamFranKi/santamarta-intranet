@@ -185,9 +185,9 @@ export default function AdminUsuariosEquipo() {
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
       <div className="admin-usu-header">
-        <h1>Personal y perfiles</h1>
+        <h1>Personal</h1>
         <p>
-          Docentes, administración y demás perfiles del colegio. El acceso se diferencia solo por el tipo de usuario;
+          Docentes, administración y demás perfiles del colegio. El acceso se diferencia por el tipo de usuario;
           usuario y contraseña inicial son el DNI.
         </p>
       </div>
