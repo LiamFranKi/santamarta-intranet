@@ -10,9 +10,12 @@ const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 
+/** Debe coincidir con el ENUM `usuarios.tipo` en MySQL (orden de negocio para selects). */
 const TIPOS_EQUIPO = [
   'ADMINISTRADOR',
   'DIRECTOR',
+  'ALUMNO',
+  'APODERADO',
   'DOCENTE',
   'AUXILIAR',
   'SECRETARIA',
@@ -21,7 +24,6 @@ const TIPOS_EQUIPO = [
   'PROMOTORIA',
   'COORDINADOR',
   'PSICOLOGA',
-  'PERSONALIZADO',
   'ASISTENCIA',
   'CONTADOR',
   'TUTOR',
