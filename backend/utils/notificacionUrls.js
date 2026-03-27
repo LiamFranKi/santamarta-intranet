@@ -101,16 +101,13 @@ async function obtenerUrlExamenActivado(query, destinatarioUsuarioId, ctx) {
  */
 function urlPortalHijoPorTipoUsuario(tipoDestinatario, alumno_id) {
   const td = String(tipoDestinatario || '').toUpperCase();
-  const aid =
-    alumno_id != null && alumno_id !== ''
-      ? parseInt(String(alumno_id), 10)
-      : NaN;
-  const valid = !Number.isNaN(aid);
+  // En el frontend NO existe ruta /docente/hijos/:id ni /apoderado/hijos/:id.
+  // Para evitar páginas en blanco, siempre apuntamos al portal de hijos (listado).
   if (td === 'DOCENTE') {
-    return valid ? `/docente/hijos/${aid}` : '/docente/hijos';
+    return '/docente/hijos';
   }
   if (td === 'APODERADO') {
-    return valid ? `/apoderado/hijos/${aid}` : '/apoderado/hijos';
+    return '/apoderado/hijos';
   }
   return '/';
 }

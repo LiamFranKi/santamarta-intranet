@@ -46,7 +46,15 @@ export function normalizarUrlNotificacion(notif, user) {
     return `/docente/hijos/${payload.alumno_id}/aula-virtual/${payload.asignatura_id}${qs}`;
   }
 
-  // Notificaciones viejas: URL de apoderado pero sesión docente (docente-apoderado) → evitar 403 y logout
+  // Notificaciones viejas con rutas inexistentes /hijos/:id -> redirigir al listado de hijos
+  if (user?.tipo === 'APODERADO' && /^\/apoderado\/hijos\/\d+(?:$|[?#])/.test(url)) {
+    return '/apoderado/hijos';
+  }
+  if (user?.tipo === 'DOCENTE' && /^\/docente\/hijos\/\d+(?:$|[?#])/.test(url)) {
+    return '/docente/hijos';
+  }
+
+  // Notificaciones viejas: URL de apoderado pero sesión docente (docente-apoderado) -> evitar 403
   if (user?.tipo === 'DOCENTE' && url.startsWith('/apoderado/hijos')) {
     return url.replace('/apoderado/hijos', '/docente/hijos');
   }
@@ -117,10 +125,9 @@ export function normalizarUrlNotificacion(notif, user) {
   }
 
   if (tipoAccion === 'asistencia_alumno') {
-    if (user?.tipo === 'DOCENTE') {
-      return payload.alumno_id ? `/docente/hijos/${payload.alumno_id}` : '/docente/hijos';
-    }
-    return payload.alumno_id ? `/apoderado/hijos/${payload.alumno_id}` : '/apoderado/hijos';
+    // No existe ruta /hijos/:id en App; usar listado de hijos.
+    if (user?.tipo === 'DOCENTE') return '/docente/hijos';
+    return '/apoderado/hijos';
   }
   if (tipoAccion === 'asistencia_docente') return '/docente/dashboard';
 
@@ -133,9 +140,9 @@ export function normalizarUrlNotificacion(notif, user) {
 
   if (tipoAccion === 'examen_finalizado') {
     if (user?.tipo === 'DOCENTE') {
-      return payload.alumno_id ? `/docente/hijos/${payload.alumno_id}` : '/docente/hijos';
+      return '/docente/hijos';
     }
-    return payload.alumno_id ? `/apoderado/hijos/${payload.alumno_id}` : '/apoderado/hijos';
+    return '/apoderado/hijos';
   }
 
   return dashboardPorTipoUsuario(user?.tipo);
