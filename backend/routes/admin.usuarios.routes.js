@@ -10,8 +10,8 @@ const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 
-/** Debe coincidir con el ENUM `usuarios.tipo` en MySQL (orden de negocio para selects). */
-const TIPOS_EQUIPO = [
+/** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
+const TIPOS_ENUM_USUARIO = [
   'ADMINISTRADOR',
   'DIRECTOR',
   'ALUMNO',
@@ -29,7 +29,13 @@ const TIPOS_EQUIPO = [
   'TUTOR',
   'MANTENIMIENTO',
 ];
-const TIPOS_EQUIPO_SET = new Set(TIPOS_EQUIPO);
+
+/**
+ * Perfiles asignables en el módulo Personal (tabla `personal` + usuario).
+ * ALUMNO y APODERADO no se eligen aquí: se gestionan en sus propios módulos.
+ */
+const TIPOS_PERSONAL = TIPOS_ENUM_USUARIO.filter((t) => t !== 'ALUMNO' && t !== 'APODERADO');
+const TIPOS_PERSONAL_SET = new Set(TIPOS_PERSONAL);
 
 function sha1Password(plain) {
   return crypto.createHash('sha1').update(String(plain), 'utf8').digest('hex');
@@ -69,7 +75,7 @@ async function usuarioLibre(colegioId, usuarioLogin, excludeUsuarioId = null) {
 // ——— Equipo (tabla personal + usuarios) ———
 
 router.get('/equipo/tipos', (req, res) => {
-  res.json({ tipos: TIPOS_EQUIPO });
+  res.json({ tipos: TIPOS_PERSONAL });
 });
 
 router.get('/equipo', async (req, res) => {
@@ -90,7 +96,7 @@ router.get('/equipo', async (req, res) => {
       params.push(like, like, like, like);
     }
 
-    if (perfil && TIPOS_EQUIPO_SET.has(perfil)) {
+    if (perfil && TIPOS_PERSONAL_SET.has(perfil)) {
       whereParts.push('u.tipo = ?');
       params.push(perfil);
     }
@@ -208,7 +214,7 @@ router.post('/equipo', async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const tipo = String(req.body.tipo || '').toUpperCase();
-    if (!TIPOS_EQUIPO_SET.has(tipo)) {
+    if (!TIPOS_PERSONAL_SET.has(tipo)) {
       return res.status(400).json({ error: 'Tipo de usuario no válido para personal' });
     }
     const d = defaultsNuevoPersonal(colegio_id, req.body);
@@ -379,7 +385,7 @@ router.put('/equipo/:personalId', async (req, res) => {
       const nuevoEstado = req.body.usuario_estado != null ? String(req.body.usuario_estado).toUpperCase() : null;
 
       if (nuevoTipo != null) {
-        if (!TIPOS_EQUIPO_SET.has(nuevoTipo)) {
+        if (!TIPOS_PERSONAL_SET.has(nuevoTipo)) {
           return res.status(400).json({ error: 'Tipo no válido' });
         }
         await execute('UPDATE usuarios SET tipo = ? WHERE id = ? AND colegio_id = ?', [
@@ -421,7 +427,7 @@ router.post('/equipo/:personalId/acceso', async (req, res) => {
     const { colegio_id } = req.user;
     const personalId = parseInt(req.params.personalId, 10);
     const tipo = String(req.body.tipo || 'DOCENTE').toUpperCase();
-    if (!TIPOS_EQUIPO_SET.has(tipo)) {
+    if (!TIPOS_PERSONAL_SET.has(tipo)) {
       return res.status(400).json({ error: 'Tipo no válido' });
     }
 
