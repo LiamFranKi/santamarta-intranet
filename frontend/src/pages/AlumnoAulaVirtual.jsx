@@ -823,7 +823,10 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
         <div className="page-header">
           <button className="btn-back" onClick={() => {
             if (modoSoloLectura && hijoId) {
-              if (esApoderadoPuro) {
+              // En vista de hijo: volver solo un nivel atrás (Cursos Asignados)
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else if (esApoderadoPuro) {
                 navigate('/apoderado/hijos');
               } else {
                 navigate('/docente/hijos');
@@ -832,7 +835,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
               navigate('/alumno/cursos');
             }
           }}>
-            ← Volver {modoSoloLectura && hijoId ? 'a Hijos' : 'a Cursos'}
+            {modoSoloLectura && hijoId ? '← Volver' : '← Volver a Cursos'}
           </button>
           <h1>🎓 Aula Virtual {modoSoloLectura && <span style={{ fontSize: '0.7em', color: '#6b7280', fontWeight: 'normal' }}>(Solo Lectura)</span>}</h1>
           <p>{curso?.curso_nombre || 'Curso'} - {curso?.docente_nombre || 'Docente'}</p>

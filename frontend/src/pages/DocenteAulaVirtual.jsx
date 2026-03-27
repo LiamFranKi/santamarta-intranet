@@ -3340,9 +3340,17 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
         <div className="page-header">
           <button
             className="btn-back"
-            onClick={() => navigate(soloLecturaTutor ? '/docente/tutoria' : '/docente/cursos')}
+            onClick={() => {
+              if (soloLecturaTutor) {
+                // En modo tutor, volver solo un nivel atrás (Cursos Asignados)
+                if (window.history.length > 1) navigate(-1);
+                else navigate('/docente/tutoria');
+              } else {
+                navigate('/docente/cursos');
+              }
+            }}
           >
-            {soloLecturaTutor ? '← Volver a Tutoría' : '← Volver a Cursos'}
+            {soloLecturaTutor ? '← Volver' : '← Volver a Cursos'}
           </button>
           <h1>
             🎓 Aula Virtual
