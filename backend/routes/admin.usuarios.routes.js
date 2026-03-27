@@ -72,6 +72,39 @@ async function usuarioLibre(colegioId, usuarioLogin, excludeUsuarioId = null) {
   return rows.length === 0;
 }
 
+/** JOIN condición: usuario vinculado por apoderado_id o docente/personal mismo DNI (sin tabla extra). */
+const SQL_JOIN_USUARIO_APODERADO = `u.colegio_id = ap.colegio_id AND (
+  u.apoderado_id = ap.id OR (TRIM(u.usuario) = TRIM(ap.nro_documento) AND u.personal_id > 0)
+)`;
+
+/**
+ * Fila `usuarios` para una ficha apoderado: primero por apoderado_id, luego personal con mismo DNI.
+ */
+async function resolverUsuarioFilaParaApoderado(colegioId, apoderadoId) {
+  const linked = await query(
+    'SELECT id, tipo, estado, usuario, personal_id, apoderado_id FROM usuarios WHERE colegio_id = ? AND apoderado_id = ? LIMIT 1',
+    [colegioId, apoderadoId]
+  );
+  if (linked.length) {
+    return linked[0];
+  }
+  const apRows = await query(
+    'SELECT nro_documento FROM apoderados WHERE id = ? AND colegio_id = ? LIMIT 1',
+    [apoderadoId, colegioId]
+  );
+  if (!apRows.length) {
+    return null;
+  }
+  const dni = String(apRows[0].nro_documento || '').trim();
+  const staff = await query(
+    `SELECT id, tipo, estado, usuario, personal_id, apoderado_id FROM usuarios
+     WHERE colegio_id = ? AND TRIM(usuario) = ? AND personal_id > 0
+     LIMIT 1`,
+    [colegioId, dni]
+  );
+  return staff[0] || null;
+}
+
 // ——— Equipo (tabla personal + usuarios) ———
 
 router.get('/equipo/tipos', (req, res) => {
@@ -851,6 +884,44 @@ router.post('/alumnos/:id/acceso', async (req, res) => {
 
 // ——— Apoderados ———
 
+/**
+ * GET /personal-por-dni?dni=
+ * Datos de `personal` para precargar alta de apoderado (mismo DNI en todo el colegio).
+ */
+router.get('/personal-por-dni', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const dni = String(req.query.dni || '').trim();
+    if (!dni) {
+      return res.status(400).json({ error: 'Indique el DNI' });
+    }
+    const rows = await query(
+      `SELECT id, nombres, apellidos, nro_documento, email, telefono_celular, fecha_nacimiento
+       FROM personal WHERE colegio_id = ? AND TRIM(nro_documento) = ? LIMIT 1`,
+      [colegio_id, dni]
+    );
+    if (!rows.length) {
+      return res.json({ encontrado: false });
+    }
+    const p = rows[0];
+    const apParts = String(p.apellidos || '').trim().split(/\s+/).filter(Boolean);
+    res.json({
+      encontrado: true,
+      personal_id: p.id,
+      nombres: p.nombres || '',
+      apellido_paterno: apParts[0] || '',
+      apellido_materno: apParts.slice(1).join(' ') || '',
+      nro_documento: String(p.nro_documento || '').trim(),
+      email: p.email || '',
+      telefono_celular: p.telefono_celular || '',
+      fecha_nacimiento: p.fecha_nacimiento ? String(p.fecha_nacimiento).slice(0, 10) : '1985-01-01',
+    });
+  } catch (e) {
+    console.error('GET personal-por-dni', e);
+    res.status(500).json({ error: e.message || 'Error al buscar personal' });
+  }
+});
+
 router.get('/apoderados', async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -873,9 +944,9 @@ router.get('/apoderados', async (req, res) => {
 
     const rows = await query(
       `SELECT ap.id, ap.nombres, ap.apellido_paterno, ap.apellido_materno, ap.nro_documento, ap.parentesco, ap.email, ap.telefono_celular,
-              u.id AS usuario_id, u.usuario AS login_usuario, u.estado AS usuario_estado
+              u.id AS usuario_id, u.usuario AS login_usuario, u.estado AS usuario_estado, u.tipo AS usuario_tipo
        FROM apoderados ap
-       LEFT JOIN usuarios u ON u.apoderado_id = ap.id AND u.colegio_id = ap.colegio_id AND u.tipo = 'APODERADO'
+       LEFT JOIN usuarios u ON ${SQL_JOIN_USUARIO_APODERADO}
        WHERE ${whereSql}
        ORDER BY ap.apellido_paterno, ap.apellido_materno, ap.nombres
        LIMIT ? OFFSET ?`,
@@ -893,9 +964,9 @@ router.get('/apoderados/:id', async (req, res) => {
     const { colegio_id } = req.user;
     const id = parseInt(req.params.id, 10);
     const rows = await query(
-      `SELECT ap.*, u.id AS usuario_id, u.usuario AS login_usuario, u.estado AS usuario_estado
+      `SELECT ap.*, u.id AS usuario_id, u.usuario AS login_usuario, u.estado AS usuario_estado, u.tipo AS usuario_tipo
        FROM apoderados ap
-       LEFT JOIN usuarios u ON u.apoderado_id = ap.id AND u.colegio_id = ap.colegio_id AND u.tipo = 'APODERADO'
+       LEFT JOIN usuarios u ON ${SQL_JOIN_USUARIO_APODERADO}
        WHERE ap.id = ? AND ap.colegio_id = ?
        LIMIT 1`,
       [id, colegio_id]
@@ -928,9 +999,6 @@ router.post('/apoderados', async (req, res) => {
     );
     if (dup.length) {
       return res.status(409).json({ error: 'Ya existe apoderado con ese DNI' });
-    }
-    if (!(await usuarioLibre(colegio_id, doc))) {
-      return res.status(409).json({ error: 'El DNI ya está en uso como usuario' });
     }
 
     const email = String(req.body.email || '').trim();
@@ -976,17 +1044,63 @@ router.post('/apoderados', async (req, res) => {
       return res.status(500).json({ error: 'No se pudo crear apoderado' });
     }
 
-    const pwd = sha1Password(doc);
-    await execute(
-      `INSERT INTO usuarios (
-         colegio_id, alumno_id, personal_id, apoderado_id, usuario, password, tipo, estado,
-         ms_email, ms_access_token, ms_refresh_token, ms_id_token, auth_token, permisos,
-         cambiar_password, app_terminos_aceptados, cambiar_datos
-       ) VALUES (?, 0, 0, ?, ?, ?, 'APODERADO', 'ACTIVO', '', '', '', '', '', '', 'NO', 'NO', 'SI')`,
-      [colegio_id, apoderadoId, doc, pwd]
+    const existU = await query(
+      'SELECT id, tipo, personal_id, apoderado_id, alumno_id FROM usuarios WHERE colegio_id = ? AND TRIM(usuario) = ? LIMIT 1',
+      [colegio_id, doc]
     );
 
-    res.status(201).json({ apoderado_id: apoderadoId });
+    if (!existU.length) {
+      const pwd = sha1Password(doc);
+      await execute(
+        `INSERT INTO usuarios (
+           colegio_id, alumno_id, personal_id, apoderado_id, usuario, password, tipo, estado,
+           ms_email, ms_access_token, ms_refresh_token, ms_id_token, auth_token, permisos,
+           cambiar_password, app_terminos_aceptados, cambiar_datos
+         ) VALUES (?, 0, 0, ?, ?, ?, 'APODERADO', 'ACTIVO', '', '', '', '', '', '', 'NO', 'NO', 'SI')`,
+        [colegio_id, apoderadoId, doc, pwd]
+      );
+      return res.status(201).json({
+        apoderado_id: apoderadoId,
+        usuario_compartido: false,
+      });
+    }
+
+    const u = existU[0];
+    const pid = parseInt(u.personal_id, 10) || 0;
+    const aid = parseInt(u.apoderado_id, 10) || 0;
+    const alumnoId = parseInt(u.alumno_id, 10) || 0;
+
+    if (alumnoId > 0) {
+      return res.status(409).json({ error: 'Este DNI ya está en uso como alumno' });
+    }
+
+    if (u.tipo === 'APODERADO' && pid === 0) {
+      return res.status(409).json({
+        error: 'Ya existe un usuario solo apoderado con este DNI. No se puede duplicar.',
+      });
+    }
+
+    if (pid > 0) {
+      if (aid > 0 && aid !== apoderadoId) {
+        return res.status(409).json({
+          error: 'Este usuario de personal ya está vinculado a otra ficha de apoderado.',
+        });
+      }
+      await execute('UPDATE usuarios SET apoderado_id = ? WHERE id = ? AND colegio_id = ?', [
+        apoderadoId,
+        u.id,
+        colegio_id,
+      ]);
+      return res.status(201).json({
+        apoderado_id: apoderadoId,
+        usuario_compartido: true,
+        usuario_tipo: u.tipo,
+        mensaje:
+          'Ficha de apoderado creada. El mismo DNI usa la cuenta de personal/docente; no se creó un segundo usuario.',
+      });
+    }
+
+    return res.status(409).json({ error: 'El DNI ya está en uso en otra cuenta del sistema' });
   } catch (e) {
     console.error('POST apoderado admin', e);
     if (e.code === 'ER_DUP_ENTRY') {
@@ -1008,11 +1122,7 @@ router.put('/apoderados/:id', async (req, res) => {
       return res.status(404).json({ error: 'No encontrado' });
     }
 
-    const urows = await query(
-      "SELECT id, usuario FROM usuarios WHERE apoderado_id = ? AND colegio_id = ? AND tipo = 'APODERADO' LIMIT 1",
-      [id, colegio_id]
-    );
-    const uAp = urows[0];
+    const uAp = await resolverUsuarioFilaParaApoderado(colegio_id, id);
 
     const nom = req.body.nombres != null ? String(req.body.nombres).trim() : null;
     const ap = req.body.apellido_paterno != null ? String(req.body.apellido_paterno).trim() : null;
@@ -1099,21 +1209,23 @@ router.post('/apoderados/:id/reset-password', async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const id = parseInt(req.params.id, 10);
-    const rows = await query(
-      `SELECT u.id, ap.nro_documento
-       FROM usuarios u
-       INNER JOIN apoderados ap ON ap.id = u.apoderado_id AND ap.colegio_id = u.colegio_id
-       WHERE u.apoderado_id = ? AND u.colegio_id = ? AND u.tipo = 'APODERADO' LIMIT 1`,
-      [id, colegio_id]
-    );
-    if (!rows.length) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
+    const urow = await resolverUsuarioFilaParaApoderado(colegio_id, id);
+    if (!urow || !urow.id) {
+      return res.status(404).json({ error: 'Usuario no encontrado para este apoderado' });
     }
-    const pwd = sha1Password(rows[0].nro_documento);
+    const apRows = await query('SELECT nro_documento FROM apoderados WHERE id = ? AND colegio_id = ? LIMIT 1', [
+      id,
+      colegio_id,
+    ]);
+    const dni = String(apRows[0]?.nro_documento || '').trim();
+    if (!dni) {
+      return res.status(404).json({ error: 'Apoderado no encontrado' });
+    }
+    const pwd = sha1Password(dni);
     await execute('UPDATE usuarios SET password = ?, cambiar_password = ? WHERE id = ? AND colegio_id = ?', [
       pwd,
       'NO',
-      rows[0].id,
+      urow.id,
       colegio_id,
     ]);
     res.json({ ok: true });
@@ -1134,14 +1246,26 @@ router.post('/apoderados/:id/acceso', async (req, res) => {
     if (!arows.length) {
       return res.status(404).json({ error: 'No encontrado' });
     }
-    const tiene = await query(
-      "SELECT id FROM usuarios WHERE apoderado_id = ? AND colegio_id = ? AND tipo = 'APODERADO' LIMIT 1",
-      [id, colegio_id]
+    const dni = String(arows[0].nro_documento || '').trim();
+
+    const uLinked = await query(
+      'SELECT id FROM usuarios WHERE colegio_id = ? AND apoderado_id = ? LIMIT 1',
+      [colegio_id, id]
     );
-    if (tiene.length) {
-      return res.status(409).json({ error: 'Ya tiene acceso' });
+    if (uLinked.length) {
+      return res.status(409).json({ error: 'Ya tiene acceso vinculado (apoderado_id)' });
     }
-    const dni = arows[0].nro_documento;
+
+    const urow = await resolverUsuarioFilaParaApoderado(colegio_id, id);
+    if (urow && urow.id) {
+      const aid = parseInt(urow.apoderado_id, 10) || 0;
+      if (aid > 0 && aid !== id) {
+        return res.status(409).json({ error: 'El usuario con este DNI ya está vinculado a otro apoderado' });
+      }
+      await execute('UPDATE usuarios SET apoderado_id = ? WHERE id = ? AND colegio_id = ?', [id, urow.id, colegio_id]);
+      return res.status(201).json({ ok: true, usuario_compartido: true });
+    }
+
     if (!(await usuarioLibre(colegio_id, dni))) {
       return res.status(409).json({ error: 'DNI en uso' });
     }
@@ -1154,7 +1278,7 @@ router.post('/apoderados/:id/acceso', async (req, res) => {
        ) VALUES (?, 0, 0, ?, ?, ?, 'APODERADO', 'ACTIVO', '', '', '', '', '', '', 'NO', 'NO', 'SI')`,
       [colegio_id, id, dni, pwd]
     );
-    res.status(201).json({ ok: true });
+    res.status(201).json({ ok: true, usuario_compartido: false });
   } catch (e) {
     console.error('POST apoderado acceso', e);
     res.status(500).json({ error: e.message || 'Error' });

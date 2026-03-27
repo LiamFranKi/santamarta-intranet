@@ -69,10 +69,57 @@ export default function AdminUsuariosApoderados() {
     setModalCreate(true);
   };
 
+  const payloadApoderado = (f) => ({
+    nombres: f.nombres,
+    apellido_paterno: f.apellido_paterno,
+    apellido_materno: f.apellido_materno,
+    nro_documento: f.nro_documento,
+    email: f.email,
+    telefono_celular: f.telefono_celular,
+    parentesco: f.parentesco,
+    fecha_nacimiento: f.fecha_nacimiento,
+  });
+
+  const buscarDesdePersonal = async () => {
+    const dni = String(form.nro_documento || '').trim();
+    if (!dni) {
+      Swal.fire({ icon: 'info', title: 'DNI', text: 'Escriba el DNI y pulse de nuevo para buscar en personal.' });
+      return;
+    }
+    try {
+      const { data } = await api.get('/admin/usuarios/personal-por-dni', { params: { dni } });
+      if (!data.encontrado) {
+        Swal.fire({ icon: 'info', title: 'Sin coincidencia', text: 'No hay ficha en personal con ese DNI en este colegio.' });
+        return;
+      }
+      setForm((prev) => ({
+        ...prev,
+        nombres: data.nombres || prev.nombres,
+        apellido_paterno: data.apellido_paterno || prev.apellido_paterno,
+        apellido_materno: data.apellido_materno || prev.apellido_materno,
+        nro_documento: data.nro_documento || prev.nro_documento,
+        email: data.email || prev.email,
+        telefono_celular: data.telefono_celular || prev.telefono_celular,
+        fecha_nacimiento: data.fecha_nacimiento || prev.fecha_nacimiento,
+      }));
+      Swal.fire({ icon: 'success', title: 'Datos cargados', text: 'Revise parentesco y guarde. Si es docente, se reutilizará su mismo usuario (DNI).', timer: 2800, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo buscar' });
+    }
+  };
+
   const guardarNuevo = async () => {
     try {
-      await api.post('/admin/usuarios/apoderados', form);
-      Swal.fire({ icon: 'success', title: 'Apoderado registrado', text: 'Usuario y clave = DNI' });
+      const { data } = await api.post('/admin/usuarios/apoderados', payloadApoderado(form));
+      if (data.usuario_compartido) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Apoderado registrado',
+          html: `<p>${data.mensaje || 'Se vinculó a la cuenta existente (mismo DNI).'}</p><p style="margin-top:0.75rem;color:#6b7280;font-size:0.95rem">Perfil intranet: <strong>${data.usuario_tipo || 'personal'}</strong>. No hace falta otro login.</p>`,
+        });
+      } else {
+        Swal.fire({ icon: 'success', title: 'Apoderado registrado', text: 'Usuario y clave = DNI' });
+      }
       setModalCreate(false);
       cargar();
     } catch (e) {
@@ -101,7 +148,10 @@ export default function AdminUsuariosApoderados() {
 
   const guardarEdit = async () => {
     try {
-      await api.put(`/admin/usuarios/apoderados/${modalEdit}`, form);
+      await api.put(`/admin/usuarios/apoderados/${modalEdit}`, {
+        ...payloadApoderado(form),
+        usuario_estado: form.usuario_estado,
+      });
       Swal.fire({ icon: 'success', title: 'Actualizado' });
       setModalEdit(null);
       cargar();
@@ -115,10 +165,14 @@ export default function AdminUsuariosApoderados() {
       Swal.fire({ title: 'Acceso', html: '<p>Sin usuario. Use <strong>Crear acceso</strong>.</p>' });
       return;
     }
+    const extra =
+      row.usuario_tipo && row.usuario_tipo !== 'APODERADO'
+        ? `<p style="margin-top:0.75rem;color:#5b21b6">Usa la misma cuenta de <strong>${row.usuario_tipo}</strong> (un solo login).</p>`
+        : '';
     Swal.fire({
       title: 'Información de acceso',
       html: `<p><strong>Usuario:</strong> ${row.login_usuario || row.nro_documento}</p>
-        <p><strong>Contraseña por defecto:</strong> DNI</p>`,
+        <p><strong>Contraseña por defecto:</strong> DNI</p>${extra}`,
     });
   };
 
@@ -135,8 +189,16 @@ export default function AdminUsuariosApoderados() {
 
   const crearAcceso = async (row) => {
     try {
-      await api.post(`/admin/usuarios/apoderados/${row.id}/acceso`);
-      Swal.fire({ icon: 'success', title: 'Acceso creado' });
+      const { data } = await api.post(`/admin/usuarios/apoderados/${row.id}/acceso`);
+      if (data.usuario_compartido) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Vinculado',
+          text: 'Se asoció la ficha de apoderado al usuario de personal/docente con el mismo DNI.',
+        });
+      } else {
+        Swal.fire({ icon: 'success', title: 'Acceso creado', text: 'Usuario y clave = DNI' });
+      }
       cargar();
     } catch (e) {
       Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
@@ -215,9 +277,16 @@ export default function AdminUsuariosApoderados() {
                   <td>{PARENTESCO_LABEL[row.parentesco] || `Cód. ${row.parentesco}`}</td>
                   <td>
                     {row.usuario_id ? (
-                      <span className={row.usuario_estado === 'ACTIVO' ? 'admin-usu-badge-ok' : 'admin-usu-badge-off'}>
-                        {row.usuario_estado === 'ACTIVO' ? 'Activo' : 'Inactivo'}
-                      </span>
+                      <div>
+                        <span className={row.usuario_estado === 'ACTIVO' ? 'admin-usu-badge-ok' : 'admin-usu-badge-off'}>
+                          {row.usuario_estado === 'ACTIVO' ? 'Activo' : 'Inactivo'}
+                        </span>
+                        {row.usuario_tipo && row.usuario_tipo !== 'APODERADO' && (
+                          <div style={{ marginTop: '0.25rem', fontSize: '0.72rem', color: '#6b7280' }}>
+                            Cuenta: {row.usuario_tipo}
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <span className="admin-usu-badge-muted">Sin usuario</span>
                     )}
@@ -291,7 +360,19 @@ export default function AdminUsuariosApoderados() {
             {['nombres', 'apellido_paterno', 'apellido_materno', 'nro_documento', 'email', 'telefono_celular'].map((k) => (
               <div key={k} className="admin-usu-field">
                 <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
-                <input type="text" value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    style={{ flex: 1, minWidth: '120px' }}
+                    value={form[k] || ''}
+                    onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                  />
+                  {k === 'nro_documento' && (
+                    <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={buscarDesdePersonal}>
+                      Desde personal
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
             <div className="admin-usu-field">
@@ -314,7 +395,11 @@ export default function AdminUsuariosApoderados() {
                 onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
               />
             </div>
-            <p className="admin-usu-hint">Se crea usuario tipo APODERADO con login y clave iguales al DNI.</p>
+            <p className="admin-usu-hint">
+              Si el DNI ya es usuario de <strong>personal/docente</strong>, no se crea otra cuenta: se vincula la ficha de
+              apoderado al mismo login. Si no existe usuario, se crea uno tipo APODERADO (usuario y clave = DNI). Use
+              «Desde personal» para copiar datos del docente.
+            </p>
             <div className="admin-usu-modal-actions">
               <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalCreate(false)}>
                 Cancelar
@@ -334,7 +419,19 @@ export default function AdminUsuariosApoderados() {
             {['nombres', 'apellido_paterno', 'apellido_materno', 'nro_documento', 'email', 'telefono_celular'].map((k) => (
               <div key={k} className="admin-usu-field">
                 <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
-                <input type="text" value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    style={{ flex: 1, minWidth: '120px' }}
+                    value={form[k] || ''}
+                    onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                  />
+                  {k === 'nro_documento' && (
+                    <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={buscarDesdePersonal}>
+                      Desde personal
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
             <div className="admin-usu-field">
