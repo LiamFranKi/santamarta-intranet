@@ -540,14 +540,14 @@ function AppRoutes() {
       />
       <Route
         path="/admin/usuarios/administradores"
-        element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
-            <Dashboard />
-          </PrivateRoute>
-        }
+        element={<Navigate to="/admin/usuarios/equipo?perfil=ADMINISTRADOR" replace />}
       />
       <Route
         path="/admin/usuarios/personal"
+        element={<Navigate to="/admin/usuarios/equipo" replace />}
+      />
+      <Route
+        path="/admin/usuarios/equipo"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
             <Dashboard />

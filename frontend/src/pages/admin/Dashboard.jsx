@@ -7,6 +7,9 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './Dashboard.css';
 import './AdminEstadisticas.css';
+import AdminUsuariosEquipo from './AdminUsuariosEquipo';
+import AdminUsuariosAlumnos from './AdminUsuariosAlumnos';
+import AdminUsuariosApoderados from './AdminUsuariosApoderados';
 
 const coloresPasteles = [
   'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',   // Verde menta
@@ -51,15 +54,10 @@ function Dashboard() {
       description: 'Administra las matrículas de los alumnos',
       icon: '📋'
     },
-    '/admin/usuarios/administradores': {
-      title: '👥 Administradores',
-      description: 'Gestiona los usuarios administradores del sistema',
+    '/admin/usuarios/equipo': {
+      title: '👥 Personal y perfiles',
+      description: 'Personal del colegio (docentes, administración, etc.) y tipo de usuario',
       icon: '👥'
-    },
-    '/admin/usuarios/personal': {
-      title: '👨‍🏫 Personal',
-      description: 'Gestiona el personal docente y administrativo',
-      icon: '👨‍🏫'
     },
     '/admin/usuarios/alumnos': {
       title: '👨‍🎓 Alumnos',
@@ -148,6 +146,34 @@ function Dashboard() {
   const isAdminRoute = location.pathname.startsWith('/admin/') && location.pathname !== '/admin/dashboard';
   
   if (isAdminRoute) {
+    if (location.pathname === '/admin/usuarios/equipo') {
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <AdminUsuariosEquipo />
+          </div>
+        </DashboardLayout>
+      );
+    }
+    if (location.pathname === '/admin/usuarios/alumnos') {
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <AdminUsuariosAlumnos />
+          </div>
+        </DashboardLayout>
+      );
+    }
+    if (location.pathname === '/admin/usuarios/apoderados') {
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <AdminUsuariosApoderados />
+          </div>
+        </DashboardLayout>
+      );
+    }
+
     return (
       <DashboardLayout>
         <div className="dashboard-container">
@@ -159,7 +185,7 @@ function Dashboard() {
               {currentRouteInfo.description}
             </p>
           </div>
-          
+
           <div style={{
             backgroundColor: 'white',
             borderRadius: '12px',
@@ -189,8 +215,8 @@ function Dashboard() {
                 cursor: 'pointer',
                 transition: 'all 0.2s'
               }}
-              onMouseEnter={(e) => e.target.style.transform = 'scale(1.05)'}
-              onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+              onMouseEnter={(e) => { e.target.style.transform = 'scale(1.05)'; }}
+              onMouseLeave={(e) => { e.target.style.transform = 'scale(1)'; }}
             >
               Volver al Dashboard Principal
             </button>
