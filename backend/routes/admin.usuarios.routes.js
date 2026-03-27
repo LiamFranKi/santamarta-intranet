@@ -882,6 +882,124 @@ router.post('/alumnos/:id/acceso', async (req, res) => {
   }
 });
 
+router.get('/alumnos/:id/apoderados', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const ok = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [id, colegio_id]);
+    if (!ok.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const rows = await query(
+      `SELECT ap.id, ap.nombres, ap.apellido_paterno, ap.apellido_materno, ap.nro_documento,
+              ap.email, ap.telefono_celular, ap.parentesco,
+              u.id AS usuario_id, u.estado AS usuario_estado
+       FROM familias f
+       INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
+       LEFT JOIN usuarios u ON u.apoderado_id = ap.id AND u.colegio_id = ap.colegio_id
+       WHERE f.alumno_id = ?
+       ORDER BY ap.apellido_paterno, ap.apellido_materno, ap.nombres`,
+      [colegio_id, id]
+    );
+    res.json({ data: rows });
+  } catch (e) {
+    console.error('GET alumno apoderados admin', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.get('/alumnos/:id/matriculas', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const ok = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [id, colegio_id]);
+    if (!ok.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const rows = await query(
+      `SELECT m.id AS matricula_id, m.estado, m.costo_id,
+              g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ?
+       ORDER BY g.anio DESC, g.grado ASC, g.seccion ASC`,
+      [id, colegio_id]
+    );
+    res.json({ data: rows });
+  } catch (e) {
+    console.error('GET alumno matriculas admin', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.get('/alumnos/:id/pagos', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const ok = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [id, colegio_id]);
+    if (!ok.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const rows = await query(
+      `SELECT p.id, p.matricula_id, p.nro_pago, p.monto, p.mora, p.fecha_hora, p.tipo, p.descripcion,
+              p.estado_pago, p.forma_pago, p.estado AS pago_registro_estado,
+              g.anio, g.grado, g.seccion
+       FROM pagos p
+       INNER JOIN matriculas m ON m.id = p.matricula_id AND m.colegio_id = p.colegio_id
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ?
+       ORDER BY g.anio DESC, p.tipo ASC, p.nro_pago ASC, p.id ASC
+       LIMIT 500`,
+      [id, colegio_id]
+    );
+    res.json({ data: rows });
+  } catch (e) {
+    console.error('GET alumno pagos admin', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.delete('/alumnos/:id', async (req, res) => {
+  try {
+    const { colegio_id, usuario_id: adminUsuarioId } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const arows = await query(
+      'SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1',
+      [id, colegio_id]
+    );
+    if (!arows.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const [mc] = await query(
+      'SELECT COUNT(*) AS n FROM matriculas WHERE alumno_id = ? AND colegio_id = ?',
+      [id, colegio_id]
+    );
+    if ((mc?.n || 0) > 0) {
+      return res.status(409).json({
+        error:
+          'No se puede eliminar: el alumno tiene matrículas registradas. Retírelo o anule matrículas desde el sistema académico si aplica.',
+      });
+    }
+    const uAl = await query(
+      "SELECT id FROM usuarios WHERE alumno_id = ? AND colegio_id = ? AND tipo = 'ALUMNO'",
+      [id, colegio_id]
+    );
+    for (const u of uAl) {
+      if (parseInt(u.id, 10) === parseInt(adminUsuarioId, 10)) {
+        return res.status(400).json({ error: 'No puede eliminar su propio usuario vinculado a este alumno.' });
+      }
+      await execute('DELETE FROM usuarios WHERE id = ? AND colegio_id = ?', [u.id, colegio_id]);
+    }
+    await execute('DELETE FROM familias WHERE alumno_id = ?', [id]);
+    await execute('DELETE FROM alumnos WHERE id = ? AND colegio_id = ?', [id, colegio_id]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('DELETE alumno admin', e);
+    res.status(500).json({ error: e.message || 'Error al eliminar alumno' });
+  }
+});
+
 // ——— Apoderados ———
 
 /**

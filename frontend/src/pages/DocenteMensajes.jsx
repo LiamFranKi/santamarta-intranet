@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
@@ -136,6 +137,8 @@ function MensajeModalContent({ mensaje, vista, onClose, onMensajeLeido }) {
 }
 
 function DocenteMensajes() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [vista, setVista] = useState('recibidos'); // 'recibidos', 'enviados', 'nuevo'
   const [mensajesRecibidos, setMensajesRecibidos] = useState([]);
   const [mensajesEnviados, setMensajesEnviados] = useState([]);
@@ -172,6 +175,24 @@ function DocenteMensajes() {
   const [archivosAdjuntos, setArchivosAdjuntos] = useState([]);
   const [mostrarResultados, setMostrarResultados] = useState(false);
   const [enviando, setEnviando] = useState(false);
+
+  useEffect(() => {
+    const pre = location.state?.preselectMensajeAlumno;
+    if (pre && pre.usuario_id) {
+      setVista('nuevo');
+      setDestinatariosSeleccionados([
+        {
+          usuario_id: pre.usuario_id,
+          nombre_completo: String(pre.nombre_completo || 'Alumno'),
+          tipo: 'ALUMNO',
+          info_adicional: pre.info_adicional || null,
+        },
+      ]);
+      setBusquedaDestinatario('');
+      setMostrarResultados(false);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, location.pathname, navigate]);
 
   // Configurar handler de imágenes para ReactQuill
   useEffect(() => {
