@@ -9,6 +9,7 @@ const { enviarPushNotificacionesIndividuales } = require('../services/pushNotifi
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const phpSerialize = require('php-serialize');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
+const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 
 // Configurar multer para subir archivos de mensajes
 const mensajesStorage = multer.diskStorage({
@@ -3706,19 +3707,7 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
 
     const respuestas = prueba[0].respuestas ? JSON.parse(prueba[0].respuestas) : {};
     
-    // Obtener todas las preguntas con alternativas completas
-    const preguntas = await query(
-      `SELECT p.*, 
-              (SELECT GROUP_CONCAT(
-                CONCAT(a.id, ':', a.descripcion, ':', a.correcta, ':', COALESCE(a.orden_posicion, ''), ':', COALESCE(a.par_id, ''), ':', COALESCE(a.zona_drop, ''))
-                ORDER BY a.id ASC SEPARATOR '||'
-              ) FROM asignaturas_examenes_preguntas_alternativas a 
-              WHERE a.pregunta_id = p.id) as alternativas_data
-       FROM asignaturas_examenes_preguntas p
-       WHERE p.examen_id = ?
-       ORDER BY p.orden ASC`,
-      [examenId]
-    );
+    const preguntas = await fetchPreguntasConAlternativas(query, examenId, [], 'SI_NO');
 
     // Calificar examen
     let puntosTotal = 0;
@@ -3737,22 +3726,7 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
         ? puntosCorrecta
         : (parseFloat(pregunta.puntos) || 0);
 
-      // Procesar alternativas
-      let alternativas = [];
-      if (pregunta.alternativas_data) {
-        alternativas = pregunta.alternativas_data.split('||').map(alt => {
-          // Formato: id:descripcion:correcta:orden_posicion:par_id:zona_drop
-          const parts = alt.split(':');
-          return {
-            id: parseInt(parts[0]) || 0,
-            descripcion: parts[1] || '',
-            correcta: parts[2] || 'NO',
-            orden_posicion: parts[3] ? parseInt(parts[3]) : null,
-            par_id: parts[4] ? parseInt(parts[4]) : null,
-            zona_drop: parts[5] || null
-          };
-        });
-      }
+      const alternativas = pregunta.alternativas || [];
 
       // Evaluar según el tipo de pregunta
       switch (pregunta.tipo) {
@@ -4518,65 +4492,12 @@ router.get('/examenes/:examenId/resultado/detalles', async (req, res) => {
       console.warn('Error obteniendo preguntaIds:', error);
     }
 
-    let preguntas = [];
-    if (preguntaIds.length > 0) {
-      const placeholders = preguntaIds.map(() => '?').join(',');
-      preguntas = await query(
-        `SELECT 
-          aep.*,
-          GROUP_CONCAT(
-            CONCAT(aepa.id, ':', aepa.descripcion, ':', aepa.correcta, ':', COALESCE(aepa.orden_posicion, ''), ':', COALESCE(aepa.par_id, ''), ':', COALESCE(aepa.zona_drop, ''))
-            ORDER BY aepa.id ASC
-            SEPARATOR '||'
-          ) as alternativas_raw
-         FROM asignaturas_examenes_preguntas aep
-         LEFT JOIN asignaturas_examenes_preguntas_alternativas aepa ON aepa.pregunta_id = aep.id
-         WHERE aep.examen_id = ? AND aep.id IN (${placeholders})
-         GROUP BY aep.id
-         ORDER BY FIELD(aep.id, ${placeholders})`,
-        [examenId, ...preguntaIds, ...preguntaIds]
-      );
-    } else {
-      // Fallback: obtener todas las preguntas
-      preguntas = await query(
-        `SELECT 
-          aep.*,
-          GROUP_CONCAT(
-            CONCAT(aepa.id, ':', aepa.descripcion, ':', aepa.correcta, ':', COALESCE(aepa.orden_posicion, ''), ':', COALESCE(aepa.par_id, ''), ':', COALESCE(aepa.zona_drop, ''))
-            ORDER BY aepa.id ASC
-            SEPARATOR '||'
-          ) as alternativas_raw
-         FROM asignaturas_examenes_preguntas aep
-         LEFT JOIN asignaturas_examenes_preguntas_alternativas aepa ON aepa.pregunta_id = aep.id
-         WHERE aep.examen_id = ?
-         GROUP BY aep.id
-         ORDER BY aep.orden ASC`,
-        [examenId]
-      );
-    }
-
-    // Procesar alternativas
-    const preguntasConAlternativas = preguntas.map(pregunta => {
-      const alternativas = [];
-      if (pregunta.alternativas_raw) {
-        const alternativasRaw = pregunta.alternativas_raw.split('||');
-        alternativasRaw.forEach(alt => {
-          const [id, descripcion, correcta, orden_posicion, par_id, zona_drop] = alt.split(':');
-          alternativas.push({
-            id: parseInt(id),
-            descripcion: descripcion || '',
-            correcta: correcta === '1' || correcta === 'true' || correcta === 'SI',
-            orden_posicion: orden_posicion || null,
-            par_id: par_id || null,
-            zona_drop: zona_drop || null
-          });
-        });
-      }
-      return {
-        ...pregunta,
-        alternativas: alternativas
-      };
-    });
+    const preguntasConAlternativas = await fetchPreguntasConAlternativas(
+      query,
+      examenId,
+      preguntaIds,
+      'boolean'
+    );
 
     // Parsear respuestas del alumno
     let respuestasAlumno = {};

@@ -14,6 +14,7 @@ const {
   enriquecerMensajeApoderadoADocente
 } = require('../utils/mensajesHijoDocenteContexto');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
+const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 
 // Configurar multer para subir archivos de mensajes
 const mensajesStorage = multer.diskStorage({
@@ -4133,63 +4134,12 @@ router.get('/hijos/:hijoId/aula-virtual/examenes/:examenId/resultado/detalles', 
       console.warn('Error obteniendo preguntaIds:', error);
     }
 
-    let preguntas = [];
-    if (preguntaIds.length > 0) {
-      const placeholders = preguntaIds.map(() => '?').join(',');
-      preguntas = await query(
-        `SELECT 
-          aep.*,
-          GROUP_CONCAT(
-            CONCAT(aepa.id, ':', aepa.descripcion, ':', aepa.correcta, ':', COALESCE(aepa.orden_posicion, ''), ':', COALESCE(aepa.par_id, ''), ':', COALESCE(aepa.zona_drop, ''))
-            ORDER BY aepa.id ASC
-            SEPARATOR '||'
-          ) as alternativas_raw
-         FROM asignaturas_examenes_preguntas aep
-         LEFT JOIN asignaturas_examenes_preguntas_alternativas aepa ON aepa.pregunta_id = aep.id
-         WHERE aep.examen_id = ? AND aep.id IN (${placeholders})
-         GROUP BY aep.id
-         ORDER BY FIELD(aep.id, ${placeholders})`,
-        [examenId, ...preguntaIds, ...preguntaIds]
-      );
-    } else {
-      preguntas = await query(
-        `SELECT 
-          aep.*,
-          GROUP_CONCAT(
-            CONCAT(aepa.id, ':', aepa.descripcion, ':', aepa.correcta, ':', COALESCE(aepa.orden_posicion, ''), ':', COALESCE(aepa.par_id, ''), ':', COALESCE(aepa.zona_drop, ''))
-            ORDER BY aepa.id ASC
-            SEPARATOR '||'
-          ) as alternativas_raw
-         FROM asignaturas_examenes_preguntas aep
-         LEFT JOIN asignaturas_examenes_preguntas_alternativas aepa ON aepa.pregunta_id = aep.id
-         WHERE aep.examen_id = ?
-         GROUP BY aep.id
-         ORDER BY aep.orden ASC`,
-        [examenId]
-      );
-    }
-
-    const preguntasConAlternativas = preguntas.map((pregunta) => {
-      const alternativas = [];
-      if (pregunta.alternativas_raw) {
-        const alternativasRaw = pregunta.alternativas_raw.split('||');
-        alternativasRaw.forEach((alt) => {
-          const [id, descripcion, correcta, orden_posicion, par_id, zona_drop] = alt.split(':');
-          alternativas.push({
-            id: parseInt(id, 10),
-            descripcion: descripcion || '',
-            correcta: correcta === '1' || correcta === 'true' || correcta === 'SI',
-            orden_posicion: orden_posicion || null,
-            par_id: par_id || null,
-            zona_drop: zona_drop || null
-          });
-        });
-      }
-      return {
-        ...pregunta,
-        alternativas
-      };
-    });
+    const preguntasConAlternativas = await fetchPreguntasConAlternativas(
+      query,
+      examenId,
+      preguntaIds,
+      'boolean'
+    );
 
     let respuestasAlumno = {};
     try {
