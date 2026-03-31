@@ -22,14 +22,14 @@ function formatFecha(value) {
 }
 
 function formatCobertura(row) {
-  const alcance = String(row?.alcance || 'TODOS').toUpperCase();
   const perfil = String(row?.perfil_destino || 'TODOS').toUpperCase();
-  return `${alcance} • ${perfil}`;
+  return perfil;
 }
 
 export default function AdminConexiones() {
   const quillRef = useRef(null);
   const [items, setItems] = useState([]);
+  const [paginaActual, setPaginaActual] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -49,7 +49,20 @@ export default function AdminConexiones() {
   const [enviando, setEnviando] = useState(false);
   const [mostrarModalNuevo, setMostrarModalNuevo] = useState(false);
 
-  const total = useMemo(() => (items || []).length, [items]);
+  const itemsPorPagina = 20;
+  const totalPaginas = Math.max(1, Math.ceil((items || []).length / itemsPorPagina));
+  const itemsPaginados = useMemo(() => {
+    const inicio = (paginaActual - 1) * itemsPorPagina;
+    return (items || []).slice(inicio, inicio + itemsPorPagina);
+  }, [items, paginaActual]);
+  const paginasVisibles = useMemo(() => {
+    if (totalPaginas <= 5) return Array.from({ length: totalPaginas }, (_, i) => i + 1);
+    if (paginaActual <= 3) return [1, 2, 3, 4, 5];
+    if (paginaActual >= totalPaginas - 2) {
+      return [totalPaginas - 4, totalPaginas - 3, totalPaginas - 2, totalPaginas - 1, totalPaginas];
+    }
+    return [paginaActual - 2, paginaActual - 1, paginaActual, paginaActual + 1, paginaActual + 2];
+  }, [paginaActual, totalPaginas]);
 
   const cargarConexiones = async () => {
     try {
@@ -62,6 +75,7 @@ export default function AdminConexiones() {
       if (fechaHasta) params.fecha_hasta = fechaHasta;
       const response = await api.get('/admin/conexiones', { params });
       setItems(response.data?.conexiones || []);
+      setPaginaActual(1);
     } catch (err) {
       console.error('Error cargando conexiones familiares:', err);
       setError(err?.response?.data?.error || 'No se pudo cargar la lista de conexiones familiares.');
@@ -90,6 +104,7 @@ export default function AdminConexiones() {
     if (!quillRef.current) return;
     const quill = quillRef.current.getEditor();
     const toolbar = quill.getModule('toolbar');
+    if (!toolbar) return;
     toolbar.addHandler('image', async () => {
       const input = document.createElement('input');
       input.type = 'file';
@@ -119,6 +134,12 @@ export default function AdminConexiones() {
       };
     });
   }, []);
+
+  useEffect(() => {
+    if (paginaActual > totalPaginas) {
+      setPaginaActual(totalPaginas);
+    }
+  }, [paginaActual, totalPaginas]);
 
   const abrirDetalle = async (id) => {
     try {
@@ -202,7 +223,6 @@ export default function AdminConexiones() {
         <div className="page-header">
           <h1>Conexiones Familiares</h1>
           <p className="grupo-subtitle">Envío masivo por cobertura/perfil y listado único de envíos.</p>
-          <span className="admin-conexiones-total">Total: {total}</span>
         </div>
 
         <div className="grupos-list-section mundo-card">
@@ -212,7 +232,7 @@ export default function AdminConexiones() {
           >
             <h2 className="section-title-blue">Filtros y acciones</h2>
             <button type="button" className="admin-conexiones-btn-nuevo" onClick={abrirModalNuevo}>
-              + Nuevo
+              NUEVA PUBLICACION
             </button>
           </div>
 
@@ -276,7 +296,7 @@ export default function AdminConexiones() {
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((row) => (
+                  {itemsPaginados.map((row) => (
                     <tr key={`${row.source || 'conn'}-${row.id}`}>
                       <td>{formatFecha(row.fecha_hora)}</td>
                       <td>{row.personal || '—'}</td>
@@ -303,6 +323,36 @@ export default function AdminConexiones() {
               </table>
             </div>
           )}
+          {!loading && !error && items.length > itemsPorPagina && (
+            <div className="admin-cf-paginacion">
+              <button
+                type="button"
+                className="admin-cf-page-btn"
+                onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
+                disabled={paginaActual === 1}
+              >
+                Anterior
+              </button>
+              {paginasVisibles.map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  className={`admin-cf-page-btn ${page === paginaActual ? 'is-active' : ''}`}
+                  onClick={() => setPaginaActual(page)}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                type="button"
+                className="admin-cf-page-btn"
+                onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
+                disabled={paginaActual === totalPaginas}
+              >
+                Siguiente
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -327,7 +377,22 @@ export default function AdminConexiones() {
               <div className="form-group">
                 <label>Mensaje</label>
                 <div id="mensaje-editor-wrapper-grupo">
-                  <ReactQuill ref={quillRef} theme="snow" value={mensaje} onChange={setMensaje} className="admin-conexiones-editor" />
+                  <ReactQuill
+                    ref={quillRef}
+                    theme="snow"
+                    value={mensaje}
+                    onChange={setMensaje}
+                    className="admin-conexiones-editor"
+                    modules={{
+                      toolbar: [
+                        [{ header: [1, 2, false] }],
+                        ['bold', 'italic', 'underline'],
+                        ['link', 'image'],
+                        [{ list: 'ordered' }, { list: 'bullet' }],
+                        ['clean']
+                      ]
+                    }}
+                  />
                 </div>
               </div>
 
@@ -400,12 +465,13 @@ export default function AdminConexiones() {
                 <div className="admin-conexiones-empty">Cargando detalle...</div>
               ) : (
                 <div className="modal-mensaje-body admin-conexiones-modal-body">
-                  <div><strong>Fecha:</strong> {formatFecha(detalle?.fecha_hora)}</div>
-                  <div><strong>Personal:</strong> {detalle?.personal || '—'}</div>
-                  <div><strong>Cobertura:</strong> {detalle?.alcance || '—'}</div>
-                  <div><strong>Perfil destino:</strong> {detalle?.perfil_destino || '—'}</div>
-                  <div><strong>Grupo:</strong> {detalle?.grupo || '—'}</div>
-                  <div><strong>Asunto:</strong> {detalle?.asunto || 'Sin asunto'}</div>
+                  <div className="admin-conexiones-detalle-info">
+                    <div><strong>Fecha:</strong> {formatFecha(detalle?.fecha_hora)}</div>
+                    <div><strong>Personal:</strong> {detalle?.personal || '—'}</div>
+                    <div><strong>Cobertura:</strong> {String(detalle?.perfil_destino || '—').toUpperCase()}</div>
+                    <div><strong>Grupo:</strong> {detalle?.grupo || '—'}</div>
+                    <div><strong>Asunto:</strong> {detalle?.asunto || 'Sin asunto'}</div>
+                  </div>
                   <div className="admin-conexiones-mensaje-block">
                     <strong>Mensaje:</strong>
                     <div className="admin-conexiones-html" dangerouslySetInnerHTML={{ __html: detalle?.mensaje || '<p>Sin contenido</p>' }} />
