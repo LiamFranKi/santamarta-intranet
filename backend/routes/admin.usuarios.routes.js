@@ -288,7 +288,7 @@ async function insertUsuarioPersonal(colegioId, personalId, dni, tipo) {
   return result.insertId;
 }
 
-router.post('/equipo', async (req, res) => {
+router.post('/equipo', uploadUsuarioFoto.single('foto'), async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const tipo = String(req.body.tipo || '').toUpperCase();
@@ -296,6 +296,9 @@ router.post('/equipo', async (req, res) => {
       return res.status(400).json({ error: 'Tipo de usuario no válido para personal' });
     }
     const d = defaultsNuevoPersonal(colegio_id, req.body);
+    if (req.file?.filename) {
+      d.foto = req.file.filename;
+    }
     if (!d.nombres || !d.apellidos || !d.nro_documento) {
       return res.status(400).json({ error: 'Nombres, apellidos y DNI son obligatorios' });
     }
@@ -686,7 +689,7 @@ router.get('/alumnos/:id', async (req, res) => {
   }
 });
 
-router.post('/alumnos', async (req, res) => {
+router.post('/alumnos', uploadUsuarioFoto.single('foto'), async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const ap = String(req.body.apellido_paterno || '').trim();
@@ -710,6 +713,7 @@ router.post('/alumnos', async (req, res) => {
     }
 
     const email = String(req.body.email || '').trim();
+    const foto = req.file?.filename || ALUMNO_DEFAULTS.foto;
     const hoy = new Date().toISOString().slice(0, 10);
 
     await execute(
@@ -735,7 +739,7 @@ router.post('/alumnos', async (req, res) => {
         ALUMNO_DEFAULTS.distrito_nacimiento_id,
         ALUMNO_DEFAULTS.sexo,
         email,
-        ALUMNO_DEFAULTS.foto,
+        foto,
         hoy,
         ALUMNO_DEFAULTS.observaciones,
         ALUMNO_DEFAULTS.nro_hermanos,

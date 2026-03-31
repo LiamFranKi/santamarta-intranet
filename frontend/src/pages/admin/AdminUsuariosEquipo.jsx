@@ -31,6 +31,8 @@ export default function AdminUsuariosEquipo() {
   const [modalCreate, setModalCreate] = useState(false);
   const [modalEdit, setModalEdit] = useState(null);
   const [form, setForm] = useState({});
+  const [fotoCreateFile, setFotoCreateFile] = useState(null);
+  const [fotoCreatePreview, setFotoCreatePreview] = useState('');
   const [fotoEditFile, setFotoEditFile] = useState(null);
   const [fotoEditPreview, setFotoEditPreview] = useState('');
 
@@ -62,10 +64,13 @@ export default function AdminUsuariosEquipo() {
   }, [cargar]);
 
   useEffect(() => () => {
+    if (fotoCreatePreview && fotoCreatePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(fotoCreatePreview);
+    }
     if (fotoEditPreview && fotoEditPreview.startsWith('blob:')) {
       URL.revokeObjectURL(fotoEditPreview);
     }
-  }, [fotoEditPreview]);
+  }, [fotoCreatePreview, fotoEditPreview]);
 
   useEffect(() => {
     if (!openMenu) return undefined;
@@ -105,6 +110,15 @@ export default function AdminUsuariosEquipo() {
     setFotoEditPreview(file ? URL.createObjectURL(file) : '');
   };
 
+  const handleFotoCreateChange = (event) => {
+    if (fotoCreatePreview && fotoCreatePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(fotoCreatePreview);
+    }
+    const file = event.target.files?.[0] || null;
+    setFotoCreateFile(file);
+    setFotoCreatePreview(file ? URL.createObjectURL(file) : '');
+  };
+
   const abrirCrear = () => {
     setForm({
       nombres: '',
@@ -116,6 +130,8 @@ export default function AdminUsuariosEquipo() {
       fecha_nacimiento: '1990-01-01',
       tipo: tipos.includes('DOCENTE') ? 'DOCENTE' : tipos[0] || 'DOCENTE',
     });
+    setFotoCreateFile(null);
+    setFotoCreatePreview('');
     setFotoEditFile(null);
     setFotoEditPreview('');
     setModalCreate(true);
@@ -123,8 +139,15 @@ export default function AdminUsuariosEquipo() {
 
   const guardarNuevo = async () => {
     try {
-      await api.post('/admin/usuarios/equipo', form);
+      const fd = new FormData();
+      Object.entries(form).forEach(([k, v]) => fd.append(k, v ?? ''));
+      if (fotoCreateFile) {
+        fd.append('foto', fotoCreateFile);
+      }
+      await api.post('/admin/usuarios/equipo', fd);
       Swal.fire({ icon: 'success', title: 'Registrado', text: 'Usuario y contraseña: DNI' });
+      setFotoCreateFile(null);
+      setFotoCreatePreview('');
       setModalCreate(false);
       cargar();
     } catch (e) {
@@ -241,7 +264,9 @@ export default function AdminUsuariosEquipo() {
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const initialsPreview = (form.nombres || form.apellidos || 'U').trim().charAt(0).toUpperCase();
+  const fotoCreateFormPreview = fotoCreatePreview;
   const fotoFormPreview = fotoEditPreview || fotoUsuarioAdmin(form.foto);
+  const credencialDni = (form.nro_documento || '').trim();
 
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
@@ -421,9 +446,17 @@ export default function AdminUsuariosEquipo() {
                   <h3>Foto de Perfil</h3>
                   <div className="admin-usu-photo-wrap">
                     <div className="admin-usu-photo-preview">
-                      <div className="admin-usu-photo-ph">{initialsPreview}</div>
+                      {fotoCreateFormPreview ? (
+                        <img src={fotoCreateFormPreview} alt="Foto personal" />
+                      ) : (
+                        <div className="admin-usu-photo-ph">{initialsPreview}</div>
+                      )}
                     </div>
-                    <p className="admin-usu-hint">La foto se puede cargar desde Editar personal.</p>
+                    <label className="admin-usu-upload-btn">
+                      📷 Subir Foto
+                      <input type="file" accept="image/*" onChange={handleFotoCreateChange} />
+                    </label>
+                    <p className="admin-usu-hint">Formatos: JPG, PNG, GIF, WEBP (máx. 5MB)</p>
                   </div>
                 </div>
                 <div className="admin-usu-profile-section">
@@ -464,11 +497,11 @@ export default function AdminUsuariosEquipo() {
                   <div className="admin-usu-info-grid">
                     <div className="admin-usu-info-item">
                       <span className="admin-usu-info-label">Usuario inicial</span>
-                      <span className="admin-usu-info-value">{form.nro_documento || 'DNI'}</span>
+                      <span className="admin-usu-info-value">{credencialDni || '—'}</span>
                     </div>
                     <div className="admin-usu-info-item">
                       <span className="admin-usu-info-label">Contraseña inicial</span>
-                      <span className="admin-usu-info-value">DNI</span>
+                      <span className="admin-usu-info-value">{credencialDni || '—'}</span>
                     </div>
                   </div>
                 </div>

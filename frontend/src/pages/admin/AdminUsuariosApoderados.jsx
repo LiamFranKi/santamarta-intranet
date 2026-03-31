@@ -252,7 +252,7 @@ export default function AdminUsuariosApoderados() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
-  const initialsPreview = (form.nombres || form.apellido_paterno || 'A').trim().charAt(0).toUpperCase();
+  const credencialDni = (form.nro_documento || '').trim();
 
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
@@ -388,15 +388,6 @@ export default function AdminUsuariosApoderados() {
             <div className="admin-usu-modal-body">
               <div className="admin-usu-profile-form">
                 <div className="admin-usu-profile-section">
-                  <h3>Foto de Perfil</h3>
-                  <div className="admin-usu-photo-wrap">
-                    <div className="admin-usu-photo-preview">
-                      <div className="admin-usu-photo-ph">{initialsPreview}</div>
-                    </div>
-                    <p className="admin-usu-hint">La carga de foto se realiza desde módulos de perfil.</p>
-                  </div>
-                </div>
-                <div className="admin-usu-profile-section">
                   <h3>Información Personal</h3>
                   <div className="admin-usu-form-grid">
                     {['nombres', 'apellido_paterno', 'apellido_materno', 'nro_documento', 'email', 'telefono_celular'].map((k) => (
@@ -441,9 +432,19 @@ export default function AdminUsuariosApoderados() {
                 </div>
                 <div className="admin-usu-profile-section">
                   <h3>Información del Sistema</h3>
+                  <div className="admin-usu-info-grid">
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Usuario inicial</span>
+                      <span className="admin-usu-info-value">{credencialDni || '—'}</span>
+                    </div>
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Contraseña inicial</span>
+                      <span className="admin-usu-info-value">{credencialDni || '—'}</span>
+                    </div>
+                  </div>
                   <p className="admin-usu-hint">
                     Si el DNI ya es usuario de <strong>personal/docente</strong>, no se crea otra cuenta: se vincula la ficha de
-                    apoderado al mismo login. Si no existe usuario, se crea uno tipo APODERADO (usuario y clave = DNI).
+                    apoderado al mismo login.
                   </p>
                 </div>
               </div>
@@ -472,15 +473,6 @@ export default function AdminUsuariosApoderados() {
             </div>
             <div className="admin-usu-modal-body">
               <div className="admin-usu-profile-form">
-                <div className="admin-usu-profile-section">
-                  <h3>Foto de Perfil</h3>
-                  <div className="admin-usu-photo-wrap">
-                    <div className="admin-usu-photo-preview">
-                      <div className="admin-usu-photo-ph">{initialsPreview}</div>
-                    </div>
-                    <p className="admin-usu-hint">La carga de foto se realiza desde módulos de perfil.</p>
-                  </div>
-                </div>
                 <div className="admin-usu-profile-section">
                   <h3>Información Personal</h3>
                   <div className="admin-usu-form-grid">
@@ -531,7 +523,11 @@ export default function AdminUsuariosApoderados() {
                     </div>
                     <div className="admin-usu-info-item">
                       <span className="admin-usu-info-label">Usuario</span>
-                      <span className="admin-usu-info-value">{form.nro_documento || '—'}</span>
+                      <span className="admin-usu-info-value">{credencialDni || '—'}</span>
+                    </div>
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Contraseña por defecto</span>
+                      <span className="admin-usu-info-value">{credencialDni || '—'}</span>
                     </div>
                   </div>
                 </div>

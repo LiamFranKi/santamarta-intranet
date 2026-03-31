@@ -491,6 +491,17 @@
   font-weight: 600;
 }
 
+.admin-usu-info-item select {
+  width: 100%;
+  margin-top: 0.15rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  background: #fff;
+}
+
 .admin-usu-field {
   margin-bottom: 0.85rem;
 }
