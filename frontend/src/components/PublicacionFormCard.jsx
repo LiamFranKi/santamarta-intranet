@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import '../components/PublicacionesWidget.css';
 
-function PublicacionFormCard({ onPublicacionCreada }) {
+function PublicacionFormCard({ onPublicacionCreada, onCancel }) {
   const { user } = useAuth();
   const esAlumno = user?.tipo === 'ALUMNO';
   const [grupos, setGrupos] = useState([]);
@@ -268,6 +268,15 @@ function PublicacionFormCard({ onPublicacionCreada }) {
     return null;
   }
 
+  const limpiarFormulario = () => {
+    setFormData({ contenido: '', compartir_con: 'todos', grupos_seleccionados: [] });
+    setImagenPreview(null);
+    setImagenFile(null);
+    setArchivoFile(null);
+    setArchivoNombre(null);
+    detenerCamara();
+  };
+
   return (
     <form className="publicacion-form" onSubmit={handleSubmit}>
       <textarea
@@ -426,12 +435,8 @@ function PublicacionFormCard({ onPublicacionCreada }) {
           type="button" 
           className="btn-secondary"
           onClick={() => {
-            setFormData({ contenido: '', compartir_con: 'todos', grupos_seleccionados: [] });
-            setImagenPreview(null);
-            setImagenFile(null);
-            setArchivoFile(null);
-            setArchivoNombre(null);
-            detenerCamara();
+            limpiarFormulario();
+            if (typeof onCancel === 'function') onCancel();
           }}
         >
           <span className="btn-icon">✕</span>

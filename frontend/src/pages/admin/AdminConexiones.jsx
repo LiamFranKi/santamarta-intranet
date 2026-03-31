@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import 'react-quill/dist/quill.snow.css';
-import './AdminUsuarios.css';
+import './AdminDocumentosGestion.css';
 import './AdminConexiones.css';
 
 function formatFecha(value) {
@@ -22,7 +22,7 @@ function formatFecha(value) {
 }
 
 function formatCobertura(row) {
-  const alcance = String(row?.alcance || 'GRUPOS').toUpperCase();
+  const alcance = String(row?.alcance || 'TODOS').toUpperCase();
   const perfil = String(row?.perfil_destino || 'TODOS').toUpperCase();
   return `${alcance} • ${perfil}`;
 }
@@ -42,7 +42,7 @@ export default function AdminConexiones() {
   const [fechaHasta, setFechaHasta] = useState('');
   const [asunto, setAsunto] = useState('');
   const [mensaje, setMensaje] = useState('');
-  const [alcance, setAlcance] = useState('grupos');
+  const [alcance, setAlcance] = useState('todos');
   const [perfilDestino, setPerfilDestino] = useState('todos');
   const [gruposSeleccionados, setGruposSeleccionados] = useState([]);
   const [archivosAdjuntos, setArchivosAdjuntos] = useState([]);
@@ -140,7 +140,7 @@ export default function AdminConexiones() {
   const abrirModalNuevo = () => {
     setAsunto('');
     setMensaje('');
-    setAlcance('grupos');
+    setAlcance('todos');
     setPerfilDestino('todos');
     setGruposSeleccionados([]);
     setArchivosAdjuntos([]);
@@ -198,37 +198,57 @@ export default function AdminConexiones() {
 
   return (
     <DashboardLayout>
-      <div className="admin-usu-wrap">
-        <div className="admin-usu-header">
+      <div className="dg-page">
+        <header className="dg-page-header">
           <h1>Conexiones Familiares</h1>
           <p>Envío masivo por cobertura/perfil y listado único de envíos.</p>
           <span className="admin-conexiones-total">Total: {total}</span>
-        </div>
+        </header>
 
-        <div className="admin-usu-toolbar">
-          <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={abrirModalNuevo}>
-            Nuevo
-          </button>
-          <select value={filtroPersonal} onChange={(e) => setFiltroPersonal(e.target.value)}>
-            <option value="">Filtrar por personal</option>
-            {opcionesPersonal.map((op) => (
-              <option key={op.id} value={op.id}>{op.label}</option>
-            ))}
-          </select>
-          <select value={filtroGrupo} onChange={(e) => setFiltroGrupo(e.target.value)}>
-            <option value="">Filtrar por grupo</option>
-            {grupos.map((g) => (
-              <option key={g.id} value={g.id}>{`${g.grado}° ${g.seccion} ${g.nivel_nombre || ''}`.trim()}</option>
-            ))}
-          </select>
-          <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
-          <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
-          <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={cargarConexiones}>
-            Aplicar filtros
-          </button>
-        </div>
+        <section className="dg-section">
+          <div className="dg-section-title">
+            <span>Filtros y acciones</span>
+            <button type="button" className="dg-btn-primary" onClick={abrirModalNuevo}>
+              + Nuevo
+            </button>
+          </div>
+          <div className="dg-filters">
+            <label>
+              Personal
+              <select value={filtroPersonal} onChange={(e) => setFiltroPersonal(e.target.value)}>
+                <option value="">Todos</option>
+                {opcionesPersonal.map((op) => (
+                  <option key={op.id} value={op.id}>{op.label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Grupo
+              <select value={filtroGrupo} onChange={(e) => setFiltroGrupo(e.target.value)}>
+                <option value="">Todos</option>
+                {grupos.map((g) => (
+                  <option key={g.id} value={g.id}>{`${g.grado}° ${g.seccion} ${g.nivel_nombre || ''}`.trim()}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Fecha desde
+              <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
+            </label>
+            <label>
+              Fecha hasta
+              <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
+            </label>
+            <button type="button" className="dg-btn-ghost" onClick={cargarConexiones}>
+              Aplicar filtros
+            </button>
+          </div>
+        </section>
 
-        <div className="admin-usu-table-card">
+        <section className="dg-section">
+          <div className="dg-section-title">
+            <span>Historial de envíos</span>
+          </div>
           {loading ? (
             <div className="admin-conexiones-empty">Cargando conexiones...</div>
           ) : error ? (
@@ -236,8 +256,8 @@ export default function AdminConexiones() {
           ) : items.length === 0 ? (
             <div className="admin-conexiones-empty">No hay conexiones familiares registradas.</div>
           ) : (
-            <div className="admin-conexiones-table-wrap">
-              <table className="admin-usu-table">
+            <div className="dg-table-wrap">
+              <table className="dg-table">
                 <thead>
                   <tr>
                     <th>Fecha</th>
@@ -257,7 +277,7 @@ export default function AdminConexiones() {
                       <td>{formatCobertura(row)}</td>
                       <td title={row.asunto || ''}>{row.asunto || 'Sin asunto'}</td>
                       <td>
-                        <button type="button" className="admin-usu-actions-btn" onClick={() => abrirDetalle(row.id)} title="Ver detalle">
+                        <button type="button" className="dg-btn-ghost" onClick={() => abrirDetalle(row.id)} title="Ver detalle">
                           👁️ Ver
                         </button>
                       </td>
@@ -267,65 +287,66 @@ export default function AdminConexiones() {
               </table>
             </div>
           )}
-        </div>
+        </section>
       </div>
 
       {mostrarModalNuevo && createPortal(
-        <div className="admin-usu-modal-overlay" onClick={() => setMostrarModalNuevo(false)}>
-          <div className="admin-usu-modal admin-conexiones-modal-wide" onClick={(e) => e.stopPropagation()}>
-            <h2>Nueva conexión familiar</h2>
-            <div className="admin-usu-field">
-              <label>Asunto</label>
-              <input value={asunto} onChange={(e) => setAsunto(e.target.value)} placeholder="Asunto del mensaje" />
-            </div>
+        <div className="dg-modal-overlay" onClick={() => setMostrarModalNuevo(false)}>
+          <div className="dg-modal admin-conexiones-modal-wide" onClick={(e) => e.stopPropagation()}>
+            <div className="dg-modal-header">Nueva conexión familiar</div>
+            <div className="dg-modal-body">
+              <label>
+                Asunto
+                <input value={asunto} onChange={(e) => setAsunto(e.target.value)} placeholder="Asunto del mensaje" />
+              </label>
+              <label>
+                Mensaje
+                <ReactQuill ref={quillRef} theme="snow" value={mensaje} onChange={setMensaje} className="admin-conexiones-editor" />
+              </label>
 
-            <div className="admin-usu-field">
-              <label>Mensaje</label>
-              <ReactQuill ref={quillRef} theme="snow" value={mensaje} onChange={setMensaje} className="admin-conexiones-editor" />
-            </div>
-
-            <div className="admin-conexiones-row">
-              <span className="admin-conexiones-label">Cobertura:</span>
-              <label><input type="radio" checked={alcance === 'todos'} onChange={() => setAlcance('todos')} /> Todos</label>
-              <label><input type="radio" checked={alcance === 'grupos'} onChange={() => setAlcance('grupos')} /> Grupos</label>
-            </div>
-
-            <div className="admin-conexiones-row">
-              <span className="admin-conexiones-label">Enviar a:</span>
-              <label><input type="radio" checked={perfilDestino === 'todos'} onChange={() => setPerfilDestino('todos')} /> Todos</label>
-              <label><input type="radio" checked={perfilDestino === 'alumnos'} onChange={() => setPerfilDestino('alumnos')} /> Alumnos</label>
-              <label><input type="radio" checked={perfilDestino === 'docentes'} onChange={() => setPerfilDestino('docentes')} /> Docentes</label>
-              <label><input type="radio" checked={perfilDestino === 'apoderados'} onChange={() => setPerfilDestino('apoderados')} /> Apoderados</label>
-            </div>
-
-            {alcance === 'grupos' && (
-              <div className="admin-conexiones-grupos">
-                {grupos.map((g) => (
-                  <label key={g.id} className="admin-conexiones-grupo-item">
-                    <input
-                      type="checkbox"
-                      checked={gruposSeleccionados.includes(g.id)}
-                      onChange={() => toggleGrupo(g.id)}
-                    />
-                    <span>{`${g.grado}° ${g.seccion} ${g.nivel_nombre || ''}`.trim()}</span>
-                  </label>
-                ))}
+              <div className="admin-conexiones-row">
+                <span className="admin-conexiones-label">Cobertura:</span>
+                <label><input type="radio" checked={alcance === 'todos'} onChange={() => setAlcance('todos')} /> Todos</label>
+                <label><input type="radio" checked={alcance === 'grupos'} onChange={() => setAlcance('grupos')} /> Grupos</label>
               </div>
-            )}
 
-            <div className="admin-usu-field">
-              <label>Adjuntos</label>
-              <input type="file" multiple onChange={(e) => setArchivosAdjuntos(Array.from(e.target.files || []))} />
+              <div className="admin-conexiones-row">
+                <span className="admin-conexiones-label">Perfil destino:</span>
+                <label><input type="radio" checked={perfilDestino === 'todos'} onChange={() => setPerfilDestino('todos')} /> Todos</label>
+                <label><input type="radio" checked={perfilDestino === 'alumnos'} onChange={() => setPerfilDestino('alumnos')} /> Alumnos</label>
+                <label><input type="radio" checked={perfilDestino === 'docentes'} onChange={() => setPerfilDestino('docentes')} /> Docentes</label>
+                <label><input type="radio" checked={perfilDestino === 'apoderados'} onChange={() => setPerfilDestino('apoderados')} /> Apoderados</label>
+              </div>
+
+              {alcance === 'grupos' && (
+                <div className="admin-conexiones-grupos">
+                  {grupos.map((g) => (
+                    <label key={g.id} className="admin-conexiones-grupo-item">
+                      <input
+                        type="checkbox"
+                        checked={gruposSeleccionados.includes(g.id)}
+                        onChange={() => toggleGrupo(g.id)}
+                      />
+                      <span>{`${g.grado}° ${g.seccion} ${g.nivel_nombre || ''}`.trim()}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+
+              <label>
+                Adjuntos
+                <input type="file" multiple onChange={(e) => setArchivosAdjuntos(Array.from(e.target.files || []))} />
+              </label>
               {archivosAdjuntos.length > 0 && (
                 <div className="admin-conexiones-adjuntos-info">{archivosAdjuntos.length} archivo(s) seleccionado(s)</div>
               )}
             </div>
 
-            <div className="admin-usu-modal-actions">
-              <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setMostrarModalNuevo(false)}>
+            <div className="dg-modal-footer">
+              <button type="button" className="dg-btn-cancel" onClick={() => setMostrarModalNuevo(false)}>
                 Cancelar
               </button>
-              <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={enviarConexion} disabled={enviando}>
+              <button type="button" className="dg-btn-primary" onClick={enviarConexion} disabled={enviando}>
                 {enviando ? 'Enviando...' : 'Enviar conexión'}
               </button>
             </div>
@@ -336,13 +357,13 @@ export default function AdminConexiones() {
 
       {modalOpen && (
         createPortal(
-          <div className="admin-usu-modal-overlay" onClick={() => setModalOpen(false)}>
-            <div className="admin-usu-modal admin-conexiones-modal-wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-              <h2>Detalle del mensaje</h2>
+          <div className="dg-modal-overlay" onClick={() => setModalOpen(false)}>
+            <div className="dg-modal admin-conexiones-modal-wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+              <div className="dg-modal-header">Detalle del mensaje</div>
               {loadingDetalle ? (
                 <div className="admin-conexiones-empty">Cargando detalle...</div>
               ) : (
-                <div className="admin-conexiones-modal-body">
+                <div className="dg-modal-body admin-conexiones-modal-body">
                   <div><strong>Fecha:</strong> {formatFecha(detalle?.fecha_hora)}</div>
                   <div><strong>Personal:</strong> {detalle?.personal || '—'}</div>
                   <div><strong>Cobertura:</strong> {detalle?.alcance || '—'}</div>
@@ -355,8 +376,8 @@ export default function AdminConexiones() {
                   </div>
                 </div>
               )}
-              <div className="admin-usu-modal-actions">
-                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalOpen(false)}>
+              <div className="dg-modal-footer">
+                <button type="button" className="dg-btn-cancel" onClick={() => setModalOpen(false)}>
                   Cerrar
                 </button>
               </div>

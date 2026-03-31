@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
@@ -31,8 +32,9 @@ function normalizeImageUrl(url) {
 function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
   const { user } = useAuth();
   const esAlumno = user?.tipo === 'ALUMNO';
+  const esAdmin = user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA';
   const [publicaciones, setPublicaciones] = useState([]);
-  const [publicacionesMostradas, setPublicacionesMostradas] = useState(5);
+  const [publicacionesMostradas, setPublicacionesMostradas] = useState(20);
   const [imagenModal, setImagenModal] = useState(null);
 
   const cargarPublicaciones = useCallback(async () => {
@@ -49,12 +51,12 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
       const publicacionesData = response.data.publicaciones || [];
       setPublicaciones(publicacionesData);
       if (publicacionesData.length > 0) {
-        setPublicacionesMostradas(5);
+        setPublicacionesMostradas(esAdmin ? 20 : 5);
       }
     } catch (error) {
       console.error('Error cargando publicaciones:', error);
     }
-  }, [esAlumno, user?.tipo]);
+  }, [esAdmin, esAlumno, user?.tipo]);
 
   useEffect(() => {
     if (user) {
@@ -141,8 +143,8 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
                 </div>
                 <span className="publicacion-autor">{pub.autor_nombre_completo || pub.autor_usuario || 'Docente'}</span>
               </div>
-              {/* Botón eliminar solo para el autor */}
-              {user && pub.autor_id === user.id && (
+              {/* Botón eliminar: autor o administrador/promotoría */}
+              {user && (esAdmin || pub.autor_id === user.id) && (
                 <button
                   className="btn-eliminar-publicacion"
                   onClick={() => handleEliminar(pub.id)}
@@ -245,11 +247,11 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
           </div>
         ))}
         
-        {/* Botón "Cargar Más" cada 5 publicaciones */}
+        {/* Botón "Cargar Más" (admin/promotoría: bloques de 20) */}
         {publicaciones.length > publicacionesMostradas && (
           <button 
             className="btn-cargar-mas btn-outline btn-block"
-            onClick={() => setPublicacionesMostradas(prev => prev + 5)}
+            onClick={() => setPublicacionesMostradas(prev => prev + (esAdmin ? 20 : 5))}
           >
             <span className="btn-icon">📄</span>
             <span>Cargar Más</span>
@@ -258,24 +260,26 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
       </div>
 
       {/* Modal para ver imagen en grande */}
-      {imagenModal && (
-        <div className="imagen-modal-overlay" onClick={() => setImagenModal(null)}>
-          <div className="imagen-modal-content" onClick={(e) => e.stopPropagation()}>
-            <button 
-              className="imagen-modal-close"
-              onClick={() => setImagenModal(null)}
-              title="Cerrar"
-            >
-              ✕
-            </button>
-            <img 
-              src={imagenModal} 
-              alt="Imagen ampliada"
-              className="imagen-modal-img"
-            />
-          </div>
-        </div>
-      )}
+      {imagenModal &&
+        createPortal(
+          <div className="imagen-modal-overlay" onClick={() => setImagenModal(null)}>
+            <div className="imagen-modal-content" onClick={(e) => e.stopPropagation()}>
+              <button 
+                className="imagen-modal-close"
+                onClick={() => setImagenModal(null)}
+                title="Cerrar"
+              >
+                ✕
+              </button>
+              <img 
+                src={imagenModal} 
+                alt="Imagen ampliada"
+                className="imagen-modal-img"
+              />
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 }

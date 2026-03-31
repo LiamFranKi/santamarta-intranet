@@ -15888,22 +15888,27 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
 
 /**
  * DELETE /api/docente/publicaciones/:publicacionId
- * Eliminar publicación (solo el autor puede eliminar)
+ * Eliminar publicación (autor o administrador/promotoría)
  */
 router.delete('/publicaciones/:publicacionId', async (req, res) => {
   try {
     const { usuario_id, colegio_id } = req.user;
     const { publicacionId } = req.params;
+    const esAdmin = esAdminOPromotoria(req.user.tipo);
 
-    // Verificar que la publicación existe y pertenece al usuario
+    // Verificar que la publicación existe y, si no es admin, que pertenece al usuario
     const publicaciones = await query(
       `SELECT p.* FROM publicaciones p
-       WHERE p.id = ? AND p.usuario_id = ? AND p.colegio_id = ?`,
-      [publicacionId, usuario_id, colegio_id]
+       WHERE p.id = ? AND p.colegio_id = ?`,
+      [publicacionId, colegio_id]
     );
 
     if (publicaciones.length === 0) {
-      return res.status(404).json({ error: 'Publicación no encontrada o no tienes permiso para eliminarla' });
+      return res.status(404).json({ error: 'Publicación no encontrada' });
+    }
+
+    if (!esAdmin && parseInt(publicaciones[0].usuario_id, 10) !== parseInt(usuario_id, 10)) {
+      return res.status(403).json({ error: 'No tienes permiso para eliminar esta publicación' });
     }
 
     const publicacion = publicaciones[0];
@@ -15928,10 +15933,17 @@ router.delete('/publicaciones/:publicacionId', async (req, res) => {
     });
 
     // Eliminar publicación de MySQL
-    await execute(
-      `DELETE FROM publicaciones WHERE id = ? AND usuario_id = ? AND colegio_id = ?`,
-      [publicacionId, usuario_id, colegio_id]
-    );
+    if (esAdmin) {
+      await execute(
+        `DELETE FROM publicaciones WHERE id = ? AND colegio_id = ?`,
+        [publicacionId, colegio_id]
+      );
+    } else {
+      await execute(
+        `DELETE FROM publicaciones WHERE id = ? AND usuario_id = ? AND colegio_id = ?`,
+        [publicacionId, usuario_id, colegio_id]
+      );
+    }
 
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
