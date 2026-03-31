@@ -249,7 +249,8 @@ export default function AdminUsuariosApoderados() {
       </div>
 
       <div className="admin-usu-table-card">
-        <table className="admin-usu-table">
+        <div className="admin-usu-table-scroll">
+          <table className="admin-usu-table">
           <thead>
             <tr>
               <th>Apellidos y nombres</th>
@@ -321,7 +322,8 @@ export default function AdminUsuariosApoderados() {
               ))
             )}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
 
       <div className="admin-usu-pagination">

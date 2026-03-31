@@ -58,6 +58,7 @@ export default function AdminUsuariosAlumnos() {
   const [modalCreate, setModalCreate] = useState(false);
   const [modalEdit, setModalEdit] = useState(null);
   const [form, setForm] = useState({});
+  const [fotoEditFile, setFotoEditFile] = useState(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -117,6 +118,7 @@ export default function AdminUsuariosAlumnos() {
         email: data.email || '',
         usuario_estado: data.usuario_estado || 'ACTIVO',
       });
+      setFotoEditFile(null);
       setModalEdit(row.id);
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar' });
@@ -126,7 +128,13 @@ export default function AdminUsuariosAlumnos() {
   const guardarEdit = async () => {
     try {
       await api.put(`/admin/usuarios/alumnos/${modalEdit}`, form);
+      if (fotoEditFile) {
+        const fd = new FormData();
+        fd.append('foto', fotoEditFile);
+        await api.put(`/admin/usuarios/alumnos/${modalEdit}/foto`, fd);
+      }
       Swal.fire({ icon: 'success', title: 'Actualizado' });
+      setFotoEditFile(null);
       setModalEdit(null);
       cargar();
     } catch (e) {
@@ -354,7 +362,8 @@ export default function AdminUsuariosAlumnos() {
       </div>
 
       <div className="admin-usu-table-card">
-        <table className="admin-usu-table">
+        <div className="admin-usu-table-scroll">
+          <table className="admin-usu-table">
           <thead>
             <tr>
               <th style={{ width: 72 }} />
@@ -443,7 +452,8 @@ export default function AdminUsuariosAlumnos() {
               })
             )}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
 
       <div className="admin-usu-pagination">
@@ -535,6 +545,14 @@ export default function AdminUsuariosAlumnos() {
                   <option value="ACTIVO">ACTIVO</option>
                   <option value="INACTIVO">INACTIVO</option>
                 </select>
+              </div>
+              <div className="admin-usu-field">
+                <label>Cambiar foto (opcional)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => setFotoEditFile(e.target.files?.[0] || null)}
+                />
               </div>
               <div className="admin-usu-modal-actions">
                 <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalEdit(null)}>

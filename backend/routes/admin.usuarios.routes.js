@@ -6,6 +6,9 @@
  */
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
@@ -53,6 +56,30 @@ function requireAdmin(req, res, next) {
 
 router.use(authenticateToken);
 router.use(requireAdmin);
+
+const personalFotoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos';
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '') || '.jpg';
+    const safe = ext.toLowerCase().replace(/[^.a-z0-9]/g, '');
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${safe}`);
+  },
+});
+
+const uploadUsuarioFoto = multer({
+  storage: personalFotoStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if ((file.mimetype || '').startsWith('image/')) return cb(null, true);
+    cb(new Error('Solo se permiten imágenes'));
+  },
+});
 
 function parsePageLimit(req) {
   const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -473,6 +500,30 @@ router.put('/equipo/:personalId', async (req, res) => {
   }
 });
 
+router.put('/equipo/:personalId/foto', uploadUsuarioFoto.single('foto'), async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const personalId = parseInt(req.params.personalId, 10);
+    if (!personalId) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Debe adjuntar una imagen' });
+    }
+
+    const exist = await query('SELECT id FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1', [personalId, colegio_id]);
+    if (!exist.length) {
+      return res.status(404).json({ error: 'No encontrado' });
+    }
+
+    await execute('UPDATE personal SET foto = ? WHERE id = ? AND colegio_id = ?', [req.file.filename, personalId, colegio_id]);
+    res.json({ ok: true, foto: req.file.filename });
+  } catch (e) {
+    console.error('PUT /admin/usuarios/equipo/:personalId/foto', e);
+    res.status(500).json({ error: e.message || 'Error al actualizar foto' });
+  }
+});
+
 router.post('/equipo/:personalId/acceso', async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -831,6 +882,30 @@ router.put('/alumnos/:id', async (req, res) => {
   } catch (e) {
     console.error('PUT alumno admin', e);
     res.status(500).json({ error: e.message || 'Error al actualizar alumno' });
+  }
+});
+
+router.put('/alumnos/:id/foto', uploadUsuarioFoto.single('foto'), async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    if (!id) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Debe adjuntar una imagen' });
+    }
+
+    const exist = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [id, colegio_id]);
+    if (!exist.length) {
+      return res.status(404).json({ error: 'No encontrado' });
+    }
+
+    await execute('UPDATE alumnos SET foto = ? WHERE id = ? AND colegio_id = ?', [req.file.filename, id, colegio_id]);
+    res.json({ ok: true, foto: req.file.filename });
+  } catch (e) {
+    console.error('PUT /admin/usuarios/alumnos/:id/foto', e);
+    res.status(500).json({ error: e.message || 'Error al actualizar foto' });
   }
 });
 
