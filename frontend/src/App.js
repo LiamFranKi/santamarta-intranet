@@ -27,6 +27,7 @@ import AdminDocumentosGestion from './pages/admin/AdminDocumentosGestion';
 import AdminEstadisticas from './pages/admin/AdminEstadisticas';
 import AdminPerfil from './pages/admin/AdminPerfil';
 import AdminPublicaciones from './pages/admin/AdminPublicaciones';
+import AdminConexiones from './pages/admin/AdminConexiones';
 import DashboardLayout from './components/DashboardLayout';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
 import AlumnoDashboard from './pages/AlumnoDashboard';
@@ -212,6 +213,14 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <AdminPublicaciones />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/conexiones"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminConexiones />
           </PrivateRoute>
         }
       />

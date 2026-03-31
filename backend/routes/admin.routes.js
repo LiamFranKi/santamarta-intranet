@@ -134,7 +134,7 @@ router.use((req, res, next) => {
       '/estadisticas/deudas-por-aula',
       '/estadisticas/deudas-por-aula/alumnos'
     ];
-    const permitidasPorPrefijo = ['/notificaciones', '/perfil'];
+    const permitidasPorPrefijo = ['/notificaciones', '/perfil', '/conexiones'];
     if (
       permitidasPromotoria.includes(p) ||
       permitidasPorPrefijo.some((prefix) => p === prefix || p.startsWith(`${prefix}/`))
@@ -1783,6 +1783,291 @@ router.put('/notificaciones/:id/marcar-leido', async (req, res) => {
   } catch (error) {
     console.error('Error marcando notificación (admin):', error);
     res.status(500).json({ error: 'Error al marcar como leída' });
+  }
+});
+
+/**
+ * GET /api/admin/conexiones
+ * Historial de Conexiones (1 fila por envío), con filtros por personal, grupo y fechas.
+ */
+router.get('/conexiones', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const { personal_id, grupo_id, fecha_desde, fecha_hasta } = req.query || {};
+
+    let conexiones = [];
+    try {
+      const where = ['ce.colegio_id = ?'];
+      const params = [colegio_id];
+      if (personal_id) {
+        where.push('ce.remitente_id = ?');
+        params.push(personal_id);
+      }
+      if (fecha_desde) {
+        where.push('ce.fecha_hora >= ?');
+        params.push(`${fecha_desde} 00:00:00`);
+      }
+      if (fecha_hasta) {
+        where.push('ce.fecha_hora <= ?');
+        params.push(`${fecha_hasta} 23:59:59`);
+      }
+      const rows = await query(
+        `SELECT
+           ce.id,
+           ce.fecha_hora,
+           ce.asunto,
+           ce.mensaje,
+           ce.alcance,
+           ce.perfil_destino,
+           ce.grupos_json,
+           ce.remitente_id as personal_id,
+           COALESCE(CONCAT(p.nombres, ' ', p.apellidos), u.usuario, 'Personal') as personal
+         FROM conexiones_envios ce
+         LEFT JOIN usuarios u ON u.id = ce.remitente_id
+         LEFT JOIN personal p ON p.id = u.personal_id
+         WHERE ${where.join(' AND ')}
+         ORDER BY ce.fecha_hora DESC, ce.id DESC
+         LIMIT 800`,
+        params
+      );
+      const allGroupIds = new Set();
+      const parsed = (rows || []).map((r) => {
+        let ids = [];
+        try {
+          ids = JSON.parse(r.grupos_json || '[]');
+          if (!Array.isArray(ids)) ids = [];
+        } catch {
+          ids = [];
+        }
+        ids.forEach((id) => {
+          const n = parseInt(id, 10);
+          if (!isNaN(n) && n > 0) allGroupIds.add(n);
+        });
+        return { ...r, _grupo_ids: ids };
+      });
+      let gruposMap = {};
+      if (allGroupIds.size > 0) {
+        const ids = Array.from(allGroupIds);
+        const rowsG = await query(
+          `SELECT g.id, n.nombre as nivel, g.grado, g.seccion
+           FROM grupos g
+           INNER JOIN niveles n ON n.id = g.nivel_id
+           WHERE g.id IN (${ids.map(() => '?').join(',')}) AND g.colegio_id = ?`,
+          [...ids, colegio_id]
+        );
+        (rowsG || []).forEach((g) => {
+          gruposMap[g.id] = `${g.grado}° ${g.seccion} ${g.nivel}`.trim();
+        });
+      }
+      conexiones = parsed.map((r) => {
+        const gruposIds = (r._grupo_ids || []).map((x) => parseInt(x, 10)).filter((n) => !isNaN(n) && n > 0);
+        const gruposTexto = gruposIds.length
+          ? gruposIds.map((id) => gruposMap[id] || `Grupo ${id}`).join(', ')
+          : 'TODOS';
+        return {
+          id: r.id,
+          source: 'conexiones_envios',
+          fecha_hora: r.fecha_hora,
+          personal: r.personal || 'Personal',
+          personal_id: r.personal_id,
+          asunto: r.asunto || 'Sin asunto',
+          alcance: r.alcance || 'GRUPOS',
+          perfil_destino: r.perfil_destino || 'TODOS',
+          grupos_ids: gruposIds,
+          grupo: gruposTexto,
+          mensaje: r.mensaje || ''
+        };
+      });
+    } catch (e1) {
+      // fallback legacy debajo
+      if (!(e1 && (e1.code === 'ER_NO_SUCH_TABLE' || String(e1.message || '').includes('conexiones_envios')))) {
+        throw e1;
+      }
+    }
+
+    // Fallback legacy (mensajes_grupos) para envíos antiguos
+    if (conexiones.length === 0) {
+      const whereLegacy = ['(u.colegio_id = ? OR g.colegio_id = ?)'];
+      const paramsLegacy = [colegio_id, colegio_id];
+      if (personal_id) {
+        whereLegacy.push('mg.remitente_id = ?');
+        paramsLegacy.push(personal_id);
+      }
+      if (grupo_id) {
+        whereLegacy.push('mg.grupo_id = ?');
+        paramsLegacy.push(grupo_id);
+      }
+      if (fecha_desde) {
+        whereLegacy.push('mg.fecha_hora >= ?');
+        paramsLegacy.push(`${fecha_desde} 00:00:00`);
+      }
+      if (fecha_hasta) {
+        whereLegacy.push('mg.fecha_hora <= ?');
+        paramsLegacy.push(`${fecha_hasta} 23:59:59`);
+      }
+      const rowsLegacy = await query(
+        `SELECT
+           mg.id,
+           mg.fecha_hora,
+           mg.asunto,
+           mg.mensaje,
+           mg.grupo_id,
+           mg.remitente_id as personal_id,
+           COALESCE(CONCAT(p.nombres, ' ', p.apellidos), u.usuario, 'Personal') as personal,
+           n.nombre as nivel,
+           g.grado,
+           g.seccion
+         FROM mensajes_grupos mg
+         LEFT JOIN usuarios u ON u.id = mg.remitente_id
+         LEFT JOIN personal p ON p.id = u.personal_id
+         LEFT JOIN grupos g ON g.id = mg.grupo_id
+         LEFT JOIN niveles n ON n.id = g.nivel_id
+         WHERE ${whereLegacy.join(' AND ')}
+         ORDER BY mg.fecha_hora DESC, mg.id DESC
+         LIMIT 500`,
+        paramsLegacy
+      );
+      conexiones = (rowsLegacy || []).map((r) => ({
+        id: r.id,
+        source: 'mensajes_grupos',
+        fecha_hora: r.fecha_hora,
+        personal: r.personal,
+        personal_id: r.personal_id,
+        asunto: r.asunto || 'Sin asunto',
+        alcance: 'GRUPOS',
+        perfil_destino: 'TODOS',
+        grupos_ids: [r.grupo_id],
+        grupo: [r.grado != null ? `${r.grado}°` : '', r.seccion || '', r.nivel || ''].filter(Boolean).join(' ').trim(),
+        mensaje: r.mensaje || ''
+      }));
+    }
+
+    const groupFilter = parseInt(grupo_id, 10);
+    const filtradas = !isNaN(groupFilter) && groupFilter > 0
+      ? conexiones.filter((c) => Array.isArray(c.grupos_ids) && c.grupos_ids.includes(groupFilter))
+      : conexiones;
+    res.json({ conexiones: filtradas });
+  } catch (error) {
+    if (error && (error.code === 'ER_NO_SUCH_TABLE' || String(error.message || '').includes('mensajes_grupos'))) {
+      return res.json({ conexiones: [] });
+    }
+    console.error('Error obteniendo conexiones (admin):', error);
+    res.status(500).json({ error: 'Error al obtener conexiones familiares' });
+  }
+});
+
+router.get('/conexiones/:id', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const { id } = req.params;
+
+    try {
+      const rows = await query(
+        `SELECT
+           ce.id,
+           ce.fecha_hora,
+           ce.asunto,
+           ce.mensaje,
+           ce.alcance,
+           ce.perfil_destino,
+           ce.grupos_json,
+           COALESCE(CONCAT(p.nombres, ' ', p.apellidos), u.usuario, 'Personal') as personal
+         FROM conexiones_envios ce
+         LEFT JOIN usuarios u ON u.id = ce.remitente_id
+         LEFT JOIN personal p ON p.id = u.personal_id
+         WHERE ce.id = ? AND ce.colegio_id = ?
+         LIMIT 1`,
+        [id, colegio_id]
+      );
+      if (rows.length > 0) {
+        const r = rows[0];
+        let gruposIds = [];
+        try {
+          gruposIds = JSON.parse(r.grupos_json || '[]');
+          if (!Array.isArray(gruposIds)) gruposIds = [];
+        } catch {
+          gruposIds = [];
+        }
+        let grupo = 'TODOS';
+        if (gruposIds.length > 0) {
+          const ids = gruposIds.map((x) => parseInt(x, 10)).filter((n) => !isNaN(n) && n > 0);
+          if (ids.length > 0) {
+            const rowsG = await query(
+              `SELECT g.id, n.nombre as nivel, g.grado, g.seccion
+               FROM grupos g
+               INNER JOIN niveles n ON n.id = g.nivel_id
+               WHERE g.id IN (${ids.map(() => '?').join(',')}) AND g.colegio_id = ?`,
+              [...ids, colegio_id]
+            );
+            const mapG = {};
+            (rowsG || []).forEach((g) => { mapG[g.id] = `${g.grado}° ${g.seccion} ${g.nivel}`.trim(); });
+            grupo = ids.map((gid) => mapG[gid] || `Grupo ${gid}`).join(', ');
+          }
+        }
+        return res.json({
+          conexion: {
+            id: r.id,
+            fecha_hora: r.fecha_hora,
+            personal: r.personal || 'Personal',
+            asunto: r.asunto || 'Sin asunto',
+            alcance: r.alcance || 'GRUPOS',
+            perfil_destino: r.perfil_destino || 'TODOS',
+            grupo,
+            mensaje: r.mensaje || ''
+          }
+        });
+      }
+    } catch (e1) {
+      if (!(e1 && (e1.code === 'ER_NO_SUCH_TABLE' || String(e1.message || '').includes('conexiones_envios')))) {
+        throw e1;
+      }
+    }
+
+    const rows = await query(
+      `SELECT
+         mg.id,
+         mg.fecha_hora,
+         mg.asunto,
+         mg.mensaje,
+         COALESCE(CONCAT(p.nombres, ' ', p.apellidos), u.usuario, 'Personal') as personal,
+         n.nombre as nivel,
+         g.grado,
+         g.seccion
+       FROM mensajes_grupos mg
+       LEFT JOIN usuarios u ON u.id = mg.remitente_id
+       LEFT JOIN personal p ON p.id = u.personal_id
+       LEFT JOIN grupos g ON g.id = mg.grupo_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       WHERE mg.id = ? AND (u.colegio_id = ? OR g.colegio_id = ?)
+       LIMIT 1`,
+      [id, colegio_id, colegio_id]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Conexión no encontrada' });
+    }
+    const r = rows[0];
+    const grupo = [r.grado != null ? `${r.grado}°` : '', r.seccion || '', r.nivel || '']
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    res.json({
+      conexion: {
+        id: r.id,
+        fecha_hora: r.fecha_hora,
+        personal: r.personal || 'Personal',
+        asunto: r.asunto || 'Sin asunto',
+        alcance: 'GRUPOS',
+        perfil_destino: 'TODOS',
+        grupo,
+        mensaje: r.mensaje || ''
+      }
+    });
+  } catch (error) {
+    if (error && (error.code === 'ER_NO_SUCH_TABLE' || String(error.message || '').includes('mensajes_grupos'))) {
+      return res.status(404).json({ error: 'Conexiones no disponibles' });
+    }
+    console.error('Error obteniendo detalle de conexión (admin):', error);
+    res.status(500).json({ error: 'Error al obtener detalle de conexión' });
   }
 });
 

@@ -14021,6 +14021,8 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
       asunto,
       mensaje,
       enviar_a,
+      alcance,
+      modo_conexiones,
       expand_apoderados_roles,
       contexto_alumno_id,
       contexto_grupo_id,
@@ -14033,14 +14035,19 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
     };
     const contextoAlumnoIdEnvio = primerValorMultipart(contexto_alumno_id);
     const contextoGrupoIdEnvio = primerValorMultipart(contexto_grupo_id);
-    const enviarATipo = (enviar_a === 'apoderados' || enviar_a === 'alumnos') ? enviar_a : 'todos';
+    const enviarAValue = String(primerValorMultipart(enviar_a) || 'todos').toLowerCase();
+    const enviarATipo = ['apoderados', 'alumnos', 'docentes', 'todos'].includes(enviarAValue) ? enviarAValue : 'todos';
+    const alcanceValue = String(primerValorMultipart(alcance) || '').toLowerCase();
+    const alcanceEnvio = alcanceValue === 'todos' ? 'todos' : 'grupos';
+    const esConexionManual = primerValorMultipart(modo_conexiones) === 'true' || primerValorMultipart(modo_conexiones) === true;
     const expandApoderadosRoles = expand_apoderados_roles === 'true' || expand_apoderados_roles === true;
 
     // Parsear destinatarios y grupos si vienen como string JSON
     const destinatariosArray = typeof destinatarios === 'string' ? JSON.parse(destinatarios) : destinatarios;
     const gruposArray = typeof grupos === 'string' ? JSON.parse(grupos) : grupos;
 
-    if ((!destinatariosArray || destinatariosArray.length === 0) && (!gruposArray || gruposArray.length === 0)) {
+    const envioGlobalTodos = alcanceEnvio === 'todos';
+    if (!envioGlobalTodos && (!destinatariosArray || destinatariosArray.length === 0) && (!gruposArray || gruposArray.length === 0)) {
       return res.status(400).json({ error: 'Debe seleccionar al menos un destinatario o grupo' });
     }
 
@@ -14063,6 +14070,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
       try {
         let asuntoEnviar = asunto;
         let mensajeEnviar = mensaje;
+        const esConexionEnvio = esConexionManual || (gruposArray && gruposArray.length > 0) || alcanceEnvio === 'todos';
         let refGrupoNotif = '';
         if (gruposArray && gruposArray.length > 0) {
           try {
@@ -14087,6 +14095,46 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         // Agregar destinatarios directos
         if (destinatariosArray && destinatariosArray.length > 0) {
           usuariosDestinatarios.push(...destinatariosArray);
+        }
+
+        // Cobertura global ("TODOS"): envía por perfil a todo el colegio
+        if (alcanceEnvio === 'todos') {
+          try {
+            let usuariosGlobales = [];
+            if (enviarATipo === 'alumnos') {
+              usuariosGlobales = await query(
+                `SELECT id as usuario_id FROM usuarios
+                 WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo = 'ALUMNO'`,
+                [colegio_id]
+              );
+            } else if (enviarATipo === 'apoderados') {
+              usuariosGlobales = await query(
+                `SELECT id as usuario_id FROM usuarios
+                 WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo = 'APODERADO'`,
+                [colegio_id]
+              );
+            } else if (enviarATipo === 'docentes') {
+              usuariosGlobales = await query(
+                `SELECT id as usuario_id FROM usuarios
+                 WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo = 'DOCENTE'`,
+                [colegio_id]
+              );
+            } else {
+              // TODOS incluye administradores, promotoría, docentes, alumnos y apoderados
+              usuariosGlobales = await query(
+                `SELECT id as usuario_id FROM usuarios
+                 WHERE colegio_id = ? AND estado = 'ACTIVO'`,
+                [colegio_id]
+              );
+            }
+            (usuariosGlobales || []).forEach((u) => {
+              if (!usuariosDestinatarios.includes(u.usuario_id)) {
+                usuariosDestinatarios.push(u.usuario_id);
+              }
+            });
+          } catch (globalErr) {
+            console.warn('⚠️ [ENVIAR MENSAJE] Error obteniendo destinatarios globales:', globalErr.message);
+          }
         }
 
         // Expansión opcional:
@@ -14146,7 +14194,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           }
         }
 
-        // Si hay grupos, obtener alumnos y/o apoderados según enviar_a
+        // Si hay grupos, obtener destinatarios según perfil seleccionado
         let totalAlumnosGrupos = 0;
         if (gruposArray && gruposArray.length > 0) {
           // Alumnos: solo si enviar_a es 'todos' o 'alumnos'
@@ -14219,12 +14267,103 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             console.warn('⚠️ [ENVIAR MENSAJE] Error obteniendo apoderados para bandeja:', errApod.message);
           }
           }
+
+          // Docentes del grupo (asignaturas y tutoría): solo si enviar_a es 'todos' o 'docentes'
+          if (enviarATipo === 'todos' || enviarATipo === 'docentes') {
+            try {
+              const docentesGrupo = await query(
+                `SELECT DISTINCT u.id as usuario_id
+                 FROM asignaturas a
+                 INNER JOIN usuarios u ON u.personal_id = a.personal_id
+                 WHERE a.grupo_id IN (${gruposArray.map(() => '?').join(',')})
+                   AND a.colegio_id = ?
+                   AND u.colegio_id = ?
+                   AND u.estado = 'ACTIVO'
+                   AND u.tipo = 'DOCENTE'`,
+                [...gruposArray, colegio_id, colegio_id]
+              );
+              (docentesGrupo || []).forEach((d) => {
+                if (!usuariosDestinatarios.includes(d.usuario_id)) {
+                  usuariosDestinatarios.push(d.usuario_id);
+                }
+              });
+
+              const tutoresGrupo = await query(
+                `SELECT DISTINCT u.id as usuario_id
+                 FROM grupos g
+                 INNER JOIN usuarios u ON u.personal_id = g.tutor_id
+                 WHERE g.id IN (${gruposArray.map(() => '?').join(',')})
+                   AND g.colegio_id = ?
+                   AND u.colegio_id = ?
+                   AND u.estado = 'ACTIVO'
+                   AND u.tipo = 'DOCENTE'`,
+                [...gruposArray, colegio_id, colegio_id]
+              );
+              (tutoresGrupo || []).forEach((d) => {
+                if (!usuariosDestinatarios.includes(d.usuario_id)) {
+                  usuariosDestinatarios.push(d.usuario_id);
+                }
+              });
+            } catch (errDocGrupos) {
+              console.warn('⚠️ [ENVIAR MENSAJE] Error obteniendo docentes por grupos:', errDocGrupos.message);
+            }
+          }
+        }
+
+        const destinatariosUnicos = Array.from(
+          new Set(
+            (usuariosDestinatarios || [])
+              .map((id) => parseInt(id, 10))
+              .filter((id) => !isNaN(id) && id > 0 && id !== parseInt(usuario_id, 10))
+          )
+        );
+
+        if (destinatariosUnicos.length === 0) {
+          console.warn('⚠️ [ENVIAR MENSAJE] No hay destinatarios válidos para enviar');
+          return;
         }
 
         // Crear un mensaje para cada destinatario
         const fechaHora = fechaHoraMySQLLima();
         let mensajesInsertados = 0;
         const mensajesIds = []; // Para asociar archivos
+
+        // Historial unificado para panel admin de conexiones (1 envío = 1 registro)
+        if (esConexionEnvio) {
+          try {
+            await execute(
+              `CREATE TABLE IF NOT EXISTS conexiones_envios (
+                id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                colegio_id INT NOT NULL,
+                remitente_id INT NOT NULL,
+                fecha_hora DATETIME NOT NULL,
+                asunto TEXT,
+                mensaje LONGTEXT,
+                alcance VARCHAR(20) NOT NULL,
+                perfil_destino VARCHAR(20) NOT NULL,
+                grupos_json LONGTEXT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+              )`
+            );
+            await execute(
+              `INSERT INTO conexiones_envios
+                (colegio_id, remitente_id, fecha_hora, asunto, mensaje, alcance, perfil_destino, grupos_json)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              [
+                colegio_id,
+                usuario_id,
+                fechaHora,
+                asuntoEnviar,
+                mensajeEnviar,
+                alcanceEnvio === 'todos' ? 'TODOS' : 'GRUPOS',
+                String(enviarATipo || 'todos').toUpperCase(),
+                JSON.stringify(Array.isArray(gruposArray) ? gruposArray : [])
+              ]
+            );
+          } catch (histErr) {
+            console.warn('⚠️ [CONEXIONES] No se pudo registrar historial unificado:', histErr.message);
+          }
+        }
 
         // Registrar en mensajes_grupos (historial Conexiones Familiares) si se envió a grupos
         if (gruposArray && gruposArray.length > 0) {
@@ -14243,10 +14382,10 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         }
 
         // Insertar mensajes en la base de datos
-        console.log(`📨 [ENVIAR MENSAJE] Procesando ${usuariosDestinatarios.length} destinatario(s)`);
+        console.log(`📨 [ENVIAR MENSAJE] Procesando ${destinatariosUnicos.length} destinatario(s)`);
         /** Para campanita in-app: un registro por destinatario con el id del mensaje RECIBIDO */
         const campanaMensajesDocente = [];
-        for (const destinatarioId of usuariosDestinatarios) {
+        for (const destinatarioId of destinatariosUnicos) {
           try {
             let asuntoDest = asuntoEnviar;
             let mensajeDest = mensajeEnviar;
@@ -14329,7 +14468,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
 
         // Registrar en auditoría (con formato correcto)
         try {
-          let descripcionAuditoria = `Envió mensaje a ${usuariosDestinatarios.length} destinatario(s)`;
+          let descripcionAuditoria = `Envió mensaje a ${destinatariosUnicos.length} destinatario(s)`;
           if (gruposArray && gruposArray.length > 0) {
             descripcionAuditoria += ` (${gruposArray.length} grupo(s) con ${totalAlumnosGrupos} alumno(s))`;
           }
@@ -14350,7 +14489,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             descripcion: descripcionAuditoria,
             datos_nuevos: {
               asunto: asuntoEnviar,
-              total_destinatarios: usuariosDestinatarios.length,
+              total_destinatarios: destinatariosUnicos.length,
               grupos_seleccionados: gruposArray?.length || 0,
               alumnos_en_grupos: totalAlumnosGrupos,
               destinatarios_directos: destinatariosArray?.length || 0,
@@ -14378,15 +14517,18 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               [...idsCampana, colegio_id]
             );
             const tipoPorIdCampana = new Map((tiposCampana || []).map((r) => [parseInt(r.id, 10), r.tipo]));
-            const tituloBell = refGrupoNotif ? 'Conexiones familiares' : 'Nuevo mensaje del docente';
+            const tituloBell = esConexionEnvio ? 'Conexiones familiares' : 'Nuevo mensaje del docente';
             const refTxtBell = refGrupoNotif ? `${refGrupoNotif}. ` : '';
             const contenidoBell = `Tiene un nuevo mensaje. ${refTxtBell}"${(asuntoEnviar || 'Sin asunto').substring(0, 150)}".`;
-            const accionTipoBell = gruposArray?.length ? 'mensajes_conexiones' : 'mensaje_nuevo';
+            const accionTipoBell = esConexionEnvio ? 'mensajes_conexiones' : 'mensaje_nuevo';
             for (const row of campanaMensajesDocente) {
               const tipoD = tipoPorIdCampana.get(row.destinatarioId) || 'APODERADO';
               let urlDest = '/alumno/mensajes';
               if (tipoD === 'APODERADO') urlDest = '/apoderado/mensajes';
               else if (tipoD === 'DOCENTE') urlDest = '/docente/mensajes';
+              else if (tipoD === 'ADMINISTRADOR' || tipoD === 'PROMOTORIA') {
+                urlDest = esConexionEnvio ? '/admin/conexiones' : '/admin/mensajes';
+              }
               try {
                 await insertNotificacionUsuario(execute, {
                   usuario_id,
@@ -14412,8 +14554,8 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
 
         // Push notifications a todos los destinatarios (alumnos, apoderados, docentes)
         try {
-          if (usuariosDestinatarios.length > 0) {
-            const idsPushD = [...new Set(usuariosDestinatarios.map((id) => parseInt(id, 10)))];
+          if (destinatariosUnicos.length > 0) {
+            const idsPushD = [...new Set(destinatariosUnicos.map((id) => parseInt(id, 10)))];
             const trP = await query(
               `SELECT id, tipo FROM usuarios WHERE id IN (${idsPushD.map(() => '?').join(',')}) AND colegio_id = ?`,
               [...idsPushD, colegio_id]
@@ -14421,9 +14563,9 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             const mapPushDocenteMsg = new Map((trP || []).map((r) => [parseInt(r.id, 10), r.tipo]));
             const subsData = await query(
               `SELECT usuario_id, endpoint, p256dh, auth FROM push_subscriptions
-               WHERE usuario_id IN (${usuariosDestinatarios.map(() => '?').join(',')})
+               WHERE usuario_id IN (${destinatariosUnicos.map(() => '?').join(',')})
                  AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
-              [...usuariosDestinatarios, colegio_id]
+              [...destinatariosUnicos, colegio_id]
             );
             if ((subsData || []).length > 0) {
               const asuntoCorto = (asuntoEnviar || 'Sin asunto').substring(0, 72);
@@ -14433,19 +14575,22 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                 let urlPush = '/docente/mensajes';
                 if (td === 'APODERADO') urlPush = '/apoderado/mensajes';
                 else if (td === 'ALUMNO') urlPush = '/alumno/mensajes';
+                else if (td === 'ADMINISTRADOR' || td === 'PROMOTORIA') {
+                  urlPush = esConexionEnvio ? '/admin/conexiones' : '/admin/mensajes';
+                }
                 return {
                   subscription: {
                     endpoint: sub.endpoint,
                     keys: { p256dh: sub.p256dh, auth: sub.auth }
                   },
                   payload: {
-                    title: refGrupoNotif ? 'Mensaje (Conexiones familiares)' : 'Nuevo mensaje',
+                    title: esConexionEnvio ? 'Conexiones familiares' : 'Nuevo mensaje',
                     body: asuntoCorto,
                     icon: '/icons/icon-192x192.png',
                     badge: '/icons/icon-192x192.png',
                     vibrate: [200, 100, 200],
                     tag: `mensaje-${Date.now()}`,
-                    data: { url: urlPush, tipo: 'mensaje' }
+                    data: { url: urlPush, tipo: esConexionEnvio ? 'mensajes_conexiones' : 'mensaje' }
                   }
                 };
               });
@@ -14465,12 +14610,12 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
              FROM usuarios u
              LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
              LEFT JOIN personal p ON p.id = u.personal_id
-             WHERE u.id IN (${usuariosDestinatarios.map(() => '?').join(',')})
+             WHERE u.id IN (${destinatariosUnicos.map(() => '?').join(',')})
                AND u.colegio_id = ?
                AND (u.tipo = 'APODERADO' OR u.tipo = 'DOCENTE')
                AND COALESCE(ap.email, p.email) IS NOT NULL
                AND TRIM(COALESCE(ap.email, p.email)) != ''`,
-            [...usuariosDestinatarios, colegio_id]
+            [...destinatariosUnicos, colegio_id]
           );
           const emailsUnicos = new Map();
           (usuariosConEmail || []).forEach(u => {
@@ -14479,7 +14624,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           });
           const colegioInfo = await query(`SELECT nombre FROM colegios WHERE id = ?`, [colegio_id]);
           const colegioNombre = colegioInfo.length > 0 ? colegioInfo[0].nombre : 'Vanguard Schools';
-          const tituloNotif = refGrupoNotif ? 'Mensaje — Conexiones familiares' : 'Nuevo mensaje del docente';
+          const tituloNotif = esConexionEnvio ? 'Mensaje — Conexiones familiares' : 'Nuevo mensaje del docente';
           const refMail = refGrupoNotif ? ` Origen: ${refGrupoNotif}.` : '';
           const contenidoNotif = `Tiene un nuevo mensaje:${refMail} "${(asuntoEnviar || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
           for (const email of emailsUnicos.values()) {
@@ -14545,7 +14690,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           }
         }
 
-        let mensajeRespuesta = `Mensaje enviado a ${usuariosDestinatarios.length} destinatario(s)`;
+        let mensajeRespuesta = `Mensaje enviado a ${destinatariosUnicos.length} destinatario(s)`;
         if (gruposArray && gruposArray.length > 0) {
           mensajeRespuesta += ` (${gruposArray.length} grupo(s) con ${totalAlumnosGrupos} alumno(s))`;
         }
