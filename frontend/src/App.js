@@ -28,6 +28,9 @@ import AdminEstadisticas from './pages/admin/AdminEstadisticas';
 import AdminPerfil from './pages/admin/AdminPerfil';
 import AdminPublicaciones from './pages/admin/AdminPublicaciones';
 import AdminConexiones from './pages/admin/AdminConexiones';
+import AdminHerramientasDinamicas from './pages/admin/AdminHerramientasDinamicas';
+import AdminExamenesPersonal from './pages/admin/AdminExamenesPersonal';
+import AdminEncuestas from './pages/admin/AdminEncuestas';
 import DashboardLayout from './components/DashboardLayout';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
 import AlumnoDashboard from './pages/AlumnoDashboard';
@@ -221,6 +224,30 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <AdminConexiones />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas-dinamicas"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminHerramientasDinamicas />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/examenes-personal"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminExamenesPersonal />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/encuestas"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminEncuestas />
           </PrivateRoute>
         }
       />

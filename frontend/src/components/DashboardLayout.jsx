@@ -473,6 +473,24 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/herramientas-dinamicas">
+                  <span className="sidebar-icon">🧰</span>
+                  <span className="sidebar-label">Herramientas y Dinamicas</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/examenes-personal">
+                  <span className="sidebar-icon">📝</span>
+                  <span className="sidebar-label">Examenes Personal</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/encuestas">
+                  <span className="sidebar-icon">📋</span>
+                  <span className="sidebar-label">Encuestas</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/notificaciones">
                   <span className="sidebar-icon">🔔</span>
                   <span className="sidebar-label">Notificaciones</span>
@@ -638,6 +656,24 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/conexiones">
                   <span className="sidebar-icon">🔗</span>
                   <span className="sidebar-label">Conexiones</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/herramientas-dinamicas">
+                  <span className="sidebar-icon">🧰</span>
+                  <span className="sidebar-label">Herramientas y Dinamicas</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/examenes-personal">
+                  <span className="sidebar-icon">📝</span>
+                  <span className="sidebar-label">Examenes Personal</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/encuestas">
+                  <span className="sidebar-icon">📋</span>
+                  <span className="sidebar-label">Encuestas</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
