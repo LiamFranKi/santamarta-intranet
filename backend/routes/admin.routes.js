@@ -3,9 +3,37 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
+const { registrarAccion } = require('../utils/auditoria');
 const phpSerialize = require('php-serialize');
+
+const personalStorageAdmin = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos';
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `personal-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+const fileFilterPersonalAdmin = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png|gif|webp/i;
+  const extOk = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+  const mimeOk = file.mimetype && file.mimetype.startsWith('image/');
+  if (extOk && mimeOk) return cb(null, true);
+  cb(new Error('Solo se permiten imágenes'));
+};
+const uploadPersonalAdmin = multer({
+  storage: personalStorageAdmin,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: fileFilterPersonalAdmin
+});
 
 // Configurar multer para subir archivos de configuración
 const configStorage = multer.diskStorage({
@@ -106,7 +134,11 @@ router.use((req, res, next) => {
       '/estadisticas/deudas-por-aula',
       '/estadisticas/deudas-por-aula/alumnos'
     ];
-    if (permitidasPromotoria.includes(p)) {
+    const permitidasPorPrefijo = ['/notificaciones', '/perfil'];
+    if (
+      permitidasPromotoria.includes(p) ||
+      permitidasPorPrefijo.some((prefix) => p === prefix || p.startsWith(`${prefix}/`))
+    ) {
       return next();
     }
   }
@@ -1677,6 +1709,269 @@ router.delete('/gestion-documentos/:id', async (req, res) => {
   } catch (err) {
     console.error('delete gestión documento:', err);
     res.status(500).json({ error: err.message || 'Error al eliminar documento' });
+  }
+});
+
+/**
+ * GET /api/admin/notificaciones
+ * Misma lógica que docente: notificaciones para el usuario (TODOS o destinatario)
+ */
+router.get('/notificaciones', async (req, res) => {
+  try {
+    const { usuario_id } = req.user;
+    const notificaciones = await query(
+      `SELECT 
+         n.id,
+         n.asunto as titulo,
+         n.contenido as mensaje,
+         n.fecha_hora,
+         n.estado,
+         COALESCE(n.leida, 0) as leida,
+         n.accion_tipo,
+         n.accion_payload,
+         n.url_destino,
+         n.destinatario_id,
+         'NOTIFICACION' as tipo_origen
+       FROM notificaciones n
+       WHERE (n.para = 'TODOS' OR (n.para = 'USUARIO' AND n.destinatario_id = ?))
+       ORDER BY n.fecha_hora DESC
+       LIMIT 30`,
+      [usuario_id]
+    );
+    const parsePayload = (raw) => {
+      if (raw == null || raw === '') return null;
+      if (typeof raw === 'object') return raw;
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    };
+    const notificacionesMapeadas = (notificaciones || []).map((n) => ({
+      id: n.id,
+      titulo: n.titulo || n.asunto || 'Notificación del sistema',
+      mensaje: n.mensaje || n.contenido || '',
+      fecha_hora: n.fecha_hora,
+      estado: n.leida === 1 || n.leida === true ? 'LEIDO' : 'NO_LEIDO',
+      tipo_origen: n.tipo_origen || 'NOTIFICACION',
+      accion_tipo: n.accion_tipo || null,
+      accion_payload: parsePayload(n.accion_payload),
+      url_destino: n.url_destino || null,
+      destinatario_id: n.destinatario_id
+    }));
+    res.json({ notificaciones: notificacionesMapeadas });
+  } catch (error) {
+    console.error('Error obteniendo notificaciones (admin):', error);
+    res.status(500).json({ error: 'Error al obtener notificaciones' });
+  }
+});
+
+router.put('/notificaciones/:id/marcar-leido', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { usuario_id } = req.user;
+    const notif = await query(
+      `SELECT id FROM notificaciones 
+       WHERE id = ? AND (para = 'TODOS' OR (para = 'USUARIO' AND destinatario_id = ?))`,
+      [id, usuario_id]
+    );
+    if (notif.length === 0) {
+      return res.status(404).json({ error: 'Notificación no encontrada' });
+    }
+    await execute(`UPDATE notificaciones SET leida = 1 WHERE id = ?`, [id]);
+    res.json({ success: true, message: 'Notificación marcada como leída' });
+  } catch (error) {
+    console.error('Error marcando notificación (admin):', error);
+    res.status(500).json({ error: 'Error al marcar como leída' });
+  }
+});
+
+/**
+ * GET /api/admin/perfil — datos de personal vinculado al usuario administrador
+ */
+router.get('/perfil', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id } = req.user;
+    const personal = await query(
+      `SELECT p.*, u.tipo as tipo_usuario, u.usuario as dni
+       FROM personal p
+       INNER JOIN usuarios u ON u.personal_id = p.id
+       WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+      [usuario_id, colegio_id]
+    );
+    if (personal.length === 0) {
+      return res.status(404).json({
+        error: 'No hay ficha de personal vinculada a este usuario. Contacte al soporte técnico.'
+      });
+    }
+    const docente = personal[0];
+    let fotoUrl = null;
+    if (docente.foto && docente.foto !== '') {
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const isProduction = process.env.NODE_ENV === 'production';
+      if (isProduction) {
+        fotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${docente.foto}`;
+      } else {
+        fotoUrl = `http://localhost:5000/Static/Image/Fotos/${docente.foto}`;
+      }
+    }
+    res.json({
+      id: docente.id,
+      nombres: docente.nombres,
+      apellidos: docente.apellidos,
+      dni: docente.dni,
+      email: docente.email,
+      telefono_fijo: docente.telefono_fijo,
+      telefono_celular: docente.telefono_celular,
+      direccion: docente.direccion,
+      foto: fotoUrl,
+      cargo: docente.cargo,
+      profesion: docente.profesion,
+      fecha_nacimiento: docente.fecha_nacimiento,
+      fecha_ingreso: docente.fecha_ingreso,
+      hora_entrada: docente.hora_entrada,
+      hora_salida: docente.hora_salida
+    });
+  } catch (error) {
+    console.error('Error obteniendo perfil admin:', error);
+    res.status(500).json({ error: 'Error al obtener perfil' });
+  }
+});
+
+router.put('/perfil', uploadPersonalAdmin.single('foto'), async (req, res) => {
+  try {
+    const { usuario_id, colegio_id } = req.user;
+    const { nombres, apellidos, email, telefono_fijo, telefono_celular, direccion, fecha_nacimiento } = req.body;
+    const personal = await query(
+      `SELECT p.* FROM personal p
+       INNER JOIN usuarios u ON u.personal_id = p.id
+       WHERE u.id = ? AND u.colegio_id = ?`,
+      [usuario_id, colegio_id]
+    );
+    if (personal.length === 0) {
+      return res.status(404).json({ error: 'Personal no encontrado' });
+    }
+    const docente = personal[0];
+    let fotoPath = docente.foto;
+    if (req.file) {
+      if (docente.foto && docente.foto !== '') {
+        const oldFotoPath = `/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos/${path.basename(docente.foto)}`;
+        if (fs.existsSync(oldFotoPath)) {
+          try {
+            fs.unlinkSync(oldFotoPath);
+          } catch (e) {
+            /* ignore */
+          }
+        }
+      }
+      fotoPath = req.file.filename;
+    }
+    await execute(
+      `UPDATE personal SET
+        nombres = ?,
+        apellidos = ?,
+        email = ?,
+        telefono_fijo = ?,
+        telefono_celular = ?,
+        direccion = ?,
+        foto = ?,
+        fecha_nacimiento = ?
+      WHERE id = ?`,
+      [
+        nombres || docente.nombres,
+        apellidos || docente.apellidos,
+        email || docente.email,
+        telefono_fijo || docente.telefono_fijo,
+        telefono_celular || docente.telefono_celular,
+        direccion || docente.direccion,
+        fotoPath,
+        fecha_nacimiento || docente.fecha_nacimiento,
+        docente.id
+      ]
+    );
+    const personalActualizado = await query(
+      `SELECT p.*, u.usuario as dni
+       FROM personal p
+       INNER JOIN usuarios u ON u.personal_id = p.id
+       WHERE u.id = ? AND u.colegio_id = ?`,
+      [usuario_id, colegio_id]
+    );
+    const row = personalActualizado[0] || {};
+    let fotoUrlResp = null;
+    if (row.foto && row.foto !== '') {
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const isProduction = process.env.NODE_ENV === 'production';
+      fotoUrlResp = isProduction
+        ? `${phpSystemUrl}/Static/Image/Fotos/${row.foto}`
+        : `http://localhost:5000/Static/Image/Fotos/${row.foto}`;
+    }
+    const perfilPayload = {
+      id: row.id,
+      nombres: row.nombres,
+      apellidos: row.apellidos,
+      dni: row.dni,
+      email: row.email,
+      telefono_fijo: row.telefono_fijo,
+      telefono_celular: row.telefono_celular,
+      direccion: row.direccion,
+      foto: fotoUrlResp,
+      fecha_nacimiento: row.fecha_nacimiento
+    };
+    res.json({
+      success: true,
+      message: 'Perfil actualizado correctamente',
+      perfil: perfilPayload,
+      docente: perfilPayload
+    });
+  } catch (error) {
+    console.error('Error actualizando perfil admin:', error);
+    res.status(500).json({ error: 'Error al actualizar perfil' });
+  }
+});
+
+router.put('/perfil/password', async (req, res) => {
+  try {
+    const { usuario_id } = req.user;
+    const { password_actual, password_nueva } = req.body;
+    if (!password_actual || !password_nueva) {
+      return res.status(400).json({ error: 'Contraseña actual y nueva son requeridas' });
+    }
+    if (password_nueva.length < 6) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+    }
+    const usuarios = await query(`SELECT u.id, u.password, u.colegio_id FROM usuarios u WHERE u.id = ?`, [usuario_id]);
+    if (usuarios.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+    const usuarioDB = usuarios[0];
+    const passwordHashActual = crypto.createHash('sha1').update(password_actual).digest('hex');
+    if (usuarioDB.password !== passwordHashActual) {
+      return res.status(401).json({ error: 'Contraseña actual incorrecta' });
+    }
+    const passwordHashNueva = crypto.createHash('sha1').update(password_nueva).digest('hex');
+    registrarAccion({
+      usuario_id,
+      colegio_id: usuarioDB.colegio_id,
+      tipo_usuario: 'ADMINISTRADOR',
+      accion: 'CAMBIAR_PASSWORD',
+      modulo: 'PERFIL',
+      entidad: 'usuario',
+      entidad_id: usuario_id,
+      descripcion: 'Cambió su contraseña (admin)',
+      url: req.originalUrl,
+      metodo_http: req.method,
+      ip_address: req.ip || req.connection?.remoteAddress,
+      user_agent: req.get('user-agent'),
+      datos_anteriores: null,
+      datos_nuevos: null,
+      resultado: 'EXITOSO'
+    });
+    await execute(`UPDATE usuarios SET password = ? WHERE id = ?`, [passwordHashNueva, usuario_id]);
+    req.skipAudit = true;
+    res.json({ success: true, message: 'Contraseña actualizada correctamente' });
+  } catch (error) {
+    console.error('Error cambiando contraseña admin:', error);
+    res.status(500).json({ error: 'Error al cambiar la contraseña' });
   }
 });
 

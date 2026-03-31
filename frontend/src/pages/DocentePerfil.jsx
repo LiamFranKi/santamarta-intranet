@@ -14,7 +14,7 @@ function getInitials(nombre) {
   return parts.map((p) => p[0]?.toUpperCase()).join('') || 'D';
 }
 
-function DocentePerfil() {
+function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashboard' }) {
   const navigate = useNavigate();
   const { user, setUser } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -62,7 +62,7 @@ function DocentePerfil() {
   const cargarPerfil = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/docente/perfil');
+      const response = await api.get(`${apiPrefix}/perfil`);
       const data = response.data;
       setPerfil(data);
       setFormData({
@@ -202,7 +202,7 @@ function DocentePerfil() {
         formDataToSend.append('foto', fotoFile);
       }
 
-      const response = await api.put('/docente/perfil', formDataToSend, {
+      const response = await api.put(`${apiPrefix}/perfil`, formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -328,7 +328,7 @@ function DocentePerfil() {
 
     try {
       setChangingPassword(true);
-      await api.put('/docente/perfil/password', {
+      await api.put(`${apiPrefix}/perfil/password`, {
         password_actual: passwordData.password_actual,
         password_nueva: passwordData.password_nueva
       });
@@ -643,7 +643,7 @@ function DocentePerfil() {
 
           {/* Botones */}
           <div className="form-actions">
-            <button type="button" className="btn-cancel" onClick={() => navigate('/docente/dashboard')}>
+            <button type="button" className="btn-cancel" onClick={() => navigate(dashboardPath)}>
               <span className="btn-icon">❌</span>
               Cancelar
             </button>

@@ -7,6 +7,8 @@ export function dashboardPorTipoUsuario(tipo) {
   if (tipo === 'ALUMNO') return '/alumno/dashboard';
   if (tipo === 'APODERADO') return '/apoderado/dashboard';
   if (tipo === 'DOCENTE') return '/docente/dashboard';
+  if (tipo === 'ADMINISTRADOR') return '/admin/dashboard';
+  if (tipo === 'PROMOTORIA') return '/promotoria/dashboard';
   return '/';
 }
 
@@ -73,6 +75,8 @@ export function normalizarUrlNotificacion(notif, user) {
   ) {
     if (user?.tipo === 'ALUMNO') return '/alumno/dashboard#publicaciones';
     if (user?.tipo === 'APODERADO') return '/apoderado/dashboard#publicaciones';
+    if (user?.tipo === 'ADMINISTRADOR') return '/admin/dashboard#publicaciones';
+    if (user?.tipo === 'PROMOTORIA') return '/promotoria/dashboard#publicaciones';
     return '/docente/dashboard#publicaciones';
   }
 
@@ -115,6 +119,8 @@ export function normalizarUrlNotificacion(notif, user) {
   if (tipoAccion === 'publicacion') {
     if (user?.tipo === 'ALUMNO') return '/alumno/dashboard#publicaciones';
     if (user?.tipo === 'APODERADO') return '/apoderado/dashboard#publicaciones';
+    if (user?.tipo === 'ADMINISTRADOR') return '/admin/dashboard#publicaciones';
+    if (user?.tipo === 'PROMOTORIA') return '/promotoria/dashboard#publicaciones';
     return '/docente/dashboard#publicaciones';
   }
 

@@ -443,6 +443,12 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/perfil">
+                  <span className="sidebar-icon">👤</span>
+                  <span className="sidebar-label">Mi Perfil</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/actividades">
                   <span className="sidebar-icon">📅</span>
                   <span className="sidebar-label">Actividades</span>
@@ -452,6 +458,12 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicados">
                   <span className="sidebar-icon">📢</span>
                   <span className="sidebar-label">Comunicados</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/publicaciones">
+                  <span className="sidebar-icon">📰</span>
+                  <span className="sidebar-label">Publicaciones</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
@@ -538,6 +550,12 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Dashboard</span>
                 </NavLink>
               </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/perfil">
+                  <span className="sidebar-icon">👤</span>
+                  <span className="sidebar-label">Mi Perfil</span>
+                </NavLink>
+              </div>
               {false && (
                 <div className="sidebar-item">
                   <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/estadisticas">
@@ -603,6 +621,12 @@ export default function DashboardLayout({ children }) {
                     Áreas
                   </NavLink>
                 </div>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/publicaciones">
+                  <span className="sidebar-icon">📰</span>
+                  <span className="sidebar-label">Publicaciones</span>
+                </NavLink>
               </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/avatares">
@@ -723,8 +747,8 @@ export default function DashboardLayout({ children }) {
           </div>
 
           <div className="header-actions">
-            {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO') && <NotificacionesWidget />}
-            <button className="header-btn" type="button" title="Mi Perfil" onClick={() => navigate(role === 'DOCENTE' ? '/docente/perfil' : role === 'ALUMNO' ? '/alumno/perfil' : role === 'APODERADO' ? '/apoderado/perfil' : '/perfil')}>
+            {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO' || role === 'ADMINISTRADOR' || role === 'PROMOTORIA') && <NotificacionesWidget />}
+            <button className="header-btn" type="button" title="Mi Perfil" onClick={() => navigate(role === 'DOCENTE' ? '/docente/perfil' : role === 'ALUMNO' ? '/alumno/perfil' : role === 'APODERADO' ? '/apoderado/perfil' : role === 'ADMINISTRADOR' || role === 'PROMOTORIA' ? '/admin/perfil' : '/perfil')}>
               👤
             </button>
             <button className="header-btn header-btn-logout" type="button" title="Cerrar sesión" onClick={logout}>

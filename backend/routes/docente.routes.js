@@ -15021,6 +15021,7 @@ router.get('/publicaciones', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
+    const esAdmin = esAdminOPromotoria(req.user.tipo);
 
     // Obtener grupos asignados como docente
     const gruposAsignados = await query(
@@ -15071,8 +15072,10 @@ router.get('/publicaciones', async (req, res) => {
       [colegio_id]
     );
 
-    // Filtrar publicaciones según privacidad y grupos del docente
-    const publicaciones = todasPublicaciones.filter(pub => {
+    // Filtrar publicaciones según privacidad y grupos del docente (admin/promotoría: ver todas, incl. -2)
+    const publicaciones = esAdmin
+      ? todasPublicaciones.slice(0, 50)
+      : todasPublicaciones.filter(pub => {
       // Si es pública (TODOS, '', '-1', NULL), siempre mostrar
       if (!pub.privacidad || pub.privacidad === '' || pub.privacidad === 'TODOS' || pub.privacidad === '-1') {
         return true;

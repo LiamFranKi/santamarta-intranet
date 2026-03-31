@@ -31,6 +31,8 @@ function NotificacionesWidget() {
         ruta = '/alumno/notificaciones';
       } else if (user?.tipo === 'APODERADO') {
         ruta = '/apoderado/notificaciones';
+      } else if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') {
+        ruta = '/admin/notificaciones';
       } else {
         ruta = '/docente/notificaciones';
       }
@@ -56,6 +58,7 @@ function NotificacionesWidget() {
   const getRutaMarcarLeido = () => {
     if (user?.tipo === 'ALUMNO') return '/alumno/notificaciones';
     if (user?.tipo === 'APODERADO') return '/apoderado/notificaciones';
+    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') return '/admin/notificaciones';
     return '/docente/notificaciones';
   };
 
