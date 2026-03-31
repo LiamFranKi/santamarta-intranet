@@ -79,6 +79,34 @@
   color: #374151;
 }
 
+.admin-usu-btn-search {
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 1rem;
+  box-shadow: 0 4px 12px rgba(74, 131, 193, 0.3);
+}
+
+.admin-usu-btn-search:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(74, 131, 193, 0.35);
+}
+
+.admin-usu-btn-new {
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border-radius: 10px;
+  font-size: 1rem;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.admin-usu-btn-new:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(102, 126, 234, 0.4);
+}
+
 .admin-usu-btn-danger {
   background: #fee2e2;
   color: #b91c1c;
@@ -99,10 +127,14 @@
   font-size: 0.9rem;
 }
 
+.admin-usu-table thead tr {
+  background: #3f74ad;
+}
+
 .admin-usu-table thead th {
   text-align: center;
   padding: 0.75rem 1rem;
-  background: linear-gradient(135deg, #4a83c1, #2d5a8f);
+  background: transparent;
   color: #fff;
   font-weight: 700;
   text-transform: none;
@@ -274,28 +306,68 @@
 .admin-usu-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(17, 24, 39, 0.45);
-  z-index: 1000;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 100000;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 2rem 1rem;
+  padding: 2rem;
   overflow-y: auto;
+  backdrop-filter: blur(4px);
 }
 
 .admin-usu-modal {
   background: #fff;
   border-radius: 16px;
-  max-width: 520px;
+  max-width: 800px;
   width: 100%;
-  padding: 1.5rem;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
 }
 
-.admin-usu-modal h2 {
-  margin: 0 0 1rem;
+.admin-usu-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.2rem 1.5rem;
+  border-bottom: 2px solid #e5e7eb;
+  background: linear-gradient(135deg, #4a83c1, #5b9bd5);
+  border-radius: 16px 16px 0 0;
+}
+
+.admin-usu-modal-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.admin-usu-modal-close {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: #fff;
   font-size: 1.25rem;
-  color: #111827;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.admin-usu-modal-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: rotate(90deg);
+}
+
+.admin-usu-modal-body {
+  padding: 1.5rem;
 }
 
 .admin-usu-field {

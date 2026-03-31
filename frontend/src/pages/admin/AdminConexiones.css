@@ -37,27 +37,31 @@
 }
 
 .admin-conexiones-btn-nuevo {
-  padding: 0.7rem 1rem;
+  padding: 0.75rem 1.5rem;
   color: #fff;
-  background: linear-gradient(135deg, #4a83c1, #2d5a8f);
-  box-shadow: 0 3px 10px rgba(74, 131, 193, 0.25);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  font-size: 1rem;
+  white-space: nowrap;
 }
 
 .admin-conexiones-btn-nuevo:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 5px 14px rgba(74, 131, 193, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(102, 126, 234, 0.4);
 }
 
 .admin-conexiones-btn-filtro {
-  padding: 0.7rem 1rem;
+  padding: 0.75rem 1.5rem;
   color: #fff;
   background: linear-gradient(135deg, #4a83c1, #2d5a8f);
-  box-shadow: 0 3px 10px rgba(74, 131, 193, 0.25);
+  box-shadow: 0 4px 12px rgba(74, 131, 193, 0.3);
+  font-size: 1rem;
+  white-space: nowrap;
 }
 
 .admin-conexiones-btn-filtro:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 5px 14px rgba(74, 131, 193, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(74, 131, 193, 0.35);
 }
 
 .admin-conexiones-form {

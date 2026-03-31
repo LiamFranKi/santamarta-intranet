@@ -218,10 +218,10 @@ export default function AdminUsuariosEquipo() {
             </option>
           ))}
         </select>
-        <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={() => { setPage(1); cargar(); }}>
+        <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={() => { setPage(1); cargar(); }}>
           Buscar
         </button>
-        <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={abrirCrear}>
+        <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={abrirCrear}>
           + Registrar nuevo
         </button>
       </div>
@@ -343,43 +343,50 @@ export default function AdminUsuariosEquipo() {
       {modalCreate && (
         <div className="admin-usu-modal-overlay" onClick={() => setModalCreate(false)}>
           <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Nuevo personal</h2>
-            {['nombres', 'apellidos', 'nro_documento', 'email', 'telefono_celular', 'cargo'].map((k) => (
-              <div key={k} className="admin-usu-field">
-                <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
+            <div className="admin-usu-modal-header">
+              <h2>Nuevo personal</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={() => setModalCreate(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              {['nombres', 'apellidos', 'nro_documento', 'email', 'telefono_celular', 'cargo'].map((k) => (
+                <div key={k} className="admin-usu-field">
+                  <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
+                  <input
+                    type="text"
+                    value={form[k] || ''}
+                    onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                  />
+                </div>
+              ))}
+              <div className="admin-usu-field">
+                <label>Fecha nacimiento</label>
                 <input
-                  type="text"
-                  value={form[k] || ''}
-                  onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                  type="date"
+                  value={form.fecha_nacimiento || ''}
+                  onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
                 />
               </div>
-            ))}
-            <div className="admin-usu-field">
-              <label>Fecha nacimiento</label>
-              <input
-                type="date"
-                value={form.fecha_nacimiento || ''}
-                onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
-              />
-            </div>
-            <div className="admin-usu-field">
-              <label>Perfil (tipo de usuario)</label>
-              <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
-                {tipos.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <p className="admin-usu-hint">Se creará el usuario con login DNI y contraseña DNI (SHA1 en base de datos).</p>
-            <div className="admin-usu-modal-actions">
-              <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalCreate(false)}>
-                Cancelar
-              </button>
-              <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarNuevo}>
-                Guardar
-              </button>
+              <div className="admin-usu-field">
+                <label>Perfil (tipo de usuario)</label>
+                <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
+                  {tipos.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="admin-usu-hint">Se creará el usuario con login DNI y contraseña DNI (SHA1 en base de datos).</p>
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalCreate(false)}>
+                  Cancelar
+                </button>
+                <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarNuevo}>
+                  Guardar
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -388,52 +395,59 @@ export default function AdminUsuariosEquipo() {
       {modalEdit && (
         <div className="admin-usu-modal-overlay" onClick={() => setModalEdit(null)}>
           <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Editar personal</h2>
-            {['nombres', 'apellidos', 'nro_documento', 'email', 'telefono_celular', 'cargo'].map((k) => (
-              <div key={k} className="admin-usu-field">
-                <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
+            <div className="admin-usu-modal-header">
+              <h2>Editar personal</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={() => setModalEdit(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              {['nombres', 'apellidos', 'nro_documento', 'email', 'telefono_celular', 'cargo'].map((k) => (
+                <div key={k} className="admin-usu-field">
+                  <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
+                  <input
+                    type="text"
+                    value={form[k] || ''}
+                    onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                  />
+                </div>
+              ))}
+              <div className="admin-usu-field">
+                <label>Fecha nacimiento</label>
                 <input
-                  type="text"
-                  value={form[k] || ''}
-                  onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                  type="date"
+                  value={form.fecha_nacimiento || ''}
+                  onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
                 />
               </div>
-            ))}
-            <div className="admin-usu-field">
-              <label>Fecha nacimiento</label>
-              <input
-                type="date"
-                value={form.fecha_nacimiento || ''}
-                onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
-              />
-            </div>
-            <div className="admin-usu-field">
-              <label>Perfil</label>
-              <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
-                {tipos.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="admin-usu-field">
-              <label>Estado acceso</label>
-              <select
-                value={form.usuario_estado || 'ACTIVO'}
-                onChange={(e) => setForm({ ...form, usuario_estado: e.target.value })}
-              >
-                <option value="ACTIVO">ACTIVO</option>
-                <option value="INACTIVO">INACTIVO</option>
-              </select>
-            </div>
-            <div className="admin-usu-modal-actions">
-              <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalEdit(null)}>
-                Cancelar
-              </button>
-              <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarEdit}>
-                Guardar
-              </button>
+              <div className="admin-usu-field">
+                <label>Perfil</label>
+                <select value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })}>
+                  {tipos.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="admin-usu-field">
+                <label>Estado acceso</label>
+                <select
+                  value={form.usuario_estado || 'ACTIVO'}
+                  onChange={(e) => setForm({ ...form, usuario_estado: e.target.value })}
+                >
+                  <option value="ACTIVO">ACTIVO</option>
+                  <option value="INACTIVO">INACTIVO</option>
+                </select>
+              </div>
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalEdit(null)}>
+                  Cancelar
+                </button>
+                <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarEdit}>
+                  Guardar
+                </button>
+              </div>
             </div>
           </div>
         </div>

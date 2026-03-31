@@ -236,7 +236,7 @@ export default function AdminConexiones() {
           >
             <h2 className="section-title-blue">Filtros y acciones</h2>
             <button type="button" className="admin-conexiones-btn-nuevo" onClick={abrirModalNuevo}>
-              NUEVA PUBLICACION
+              Nueva Conexcion
             </button>
           </div>
 
@@ -270,7 +270,7 @@ export default function AdminConexiones() {
             <div className="form-group admin-cf-filtro-btn-wrap">
               <label>&nbsp;</label>
               <button type="button" className="admin-conexiones-btn-filtro" onClick={cargarConexiones}>
-                Aplicar filtros
+                🔍 Buscar
               </button>
             </div>
           </div>

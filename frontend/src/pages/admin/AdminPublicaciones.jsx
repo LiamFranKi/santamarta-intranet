@@ -31,7 +31,7 @@ export default function AdminPublicaciones() {
               className="admin-publicaciones-btn"
               onClick={() => setMostrarFormulario((prev) => !prev)}
             >
-              {mostrarFormulario ? 'Cancelar' : 'Crear publicación'}
+              {mostrarFormulario ? 'Cancelar' : 'Nueva Publicacion'}
             </button>
           </div>
 

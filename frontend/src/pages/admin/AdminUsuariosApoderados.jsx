@@ -239,10 +239,10 @@ export default function AdminUsuariosApoderados() {
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && cargar()}
         />
-        <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={() => { setPage(1); cargar(); }}>
+        <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={() => { setPage(1); cargar(); }}>
           Buscar
         </button>
-        <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={abrirCrear}>
+        <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={abrirCrear}>
           + Registrar nuevo
         </button>
       </div>
@@ -343,57 +343,64 @@ export default function AdminUsuariosApoderados() {
       {modalCreate && (
         <div className="admin-usu-modal-overlay" onClick={() => setModalCreate(false)}>
           <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Nuevo apoderado</h2>
-            {['nombres', 'apellido_paterno', 'apellido_materno', 'nro_documento', 'email', 'telefono_celular'].map((k) => (
-              <div key={k} className="admin-usu-field">
-                <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    style={{ flex: 1, minWidth: '120px' }}
-                    value={form[k] || ''}
-                    onChange={(e) => setForm({ ...form, [k]: e.target.value })}
-                  />
-                  {k === 'nro_documento' && (
-                    <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={buscarDesdePersonal}>
-                      Desde personal
-                    </button>
-                  )}
+            <div className="admin-usu-modal-header">
+              <h2>Nuevo apoderado</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={() => setModalCreate(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              {['nombres', 'apellido_paterno', 'apellido_materno', 'nro_documento', 'email', 'telefono_celular'].map((k) => (
+                <div key={k} className="admin-usu-field">
+                  <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      style={{ flex: 1, minWidth: '120px' }}
+                      value={form[k] || ''}
+                      onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                    />
+                    {k === 'nro_documento' && (
+                      <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={buscarDesdePersonal}>
+                        Desde personal
+                      </button>
+                    )}
+                  </div>
                 </div>
+              ))}
+              <div className="admin-usu-field">
+                <label>Parentesco (código)</label>
+                <select
+                  value={form.parentesco || 1}
+                  onChange={(e) => setForm({ ...form, parentesco: parseInt(e.target.value, 10) })}
+                >
+                  <option value={1}>Padre</option>
+                  <option value={2}>Madre</option>
+                  <option value={3}>Tutor</option>
+                  <option value={4}>Apoderado</option>
+                </select>
               </div>
-            ))}
-            <div className="admin-usu-field">
-              <label>Parentesco (código)</label>
-              <select
-                value={form.parentesco || 1}
-                onChange={(e) => setForm({ ...form, parentesco: parseInt(e.target.value, 10) })}
-              >
-                <option value={1}>Padre</option>
-                <option value={2}>Madre</option>
-                <option value={3}>Tutor</option>
-                <option value={4}>Apoderado</option>
-              </select>
-            </div>
-            <div className="admin-usu-field">
-              <label>Fecha de nacimiento</label>
-              <input
-                type="date"
-                value={form.fecha_nacimiento || ''}
-                onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
-              />
-            </div>
-            <p className="admin-usu-hint">
-              Si el DNI ya es usuario de <strong>personal/docente</strong>, no se crea otra cuenta: se vincula la ficha de
-              apoderado al mismo login. Si no existe usuario, se crea uno tipo APODERADO (usuario y clave = DNI). Use
-              «Desde personal» para copiar datos del docente.
-            </p>
-            <div className="admin-usu-modal-actions">
-              <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalCreate(false)}>
-                Cancelar
-              </button>
-              <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarNuevo}>
-                Guardar
-              </button>
+              <div className="admin-usu-field">
+                <label>Fecha de nacimiento</label>
+                <input
+                  type="date"
+                  value={form.fecha_nacimiento || ''}
+                  onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
+                />
+              </div>
+              <p className="admin-usu-hint">
+                Si el DNI ya es usuario de <strong>personal/docente</strong>, no se crea otra cuenta: se vincula la ficha de
+                apoderado al mismo login. Si no existe usuario, se crea uno tipo APODERADO (usuario y clave = DNI). Use
+                «Desde personal» para copiar datos del docente.
+              </p>
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalCreate(false)}>
+                  Cancelar
+                </button>
+                <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarNuevo}>
+                  Guardar
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -402,54 +409,61 @@ export default function AdminUsuariosApoderados() {
       {modalEdit && (
         <div className="admin-usu-modal-overlay" onClick={() => setModalEdit(null)}>
           <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Editar apoderado</h2>
-            {['nombres', 'apellido_paterno', 'apellido_materno', 'nro_documento', 'email', 'telefono_celular'].map((k) => (
-              <div key={k} className="admin-usu-field">
-                <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input
-                    type="text"
-                    style={{ flex: 1, minWidth: '120px' }}
-                    value={form[k] || ''}
-                    onChange={(e) => setForm({ ...form, [k]: e.target.value })}
-                  />
-                  {k === 'nro_documento' && (
-                    <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={buscarDesdePersonal}>
-                      Desde personal
-                    </button>
-                  )}
+            <div className="admin-usu-modal-header">
+              <h2>Editar apoderado</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={() => setModalEdit(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              {['nombres', 'apellido_paterno', 'apellido_materno', 'nro_documento', 'email', 'telefono_celular'].map((k) => (
+                <div key={k} className="admin-usu-field">
+                  <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input
+                      type="text"
+                      style={{ flex: 1, minWidth: '120px' }}
+                      value={form[k] || ''}
+                      onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                    />
+                    {k === 'nro_documento' && (
+                      <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={buscarDesdePersonal}>
+                        Desde personal
+                      </button>
+                    )}
+                  </div>
                 </div>
+              ))}
+              <div className="admin-usu-field">
+                <label>Parentesco</label>
+                <select
+                  value={form.parentesco || 1}
+                  onChange={(e) => setForm({ ...form, parentesco: parseInt(e.target.value, 10) })}
+                >
+                  <option value={1}>Padre</option>
+                  <option value={2}>Madre</option>
+                  <option value={3}>Tutor</option>
+                  <option value={4}>Apoderado</option>
+                </select>
               </div>
-            ))}
-            <div className="admin-usu-field">
-              <label>Parentesco</label>
-              <select
-                value={form.parentesco || 1}
-                onChange={(e) => setForm({ ...form, parentesco: parseInt(e.target.value, 10) })}
-              >
-                <option value={1}>Padre</option>
-                <option value={2}>Madre</option>
-                <option value={3}>Tutor</option>
-                <option value={4}>Apoderado</option>
-              </select>
-            </div>
-            <div className="admin-usu-field">
-              <label>Estado del usuario</label>
-              <select
-                value={form.usuario_estado || 'ACTIVO'}
-                onChange={(e) => setForm({ ...form, usuario_estado: e.target.value })}
-              >
-                <option value="ACTIVO">ACTIVO</option>
-                <option value="INACTIVO">INACTIVO</option>
-              </select>
-            </div>
-            <div className="admin-usu-modal-actions">
-              <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalEdit(null)}>
-                Cancelar
-              </button>
-              <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarEdit}>
-                Guardar
-              </button>
+              <div className="admin-usu-field">
+                <label>Estado del usuario</label>
+                <select
+                  value={form.usuario_estado || 'ACTIVO'}
+                  onChange={(e) => setForm({ ...form, usuario_estado: e.target.value })}
+                >
+                  <option value="ACTIVO">ACTIVO</option>
+                  <option value="INACTIVO">INACTIVO</option>
+                </select>
+              </div>
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalEdit(null)}>
+                  Cancelar
+                </button>
+                <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarEdit}>
+                  Guardar
+                </button>
+              </div>
             </div>
           </div>
         </div>
