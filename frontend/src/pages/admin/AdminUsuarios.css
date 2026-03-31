@@ -176,7 +176,7 @@
 }
 
 .admin-usu-actions-btn {
-  padding: 0.42rem 0.9rem;
+  padding: 0.42rem 1rem;
   background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
   border: none;
   border-radius: 10px;
@@ -184,6 +184,11 @@
   font-size: 0.82rem;
   color: #fff;
   font-weight: 600;
+  min-width: 132px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   box-shadow: 0 2px 10px rgba(74, 131, 193, 0.3);
   transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
 }

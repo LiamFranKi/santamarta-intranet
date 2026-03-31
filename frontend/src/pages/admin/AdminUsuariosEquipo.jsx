@@ -234,20 +234,19 @@ export default function AdminUsuariosEquipo() {
               <th>Apellidos y nombres</th>
               <th>DNI</th>
               <th>Perfil</th>
-              <th>Acceso</th>
               <th style={{ width: 120 }}>Opciones</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
                   Cargando…
                 </td>
               </tr>
             ) : items.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
                   No hay registros.
                 </td>
               </tr>
@@ -271,15 +270,6 @@ export default function AdminUsuariosEquipo() {
                         <span className="admin-usu-badge">{row.usuario_tipo}</span>
                       ) : (
                         <span className="admin-usu-badge-muted">Sin usuario</span>
-                      )}
-                    </td>
-                    <td>
-                      {row.usuario_id ? (
-                        <span className={row.usuario_estado === 'ACTIVO' ? 'admin-usu-badge-ok' : 'admin-usu-badge-off'}>
-                          {row.usuario_estado === 'ACTIVO' ? 'Activo' : 'Inactivo'}
-                        </span>
-                      ) : (
-                        '—'
                       )}
                     </td>
                     <td>

@@ -55,6 +55,8 @@ export default function AdminUsuariosApoderados() {
     cargar();
   }, [cargar]);
 
+  const cerrarMenus = () => setOpenMenu(null);
+
   const abrirCrear = () => {
     setForm({
       nombres: '',
@@ -222,13 +224,13 @@ export default function AdminUsuariosApoderados() {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
-    <div className="admin-usu-wrap">
+    <div className="admin-usu-wrap" onClick={cerrarMenus}>
       <div className="admin-usu-header">
         <h1>Apoderados</h1>
         <p>Padres de familia del colegio. Usuario y contraseña por defecto: DNI.</p>
       </div>
 
-      <div className="admin-usu-toolbar">
+      <div className="admin-usu-toolbar" onClick={(e) => e.stopPropagation()}>
         <input
           type="search"
           className="admin-usu-grow"
@@ -251,8 +253,8 @@ export default function AdminUsuariosApoderados() {
             <tr>
               <th>Apellidos y nombres</th>
               <th>Documento</th>
+              <th>Celular</th>
               <th>Parentesco</th>
-              <th>Acceso</th>
               <th style={{ width: 120 }}>Opciones</th>
             </tr>
           </thead>
@@ -274,23 +276,8 @@ export default function AdminUsuariosApoderados() {
                 <tr key={row.id}>
                   <td>{nombreApoderado(row)}</td>
                   <td>{row.nro_documento}</td>
+                  <td>{row.telefono_celular || '—'}</td>
                   <td>{PARENTESCO_LABEL[row.parentesco] || `Cód. ${row.parentesco}`}</td>
-                  <td>
-                    {row.usuario_id ? (
-                      <div>
-                        <span className={row.usuario_estado === 'ACTIVO' ? 'admin-usu-badge-ok' : 'admin-usu-badge-off'}>
-                          {row.usuario_estado === 'ACTIVO' ? 'Activo' : 'Inactivo'}
-                        </span>
-                        {row.usuario_tipo && row.usuario_tipo !== 'APODERADO' && (
-                          <div style={{ marginTop: '0.25rem', fontSize: '0.72rem', color: '#6b7280' }}>
-                            Cuenta: {row.usuario_tipo}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="admin-usu-badge-muted">Sin usuario</span>
-                    )}
-                  </td>
                   <td>
                     <div className="admin-usu-actions-wrap">
                       <button
