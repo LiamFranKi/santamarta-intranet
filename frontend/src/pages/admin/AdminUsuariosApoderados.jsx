@@ -28,6 +28,8 @@ export default function AdminUsuariosApoderados() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [openMenu, setOpenMenu] = useState(null);
+  const [menuCoords, setMenuCoords] = useState({ top: 0, left: 0 });
+  const [menuRow, setMenuRow] = useState(null);
 
   const [modalCreate, setModalCreate] = useState(false);
   const [modalEdit, setModalEdit] = useState(null);
@@ -56,7 +58,34 @@ export default function AdminUsuariosApoderados() {
     cargar();
   }, [cargar]);
 
-  const cerrarMenus = () => setOpenMenu(null);
+  useEffect(() => {
+    if (!openMenu) return undefined;
+    const close = () => cerrarMenus();
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [openMenu]);
+
+  const cerrarMenus = () => {
+    setOpenMenu(null);
+    setMenuRow(null);
+  };
+
+  const abrirMenuOpciones = (event, row) => {
+    event.stopPropagation();
+    const nextOpen = openMenu === row.id ? null : row.id;
+    if (!nextOpen) {
+      cerrarMenus();
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setMenuCoords({ top: rect.bottom + 4, left: rect.right - 230 });
+    setMenuRow(row);
+    setOpenMenu(row.id);
+  };
 
   const abrirCrear = () => {
     setForm({
@@ -223,6 +252,7 @@ export default function AdminUsuariosApoderados() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
+  const initialsPreview = (form.nombres || form.apellido_paterno || 'A').trim().charAt(0).toUpperCase();
 
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
@@ -285,37 +315,10 @@ export default function AdminUsuariosApoderados() {
                       <button
                         type="button"
                         className="admin-usu-actions-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenMenu(openMenu === row.id ? null : row.id);
-                        }}
+                        onClick={(e) => abrirMenuOpciones(e, row)}
                       >
                         Opciones ▾
                       </button>
-                      {openMenu === row.id && (
-                        <div className="admin-usu-dropdown" onClick={(e) => e.stopPropagation()}>
-                          <button type="button" onClick={() => { verInfo(row); setOpenMenu(null); }}>
-                            ℹ️ Ver información
-                          </button>
-                          <button type="button" onClick={() => { infoAcceso(row); setOpenMenu(null); }}>
-                            🔐 Información de acceso
-                          </button>
-                          {!row.usuario_id && (
-                            <button type="button" onClick={() => { crearAcceso(row); setOpenMenu(null); }}>
-                              ➕ Crear acceso
-                            </button>
-                          )}
-                          {row.usuario_id && (
-                            <button type="button" onClick={() => { resetPass(row); setOpenMenu(null); }}>
-                              🔑 Restablecer clave a DNI
-                            </button>
-                          )}
-                          <hr />
-                          <button type="button" onClick={() => { abrirEditar(row); setOpenMenu(null); }}>
-                            ✏️ Editar
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </td>
                 </tr>
@@ -325,6 +328,36 @@ export default function AdminUsuariosApoderados() {
           </table>
         </div>
       </div>
+
+      {openMenu && menuRow && createPortal(
+        <div
+          className="admin-usu-dropdown admin-usu-dropdown-portal"
+          style={{ top: menuCoords.top, left: Math.max(12, menuCoords.left) }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button type="button" onClick={() => { verInfo(menuRow); cerrarMenus(); }}>
+            ℹ️ Ver información
+          </button>
+          <button type="button" onClick={() => { infoAcceso(menuRow); cerrarMenus(); }}>
+            🔐 Información de acceso
+          </button>
+          {!menuRow.usuario_id && (
+            <button type="button" onClick={() => { crearAcceso(menuRow); cerrarMenus(); }}>
+              ➕ Crear acceso
+            </button>
+          )}
+          {menuRow.usuario_id && (
+            <button type="button" onClick={() => { resetPass(menuRow); cerrarMenus(); }}>
+              🔑 Restablecer clave a DNI
+            </button>
+          )}
+          <hr />
+          <button type="button" onClick={() => { abrirEditar(menuRow); cerrarMenus(); }}>
+            ✏️ Editar
+          </button>
+        </div>,
+        document.body
+      )}
 
       <div className="admin-usu-pagination">
         <span>
@@ -353,55 +386,73 @@ export default function AdminUsuariosApoderados() {
               </button>
             </div>
             <div className="admin-usu-modal-body">
-              {['nombres', 'apellido_paterno', 'apellido_materno', 'nro_documento', 'email', 'telefono_celular'].map((k) => (
-                <div key={k} className="admin-usu-field">
-                  <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input
-                      type="text"
-                      style={{ flex: 1, minWidth: '120px' }}
-                      value={form[k] || ''}
-                      onChange={(e) => setForm({ ...form, [k]: e.target.value })}
-                    />
-                    {k === 'nro_documento' && (
-                      <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={buscarDesdePersonal}>
-                        Desde personal
-                      </button>
-                    )}
+              <div className="admin-usu-profile-form">
+                <div className="admin-usu-profile-section">
+                  <h3>Foto de Perfil</h3>
+                  <div className="admin-usu-photo-wrap">
+                    <div className="admin-usu-photo-preview">
+                      <div className="admin-usu-photo-ph">{initialsPreview}</div>
+                    </div>
+                    <p className="admin-usu-hint">La carga de foto se realiza desde módulos de perfil.</p>
                   </div>
                 </div>
-              ))}
-              <div className="admin-usu-field">
-                <label>Parentesco (código)</label>
-                <select
-                  value={form.parentesco || 1}
-                  onChange={(e) => setForm({ ...form, parentesco: parseInt(e.target.value, 10) })}
-                >
-                  <option value={1}>Padre</option>
-                  <option value={2}>Madre</option>
-                  <option value={3}>Tutor</option>
-                  <option value={4}>Apoderado</option>
-                </select>
+                <div className="admin-usu-profile-section">
+                  <h3>Información Personal</h3>
+                  <div className="admin-usu-form-grid">
+                    {['nombres', 'apellido_paterno', 'apellido_materno', 'nro_documento', 'email', 'telefono_celular'].map((k) => (
+                      <div key={k} className="admin-usu-field">
+                        <label>{k === 'nro_documento' ? 'DNI *' : `${k.replace(/_/g, ' ')} *`}</label>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input
+                            type="text"
+                            style={{ flex: 1, minWidth: '120px' }}
+                            value={form[k] || ''}
+                            onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                          />
+                          {k === 'nro_documento' && (
+                            <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={buscarDesdePersonal}>
+                              Desde personal
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="admin-usu-field">
+                      <label>Parentesco</label>
+                      <select
+                        value={form.parentesco || 1}
+                        onChange={(e) => setForm({ ...form, parentesco: parseInt(e.target.value, 10) })}
+                      >
+                        <option value={1}>Padre</option>
+                        <option value={2}>Madre</option>
+                        <option value={3}>Tutor</option>
+                        <option value={4}>Apoderado</option>
+                      </select>
+                    </div>
+                    <div className="admin-usu-field">
+                      <label>Fecha de nacimiento</label>
+                      <input
+                        type="date"
+                        value={form.fecha_nacimiento || ''}
+                        onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Información del Sistema</h3>
+                  <p className="admin-usu-hint">
+                    Si el DNI ya es usuario de <strong>personal/docente</strong>, no se crea otra cuenta: se vincula la ficha de
+                    apoderado al mismo login. Si no existe usuario, se crea uno tipo APODERADO (usuario y clave = DNI).
+                  </p>
+                </div>
               </div>
-              <div className="admin-usu-field">
-                <label>Fecha de nacimiento</label>
-                <input
-                  type="date"
-                  value={form.fecha_nacimiento || ''}
-                  onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
-                />
-              </div>
-              <p className="admin-usu-hint">
-                Si el DNI ya es usuario de <strong>personal/docente</strong>, no se crea otra cuenta: se vincula la ficha de
-                apoderado al mismo login. Si no existe usuario, se crea uno tipo APODERADO (usuario y clave = DNI). Use
-                «Desde personal» para copiar datos del docente.
-              </p>
               <div className="admin-usu-modal-actions">
                 <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalCreate(false)}>
-                  Cancelar
+                  ❌ Cancelar
                 </button>
                 <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarNuevo}>
-                  Guardar
+                  💾 Guardar cambios
                 </button>
               </div>
             </div>
@@ -420,52 +471,77 @@ export default function AdminUsuariosApoderados() {
               </button>
             </div>
             <div className="admin-usu-modal-body">
-              {['nombres', 'apellido_paterno', 'apellido_materno', 'nro_documento', 'email', 'telefono_celular'].map((k) => (
-                <div key={k} className="admin-usu-field">
-                  <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
-                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <input
-                      type="text"
-                      style={{ flex: 1, minWidth: '120px' }}
-                      value={form[k] || ''}
-                      onChange={(e) => setForm({ ...form, [k]: e.target.value })}
-                    />
-                    {k === 'nro_documento' && (
-                      <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={buscarDesdePersonal}>
-                        Desde personal
-                      </button>
-                    )}
+              <div className="admin-usu-profile-form">
+                <div className="admin-usu-profile-section">
+                  <h3>Foto de Perfil</h3>
+                  <div className="admin-usu-photo-wrap">
+                    <div className="admin-usu-photo-preview">
+                      <div className="admin-usu-photo-ph">{initialsPreview}</div>
+                    </div>
+                    <p className="admin-usu-hint">La carga de foto se realiza desde módulos de perfil.</p>
                   </div>
                 </div>
-              ))}
-              <div className="admin-usu-field">
-                <label>Parentesco</label>
-                <select
-                  value={form.parentesco || 1}
-                  onChange={(e) => setForm({ ...form, parentesco: parseInt(e.target.value, 10) })}
-                >
-                  <option value={1}>Padre</option>
-                  <option value={2}>Madre</option>
-                  <option value={3}>Tutor</option>
-                  <option value={4}>Apoderado</option>
-                </select>
-              </div>
-              <div className="admin-usu-field">
-                <label>Estado del usuario</label>
-                <select
-                  value={form.usuario_estado || 'ACTIVO'}
-                  onChange={(e) => setForm({ ...form, usuario_estado: e.target.value })}
-                >
-                  <option value="ACTIVO">ACTIVO</option>
-                  <option value="INACTIVO">INACTIVO</option>
-                </select>
+                <div className="admin-usu-profile-section">
+                  <h3>Información Personal</h3>
+                  <div className="admin-usu-form-grid">
+                    {['nombres', 'apellido_paterno', 'apellido_materno', 'nro_documento', 'email', 'telefono_celular'].map((k) => (
+                      <div key={k} className="admin-usu-field">
+                        <label>{k === 'nro_documento' ? 'DNI *' : `${k.replace(/_/g, ' ')} *`}</label>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input
+                            type="text"
+                            style={{ flex: 1, minWidth: '120px' }}
+                            value={form[k] || ''}
+                            onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                          />
+                          {k === 'nro_documento' && (
+                            <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={buscarDesdePersonal}>
+                              Desde personal
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="admin-usu-field">
+                      <label>Parentesco</label>
+                      <select
+                        value={form.parentesco || 1}
+                        onChange={(e) => setForm({ ...form, parentesco: parseInt(e.target.value, 10) })}
+                      >
+                        <option value={1}>Padre</option>
+                        <option value={2}>Madre</option>
+                        <option value={3}>Tutor</option>
+                        <option value={4}>Apoderado</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Información del Sistema</h3>
+                  <div className="admin-usu-info-grid">
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Estado de acceso</span>
+                      <select
+                        value={form.usuario_estado || 'ACTIVO'}
+                        onChange={(e) => setForm({ ...form, usuario_estado: e.target.value })}
+                      >
+                        <option value="ACTIVO">ACTIVO</option>
+                        <option value="INACTIVO">INACTIVO</option>
+                      </select>
+                    </div>
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Usuario</span>
+                      <span className="admin-usu-info-value">{form.nro_documento || '—'}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="admin-usu-modal-actions">
                 <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalEdit(null)}>
-                  Cancelar
+                  ❌ Cancelar
                 </button>
                 <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarEdit}>
-                  Guardar
+                  💾 Guardar cambios
                 </button>
               </div>
             </div>

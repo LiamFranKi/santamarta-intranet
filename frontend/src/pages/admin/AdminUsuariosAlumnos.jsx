@@ -54,11 +54,14 @@ export default function AdminUsuariosAlumnos() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [openMenu, setOpenMenu] = useState(null);
+  const [menuCoords, setMenuCoords] = useState({ top: 0, left: 0 });
+  const [menuRow, setMenuRow] = useState(null);
 
   const [modalCreate, setModalCreate] = useState(false);
   const [modalEdit, setModalEdit] = useState(null);
   const [form, setForm] = useState({});
   const [fotoEditFile, setFotoEditFile] = useState(null);
+  const [fotoEditPreview, setFotoEditPreview] = useState('');
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -83,6 +86,23 @@ export default function AdminUsuariosAlumnos() {
     cargar();
   }, [cargar]);
 
+  useEffect(() => () => {
+    if (fotoEditPreview && fotoEditPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(fotoEditPreview);
+    }
+  }, [fotoEditPreview]);
+
+  useEffect(() => {
+    if (!openMenu) return undefined;
+    const close = () => cerrarMenus();
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [openMenu]);
+
   const abrirCrear = () => {
     setForm({
       apellido_paterno: '',
@@ -92,6 +112,8 @@ export default function AdminUsuariosAlumnos() {
       fecha_nacimiento: '2015-01-01',
       email: '',
     });
+    setFotoEditFile(null);
+    setFotoEditPreview('');
     setModalCreate(true);
   };
 
@@ -116,9 +138,11 @@ export default function AdminUsuariosAlumnos() {
         nro_documento: data.nro_documento || '',
         fecha_nacimiento: (data.fecha_nacimiento || '2015-01-01').toString().slice(0, 10),
         email: data.email || '',
+        foto: data.foto || '',
         usuario_estado: data.usuario_estado || 'ACTIVO',
       });
       setFotoEditFile(null);
+      setFotoEditPreview('');
       setModalEdit(row.id);
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar' });
@@ -135,6 +159,7 @@ export default function AdminUsuariosAlumnos() {
       }
       Swal.fire({ icon: 'success', title: 'Actualizado' });
       setFotoEditFile(null);
+      setFotoEditPreview('');
       setModalEdit(null);
       cargar();
     } catch (e) {
@@ -169,7 +194,32 @@ export default function AdminUsuariosAlumnos() {
     });
   };
 
-  const cerrarMenus = () => setOpenMenu(null);
+  const cerrarMenus = () => {
+    setOpenMenu(null);
+    setMenuRow(null);
+  };
+
+  const abrirMenuOpciones = (event, row) => {
+    event.stopPropagation();
+    const nextOpen = openMenu === row.id ? null : row.id;
+    if (!nextOpen) {
+      cerrarMenus();
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setMenuCoords({ top: rect.bottom + 4, left: rect.right - 240 });
+    setMenuRow(row);
+    setOpenMenu(row.id);
+  };
+
+  const handleFotoEditChange = (event) => {
+    if (fotoEditPreview && fotoEditPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(fotoEditPreview);
+    }
+    const file = event.target.files?.[0] || null;
+    setFotoEditFile(file);
+    setFotoEditPreview(file ? URL.createObjectURL(file) : '');
+  };
 
   const enviarMensaje = (row) => {
     if (!row.usuario_id) {
@@ -336,6 +386,8 @@ export default function AdminUsuariosAlumnos() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
+  const initialsPreview = (form.nombres || form.apellido_paterno || 'A').trim().charAt(0).toUpperCase();
+  const fotoFormPreview = fotoEditPreview || fotoUsuarioAdmin(form.foto);
 
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
@@ -409,42 +461,10 @@ export default function AdminUsuariosAlumnos() {
                         <button
                           type="button"
                           className="admin-usu-actions-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMenu(openMenu === row.id ? null : row.id);
-                          }}
+                          onClick={(e) => abrirMenuOpciones(e, row)}
                         >
                           Opciones ▾
                         </button>
-                        {openMenu === row.id && (
-                          <div className="admin-usu-dropdown" onClick={(e) => e.stopPropagation()}>
-                            <button type="button" onClick={() => { verInfo(row); cerrarMenus(); }}>
-                              ℹ️ Ver Información
-                            </button>
-                            <button type="button" onClick={() => { enviarMensaje(row); cerrarMenus(); }}>
-                              ✉️ Enviar Mensaje
-                            </button>
-                            <button type="button" onClick={() => { verApoderados(row); cerrarMenus(); }}>
-                              👥 Ver Apoderados
-                            </button>
-                            <button type="button" onClick={() => { historialMatriculas(row); cerrarMenus(); }}>
-                              📋 Historial de Matriculas
-                            </button>
-                            <button type="button" onClick={() => { historialPagos(row); cerrarMenus(); }}>
-                              💰 Historial de Pagos
-                            </button>
-                            <button type="button" onClick={() => { infoAcceso(row); cerrarMenus(); }}>
-                              🔐 Información de Acceso
-                            </button>
-                            <hr />
-                            <button type="button" onClick={() => { abrirEditar(row); cerrarMenus(); }}>
-                              ✏️ Editar Alumno
-                            </button>
-                            <button type="button" onClick={() => { eliminarAlumno(row); cerrarMenus(); }}>
-                              🗑️ Eliminar Alumno
-                            </button>
-                          </div>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -455,6 +475,41 @@ export default function AdminUsuariosAlumnos() {
           </table>
         </div>
       </div>
+
+      {openMenu && menuRow && createPortal(
+        <div
+          className="admin-usu-dropdown admin-usu-dropdown-portal"
+          style={{ top: menuCoords.top, left: Math.max(12, menuCoords.left) }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button type="button" onClick={() => { verInfo(menuRow); cerrarMenus(); }}>
+            ℹ️ Ver Información
+          </button>
+          <button type="button" onClick={() => { enviarMensaje(menuRow); cerrarMenus(); }}>
+            ✉️ Enviar Mensaje
+          </button>
+          <button type="button" onClick={() => { verApoderados(menuRow); cerrarMenus(); }}>
+            👥 Ver Apoderados
+          </button>
+          <button type="button" onClick={() => { historialMatriculas(menuRow); cerrarMenus(); }}>
+            📋 Historial de Matriculas
+          </button>
+          <button type="button" onClick={() => { historialPagos(menuRow); cerrarMenus(); }}>
+            💰 Historial de Pagos
+          </button>
+          <button type="button" onClick={() => { infoAcceso(menuRow); cerrarMenus(); }}>
+            🔐 Información de Acceso
+          </button>
+          <hr />
+          <button type="button" onClick={() => { abrirEditar(menuRow); cerrarMenus(); }}>
+            ✏️ Editar Alumno
+          </button>
+          <button type="button" onClick={() => { eliminarAlumno(menuRow); cerrarMenus(); }}>
+            🗑️ Eliminar Alumno
+          </button>
+        </div>,
+        document.body
+      )}
 
       <div className="admin-usu-pagination">
         <span>
@@ -483,27 +538,55 @@ export default function AdminUsuariosAlumnos() {
               </button>
             </div>
             <div className="admin-usu-modal-body">
-              {['apellido_paterno', 'apellido_materno', 'nombres', 'nro_documento', 'email'].map((k) => (
-                <div key={k} className="admin-usu-field">
-                  <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
-                  <input type="text" value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+              <div className="admin-usu-profile-form">
+                <div className="admin-usu-profile-section">
+                  <h3>Foto de Perfil</h3>
+                  <div className="admin-usu-photo-wrap">
+                    <div className="admin-usu-photo-preview">
+                      <div className="admin-usu-photo-ph">{initialsPreview}</div>
+                    </div>
+                    <p className="admin-usu-hint">La foto se puede cargar luego desde Editar alumno.</p>
+                  </div>
                 </div>
-              ))}
-              <div className="admin-usu-field">
-                <label>Fecha de nacimiento</label>
-                <input
-                  type="date"
-                  value={form.fecha_nacimiento || ''}
-                  onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
-                />
+                <div className="admin-usu-profile-section">
+                  <h3>Información Personal</h3>
+                  <div className="admin-usu-form-grid">
+                    {['apellido_paterno', 'apellido_materno', 'nombres', 'nro_documento', 'email'].map((k) => (
+                      <div key={k} className="admin-usu-field">
+                        <label>{k === 'nro_documento' ? 'DNI *' : `${k.replace(/_/g, ' ')} *`}</label>
+                        <input type="text" value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+                      </div>
+                    ))}
+                    <div className="admin-usu-field">
+                      <label>Fecha de nacimiento</label>
+                      <input
+                        type="date"
+                        value={form.fecha_nacimiento || ''}
+                        onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Información del Sistema</h3>
+                  <div className="admin-usu-info-grid">
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Usuario inicial</span>
+                      <span className="admin-usu-info-value">{form.nro_documento || 'DNI'}</span>
+                    </div>
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Contraseña inicial</span>
+                      <span className="admin-usu-info-value">DNI</span>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <p className="admin-usu-hint">Se crea el usuario tipo ALUMNO con login y clave iguales al DNI.</p>
               <div className="admin-usu-modal-actions">
                 <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalCreate(false)}>
-                  Cancelar
+                  ❌ Cancelar
                 </button>
                 <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarNuevo}>
-                  Guardar
+                  💾 Guardar cambios
                 </button>
               </div>
             </div>
@@ -522,44 +605,73 @@ export default function AdminUsuariosAlumnos() {
               </button>
             </div>
             <div className="admin-usu-modal-body">
-              {['apellido_paterno', 'apellido_materno', 'nombres', 'nro_documento', 'email'].map((k) => (
-                <div key={k} className="admin-usu-field">
-                  <label>{k === 'nro_documento' ? 'DNI' : k.replace(/_/g, ' ')}</label>
-                  <input type="text" value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+              <div className="admin-usu-profile-form">
+                <div className="admin-usu-profile-section">
+                  <h3>Foto de Perfil</h3>
+                  <div className="admin-usu-photo-wrap">
+                    <div className="admin-usu-photo-preview">
+                      {fotoFormPreview ? (
+                        <img src={fotoFormPreview} alt="Foto alumno" />
+                      ) : (
+                        <div className="admin-usu-photo-ph">{initialsPreview}</div>
+                      )}
+                    </div>
+                    <label className="admin-usu-upload-btn">
+                      📷 Cambiar Foto
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFotoEditChange}
+                      />
+                    </label>
+                    <p className="admin-usu-hint">Formatos: JPG, PNG, GIF, WEBP (máx. 5MB)</p>
+                  </div>
                 </div>
-              ))}
-              <div className="admin-usu-field">
-                <label>Fecha de nacimiento</label>
-                <input
-                  type="date"
-                  value={form.fecha_nacimiento || ''}
-                  onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
-                />
-              </div>
-              <div className="admin-usu-field">
-                <label>Estado del usuario</label>
-                <select
-                  value={form.usuario_estado || 'ACTIVO'}
-                  onChange={(e) => setForm({ ...form, usuario_estado: e.target.value })}
-                >
-                  <option value="ACTIVO">ACTIVO</option>
-                  <option value="INACTIVO">INACTIVO</option>
-                </select>
-              </div>
-              <div className="admin-usu-field">
-                <label>Cambiar foto (opcional)</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => setFotoEditFile(e.target.files?.[0] || null)}
-                />
+                <div className="admin-usu-profile-section">
+                  <h3>Información Personal</h3>
+                  <div className="admin-usu-form-grid">
+                    {['apellido_paterno', 'apellido_materno', 'nombres', 'nro_documento', 'email'].map((k) => (
+                      <div key={k} className="admin-usu-field">
+                        <label>{k === 'nro_documento' ? 'DNI *' : `${k.replace(/_/g, ' ')} *`}</label>
+                        <input type="text" value={form[k] || ''} onChange={(e) => setForm({ ...form, [k]: e.target.value })} />
+                      </div>
+                    ))}
+                    <div className="admin-usu-field">
+                      <label>Fecha de nacimiento</label>
+                      <input
+                        type="date"
+                        value={form.fecha_nacimiento || ''}
+                        onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Información del Sistema</h3>
+                  <div className="admin-usu-info-grid">
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Estado de acceso</span>
+                      <select
+                        value={form.usuario_estado || 'ACTIVO'}
+                        onChange={(e) => setForm({ ...form, usuario_estado: e.target.value })}
+                      >
+                        <option value="ACTIVO">ACTIVO</option>
+                        <option value="INACTIVO">INACTIVO</option>
+                      </select>
+                    </div>
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Usuario</span>
+                      <span className="admin-usu-info-value">{form.nro_documento || '—'}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div className="admin-usu-modal-actions">
                 <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalEdit(null)}>
-                  Cancelar
+                  ❌ Cancelar
                 </button>
                 <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarEdit}>
-                  Guardar
+                  💾 Guardar cambios
                 </button>
               </div>
             </div>
