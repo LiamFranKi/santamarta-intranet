@@ -100,13 +100,13 @@
 }
 
 .admin-usu-table thead th {
-  text-align: left;
+  text-align: center;
   padding: 0.75rem 1rem;
   background: linear-gradient(135deg, #4a83c1, #2d5a8f);
   color: #fff;
   font-weight: 700;
-  text-transform: uppercase;
-  font-size: 0.72rem;
+  text-transform: none;
+  font-size: 0.8rem;
   letter-spacing: 0.05em;
   border-bottom: 1px solid rgba(45, 90, 143, 0.4);
   white-space: nowrap;
@@ -117,6 +117,7 @@
   border-bottom: 1px solid #edf2f7;
   vertical-align: middle;
   color: #374151;
+  text-align: center;
 }
 
 .admin-usu-table tbody tr:hover {
@@ -171,17 +172,29 @@
 
 .admin-usu-actions-wrap {
   position: relative;
+  display: inline-block;
 }
 
 .admin-usu-actions-btn {
-  padding: 0.35rem 0.75rem;
-  background: #fff;
-  border: 1px solid rgba(74, 131, 193, 0.35);
-  border-radius: 8px;
+  padding: 0.42rem 0.9rem;
+  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
+  border: none;
+  border-radius: 10px;
   cursor: pointer;
-  font-size: 0.85rem;
-  color: #4a83c1;
+  font-size: 0.82rem;
+  color: #fff;
   font-weight: 600;
+  box-shadow: 0 2px 10px rgba(74, 131, 193, 0.3);
+  transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+}
+
+.admin-usu-actions-btn:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 4px 14px rgba(45, 90, 143, 0.35);
+}
+
+.admin-usu-actions-btn:active {
+  transform: scale(0.98);
 }
 
 .admin-usu-dropdown {
@@ -314,158 +327,4 @@
   color: #6b7280;
   margin-top: 0.75rem;
   line-height: 1.4;
-}
-
-/* ——— Página Alumnos: acentos azul pastel (grilla, toolbar, avatares) ——— */
-.admin-usu-wrap--alumnos .admin-usu-btn-primary {
-  background: linear-gradient(135deg, #93c5fd 0%, #60a5fa 48%, #3b82f6 100%);
-  color: #fff;
-  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.28);
-}
-
-.admin-usu-wrap--alumnos .admin-usu-btn-primary:hover {
-  filter: brightness(1.04);
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
-}
-
-.admin-usu-wrap--alumnos .admin-usu-dropdown button:hover {
-  background: #eff6ff;
-}
-
-/* ——— Tabla Alumnos: grilla azul suave, celdas centradas ——— */
-.admin-usu-table-card--alumnos {
-  background: linear-gradient(145deg, #f0f9ff 0%, #ffffff 52%, #eff6ff 100%);
-  border: 1px solid rgba(147, 197, 253, 0.45);
-  box-shadow: 0 4px 18px rgba(59, 130, 246, 0.08);
-}
-
-.admin-usu-table--alumnos {
-  border-collapse: separate;
-  border-spacing: 0;
-}
-
-.admin-usu-table-card--alumnos .admin-usu-table--alumnos thead tr:first-child th:first-child {
-  border-top-left-radius: 10px;
-}
-
-.admin-usu-table-card--alumnos .admin-usu-table--alumnos thead tr:first-child th:last-child {
-  border-top-right-radius: 10px;
-}
-
-.admin-usu-table--alumnos thead th {
-  text-align: center;
-  background: linear-gradient(180deg, #e0f2fe 0%, #dbeafe 40%, #bfdbfe 100%);
-  color: #1e40af;
-  border-bottom: 2px solid rgba(96, 165, 250, 0.45);
-  padding: 0.85rem 0.75rem;
-}
-
-.admin-usu-table--alumnos tbody td {
-  text-align: center;
-  border-bottom: 1px solid rgba(191, 219, 254, 0.65);
-  padding: 0.7rem 0.75rem;
-}
-
-.admin-usu-table--alumnos tbody tr:nth-child(even) {
-  background: rgba(239, 246, 255, 0.72);
-}
-
-.admin-usu-table--alumnos tbody tr:hover {
-  background: rgba(219, 234, 254, 0.85);
-}
-
-.admin-usu-table--alumnos .admin-usu-td-avatar {
-  text-align: center;
-  vertical-align: middle;
-}
-
-.admin-usu-table--alumnos .admin-usu-td-avatar .admin-usu-avatar--alumno {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  object-fit: cover;
-  margin: 0 auto;
-  display: block;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.12);
-  background: #e0f2fe;
-}
-
-/* Placeholder sin foto: una letra, proporción similar a miniatura de foto */
-.admin-usu-table--alumnos .admin-usu-td-avatar .admin-usu-avatar-ph--alumno {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  min-height: 40px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  box-sizing: border-box;
-  background: linear-gradient(145deg, #93c5fd 0%, #60a5fa 55%, #3b82f6 100%);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.2);
-}
-
-.admin-usu-table--alumnos .admin-usu-avatar-ph--alumno .admin-usu-avatar-ph-text {
-  font-weight: 600;
-  font-size: 0.95rem;
-  line-height: 1;
-  letter-spacing: 0;
-  max-width: 100%;
-  text-align: center;
-  overflow: hidden;
-  text-overflow: clip;
-  user-select: none;
-}
-
-.admin-usu-table--alumnos .admin-usu-td-actions {
-  vertical-align: middle;
-}
-
-.admin-usu-actions-wrap--center {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: stretch;
-  position: relative;
-  vertical-align: middle;
-}
-
-.admin-usu-actions-btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-width: 8.5rem;
-  padding: 0.45rem 0.95rem 0.45rem 1rem;
-  background: linear-gradient(135deg, #93c5fd 0%, #60a5fa 45%, #3b82f6 100%);
-  color: #fff !important;
-  border: none;
-  border-radius: 10px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.35);
-  transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
-}
-
-.admin-usu-actions-btn-primary:hover {
-  filter: brightness(1.05);
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.42);
-}
-
-.admin-usu-actions-btn-primary:active {
-  transform: scale(0.98);
-}
-
-.admin-usu-actions-btn-label {
-  letter-spacing: 0.02em;
-}
-
-.admin-usu-actions-btn-caret {
-  font-size: 0.65rem;
-  line-height: 1;
-  opacity: 0.95;
-  margin-top: 2px;
 }

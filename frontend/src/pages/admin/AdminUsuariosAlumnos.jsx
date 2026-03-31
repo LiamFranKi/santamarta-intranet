@@ -329,13 +329,13 @@ export default function AdminUsuariosAlumnos() {
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
-    <div className="admin-usu-wrap admin-usu-wrap--alumnos">
+    <div className="admin-usu-wrap" onClick={cerrarMenus}>
       <div className="admin-usu-header">
         <h1>Alumnos</h1>
         <p>Listado del colegio con acceso al aula. Usuario y contraseña por defecto: DNI.</p>
       </div>
 
-      <div className="admin-usu-toolbar">
+      <div className="admin-usu-toolbar" onClick={(e) => e.stopPropagation()}>
         <input
           type="search"
           className="admin-usu-grow"
@@ -352,15 +352,15 @@ export default function AdminUsuariosAlumnos() {
         </button>
       </div>
 
-      <div className="admin-usu-table-card admin-usu-table-card--alumnos">
-        <table className="admin-usu-table admin-usu-table--alumnos">
+      <div className="admin-usu-table-card">
+        <table className="admin-usu-table">
           <thead>
             <tr>
-              <th className="admin-usu-th-avatar" style={{ width: 72 }} />
+              <th style={{ width: 72 }} />
               <th>Apellidos y nombres</th>
               <th>Fecha de nacimiento</th>
               <th>DNI</th>
-              <th className="admin-usu-th-actions" style={{ width: 148 }}>Opciones</th>
+              <th style={{ width: 148 }}>Opciones</th>
             </tr>
           </thead>
           <tbody>
@@ -384,32 +384,27 @@ export default function AdminUsuariosAlumnos() {
                 const letraAvatar = (apPat[0] || nom[0] || '?').toUpperCase();
                 return (
                   <tr key={row.id}>
-                    <td className="admin-usu-td-avatar">
+                    <td>
                       {url ? (
-                        <img className="admin-usu-avatar admin-usu-avatar--alumno" src={url} alt="" />
+                        <img className="admin-usu-avatar" src={url} alt="" />
                       ) : (
-                        <div className="admin-usu-avatar-ph admin-usu-avatar-ph--alumno" title={nombreAlumno(row)}>
-                          <span className="admin-usu-avatar-ph-text">{letraAvatar}</span>
-                        </div>
+                        <div className="admin-usu-avatar-ph">{letraAvatar}</div>
                       )}
                     </td>
                     <td>{nombreAlumno(row)}</td>
                     <td>{formatFechaNacimiento(row.fecha_nacimiento)}</td>
                     <td>{row.nro_documento}</td>
-                    <td className="admin-usu-td-actions">
-                      <div className="admin-usu-actions-wrap admin-usu-actions-wrap--center">
+                    <td>
+                      <div className="admin-usu-actions-wrap">
                         <button
                           type="button"
-                          className="admin-usu-actions-btn admin-usu-actions-btn-primary"
+                          className="admin-usu-actions-btn"
                           onClick={(e) => {
                             e.stopPropagation();
                             setOpenMenu(openMenu === row.id ? null : row.id);
                           }}
                         >
-                          <span className="admin-usu-actions-btn-label">Opciones</span>
-                          <span className="admin-usu-actions-btn-caret" aria-hidden>
-                            ▼
-                          </span>
+                          Opciones ▾
                         </button>
                         {openMenu === row.id && (
                           <div className="admin-usu-dropdown" onClick={(e) => e.stopPropagation()}>
