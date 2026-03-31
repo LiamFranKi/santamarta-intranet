@@ -8,17 +8,21 @@ import 'react-quill/dist/quill.snow.css';
 import '../DocenteGrupos.css';
 import './AdminConexiones.css';
 
-function formatFecha(value) {
-  if (!value) return '—';
+function formatFechaHora(value) {
+  if (!value) return { fecha: '—', hora: '—' };
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString('es-PE', {
+  if (Number.isNaN(d.getTime())) return { fecha: String(value), hora: '—' };
+  const fecha = d.toLocaleDateString('es-PE', {
     day: '2-digit',
     month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
+    year: 'numeric'
   });
+  const hora = d.toLocaleTimeString('es-PE', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+  return { fecha, hora };
 }
 
 function formatCobertura(row) {
@@ -236,7 +240,7 @@ export default function AdminConexiones() {
           >
             <h2 className="section-title-blue">Filtros y acciones</h2>
             <button type="button" className="admin-conexiones-btn-nuevo" onClick={abrirModalNuevo}>
-              Nueva Conexcion
+              Nueva Conexion
             </button>
           </div>
 
@@ -302,7 +306,17 @@ export default function AdminConexiones() {
                 <tbody>
                   {itemsPaginados.map((row) => (
                     <tr key={`${row.source || 'conn'}-${row.id}`}>
-                      <td>{formatFecha(row.fecha_hora)}</td>
+                      <td>
+                        {(() => {
+                          const fh = formatFechaHora(row.fecha_hora);
+                          return (
+                            <div className="admin-conexiones-fecha-cell">
+                              <span>{fh.fecha}</span>
+                              <span>{fh.hora}</span>
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td>{row.personal || '—'}</td>
                       <td>{row.grupo || '—'}</td>
                       <td>{formatCobertura(row)}</td>
@@ -470,7 +484,16 @@ export default function AdminConexiones() {
               ) : (
                 <div className="modal-mensaje-body admin-conexiones-modal-body">
                   <div className="admin-conexiones-detalle-info">
-                    <div><strong>Fecha:</strong> {formatFecha(detalle?.fecha_hora)}</div>
+                    <div>
+                      {(() => {
+                        const fh = formatFechaHora(detalle?.fecha_hora);
+                        return (
+                          <>
+                            <strong>Fecha:</strong> {fh.fecha} {fh.hora}
+                          </>
+                        );
+                      })()}
+                    </div>
                     <div><strong>Personal:</strong> {detalle?.personal || '—'}</div>
                     <div><strong>Cobertura:</strong> {String(detalle?.perfil_destino || '—').toUpperCase()}</div>
                     <div><strong>Grupo:</strong> {detalle?.grupo || '—'}</div>
