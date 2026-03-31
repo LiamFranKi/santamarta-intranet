@@ -347,44 +347,45 @@
 }
 
 .admin-usu-table--alumnos .admin-usu-td-avatar .admin-usu-avatar--alumno {
-  width: 52px;
-  height: 52px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   object-fit: cover;
   margin: 0 auto;
   display: block;
-  border: 2px solid rgba(255, 255, 255, 0.95);
-  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.12);
   background: #e0f2fe;
 }
 
-/* Placeholder sin foto: círculo grande, iniciales centradas (evitar display:block que desalinea el texto) */
+/* Placeholder sin foto: una letra, proporción similar a miniatura de foto */
 .admin-usu-table--alumnos .admin-usu-td-avatar .admin-usu-avatar-ph--alumno {
-  width: 52px;
-  height: 52px;
-  min-width: 52px;
-  min-height: 52px;
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
   margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   box-sizing: border-box;
-  background: linear-gradient(145deg, #dbeafe 0%, #bfdbfe 45%, #93c5fd 100%);
-  color: #1e3a5f;
-  border: 2px solid rgba(255, 255, 255, 0.95);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.15);
+  background: linear-gradient(145deg, #93c5fd 0%, #60a5fa 55%, #3b82f6 100%);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.2);
 }
 
 .admin-usu-table--alumnos .admin-usu-avatar-ph--alumno .admin-usu-avatar-ph-text {
-  font-weight: 800;
-  font-size: 1.3rem;
+  font-weight: 600;
+  font-size: 0.95rem;
   line-height: 1;
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
   max-width: 100%;
   text-align: center;
   overflow: hidden;
   text-overflow: clip;
+  user-select: none;
 }
 
 .admin-usu-table--alumnos .admin-usu-td-actions {

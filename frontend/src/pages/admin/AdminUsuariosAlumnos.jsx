@@ -356,7 +356,7 @@ export default function AdminUsuariosAlumnos() {
         <table className="admin-usu-table admin-usu-table--alumnos">
           <thead>
             <tr>
-              <th className="admin-usu-th-avatar" style={{ width: 84 }} />
+              <th className="admin-usu-th-avatar" style={{ width: 72 }} />
               <th>Apellidos y nombres</th>
               <th>Fecha de nacimiento</th>
               <th>DNI</th>
@@ -379,9 +379,9 @@ export default function AdminUsuariosAlumnos() {
             ) : (
               items.map((row) => {
                 const url = fotoUsuarioAdmin(row.foto);
-                const iniNombre = (row.nombres || '').trim()[0]?.toUpperCase() || '?';
-                const iniApellido = (row.apellido_paterno || '').trim()[0]?.toUpperCase() || '';
-                const iniciales = iniApellido ? `${iniNombre}${iniApellido}` : iniNombre;
+                const apPat = (row.apellido_paterno || '').trim();
+                const nom = (row.nombres || '').trim();
+                const letraAvatar = (apPat[0] || nom[0] || '?').toUpperCase();
                 return (
                   <tr key={row.id}>
                     <td className="admin-usu-td-avatar">
@@ -389,7 +389,7 @@ export default function AdminUsuariosAlumnos() {
                         <img className="admin-usu-avatar admin-usu-avatar--alumno" src={url} alt="" />
                       ) : (
                         <div className="admin-usu-avatar-ph admin-usu-avatar-ph--alumno" title={nombreAlumno(row)}>
-                          <span className="admin-usu-avatar-ph-text">{iniciales}</span>
+                          <span className="admin-usu-avatar-ph-text">{letraAvatar}</span>
                         </div>
                       )}
                     </td>
