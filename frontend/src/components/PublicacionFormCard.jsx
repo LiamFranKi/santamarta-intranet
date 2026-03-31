@@ -27,7 +27,7 @@ function PublicacionFormCard({ onPublicacionCreada }) {
     if (!esAlumno) {
       cargarGrupos();
     }
-  }, [esAlumno]);
+  }, [esAlumno, user?.tipo]);
 
   const ordenarGrupos = (a, b) => {
     const ordenNivel = { Inicial: 0, Primaria: 1, Secundaria: 2 };

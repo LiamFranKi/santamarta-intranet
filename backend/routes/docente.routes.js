@@ -1654,11 +1654,42 @@ router.get('/tiene-asignaciones', async (req, res) => {
  */
 router.get('/grupos', async (req, res) => {
   try {
-    const { usuario_id, colegio_id, anio_activo } = req.user;
+    const { colegio_id, anio_activo } = req.user;
+
+    // Administrador / Promotoría: todos los grupos del año (sin restricción)
+    if (esAdminOPromotoria(req.user.tipo)) {
+      const gruposTodos = await query(
+        `SELECT DISTINCT g.*,
+                n.nombre as nivel_nombre,
+                t.nombre as turno_nombre,
+                (SELECT COUNT(*)
+                 FROM matriculas m
+                 WHERE m.grupo_id = g.id
+                   AND m.colegio_id = ?
+                   AND (m.estado = 0 OR m.estado = 4)) as total_alumnos,
+                'colegio' as tipo_grupo
+         FROM grupos g
+         INNER JOIN niveles n ON n.id = g.nivel_id
+         INNER JOIN turnos t ON t.id = g.turno_id
+         WHERE g.colegio_id = ? AND g.anio = ?`,
+        [colegio_id, colegio_id, anio_activo]
+      );
+      const ordenNivelAdmin = { Inicial: 0, Primaria: 1, Secundaria: 2 };
+      const lista = [...(gruposTodos || [])].sort((a, b) => {
+        const nivA = ordenNivelAdmin[a.nivel_nombre] ?? (a.nivel_id != null ? Number(a.nivel_id) : 999);
+        const nivB = ordenNivelAdmin[b.nivel_nombre] ?? (b.nivel_id != null ? Number(b.nivel_id) : 999);
+        if (nivA !== nivB) return nivA - nivB;
+        const gradA = a.grado != null ? Number(a.grado) : 0;
+        const gradB = b.grado != null ? Number(b.grado) : 0;
+        if (gradA !== gradB) return gradA - gradB;
+        return String(a.seccion || '').localeCompare(String(b.seccion || ''), undefined, { sensitivity: 'base', numeric: true });
+      });
+      return res.json({ grupos: lista });
+    }
 
     // Obtener personal_id del token
     const personalId = req.user.personal_id;
-    
+
     if (!personalId) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
@@ -15074,7 +15105,7 @@ router.get('/publicaciones', async (req, res) => {
 
     // Filtrar publicaciones según privacidad y grupos del docente (admin/promotoría: ver todas, incl. -2)
     const publicaciones = esAdmin
-      ? todasPublicaciones.slice(0, 50)
+      ? todasPublicaciones.slice(0, 100)
       : todasPublicaciones.filter(pub => {
       // Si es pública (TODOS, '', '-1', NULL), siempre mostrar
       if (!pub.privacidad || pub.privacidad === '' || pub.privacidad === 'TODOS' || pub.privacidad === '-1') {
@@ -15526,6 +15557,25 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
             
             console.log(`📢 [PUBLICACIONES] Encontrados ${destinatarios.length} usuarios para notificar (grupos: ${gruposArray.join(', ')})`);
           }
+        }
+
+        // Todos los usuarios ADMINISTRADOR del colegio reciben la notificación de nueva publicación
+        // (incluido cuando el post es solo a grupos específicos; se deduplica por id)
+        try {
+          const adminsColegio = await query(
+            `SELECT u.id, u.tipo FROM usuarios u
+             WHERE u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'ADMINISTRADOR'`,
+            [colegio_id]
+          );
+          const idsYa = new Set(destinatarios.map((d) => d.usuario_id));
+          for (const row of adminsColegio || []) {
+            if (!idsYa.has(row.id)) {
+              idsYa.add(row.id);
+              destinatarios.push({ usuario_id: row.id, tipo: 'ADMINISTRADOR' });
+            }
+          }
+        } catch (eAdm) {
+          console.warn('📢 [PUBLICACIONES] No se pudieron añadir destinatarios ADMINISTRADOR:', eAdm?.message);
         }
 
         // Crear notificaciones en la BD para cada destinatario

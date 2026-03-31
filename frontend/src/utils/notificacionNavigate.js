@@ -67,6 +67,18 @@ export function normalizarUrlNotificacion(notif, user) {
     return url.replace('/apoderado/comunicados', '/docente/comunicados');
   }
 
+  // Publicación: administración va al menú Publicaciones (no al feed docente por error de url_destino legacy)
+  if (tipoAccion === 'publicacion' && (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA')) {
+    if (
+      !url ||
+      url.includes('/docente/') ||
+      url.includes('/comunicados') ||
+      url.includes('#publicaciones')
+    ) {
+      return '/admin/publicaciones';
+    }
+  }
+
   // Publicación: centralizar en dashboard (feed) aunque en BD siga /comunicados (datos antiguos)
   if (
     tipoAccion === 'publicacion' &&
@@ -75,8 +87,8 @@ export function normalizarUrlNotificacion(notif, user) {
   ) {
     if (user?.tipo === 'ALUMNO') return '/alumno/dashboard#publicaciones';
     if (user?.tipo === 'APODERADO') return '/apoderado/dashboard#publicaciones';
-    if (user?.tipo === 'ADMINISTRADOR') return '/admin/dashboard#publicaciones';
-    if (user?.tipo === 'PROMOTORIA') return '/promotoria/dashboard#publicaciones';
+    if (user?.tipo === 'ADMINISTRADOR') return '/admin/publicaciones';
+    if (user?.tipo === 'PROMOTORIA') return '/admin/publicaciones';
     return '/docente/dashboard#publicaciones';
   }
 
@@ -119,8 +131,7 @@ export function normalizarUrlNotificacion(notif, user) {
   if (tipoAccion === 'publicacion') {
     if (user?.tipo === 'ALUMNO') return '/alumno/dashboard#publicaciones';
     if (user?.tipo === 'APODERADO') return '/apoderado/dashboard#publicaciones';
-    if (user?.tipo === 'ADMINISTRADOR') return '/admin/dashboard#publicaciones';
-    if (user?.tipo === 'PROMOTORIA') return '/promotoria/dashboard#publicaciones';
+    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') return '/admin/publicaciones';
     return '/docente/dashboard#publicaciones';
   }
 

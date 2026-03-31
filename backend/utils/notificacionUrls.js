@@ -157,10 +157,13 @@ function inferirUrlApoderadoNotificacion(tipoNotificacion, dataExtra = {}, alumn
   );
 }
 
-/** Dashboard + ancla al feed de publicaciones (misma pantalla que Comunicados en feed móvil). */
+/** Ruta SPA al feed de publicaciones según rol (admin/promotoría: página dedicada). */
 function urlPublicacionPorTipoUsuario(tipoUsuario) {
-  if (tipoUsuario === 'ALUMNO') return '/alumno/dashboard#publicaciones';
-  if (tipoUsuario === 'APODERADO') return '/apoderado/dashboard#publicaciones';
+  const t = String(tipoUsuario || '').toUpperCase();
+  if (t === 'ALUMNO') return '/alumno/dashboard#publicaciones';
+  if (t === 'APODERADO') return '/apoderado/dashboard#publicaciones';
+  if (t === 'ADMINISTRADOR') return '/admin/publicaciones';
+  if (t === 'PROMOTORIA') return '/admin/publicaciones';
   return '/docente/dashboard#publicaciones';
 }
 
