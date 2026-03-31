@@ -175,28 +175,44 @@ router.get('/equipo', async (req, res) => {
     }
 
     if (perfil && TIPOS_PERSONAL_SET.has(perfil)) {
-      whereParts.push('u.tipo = ?');
+      whereParts.push(
+        `EXISTS (
+          SELECT 1
+          FROM usuarios ux
+          WHERE ux.personal_id = p.id
+            AND ux.colegio_id = p.colegio_id
+            AND ux.tipo = ?
+        )`
+      );
       params.push(perfil);
     }
 
     const whereSql = whereParts.join(' AND ');
 
-    const countRows = await query(
-      `SELECT COUNT(*) AS total
-       FROM personal p
-       LEFT JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id
-       WHERE ${whereSql}`,
-      params
-    );
+    const countRows = await query(`SELECT COUNT(*) AS total FROM personal p WHERE ${whereSql}`, params);
     const total = countRows[0]?.total ?? 0;
 
-    const listParams = [...params, limit, offset];
+    const listParams = [...params];
+    const filtroPerfilRepresentativo =
+      perfil && TIPOS_PERSONAL_SET.has(perfil) ? 'AND uu.tipo = ?' : '';
+    if (filtroPerfilRepresentativo) {
+      listParams.push(perfil);
+    }
+    listParams.push(limit, offset);
     const rows = await query(
       `SELECT p.id, p.nombres, p.apellidos, p.nro_documento, p.email, p.telefono_celular, p.cargo,
               p.foto, p.fecha_nacimiento,
               u.id AS usuario_id, u.tipo AS usuario_tipo, u.estado AS usuario_estado, u.usuario AS login_usuario
        FROM personal p
-       LEFT JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id
+       LEFT JOIN usuarios u ON u.id = (
+         SELECT uu.id
+         FROM usuarios uu
+         WHERE uu.personal_id = p.id
+           AND uu.colegio_id = p.colegio_id
+           ${filtroPerfilRepresentativo}
+         ORDER BY (uu.estado = 'ACTIVO') DESC, uu.id ASC
+         LIMIT 1
+       )
        WHERE ${whereSql}
        ORDER BY p.apellidos ASC, p.nombres ASC
        LIMIT ? OFFSET ?`,
@@ -276,6 +292,15 @@ function defaultsNuevoPersonal(colegioId, body) {
 }
 
 async function insertUsuarioPersonal(colegioId, personalId, dni, tipo) {
+  const exists = await query(
+    'SELECT id FROM usuarios WHERE colegio_id = ? AND personal_id = ? LIMIT 1',
+    [colegioId, personalId]
+  );
+  if (exists.length) {
+    const err = new Error('El personal ya tiene usuario vinculado');
+    err.code = 'PERSONAL_USUARIO_DUPLICADO';
+    throw err;
+  }
   const pwd = sha1Password(dni);
   const result = await execute(
     `INSERT INTO usuarios (
@@ -373,6 +398,9 @@ router.post('/equipo', uploadUsuarioFoto.single('foto'), async (req, res) => {
     res.status(201).json({ personal_id: personalId, usuario_id: usuarioId });
   } catch (e) {
     console.error('POST /admin/usuarios/equipo', e);
+    if (e.code === 'PERSONAL_USUARIO_DUPLICADO') {
+      return res.status(409).json({ error: 'Este personal ya tiene un usuario vinculado' });
+    }
     if (e.code === 'ER_DUP_ENTRY') {
       return res.status(409).json({ error: 'DNI o usuario duplicado' });
     }
@@ -558,6 +586,9 @@ router.post('/equipo/:personalId/acceso', async (req, res) => {
     res.status(201).json({ usuario_id: usuarioId });
   } catch (e) {
     console.error('POST acceso equipo', e);
+    if (e.code === 'PERSONAL_USUARIO_DUPLICADO') {
+      return res.status(409).json({ error: 'Este personal ya tiene un usuario vinculado' });
+    }
     res.status(500).json({ error: e.message || 'Error al crear acceso' });
   }
 });
