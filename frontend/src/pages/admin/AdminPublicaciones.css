@@ -1,11 +1,38 @@
-.admin-publicaciones-form-card,
-.admin-publicaciones-feed-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+.admin-publicaciones-page .grupos-list-section {
+  margin-bottom: 1rem;
+}
+
+.admin-publicaciones-btn {
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  color: #fff;
+  padding: 0.7rem 1rem;
+  cursor: pointer;
+  background: linear-gradient(135deg, #4a83c1, #2d5a8f);
+  box-shadow: 0 3px 10px rgba(74, 131, 193, 0.25);
+  transition: all 0.2s;
+}
+
+.admin-publicaciones-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(74, 131, 193, 0.35);
+}
+
+.admin-publicaciones-form-card {
+  border: 1px solid rgba(74, 131, 193, 0.15);
+  border-radius: 14px;
   padding: 1rem;
+  background: #fff;
 }
 
 .admin-publicaciones-feed-card {
-  margin-top: 1rem;
+  border: 1px solid rgba(74, 131, 193, 0.15);
+  border-radius: 14px;
+  background: #fff;
+  padding: 0.75rem;
+}
+
+.admin-publicaciones-listado .publicaciones-feed {
+  margin-bottom: 0;
 }

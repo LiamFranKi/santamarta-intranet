@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import 'react-quill/dist/quill.snow.css';
-import './AdminDocumentosGestion.css';
+import '../DocenteGrupos.css';
 import './AdminConexiones.css';
 
 function formatFecha(value) {
@@ -198,56 +198,63 @@ export default function AdminConexiones() {
 
   return (
     <DashboardLayout>
-      <div className="dg-page">
-        <header className="dg-page-header">
+      <div className="docente-grupos admin-conexiones-page">
+        <div className="page-header">
           <h1>Conexiones Familiares</h1>
-          <p>Envío masivo por cobertura/perfil y listado único de envíos.</p>
+          <p className="grupo-subtitle">Envío masivo por cobertura/perfil y listado único de envíos.</p>
           <span className="admin-conexiones-total">Total: {total}</span>
-        </header>
+        </div>
 
-        <section className="dg-section">
-          <div className="dg-section-title">
-            <span>Filtros y acciones</span>
-            <button type="button" className="dg-btn-primary" onClick={abrirModalNuevo}>
+        <div className="grupos-list-section mundo-card">
+          <div
+            className="section-controls"
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}
+          >
+            <h2 className="section-title-blue">Filtros y acciones</h2>
+            <button type="button" className="admin-conexiones-btn-nuevo" onClick={abrirModalNuevo}>
               + Nuevo
             </button>
           </div>
-          <div className="dg-filters">
-            <label>
-              Personal
-              <select value={filtroPersonal} onChange={(e) => setFiltroPersonal(e.target.value)}>
+
+          <div className="admin-cf-filtros">
+            <div className="form-group">
+              <label>Personal</label>
+              <select className="cf-enviar-a-select" value={filtroPersonal} onChange={(e) => setFiltroPersonal(e.target.value)}>
                 <option value="">Todos</option>
                 {opcionesPersonal.map((op) => (
                   <option key={op.id} value={op.id}>{op.label}</option>
                 ))}
               </select>
-            </label>
-            <label>
-              Grupo
-              <select value={filtroGrupo} onChange={(e) => setFiltroGrupo(e.target.value)}>
+            </div>
+            <div className="form-group">
+              <label>Grupo</label>
+              <select className="cf-enviar-a-select" value={filtroGrupo} onChange={(e) => setFiltroGrupo(e.target.value)}>
                 <option value="">Todos</option>
                 {grupos.map((g) => (
                   <option key={g.id} value={g.id}>{`${g.grado}° ${g.seccion} ${g.nivel_nombre || ''}`.trim()}</option>
                 ))}
               </select>
-            </label>
-            <label>
-              Fecha desde
-              <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
-            </label>
-            <label>
-              Fecha hasta
-              <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
-            </label>
-            <button type="button" className="dg-btn-ghost" onClick={cargarConexiones}>
-              Aplicar filtros
-            </button>
+            </div>
+            <div className="form-group">
+              <label>Fecha desde</label>
+              <input className="form-input" type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} />
+            </div>
+            <div className="form-group">
+              <label>Fecha hasta</label>
+              <input className="form-input" type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} />
+            </div>
+            <div className="form-group admin-cf-filtro-btn-wrap">
+              <label>&nbsp;</label>
+              <button type="button" className="admin-conexiones-btn-filtro" onClick={cargarConexiones}>
+                Aplicar filtros
+              </button>
+            </div>
           </div>
-        </section>
+        </div>
 
-        <section className="dg-section">
-          <div className="dg-section-title">
-            <span>Historial de envíos</span>
+        <div className="grupos-list-section mundo-card admin-cf-historial">
+          <div className="section-controls" style={{ marginBottom: '1rem' }}>
+            <h2 className="section-title-blue">Historial de envíos</h2>
           </div>
           {loading ? (
             <div className="admin-conexiones-empty">Cargando conexiones...</div>
@@ -256,8 +263,8 @@ export default function AdminConexiones() {
           ) : items.length === 0 ? (
             <div className="admin-conexiones-empty">No hay conexiones familiares registradas.</div>
           ) : (
-            <div className="dg-table-wrap">
-              <table className="dg-table">
+            <div className="historial-mensajes-grid-container">
+              <table className="historial-mensajes-table">
                 <thead>
                   <tr>
                     <th>Fecha</th>
@@ -277,8 +284,17 @@ export default function AdminConexiones() {
                       <td>{formatCobertura(row)}</td>
                       <td title={row.asunto || ''}>{row.asunto || 'Sin asunto'}</td>
                       <td>
-                        <button type="button" className="dg-btn-ghost" onClick={() => abrirDetalle(row.id)} title="Ver detalle">
-                          👁️ Ver
+                        <button
+                          type="button"
+                          className="btn-cf-ver"
+                          onClick={() => abrirDetalle(row.id)}
+                          title="Ver detalle"
+                          aria-label="Ver detalle"
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
                         </button>
                       </td>
                     </tr>
@@ -287,22 +303,33 @@ export default function AdminConexiones() {
               </table>
             </div>
           )}
-        </section>
+        </div>
       </div>
 
       {mostrarModalNuevo && createPortal(
-        <div className="dg-modal-overlay" onClick={() => setMostrarModalNuevo(false)}>
-          <div className="dg-modal admin-conexiones-modal-wide" onClick={(e) => e.stopPropagation()}>
-            <div className="dg-modal-header">Nueva conexión familiar</div>
-            <div className="dg-modal-body">
-              <label>
-                Asunto
-                <input value={asunto} onChange={(e) => setAsunto(e.target.value)} placeholder="Asunto del mensaje" />
-              </label>
-              <label>
-                Mensaje
-                <ReactQuill ref={quillRef} theme="snow" value={mensaje} onChange={setMensaje} className="admin-conexiones-editor" />
-              </label>
+        <div className="modal-mensaje-overlay" onClick={() => setMostrarModalNuevo(false)} style={{ zIndex: 100000 }}>
+          <div className="modal-mensaje-container admin-conexiones-modal-wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="modal-mensaje-header">
+              <h2>Nueva conexión familiar</h2>
+              <button className="modal-mensaje-close" onClick={() => setMostrarModalNuevo(false)} type="button">✕</button>
+            </div>
+            <div className="modal-mensaje-body">
+              <div className="form-group">
+                <label>Asunto</label>
+                <input
+                  className="form-input"
+                  value={asunto}
+                  onChange={(e) => setAsunto(e.target.value)}
+                  placeholder="Asunto del mensaje"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Mensaje</label>
+                <div id="mensaje-editor-wrapper-grupo">
+                  <ReactQuill ref={quillRef} theme="snow" value={mensaje} onChange={setMensaje} className="admin-conexiones-editor" />
+                </div>
+              </div>
 
               <div className="admin-conexiones-row">
                 <span className="admin-conexiones-label">Cobertura:</span>
@@ -333,22 +360,28 @@ export default function AdminConexiones() {
                 </div>
               )}
 
-              <label>
-                Adjuntos
-                <input type="file" multiple onChange={(e) => setArchivosAdjuntos(Array.from(e.target.files || []))} />
-              </label>
+              <div className="form-group">
+                <div className="archivos-container">
+                  <label htmlFor="archivos-cf-admin" className="btn-adjuntar-archivo">📎 Adjuntar archivos</label>
+                  <input
+                    id="archivos-cf-admin"
+                    type="file"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={(e) => setArchivosAdjuntos(Array.from(e.target.files || []))}
+                  />
+                </div>
+              </div>
               {archivosAdjuntos.length > 0 && (
                 <div className="admin-conexiones-adjuntos-info">{archivosAdjuntos.length} archivo(s) seleccionado(s)</div>
               )}
-            </div>
 
-            <div className="dg-modal-footer">
-              <button type="button" className="dg-btn-cancel" onClick={() => setMostrarModalNuevo(false)}>
-                Cancelar
-              </button>
-              <button type="button" className="dg-btn-primary" onClick={enviarConexion} disabled={enviando}>
-                {enviando ? 'Enviando...' : 'Enviar conexión'}
-              </button>
+              <div className="form-actions">
+                <button className="btn-cancelar" onClick={() => setMostrarModalNuevo(false)} type="button">Cancelar</button>
+                <button className="btn-enviar" onClick={enviarConexion} disabled={enviando} type="button">
+                  {enviando ? 'Enviando...' : 'Enviar conexión'}
+                </button>
+              </div>
             </div>
           </div>
         </div>,
@@ -357,13 +390,16 @@ export default function AdminConexiones() {
 
       {modalOpen && (
         createPortal(
-          <div className="dg-modal-overlay" onClick={() => setModalOpen(false)}>
-            <div className="dg-modal admin-conexiones-modal-wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-              <div className="dg-modal-header">Detalle del mensaje</div>
+          <div className="modal-mensaje-overlay" onClick={() => setModalOpen(false)} style={{ zIndex: 100000 }}>
+            <div className="modal-mensaje-container admin-conexiones-modal-wide" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+              <div className="modal-mensaje-header">
+                <h2>Detalle del mensaje</h2>
+                <button className="modal-mensaje-close" onClick={() => setModalOpen(false)} type="button">✕</button>
+              </div>
               {loadingDetalle ? (
                 <div className="admin-conexiones-empty">Cargando detalle...</div>
               ) : (
-                <div className="dg-modal-body admin-conexiones-modal-body">
+                <div className="modal-mensaje-body admin-conexiones-modal-body">
                   <div><strong>Fecha:</strong> {formatFecha(detalle?.fecha_hora)}</div>
                   <div><strong>Personal:</strong> {detalle?.personal || '—'}</div>
                   <div><strong>Cobertura:</strong> {detalle?.alcance || '—'}</div>
@@ -376,10 +412,10 @@ export default function AdminConexiones() {
                   </div>
                 </div>
               )}
-              <div className="dg-modal-footer">
-                <button type="button" className="dg-btn-cancel" onClick={() => setModalOpen(false)}>
-                  Cerrar
-                </button>
+              <div className="modal-mensaje-body">
+                <div className="form-actions" style={{ marginTop: '0.25rem' }}>
+                  <button className="btn-cancelar" onClick={() => setModalOpen(false)} type="button">Cerrar</button>
+                </div>
               </div>
             </div>
           </div>,

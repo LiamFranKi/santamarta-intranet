@@ -9,6 +9,51 @@
   margin-top: 0.65rem;
 }
 
+.admin-conexiones-page .grupos-list-section {
+  margin-bottom: 1rem;
+}
+
+.admin-cf-filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.85rem;
+}
+
+.admin-cf-filtro-btn-wrap {
+  align-self: end;
+}
+
+.admin-conexiones-btn-nuevo,
+.admin-conexiones-btn-filtro {
+  border: none;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.admin-conexiones-btn-nuevo {
+  padding: 0.7rem 1rem;
+  color: #fff;
+  background: linear-gradient(135deg, #4a83c1, #2d5a8f);
+  box-shadow: 0 3px 10px rgba(74, 131, 193, 0.25);
+}
+
+.admin-conexiones-btn-nuevo:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(74, 131, 193, 0.35);
+}
+
+.admin-conexiones-btn-filtro {
+  padding: 0.7rem 1rem;
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.admin-conexiones-btn-filtro:hover {
+  background: #e5e7eb;
+}
+
 .admin-conexiones-form {
   display: grid;
   gap: 0.8rem;
@@ -87,6 +132,10 @@
   max-width: 960px;
 }
 
+.admin-conexiones-modal-wide .modal-mensaje-body {
+  gap: 1rem;
+}
+
 .admin-conexiones-card {
   margin-top: 1rem;
   background: #fff;
@@ -123,4 +172,9 @@
   font-size: 0.8rem;
   color: #6b7280;
   margin-top: 0.35rem;
+}
+
+.admin-cf-historial .historial-mensajes-table td:last-child,
+.admin-cf-historial .historial-mensajes-table th:last-child {
+  width: 80px;
 }
