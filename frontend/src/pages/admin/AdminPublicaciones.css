@@ -1,0 +1,11 @@
+.admin-publicaciones-form-card,
+.admin-publicaciones-feed-card {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  padding: 1rem;
+}
+
+.admin-publicaciones-feed-card {
+  margin-top: 1rem;
+}
