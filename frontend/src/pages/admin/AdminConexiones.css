@@ -175,6 +175,13 @@
   border-radius: 12px;
 }
 
+.admin-conexiones-adjuntos-lista {
+  margin-top: 0.65rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
 .admin-conexiones-mensaje-block p {
   margin: 0.45rem 0 0 0;
   white-space: pre-wrap;

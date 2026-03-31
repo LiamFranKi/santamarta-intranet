@@ -147,6 +147,45 @@ router.use((req, res, next) => {
   });
 });
 
+function buildArchivoUrlAdmin(nombreArchivo) {
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) return `${phpSystemUrl}/Static/Archivos/${nombreArchivo}`;
+  return `http://localhost:5000/Static/Archivos/${nombreArchivo}`;
+}
+
+async function obtenerAdjuntosPorRemitenteFecha(remitenteId, fechaHora) {
+  if (!remitenteId || !fechaHora) return [];
+  try {
+    const mensajesMatch = await query(
+      `SELECT id
+       FROM mensajes
+       WHERE remitente_id = ? AND fecha_hora = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [remitenteId, fechaHora]
+    );
+    if (!mensajesMatch.length) return [];
+
+    const archivosRows = await query(
+      `SELECT id, nombre_archivo, archivo
+       FROM mensajes_archivos
+       WHERE mensaje_id = ?`,
+      [mensajesMatch[0].id]
+    );
+
+    return (archivosRows || []).map((a) => ({
+      id: a.id,
+      nombre_archivo: a.nombre_archivo || a.archivo || 'Adjunto',
+      archivo: a.archivo,
+      archivo_url: buildArchivoUrlAdmin(a.archivo)
+    }));
+  } catch (e) {
+    console.warn('⚠️ [ADMIN CONEXIONES] Error obteniendo adjuntos del envío:', e?.message);
+    return [];
+  }
+}
+
 /**
  * GET /api/admin/dashboard
  * Estadísticas para el dashboard del administrador (año activo)
@@ -1795,7 +1834,8 @@ router.get('/conexiones', async (req, res) => {
     const { colegio_id } = req.user;
     const { personal_id, grupo_id, fecha_desde, fecha_hasta } = req.query || {};
 
-    let conexiones = [];
+    let conexionesModernas = [];
+    let conexionesLegacy = [];
     try {
       const where = ['ce.colegio_id = ?'];
       const params = [colegio_id];
@@ -1859,7 +1899,7 @@ router.get('/conexiones', async (req, res) => {
           gruposMap[g.id] = `${g.grado}° ${g.seccion} ${g.nivel}`.trim();
         });
       }
-      conexiones = parsed.map((r) => {
+      conexionesModernas = parsed.map((r) => {
         const gruposIds = (r._grupo_ids || []).map((x) => parseInt(x, 10)).filter((n) => !isNaN(n) && n > 0);
         const gruposTexto = gruposIds.length
           ? gruposIds.map((id) => gruposMap[id] || `Grupo ${id}`).join(', ')
@@ -1885,8 +1925,8 @@ router.get('/conexiones', async (req, res) => {
       }
     }
 
-    // Fallback legacy (mensajes_grupos) para envíos antiguos
-    if (conexiones.length === 0) {
+    // Legacy (mensajes_grupos): se mezcla con conexiones_envios para ver histórico completo
+    try {
       const whereLegacy = ['(u.colegio_id = ? OR g.colegio_id = ?)'];
       const paramsLegacy = [colegio_id, colegio_id];
       if (personal_id) {
@@ -1927,7 +1967,7 @@ router.get('/conexiones', async (req, res) => {
          LIMIT 500`,
         paramsLegacy
       );
-      conexiones = (rowsLegacy || []).map((r) => ({
+      conexionesLegacy = (rowsLegacy || []).map((r) => ({
         id: r.id,
         source: 'mensajes_grupos',
         fecha_hora: r.fecha_hora,
@@ -1940,7 +1980,18 @@ router.get('/conexiones', async (req, res) => {
         grupo: [r.grado != null ? `${r.grado}°` : '', r.seccion || '', r.nivel || ''].filter(Boolean).join(' ').trim(),
         mensaje: r.mensaje || ''
       }));
+    } catch (eLegacy) {
+      if (!(eLegacy && (eLegacy.code === 'ER_NO_SUCH_TABLE' || String(eLegacy.message || '').includes('mensajes_grupos')))) {
+        throw eLegacy;
+      }
     }
+
+    const conexiones = [...conexionesModernas, ...conexionesLegacy].sort((a, b) => {
+      const da = new Date(a.fecha_hora || 0).getTime();
+      const db = new Date(b.fecha_hora || 0).getTime();
+      if (db !== da) return db - da;
+      return (b.id || 0) - (a.id || 0);
+    });
 
     const groupFilter = parseInt(grupo_id, 10);
     const filtradas = !isNaN(groupFilter) && groupFilter > 0
@@ -1971,6 +2022,7 @@ router.get('/conexiones/:id', async (req, res) => {
            ce.alcance,
            ce.perfil_destino,
            ce.grupos_json,
+           ce.remitente_id,
            COALESCE(CONCAT(p.nombres, ' ', p.apellidos), u.usuario, 'Personal') as personal
          FROM conexiones_envios ce
          LEFT JOIN usuarios u ON u.id = ce.remitente_id
@@ -2013,7 +2065,8 @@ router.get('/conexiones/:id', async (req, res) => {
             alcance: r.alcance || 'GRUPOS',
             perfil_destino: r.perfil_destino || 'TODOS',
             grupo,
-            mensaje: r.mensaje || ''
+            mensaje: r.mensaje || '',
+            archivos: await obtenerAdjuntosPorRemitenteFecha(r.remitente_id, r.fecha_hora)
           }
         });
       }
@@ -2029,6 +2082,7 @@ router.get('/conexiones/:id', async (req, res) => {
          mg.fecha_hora,
          mg.asunto,
          mg.mensaje,
+         mg.remitente_id,
          COALESCE(CONCAT(p.nombres, ' ', p.apellidos), u.usuario, 'Personal') as personal,
          n.nombre as nivel,
          g.grado,
@@ -2059,7 +2113,8 @@ router.get('/conexiones/:id', async (req, res) => {
         alcance: 'GRUPOS',
         perfil_destino: 'TODOS',
         grupo,
-        mensaje: r.mensaje || ''
+        mensaje: r.mensaje || '',
+        archivos: await obtenerAdjuntosPorRemitenteFecha(r.remitente_id, r.fecha_hora)
       }
     });
   } catch (error) {

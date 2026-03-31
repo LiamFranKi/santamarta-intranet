@@ -101,39 +101,43 @@ export default function AdminConexiones() {
   }, []);
 
   useEffect(() => {
-    if (!quillRef.current) return;
-    const quill = quillRef.current.getEditor();
-    const toolbar = quill.getModule('toolbar');
-    if (!toolbar) return;
-    toolbar.addHandler('image', async () => {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.click();
-      input.onchange = async () => {
-        const file = input.files?.[0];
-        if (!file) return;
-        if (!file.type.startsWith('image/')) {
-          Swal.fire('Error', 'Solo se permiten imágenes', 'error');
-          return;
-        }
-        try {
-          const fd = new FormData();
-          fd.append('imagen', file);
-          const resp = await api.post('/docente/mensajes/subir-imagen', fd, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-          });
-          const url = resp.data?.url;
-          if (!url) return;
-          const range = quill.getSelection(true);
-          quill.insertEmbed(range.index, 'image', url);
-          quill.setSelection(range.index + 1);
-        } catch (err) {
-          Swal.fire('Error', 'No se pudo subir la imagen', 'error');
-        }
-      };
-    });
-  }, []);
+    if (!mostrarModalNuevo) return undefined;
+    const timer = setTimeout(() => {
+      const quill = quillRef.current?.getEditor?.();
+      if (!quill) return;
+      const toolbar = quill.getModule('toolbar');
+      if (!toolbar) return;
+      toolbar.addHandler('image', async () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.click();
+        input.onchange = async () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          if (!file.type.startsWith('image/')) {
+            Swal.fire('Error', 'Solo se permiten imágenes', 'error');
+            return;
+          }
+          try {
+            const fd = new FormData();
+            fd.append('imagen', file);
+            const resp = await api.post('/docente/mensajes/subir-imagen', fd, {
+              headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            const url = resp.data?.url;
+            if (!url) return;
+            const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 };
+            quill.insertEmbed(range.index, 'image', url);
+            quill.setSelection(range.index + 1);
+          } catch (err) {
+            Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+          }
+        };
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [mostrarModalNuevo]);
 
   useEffect(() => {
     if (paginaActual > totalPaginas) {
@@ -476,6 +480,25 @@ export default function AdminConexiones() {
                     <strong>Mensaje:</strong>
                     <div className="admin-conexiones-html" dangerouslySetInnerHTML={{ __html: detalle?.mensaje || '<p>Sin contenido</p>' }} />
                   </div>
+                  {detalle?.archivos && Array.isArray(detalle.archivos) && detalle.archivos.length > 0 && (
+                    <div className="admin-conexiones-mensaje-block">
+                      <strong>Archivos adjuntos ({detalle.archivos.length}):</strong>
+                      <div className="admin-conexiones-adjuntos-lista">
+                        {detalle.archivos.map((archivo, idx) => (
+                          <a
+                            key={archivo.id || idx}
+                            href={archivo.archivo_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="archivo-enlace"
+                            download={archivo.nombre_archivo}
+                          >
+                            📎 {archivo.nombre_archivo || `Adjunto ${idx + 1}`}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="modal-mensaje-body">

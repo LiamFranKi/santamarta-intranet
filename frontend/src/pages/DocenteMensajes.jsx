@@ -32,21 +32,29 @@ function MensajeModalContent({ mensaje, vista, onClose, onMensajeLeido }) {
   // Función para procesar HTML del mensaje
   const procesarHTMLMensaje = (html) => {
     if (!html) return '';
-    
-    const baseURL = api.defaults.baseURL.replace('/api', '');
-    
-    // Convertir URLs relativas de imágenes a absolutas
-    const htmlProcesado = html.replace(
-      /<img([^>]*)\ssrc=["'](\/uploads\/[^"']+)["']([^>]*)>/gi,
-      (match, before, src, after) => {
-        if (src.startsWith('http')) {
-          return match;
-        }
-        return `<img${before} src="${baseURL}${src}"${after}>`;
+    const baseURL = (api.defaults.baseURL || '').replace(/\/api\/?$/, '');
+    const phpBase = (process.env.REACT_APP_PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe').replace(/\/$/, '');
+    return html.replace(/<img([^>]*)\ssrc=["']([^"']+)["']([^>]*)>/gi, (match, before, src, after) => {
+      let fixed = String(src || '').trim();
+      if (!fixed) return match;
+      fixed = fixed
+        .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpBase)
+        .replace(/https?:\/\/(www\.)?vanguardschools\.com\/?static/gi, `${phpBase}/Static`);
+      if (/^https?:\/\//i.test(fixed)) {
+        return `<img${before} src="${fixed}"${after}>`;
       }
-    );
-    
-    return htmlProcesado;
+      if (fixed.startsWith('/Static/')) {
+        return `<img${before} src="${phpBase}${fixed}"${after}>`;
+      }
+      if (fixed.startsWith('Static/')) {
+        return `<img${before} src="${phpBase}/${fixed}"${after}>`;
+      }
+      if (fixed.startsWith('/uploads/') || fixed.startsWith('uploads/')) {
+        const rel = fixed.startsWith('/') ? fixed : `/${fixed}`;
+        return `<img${before} src="${baseURL}${rel}"${after}>`;
+      }
+      return `<img${before} src="${phpBase}/${fixed.replace(/^\/+/, '')}"${after}>`;
+    });
   };
 
   return (
