@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './AdminUsuarios.css';
@@ -293,24 +294,24 @@ export default function AdminUsuariosApoderados() {
                       {openMenu === row.id && (
                         <div className="admin-usu-dropdown" onClick={(e) => e.stopPropagation()}>
                           <button type="button" onClick={() => { verInfo(row); setOpenMenu(null); }}>
-                            Ver información
+                            ℹ️ Ver información
                           </button>
                           <button type="button" onClick={() => { infoAcceso(row); setOpenMenu(null); }}>
-                            Información de acceso
+                            🔐 Información de acceso
                           </button>
                           {!row.usuario_id && (
                             <button type="button" onClick={() => { crearAcceso(row); setOpenMenu(null); }}>
-                              Crear acceso
+                              ➕ Crear acceso
                             </button>
                           )}
                           {row.usuario_id && (
                             <button type="button" onClick={() => { resetPass(row); setOpenMenu(null); }}>
-                              Restablecer clave a DNI
+                              🔑 Restablecer clave a DNI
                             </button>
                           )}
                           <hr />
                           <button type="button" onClick={() => { abrirEditar(row); setOpenMenu(null); }}>
-                            Editar
+                            ✏️ Editar
                           </button>
                         </div>
                       )}
@@ -340,7 +341,7 @@ export default function AdminUsuariosApoderados() {
         </button>
       </div>
 
-      {modalCreate && (
+      {modalCreate && createPortal(
         <div className="admin-usu-modal-overlay" onClick={() => setModalCreate(false)}>
           <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
             <div className="admin-usu-modal-header">
@@ -403,10 +404,11 @@ export default function AdminUsuariosApoderados() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {modalEdit && (
+      {modalEdit && createPortal(
         <div className="admin-usu-modal-overlay" onClick={() => setModalEdit(null)}>
           <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
             <div className="admin-usu-modal-header">
@@ -466,7 +468,8 @@ export default function AdminUsuariosApoderados() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

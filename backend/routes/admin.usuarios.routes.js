@@ -72,10 +72,28 @@ async function usuarioLibre(colegioId, usuarioLogin, excludeUsuarioId = null) {
   return rows.length === 0;
 }
 
-/** JOIN condición: usuario vinculado por apoderado_id o docente/personal mismo DNI (sin tabla extra). */
-const SQL_JOIN_USUARIO_APODERADO = `u.colegio_id = ap.colegio_id AND (
-  u.apoderado_id = ap.id OR (TRIM(u.usuario) = TRIM(ap.nro_documento) AND u.personal_id > 0)
-)`;
+/**
+ * JOIN optimizado para resolver usuario de apoderado:
+ * 1) prioriza vínculo directo por apoderado_id
+ * 2) fallback a cuenta de personal/docente con mismo DNI
+ * Evita OR/TRIM en el JOIN principal para mejorar uso de índices.
+ */
+const SQL_JOIN_USUARIO_APODERADO_OPT = `
+  LEFT JOIN (
+    SELECT colegio_id, apoderado_id, MIN(id) AS usuario_id
+    FROM usuarios
+    WHERE apoderado_id > 0
+    GROUP BY colegio_id, apoderado_id
+  ) ua_idx ON ua_idx.colegio_id = ap.colegio_id AND ua_idx.apoderado_id = ap.id
+  LEFT JOIN usuarios u_ap ON u_ap.id = ua_idx.usuario_id
+  LEFT JOIN (
+    SELECT colegio_id, usuario, MIN(id) AS usuario_id
+    FROM usuarios
+    WHERE personal_id > 0
+    GROUP BY colegio_id, usuario
+  ) up_idx ON up_idx.colegio_id = ap.colegio_id AND up_idx.usuario = ap.nro_documento
+  LEFT JOIN usuarios u_per ON u_per.id = up_idx.usuario_id
+`;
 
 /**
  * Fila `usuarios` para una ficha apoderado: primero por apoderado_id, luego personal con mismo DNI.
@@ -1062,9 +1080,12 @@ router.get('/apoderados', async (req, res) => {
 
     const rows = await query(
       `SELECT ap.id, ap.nombres, ap.apellido_paterno, ap.apellido_materno, ap.nro_documento, ap.parentesco, ap.email, ap.telefono_celular,
-              u.id AS usuario_id, u.usuario AS login_usuario, u.estado AS usuario_estado, u.tipo AS usuario_tipo
+              COALESCE(u_ap.id, u_per.id) AS usuario_id,
+              COALESCE(u_ap.usuario, u_per.usuario) AS login_usuario,
+              COALESCE(u_ap.estado, u_per.estado) AS usuario_estado,
+              COALESCE(u_ap.tipo, u_per.tipo) AS usuario_tipo
        FROM apoderados ap
-       LEFT JOIN usuarios u ON ${SQL_JOIN_USUARIO_APODERADO}
+       ${SQL_JOIN_USUARIO_APODERADO_OPT}
        WHERE ${whereSql}
        ORDER BY ap.apellido_paterno, ap.apellido_materno, ap.nombres
        LIMIT ? OFFSET ?`,
@@ -1082,9 +1103,13 @@ router.get('/apoderados/:id', async (req, res) => {
     const { colegio_id } = req.user;
     const id = parseInt(req.params.id, 10);
     const rows = await query(
-      `SELECT ap.*, u.id AS usuario_id, u.usuario AS login_usuario, u.estado AS usuario_estado, u.tipo AS usuario_tipo
+      `SELECT ap.*,
+              COALESCE(u_ap.id, u_per.id) AS usuario_id,
+              COALESCE(u_ap.usuario, u_per.usuario) AS login_usuario,
+              COALESCE(u_ap.estado, u_per.estado) AS usuario_estado,
+              COALESCE(u_ap.tipo, u_per.tipo) AS usuario_tipo
        FROM apoderados ap
-       LEFT JOIN usuarios u ON ${SQL_JOIN_USUARIO_APODERADO}
+       ${SQL_JOIN_USUARIO_APODERADO_OPT}
        WHERE ap.id = ? AND ap.colegio_id = ?
        LIMIT 1`,
       [id, colegio_id]
