@@ -1187,6 +1187,41 @@ router.post('/alumnos/:id/reset-password', async (req, res) => {
   }
 });
 
+router.post('/alumnos/:id/password', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const password = String(req.body.password || '').trim();
+    if (!id) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 4 caracteres' });
+    }
+    const rows = await query(
+      `SELECT u.id
+       FROM usuarios u
+       WHERE u.alumno_id = ? AND u.colegio_id = ? AND u.tipo = 'ALUMNO'
+       LIMIT 1`,
+      [id, colegio_id]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Usuario alumno no encontrado' });
+    }
+    const pwd = sha1Password(password);
+    await execute('UPDATE usuarios SET password = ?, cambiar_password = ? WHERE id = ? AND colegio_id = ?', [
+      pwd,
+      'NO',
+      rows[0].id,
+      colegio_id,
+    ]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('password alumno', e);
+    res.status(500).json({ error: e.message || 'Error al cambiar contraseña' });
+  }
+});
+
 router.post('/alumnos/:id/acceso', async (req, res) => {
   try {
     const { colegio_id } = req.user;

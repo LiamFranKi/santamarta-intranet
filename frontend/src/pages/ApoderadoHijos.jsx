@@ -3745,8 +3745,8 @@ function ApoderadoHijos() {
         doc.text(`DNI: ${dni}`, centerX, textY);
       }
 
-      // QR Code: recuadro blanco con borde naranja suave; imagen QR con 1mm padding en todos los lados
-      const qrPadding = 1;
+      // QR Code: recuadro blanco con borde naranja suave; imagen QR completa y centrada (sin recorte)
+      const qrPadding = 0.6;
       const qrElement = document.querySelector('#qr-card-modal-print .qr-code-wrapper svg');
       doc.setFillColor(255, 255, 255);
       doc.roundedRect(qrX, qrY, qrBoxSize, qrBoxSize, 1, 1, 'F');
@@ -3763,16 +3763,31 @@ function ApoderadoHijos() {
           const url = URL.createObjectURL(svgBlob);
           await new Promise((resolve, reject) => {
             img.onload = () => {
-              canvas.width = 200;
-              canvas.height = 200;
-              ctx.drawImage(img, 0, 0);
+              canvas.width = 1024;
+              canvas.height = 1024;
+              if (!ctx) {
+                reject(new Error('No se pudo crear contexto canvas para QR'));
+                return;
+              }
+              ctx.imageSmoothingEnabled = false;
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              const scaleFit = Math.min(canvas.width / img.width, canvas.height / img.height);
+              const drawW = img.width * scaleFit;
+              const drawH = img.height * scaleFit;
+              const drawX = (canvas.width - drawW) / 2;
+              const drawY = (canvas.height - drawH) / 2;
+              ctx.drawImage(img, drawX, drawY, drawW, drawH);
               const imgData = canvas.toDataURL('image/png');
               const qrDrawSize = qrBoxSize - qrPadding * 2;
               doc.addImage(imgData, 'PNG', qrX + qrPadding, qrY + qrPadding, qrDrawSize, qrDrawSize);
               URL.revokeObjectURL(url);
               resolve();
             };
-            img.onerror = reject;
+            img.onerror = (e) => {
+              URL.revokeObjectURL(url);
+              reject(e);
+            };
             img.src = url;
           });
         } catch (err) {

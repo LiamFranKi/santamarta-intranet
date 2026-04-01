@@ -59,6 +59,9 @@ export default function AdminUsuariosAlumnos() {
 
   const [modalCreate, setModalCreate] = useState(false);
   const [modalEdit, setModalEdit] = useState(null);
+  const [modalInfo, setModalInfo] = useState(null);
+  const [modalAcceso, setModalAcceso] = useState(null);
+  const [accesoForm, setAccesoForm] = useState({ estado: 'ACTIVO', password: '' });
   const [form, setForm] = useState({});
   const [fotoCreateFile, setFotoCreateFile] = useState(null);
   const [fotoCreatePreview, setFotoCreatePreview] = useState('');
@@ -181,31 +184,51 @@ export default function AdminUsuariosAlumnos() {
     }
   };
 
-  const infoAcceso = (row) => {
-    if (!row.usuario_id) {
-      Swal.fire({
-        title: 'Acceso',
-        html: '<p>Este alumno no tiene usuario de alumno vinculado. La contraseña por defecto es el DNI cuando exista cuenta.</p>',
-      });
-      return;
-    }
-    Swal.fire({
-      title: 'Información de acceso',
-      html: `<p><strong>Usuario:</strong> ${row.login_usuario || row.nro_documento}</p>
-        <p><strong>Contraseña por defecto:</strong> DNI</p>`,
+  const abrirInfoAcceso = (row) => {
+    setAccesoForm({
+      estado: row.usuario_estado || 'ACTIVO',
+      password: '',
     });
+    setModalAcceso(row);
   };
 
-  const verInfo = (row) => {
-    Swal.fire({
-      title: nombreAlumno(row),
-      html: `<div style="text-align:left">
-        <p><strong>DNI:</strong> ${row.nro_documento}</p>
-        <p><strong>Nacimiento:</strong> ${formatFechaNacimiento(row.fecha_nacimiento)}</p>
-        <p><strong>Email:</strong> ${row.email || '—'}</p>
-      </div>`,
-      width: 440,
-    });
+  const guardarInfoAcceso = async () => {
+    if (!modalAcceso) return;
+    try {
+      if (!modalAcceso.usuario_id) {
+        await api.post(`/admin/usuarios/alumnos/${modalAcceso.id}/acceso`);
+      } else {
+        await api.put(`/admin/usuarios/alumnos/${modalAcceso.id}`, {
+          usuario_estado: accesoForm.estado,
+        });
+      }
+      if ((accesoForm.password || '').trim()) {
+        await api.post(`/admin/usuarios/alumnos/${modalAcceso.id}/password`, {
+          password: accesoForm.password.trim(),
+        });
+      }
+      Swal.fire({ icon: 'success', title: 'Acceso actualizado' });
+      setModalAcceso(null);
+      cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo guardar el acceso' });
+    }
+  };
+
+  const verInfo = async (row) => {
+    try {
+      const [infoRes, matriculasRes] = await Promise.all([
+        api.get(`/admin/usuarios/alumnos/${row.id}`),
+        api.get(`/admin/usuarios/alumnos/${row.id}/matriculas`),
+      ]);
+      const info = infoRes.data || {};
+      const matriculas = matriculasRes.data?.data || [];
+      const vigentes = matriculas.filter((m) => Number(m.estado) === 0 || Number(m.estado) === 4);
+      vigentes.sort((a, b) => Number(b.anio || 0) - Number(a.anio || 0));
+      setModalInfo({ ...info, matricula_actual: vigentes[0] || null });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar información' });
+    }
   };
 
   const cerrarMenus = () => {
@@ -221,7 +244,18 @@ export default function AdminUsuariosAlumnos() {
       return;
     }
     const rect = event.currentTarget.getBoundingClientRect();
-    setMenuCoords({ top: rect.bottom + 4, left: rect.right - 240 });
+    const menuWidth = 240;
+    const menuHeight = 330;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const preferBelowTop = rect.bottom + 4;
+    const preferAboveTop = rect.top - menuHeight - 4;
+    const top = (preferBelowTop + menuHeight > viewportH - 8 && preferAboveTop > 8)
+      ? preferAboveTop
+      : Math.max(8, Math.min(preferBelowTop, viewportH - menuHeight - 8));
+    const rawLeft = rect.right - menuWidth;
+    const left = Math.max(8, Math.min(rawLeft, viewportW - menuWidth - 8));
+    setMenuCoords({ top, left });
     setMenuRow(row);
     setOpenMenu(row.id);
   };
@@ -413,6 +447,7 @@ export default function AdminUsuariosAlumnos() {
   const fotoCreateFormPreview = fotoCreatePreview;
   const fotoFormPreview = fotoEditPreview || fotoUsuarioAdmin(form.foto);
   const credencialDni = (form.nro_documento || '').trim();
+  const infoFoto = fotoUsuarioAdmin(modalInfo?.foto || '');
 
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
@@ -522,7 +557,7 @@ export default function AdminUsuariosAlumnos() {
           <button type="button" onClick={() => { historialPagos(menuRow); cerrarMenus(); }}>
             💰 Historial de Pagos
           </button>
-          <button type="button" onClick={() => { infoAcceso(menuRow); cerrarMenus(); }}>
+          <button type="button" onClick={() => { abrirInfoAcceso(menuRow); cerrarMenus(); }}>
             🔐 Información de Acceso
           </button>
           <hr />
@@ -705,6 +740,126 @@ export default function AdminUsuariosAlumnos() {
                 </button>
                 <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarEdit}>
                   💾 Guardar cambios
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {modalInfo && createPortal(
+        <div className="admin-usu-modal-overlay" onClick={() => setModalInfo(null)}>
+          <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-usu-modal-header">
+              <h2>Información del alumno</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={() => setModalInfo(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              <div className="admin-usu-profile-form">
+                <div className="admin-usu-profile-section">
+                  <h3>Ficha General</h3>
+                  <div className="admin-usu-info-hero">
+                    <div className="admin-usu-photo-preview">
+                      {infoFoto ? <img src={infoFoto} alt="Foto alumno" /> : <div className="admin-usu-photo-ph">{(modalInfo.nombres || 'A').charAt(0)}</div>}
+                    </div>
+                    <div>
+                      <h4>{nombreAlumno(modalInfo)}</h4>
+                      <p>Alumno</p>
+                      <span className={`admin-usu-badge ${modalInfo.usuario_id ? '' : 'admin-usu-badge-muted'}`}>
+                        {modalInfo.usuario_id ? 'Con acceso' : 'Sin acceso'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Datos Personales</h3>
+                  <div className="admin-usu-info-grid">
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Nombres</span><span className="admin-usu-info-value">{modalInfo.nombres || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Apellido paterno</span><span className="admin-usu-info-value">{modalInfo.apellido_paterno || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Apellido materno</span><span className="admin-usu-info-value">{modalInfo.apellido_materno || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">DNI</span><span className="admin-usu-info-value">{modalInfo.nro_documento || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Nacimiento</span><span className="admin-usu-info-value">{formatFechaNacimiento(modalInfo.fecha_nacimiento)}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Correo</span><span className="admin-usu-info-value">{modalInfo.email || '—'}</span></div>
+                  </div>
+                </div>
+                {modalInfo.matricula_actual && (
+                  <div className="admin-usu-profile-section">
+                    <h3>Matrícula Vigente</h3>
+                    <div className="admin-usu-info-grid">
+                      <div className="admin-usu-info-item"><span className="admin-usu-info-label">Año</span><span className="admin-usu-info-value">{modalInfo.matricula_actual.anio || '—'}</span></div>
+                      <div className="admin-usu-info-item"><span className="admin-usu-info-label">Nivel</span><span className="admin-usu-info-value">{modalInfo.matricula_actual.nivel_nombre || '—'}</span></div>
+                      <div className="admin-usu-info-item"><span className="admin-usu-info-label">Grado</span><span className="admin-usu-info-value">{modalInfo.matricula_actual.grado || '—'}</span></div>
+                      <div className="admin-usu-info-item"><span className="admin-usu-info-label">Sección</span><span className="admin-usu-info-value">{modalInfo.matricula_actual.seccion || '—'}</span></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalInfo(null)}>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {modalAcceso && createPortal(
+        <div className="admin-usu-modal-overlay" onClick={() => setModalAcceso(null)}>
+          <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-usu-modal-header">
+              <h2>Información de acceso</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={() => setModalAcceso(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              <div className="admin-usu-profile-section">
+                <h3>Credenciales y estado</h3>
+                <div className="admin-usu-form-grid">
+                  <div className="admin-usu-field">
+                    <label>Usuario</label>
+                    <input type="text" readOnly value={modalAcceso.login_usuario || modalAcceso.nro_documento || ''} />
+                  </div>
+                  <div className="admin-usu-field">
+                    <label>Nueva contraseña</label>
+                    <input
+                      type="text"
+                      placeholder="Opcional: dejar vacío para no cambiar"
+                      value={accesoForm.password}
+                      onChange={(e) => setAccesoForm({ ...accesoForm, password: e.target.value })}
+                    />
+                  </div>
+                  <div className="admin-usu-field">
+                    <label>Tipo</label>
+                    <input type="text" readOnly value="ALUMNO" />
+                  </div>
+                  <div className="admin-usu-field">
+                    <label>Estado</label>
+                    <select
+                      value={accesoForm.estado}
+                      disabled={!modalAcceso.usuario_id}
+                      onChange={(e) => setAccesoForm({ ...accesoForm, estado: e.target.value })}
+                    >
+                      <option value="ACTIVO">ACTIVO</option>
+                      <option value="INACTIVO">INACTIVO</option>
+                    </select>
+                  </div>
+                </div>
+                {!modalAcceso.usuario_id && (
+                  <p className="admin-usu-hint">Este alumno no tiene usuario. Al guardar se creará su acceso con usuario = DNI.</p>
+                )}
+              </div>
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalAcceso(null)}>
+                  Cancelar
+                </button>
+                <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarInfoAcceso}>
+                  Guardar datos
                 </button>
               </div>
             </div>
