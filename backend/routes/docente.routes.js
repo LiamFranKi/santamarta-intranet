@@ -17515,15 +17515,18 @@ router.get('/aula-virtual/examenes', async (req, res) => {
           }
         }
 
-        // Solo procesar si el examen está INACTIVO y tiene fecha/hora válidas (no 0000-00-00)
-        if (examen.estado === 'INACTIVO' && 
-            fechaDesdeStr && 
-            fechaDesdeStr !== '0000-00-00' && 
-            fechaDesdeStr !== '0000-00-00 00:00:00' &&
-            fechaDesdeStr.trim() !== '' &&
-            horaDesdeStr && 
-            horaDesdeStr !== '00:00:00' &&
-            horaDesdeStr.trim() !== '') {
+        // Procesar cualquier examen con ventana fecha/hora válida.
+        // Regla: la fecha/hora tiene prioridad para activar/desactivar automáticamente.
+        const tieneConfiguracionFechaHora =
+          fechaDesdeStr &&
+          fechaDesdeStr !== '0000-00-00' &&
+          fechaDesdeStr !== '0000-00-00 00:00:00' &&
+          fechaDesdeStr.trim() !== '' &&
+          horaDesdeStr &&
+          horaDesdeStr !== '00:00:00' &&
+          horaDesdeStr.trim() !== '';
+
+        if (tieneConfiguracionFechaHora) {
           
           // Construir fecha/hora de inicio y fin del examen
           const fechaInicio = fechaDesdeStr.split(' ')[0].trim(); // Solo la fecha
@@ -17595,32 +17598,44 @@ router.get('/aula-virtual/examenes', async (req, res) => {
             diferenciaFinMin: (diferenciaFinMs / 60000).toFixed(2)
           });
           
-          // Solo habilitar si:
-          // 1. Pasó al menos 1 minuto desde la fecha/hora de inicio (diferenciaInicioMs >= 60000)
-          // 2. Aún no ha llegado la fecha/hora de fin (diferenciaFinMs > 0)
-          if (diferenciaInicioMs >= 60000 && diferenciaFinMs > 0) {
-            try {
-              await execute(
-                `UPDATE asignaturas_examenes SET estado = 'ACTIVO' WHERE id = ?`,
-                [examen.id]
-              );
-              console.log(`✅ Examen "${examen.titulo}" (ID: ${examen.id}) habilitado automáticamente (dentro del rango: ${fechaInicio} ${horaInicio} - ${fechaFin} ${horaFin}, ahora: ${fechaActual} ${horaActual})`);
-              examen.estado = 'ACTIVO'; // Actualizar en el objeto para la respuesta
-            } catch (error) {
-              console.error(`Error habilitando examen ${examen.id}:`, error);
-            }
-          } else if (diferenciaInicioMs < 0) {
-            // La fecha/hora de inicio es futura
-            console.log(`⏳ Examen "${examen.titulo}" (ID: ${examen.id}) aún no inicia. Faltan ${Math.abs(diferenciaInicioMs / 60000).toFixed(1)} minutos`);
-          } else if (diferenciaFinMs <= 0) {
-            // La fecha/hora de fin ya pasó, desactivar el examen
-            if (examen.estado === 'ACTIVO') {
+          // Si ya pasó la fecha/hora fin, SIEMPRE debe quedar INACTIVO.
+          if (diferenciaFinMs <= 0) {
+            if (examen.estado !== 'INACTIVO') {
               try {
                 await execute(
                   `UPDATE asignaturas_examenes SET estado = 'INACTIVO' WHERE id = ?`,
                   [examen.id]
                 );
                 console.log(`⏰ Examen "${examen.titulo}" (ID: ${examen.id}) desactivado automáticamente (fecha/hora fin ya pasó: ${fechaFin} ${horaFin})`);
+                examen.estado = 'INACTIVO'; // Actualizar en el objeto para la respuesta
+              } catch (error) {
+                console.error(`Error desactivando examen ${examen.id}:`, error);
+              }
+            }
+          // Si está dentro de rango, debe quedar ACTIVO.
+          } else if (diferenciaInicioMs >= 60000) {
+            try {
+              if (examen.estado !== 'ACTIVO') {
+                await execute(
+                  `UPDATE asignaturas_examenes SET estado = 'ACTIVO' WHERE id = ?`,
+                  [examen.id]
+                );
+                console.log(`✅ Examen "${examen.titulo}" (ID: ${examen.id}) habilitado automáticamente (dentro del rango: ${fechaInicio} ${horaInicio} - ${fechaFin} ${horaFin}, ahora: ${fechaActual} ${horaActual})`);
+                examen.estado = 'ACTIVO'; // Actualizar en el objeto para la respuesta
+              }
+            } catch (error) {
+              console.error(`Error habilitando examen ${examen.id}:`, error);
+            }
+          } else if (diferenciaInicioMs < 0) {
+            // La fecha/hora de inicio es futura
+            console.log(`⏳ Examen "${examen.titulo}" (ID: ${examen.id}) aún no inicia. Faltan ${Math.abs(diferenciaInicioMs / 60000).toFixed(1)} minutos`);
+            if (examen.estado !== 'INACTIVO') {
+              try {
+                await execute(
+                  `UPDATE asignaturas_examenes SET estado = 'INACTIVO' WHERE id = ?`,
+                  [examen.id]
+                );
+                console.log(`⏳ Examen "${examen.titulo}" (ID: ${examen.id}) forzado a INACTIVO (aún no inicia: ${fechaInicio} ${horaInicio})`);
                 examen.estado = 'INACTIVO'; // Actualizar en el objeto para la respuesta
               } catch (error) {
                 console.error(`Error desactivando examen ${examen.id}:`, error);
@@ -17699,7 +17714,7 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
       orden_preguntas, 
       preguntas_max, 
       ciclo,
-      estado,
+      estado: estadoSolicitado,
       habilitar_fecha_hora,
       fecha_desde,
       fecha_hasta,
@@ -17707,9 +17722,11 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
       hora_hasta
     } = req.body;
 
-    if (!asignatura_id || !titulo || !tipo || !ciclo || !estado) {
+    if (!asignatura_id || !titulo || !tipo || !ciclo || !estadoSolicitado) {
       return res.status(400).json({ error: 'asignatura_id, titulo, tipo, ciclo y estado son requeridos' });
     }
+
+    let estadoFinal = estadoSolicitado;
 
     // Si es PDF, debe tener archivo
     if (tipo === 'PDF' && !req.file) {
@@ -17756,9 +17773,9 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
       
       // IMPORTANTE: Si se configuran fechas/horas, el estado debe ser INACTIVO automáticamente
       // El examen solo se activará automáticamente cuando esté dentro del rango de fechas/horas
-      if (estado === 'ACTIVO') {
+      if (estadoFinal === 'ACTIVO') {
         console.log(`⚠️ Examen con fecha/hora configurada: forzando estado a INACTIVO (se activará automáticamente cuando llegue la hora)`);
-        estado = 'INACTIVO';
+        estadoFinal = 'INACTIVO';
       }
     } else {
       // Si no está habilitado, usar valores por defecto específicos
@@ -17806,7 +17823,7 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
       penalizacion_incorrecta: penalizacionIncorrecta,
       tiempo: tiempoExamen,
       intentos: intentosExamen,
-      estado,
+      estado: estadoFinal,
       orden_preguntas: ordenPreguntas,
       fecha_desde: fechaDesde,
       fecha_hasta: fechaHasta,
@@ -17870,7 +17887,7 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
         penalizacionIncorrecta,
         tiempoExamen,
         intentosExamen,
-        estado,
+        estadoFinal,
         ordenPreguntas,
         fechaDesde,
         fechaHasta,
@@ -17937,7 +17954,7 @@ router.put('/aula-virtual/examenes/:examenId', uploadAulaVirtual.single('archivo
       orden_preguntas, 
       preguntas_max, 
       ciclo,
-      estado,
+      estado: estadoSolicitado,
       habilitar_fecha_hora,
       fecha_desde,
       fecha_hasta,
@@ -17945,9 +17962,11 @@ router.put('/aula-virtual/examenes/:examenId', uploadAulaVirtual.single('archivo
       hora_hasta
     } = req.body;
 
-    if (!titulo || !tipo || !ciclo || !estado) {
+    if (!titulo || !tipo || !ciclo || !estadoSolicitado) {
       return res.status(400).json({ error: 'titulo, tipo, ciclo y estado son requeridos' });
     }
+
+    let estadoFinal = estadoSolicitado;
 
     // Verificar que el examen existe y pertenece a una asignatura del docente
     const examen = await query(
@@ -17993,9 +18012,9 @@ router.put('/aula-virtual/examenes/:examenId', uploadAulaVirtual.single('archivo
       
       // IMPORTANTE: Si se configuran fechas/horas, el estado debe ser INACTIVO automáticamente
       // El examen solo se activará automáticamente cuando esté dentro del rango de fechas/horas
-      if (estado === 'ACTIVO') {
+      if (estadoFinal === 'ACTIVO') {
         console.log(`⚠️ Examen con fecha/hora configurada: forzando estado a INACTIVO (se activará automáticamente cuando llegue la hora)`);
-        estado = 'INACTIVO';
+        estadoFinal = 'INACTIVO';
       }
     } else {
       // Si no está habilitado, usar valores por defecto específicos
@@ -18041,7 +18060,7 @@ router.put('/aula-virtual/examenes/:examenId', uploadAulaVirtual.single('archivo
       penalizacion_incorrecta: penalizacionIncorrecta,
       tiempo: tiempoExamen,
       intentos: intentosExamen,
-      estado,
+      estado: estadoFinal,
       orden_preguntas: ordenPreguntas,
       fecha_desde: fechaDesde,
       fecha_hasta: fechaHasta,
@@ -18087,7 +18106,7 @@ router.put('/aula-virtual/examenes/:examenId', uploadAulaVirtual.single('archivo
         penalizacionIncorrecta,
         tiempoExamen,
         intentosExamen,
-        estado,
+        estadoFinal,
         ordenPreguntas,
         fechaDesde,
         fechaHasta,
@@ -18142,6 +18161,54 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
     }
 
     const examenActual = examen[0];
+
+    // Si el examen tiene ventana fecha/hora, la disponibilidad depende del rango.
+    // No permitir activarlo manualmente fuera de la ventana vigente.
+    if (estado === 'ACTIVO') {
+      const normalizarFecha = (valor) => {
+        if (!valor) return '';
+        if (typeof valor === 'string') {
+          if (valor === '0000-00-00' || valor === '0000-00-00 00:00:00') return '';
+          return valor.split(' ')[0].trim();
+        }
+        if (valor instanceof Date && !isNaN(valor.getTime())) {
+          return valor.toISOString().split('T')[0];
+        }
+        const texto = String(valor);
+        if (texto === '0000-00-00' || texto === '0000-00-00 00:00:00') return '';
+        return texto.split(' ')[0].trim();
+      };
+
+      const normalizarHora = (valor) => {
+        if (!valor) return '';
+        const hora = String(valor).trim();
+        if (!hora || hora === '00:00:00') return '';
+        return hora.substring(0, 5);
+      };
+
+      const fechaInicio = normalizarFecha(examenActual.fecha_desde);
+      const fechaFin = normalizarFecha(examenActual.fecha_hasta);
+      const horaInicio = normalizarHora(examenActual.hora_desde);
+      const horaFin = normalizarHora(examenActual.hora_hasta);
+      const tieneVentana = fechaInicio && fechaFin && horaInicio && horaFin;
+
+      if (tieneVentana) {
+        const moment = require('moment-timezone');
+        const ahoraLima = moment.tz('America/Lima');
+        const inicio = moment.tz(`${fechaInicio} ${horaInicio}:00`, 'YYYY-MM-DD HH:mm:ss', 'America/Lima');
+        const fin = moment.tz(`${fechaFin} ${horaFin}:00`, 'YYYY-MM-DD HH:mm:ss', 'America/Lima');
+
+        if (!inicio.isValid() || !fin.isValid()) {
+          return res.status(400).json({ error: 'La ventana de fecha/hora del examen es inválida' });
+        }
+
+        if (ahoraLima.isBefore(inicio) || !ahoraLima.isBefore(fin)) {
+          return res.status(400).json({
+            error: 'No se puede activar manualmente este examen fuera del rango de fecha/hora. Actualiza la fecha de inicio/fin.'
+          });
+        }
+      }
+    }
 
     // Registrar acción en auditoría ANTES de actualizar
     registrarAccion({
