@@ -459,6 +459,7 @@ export default function AdminUsuariosAlumnos() {
   const fotoFormPreview = fotoEditPreview || fotoUsuarioAdmin(form.foto);
   const credencialDni = (form.nro_documento || '').trim();
   const infoFoto = fotoUsuarioAdmin(modalInfo?.foto || '');
+  const avatarAsignado = (modalInfo?.avatar_asignado_url || '').trim();
 
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
@@ -788,18 +789,24 @@ export default function AdminUsuariosAlumnos() {
                     <div className="admin-usu-qr-panel">
                       <div className="admin-usu-qr-group">
                         <span className="admin-usu-info-label">Avatar</span>
-                        <div className="admin-usu-photo-preview admin-usu-photo-preview-sm">
-                          {infoFoto ? <img src={infoFoto} alt="Avatar alumno" /> : <div className="admin-usu-photo-ph">{(modalInfo.nombres || 'A').charAt(0)}</div>}
-                        </div>
+                        {avatarAsignado ? (
+                          <div className="admin-usu-photo-preview admin-usu-photo-preview-sm">
+                            <img src={avatarAsignado} alt="Avatar alumno" />
+                          </div>
+                        ) : (
+                          <div className="admin-usu-avatar-empty">
+                            Avatar aun no Asignado
+                          </div>
+                        )}
                       </div>
                       <div className="admin-usu-qr-group">
                         <span className="admin-usu-info-label">Código QR</span>
                         <div className="admin-usu-qr-box">
                           <QRCodeSVG
                             value={modalInfo.qr_data || modalInfo.nro_documento || 'ALUMNO'}
-                            size={122}
+                            size={94}
                             level="H"
-                            includeMargin
+                            includeMargin={false}
                           />
                         </div>
                       </div>

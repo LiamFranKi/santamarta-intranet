@@ -466,7 +466,7 @@
 
 .admin-usu-qr-panel {
   display: flex;
-  gap: 1rem;
+  gap: 0.65rem;
   align-items: flex-start;
 }
 
@@ -474,22 +474,39 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.25rem;
 }
 
 .admin-usu-photo-preview-sm {
-  width: 110px;
-  height: 110px;
+  width: 84px;
+  height: 84px;
 }
 
 .admin-usu-qr-box {
   background: #fff;
-  border: 4px solid #16a34a;
-  border-radius: 10px;
-  padding: 0.45rem;
+  border: 3px solid #16a34a;
+  border-radius: 9px;
+  padding: 0.2rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+.admin-usu-avatar-empty {
+  width: 84px;
+  height: 84px;
+  border-radius: 10px;
+  border: 2px dashed #cbd5e1;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.35rem;
 }
 
 .admin-usu-related-list {

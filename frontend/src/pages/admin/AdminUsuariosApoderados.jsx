@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
@@ -30,6 +30,8 @@ export default function AdminUsuariosApoderados() {
   const [openMenu, setOpenMenu] = useState(null);
   const [menuCoords, setMenuCoords] = useState({ top: 0, left: 0 });
   const [menuRow, setMenuRow] = useState(null);
+  const [menuAnchorRect, setMenuAnchorRect] = useState(null);
+  const menuPortalRef = useRef(null);
 
   const [modalCreate, setModalCreate] = useState(false);
   const [modalEdit, setModalEdit] = useState(null);
@@ -72,6 +74,7 @@ export default function AdminUsuariosApoderados() {
   const cerrarMenus = () => {
     setOpenMenu(null);
     setMenuRow(null);
+    setMenuAnchorRect(null);
   };
 
   const abrirMenuOpciones = (event, row) => {
@@ -82,21 +85,29 @@ export default function AdminUsuariosApoderados() {
       return;
     }
     const rect = event.currentTarget.getBoundingClientRect();
-    const menuWidth = 240;
-    const menuHeight = 300;
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
-    const preferBelowTop = rect.bottom + 4;
-    const preferAboveTop = rect.top - menuHeight - 4;
-    const top = (preferBelowTop + menuHeight > viewportH - 8 && preferAboveTop > 8)
-      ? preferAboveTop
-      : Math.max(8, Math.min(preferBelowTop, viewportH - menuHeight - 8));
-    const rawLeft = rect.right - menuWidth;
-    const left = Math.max(8, Math.min(rawLeft, viewportW - menuWidth - 8));
-    setMenuCoords({ top, left });
+    setMenuCoords({ top: rect.bottom + 4, left: rect.right - 240 });
+    setMenuAnchorRect(rect);
     setMenuRow(row);
     setOpenMenu(row.id);
   };
+
+  useEffect(() => {
+    if (!openMenu || !menuAnchorRect || !menuPortalRef.current) return;
+    const menuRect = menuPortalRef.current.getBoundingClientRect();
+    const menuWidth = menuRect.width || 240;
+    const menuHeight = menuRect.height || 260;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const gap = 4;
+    const preferBelowTop = menuAnchorRect.bottom + gap;
+    const preferAboveTop = menuAnchorRect.top - menuHeight - gap;
+    const top = (preferBelowTop + menuHeight > viewportH - 8 && preferAboveTop > 8)
+      ? preferAboveTop
+      : Math.max(8, Math.min(preferBelowTop, viewportH - menuHeight - 8));
+    const rawLeft = menuAnchorRect.right - menuWidth;
+    const left = Math.max(8, Math.min(rawLeft, viewportW - menuWidth - 8));
+    setMenuCoords((prev) => (prev.top === top && prev.left === left ? prev : { top, left }));
+  }, [openMenu, menuAnchorRect]);
 
   const abrirCrear = () => {
     setForm({
@@ -342,6 +353,7 @@ export default function AdminUsuariosApoderados() {
 
       {openMenu && menuRow && createPortal(
         <div
+          ref={menuPortalRef}
           className="admin-usu-dropdown admin-usu-dropdown-portal"
           style={{ top: menuCoords.top, left: Math.max(12, menuCoords.left) }}
           onClick={(e) => e.stopPropagation()}

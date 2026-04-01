@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
+const phpSerialize = require('php-serialize');
 const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
@@ -86,6 +87,73 @@ function parsePageLimit(req) {
   const limit = Math.min(200, Math.max(5, parseInt(req.query.limit, 10) || 50));
   const offset = (page - 1) * limit;
   return { page, limit, offset };
+}
+
+const getBimestreActual = () => {
+  const m = new Date().getMonth() + 1;
+  return Math.min(4, Math.max(1, Math.ceil(m / 3)));
+};
+
+const getBimestreActualFromConfig = async (colegio_id, anio_activo) => {
+  try {
+    const rows = await query(
+      'SELECT rangos_ciclos_notas FROM colegios WHERE id = ? LIMIT 1',
+      [colegio_id]
+    );
+    if (!rows || rows.length === 0 || !rows[0].rangos_ciclos_notas) return getBimestreActual();
+
+    let rangos = {};
+    try {
+      rangos = phpSerialize.unserialize(rows[0].rangos_ciclos_notas) || {};
+    } catch (e) {
+      try {
+        rangos = JSON.parse(rows[0].rangos_ciclos_notas) || {};
+      } catch (e2) {
+        return getBimestreActual();
+      }
+    }
+
+    const anio = parseInt(anio_activo, 10) || new Date().getFullYear();
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const parseDdMm = (str) => {
+      if (!str || typeof str !== 'string') return null;
+      const parts = str.trim().split('-');
+      if (parts.length < 2) return null;
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      if (Number.isNaN(d) || Number.isNaN(m) || m < 1 || m > 12) return null;
+      return new Date(anio, m - 1, d);
+    };
+
+    for (let ciclo = 1; ciclo <= 4; ciclo += 1) {
+      const key = ciclo.toString();
+      const r = rangos[key] || rangos[ciclo];
+      if (!r || !r.inicio || !r.final) continue;
+      const inicioDate = parseDdMm(r.inicio);
+      const finalDate = parseDdMm(r.final);
+      if (!inicioDate || !finalDate) continue;
+      inicioDate.setHours(0, 0, 0, 0);
+      finalDate.setHours(23, 59, 59, 999);
+      if (hoy >= inicioDate && hoy <= finalDate) return ciclo;
+    }
+  } catch (err) {
+    console.warn('getBimestreActualFromConfig admin:', err.message);
+  }
+  return getBimestreActual();
+};
+
+function getAvatarBaseUrlForReq(req) {
+  if (process.env.NODE_ENV !== 'production') {
+    return 'http://localhost:5000/api/static/avatars';
+  }
+  const host = req.get('x-forwarded-host') || req.get('host');
+  let protocol = req.get('x-forwarded-proto') || req.protocol;
+  if (!protocol || protocol === 'http') protocol = 'https';
+  if (host) return `${protocol}://${host}/api/static/avatars`;
+  const fallback = process.env.API_PUBLIC_URL || process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
+  return fallback.replace(/\/$/, '') + '/api/static/avatars';
 }
 
 async function usuarioLibre(colegioId, usuarioLogin, excludeUsuarioId = null) {
@@ -928,7 +996,46 @@ router.get('/alumnos/:id', async (req, res) => {
     if (!rows.length) {
       return res.status(404).json({ error: 'No encontrado' });
     }
-    res.json(rows[0]);
+    const alumno = rows[0];
+
+    let avatar_asignado_url = null;
+    try {
+      const bimestre = await getBimestreActualFromConfig(colegio_id, req.user?.anio_activo);
+      const sexoAv = alumno.sexo !== null && alumno.sexo !== undefined ? alumno.sexo : 0;
+      let bases = await query(
+        'SELECT id, imagen_base FROM avatar_bases WHERE bimestre = ? AND sexo = ? LIMIT 1',
+        [bimestre, sexoAv]
+      );
+      if (!bases.length) {
+        bases = await query('SELECT id, imagen_base FROM avatar_bases WHERE bimestre = ? LIMIT 1', [bimestre]);
+      }
+      if (bases.length > 0) {
+        const base = bases[0];
+        const equipado = await query(
+          'SELECT accesorio_id FROM alumno_avatar_equipado WHERE student_id = ? AND avatar_base_id = ? LIMIT 1',
+          [id, base.id]
+        );
+        const accesorioId = equipado[0]?.accesorio_id;
+        const baseUrl = getAvatarBaseUrlForReq(req);
+        if (accesorioId) {
+          const acc = await query('SELECT imagen_combinada FROM avatar_accesorios WHERE id = ? LIMIT 1', [accesorioId]);
+          if (acc.length > 0 && acc[0].imagen_combinada) {
+            avatar_asignado_url = `${baseUrl}/${acc[0].imagen_combinada}`;
+          }
+        }
+        if (!avatar_asignado_url && base.imagen_base) {
+          avatar_asignado_url = `${baseUrl}/${base.imagen_base}`;
+        }
+      }
+    } catch (e) {
+      const msg = String(e.message || '').toLowerCase();
+      const esTablaFaltante = msg.includes("doesn't exist") || msg.includes('avatar_bases') || msg.includes('avatar_accesorios') || msg.includes('alumno_avatar_equipado');
+      if (!esTablaFaltante) {
+        console.warn('GET alumno admin avatar:', e.message);
+      }
+    }
+
+    res.json({ ...alumno, avatar_asignado_url });
   } catch (e) {
     console.error('GET alumno admin', e);
     res.status(500).json({ error: e.message || 'Error' });

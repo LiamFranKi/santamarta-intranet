@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
@@ -28,6 +28,8 @@ export default function AdminUsuariosEquipo() {
   const [openMenu, setOpenMenu] = useState(null);
   const [menuCoords, setMenuCoords] = useState({ top: 0, left: 0 });
   const [menuRow, setMenuRow] = useState(null);
+  const [menuAnchorRect, setMenuAnchorRect] = useState(null);
+  const menuPortalRef = useRef(null);
 
   const [modalCreate, setModalCreate] = useState(false);
   const [modalEdit, setModalEdit] = useState(null);
@@ -91,6 +93,7 @@ export default function AdminUsuariosEquipo() {
   const cerrarMenus = () => {
     setOpenMenu(null);
     setMenuRow(null);
+    setMenuAnchorRect(null);
   };
 
   const abrirMenuOpciones = (event, row) => {
@@ -101,21 +104,29 @@ export default function AdminUsuariosEquipo() {
       return;
     }
     const rect = event.currentTarget.getBoundingClientRect();
-    const menuWidth = 230;
-    const menuHeight = 260;
-    const viewportW = window.innerWidth;
-    const viewportH = window.innerHeight;
-    const preferBelowTop = rect.bottom + 4;
-    const preferAboveTop = rect.top - menuHeight - 4;
-    const top = (preferBelowTop + menuHeight > viewportH - 8 && preferAboveTop > 8)
-      ? preferAboveTop
-      : Math.max(8, Math.min(preferBelowTop, viewportH - menuHeight - 8));
-    const rawLeft = rect.right - menuWidth;
-    const left = Math.max(8, Math.min(rawLeft, viewportW - menuWidth - 8));
-    setMenuCoords({ top, left });
+    setMenuCoords({ top: rect.bottom + 4, left: rect.right - 230 });
+    setMenuAnchorRect(rect);
     setMenuRow(row);
     setOpenMenu(row.id);
   };
+
+  useEffect(() => {
+    if (!openMenu || !menuAnchorRect || !menuPortalRef.current) return;
+    const menuRect = menuPortalRef.current.getBoundingClientRect();
+    const menuWidth = menuRect.width || 230;
+    const menuHeight = menuRect.height || 220;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const gap = 4;
+    const preferBelowTop = menuAnchorRect.bottom + gap;
+    const preferAboveTop = menuAnchorRect.top - menuHeight - gap;
+    const top = (preferBelowTop + menuHeight > viewportH - 8 && preferAboveTop > 8)
+      ? preferAboveTop
+      : Math.max(8, Math.min(preferBelowTop, viewportH - menuHeight - 8));
+    const rawLeft = menuAnchorRect.right - menuWidth;
+    const left = Math.max(8, Math.min(rawLeft, viewportW - menuWidth - 8));
+    setMenuCoords((prev) => (prev.top === top && prev.left === left ? prev : { top, left }));
+  }, [openMenu, menuAnchorRect]);
 
   const handleFotoEditChange = (event) => {
     if (fotoEditPreview && fotoEditPreview.startsWith('blob:')) {
@@ -596,6 +607,7 @@ export default function AdminUsuariosEquipo() {
 
       {openMenu && menuRow && createPortal(
         <div
+          ref={menuPortalRef}
           className="admin-usu-dropdown admin-usu-dropdown-portal"
           style={{ top: menuCoords.top, left: Math.max(12, menuCoords.left) }}
           onClick={(e) => e.stopPropagation()}
