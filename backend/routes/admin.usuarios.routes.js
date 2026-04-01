@@ -89,6 +89,19 @@ function parsePageLimit(req) {
   return { page, limit, offset };
 }
 
+function normalizarHora(valor, fallback = '08:00:00') {
+  const raw = String(valor || '').trim();
+  if (!raw) return fallback;
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return fallback;
+  const hh = parseInt(match[1], 10);
+  const mm = parseInt(match[2], 10);
+  const ss = parseInt(match[3] || '0', 10);
+  if (Number.isNaN(hh) || Number.isNaN(mm) || Number.isNaN(ss)) return fallback;
+  if (hh < 0 || hh > 23 || mm < 0 || mm > 59 || ss < 0 || ss > 59) return fallback;
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+}
+
 const getBimestreActual = () => {
   const m = new Date().getMonth() + 1;
   return Math.min(4, Math.max(1, Math.ceil(m / 3)));
@@ -379,8 +392,8 @@ function defaultsNuevoPersonal(colegioId, body) {
     tipo_documento: parseInt(body.tipo_documento, 10) || 1,
     nro_documento: String(body.nro_documento || '').trim(),
     grado_instruccion: 0,
-    profesion: body.profesion != null ? String(body.profesion) : '',
-    cargo: body.cargo != null ? String(body.cargo) : '',
+    profesion: body.profesion != null ? String(body.profesion).trim() : '',
+    cargo: body.cargo != null ? String(body.cargo).trim() : '',
     email: String(body.email || '').trim(),
     fecha_nacimiento: body.fecha_nacimiento || '2000-01-01',
     pais_nacimiento_id: 0,
@@ -394,9 +407,9 @@ function defaultsNuevoPersonal(colegioId, body) {
     domicilio_departamento_id: 0,
     domicilio_provincia_id: 0,
     domicilio_distrito_id: 0,
-    fecha_ingreso: body.fecha_ingreso || hoy,
-    hora_entrada: '08:00:00',
-    hora_salida: '17:00:00',
+    fecha_ingreso: body.fecha_ingreso ? String(body.fecha_ingreso).slice(0, 10) : hoy,
+    hora_entrada: normalizarHora(body.hora_entrada, '08:00:00'),
+    hora_salida: normalizarHora(body.hora_salida, '17:00:00'),
     resena: '',
     mostrar_app: 'NO',
     link_aula: '',
@@ -546,7 +559,11 @@ router.put('/equipo/:personalId', async (req, res) => {
     const apellidos = req.body.apellidos != null ? String(req.body.apellidos).trim() : null;
     const email = req.body.email != null ? String(req.body.email).trim() : null;
     const telefono_celular = req.body.telefono_celular != null ? String(req.body.telefono_celular) : null;
-    const cargo = req.body.cargo != null ? String(req.body.cargo) : null;
+    const cargo = req.body.cargo != null ? String(req.body.cargo).trim() : null;
+    const profesion = req.body.profesion != null ? String(req.body.profesion).trim() : null;
+    const fecha_ingreso = req.body.fecha_ingreso != null ? String(req.body.fecha_ingreso).slice(0, 10) : null;
+    const hora_entrada = req.body.hora_entrada != null ? normalizarHora(req.body.hora_entrada, '08:00:00') : null;
+    const hora_salida = req.body.hora_salida != null ? normalizarHora(req.body.hora_salida, '17:00:00') : null;
     const fecha_nacimiento = req.body.fecha_nacimiento != null ? String(req.body.fecha_nacimiento).slice(0, 10) : null;
     const nro_documento = req.body.nro_documento != null ? String(req.body.nro_documento).trim() : null;
 
@@ -584,6 +601,22 @@ router.put('/equipo/:personalId', async (req, res) => {
     if (cargo != null) {
       sets.push('cargo = ?');
       params.push(cargo);
+    }
+    if (profesion != null) {
+      sets.push('profesion = ?');
+      params.push(profesion);
+    }
+    if (fecha_ingreso != null) {
+      sets.push('fecha_ingreso = ?');
+      params.push(fecha_ingreso);
+    }
+    if (hora_entrada != null) {
+      sets.push('hora_entrada = ?');
+      params.push(hora_entrada);
+    }
+    if (hora_salida != null) {
+      sets.push('hora_salida = ?');
+      params.push(hora_salida);
     }
     if (fecha_nacimiento != null) {
       sets.push('fecha_nacimiento = ?');

@@ -154,6 +154,10 @@ export default function AdminUsuariosEquipo() {
       email: '',
       telefono_celular: '',
       cargo: '',
+      profesion: '',
+      fecha_ingreso: new Date().toISOString().slice(0, 10),
+      hora_entrada: '08:00',
+      hora_salida: '17:00',
       fecha_nacimiento: '1990-01-01',
       tipo: tipos.includes('DOCENTE') ? 'DOCENTE' : tipos[0] || 'DOCENTE',
     });
@@ -192,6 +196,10 @@ export default function AdminUsuariosEquipo() {
         email: data.email || '',
         telefono_celular: data.telefono_celular || '',
         cargo: data.cargo || '',
+        profesion: data.profesion || '',
+        fecha_ingreso: (data.fecha_ingreso || '').toString().slice(0, 10),
+        hora_entrada: (data.hora_entrada || '').toString().slice(0, 5),
+        hora_salida: (data.hora_salida || '').toString().slice(0, 5),
         fecha_nacimiento: (data.fecha_nacimiento || '1990-01-01').toString().slice(0, 10),
         foto: data.foto || '',
         tipo: data.usuario_tipo || 'DOCENTE',
@@ -685,7 +693,7 @@ export default function AdminUsuariosEquipo() {
                 <div className="admin-usu-profile-section">
                   <h3>Información Personal</h3>
                   <div className="admin-usu-form-grid">
-                    {['nombres', 'apellidos', 'nro_documento', 'email', 'telefono_celular', 'cargo'].map((k) => (
+                    {['nombres', 'apellidos', 'nro_documento', 'email', 'telefono_celular', 'cargo', 'profesion'].map((k) => (
                       <div key={k} className="admin-usu-field">
                         <label>{k === 'nro_documento' ? 'DNI *' : `${k.replace(/_/g, ' ')} *`}</label>
                         <input
@@ -701,6 +709,30 @@ export default function AdminUsuariosEquipo() {
                         type="date"
                         value={form.fecha_nacimiento || ''}
                         onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field">
+                      <label>Fecha de ingreso</label>
+                      <input
+                        type="date"
+                        value={form.fecha_ingreso || ''}
+                        onChange={(e) => setForm({ ...form, fecha_ingreso: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field">
+                      <label>Hora de entrada</label>
+                      <input
+                        type="time"
+                        value={form.hora_entrada || ''}
+                        onChange={(e) => setForm({ ...form, hora_entrada: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field">
+                      <label>Hora de salida</label>
+                      <input
+                        type="time"
+                        value={form.hora_salida || ''}
+                        onChange={(e) => setForm({ ...form, hora_salida: e.target.value })}
                       />
                     </div>
                     <div className="admin-usu-field">
@@ -778,7 +810,7 @@ export default function AdminUsuariosEquipo() {
                 <div className="admin-usu-profile-section">
                   <h3>Información Personal</h3>
                   <div className="admin-usu-form-grid">
-                    {['nombres', 'apellidos', 'nro_documento', 'email', 'telefono_celular', 'cargo'].map((k) => (
+                    {['nombres', 'apellidos', 'nro_documento', 'email', 'telefono_celular', 'cargo', 'profesion'].map((k) => (
                       <div key={k} className="admin-usu-field">
                         <label>{k === 'nro_documento' ? 'DNI *' : `${k.replace(/_/g, ' ')} *`}</label>
                         <input
@@ -794,6 +826,30 @@ export default function AdminUsuariosEquipo() {
                         type="date"
                         value={form.fecha_nacimiento || ''}
                         onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field">
+                      <label>Fecha de ingreso</label>
+                      <input
+                        type="date"
+                        value={form.fecha_ingreso || ''}
+                        onChange={(e) => setForm({ ...form, fecha_ingreso: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field">
+                      <label>Hora de entrada</label>
+                      <input
+                        type="time"
+                        value={form.hora_entrada || ''}
+                        onChange={(e) => setForm({ ...form, hora_entrada: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field">
+                      <label>Hora de salida</label>
+                      <input
+                        type="time"
+                        value={form.hora_salida || ''}
+                        onChange={(e) => setForm({ ...form, hora_salida: e.target.value })}
                       />
                     </div>
                     <div className="admin-usu-field">
@@ -875,6 +931,10 @@ export default function AdminUsuariosEquipo() {
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Fecha de nacimiento</span><span className="admin-usu-info-value">{(modalInfo.fecha_nacimiento || '').toString().slice(0, 10) || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Correo</span><span className="admin-usu-info-value">{modalInfo.email || '—'}</span></div>
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Celular</span><span className="admin-usu-info-value">{modalInfo.telefono_celular || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Cargo</span><span className="admin-usu-info-value">{modalInfo.cargo || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Profesión</span><span className="admin-usu-info-value">{modalInfo.profesion || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Hora de entrada</span><span className="admin-usu-info-value">{(modalInfo.hora_entrada || '').toString().slice(0, 5) || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Hora de salida</span><span className="admin-usu-info-value">{(modalInfo.hora_salida || '').toString().slice(0, 5) || '—'}</span></div>
                   </div>
                 </div>
                 <div className="admin-usu-profile-section">
