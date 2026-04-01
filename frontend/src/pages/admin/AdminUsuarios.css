@@ -707,6 +707,58 @@
   box-sizing: border-box;
 }
 
+.admin-usu-msg-textarea {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  padding: 0.65rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+.admin-usu-destino-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  align-items: center;
+  font-size: 0.92rem;
+  color: #334155;
+}
+
+.admin-usu-destino-row label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-usu-files-list {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.admin-usu-file-chip {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.6rem;
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.84rem;
+}
+
+.admin-usu-file-chip button {
+  border: none;
+  background: none;
+  color: #b91c1c;
+  cursor: pointer;
+  font-weight: 700;
+}
+
 .admin-usu-modal-actions {
   display: flex;
   gap: 0.5rem;

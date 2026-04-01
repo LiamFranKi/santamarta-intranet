@@ -251,6 +251,9 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      <Route path="/admin/vocabularios" element={<Navigate to="/admin/herramientas-dinamicas" replace />} />
+      <Route path="/admin/incidencias" element={<Navigate to="/admin/herramientas-dinamicas" replace />} />
+      <Route path="/admin/chat-vanguard" element={<Navigate to="/admin/vanguarcito" replace />} />
       <Route
         path="/admin/estadisticas"
         element={

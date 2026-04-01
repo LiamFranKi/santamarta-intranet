@@ -473,12 +473,6 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/herramientas-dinamicas">
-                  <span className="sidebar-icon">🧰</span>
-                  <span className="sidebar-label">Herramientas y Dinamicas</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/examenes-personal">
                   <span className="sidebar-icon">📝</span>
                   <span className="sidebar-label">Examenes Personal</span>
@@ -488,6 +482,30 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/encuestas">
                   <span className="sidebar-icon">📋</span>
                   <span className="sidebar-label">Encuestas</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/herramientas-dinamicas">
+                  <span className="sidebar-icon">🧰</span>
+                  <span className="sidebar-label">Herramientas y Dinamicas</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/vocabularios">
+                  <span className="sidebar-icon">📚</span>
+                  <span className="sidebar-label">Vocabularios</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/incidencias">
+                  <span className="sidebar-icon">⚠️</span>
+                  <span className="sidebar-label">Incidencias</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/chat-vanguard">
+                  <span className="sidebar-icon">💬</span>
+                  <span className="sidebar-label">Chat Vanguard</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">

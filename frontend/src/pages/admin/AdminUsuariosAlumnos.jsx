@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
@@ -47,7 +46,6 @@ function labelTipoPago(tipo) {
 }
 
 export default function AdminUsuariosAlumnos() {
-  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -62,7 +60,14 @@ export default function AdminUsuariosAlumnos() {
   const [modalEdit, setModalEdit] = useState(null);
   const [modalInfo, setModalInfo] = useState(null);
   const [modalAcceso, setModalAcceso] = useState(null);
+  const [modalMensaje, setModalMensaje] = useState(null);
   const [accesoForm, setAccesoForm] = useState({ estado: 'ACTIVO', password: '' });
+  const [mensajeDestino, setMensajeDestino] = useState('ALUMNO');
+  const [mensajeApoderados, setMensajeApoderados] = useState([]);
+  const [mensajeAsunto, setMensajeAsunto] = useState('');
+  const [mensajeContenido, setMensajeContenido] = useState('');
+  const [mensajeAdjuntos, setMensajeAdjuntos] = useState([]);
+  const [enviandoMensaje, setEnviandoMensaje] = useState(false);
   const [form, setForm] = useState({});
   const [fotoCreateFile, setFotoCreateFile] = useState(null);
   const [fotoCreatePreview, setFotoCreatePreview] = useState('');
@@ -289,63 +294,86 @@ export default function AdminUsuariosAlumnos() {
     setFotoCreatePreview(file ? URL.createObjectURL(file) : '');
   };
 
-  const enviarMensaje = (row) => {
-    if (!row.usuario_id) {
+  const abrirModalMensaje = async (row) => {
+    try {
+      const { data } = await api.get(`/docente/mensajes/alumno/${row.id}/apoderados-destinatarios`);
+      const aps = Array.isArray(data?.destinatarios) ? data.destinatarios : [];
+      setModalMensaje(row);
+      setMensajeApoderados(aps);
+      setMensajeDestino(row.usuario_id ? 'ALUMNO' : (aps.length ? 'APODERADOS' : 'ALUMNO'));
+      setMensajeAsunto('');
+      setMensajeContenido('');
+      setMensajeAdjuntos([]);
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo preparar el envío de mensaje' });
+    }
+  };
+
+  const cerrarModalMensaje = () => {
+    setModalMensaje(null);
+    setMensajeApoderados([]);
+    setMensajeAsunto('');
+    setMensajeContenido('');
+    setMensajeAdjuntos([]);
+    setEnviandoMensaje(false);
+  };
+
+  const quitarAdjuntoMensaje = (idx) => {
+    setMensajeAdjuntos((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const enviarMensajeDesdeModal = async () => {
+    if (!modalMensaje) return;
+    const asunto = String(mensajeAsunto || '').trim();
+    const contenido = String(mensajeContenido || '').trim();
+    if (!asunto) {
+      Swal.fire({ icon: 'error', title: 'Asunto requerido', text: 'Ingrese el asunto del mensaje.' });
+      return;
+    }
+    if (!contenido) {
+      Swal.fire({ icon: 'error', title: 'Mensaje requerido', text: 'Ingrese el contenido del mensaje.' });
+      return;
+    }
+    const ids = new Set();
+    if (mensajeDestino === 'ALUMNO' || mensajeDestino === 'TODOS') {
+      if (modalMensaje.usuario_id) ids.add(Number(modalMensaje.usuario_id));
+    }
+    if (mensajeDestino === 'APODERADOS' || mensajeDestino === 'TODOS') {
+      (mensajeApoderados || []).forEach((ap) => {
+        if (ap?.usuario_id) ids.add(Number(ap.usuario_id));
+      });
+    }
+    const destinatarios = Array.from(ids).filter((n) => Number.isFinite(n) && n > 0);
+    if (!destinatarios.length) {
       Swal.fire({
         icon: 'info',
-        title: 'Sin acceso al aula',
-        text: 'Este alumno no tiene usuario activo. Cree acceso desde Información de acceso o registre el usuario antes de enviar mensajes.',
+        title: 'Sin destinatarios',
+        text: 'No hay usuarios activos para el destino seleccionado (alumno/apoderados).',
       });
       return;
     }
-    navigate('/admin/mensajes', {
-      replace: false,
-      state: {
-        preselectMensajeAlumno: {
-          usuario_id: row.usuario_id,
-          nombre_completo: nombreAlumno(row),
-        },
-      },
-    });
-  };
 
-  const verApoderados = async (row) => {
     try {
-      const { data } = await api.get(`/admin/usuarios/alumnos/${row.id}/apoderados`);
-      const list = data.data || [];
-      if (!list.length) {
-        Swal.fire({ title: 'Apoderados', text: 'No hay apoderados vinculados en familias.', icon: 'info' });
-        return;
-      }
-      const filas = list
-        .map((ap) => {
-          const nom = [ap.apellido_paterno, ap.apellido_materno, ap.nombres].filter(Boolean).join(' ');
-          const acc = ap.usuario_id
-            ? `<span style="color:#059669">${ap.usuario_estado || 'ACTIVO'}</span>`
-            : '<span style="color:#9ca3af">Sin usuario</span>';
-          return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">${nom}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #eee">${ap.nro_documento || '—'}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #eee">${ap.telefono_celular || '—'}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #eee">${acc}</td></tr>`;
-        })
-        .join('');
-      Swal.fire({
-        title: `Apoderados — ${nombreAlumno(row)}`,
-        width: 720,
-        html: `<div style="max-height:380px;overflow:auto;text-align:left">
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
-            <thead><tr style="background:#f3f4f6">
-              <th style="text-align:left;padding:8px">Nombre</th>
-              <th style="text-align:left;padding:8px">DNI</th>
-              <th style="text-align:left;padding:8px">Celular</th>
-              <th style="text-align:left;padding:8px">Usuario</th>
-            </tr></thead>
-            <tbody>${filas}</tbody>
-          </table>
-        </div>`,
+      setEnviandoMensaje(true);
+      const fd = new FormData();
+      fd.append('destinatarios', JSON.stringify(destinatarios));
+      fd.append('grupos', JSON.stringify([]));
+      fd.append('asunto', asunto);
+      fd.append('mensaje', contenido);
+      mensajeAdjuntos.forEach((file) => fd.append('archivos', file));
+      await api.post('/docente/mensajes/enviar', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
+      Swal.fire({
+        icon: 'success',
+        title: 'Mensaje enviado',
+        text: `Se envió correctamente a ${destinatarios.length} destinatario(s).`,
+      });
+      cerrarModalMensaje();
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudieron cargar apoderados' });
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo enviar el mensaje' });
+    } finally {
+      setEnviandoMensaje(false);
     }
   };
 
@@ -557,11 +585,8 @@ export default function AdminUsuariosAlumnos() {
           <button type="button" onClick={() => { verInfo(menuRow); cerrarMenus(); }}>
             ℹ️ Ver Información
           </button>
-          <button type="button" onClick={() => { enviarMensaje(menuRow); cerrarMenus(); }}>
+          <button type="button" onClick={() => { abrirModalMensaje(menuRow); cerrarMenus(); }}>
             ✉️ Enviar Mensaje
-          </button>
-          <button type="button" onClick={() => { verApoderados(menuRow); cerrarMenus(); }}>
-            👥 Ver Apoderados
           </button>
           <button type="button" onClick={() => { historialMatriculas(menuRow); cerrarMenus(); }}>
             📋 Historial de Matriculas
@@ -959,6 +984,117 @@ export default function AdminUsuariosAlumnos() {
                 </button>
                 <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarInfoAcceso}>
                   Guardar datos
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {modalMensaje && createPortal(
+        <div className="admin-usu-modal-overlay" onClick={cerrarModalMensaje}>
+          <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-usu-modal-header">
+              <h2>Enviar mensaje</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={cerrarModalMensaje}>
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              <div className="admin-usu-profile-section">
+                <h3>{nombreAlumno(modalMensaje)}</h3>
+                <div className="admin-usu-field">
+                  <label>Destino</label>
+                  <div className="admin-usu-destino-row">
+                    <label>
+                      <input
+                        type="radio"
+                        name="destino-mensaje-alumno"
+                        value="ALUMNO"
+                        checked={mensajeDestino === 'ALUMNO'}
+                        onChange={() => setMensajeDestino('ALUMNO')}
+                        disabled={!modalMensaje.usuario_id}
+                      />
+                      Alumno
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="destino-mensaje-alumno"
+                        value="APODERADOS"
+                        checked={mensajeDestino === 'APODERADOS'}
+                        onChange={() => setMensajeDestino('APODERADOS')}
+                        disabled={(mensajeApoderados || []).length === 0}
+                      />
+                      Apoderado(s)
+                    </label>
+                    <label>
+                      <input
+                        type="radio"
+                        name="destino-mensaje-alumno"
+                        value="TODOS"
+                        checked={mensajeDestino === 'TODOS'}
+                        onChange={() => setMensajeDestino('TODOS')}
+                        disabled={!modalMensaje.usuario_id && (mensajeApoderados || []).length === 0}
+                      />
+                      Todos
+                    </label>
+                  </div>
+                </div>
+                <div className="admin-usu-field">
+                  <label>Asunto</label>
+                  <input
+                    type="text"
+                    value={mensajeAsunto}
+                    onChange={(e) => setMensajeAsunto(e.target.value)}
+                    placeholder="Escriba el asunto"
+                  />
+                </div>
+                <div className="admin-usu-field">
+                  <label>Mensaje</label>
+                  <textarea
+                    className="admin-usu-msg-textarea"
+                    value={mensajeContenido}
+                    onChange={(e) => setMensajeContenido(e.target.value)}
+                    placeholder="Escriba su mensaje..."
+                  />
+                </div>
+                <div className="admin-usu-field">
+                  <label>Adjuntar imagen / archivo</label>
+                  <input
+                    type="file"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (!files.length) return;
+                      setMensajeAdjuntos((prev) => [...prev, ...files]);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+                {!!mensajeAdjuntos.length && (
+                  <div className="admin-usu-files-list">
+                    {mensajeAdjuntos.map((f, idx) => (
+                      <div key={`${f.name}-${idx}`} className="admin-usu-file-chip">
+                        <span>{f.name}</span>
+                        <button type="button" onClick={() => quitarAdjuntoMensaje(idx)}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={cerrarModalMensaje}>
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="admin-usu-btn admin-usu-btn-primary"
+                  onClick={enviarMensajeDesdeModal}
+                  disabled={enviandoMensaje}
+                >
+                  {enviandoMensaje ? 'Enviando...' : 'Enviar mensaje'}
                 </button>
               </div>
             </div>
