@@ -82,7 +82,18 @@ export default function AdminUsuariosApoderados() {
       return;
     }
     const rect = event.currentTarget.getBoundingClientRect();
-    setMenuCoords({ top: rect.bottom + 4, left: rect.right - 230 });
+    const menuWidth = 240;
+    const menuHeight = 300;
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+    const preferBelowTop = rect.bottom + 4;
+    const preferAboveTop = rect.top - menuHeight - 4;
+    const top = (preferBelowTop + menuHeight > viewportH - 8 && preferAboveTop > 8)
+      ? preferAboveTop
+      : Math.max(8, Math.min(preferBelowTop, viewportH - menuHeight - 8));
+    const rawLeft = rect.right - menuWidth;
+    const left = Math.max(8, Math.min(rawLeft, viewportW - menuWidth - 8));
+    setMenuCoords({ top, left });
     setMenuRow(row);
     setOpenMenu(row.id);
   };

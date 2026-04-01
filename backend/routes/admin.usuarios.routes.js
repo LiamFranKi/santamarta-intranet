@@ -1286,6 +1286,49 @@ router.get('/alumnos/:id/apoderados', async (req, res) => {
   }
 });
 
+router.get('/alumnos/:id/hermanos', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const ok = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [id, colegio_id]);
+    if (!ok.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const rows = await query(
+      `SELECT DISTINCT
+          s.id,
+          s.nombres,
+          s.apellido_paterno,
+          s.apellido_materno,
+          s.nro_documento,
+          g.anio,
+          g.grado,
+          g.seccion,
+          n.nombre AS nivel_nombre
+       FROM familias f0
+       INNER JOIN familias f ON f.apoderado_id = f0.apoderado_id AND f.alumno_id <> f0.alumno_id
+       INNER JOIN alumnos s ON s.id = f.alumno_id AND s.colegio_id = ?
+       LEFT JOIN matriculas m ON m.id = (
+         SELECT m2.id
+         FROM matriculas m2
+         INNER JOIN grupos g2 ON g2.id = m2.grupo_id AND g2.colegio_id = m2.colegio_id
+         WHERE m2.alumno_id = s.id AND m2.colegio_id = s.colegio_id
+         ORDER BY (m2.estado = 0 OR m2.estado = 4) DESC, g2.anio DESC, m2.id DESC
+         LIMIT 1
+       )
+       LEFT JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = s.colegio_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       WHERE f0.alumno_id = ?
+       ORDER BY s.apellido_paterno, s.apellido_materno, s.nombres`,
+      [colegio_id, id]
+    );
+    res.json({ data: rows });
+  } catch (e) {
+    console.error('GET alumno hermanos admin', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
 router.get('/alumnos/:id/matriculas', async (req, res) => {
   try {
     const { colegio_id } = req.user;

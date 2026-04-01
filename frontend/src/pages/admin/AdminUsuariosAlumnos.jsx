@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
@@ -217,15 +218,25 @@ export default function AdminUsuariosAlumnos() {
 
   const verInfo = async (row) => {
     try {
-      const [infoRes, matriculasRes] = await Promise.all([
+      const [infoRes, matriculasRes, apoderadosRes, hermanosRes] = await Promise.all([
         api.get(`/admin/usuarios/alumnos/${row.id}`),
         api.get(`/admin/usuarios/alumnos/${row.id}/matriculas`),
+        api.get(`/admin/usuarios/alumnos/${row.id}/apoderados`),
+        api.get(`/admin/usuarios/alumnos/${row.id}/hermanos`),
       ]);
       const info = infoRes.data || {};
       const matriculas = matriculasRes.data?.data || [];
+      const apoderados = apoderadosRes.data?.data || [];
+      const hermanos = hermanosRes.data?.data || [];
       const vigentes = matriculas.filter((m) => Number(m.estado) === 0 || Number(m.estado) === 4);
       vigentes.sort((a, b) => Number(b.anio || 0) - Number(a.anio || 0));
-      setModalInfo({ ...info, matricula_actual: vigentes[0] || null });
+      setModalInfo({
+        ...info,
+        qr_data: info.nro_documento || `ALUMNO-${info.id || row.id}`,
+        matricula_actual: vigentes[0] || null,
+        apoderados,
+        hermanos,
+      });
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar información' });
     }
@@ -761,16 +772,37 @@ export default function AdminUsuariosAlumnos() {
               <div className="admin-usu-profile-form">
                 <div className="admin-usu-profile-section">
                   <h3>Ficha General</h3>
-                  <div className="admin-usu-info-hero">
-                    <div className="admin-usu-photo-preview">
-                      {infoFoto ? <img src={infoFoto} alt="Foto alumno" /> : <div className="admin-usu-photo-ph">{(modalInfo.nombres || 'A').charAt(0)}</div>}
+                  <div className="admin-usu-info-hero admin-usu-info-hero-split">
+                    <div className="admin-usu-info-hero-main">
+                      <div className="admin-usu-photo-preview">
+                        {infoFoto ? <img src={infoFoto} alt="Foto alumno" /> : <div className="admin-usu-photo-ph">{(modalInfo.nombres || 'A').charAt(0)}</div>}
+                      </div>
+                      <div>
+                        <h4>{nombreAlumno(modalInfo)}</h4>
+                        <p>Alumno</p>
+                        <span className={`admin-usu-badge ${modalInfo.usuario_id ? '' : 'admin-usu-badge-muted'}`}>
+                          {modalInfo.usuario_id ? 'Con acceso' : 'Sin acceso'}
+                        </span>
+                      </div>
                     </div>
-                    <div>
-                      <h4>{nombreAlumno(modalInfo)}</h4>
-                      <p>Alumno</p>
-                      <span className={`admin-usu-badge ${modalInfo.usuario_id ? '' : 'admin-usu-badge-muted'}`}>
-                        {modalInfo.usuario_id ? 'Con acceso' : 'Sin acceso'}
-                      </span>
+                    <div className="admin-usu-qr-panel">
+                      <div className="admin-usu-qr-group">
+                        <span className="admin-usu-info-label">Avatar</span>
+                        <div className="admin-usu-photo-preview admin-usu-photo-preview-sm">
+                          {infoFoto ? <img src={infoFoto} alt="Avatar alumno" /> : <div className="admin-usu-photo-ph">{(modalInfo.nombres || 'A').charAt(0)}</div>}
+                        </div>
+                      </div>
+                      <div className="admin-usu-qr-group">
+                        <span className="admin-usu-info-label">Código QR</span>
+                        <div className="admin-usu-qr-box">
+                          <QRCodeSVG
+                            value={modalInfo.qr_data || modalInfo.nro_documento || 'ALUMNO'}
+                            size={122}
+                            level="H"
+                            includeMargin
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -796,6 +828,66 @@ export default function AdminUsuariosAlumnos() {
                     </div>
                   </div>
                 )}
+                <div className="admin-usu-profile-section">
+                  <h3>Apoderados</h3>
+                  {(modalInfo.apoderados || []).length === 0 ? (
+                    <span className="admin-usu-info-value">Sin apoderados vinculados</span>
+                  ) : (
+                    <div className="admin-usu-related-list">
+                      {(modalInfo.apoderados || []).map((ap) => (
+                        <div key={ap.id} className="admin-usu-related-card">
+                          <div className="admin-usu-info-item">
+                            <span className="admin-usu-info-label">Apoderado</span>
+                            <span className="admin-usu-info-value">{[ap.apellido_paterno, ap.apellido_materno, ap.nombres].filter(Boolean).join(' ') || '—'}</span>
+                          </div>
+                          <div className="admin-usu-info-item">
+                            <span className="admin-usu-info-label">DNI</span>
+                            <span className="admin-usu-info-value">{ap.nro_documento || '—'}</span>
+                          </div>
+                          <div className="admin-usu-info-item">
+                            <span className="admin-usu-info-label">Celular</span>
+                            <span className="admin-usu-info-value">{ap.telefono_celular || '—'}</span>
+                          </div>
+                          <div className="admin-usu-info-item">
+                            <span className="admin-usu-info-label">Estado acceso</span>
+                            <span className="admin-usu-info-value">{ap.usuario_id ? (ap.usuario_estado || 'ACTIVO') : 'Sin usuario'}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Hermanos</h3>
+                  {(modalInfo.hermanos || []).length === 0 ? (
+                    <span className="admin-usu-info-value">No tiene hermanos registrados</span>
+                  ) : (
+                    <div className="admin-usu-related-list">
+                      {(modalInfo.hermanos || []).map((h) => (
+                        <div key={h.id} className="admin-usu-related-card">
+                          <div className="admin-usu-info-item">
+                            <span className="admin-usu-info-label">Hermano(a)</span>
+                            <span className="admin-usu-info-value">{[h.apellido_paterno, h.apellido_materno, h.nombres].filter(Boolean).join(' ') || '—'}</span>
+                          </div>
+                          <div className="admin-usu-info-item">
+                            <span className="admin-usu-info-label">DNI</span>
+                            <span className="admin-usu-info-value">{h.nro_documento || '—'}</span>
+                          </div>
+                          <div className="admin-usu-info-item">
+                            <span className="admin-usu-info-label">Nivel</span>
+                            <span className="admin-usu-info-value">{h.nivel_nombre || '—'}</span>
+                          </div>
+                          <div className="admin-usu-info-item">
+                            <span className="admin-usu-info-label">Grado / Sección</span>
+                            <span className="admin-usu-info-value">
+                              {h.grado ? `${h.grado}° ${h.seccion || ''}`.trim() : '—'} {h.anio ? `(${h.anio})` : ''}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="admin-usu-modal-actions">
                 <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalInfo(null)}>
