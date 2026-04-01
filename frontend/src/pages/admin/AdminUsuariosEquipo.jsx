@@ -396,8 +396,9 @@ export default function AdminUsuariosEquipo() {
       return;
     }
     try {
-      const doc = new jsPDF('l', 'mm', 'a4');
+      const doc = new jsPDF('p', 'mm', 'a4');
       const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
       const margin = 15;
       const contentW = pageW - margin * 2;
       let y = margin;
@@ -412,24 +413,37 @@ export default function AdminUsuariosEquipo() {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(18);
       doc.text('MI HORARIO DE CLASES', margin + contentW / 2, y + 14, { align: 'center' });
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'normal');
+      doc.text(nombreCompletoEquipo(modalHorario?.docente || modalHorario?.row || {}), margin + contentW / 2, y + 20, { align: 'center' });
       y += 30;
 
-      doc.setFillColor(...colorHeader);
-      doc.rect(margin, y, colW, headerH, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(11);
-      doc.text('HORA', margin + colW / 2, y + 8, { align: 'center' });
-      diasSemana.forEach((d, idx) => {
-        const x = margin + colW + idx * colW;
+      const dibujarHeader = () => {
         doc.setFillColor(...colorHeader);
-        doc.rect(x, y, colW, headerH, 'F');
-        doc.text(d.abrev, x + colW / 2, y + 8, { align: 'center' });
-      });
-      y += headerH;
+        doc.rect(margin, y, colW, headerH, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text('HORA', margin + colW / 2, y + 8, { align: 'center' });
+        diasSemana.forEach((d, idx) => {
+          const x = margin + colW + idx * colW;
+          doc.setFillColor(...colorHeader);
+          doc.rect(x, y, colW, headerH, 'F');
+          doc.text(d.abrev, x + colW / 2, y + 8, { align: 'center' });
+        });
+        y += headerH;
+      };
+
+      dibujarHeader();
 
       horariosUnicos.forEach((b) => {
         const clases = [1, 2, 3, 4, 5].map((dia) => obtenerClase(dia, b.inicio, b.fin));
         if (!clases.some(Boolean)) return;
+        if (y + rowH > pageH - margin) {
+          doc.addPage();
+          y = margin;
+          dibujarHeader();
+        }
         doc.setTextColor(30, 41, 59);
         doc.setFontSize(9);
         doc.rect(margin, y, colW, rowH);
@@ -842,30 +856,35 @@ export default function AdminUsuariosEquipo() {
                 </div>
                 <div className="admin-usu-profile-section">
                   <h3>Asignación académica</h3>
-                  <div className="admin-usu-info-item">
-                    <span className="admin-usu-info-label">Grupos a cargo</span>
-                    {(modalInfo.grupos_cargo || []).length ? (
+                  {(modalInfo.grupos_cargo || []).length > 0 && (
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Grupos a cargo</span>
                       <div className="admin-usu-chip-list">
                         {(modalInfo.grupos_cargo || []).map((g) => (
                           <span key={g} className="admin-usu-chip">{g}</span>
                         ))}
                       </div>
-                    ) : (
-                      <span className="admin-usu-info-value">Sin grupos asignados</span>
-                    )}
-                  </div>
-                  <div className="admin-usu-info-item" style={{ marginTop: '0.6rem' }}>
-                    <span className="admin-usu-info-label">Cursos que enseña</span>
-                    {(modalInfo.cursos_ensena || []).length ? (
+                    </div>
+                  )}
+                  {(modalInfo.cursos_ensena || []).length > 0 && (
+                    <div className="admin-usu-info-item" style={{ marginTop: '0.6rem' }}>
+                      <span className="admin-usu-info-label">Cursos que enseña</span>
                       <div className="admin-usu-chip-list">
                         {(modalInfo.cursos_ensena || []).map((c) => (
                           <span key={c} className="admin-usu-chip">{c}</span>
                         ))}
                       </div>
-                    ) : (
-                      <span className="admin-usu-info-value">Sin cursos asignados</span>
-                    )}
-                  </div>
+                    </div>
+                  )}
+                  {modalInfo.tutoria && (
+                    <div className="admin-usu-info-item" style={{ marginTop: '0.6rem' }}>
+                      <span className="admin-usu-info-label">Tutoría</span>
+                      <span className="admin-usu-info-value">{modalInfo.tutoria}</span>
+                    </div>
+                  )}
+                  {!(modalInfo.grupos_cargo || []).length && !(modalInfo.cursos_ensena || []).length && !modalInfo.tutoria && (
+                    <span className="admin-usu-info-value">Sin asignaciones académicas en el año activo</span>
+                  )}
                 </div>
               </div>
               <div className="admin-usu-modal-actions">
@@ -935,7 +954,7 @@ export default function AdminUsuariosEquipo() {
 
       {modalHorario && createPortal(
         <div className="admin-usu-modal-overlay" onClick={() => setModalHorario(null)}>
-          <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="admin-usu-modal admin-usu-modal-wide" onClick={(e) => e.stopPropagation()}>
             <div className="admin-usu-modal-header">
               <h2>Horario del docente</h2>
               <button type="button" className="admin-usu-modal-close" onClick={() => setModalHorario(null)}>✕</button>

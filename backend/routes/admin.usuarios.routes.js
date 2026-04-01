@@ -228,7 +228,7 @@ router.get('/equipo', async (req, res) => {
 
 router.get('/equipo/:personalId', async (req, res) => {
   try {
-    const { colegio_id } = req.user;
+    const { colegio_id, anio_activo } = req.user;
     const personalId = parseInt(req.params.personalId, 10);
     if (!personalId) {
       return res.status(400).json({ error: 'ID inválido' });
@@ -250,9 +250,19 @@ router.get('/equipo/:personalId', async (req, res) => {
        INNER JOIN cursos c ON c.id = a.curso_id
        INNER JOIN grupos g ON g.id = a.grupo_id
        LEFT JOIN niveles n ON n.id = g.nivel_id
-       WHERE a.personal_id = ? AND a.colegio_id = ?
+       WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?
        ORDER BY g.anio DESC, n.nombre ASC, g.grado ASC, g.seccion ASC, c.nombre ASC`,
-      [personalId, colegio_id]
+      [personalId, colegio_id, anio_activo]
+    );
+
+    const tutoriaRows = await query(
+      `SELECT g.id, g.anio, g.grado, g.seccion, n.nombre AS nivel
+       FROM grupos g
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?
+       ORDER BY g.grado ASC, g.seccion ASC
+       LIMIT 1`,
+      [personalId, colegio_id, anio_activo]
     );
 
     const gruposMap = new Map();
@@ -273,6 +283,11 @@ router.get('/equipo/:personalId', async (req, res) => {
       ...rows[0],
       grupos_cargo: Array.from(gruposMap.values()),
       cursos_ensena: Array.from(cursosSet.values()),
+      tutoria: tutoriaRows[0]
+        ? `${tutoriaRows[0].nivel || ''} ${tutoriaRows[0].grado ? `${tutoriaRows[0].grado}°` : ''} ${tutoriaRows[0].seccion || ''} - ${tutoriaRows[0].anio || ''}`
+            .replace(/\s+/g, ' ')
+            .trim()
+        : '',
     });
   } catch (e) {
       console.error('GET /admin/usuarios/equipo/:id', e);

@@ -348,6 +348,10 @@
   padding: 0;
 }
 
+.admin-usu-modal-wide {
+  max-width: 1240px;
+}
+
 .admin-usu-modal-header {
   display: flex;
   justify-content: space-between;
@@ -496,6 +500,7 @@
   background: #f8fafc;
   border-right: 2px solid #4a83c1;
   border-top: 1px solid #4a83c1;
+  white-space: nowrap;
 }
 
 .admin-usu-horario-cell {
