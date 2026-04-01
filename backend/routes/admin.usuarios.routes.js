@@ -244,7 +244,36 @@ router.get('/equipo/:personalId', async (req, res) => {
     if (!rows.length) {
       return res.status(404).json({ error: 'No encontrado' });
     }
-    res.json(rows[0]);
+    const cursosRows = await query(
+      `SELECT DISTINCT c.nombre AS curso, g.anio, g.grado, g.seccion, n.nombre AS nivel
+       FROM asignaturas a
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       WHERE a.personal_id = ? AND a.colegio_id = ?
+       ORDER BY g.anio DESC, n.nombre ASC, g.grado ASC, g.seccion ASC, c.nombre ASC`,
+      [personalId, colegio_id]
+    );
+
+    const gruposMap = new Map();
+    const cursosSet = new Set();
+    for (const r of cursosRows) {
+      const grupoTexto = `${r.nivel || ''} ${r.grado ? `${r.grado}°` : ''} ${r.seccion || ''} - ${r.anio || ''}`
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (grupoTexto) {
+        gruposMap.set(grupoTexto, grupoTexto);
+      }
+      if (r.curso) {
+        cursosSet.add(String(r.curso).trim());
+      }
+    }
+
+    res.json({
+      ...rows[0],
+      grupos_cargo: Array.from(gruposMap.values()),
+      cursos_ensena: Array.from(cursosSet.values()),
+    });
   } catch (e) {
       console.error('GET /admin/usuarios/equipo/:id', e);
       res.status(500).json({ error: e.message || 'Error al obtener registro' });

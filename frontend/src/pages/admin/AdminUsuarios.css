@@ -430,6 +430,86 @@
   font-size: 0.9rem;
 }
 
+.admin-usu-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.admin-usu-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.26rem 0.58rem;
+  border-radius: 999px;
+  background: #e0e7ff;
+  color: #3730a3;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.admin-usu-horario-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-usu-horario-head p {
+  margin: 0.3rem 0 0;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.admin-usu-horario-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 2px solid #4a83c1;
+  background: #fff;
+}
+
+.admin-usu-horario-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.82rem;
+}
+
+.admin-usu-horario-table thead th {
+  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
+  color: #fff;
+  font-weight: 700;
+  padding: 0.48rem 0.38rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.3);
+  text-align: center;
+}
+
+.admin-usu-hora-col {
+  min-width: 130px;
+}
+
+.admin-usu-hora-cell {
+  padding: 0.58rem 0.65rem;
+  font-weight: 700;
+  color: #4a83c1;
+  background: #f8fafc;
+  border-right: 2px solid #4a83c1;
+  border-top: 1px solid #4a83c1;
+}
+
+.admin-usu-horario-cell {
+  padding: 0.52rem 0.4rem;
+  text-align: center;
+  border-top: 1px solid #4a83c1;
+  border-right: 1px solid #4a83c1;
+  color: #1f2937;
+}
+
+.admin-usu-horario-empty {
+  background: #e3f2fd !important;
+}
+
 .admin-usu-photo-wrap {
   display: flex;
   flex-direction: column;

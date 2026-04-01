@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
+import { jsPDF } from 'jspdf';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
 import './AdminUsuarios.css';
 
@@ -274,21 +275,188 @@ export default function AdminUsuariosEquipo() {
     }
   };
 
+  const diasSemana = [
+    { id: 1, nombre: 'Lunes', abrev: 'LUNES' },
+    { id: 2, nombre: 'Martes', abrev: 'MARTES' },
+    { id: 3, nombre: 'Miércoles', abrev: 'MIÉRCOLES' },
+    { id: 4, nombre: 'Jueves', abrev: 'JUEVES' },
+    { id: 5, nombre: 'Viernes', abrev: 'VIERNES' },
+  ];
+
+  const formatearHora = (hora) => {
+    if (!hora) return '';
+    const h = String(hora).trim();
+    const hUpper = h.toUpperCase();
+    if (hUpper.includes('AM') || hUpper.includes('PM')) return h;
+    const partes = h.split(':');
+    if (partes.length < 2) return h;
+    const hh = parseInt(partes[0], 10);
+    const mm = (partes[1] || '00').split(' ')[0].padStart(2, '0');
+    if (Number.isNaN(hh)) return h;
+    if (hh === 0) return `12:${mm} AM`;
+    if (hh < 12) return `${hh}:${mm} AM`;
+    if (hh === 12) return `12:${mm} PM`;
+    return `${hh - 12}:${mm} PM`;
+  };
+
+  const horaAMinutos = (hora) => {
+    if (!hora) return 0;
+    const val = String(hora).trim().toUpperCase();
+    if (val.includes('AM') || val.includes('PM')) {
+      const [hStr, rest = '0'] = val.split(':');
+      let hh = parseInt(hStr, 10);
+      const mm = parseInt(rest.replace(/[^0-9]/g, '') || '0', 10);
+      if (val.includes('PM') && hh !== 12) hh += 12;
+      if (val.includes('AM') && hh === 12) hh = 0;
+      return (Number.isNaN(hh) ? 0 : hh) * 60 + (Number.isNaN(mm) ? 0 : mm);
+    }
+    const [hStr, mStr = '0'] = val.split(':');
+    const hh = parseInt(hStr, 10);
+    const mm = parseInt((mStr || '0').split(' ')[0], 10);
+    return (Number.isNaN(hh) ? 0 : hh) * 60 + (Number.isNaN(mm) ? 0 : mm);
+  };
+
+  const palette = ['#FFF9C4', '#BBDEFB', '#F3E5F5', '#C8E6C9', '#E0F7FA', '#FFF3E0', '#FCE4EC', '#E1F5FE', '#F1F8E9', '#FFEBEE', '#E8EAF6', '#E0F2F1', '#E1BEE7', '#FFE0B2', '#FFCCBC', '#D1C4E9'];
+  const hashString = (str) => {
+    let hash = 0;
+    const normalized = String(str || '').trim().toLowerCase();
+    for (let i = 0; i < normalized.length; i += 1) {
+      const char = normalized.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash |= 0;
+    }
+    return Math.abs(hash);
+  };
+  const getColorForCourse = (titulo) => {
+    if (!titulo) return null;
+    return palette[hashString(titulo) % palette.length];
+  };
+  const aclararColor = (hex, factor = 0.5) => {
+    if (!hex) return '#ffffff';
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    const nr = Math.round(r + (255 - r) * factor);
+    const ng = Math.round(g + (255 - g) * factor);
+    const nb = Math.round(b + (255 - b) * factor);
+    return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`;
+  };
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || '');
+    return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+  };
+
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const initialsPreview = (form.nombres || form.apellidos || 'U').trim().charAt(0).toUpperCase();
   const fotoCreateFormPreview = fotoCreatePreview;
   const fotoFormPreview = fotoEditPreview || fotoUsuarioAdmin(form.foto);
   const credencialDni = (form.nro_documento || '').trim();
   const infoFoto = fotoUsuarioAdmin(modalInfo?.foto || '');
-  const horarioDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-  const horarioOrdenado = [...(modalHorario?.horario || [])].sort((a, b) => {
-    const da = Number(a.dia || 0);
-    const db = Number(b.dia || 0);
-    if (da !== db) return da - db;
-    const ia = String(a.inicio || '');
-    const ib = String(b.inicio || '');
-    return ia.localeCompare(ib);
-  });
+  const horarioNormalizado = useMemo(() => {
+    const raw = modalHorario?.horario || [];
+    const dias = raw
+      .map((c) => (typeof c.dia === 'number' ? c.dia : parseInt(c.dia || 0, 10)))
+      .filter((d) => !Number.isNaN(d));
+    const minDia = dias.length ? Math.min(...dias) : 1;
+    const maxDia = dias.length ? Math.max(...dias) : 5;
+    const usaCeroCuatro = minDia === 0 && maxDia <= 4;
+    return raw.map((c) => {
+      const diaVal = typeof c.dia === 'number' ? c.dia : parseInt(c.dia || 0, 10);
+      return { ...c, diaNormalizado: usaCeroCuatro ? diaVal + 1 : diaVal };
+    });
+  }, [modalHorario]);
+
+  const horariosUnicos = useMemo(() => {
+    const bloques = horarioNormalizado
+      .map((c) => ({ inicio: c.inicio || '', fin: c.fin || '' }))
+      .filter((b) => b.inicio && b.fin);
+    const map = {};
+    bloques.forEach((b) => {
+      const key = `${b.inicio}-${b.fin}`;
+      if (!map[key]) map[key] = b;
+    });
+    return Object.values(map).sort((a, b) => horaAMinutos(a.inicio) - horaAMinutos(b.inicio));
+  }, [horarioNormalizado]);
+
+  const obtenerClase = (dia, horaInicio, horaFin) =>
+    horarioNormalizado.find((c) => c.diaNormalizado === dia && (c.inicio || '') === horaInicio && (c.fin || '') === horaFin);
+
+  const formatearClase = (clase) => {
+    if (!clase) return '';
+    const titulo = clase.titulo || '';
+    const grupo = clase.grupo || '';
+    if (!titulo) return grupo;
+    if (!grupo) return titulo;
+    return `${titulo} - ${grupo}`;
+  };
+
+  const exportarHorarioPDF = () => {
+    if (!horariosUnicos.length) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay horario para exportar' });
+      return;
+    }
+    try {
+      const doc = new jsPDF('l', 'mm', 'a4');
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 15;
+      const contentW = pageW - margin * 2;
+      let y = margin;
+      const colW = contentW / 6;
+      const rowH = 15;
+      const headerH = 12;
+      const colorHeader = [59, 130, 246];
+
+      doc.setFillColor(...colorHeader);
+      doc.rect(margin, y, contentW, 24, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(18);
+      doc.text('MI HORARIO DE CLASES', margin + contentW / 2, y + 14, { align: 'center' });
+      y += 30;
+
+      doc.setFillColor(...colorHeader);
+      doc.rect(margin, y, colW, headerH, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(11);
+      doc.text('HORA', margin + colW / 2, y + 8, { align: 'center' });
+      diasSemana.forEach((d, idx) => {
+        const x = margin + colW + idx * colW;
+        doc.setFillColor(...colorHeader);
+        doc.rect(x, y, colW, headerH, 'F');
+        doc.text(d.abrev, x + colW / 2, y + 8, { align: 'center' });
+      });
+      y += headerH;
+
+      horariosUnicos.forEach((b) => {
+        const clases = [1, 2, 3, 4, 5].map((dia) => obtenerClase(dia, b.inicio, b.fin));
+        if (!clases.some(Boolean)) return;
+        doc.setTextColor(30, 41, 59);
+        doc.setFontSize(9);
+        doc.rect(margin, y, colW, rowH);
+        doc.text(`${formatearHora(b.inicio)} - ${formatearHora(b.fin)}`, margin + colW / 2, y + 9, { align: 'center', maxWidth: colW - 4 });
+        clases.forEach((clase, idx) => {
+          const x = margin + colW + idx * colW;
+          doc.rect(x, y, colW, rowH);
+          if (clase) {
+            const rgb = hexToRgb(getColorForCourse(clase.titulo || ''));
+            if (rgb) {
+              doc.setFillColor(rgb.r, rgb.g, rgb.b);
+              doc.rect(x + 0.4, y + 0.4, colW - 0.8, rowH - 0.8, 'F');
+            }
+            const txt = doc.splitTextToSize(formatearClase(clase), colW - 4);
+            doc.setTextColor(30, 41, 59);
+            doc.text(txt, x + colW / 2, y + 8, { align: 'center', maxWidth: colW - 4 });
+          }
+        });
+        y += rowH;
+      });
+
+      doc.save(`Horario_${(modalHorario?.docente?.apellidos || 'Docente').replace(/\s+/g, '_')}.pdf`);
+      Swal.fire({ icon: 'success', title: 'Exportado', text: 'Horario exportado correctamente' });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo exportar el horario' });
+    }
+  };
 
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
@@ -672,6 +840,33 @@ export default function AdminUsuariosEquipo() {
                     <div className="admin-usu-info-item"><span className="admin-usu-info-label">Celular</span><span className="admin-usu-info-value">{modalInfo.telefono_celular || '—'}</span></div>
                   </div>
                 </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Asignación académica</h3>
+                  <div className="admin-usu-info-item">
+                    <span className="admin-usu-info-label">Grupos a cargo</span>
+                    {(modalInfo.grupos_cargo || []).length ? (
+                      <div className="admin-usu-chip-list">
+                        {(modalInfo.grupos_cargo || []).map((g) => (
+                          <span key={g} className="admin-usu-chip">{g}</span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="admin-usu-info-value">Sin grupos asignados</span>
+                    )}
+                  </div>
+                  <div className="admin-usu-info-item" style={{ marginTop: '0.6rem' }}>
+                    <span className="admin-usu-info-label">Cursos que enseña</span>
+                    {(modalInfo.cursos_ensena || []).length ? (
+                      <div className="admin-usu-chip-list">
+                        {(modalInfo.cursos_ensena || []).map((c) => (
+                          <span key={c} className="admin-usu-chip">{c}</span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="admin-usu-info-value">Sin cursos asignados</span>
+                    )}
+                  </div>
+                </div>
               </div>
               <div className="admin-usu-modal-actions">
                 <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalInfo(null)}>Cerrar</button>
@@ -747,31 +942,49 @@ export default function AdminUsuariosEquipo() {
             </div>
             <div className="admin-usu-modal-body">
               <div className="admin-usu-profile-section">
-                <h3>{nombreCompletoEquipo(modalHorario.docente || modalHorario.row || {})} - Año {modalHorario.anio || '—'}</h3>
-                {horarioOrdenado.length === 0 ? (
+                <div className="admin-usu-horario-head">
+                  <div>
+                    <h3>📅 Mi Horario</h3>
+                    <p>{nombreCompletoEquipo(modalHorario.docente || modalHorario.row || {})} - Año {modalHorario.anio || '—'}</p>
+                  </div>
+                  {horariosUnicos.length > 0 && (
+                    <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={exportarHorarioPDF}>
+                      📄 Exportar
+                    </button>
+                  )}
+                </div>
+                {horariosUnicos.length === 0 ? (
                   <p className="admin-usu-hint">No hay horarios registrados para este personal.</p>
                 ) : (
-                  <div className="admin-usu-table-scroll">
-                    <table className="admin-usu-table">
+                  <div className="admin-usu-horario-wrap">
+                    <table className="admin-usu-horario-table">
                       <thead>
                         <tr>
-                          <th>Día</th>
-                          <th>Hora inicio</th>
-                          <th>Hora fin</th>
-                          <th>Curso / Actividad</th>
-                          <th>Grupo</th>
+                          <th className="admin-usu-hora-col">Hora</th>
+                          {diasSemana.map((dia) => (
+                            <th key={dia.id}>{dia.abrev}</th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
-                        {horarioOrdenado.map((h) => (
-                          <tr key={h.id}>
-                            <td>{horarioDias[Number(h.dia) || 0] || `Día ${h.dia}`}</td>
-                            <td>{h.inicio || '—'}</td>
-                            <td>{h.fin || '—'}</td>
-                            <td>{h.titulo || '—'}</td>
-                            <td>{h.grupo || '—'}</td>
-                          </tr>
-                        ))}
+                        {horariosUnicos.map((bloque, idx) => {
+                          const clases = [1, 2, 3, 4, 5].map((dia) => obtenerClase(dia, bloque.inicio, bloque.fin));
+                          if (!clases.some(Boolean)) return null;
+                          return (
+                            <tr key={`${bloque.inicio}-${bloque.fin}-${idx}`}>
+                              <td className="admin-usu-hora-cell">{formatearHora(bloque.inicio)} - {formatearHora(bloque.fin)}</td>
+                              {clases.map((clase, i) => (
+                                <td
+                                  key={`${idx}-${i}`}
+                                  className={`admin-usu-horario-cell ${!clase ? 'admin-usu-horario-empty' : ''}`}
+                                  style={clase ? { backgroundColor: aclararColor(getColorForCourse(clase.titulo), 0.5) } : {}}
+                                >
+                                  {formatearClase(clase)}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
