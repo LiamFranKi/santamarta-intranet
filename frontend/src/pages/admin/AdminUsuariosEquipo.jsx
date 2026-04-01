@@ -30,6 +30,10 @@ export default function AdminUsuariosEquipo() {
 
   const [modalCreate, setModalCreate] = useState(false);
   const [modalEdit, setModalEdit] = useState(null);
+  const [modalInfo, setModalInfo] = useState(null);
+  const [modalAcceso, setModalAcceso] = useState(null);
+  const [modalHorario, setModalHorario] = useState(null);
+  const [accesoForm, setAccesoForm] = useState({ tipo: 'DOCENTE', estado: 'ACTIVO', password: '' });
   const [form, setForm] = useState({});
   const [fotoCreateFile, setFotoCreateFile] = useState(null);
   const [fotoCreatePreview, setFotoCreatePreview] = useState('');
@@ -196,70 +200,78 @@ export default function AdminUsuariosEquipo() {
     }
   };
 
-  const infoAcceso = (row) => {
-    if (!row.usuario_id) {
-      Swal.fire({
-        title: 'Información de acceso',
-        html: '<p>Este personal no tiene usuario en el sistema.</p><p>Puede crear acceso desde <strong>Opciones</strong>.</p>',
-      });
-      return;
-    }
-    Swal.fire({
-      title: 'Información de acceso',
-      html: `<p><strong>Usuario:</strong> ${row.login_usuario || row.nro_documento}</p>
-        <p><strong>Contraseña por defecto:</strong> mismo número de DNI</p>
-        <p style="color:#6b7280;font-size:0.9rem">Si cambió la contraseña, use Restablecer a DNI.</p>`,
+  const abrirInfoAcceso = (row) => {
+    setAccesoForm({
+      tipo: row.usuario_tipo || (tipos.includes('DOCENTE') ? 'DOCENTE' : tipos[0] || 'DOCENTE'),
+      estado: row.usuario_estado || 'ACTIVO',
+      password: '',
     });
+    setModalAcceso(row);
   };
 
-  const resetPass = async (row) => {
+  const guardarInfoAcceso = async () => {
+    if (!modalAcceso) return;
+    try {
+      if (!modalAcceso.usuario_id) {
+        await api.post(`/admin/usuarios/equipo/${modalAcceso.id}/acceso`, { tipo: accesoForm.tipo });
+      } else {
+        await api.put(`/admin/usuarios/equipo/${modalAcceso.id}`, {
+          tipo: accesoForm.tipo,
+          usuario_estado: accesoForm.estado,
+        });
+      }
+      if ((accesoForm.password || '').trim()) {
+        await api.post(`/admin/usuarios/equipo/${modalAcceso.id}/password`, {
+          password: accesoForm.password.trim(),
+        });
+      }
+      Swal.fire({ icon: 'success', title: 'Acceso actualizado' });
+      setModalAcceso(null);
+      cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo guardar el acceso' });
+    }
+  };
+
+  const verInfo = async (row) => {
+    try {
+      const { data } = await api.get(`/admin/usuarios/equipo/${row.id}`);
+      setModalInfo(data);
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar la información' });
+    }
+  };
+
+  const verHorario = async (row) => {
+    try {
+      const { data } = await api.get(`/admin/usuarios/equipo/${row.id}/horario`);
+      setModalHorario({
+        ...data,
+        row,
+      });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar el horario' });
+    }
+  };
+
+  const eliminarPersonal = async (row) => {
     const ok = await Swal.fire({
-      title: '¿Restablecer contraseña?',
-      text: 'La clave quedará igual al DNI actual del personal.',
       icon: 'warning',
+      title: '¿Eliminar personal?',
+      html: `Se eliminará a <strong>${nombreCompletoEquipo(row)}</strong>.<br/>Esta acción no se puede deshacer.`,
       showCancelButton: true,
-      confirmButtonText: 'Sí, restablecer',
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#d33',
     });
     if (!ok.isConfirmed) return;
     try {
-      await api.post(`/admin/usuarios/equipo/${row.id}/reset-password`);
-      Swal.fire({ icon: 'success', title: 'Contraseña actualizada' });
-    } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'Falló' });
-    }
-  };
-
-  const crearAcceso = async (row) => {
-    const { value: tipo } = await Swal.fire({
-      title: 'Perfil de acceso',
-      input: 'select',
-      inputOptions: Object.fromEntries(tipos.map((t) => [t, t])),
-      inputValue: tipos.includes('DOCENTE') ? 'DOCENTE' : tipos[0],
-      showCancelButton: true,
-    });
-    if (!tipo) return;
-    try {
-      await api.post(`/admin/usuarios/equipo/${row.id}/acceso`, { tipo });
-      Swal.fire({ icon: 'success', title: 'Acceso creado', text: 'Usuario y clave: DNI' });
+      await api.delete(`/admin/usuarios/equipo/${row.id}`);
+      Swal.fire({ icon: 'success', title: 'Eliminado correctamente' });
       cargar();
     } catch (e) {
-      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'Falló' });
+      Swal.fire({ icon: 'error', title: 'No se pudo eliminar', text: e.response?.data?.error || 'Error inesperado' });
     }
-  };
-
-  const verInfo = (row) => {
-    Swal.fire({
-      title: nombreCompletoEquipo(row),
-      html: `
-        <div style="text-align:left;font-size:0.95rem;line-height:1.5">
-          <p><strong>DNI:</strong> ${row.nro_documento || '—'}</p>
-          <p><strong>Email:</strong> ${row.email || '—'}</p>
-          <p><strong>Celular:</strong> ${row.telefono_celular || '—'}</p>
-          <p><strong>Cargo:</strong> ${row.cargo || '—'}</p>
-          <p><strong>Perfil:</strong> ${row.usuario_tipo || 'Sin acceso'}</p>
-        </div>`,
-      width: 480,
-    });
   };
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -267,6 +279,16 @@ export default function AdminUsuariosEquipo() {
   const fotoCreateFormPreview = fotoCreatePreview;
   const fotoFormPreview = fotoEditPreview || fotoUsuarioAdmin(form.foto);
   const credencialDni = (form.nro_documento || '').trim();
+  const infoFoto = fotoUsuarioAdmin(modalInfo?.foto || '');
+  const horarioDias = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+  const horarioOrdenado = [...(modalHorario?.horario || [])].sort((a, b) => {
+    const da = Number(a.dia || 0);
+    const db = Number(b.dia || 0);
+    if (da !== db) return da - db;
+    const ia = String(a.inicio || '');
+    const ib = String(b.inicio || '');
+    return ia.localeCompare(ib);
+  });
 
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
@@ -388,22 +410,18 @@ export default function AdminUsuariosEquipo() {
           <button type="button" onClick={() => { verInfo(menuRow); cerrarMenus(); }}>
             ℹ️ Ver información
           </button>
-          <button type="button" onClick={() => { infoAcceso(menuRow); cerrarMenus(); }}>
+          <button type="button" onClick={() => { abrirInfoAcceso(menuRow); cerrarMenus(); }}>
             🔐 Información de acceso
           </button>
-          {!menuRow.usuario_id && (
-            <button type="button" onClick={() => { crearAcceso(menuRow); cerrarMenus(); }}>
-              ➕ Crear acceso
-            </button>
-          )}
-          {menuRow.usuario_id && (
-            <button type="button" onClick={() => { resetPass(menuRow); cerrarMenus(); }}>
-              🔑 Restablecer clave a DNI
-            </button>
-          )}
+          <button type="button" onClick={() => { verHorario(menuRow); cerrarMenus(); }}>
+            🗓️ Ver horario
+          </button>
           <hr />
           <button type="button" onClick={() => { abrirEditar(menuRow); cerrarMenus(); }}>
             ✏️ Editar
+          </button>
+          <button type="button" className="admin-usu-dropdown-danger" onClick={() => { eliminarPersonal(menuRow); cerrarMenus(); }}>
+            🗑️ Eliminar
           </button>
         </div>,
         document.body
@@ -612,6 +630,155 @@ export default function AdminUsuariosEquipo() {
                 <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarEdit}>
                   💾 Guardar cambios
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {modalInfo && createPortal(
+        <div className="admin-usu-modal-overlay" onClick={() => setModalInfo(null)}>
+          <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-usu-modal-header">
+              <h2>Información del personal</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={() => setModalInfo(null)}>✕</button>
+            </div>
+            <div className="admin-usu-modal-body">
+              <div className="admin-usu-profile-form">
+                <div className="admin-usu-profile-section">
+                  <h3>Ficha General</h3>
+                  <div className="admin-usu-info-hero">
+                    <div className="admin-usu-photo-preview">
+                      {infoFoto ? <img src={infoFoto} alt="Foto personal" /> : <div className="admin-usu-photo-ph">{(modalInfo.nombres || 'U').charAt(0)}</div>}
+                    </div>
+                    <div>
+                      <h4>{nombreCompletoEquipo(modalInfo)}</h4>
+                      <p>{modalInfo.cargo || 'Sin cargo registrado'}</p>
+                      <span className={`admin-usu-badge ${modalInfo.usuario_id ? '' : 'admin-usu-badge-muted'}`}>
+                        {modalInfo.usuario_tipo || 'Sin acceso'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="admin-usu-profile-section">
+                  <h3>Datos Personales</h3>
+                  <div className="admin-usu-info-grid">
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Nombres</span><span className="admin-usu-info-value">{modalInfo.nombres || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Apellidos</span><span className="admin-usu-info-value">{modalInfo.apellidos || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">DNI</span><span className="admin-usu-info-value">{modalInfo.nro_documento || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Fecha de nacimiento</span><span className="admin-usu-info-value">{(modalInfo.fecha_nacimiento || '').toString().slice(0, 10) || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Correo</span><span className="admin-usu-info-value">{modalInfo.email || '—'}</span></div>
+                    <div className="admin-usu-info-item"><span className="admin-usu-info-label">Celular</span><span className="admin-usu-info-value">{modalInfo.telefono_celular || '—'}</span></div>
+                  </div>
+                </div>
+              </div>
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalInfo(null)}>Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {modalAcceso && createPortal(
+        <div className="admin-usu-modal-overlay" onClick={() => setModalAcceso(null)}>
+          <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-usu-modal-header">
+              <h2>Información de acceso</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={() => setModalAcceso(null)}>✕</button>
+            </div>
+            <div className="admin-usu-modal-body">
+              <div className="admin-usu-profile-section">
+                <h3>Credenciales y permisos</h3>
+                <div className="admin-usu-form-grid">
+                  <div className="admin-usu-field">
+                    <label>Usuario</label>
+                    <input type="text" value={modalAcceso.login_usuario || modalAcceso.nro_documento || ''} readOnly />
+                  </div>
+                  <div className="admin-usu-field">
+                    <label>Nueva contraseña</label>
+                    <input
+                      type="text"
+                      placeholder="Opcional: dejar vacío para no cambiar"
+                      value={accesoForm.password}
+                      onChange={(e) => setAccesoForm({ ...accesoForm, password: e.target.value })}
+                    />
+                  </div>
+                  <div className="admin-usu-field">
+                    <label>Tipo</label>
+                    <select value={accesoForm.tipo} onChange={(e) => setAccesoForm({ ...accesoForm, tipo: e.target.value })}>
+                      {tipos.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  <div className="admin-usu-field">
+                    <label>Estado</label>
+                    <select
+                      value={accesoForm.estado}
+                      disabled={!modalAcceso.usuario_id}
+                      onChange={(e) => setAccesoForm({ ...accesoForm, estado: e.target.value })}
+                    >
+                      <option value="ACTIVO">ACTIVO</option>
+                      <option value="INACTIVO">INACTIVO</option>
+                    </select>
+                  </div>
+                </div>
+                {!modalAcceso.usuario_id && (
+                  <p className="admin-usu-hint">Este personal aún no tiene usuario. Al guardar se creará su acceso con usuario = DNI.</p>
+                )}
+              </div>
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalAcceso(null)}>Cancelar</button>
+                <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarInfoAcceso}>Guardar datos</button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {modalHorario && createPortal(
+        <div className="admin-usu-modal-overlay" onClick={() => setModalHorario(null)}>
+          <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-usu-modal-header">
+              <h2>Horario del docente</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={() => setModalHorario(null)}>✕</button>
+            </div>
+            <div className="admin-usu-modal-body">
+              <div className="admin-usu-profile-section">
+                <h3>{nombreCompletoEquipo(modalHorario.docente || modalHorario.row || {})} - Año {modalHorario.anio || '—'}</h3>
+                {horarioOrdenado.length === 0 ? (
+                  <p className="admin-usu-hint">No hay horarios registrados para este personal.</p>
+                ) : (
+                  <div className="admin-usu-table-scroll">
+                    <table className="admin-usu-table">
+                      <thead>
+                        <tr>
+                          <th>Día</th>
+                          <th>Hora inicio</th>
+                          <th>Hora fin</th>
+                          <th>Curso / Actividad</th>
+                          <th>Grupo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {horarioOrdenado.map((h) => (
+                          <tr key={h.id}>
+                            <td>{horarioDias[Number(h.dia) || 0] || `Día ${h.dia}`}</td>
+                            <td>{h.inicio || '—'}</td>
+                            <td>{h.fin || '—'}</td>
+                            <td>{h.titulo || '—'}</td>
+                            <td>{h.grupo || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalHorario(null)}>Cerrar</button>
               </div>
             </div>
           </div>

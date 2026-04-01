@@ -275,6 +275,14 @@
   background: #f1f5f9;
 }
 
+.admin-usu-dropdown .admin-usu-dropdown-danger {
+  color: #b91c1c;
+}
+
+.admin-usu-dropdown .admin-usu-dropdown-danger:hover {
+  background: #fee2e2;
+}
+
 .admin-usu-dropdown hr {
   margin: 0.35rem 0;
   border: none;
@@ -402,6 +410,24 @@
   margin: 0 0 1rem;
   padding-bottom: 0.5rem;
   border-bottom: 2px solid rgba(74, 131, 193, 0.18);
+}
+
+.admin-usu-info-hero {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.admin-usu-info-hero h4 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #1f2937;
+}
+
+.admin-usu-info-hero p {
+  margin: 0.3rem 0 0.55rem;
+  color: #6b7280;
+  font-size: 0.9rem;
 }
 
 .admin-usu-photo-wrap {

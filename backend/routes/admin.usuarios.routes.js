@@ -621,6 +621,177 @@ router.post('/equipo/:personalId/reset-password', async (req, res) => {
   }
 });
 
+router.post('/equipo/:personalId/password', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const personalId = parseInt(req.params.personalId, 10);
+    const password = String(req.body.password || '').trim();
+    if (!personalId) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 4 caracteres' });
+    }
+    const urows = await query(
+      'SELECT id FROM usuarios WHERE personal_id = ? AND colegio_id = ? LIMIT 1',
+      [personalId, colegio_id]
+    );
+    if (!urows.length) {
+      return res.status(404).json({ error: 'Usuario no encontrado para este personal' });
+    }
+    const pwd = sha1Password(password);
+    await execute('UPDATE usuarios SET password = ?, cambiar_password = ? WHERE id = ? AND colegio_id = ?', [
+      pwd,
+      'NO',
+      urows[0].id,
+      colegio_id,
+    ]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('password equipo', e);
+    res.status(500).json({ error: e.message || 'Error al cambiar contraseña' });
+  }
+});
+
+router.get('/equipo/:personalId/horario', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = parseInt(req.params.personalId, 10);
+    if (!personalId) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+    const prow = await query(
+      'SELECT id, nombres, apellidos FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1',
+      [personalId, colegio_id]
+    );
+    if (!prow.length) {
+      return res.status(404).json({ error: 'Personal no encontrado' });
+    }
+
+    const aniosDisponibles = await query(
+      `SELECT DISTINCT gh.anio
+       FROM grupos_horarios gh
+       LEFT JOIN asignaturas a ON a.id = gh.asignatura_id
+       LEFT JOIN grupos g ON g.id = a.grupo_id
+       WHERE (a.personal_id = ? OR gh.personal_id = ?)
+       ORDER BY gh.anio DESC`,
+      [personalId, personalId]
+    );
+
+    if (!aniosDisponibles || !aniosDisponibles.length) {
+      return res.json({ horario: [], docente: prow[0] });
+    }
+
+    const anioActivoInt = parseInt(anio_activo, 10);
+    const existeAnioActivo = aniosDisponibles.some((row) => parseInt(row.anio, 10) === anioActivoInt);
+    const anioUsar = existeAnioActivo ? anioActivoInt : parseInt(aniosDisponibles[0].anio, 10);
+
+    const horarioCrudo = await query(
+      `SELECT 
+         gh.id,
+         gh.dia,
+         gh.hora_inicio,
+         gh.hora_final,
+         gh.anio,
+         c.nombre        AS curso_nombre,
+         gh.descripcion  AS descripcion,
+         g.grado,
+         g.seccion,
+         n.nombre        AS nivel_nombre
+       FROM grupos_horarios gh
+       LEFT JOIN asignaturas a ON a.id = gh.asignatura_id
+       LEFT JOIN grupos g      ON g.id = COALESCE(a.grupo_id, gh.grupo_id)
+       LEFT JOIN niveles n     ON n.id = g.nivel_id
+       LEFT JOIN cursos c      ON c.id = a.curso_id
+       WHERE gh.anio = ?
+         AND (a.personal_id = ? OR gh.personal_id = ?)
+       ORDER BY gh.dia, 
+         TIME(STR_TO_DATE(gh.hora_inicio, '%l:%i %p')),
+         COALESCE(TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i:%s')), TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i')))`,
+      [anioUsar, personalId, personalId]
+    );
+
+    const horario = (horarioCrudo || []).map((row) => {
+      const gradoTexto = row.grado ? `${row.grado}°` : '';
+      let grupo = `${row.nivel_nombre || ''} ${gradoTexto} ${row.seccion || ''}`.trim();
+      if (row.anio) {
+        grupo = `${grupo} - ${row.anio}`.trim();
+      }
+      return {
+        id: row.id,
+        dia: typeof row.dia === 'number' ? row.dia : parseInt(row.dia || 0, 10),
+        inicio: row.hora_inicio,
+        fin: row.hora_final,
+        titulo: row.curso_nombre || row.descripcion || '—',
+        grupo,
+      };
+    });
+
+    res.json({
+      docente: prow[0],
+      horario,
+      anio: anioUsar,
+    });
+  } catch (e) {
+    console.error('horario equipo', e);
+    res.status(500).json({ error: e.message || 'Error al obtener horario' });
+  }
+});
+
+router.delete('/equipo/:personalId', async (req, res) => {
+  try {
+    const { colegio_id, usuario_id: adminUsuarioId } = req.user;
+    const personalId = parseInt(req.params.personalId, 10);
+    if (!personalId) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+    const prow = await query(
+      'SELECT id, nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1',
+      [personalId, colegio_id]
+    );
+    if (!prow.length) {
+      return res.status(404).json({ error: 'Personal no encontrado' });
+    }
+
+    const asignaturas = await query(
+      'SELECT COUNT(*) AS n FROM asignaturas WHERE personal_id = ?',
+      [personalId]
+    );
+    if ((asignaturas[0]?.n || 0) > 0) {
+      return res.status(409).json({
+        error: 'No se puede eliminar: este personal tiene cursos/asignaturas asignados.',
+      });
+    }
+
+    const horarios = await query(
+      'SELECT COUNT(*) AS n FROM grupos_horarios WHERE personal_id = ?',
+      [personalId]
+    );
+    if ((horarios[0]?.n || 0) > 0) {
+      return res.status(409).json({
+        error: 'No se puede eliminar: este personal tiene horarios registrados.',
+      });
+    }
+
+    const urows = await query(
+      'SELECT id FROM usuarios WHERE personal_id = ? AND colegio_id = ?',
+      [personalId, colegio_id]
+    );
+    for (const u of urows) {
+      if (parseInt(u.id, 10) === parseInt(adminUsuarioId, 10)) {
+        return res.status(400).json({ error: 'No puede eliminar su propio usuario.' });
+      }
+      await execute('DELETE FROM usuarios WHERE id = ? AND colegio_id = ?', [u.id, colegio_id]);
+    }
+
+    await execute('DELETE FROM personal WHERE id = ? AND colegio_id = ?', [personalId, colegio_id]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('DELETE equipo', e);
+    res.status(500).json({ error: e.message || 'Error al eliminar personal' });
+  }
+});
+
 // ——— Alumnos ———
 
 const ALUMNO_DEFAULTS = {
