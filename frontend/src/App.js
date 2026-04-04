@@ -8,6 +8,7 @@ import { ColegioProvider } from './context/ColegioContext';
 import Login from './pages/Login';
 import Dashboard from './pages/admin/Dashboard';
 import DocenteDashboard from './pages/DocenteDashboard';
+import DocenteHerramientas from './pages/DocenteHerramientas';
 import DocentePerfil from './pages/DocentePerfil';
 import DocenteQR from './pages/DocenteQR';
 import DocenteGrupos from './pages/DocenteGrupos';
@@ -336,6 +337,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <DocenteDashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas"
+        element={
+          <PrivateRoute>
+            <DocenteHerramientas />
           </PrivateRoute>
         }
       />

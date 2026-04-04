@@ -1061,3 +1061,35 @@
   }
 }
 
+/* Ver más → página Herramientas */
+.docs-gestion-ver-mas-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 1.25rem;
+}
+
+.btn-docs-gestion-ver-mas {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-docs-gestion-ver-mas:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(102, 126, 234, 0.4);
+  color: #fff;
+}
+
+.docente-herramientas-page {
+  padding-top: 0.25rem;
+}
+

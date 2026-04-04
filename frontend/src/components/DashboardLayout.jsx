@@ -321,6 +321,12 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mis Asistencias</span>
                 </button>
               </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/herramientas">
+                  <span className="sidebar-icon">🧰</span>
+                  <span className="sidebar-label">Herramientas</span>
+                </NavLink>
+              </div>
 
               {/* Menú Hijos a Cargo (si es apoderado) */}
               {rolesAdicionales.es_apoderado && (

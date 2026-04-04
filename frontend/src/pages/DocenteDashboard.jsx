@@ -7,16 +7,10 @@ import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionFormCard from '../components/PublicacionFormCard';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import BirthdayWidget from '../components/BirthdayWidget';
+import DocenteDocumentosGestionSection from '../components/DocenteDocumentosGestionSection';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './DocenteDashboard.css';
 import './DocenteGrupos.css';
-
-function gestionPdfFullUrl(rutaRelativa) {
-  if (!rutaRelativa) return '';
-  const base = (api.defaults.baseURL || '').replace(/\/api\/?$/, '');
-  const p = rutaRelativa.startsWith('/') ? rutaRelativa : `/${rutaRelativa}`;
-  return `${base}${p}`;
-}
 
 function DocenteDashboard() {
   const navigate = useNavigate();
@@ -129,24 +123,6 @@ function DocenteDashboard() {
       cancelled = true;
     };
   }, []);
-
-  const docsGestionPorCategoria = useMemo(() => {
-    const map = new Map();
-    (docsGestion || []).forEach((d) => {
-      const nombre = d.categoria_nombre || 'General';
-      const orden = Number(d.categoria_orden);
-      const ordenCat = Number.isFinite(orden) ? orden : 0;
-      if (!map.has(nombre)) {
-        map.set(nombre, { orden: ordenCat, items: [] });
-      }
-      const entry = map.get(nombre);
-      entry.items.push(d);
-      entry.orden = Math.min(entry.orden, ordenCat);
-    });
-    return Array.from(map.entries())
-      .sort((a, b) => a[1].orden - b[1].orden || a[0].localeCompare(b[0], 'es'))
-      .map(([nombre, v]) => ({ nombre, orden: v.orden, items: v.items }));
-  }, [docsGestion]);
 
   // Extraer datos del dashboard (con valores por defecto para evitar errores)
   const { docente, estadisticas, proximosExamenes, proximasTareas, actividades, comunicadoHome } = dashboardData || {};
@@ -637,116 +613,12 @@ function DocenteDashboard() {
           )}
         </div>
 
-        {/* Herramientas — debajo de Próximos Eventos */}
-        <div className="dashboard-section docs-gestion-wrap">
-          <div className="docs-gestion-hero mundo-card">
-            <div className="docs-gestion-hero-inner">
-              <div className="docs-gestion-hero-icon" aria-hidden="true">
-                📑
-              </div>
-              <div className="docs-gestion-hero-text">
-                <h2 className="section-title docs-gestion-hero-title">Herramientas</h2>
-                <p className="docs-gestion-hero-sub">
-                  Documentos institucionales disponibles para tu perfil. Abre cada PDF en una nueva pestaña.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {loadingDocsGestion ? (
-            <div className="docs-gestion-loading mundo-card">
-              <div className="docs-gestion-skeleton-row" />
-              <div className="docs-gestion-skeleton-row short" />
-              <div className="docs-gestion-skeleton-row" />
-            </div>
-          ) : docsGestionPorCategoria.length === 0 ? (
-            <div className="docs-gestion-empty mundo-card">
-              <span className="docs-gestion-empty-icon" aria-hidden="true">📭</span>
-              <p>No hay documentos de gestión asignados a tu perfil por ahora.</p>
-            </div>
-          ) : (
-            <div className="docs-gestion-categorias">
-              {docsGestionPorCategoria.map((grupo, gi) => (
-                <div
-                  key={grupo.nombre}
-                  className={`docs-gestion-categoria mundo-card docs-gestion-categoria--tone-${gi % 5}`}
-                >
-                  <div className="docs-gestion-categoria-head">
-                    <div className="docs-gestion-categoria-title-wrap">
-                      <span className="docs-gestion-categoria-chip" aria-hidden="true">
-                        {grupo.items.length}
-                      </span>
-                      <h3 className="docs-gestion-categoria-title">{grupo.nombre}</h3>
-                    </div>
-                    <span className="docs-gestion-categoria-hint">PDF</span>
-                  </div>
-                  <div className="docs-gestion-doc-grid">
-                    {grupo.items.map((d, di) => {
-                      const fechaStr = d.fecha_publicacion
-                        ? new Date(d.fecha_publicacion).toLocaleDateString('es-PE', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric'
-                          })
-                        : d.created_at
-                          ? new Date(d.created_at).toLocaleDateString('es-PE', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric'
-                            })
-                          : '';
-                      const pastelIdx = (gi * 3 + di) % 6;
-                      return (
-                        <a
-                          key={d.id}
-                          className={`docs-gestion-doc-card docs-gestion-doc-card--pastel-${pastelIdx}`}
-                          href={gestionPdfFullUrl(d.archivo_url)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          title={d.titulo}
-                          aria-label={`Ver PDF: ${d.titulo}`}
-                        >
-                          <div className="docs-gestion-doc-icon-wrap" aria-hidden="true">
-                            <span className="docs-gestion-doc-icon">PDF</span>
-                          </div>
-                          <div className="docs-gestion-doc-text">
-                            <span className="docs-gestion-doc-titulo">{d.titulo}</span>
-                            {fechaStr ? (
-                              <span className="docs-gestion-doc-meta">{fechaStr}</span>
-                            ) : null}
-                          </div>
-                          <span className="docs-gestion-doc-view" aria-hidden="true">
-                            <svg
-                              className="docs-gestion-doc-view-svg"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              xmlns="http://www.w3.org/2000/svg"
-                            >
-                              <path
-                                d="M1 12s4.5-7 11-7 11 7 11 7-4.5 7-11 7S1 12 1 12z"
-                                stroke="currentColor"
-                                strokeWidth="1.65"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                              />
-                              <circle
-                                cx="12"
-                                cy="12"
-                                r="3.25"
-                                stroke="currentColor"
-                                strokeWidth="1.65"
-                              />
-                            </svg>
-                          </span>
-                        </a>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <DocenteDocumentosGestionSection
+          documentos={docsGestion}
+          loading={loadingDocsGestion}
+          maxPorCategoria={4}
+          verMasTo="/docente/herramientas"
+        />
 
         {/* Card amarillo - Solo en móvil */}
         <div id="dashboard-publicaciones" className="dashboard-section card-amarillo-section">

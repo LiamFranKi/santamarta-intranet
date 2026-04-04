@@ -1,0 +1,34 @@
+import React, { useState, useEffect } from 'react';
+import DashboardLayout from '../components/DashboardLayout';
+import DocenteDocumentosGestionSection from '../components/DocenteDocumentosGestionSection';
+import api from '../services/api';
+
+export default function DocenteHerramientas() {
+  const [documentos, setDocumentos] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await api.get('/docente/documentos-gestion');
+        if (!cancelled) setDocumentos(res.data.documentos || []);
+      } catch {
+        if (!cancelled) setDocumentos([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <DashboardLayout>
+      <div className="docente-dashboard docente-herramientas-page">
+        <DocenteDocumentosGestionSection documentos={documentos} loading={loading} />
+      </div>
+    </DashboardLayout>
+  );
+}
