@@ -29,6 +29,8 @@ import AdminPerfil from './pages/admin/AdminPerfil';
 import AdminPublicaciones from './pages/admin/AdminPublicaciones';
 import AdminConexiones from './pages/admin/AdminConexiones';
 import AdminHerramientasDinamicas from './pages/admin/AdminHerramientasDinamicas';
+import AdminHerramientasAcademicas from './pages/admin/AdminHerramientasAcademicas';
+import AdminHerramientasEmocionales from './pages/admin/AdminHerramientasEmocionales';
 import AdminExamenesPersonal from './pages/admin/AdminExamenesPersonal';
 import AdminEncuestas from './pages/admin/AdminEncuestas';
 import DashboardLayout from './components/DashboardLayout';
@@ -728,6 +730,22 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
             <AdminDocumentosGestion />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/academicas"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <AdminHerramientasAcademicas />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/emocionales"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <AdminHerramientasEmocionales />
           </PrivateRoute>
         }
       />

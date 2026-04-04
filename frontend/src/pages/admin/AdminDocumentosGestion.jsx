@@ -237,7 +237,7 @@ function AdminDocumentosGestion() {
     return (
       <DashboardLayout>
         <div className="dg-page">
-          <div className="dg-loading">Cargando Documento De Gestión…</div>
+          <div className="dg-loading">Cargando De Gestión…</div>
         </div>
       </DashboardLayout>
     );
@@ -247,7 +247,7 @@ function AdminDocumentosGestion() {
     <DashboardLayout>
       <div className="dg-page">
         <header className="dg-page-header">
-          <h1>Documento De Gestión</h1>
+          <h1>De Gestión</h1>
           <p>Suba PDFs, organícelos por categoría y defina qué perfil de usuario puede verlos.</p>
         </header>
 
