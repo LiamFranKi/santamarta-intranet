@@ -801,9 +801,8 @@
 .sidebar-sublink {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 0.625rem 1.5rem;
-  padding-left: 3rem;
+  gap: 0.65rem;
+  padding: 0.625rem 1.25rem 0.625rem 2.5rem;
   color: var(--sidebar-text, white);
   opacity: 0.85;
   text-decoration: none;
@@ -817,6 +816,29 @@
   font: inherit;
   font-weight: 400;
   font-size: 0.9rem;
+}
+
+/* Iconos de submenú: mismo estilo general que el menú principal, algo más compactos */
+.sidebar-sublink .sidebar-icon {
+  font-size: 1.05rem;
+  width: 20px;
+  min-width: 20px;
+  flex-shrink: 0;
+  opacity: 0.88;
+  line-height: 1;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.45)) drop-shadow(0 0 6px rgba(255, 255, 255, 0.22));
+  transition: transform 0.2s, opacity 0.2s;
+}
+
+.sidebar-sublink .sidebar-label {
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.sidebar-sublink:hover .sidebar-icon,
+.sidebar-sublink.active .sidebar-icon {
+  opacity: 1;
+  transform: scale(1.07);
 }
 
 .sidebar-sublink:hover {
