@@ -38,25 +38,14 @@ export default function DashboardLayout({ children }) {
       ...(path.startsWith('/admin/reportes') && { reportes: true }),
       ...(
         (
-          path.startsWith('/admin/documentos-gestion')
-          || path.startsWith('/admin/herramientas/')
-          || path.startsWith('/admin/herramientas-dinamicas')
-          || path.startsWith('/admin/examenes-personal')
-          || path.startsWith('/admin/encuestas')
-          || path.startsWith('/admin/vocabularios')
+          path.startsWith('/admin/herramientas')
+          || path.startsWith('/admin/documentos-gestion')
         ) && { herramientas: true }
       ),
       ...(
         (
-          path.startsWith('/admin/publicaciones')
-          || path.startsWith('/admin/conexiones')
-          || path.startsWith('/admin/incidencias')
-          || path.startsWith('/admin/herramientas-dinamicas')
-          || path.startsWith('/admin/chat-vanguard')
+          path.startsWith('/admin/comunicaciones')
           || path.startsWith('/admin/vanguarcito')
-          || path.startsWith('/admin/actividades')
-          || path.startsWith('/admin/comunicados')
-          || path.startsWith('/admin/notificaciones')
         ) && { comunicaciones: true }
       ),
     }));
@@ -472,43 +461,43 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/actividades">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/actividades">
                   <span className="sidebar-icon">📅</span>
                   <span className="sidebar-label">Actividades</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicados">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/comunicados">
                   <span className="sidebar-icon">📢</span>
                   <span className="sidebar-label">Comunicados</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/publicaciones">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/publicaciones">
                   <span className="sidebar-icon">📰</span>
                   <span className="sidebar-label">Publicaciones</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/conexiones">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/conexiones">
                   <span className="sidebar-icon">🔗</span>
                   <span className="sidebar-label">Conexiones</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/examenes-personal">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/herramientas/examenes">
                   <span className="sidebar-icon">📝</span>
                   <span className="sidebar-label">Examenes</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/encuestas">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/herramientas/encuestas">
                   <span className="sidebar-icon">📋</span>
                   <span className="sidebar-label">Encuestas</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/notificaciones">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/notificaciones">
                   <span className="sidebar-icon">🔔</span>
                   <span className="sidebar-label">Notificaciones</span>
                 </NavLink>
@@ -703,15 +692,15 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>💛</span>
                     <span className="sidebar-label">Emocionales</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/examenes-personal">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/examenes">
                     <span className="sidebar-icon" aria-hidden>📝</span>
                     <span className="sidebar-label">Examenes</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/encuestas">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/encuestas">
                     <span className="sidebar-icon" aria-hidden>📋</span>
                     <span className="sidebar-label">Encuestas</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/vocabularios">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/vocabularios">
                     <span className="sidebar-icon" aria-hidden>📚</span>
                     <span className="sidebar-label">Vocabularios</span>
                   </NavLink>
@@ -730,31 +719,31 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-menu-arrow">▶</span>
                 </button>
                 <div ref={(el) => { submenuRefs.current.comunicaciones = el; }} className={`sidebar-submenu ${expandedMenus.comunicaciones ? 'expanded' : ''}`}>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/publicaciones">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/publicaciones">
                     <span className="sidebar-icon" aria-hidden>📰</span>
                     <span className="sidebar-label">Publicaciones</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/conexiones">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/conexiones">
                     <span className="sidebar-icon" aria-hidden>🔗</span>
                     <span className="sidebar-label">Conexiones</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/incidencias">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/incidencias">
                     <span className="sidebar-icon" aria-hidden>⚠️</span>
                     <span className="sidebar-label">Incidencias</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/chat-vanguard">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/chat-vanguard">
                     <span className="sidebar-icon" aria-hidden>💬</span>
                     <span className="sidebar-label">Chat Vanguard</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/actividades">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/actividades">
                     <span className="sidebar-icon" aria-hidden>📅</span>
                     <span className="sidebar-label">Actividades</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicados">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/comunicados">
                     <span className="sidebar-icon" aria-hidden>📢</span>
                     <span className="sidebar-label">Comunicados</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/notificaciones">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/notificaciones">
                     <span className="sidebar-icon" aria-hidden>🔔</span>
                     <span className="sidebar-label">Notificaciones</span>
                   </NavLink>

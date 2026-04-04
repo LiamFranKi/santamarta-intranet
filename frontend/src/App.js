@@ -31,9 +31,10 @@ import AdminConexiones from './pages/admin/AdminConexiones';
 import AdminHerramientasDinamicas from './pages/admin/AdminHerramientasDinamicas';
 import AdminHerramientasAcademicas from './pages/admin/AdminHerramientasAcademicas';
 import AdminHerramientasEmocionales from './pages/admin/AdminHerramientasEmocionales';
+import AdminVocabularios from './pages/admin/AdminVocabularios';
+import AdminIncidencias from './pages/admin/AdminIncidencias';
 import AdminExamenesPersonal from './pages/admin/AdminExamenesPersonal';
 import AdminEncuestas from './pages/admin/AdminEncuestas';
-import DashboardLayout from './components/DashboardLayout';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
 import AlumnoDashboard from './pages/AlumnoDashboard';
 import AlumnoPerfil from './pages/AlumnoPerfil';
@@ -60,14 +61,6 @@ import ApoderadoActividades from './pages/ApoderadoActividades';
 import ApoderadoMensajes from './pages/ApoderadoMensajes';
 import ApoderadoHijoAulaVirtual from './pages/ApoderadoHijoAulaVirtual';
 import './App.css';
-
-// Configurar React Router para evitar warnings
-const routerConfig = {
-  future: {
-    v7_startTransition: true,
-    v7_relativeSplatPath: true,
-  },
-};
 
 // Tema de Material-UI
 const theme = createTheme({
@@ -213,8 +206,9 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      {/* Comunicaciones — rutas canónicas bajo /admin/comunicaciones/ */}
       <Route
-        path="/admin/publicaciones"
+        path="/admin/comunicaciones/publicaciones"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <AdminPublicaciones />
@@ -222,13 +216,52 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/conexiones"
+        path="/admin/comunicaciones/conexiones"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <AdminConexiones />
           </PrivateRoute>
         }
       />
+      <Route
+        path="/admin/comunicaciones/incidencias"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminIncidencias />
+          </PrivateRoute>
+        }
+      />
+      <Route path="/admin/comunicaciones/chat-vanguard" element={<Navigate to="/admin/vanguarcito" replace />} />
+      <Route
+        path="/admin/comunicaciones/actividades"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminActividades />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/comunicaciones/comunicados"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminComunicados />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/comunicaciones/notificaciones"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route path="/admin/publicaciones" element={<Navigate to="/admin/comunicaciones/publicaciones" replace />} />
+      <Route path="/admin/conexiones" element={<Navigate to="/admin/comunicaciones/conexiones" replace />} />
+      <Route path="/admin/incidencias" element={<Navigate to="/admin/comunicaciones/incidencias" replace />} />
+      <Route path="/admin/actividades" element={<Navigate to="/admin/comunicaciones/actividades" replace />} />
+      <Route path="/admin/comunicados" element={<Navigate to="/admin/comunicaciones/comunicados" replace />} />
+      <Route path="/admin/notificaciones" element={<Navigate to="/admin/comunicaciones/notificaciones" replace />} />
       <Route
         path="/admin/herramientas-dinamicas"
         element={
@@ -238,7 +271,7 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/examenes-personal"
+        path="/admin/herramientas/examenes"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <AdminExamenesPersonal />
@@ -246,16 +279,25 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/encuestas"
+        path="/admin/herramientas/encuestas"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <AdminEncuestas />
           </PrivateRoute>
         }
       />
-      <Route path="/admin/vocabularios" element={<Navigate to="/admin/herramientas-dinamicas" replace />} />
-      <Route path="/admin/incidencias" element={<Navigate to="/admin/herramientas-dinamicas" replace />} />
-      <Route path="/admin/chat-vanguard" element={<Navigate to="/admin/vanguarcito" replace />} />
+      <Route
+        path="/admin/herramientas/vocabularios"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminVocabularios />
+          </PrivateRoute>
+        }
+      />
+      <Route path="/admin/examenes-personal" element={<Navigate to="/admin/herramientas/examenes" replace />} />
+      <Route path="/admin/encuestas" element={<Navigate to="/admin/herramientas/encuestas" replace />} />
+      <Route path="/admin/vocabularios" element={<Navigate to="/admin/herramientas/vocabularios" replace />} />
+      <Route path="/admin/chat-vanguard" element={<Navigate to="/admin/comunicaciones/chat-vanguard" replace />} />
       <Route
         path="/admin/estadisticas"
         element={
@@ -710,22 +752,6 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/actividades"
-        element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
-            <AdminActividades />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/admin/comunicados"
-        element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
-            <AdminComunicados />
-          </PrivateRoute>
-        }
-      />
-      <Route
         path="/admin/documentos-gestion"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
@@ -746,14 +772,6 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
             <AdminHerramientasEmocionales />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/admin/notificaciones"
-        element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
-            <Dashboard />
           </PrivateRoute>
         }
       />

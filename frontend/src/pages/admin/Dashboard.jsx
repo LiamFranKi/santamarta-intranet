@@ -104,6 +104,51 @@ function Dashboard() {
       description: 'Gestiona las notificaciones del sistema',
       icon: '🔔'
     },
+    '/admin/comunicaciones/notificaciones': {
+      title: '🔔 Notificaciones',
+      description: 'Gestiona las notificaciones del sistema',
+      icon: '🔔'
+    },
+    '/admin/comunicaciones/publicaciones': {
+      title: '📢 Publicaciones',
+      description: 'Gestiona las publicaciones del colegio',
+      icon: '📢'
+    },
+    '/admin/comunicaciones/conexiones': {
+      title: '🔗 Conexiones familiares',
+      description: 'Gestiona las conexiones entre familias y el colegio',
+      icon: '🔗'
+    },
+    '/admin/comunicaciones/incidencias': {
+      title: '⚠️ Incidencias',
+      description: 'Registro y seguimiento de incidencias',
+      icon: '⚠️'
+    },
+    '/admin/comunicaciones/actividades': {
+      title: '📅 Actividades',
+      description: 'Gestiona las actividades escolares',
+      icon: '📅'
+    },
+    '/admin/comunicaciones/comunicados': {
+      title: '📣 Comunicados',
+      description: 'Gestiona los comunicados oficiales',
+      icon: '📣'
+    },
+    '/admin/herramientas/examenes': {
+      title: '📝 Exámenes personal',
+      description: 'Herramientas de exámenes y evaluaciones',
+      icon: '📝'
+    },
+    '/admin/herramientas/encuestas': {
+      title: '📋 Encuestas',
+      description: 'Crea y gestiona encuestas',
+      icon: '📋'
+    },
+    '/admin/herramientas/vocabularios': {
+      title: '📖 Vocabularios',
+      description: 'Gestiona vocabularios y glosarios',
+      icon: '📖'
+    },
     '/admin/vanguarcito': {
       title: '🌟 Vanguarcito',
       description: 'Gestiona el módulo Vanguarcito',

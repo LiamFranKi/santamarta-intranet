@@ -75,7 +75,7 @@ export function normalizarUrlNotificacion(notif, user) {
       url.includes('/comunicados') ||
       url.includes('#publicaciones')
     ) {
-      return '/admin/publicaciones';
+      return '/admin/comunicaciones/publicaciones';
     }
   }
 
@@ -87,8 +87,8 @@ export function normalizarUrlNotificacion(notif, user) {
   ) {
     if (user?.tipo === 'ALUMNO') return '/alumno/dashboard#publicaciones';
     if (user?.tipo === 'APODERADO') return '/apoderado/dashboard#publicaciones';
-    if (user?.tipo === 'ADMINISTRADOR') return '/admin/publicaciones';
-    if (user?.tipo === 'PROMOTORIA') return '/admin/publicaciones';
+    if (user?.tipo === 'ADMINISTRADOR') return '/admin/comunicaciones/publicaciones';
+    if (user?.tipo === 'PROMOTORIA') return '/admin/comunicaciones/publicaciones';
     return '/docente/dashboard#publicaciones';
   }
 
@@ -131,7 +131,7 @@ export function normalizarUrlNotificacion(notif, user) {
   if (tipoAccion === 'publicacion') {
     if (user?.tipo === 'ALUMNO') return '/alumno/dashboard#publicaciones';
     if (user?.tipo === 'APODERADO') return '/apoderado/dashboard#publicaciones';
-    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') return '/admin/publicaciones';
+    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') return '/admin/comunicaciones/publicaciones';
     return '/docente/dashboard#publicaciones';
   }
 
