@@ -637,7 +637,7 @@ function DocenteDashboard() {
           )}
         </div>
 
-        {/* Documento De Gestión — debajo de Próximos Eventos */}
+        {/* Herramientas — debajo de Próximos Eventos */}
         <div className="dashboard-section docs-gestion-wrap">
           <div className="docs-gestion-hero mundo-card">
             <div className="docs-gestion-hero-inner">
@@ -645,7 +645,7 @@ function DocenteDashboard() {
                 📑
               </div>
               <div className="docs-gestion-hero-text">
-                <h2 className="section-title docs-gestion-hero-title">Documento De Gestión</h2>
+                <h2 className="section-title docs-gestion-hero-title">Herramientas</h2>
                 <p className="docs-gestion-hero-sub">
                   Documentos institucionales disponibles para tu perfil. Abre cada PDF en una nueva pestaña.
                 </p>

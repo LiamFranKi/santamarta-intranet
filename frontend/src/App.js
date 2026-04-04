@@ -778,7 +778,7 @@ function AppRoutes() {
       <Route
         path="/admin/vanguarcito"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <Dashboard />
           </PrivateRoute>
         }

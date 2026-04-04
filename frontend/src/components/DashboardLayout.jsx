@@ -682,15 +682,7 @@ export default function DashboardLayout({ children }) {
                 <div ref={(el) => { submenuRefs.current.herramientas = el; }} className={`sidebar-submenu ${expandedMenus.herramientas ? 'expanded' : ''}`}>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/documentos-gestion">
                     <span className="sidebar-icon" aria-hidden>📄</span>
-                    <span className="sidebar-label">De Gestión</span>
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/academicas">
-                    <span className="sidebar-icon" aria-hidden>📐</span>
-                    <span className="sidebar-label">Académicas</span>
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/emocionales">
-                    <span className="sidebar-icon" aria-hidden>💛</span>
-                    <span className="sidebar-label">Emocionales</span>
+                    <span className="sidebar-label">Documentos</span>
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/examenes">
                     <span className="sidebar-icon" aria-hidden>📝</span>
@@ -731,7 +723,12 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>⚠️</span>
                     <span className="sidebar-label">Incidencias</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/chat-vanguard">
+                  <NavLink
+                    className={({ isActive }) =>
+                      `sidebar-sublink ${isActive || location.pathname === '/admin/vanguarcito' ? 'active' : ''}`
+                    }
+                    to="/admin/comunicaciones/chat-vanguard"
+                  >
                     <span className="sidebar-icon" aria-hidden>💬</span>
                     <span className="sidebar-label">Chat Vanguard</span>
                   </NavLink>
