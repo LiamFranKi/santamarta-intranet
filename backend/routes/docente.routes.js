@@ -43,6 +43,58 @@ function esAdminOPromotoria(tipo) {
 const ASSIGNMENT_ID_TUTORIA = -102;
 
 /**
+ * IDs de grupos para publicaciones: solo asignaturas (docente); si no tiene ninguna, solo tutoría.
+ * No mezcla grupos solo-tutoría cuando ya tiene al menos una asignatura.
+ */
+async function obtenerGruposIdsAlcancePublicaciones(colegio_id, anio_activo, personalId) {
+  const gruposAsignados = await query(
+    `SELECT DISTINCT g.id
+     FROM grupos g
+     INNER JOIN asignaturas a ON a.grupo_id = g.id
+     WHERE a.personal_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+    [personalId, colegio_id, anio_activo]
+  );
+  if (gruposAsignados.length > 0) {
+    return gruposAsignados.map((g) => g.id);
+  }
+  const gruposTutoria = await query(
+    `SELECT g.id FROM grupos g
+     WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+    [personalId, colegio_id, anio_activo]
+  );
+  return gruposTutoria.map((g) => g.id);
+}
+
+function ordenarGruposDocenteLista(grupos) {
+  const ordenNivel = { Inicial: 0, Primaria: 1, Secundaria: 2 };
+  return [...(grupos || [])].sort((a, b) => {
+    const nivA = ordenNivel[a.nivel_nombre] ?? (a.nivel_id != null ? Number(a.nivel_id) : 999);
+    const nivB = ordenNivel[b.nivel_nombre] ?? (b.nivel_id != null ? Number(b.nivel_id) : 999);
+    if (nivA !== nivB) return nivA - nivB;
+    const gradA = a.grado != null ? Number(a.grado) : 0;
+    const gradB = b.grado != null ? Number(b.grado) : 0;
+    if (gradA !== gradB) return gradA - gradB;
+    return String(a.seccion || '').localeCompare(String(b.seccion || ''), undefined, { sensitivity: 'base', numeric: true });
+  });
+}
+
+/**
+ * Une grupos docente (asignatura) y tutoría sin duplicar por g.id (misma aula como tutor y docente = una fila, prioriza tipo asignado).
+ */
+function mergeGruposDocenteSinDuplicar(gruposAsignados, gruposTutoria) {
+  const byId = new Map();
+  for (const g of gruposAsignados || []) {
+    byId.set(g.id, { ...g, tipo_grupo: 'asignado' });
+  }
+  for (const g of gruposTutoria || []) {
+    if (!byId.has(g.id)) {
+      byId.set(g.id, { ...g, tipo_grupo: 'tutoria' });
+    }
+  }
+  return Array.from(byId.values());
+}
+
+/**
  * Función auxiliar para crear notificaciones de Aula Virtual
  * @param {Object} params - Parámetros de la notificación
  * @param {number} params.asignatura_id - ID de la asignatura
@@ -1652,11 +1704,14 @@ router.get('/tiene-asignaciones', async (req, res) => {
 
 /**
  * GET /api/docente/grupos
- * Obtener grupos asignados al docente (como docente) Y grupos de tutoría (si no tiene grupos asignados como docente)
+ * Query: alcance=todos (defecto) | publicaciones
+ * - todos: grupos con asignatura + grupos solo tutoría (sin duplicar si enseña en el mismo salón que tutorea).
+ * - publicaciones: solo grupos por asignaturas (docente); si no tiene ninguna, solo tutoría. No mezcla tutoría extra cuando ya es docente en algún grupo.
  */
 router.get('/grupos', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user;
+    const alcance = String(req.query.alcance || 'todos').toLowerCase();
 
     // Administrador / Promotoría: todos los grupos del año (sin restricción)
     if (esAdminOPromotoria(req.user.tipo)) {
@@ -1696,7 +1751,7 @@ router.get('/grupos', async (req, res) => {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
-    // Obtener grupos asignados como docente (con asignaturas)
+    // Grupos como docente (asignaturas)
     const gruposAsignados = await query(
       `SELECT DISTINCT g.*, 
               n.nombre as nivel_nombre, 
@@ -1715,42 +1770,37 @@ router.get('/grupos', async (req, res) => {
       [colegio_id, personalId, colegio_id, anio_activo]
     );
 
-    // Si no tiene grupos asignados como docente, obtener grupos de tutoría
-    let gruposTutoria = [];
-    if (gruposAsignados.length === 0) {
-      gruposTutoria = await query(
-        `SELECT g.*, 
-                n.nombre as nivel_nombre, 
-                t.nombre as turno_nombre,
-                (SELECT COUNT(*) 
-                 FROM matriculas m 
-                 WHERE m.grupo_id = g.id 
-                 AND m.colegio_id = ? 
-                 AND (m.estado = 0 OR m.estado = 4)) as total_alumnos,
-                'tutoria' as tipo_grupo
-         FROM grupos g
-         INNER JOIN niveles n ON n.id = g.nivel_id
-         INNER JOIN turnos t ON t.id = g.turno_id
-         WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-        [colegio_id, personalId, colegio_id, anio_activo]
-      );
+    // Grupos como tutor (siempre consultar para alcance=todos y deduplicar)
+    const gruposTutoria = await query(
+      `SELECT g.*, 
+              n.nombre as nivel_nombre, 
+              t.nombre as turno_nombre,
+              (SELECT COUNT(*) 
+               FROM matriculas m 
+               WHERE m.grupo_id = g.id 
+               AND m.colegio_id = ? 
+               AND (m.estado = 0 OR m.estado = 4)) as total_alumnos,
+              'tutoria' as tipo_grupo
+       FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN turnos t ON t.id = g.turno_id
+       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [colegio_id, personalId, colegio_id, anio_activo]
+    );
+
+    let grupos;
+    if (alcance === 'publicaciones') {
+      // Solo asignaturas; si no tiene ninguna, solo tutoría (misma regla que feed de publicaciones)
+      grupos =
+        gruposAsignados.length > 0
+          ? gruposAsignados
+          : gruposTutoria;
+    } else {
+      // todos: docente + tutoría sin duplicar (un salón donde enseña y es tutor = una entrada, tipo asignado)
+      grupos = mergeGruposDocenteSinDuplicar(gruposAsignados, gruposTutoria);
     }
 
-    // Combinar grupos (priorizar grupos asignados, luego grupos de tutoría)
-    const grupos = [...gruposAsignados, ...gruposTutoria];
-    // Ordenar por Nivel (Inicial, Primaria, Secundaria), Grado, Sección (4° A, 4° B, 5° A, 6° UNICA)
-    const ordenNivel = { Inicial: 0, Primaria: 1, Secundaria: 2 };
-    grupos.sort((a, b) => {
-      const nivA = ordenNivel[a.nivel_nombre] ?? (a.nivel_id != null ? Number(a.nivel_id) : 999);
-      const nivB = ordenNivel[b.nivel_nombre] ?? (b.nivel_id != null ? Number(b.nivel_id) : 999);
-      if (nivA !== nivB) return nivA - nivB;
-      const gradA = a.grado != null ? Number(a.grado) : 0;
-      const gradB = b.grado != null ? Number(b.grado) : 0;
-      if (gradA !== gradB) return gradA - gradB;
-      return String(a.seccion || '').localeCompare(String(b.seccion || ''), undefined, { sensitivity: 'base', numeric: true });
-    });
-
-    res.json({ grupos: grupos || [] });
+    res.json({ grupos: ordenarGruposDocenteLista(grupos) });
   } catch (error) {
     console.error('Error obteniendo grupos:', error);
     res.status(500).json({ error: 'Error al obtener grupos asignados' });
@@ -15256,7 +15306,7 @@ function decodePublicacionImages(imagesString) {
 /**
  * GET /api/docente/publicaciones
  * Obtener publicaciones (feed tipo Facebook)
- * Filtra publicaciones según grupos asignados del docente o grupos de tutoría
+ * Filtra publicaciones según alcance publicaciones (solo asignaturas si tiene; si no, tutoría).
  */
 router.get('/publicaciones', async (req, res) => {
   try {
@@ -15264,31 +15314,10 @@ router.get('/publicaciones', async (req, res) => {
     const personalId = req.user.personal_id;
     const esAdmin = esAdminOPromotoria(req.user.tipo);
 
-    // Obtener grupos asignados como docente
-    const gruposAsignados = await query(
-      `SELECT DISTINCT g.id
-       FROM grupos g
-       INNER JOIN asignaturas a ON a.grupo_id = g.id
-       WHERE a.personal_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [personalId, colegio_id, anio_activo]
-    );
-
-    // Si no tiene grupos asignados como docente, obtener grupos de tutoría
-    let gruposTutoria = [];
-    if (gruposAsignados.length === 0 && personalId) {
-      gruposTutoria = await query(
-        `SELECT g.id
-         FROM grupos g
-         WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-        [personalId, colegio_id, anio_activo]
-      );
+    let gruposIds = [];
+    if (!esAdmin && personalId) {
+      gruposIds = await obtenerGruposIdsAlcancePublicaciones(colegio_id, anio_activo, personalId);
     }
-
-    // Combinar IDs de grupos (asignados + tutoría)
-    const gruposIds = [
-      ...gruposAsignados.map(g => g.id),
-      ...gruposTutoria.map(g => g.id)
-    ];
 
     // Obtener TODAS las publicaciones del colegio (filtrar después en JavaScript)
     // Esto es más simple y eficiente que construir una consulta SQL compleja
@@ -15551,10 +15580,32 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
 
     // Preparar privacidad según compartir_con
     let privacidad = '-1'; // -1 = Todos por defecto
+    let gruposArrayParsed = null;
     if (compartir_con === 'grupos' && grupos_ids) {
-      const gruposArray = typeof grupos_ids === 'string' ? JSON.parse(grupos_ids) : grupos_ids;
-      if (gruposArray.length > 0) {
-        privacidad = gruposArray.join(',');
+      gruposArrayParsed = typeof grupos_ids === 'string' ? JSON.parse(grupos_ids) : grupos_ids;
+      if (Array.isArray(gruposArrayParsed) && gruposArrayParsed.length > 0) {
+        privacidad = gruposArrayParsed.join(',');
+      }
+    }
+
+    // Validar grupos permitidos (misma regla que alcance publicaciones: solo asignaturas si tiene; si no, tutoría)
+    const personalIdPub = req.user.personal_id;
+    const anioActivoPub = req.user.anio_activo;
+    if (
+      compartir_con === 'grupos' &&
+      Array.isArray(gruposArrayParsed) &&
+      gruposArrayParsed.length > 0 &&
+      personalIdPub &&
+      anioActivoPub &&
+      !esAdminOPromotoria(req.user.tipo)
+    ) {
+      const permitidos = await obtenerGruposIdsAlcancePublicaciones(colegio_id, anioActivoPub, personalIdPub);
+      const permitidosSet = new Set(permitidos.map((id) => Number(id)));
+      const invalido = gruposArrayParsed.some((id) => !permitidosSet.has(Number(id)));
+      if (invalido) {
+        return res.status(403).json({
+          error: 'No tiene permiso para publicar en uno o más de los grupos seleccionados'
+        });
       }
     }
 

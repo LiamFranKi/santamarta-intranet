@@ -41,7 +41,7 @@ function PublicacionFormCard({ onPublicacionCreada, onCancel }) {
 
   const cargarGrupos = async () => {
     try {
-      const response = await api.get('/docente/grupos');
+      const response = await api.get('/docente/grupos', { params: { alcance: 'publicaciones' } });
       const lista = response.data.grupos || [];
       setGrupos([...lista].sort(ordenarGrupos));
     } catch (error) {
