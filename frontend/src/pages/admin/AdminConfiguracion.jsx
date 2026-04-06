@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './AdminConfiguracion.css';
@@ -338,24 +338,24 @@ function AdminConfiguracion() {
     }));
   };
 
-  const generarRangosCiclosNotas = useCallback(() => {
-    const total = parseInt(config.total_notas) || 4;
-    const nuevosRangos = {};
-    
-    for (let i = 1; i <= total; i++) {
-      if (!config.rangos_ciclos_notas[i]) {
-        nuevosRangos[i] = { inicio: '', final: '' };
-      } else {
-        nuevosRangos[i] = config.rangos_ciclos_notas[i];
-      }
-    }
-    
-    setConfig(prev => ({ ...prev, rangos_ciclos_notas: nuevosRangos }));
-  }, [config.total_notas, config.ciclo_notas, config.rangos_ciclos_notas]);
-
+  // Regenerar filas de rangos por ciclo cuando cambian total_notas o ciclo_notas.
+  // No depender de rangos_ciclos_notas aquí: cada setConfig creaba un objeto nuevo, disparaba el
+  // efecto de nuevo y producía un bucle infinito de renders.
   useEffect(() => {
-    generarRangosCiclosNotas();
-  }, [generarRangosCiclosNotas]);
+    setConfig((prev) => {
+      const total = parseInt(prev.total_notas, 10) || 4;
+      const prevR = prev.rangos_ciclos_notas || {};
+      const nuevosRangos = {};
+      for (let i = 1; i <= total; i++) {
+        if (!prevR[i]) {
+          nuevosRangos[i] = { inicio: '', final: '' };
+        } else {
+          nuevosRangos[i] = prevR[i];
+        }
+      }
+      return { ...prev, rangos_ciclos_notas: nuevosRangos };
+    });
+  }, [config.total_notas, config.ciclo_notas]);
 
   // Función genérica para guardar una sección específica
   const handleSaveSection = async (fields, sectionName) => {
@@ -770,13 +770,6 @@ function AdminConfiguracion() {
                       <option key={mes.value} value={String(mes.value)}>{mes.label}</option>
                     ))}
                   </select>
-                  {/* Debug en render */}
-                  {(() => {
-                    const currentValue = Number(config.inicio_pensiones) ?? 0;
-                    const stringValue = String(currentValue);
-                    console.log('🔍 Select inicio_pensiones render - config.inicio_pensiones:', config.inicio_pensiones, 'tipo:', typeof config.inicio_pensiones, 'currentValue:', currentValue, 'stringValue:', stringValue, 'mes correspondiente:', MESES.find(m => m.value === currentValue)?.label);
-                    return null;
-                  })()}
                 </div>
               )}
               <div className="form-group">

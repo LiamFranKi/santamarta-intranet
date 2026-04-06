@@ -201,7 +201,7 @@ function ApoderadoHijos() {
         setAniosHistoricoDisponibles(anios);
 
         if (anios.length > 0) {
-          const anioSeleccionar = anios[0];
+          const anioSeleccionar = Math.max(...anios.map((a) => parseInt(String(a), 10)));
           setAnioHistoricoSeleccionado(anioSeleccionar);
           setModoHistorico(true);
           localStorage.setItem('anio_consulta_apoderado', String(anioSeleccionar));

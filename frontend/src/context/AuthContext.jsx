@@ -84,6 +84,11 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       setIsAuthenticated(true);
 
+      // Nuevo inicio de sesión: no arrastrar año histórico guardado (p. ej. 2025) cuando el colegio ya está en 2026.
+      if (userData.tipo === 'APODERADO') {
+        localStorage.removeItem('anio_consulta_apoderado');
+      }
+
       // Suscribir automáticamente a notificaciones push (para ALUMNO, APODERADO y DOCENTE)
       if (userData.tipo === 'ALUMNO' || userData.tipo === 'APODERADO' || userData.tipo === 'DOCENTE') {
         // Esperar un poco para que el Service Worker esté listo
@@ -104,6 +109,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('anio_consulta_apoderado');
     setUser(null);
     setIsAuthenticated(false);
   };

@@ -75,19 +75,26 @@ api.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
 
-    // Si el usuario es APODERADO y eligió un año histórico,
-    // adjuntar `anio_consulta` a todos los GET para que backend pueda consultar el mismo año.
+    // APODERADO: si eligió año histórico en localStorage, adjuntar `anio_consulta` a los GET.
+    // Si la petición ya trae `params.anio_consulta`, tiene prioridad (evita que un valor viejo en
+    // localStorage pise una consulta explícita; antes el storage sobrescribía y forzaba 2025).
     try {
       const userRaw = localStorage.getItem('user');
       const user = userRaw ? JSON.parse(userRaw) : null;
-      const anioConsulta = localStorage.getItem('anio_consulta_apoderado');
+      const stored = localStorage.getItem('anio_consulta_apoderado');
       const method = String(config.method || 'get').toLowerCase();
 
-      if (user?.tipo === 'APODERADO' && anioConsulta && method === 'get') {
-        config.params = {
-          ...(config.params || {}),
-          anio_consulta: anioConsulta
-        };
+      if (user?.tipo === 'APODERADO' && method === 'get') {
+        const p = config.params || {};
+        const explicit = p.anio_consulta;
+        const hasExplicit = explicit !== undefined && explicit !== null && String(explicit).trim() !== '';
+        const hasStored = stored != null && String(stored).trim() !== '';
+        if (hasExplicit || hasStored) {
+          config.params = {
+            ...p,
+            anio_consulta: hasExplicit ? explicit : stored,
+          };
+        }
       }
     } catch {
       // no-op

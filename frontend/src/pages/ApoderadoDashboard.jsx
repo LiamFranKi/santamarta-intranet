@@ -291,8 +291,9 @@ function ApoderadoDashboard() {
           const responseYears = await api.get('/apoderado/hijos/anios-historico');
           const anios = Array.isArray(responseYears.data?.anios) ? responseYears.data.anios : [];
           if (anios.length > 0) {
-            localStorage.setItem('anio_consulta_apoderado', String(anios[0]));
-            const response2 = await api.get('/apoderado/hijos');
+            const anioCargar = Math.max(...anios.map((a) => parseInt(String(a), 10)));
+            // Solo esta petición en año histórico; no guardar en localStorage (evita que todo el portal use 2025 con JWT 2026).
+            const response2 = await api.get('/apoderado/hijos', { params: { anio_consulta: anioCargar } });
             setHijos(response2.data.hijos || []);
             return;
           }
