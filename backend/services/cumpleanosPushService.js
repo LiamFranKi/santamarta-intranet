@@ -12,6 +12,65 @@ const { enviarPushNotificationMultiple } = require('./pushNotificationService');
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
+/** Misma default que AdminConfigCumpleanos.jsx */
+const DEFAULT_PLANTILLA_PUSH =
+  '¡Feliz cumpleaños, {nombre}! Te desea un gran día {colegio}.';
+
+const TITULO_PUSH_FALLBACK = '🎂 Cumpleaños';
+
+function truncarTexto(s, max) {
+  if (!s || s.length <= max) return s || '';
+  return s.slice(0, max - 3) + '...';
+}
+
+/**
+ * Sustituye {nombre} y {colegio} (case-insensitive en la clave).
+ * Opcional: {mes} = nombre del mes actual (p. ej. "Marzo").
+ */
+function aplicarPlantillaPush(plantilla, { nombre, colegio, mesNombre }) {
+  let t = String(plantilla || '').trim();
+  if (!t) t = DEFAULT_PLANTILLA_PUSH;
+  return t
+    .replace(/\{nombre\}/gi, nombre)
+    .replace(/\{colegio\}/gi, colegio)
+    .replace(/\{mes\}/gi, mesNombre || '');
+}
+
+/**
+ * Si hay salto de línea: primera línea = título, resto = cuerpo.
+ * Si es una sola línea: título corto fijo + toda la plantilla en el cuerpo (como en la UI de admin).
+ */
+function construirTituloYBody(textoSustituido) {
+  const t = (textoSustituido || '').trim();
+  if (!t) {
+    return { titulo: TITULO_PUSH_FALLBACK, cuerpo: 'Hay cumpleaños hoy.' };
+  }
+  const idx = t.indexOf('\n');
+  if (idx === -1) {
+    return {
+      titulo: truncarTexto(TITULO_PUSH_FALLBACK, 80),
+      cuerpo: truncarTexto(t, 450),
+    };
+  }
+  let titulo = t.slice(0, idx).trim() || TITULO_PUSH_FALLBACK;
+  let cuerpo = t.slice(idx + 1).trim();
+  if (!cuerpo) cuerpo = titulo;
+  return {
+    titulo: truncarTexto(titulo, 100),
+    cuerpo: truncarTexto(cuerpo, 450),
+  };
+}
+
+const nombreColegioCache = new Map();
+
+async function obtenerNombreColegio(colegioId) {
+  if (nombreColegioCache.has(colegioId)) return nombreColegioCache.get(colegioId);
+  const rows = await query(`SELECT nombre FROM colegios WHERE id = ? LIMIT 1`, [colegioId]);
+  const n = (rows[0] && rows[0].nombre) ? String(rows[0].nombre).trim() : 'tu colegio';
+  nombreColegioCache.set(colegioId, n);
+  return n;
+}
+
 /**
  * Obtener lista de cumpleaños de HOY para un usuario según su rol
  */
@@ -125,11 +184,18 @@ async function enviarNotificacionesCumpleanos() {
   }
   cumpleanosEnEjecucion = true;
   try {
-    const configs = await query(`SELECT valor FROM config WHERE clave = 'show_birthday_window' LIMIT 1`);
-    if ((configs[0]?.valor || 'NO').toUpperCase() !== 'SI') {
+    nombreColegioCache.clear();
+    const configRows = await query(
+      `SELECT clave, valor FROM config WHERE clave IN ('show_birthday_window', 'cumpleanos_plantilla_push')`
+    );
+    const cfg = Object.fromEntries(configRows.map((r) => [r.clave, r.valor]));
+    if ((cfg.show_birthday_window || 'NO').toUpperCase() !== 'SI') {
       console.log('🎂 [CUMPLEANOS-PUSH] show_birthday_window=NO, no se envían notificaciones');
       return;
     }
+
+    const plantillaGuardada = (cfg.cumpleanos_plantilla_push || '').trim();
+    const plantillaPush = plantillaGuardada || DEFAULT_PLANTILLA_PUSH;
 
     const hoy = new Date();
     const diaHoy = hoy.getDate();
@@ -170,14 +236,14 @@ async function enviarNotificacionesCumpleanos() {
       );
       if (subs.length === 0) continue;
 
-      const nombres = cumpleanos.map(c => c.nombre).join(', ');
-      const titulo = cumpleanos.length === 1
-        ? '🎂 ¡Feliz cumpleaños!'
-        : `🎂 ${cumpleanos.length} cumpleaños hoy`;
-      let body = cumpleanos.length === 1
-        ? `${nombres} cumple años hoy`
-        : nombres;
-      if (body.length > 200) body = body.substring(0, 197) + '...';
+      const nombresLista = cumpleanos.map((c) => c.nombre).join(', ');
+      const nombreColegio = await obtenerNombreColegio(colegio_id);
+      const textoPush = aplicarPlantillaPush(plantillaPush, {
+        nombre: nombresLista,
+        colegio: nombreColegio,
+        mesNombre,
+      });
+      const { titulo, cuerpo: body } = construirTituloYBody(textoPush);
 
       const subscriptions = subs.map(sub => ({
         endpoint: sub.endpoint,

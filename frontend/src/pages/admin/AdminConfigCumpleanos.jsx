@@ -81,7 +81,8 @@ function AdminConfigCumpleanos() {
         <h2 className="admin-config-cumpleanos__card-title">Plantilla — Push</h2>
         <p className="admin-config-cumpleanos__hint">
           Texto corto (las notificaciones push tienen límite de caracteres según el dispositivo). Podés usar{' '}
-          <code>{'{nombre}'}</code> y <code>{'{colegio}'}</code>; se reemplazarán al enviar.
+          <code>{'{nombre}'}</code>, <code>{'{colegio}'}</code> y opcional <code>{'{mes}'}</code> (mes actual, p. ej. Marzo).
+          Si escribís dos líneas, la primera será el título de la notificación y el resto el cuerpo.
         </p>
         <textarea
           className="admin-config-cumpleanos__textarea"
