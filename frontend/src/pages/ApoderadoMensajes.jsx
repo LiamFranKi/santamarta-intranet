@@ -7,7 +7,12 @@ import Swal from 'sweetalert2';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './AlumnoMensajes.css';
-import { procesarHTMLMensaje } from '../utils/mensajesHtml';
+import {
+  procesarHTMLMensaje,
+  MARCA_CUMPLEANOS_HTML,
+  mensajeTieneMarcaCumpleanos,
+  quitarMarcaCumpleanosHtml,
+} from '../utils/mensajesHtml';
 
 const MENSAJES_PAGE_SIZE = 50;
 
@@ -30,7 +35,7 @@ function MensajeModalContent({ mensaje, vista, onClose, onMensajeLeido }) {
     }
   }, [mensaje.id, mensaje.estado, vista, onMensajeLeido]);
 
-  const esCumple = mensaje.es_cumpleanos === 'SI';
+  const esCumple = mensajeTieneMarcaCumpleanos(mensaje);
 
   return (
     <div className={`mensaje-modal-body${esCumple ? ' mensaje-modal-body-cumpleanos' : ''}`}>
@@ -47,7 +52,9 @@ function MensajeModalContent({ mensaje, vista, onClose, onMensajeLeido }) {
       </div>
       <div 
         className={`mensaje-modal-contenido${esCumple ? ' mensaje-modal-contenido-cumpleanos' : ''}`}
-        dangerouslySetInnerHTML={{ __html: procesarHTMLMensaje(mensaje.mensaje) }}
+        dangerouslySetInnerHTML={{
+          __html: procesarHTMLMensaje(quitarMarcaCumpleanosHtml(mensaje.mensaje)),
+        }}
         style={{
           wordBreak: 'break-word'
         }}
@@ -643,8 +650,9 @@ function ApoderadoMensajes() {
       formData.append('destinatarios', JSON.stringify(usuarios));
       formData.append('grupos', JSON.stringify(grupos));
       formData.append('asunto', asunto.trim());
-      formData.append('mensaje', contenido);
-      formData.append('es_cumpleanos', mensajeDesdeCumpleanos ? 'true' : 'false');
+      const cuerpo =
+        mensajeDesdeCumpleanos ? MARCA_CUMPLEANOS_HTML + (contenido || '') : contenido;
+      formData.append('mensaje', cuerpo);
 
       // Agregar archivos
       archivosAdjuntos.forEach((archivo) => {

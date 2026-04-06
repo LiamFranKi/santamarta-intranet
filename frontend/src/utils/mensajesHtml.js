@@ -1,5 +1,20 @@
 import api from '../services/api';
 
+/** Marca al inicio del HTML (cumpleaños desde widget); no depende de columna en BD. */
+export const MARCA_CUMPLEANOS_HTML = '<!-- intranet-cumpleanos -->';
+
+export function mensajeTieneMarcaCumpleanos(mensaje) {
+  if (!mensaje) return false;
+  if (mensaje.es_cumpleanos === 'SI') return true;
+  return /intranet-cumpleanos/i.test(mensaje.mensaje || '');
+}
+
+export function quitarMarcaCumpleanosHtml(html) {
+  return String(html || '')
+    .replace(/^\s*<!--\s*intranet-cumpleanos\s*-->\s*/i, '')
+    .trim();
+}
+
 /**
  * Prepara HTML de mensaje para mostrar en modal: rutas de imágenes y URLs absolutas coherentes.
  */

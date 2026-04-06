@@ -4921,18 +4921,6 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
     const { usuario_id, colegio_id } = req.user;
     const { destinatarios, grupos, asunto, mensaje } = req.body;
 
-    const primerValorMultipart = (v) => {
-      if (v === undefined || v === null) return undefined;
-      return Array.isArray(v) ? v[0] : v;
-    };
-    const esCumpleanosRaw = primerValorMultipart(req.body.es_cumpleanos);
-    const esCumpleanosDb =
-      esCumpleanosRaw === true ||
-      esCumpleanosRaw === 'true' ||
-      esCumpleanosRaw === '1' ||
-      esCumpleanosRaw === 1
-        ? 'SI'
-        : 'NO';
     const phpBaseMensajes = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
 
     const destinatariosArray = typeof destinatarios === 'string' ? JSON.parse(destinatarios) : destinatarios;
@@ -4995,16 +4983,16 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           try {
             // Mensaje para el remitente (tipo ENVIADO)
             const resultEnviado = await execute(
-              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito, es_cumpleanos)
-               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO', ?)`,
-              [usuario_id, destinatarioId, asunto, mensajeCuerpo, fechaHora, esCumpleanosDb]
+              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
+               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO')`,
+              [usuario_id, destinatarioId, asunto, mensajeCuerpo, fechaHora]
             );
 
             // Mensaje para el destinatario (tipo RECIBIDO)
             const resultRecibido = await execute(
-              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito, es_cumpleanos)
-               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO', ?)`,
-              [usuario_id, destinatarioId, asunto, mensajeCuerpo, fechaHora, esCumpleanosDb]
+              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
+               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO')`,
+              [usuario_id, destinatarioId, asunto, mensajeCuerpo, fechaHora]
             );
 
             mensajesIds.push(resultEnviado.insertId, resultRecibido.insertId);
