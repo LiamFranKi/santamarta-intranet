@@ -1,94 +1,262 @@
 .admin-config-cumpleanos {
-  max-width: 720px;
-  padding-bottom: 2rem;
+  max-width: 920px;
+  margin: 0 auto;
+  padding-bottom: 1.5rem;
 }
 
 .admin-config-cumpleanos--loading {
-  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 240px;
   color: #64748b;
 }
 
-.admin-config-cumpleanos__header h1 {
+.admin-config-cumpleanos__spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: admin-cumple-spin 0.75s linear infinite;
+}
+
+@keyframes admin-cumple-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Hero */
+.admin-config-cumpleanos__hero {
+  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 45%, #4c1d95 100%);
+  border-radius: 16px;
+  padding: 1.75rem 1.5rem 1.5rem;
+  margin-bottom: 1.75rem;
+  color: #fff;
+  box-shadow: 0 10px 40px rgba(49, 46, 129, 0.35);
+}
+
+.admin-config-cumpleanos__hero-inner h1 {
   margin: 0 0 0.5rem;
-  font-size: 1.5rem;
-  color: #1e293b;
+  font-size: 1.65rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
-.admin-config-cumpleanos__intro {
-  margin: 0 0 1.5rem;
-  color: #64748b;
-  line-height: 1.5;
+.admin-config-cumpleanos__lead {
+  margin: 0 0 1.25rem;
   font-size: 0.95rem;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, 0.88);
+  max-width: 52rem;
+}
+
+.admin-config-cumpleanos__lead strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Mapa 2x2 */
+.admin-config-cumpleanos__map {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.65rem;
+}
+
+@media (max-width: 640px) {
+  .admin-config-cumpleanos__map {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-config-cumpleanos__map-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.85rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.admin-config-cumpleanos__map-item > div {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.admin-config-cumpleanos__map-item strong {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.admin-config-cumpleanos__map-dest {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.admin-config-cumpleanos__map-emoji {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.admin-config-cumpleanos__pill {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+}
+
+.admin-config-cumpleanos__pill--on {
+  background: rgba(52, 211, 153, 0.35);
+  color: #ecfdf5;
+}
+
+/* Grid de tarjetas */
+.admin-config-cumpleanos__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
 }
 
 .admin-config-cumpleanos__card {
   background: #fff;
-  border-radius: 12px;
-  padding: 1.25rem 1.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.35rem 1.4rem 1.4rem;
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+  border: 1px solid #e8ecf1;
+  position: relative;
+  overflow: hidden;
 }
 
-.admin-config-cumpleanos__card--spaced {
-  margin-top: 1.25rem;
+.admin-config-cumpleanos__card--accent::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  border-radius: 14px 0 0 14px;
+}
+
+.admin-config-cumpleanos__card--push::before {
+  background: linear-gradient(180deg, #6366f1, #8b5cf6);
+}
+
+.admin-config-cumpleanos__card--ventana::before {
+  background: linear-gradient(180deg, #0ea5e9, #06b6d4);
+}
+
+.admin-config-cumpleanos__card--correo::before {
+  background: linear-gradient(180deg, #f59e0b, #ea580c);
+}
+
+.admin-config-cumpleanos__card--mensaje::before {
+  background: linear-gradient(180deg, #10b981, #059669);
+}
+
+.admin-config-cumpleanos__card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin-bottom: 0.65rem;
+}
+
+.admin-config-cumpleanos__card-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+  margin-top: 0.1rem;
 }
 
 .admin-config-cumpleanos__card-title {
-  margin: 0 0 0.5rem;
-  font-size: 1.1rem;
-  color: #334155;
+  margin: 0;
+  font-size: 1.12rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.admin-config-cumpleanos__card-destino {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  color: #64748b;
+  font-weight: 500;
 }
 
 .admin-config-cumpleanos__hint {
   margin: 0 0 0.75rem;
-  font-size: 0.85rem;
+  font-size: 0.86rem;
   color: #64748b;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
-.admin-config-cumpleanos__hint code {
+.admin-config-cumpleanos__placeholders {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-config-cumpleanos__ph-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-right: 0.25rem;
+}
+
+.admin-config-cumpleanos__placeholders code {
   background: #f1f5f9;
-  padding: 0.1rem 0.35rem;
-  border-radius: 4px;
-  font-size: 0.9em;
+  color: #475569;
+  padding: 0.2rem 0.45rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  border: 1px solid #e2e8f0;
 }
 
 .admin-config-cumpleanos__textarea {
   width: 100%;
   box-sizing: border-box;
-  padding: 0.75rem 1rem;
+  padding: 0.85rem 1rem;
   border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 0.95rem;
+  border-radius: 10px;
+  font-size: 0.92rem;
   font-family: inherit;
-  line-height: 1.45;
+  line-height: 1.5;
   resize: vertical;
   min-height: 100px;
+  background: #fafbfc;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+
+.admin-config-cumpleanos__textarea:hover {
+  background: #fff;
 }
 
 .admin-config-cumpleanos__textarea:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
-}
-
-.admin-config-cumpleanos__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-top: 1rem;
-  justify-content: flex-end;
-}
-
-.admin-config-cumpleanos__actions--footer {
-  margin-top: 1.5rem;
-  padding-top: 0.5rem;
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  background: #fff;
 }
 
 .admin-config-cumpleanos__label {
   display: block;
-  margin: 0.75rem 0 0.35rem;
-  font-size: 0.875rem;
+  margin: 0.85rem 0 0.4rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: #475569;
 }
@@ -96,32 +264,52 @@
 .admin-config-cumpleanos__input {
   width: 100%;
   box-sizing: border-box;
-  padding: 0.6rem 0.85rem;
+  padding: 0.65rem 0.9rem;
   border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 0.95rem;
+  border-radius: 10px;
+  font-size: 0.92rem;
   font-family: inherit;
+  background: #fafbfc;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .admin-config-cumpleanos__input:focus {
   outline: none;
-  border-color: #6366f1;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+  border-color: #818cf8;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  background: #fff;
+}
+
+/* Barra de acciones al final */
+.admin-config-cumpleanos__footer-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 1.75rem;
+  padding: 1rem 1.15rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
 }
 
 .admin-config-cumpleanos__btn {
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
+  padding: 0.55rem 1.15rem;
+  border-radius: 10px;
   border: 1px solid #cbd5e1;
   background: #fff;
   color: #475569;
   font-weight: 600;
   cursor: pointer;
   font-size: 0.9rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .admin-config-cumpleanos__btn:hover:not(:disabled) {
   background: #f8fafc;
+  border-color: #94a3b8;
 }
 
 .admin-config-cumpleanos__btn:disabled {
@@ -133,8 +321,10 @@
   background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
   border-color: transparent;
   color: #fff;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
 }
 
 .admin-config-cumpleanos__btn--primary:hover:not(:disabled) {
-  filter: brightness(1.05);
+  filter: brightness(1.06);
+  border-color: transparent;
 }
