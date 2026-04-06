@@ -11,6 +11,44 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import './DocenteAulaVirtual-gamificado.css';
 
+/** Inserta imágenes en Quill vía URL (subida a servidor), no base64 — compatible con descripción larga en BD. */
+function attachQuillImageUploadHandler(quill) {
+  if (!quill) return;
+  const toolbar = quill.getModule('toolbar');
+  if (!toolbar) return;
+  toolbar.addHandler('image', () => {
+    const input = document.createElement('input');
+    input.setAttribute('type', 'file');
+    input.setAttribute('accept', 'image/*');
+    input.click();
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      if (file.size > 5 * 1024 * 1024) {
+        Swal.fire('Error', 'La imagen no puede ser mayor a 5MB', 'error');
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        Swal.fire('Error', 'Solo se permiten imágenes', 'error');
+        return;
+      }
+      try {
+        const formData = new FormData();
+        formData.append('imagen', file);
+        const { data } = await api.post('/docente/mensajes/subir-imagen', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        const range = quill.getSelection(true) || { index: Math.max(0, quill.getLength() - 1) };
+        quill.insertEmbed(range.index, 'image', data.url);
+        quill.setSelection(range.index + 1);
+      } catch (err) {
+        console.error(err);
+        Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+      }
+    };
+  });
+}
+
 // Componente SortableItem para drag and drop
 function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown, dropdownPosition, buttonRef, readOnly = false }) {
   const {
@@ -6025,6 +6063,18 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
     const textos = alternativas.map(a => (a.emparejar_con_text != null ? String(a.emparejar_con_text).replace(/<[^>]*>/g, '').trim() : '')).filter(Boolean);
     return [...new Set(textos)];
   }, [formPregunta.tipo, alternativas]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const descEditor = quillRefDescripcion.current?.getEditor?.();
+      if (descEditor) attachQuillImageUploadHandler(descEditor);
+      Object.values(quillRefsAlternativas.current).forEach((ref) => {
+        const q = ref?.getEditor?.();
+        if (q) attachQuillImageUploadHandler(q);
+      });
+    }, 200);
+    return () => clearTimeout(t);
+  }, [alternativas.length, formPregunta.tipo, pregunta?.id]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

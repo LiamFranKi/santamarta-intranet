@@ -86,7 +86,7 @@ function DocenteCursos() {
   // Estados para modal de copiar contenido
   const [mostrarModalCopiarContenido, setMostrarModalCopiarContenido] = useState(false);
   const [cursoParaCopiar, setCursoParaCopiar] = useState(null);
-  const [datosCopiarContenido, setDatosCopiarContenido] = useState(null); // { otrasAsignaturas, temas, tareas, examenes, videos, enlaces }
+  const [datosCopiarContenido, setDatosCopiarContenido] = useState(null); // { otrasAsignaturas, temas, tareas, examenes, videos, enlaces, sesiones }
   const [loadingCopiarContenido, setLoadingCopiarContenido] = useState(false);
   const [guardandoCopiarContenido, setGuardandoCopiarContenido] = useState(false);
   const [formCopiarContenido, setFormCopiarContenido] = useState({
@@ -95,7 +95,8 @@ function DocenteCursos() {
     tareas_id: [],
     examenes_id: [],
     videos_id: [],
-    enlaces_id: []
+    enlaces_id: [],
+    sesiones_id: []
   });
 
   // Estados para modal Ver Nómina
@@ -2254,9 +2255,9 @@ function DocenteCursos() {
         cargarLinkAulaVirtual(curso.id);
         break;
       case 'copiar':
-        console.log('Abriendo modal de copiar contenido para curso:', curso.id);
         setCursoParaCopiar(curso);
         setMostrarModalCopiarContenido(true);
+        cargarDatosCopiarContenido(curso.id);
         break;
       case 'indicadores':
         setCursoParaIndicadores(curso);
@@ -3340,14 +3341,24 @@ function DocenteCursos() {
     try {
       setLoadingCopiarContenido(true);
       const response = await api.get(`/docente/cursos/${cursoId}/copiar-contenido`);
-      setDatosCopiarContenido(response.data);
+      const d = response.data || {};
+      setDatosCopiarContenido({
+        otrasAsignaturas: d.otrasAsignaturas || [],
+        temas: d.temas || [],
+        tareas: d.tareas || [],
+        examenes: d.examenes || [],
+        videos: d.videos || [],
+        enlaces: d.enlaces || [],
+        sesiones: d.sesiones || []
+      });
       setFormCopiarContenido({
         asignatura_destino_id: '',
         temas_id: [],
         tareas_id: [],
         examenes_id: [],
         videos_id: [],
-        enlaces_id: []
+        enlaces_id: [],
+        sesiones_id: []
       });
     } catch (error) {
       console.error('Error cargando datos para copiar contenido:', error);
@@ -3364,12 +3375,19 @@ function DocenteCursos() {
         tareas: [],
         examenes: [],
         videos: [],
-        enlaces: []
+        enlaces: [],
+        sesiones: []
       });
     } finally {
       setLoadingCopiarContenido(false);
     }
   };
+
+  const cerrarModalCopiarContenido = useCallback(() => {
+    setMostrarModalCopiarContenido(false);
+    setCursoParaCopiar(null);
+    setDatosCopiarContenido(null);
+  }, []);
 
   // Guardar copia de contenido
   const handleGuardarCopiarContenido = async () => {
@@ -3383,7 +3401,8 @@ function DocenteCursos() {
       formCopiarContenido.tareas_id.length +
       formCopiarContenido.examenes_id.length +
       formCopiarContenido.videos_id.length +
-      formCopiarContenido.enlaces_id.length;
+      formCopiarContenido.enlaces_id.length +
+      formCopiarContenido.sesiones_id.length;
 
     if (totalSeleccionado === 0) {
       Swal.fire('Error', 'Debe seleccionar al menos un elemento para copiar', 'error');
@@ -3404,19 +3423,21 @@ function DocenteCursos() {
                <strong>Proyectos:</strong> ${response.data.copiados.tareas}<br>
                <strong>Exámenes:</strong> ${response.data.copiados.examenes}<br>
                <strong>Videos:</strong> ${response.data.copiados.videos}<br>
-               <strong>Enlaces:</strong> ${response.data.copiados.enlaces}`,
+               <strong>Enlaces:</strong> ${response.data.copiados.enlaces}<br>
+               <strong>Sesiones (PDF):</strong> ${response.data.copiados.sesiones ?? 0}`,
         icon: 'success',
         confirmButtonText: 'Aceptar'
       });
 
-      setMostrarModalCopiarContenido(false);
+      cerrarModalCopiarContenido();
       setFormCopiarContenido({
         asignatura_destino_id: '',
         temas_id: [],
         tareas_id: [],
         examenes_id: [],
         videos_id: [],
-        enlaces_id: []
+        enlaces_id: [],
+        sesiones_id: []
       });
     } catch (error) {
       console.error('Error copiando contenido:', error);
@@ -5663,7 +5684,7 @@ function DocenteCursos() {
         {mostrarModalCopiarContenido && cursoParaCopiar && createPortal(
           <div 
             className="modal-overlay" 
-            onClick={() => setMostrarModalCopiarContenido(false)}
+            onClick={cerrarModalCopiarContenido}
             style={{ zIndex: 100000 }}
           >
             <div 
@@ -5679,7 +5700,7 @@ function DocenteCursos() {
                 </div>
                 <button
                   className="modal-close"
-                  onClick={() => setMostrarModalCopiarContenido(false)}
+                  onClick={cerrarModalCopiarContenido}
                   type="button"
                   aria-label="Cerrar modal"
                 >
@@ -5794,6 +5815,69 @@ function DocenteCursos() {
                           </>
                         ) : (
                           <p className="empty-list-text">No hay temas disponibles</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Sesiones PDF (aula virtual); el tema vinculado debe existir en destino o copiarse arriba */}
+                    <div className="form-group-copiar">
+                      <label htmlFor="sesiones-id" className="form-label-copiar">
+                        📄 Sesiones (PDF)
+                      </label>
+                      <p style={{ fontSize: '0.85rem', color: '#6b7280', margin: '0 0 0.5rem 0' }}>
+                        Si copias solo sesiones, en destino debe existir el mismo tema interactivo (mismo nombre, bimestre y orden) o haber copiado antes los temas correspondientes.
+                      </p>
+                      <div className="checkbox-list-container">
+                        {(datosCopiarContenido.sesiones || []).length > 0 ? (
+                          <>
+                            <div className="checkbox-list-header">
+                              <button
+                                type="button"
+                                className="btn-select-all"
+                                onClick={() => {
+                                  const sesiones = datosCopiarContenido.sesiones || [];
+                                  const allSelected = sesiones.every((s) =>
+                                    formCopiarContenido.sesiones_id.includes(s.id)
+                                  );
+                                  setFormCopiarContenido((prev) => ({
+                                    ...prev,
+                                    sesiones_id: allSelected ? [] : sesiones.map((s) => s.id)
+                                  }));
+                                }}
+                              >
+                                {(datosCopiarContenido.sesiones || []).every((s) =>
+                                  formCopiarContenido.sesiones_id.includes(s.id))
+                                  ? '☑ Deseleccionar Todos'
+                                  : '☐ Seleccionar Todos'}
+                              </button>
+                            </div>
+                            <div className="checkbox-list">
+                              {(datosCopiarContenido.sesiones || []).map((sesion) => (
+                                <label key={sesion.id} className="checkbox-item">
+                                  <input
+                                    type="checkbox"
+                                    checked={formCopiarContenido.sesiones_id.includes(sesion.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setFormCopiarContenido((prev) => ({
+                                          ...prev,
+                                          sesiones_id: [...prev.sesiones_id, sesion.id]
+                                        }));
+                                      } else {
+                                        setFormCopiarContenido((prev) => ({
+                                          ...prev,
+                                          sesiones_id: prev.sesiones_id.filter((id) => id !== sesion.id)
+                                        }));
+                                      }
+                                    }}
+                                  />
+                                  <span>{sesion.nombre}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="empty-list-text">No hay sesiones PDF disponibles</p>
                         )}
                       </div>
                     </div>
@@ -6037,7 +6121,7 @@ function DocenteCursos() {
                 <button
                   type="button"
                   className="btn-cancelar"
-                  onClick={() => setMostrarModalCopiarContenido(false)}
+                  onClick={cerrarModalCopiarContenido}
                   disabled={guardandoCopiarContenido}
                 >
                   ✕ Cancelar

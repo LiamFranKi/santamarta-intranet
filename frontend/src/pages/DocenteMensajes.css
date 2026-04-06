@@ -595,6 +595,45 @@
   box-shadow: 0 4px 10px rgba(239, 68, 68, 0.4);
 }
 
+.btn-marcar-leidos-lote {
+  padding: 0.625rem 1rem;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 6px rgba(16, 185, 129, 0.3);
+}
+
+.btn-marcar-leidos-lote:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(16, 185, 129, 0.4);
+}
+
+.btn-marcar-leidos-lote:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.lista-header-titulo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.mensajes-contador-no-leidos {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  background: #eff6ff;
+  padding: 0.25rem 0.65rem;
+  border-radius: 6px;
+}
+
 .lista-header h2 {
   font-size: 1.5rem;
   font-weight: 700;

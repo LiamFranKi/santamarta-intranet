@@ -10,6 +10,7 @@ const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const phpSerialize = require('php-serialize');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
+const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
 
 // Configurar multer para subir archivos de mensajes
 const mensajesStorage = multer.diskStorage({
@@ -2130,7 +2131,7 @@ router.put('/perfil/password', async (req, res) => {
  */
 router.get('/qr', async (req, res) => {
   try {
-    const { usuario_id, colegio_id, anio_activo } = req.user;
+    const { usuario_id, colegio_id } = req.user;
 
     // Obtener datos del alumno (incl. foto para carnet)
     const alumno = await query(
@@ -2148,20 +2149,7 @@ router.get('/qr', async (req, res) => {
 
     const alumnoData = alumno[0];
 
-    // Obtener matrícula actual del alumno
-    const matricula = await query(
-      `SELECT m.*, 
-              g.grado, 
-              g.seccion,
-              n.nombre as nivel_nombre
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
-       LIMIT 1`,
-      [alumnoData.id, colegio_id, anio_activo]
-    );
+    const matricula = await fetchMatriculaVigenteMasReciente(query, alumnoData.id, colegio_id);
 
     // Obtener nombre del colegio
     const colegio = await query(
@@ -2855,6 +2843,43 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
   } catch (error) {
     console.error('Error enviando mensaje:', error);
     res.status(500).json({ error: 'Error al enviar mensaje' });
+  }
+});
+
+/**
+ * PUT /api/alumno/mensajes/marcar-leidos
+ * Marcar varios mensajes recibidos como leídos
+ * Body: { ids: number[] }
+ */
+router.put('/mensajes/marcar-leidos', async (req, res) => {
+  try {
+    const { usuario_id } = req.user;
+    const rawIds = req.body?.ids;
+    if (!rawIds || !Array.isArray(rawIds) || rawIds.length === 0) {
+      return res.status(400).json({ error: 'Debe enviar un array ids con al menos un id' });
+    }
+    const uniqueIds = [...new Set(rawIds.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n) && n > 0))];
+    if (uniqueIds.length === 0) {
+      return res.status(400).json({ error: 'IDs no válidos' });
+    }
+    const placeholders = uniqueIds.map(() => '?').join(',');
+    const result = await execute(
+      `UPDATE mensajes SET estado = 'LEIDO'
+       WHERE id IN (${placeholders})
+         AND destinatario_id = ?
+         AND tipo = 'RECIBIDO'
+         AND borrado = 'NO'`,
+      [...uniqueIds, usuario_id]
+    );
+    const marcados = typeof result.affectedRows === 'number' ? result.affectedRows : 0;
+    res.json({
+      success: true,
+      marcados,
+      message: marcados === 0 ? 'Ningún mensaje actualizado' : `${marcados} mensaje(s) marcado(s) como leído(s)`
+    });
+  } catch (error) {
+    console.error('Error marcando mensajes como leídos (lote, alumno):', error);
+    res.status(500).json({ error: 'Error al marcar mensajes como leídos' });
   }
 });
 

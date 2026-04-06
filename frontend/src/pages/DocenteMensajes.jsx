@@ -541,6 +541,36 @@ function DocenteMensajes() {
     }
   };
 
+  /** Marcar como leídos los mensajes seleccionados que aún estén NO_LEIDO (solo bandeja recibidos). */
+  const marcarLeidosSeleccion = async () => {
+    if (vista !== 'recibidos') return;
+    if (mensajesSeleccionados.size === 0) {
+      Swal.fire('Atención', 'Seleccione al menos un mensaje', 'warning');
+      return;
+    }
+    const idsNoLeidos = mensajesRecibidos
+      .filter((m) => mensajesSeleccionados.has(m.id) && m.estado === 'NO_LEIDO')
+      .map((m) => m.id);
+    if (idsNoLeidos.length === 0) {
+      Swal.fire('Información', 'Los mensajes seleccionados ya están leídos.', 'info');
+      return;
+    }
+    try {
+      const { data } = await api.put('/docente/mensajes/marcar-leidos', { ids: idsNoLeidos });
+      setMensajesRecibidos((prev) =>
+        prev.map((m) => (idsNoLeidos.includes(m.id) ? { ...m, estado: 'LEIDO' } : m))
+      );
+      setMensajeSeleccionado((prev) =>
+        prev && idsNoLeidos.includes(prev.id) ? { ...prev, estado: 'LEIDO' } : prev
+      );
+      setMensajesSeleccionados(new Set());
+      Swal.fire({ icon: 'success', title: 'Listo', text: data?.message || 'Mensajes marcados como leídos', timer: 2200, showConfirmButton: true });
+    } catch (error) {
+      console.error('Error marcando mensajes como leídos:', error);
+      Swal.fire('Error', error.response?.data?.error || 'No se pudo marcar como leídos', 'error');
+    }
+  };
+
   // Seleccionar destinatario
   const seleccionarDestinatario = (resultado) => {
     const yaSeleccionado = destinatariosSeleccionados.some(
@@ -929,7 +959,14 @@ function DocenteMensajes() {
             ) : (
               <div className="mensajes-lista">
                 <div className="lista-header">
-                  <h2>{tituloLista}</h2>
+                  <div className="lista-header-titulo">
+                    <h2>{tituloLista}</h2>
+                    {vista === 'recibidos' && mensajes.length > 0 && (
+                      <span className="mensajes-contador-no-leidos" title="Mensajes no leídos en esta página">
+                        {mensajes.filter((m) => m.estado === 'NO_LEIDO').length} no leído(s) en esta página
+                      </span>
+                    )}
+                  </div>
                   <div className="lista-controls">
                     {/* Filtro por año */}
                     <div className="filtro-anio">
@@ -992,12 +1029,31 @@ function DocenteMensajes() {
                     )}
                     {/* Botones de acción */}
                     {mensajesSeleccionados.size > 0 && (
-                      <button
-                        className="btn-eliminar-seleccionados"
-                        onClick={eliminarMensajesSeleccionados}
-                      >
-                        🗑️ Eliminar ({mensajesSeleccionados.size})
-                      </button>
+                      <>
+                        {vista === 'recibidos' && (() => {
+                          const nNoLeidos = mensajesRecibidos.filter(
+                            (m) => mensajesSeleccionados.has(m.id) && m.estado === 'NO_LEIDO'
+                          ).length;
+                          return (
+                            <button
+                              type="button"
+                              className="btn-marcar-leidos-lote"
+                              onClick={marcarLeidosSeleccion}
+                              disabled={nNoLeidos === 0}
+                              title={nNoLeidos === 0 ? 'No hay no leídos entre los seleccionados' : 'Marcar como leídos sin abrir'}
+                            >
+                              ✓ Marcar como leídos ({nNoLeidos})
+                            </button>
+                          );
+                        })()}
+                        <button
+                          type="button"
+                          className="btn-eliminar-seleccionados"
+                          onClick={eliminarMensajesSeleccionados}
+                        >
+                          🗑️ Eliminar ({mensajesSeleccionados.size})
+                        </button>
+                      </>
                     )}
                     <div className="lista-pagination">
                       {paginationLista.total > 0 && (

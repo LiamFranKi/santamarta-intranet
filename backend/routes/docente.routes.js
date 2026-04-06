@@ -31,6 +31,7 @@ const {
 } = require('../utils/mensajesGrupoConexionesContexto');
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
+const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
@@ -4921,6 +4922,16 @@ router.get('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       [cursoId]
     );
 
+    // Sesiones PDF del aula virtual (vinculadas a temas interactivos)
+    const sesiones = await query(
+      `SELECT s.id, s.titulo, s.ciclo, s.tema_id, aa.nombre AS tema_nombre
+       FROM asignaturas_sesion_pdf s
+       INNER JOIN asignaturas_archivos aa ON aa.id = s.tema_id AND aa.asignatura_id = s.asignatura_id
+       WHERE s.asignatura_id = ?
+       ORDER BY s.ciclo ASC, s.id ASC`,
+      [cursoId]
+    );
+
     res.json({
       otrasAsignaturas: otrasAsignaturas.map(a => ({
         id: a.id,
@@ -4945,6 +4956,10 @@ router.get('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       enlaces: enlaces.map(e => ({
         id: e.id,
         nombre: `B${e.ciclo} - ${e.descripcion}`
+      })),
+      sesiones: sesiones.map((s) => ({
+        id: s.id,
+        nombre: `B${s.ciclo} - ${s.titulo || 'Sesión'} (${s.tema_nombre || 'tema'})`
       }))
     });
   } catch (error) {
@@ -4958,7 +4973,7 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
   try {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { cursoId } = req.params;
-    const { asignatura_destino_id, temas_id, tareas_id, examenes_id, videos_id, enlaces_id } = req.body;
+    const { asignatura_destino_id, temas_id, tareas_id, examenes_id, videos_id, enlaces_id, sesiones_id } = req.body;
 
     if (!asignatura_destino_id) {
       return res.status(400).json({ error: 'Debe seleccionar una asignatura destino' });
@@ -4997,8 +5012,12 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       tareas: 0,
       examenes: 0,
       videos: 0,
-      enlaces: 0
+      enlaces: 0,
+      sesiones: 0
     };
+
+    /** Mapea id de tema en origen → id de tema copiado en destino (para sesiones PDF). */
+    const mapeoTemasOrigenADestino = {};
 
     // Copiar temas (archivos)
     if (temas_id && temas_id.length > 0) {
@@ -5009,7 +5028,7 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
         );
 
         if (tema.length > 0) {
-          await execute(
+          const resultadoTema = await execute(
             `INSERT INTO asignaturas_archivos (asignatura_id, trabajador_id, nombre, archivo, fecha_hora, ciclo, orden)
              VALUES (?, ?, ?, ?, NOW(), ?, ?)`,
             [
@@ -5021,6 +5040,9 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
               tema[0].orden
             ]
           );
+          if (resultadoTema && resultadoTema.insertId) {
+            mapeoTemasOrigenADestino[temaId] = resultadoTema.insertId;
+          }
           copiados.temas++;
         }
       }
@@ -5253,6 +5275,54 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       }
     }
 
+    // Copiar sesiones PDF (aula virtual): requiere tema equivalente en destino (mapeo por copia de tema o mismo nombre/ciclo/orden)
+    if (sesiones_id && sesiones_id.length > 0) {
+      for (const sesionId of sesiones_id) {
+        const sesionRows = await query(
+          `SELECT * FROM asignaturas_sesion_pdf WHERE id = ? AND asignatura_id = ?`,
+          [sesionId, cursoId]
+        );
+
+        if (sesionRows.length === 0) continue;
+        const s = sesionRows[0];
+
+        let temaDestinoId = mapeoTemasOrigenADestino[s.tema_id];
+        if (!temaDestinoId) {
+          const temaOrigen = await query(
+            `SELECT nombre, ciclo, orden FROM asignaturas_archivos WHERE id = ? AND asignatura_id = ?`,
+            [s.tema_id, cursoId]
+          );
+          if (temaOrigen.length === 0) continue;
+          const t = temaOrigen[0];
+          const temaDest = await query(
+            `SELECT id FROM asignaturas_archivos
+             WHERE asignatura_id = ? AND nombre = ? AND ciclo = ? AND orden = ?
+             LIMIT 1`,
+            [asignatura_destino_id, t.nombre, t.ciclo, t.orden]
+          );
+          if (temaDest.length === 0) continue;
+          temaDestinoId = temaDest[0].id;
+        }
+
+        await execute(
+          `INSERT INTO asignaturas_sesion_pdf (asignatura_id, tema_id, titulo, descripcion, archivo, ciclo, trabajador_id, fecha_hora, colegio_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            asignatura_destino_id,
+            temaDestinoId,
+            s.titulo,
+            s.descripcion,
+            s.archivo,
+            s.ciclo,
+            s.trabajador_id,
+            s.fecha_hora,
+            s.colegio_id
+          ]
+        );
+        copiados.sesiones++;
+      }
+    }
+
     // Registrar auditoría
     req.skipAudit = true;
     registrarAccion({
@@ -5263,7 +5333,7 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       modulo: 'Cursos Asignados',
       entidad: 'Contenido Aula Virtual',
       entidad_id: cursoId,
-      descripcion: `Copió contenido de asignatura (ID: ${cursoId}) a asignatura (ID: ${asignatura_destino_id}). Temas: ${copiados.temas}, Tareas: ${copiados.tareas}, Exámenes: ${copiados.examenes}, Videos: ${copiados.videos}, Enlaces: ${copiados.enlaces}`,
+      descripcion: `Copió contenido de asignatura (ID: ${cursoId}) a asignatura (ID: ${asignatura_destino_id}). Temas: ${copiados.temas}, Tareas: ${copiados.tareas}, Exámenes: ${copiados.examenes}, Videos: ${copiados.videos}, Enlaces: ${copiados.enlaces}, Sesiones: ${copiados.sesiones}`,
       url: req.originalUrl,
       metodo_http: req.method,
       ip_address: req.ip,
@@ -8820,7 +8890,7 @@ router.post('/hijos/:hijoId/reiniciar-contrasena', async (req, res) => {
 router.get('/hijos/:hijoId/qr', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, usuario_id, personal_id, anio_activo } = req.user;
+    const { colegio_id, usuario_id, personal_id } = req.user;
 
     console.log(`\n🔵 ========== [HIJOS-QR] NUEVA PETICIÓN ==========`);
     console.log(`📋 [HIJOS-QR] hijoId recibido: ${hijoId}`);
@@ -8898,20 +8968,7 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
 
     const alumnoData = alumno[0];
 
-    // Obtener matrícula actual del alumno
-    const matricula = await query(
-      `SELECT m.*, 
-              g.grado, 
-              g.seccion,
-              n.nombre as nivel_nombre
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
-       LIMIT 1`,
-      [alumnoData.id, colegio_id, anio_activo]
-    );
+    const matricula = await fetchMatriculaVigenteMasReciente(query, alumnoData.id, colegio_id);
 
     // Obtener nombre del colegio
     const colegio = await query(
@@ -14780,6 +14837,43 @@ router.delete('/mensajes/:mensajeId', async (req, res) => {
   } catch (error) {
     console.error('Error eliminando mensaje:', error);
     res.status(500).json({ error: 'Error al eliminar mensaje' });
+  }
+});
+
+/**
+ * PUT /api/docente/mensajes/marcar-leidos
+ * Marcar varios mensajes recibidos como leídos (misma bandeja)
+ * Body: { ids: number[] }
+ */
+router.put('/mensajes/marcar-leidos', async (req, res) => {
+  try {
+    const { usuario_id } = req.user;
+    const rawIds = req.body?.ids;
+    if (!rawIds || !Array.isArray(rawIds) || rawIds.length === 0) {
+      return res.status(400).json({ error: 'Debe enviar un array ids con al menos un id' });
+    }
+    const uniqueIds = [...new Set(rawIds.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n) && n > 0))];
+    if (uniqueIds.length === 0) {
+      return res.status(400).json({ error: 'IDs no válidos' });
+    }
+    const placeholders = uniqueIds.map(() => '?').join(',');
+    const result = await execute(
+      `UPDATE mensajes SET estado = 'LEIDO'
+       WHERE id IN (${placeholders})
+         AND destinatario_id = ?
+         AND tipo = 'RECIBIDO'
+         AND borrado = 'NO'`,
+      [...uniqueIds, usuario_id]
+    );
+    const marcados = typeof result.affectedRows === 'number' ? result.affectedRows : 0;
+    res.json({
+      success: true,
+      marcados,
+      message: marcados === 0 ? 'Ningún mensaje actualizado' : `${marcados} mensaje(s) marcado(s) como leído(s)`
+    });
+  } catch (error) {
+    console.error('Error marcando mensajes como leídos (lote):', error);
+    res.status(500).json({ error: 'Error al marcar mensajes como leídos' });
   }
 });
 

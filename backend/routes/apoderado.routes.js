@@ -15,6 +15,7 @@ const {
 } = require('../utils/mensajesHijoDocenteContexto');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
+const { fetchMatriculaVigenteMasReciente, sqlMatriculaIdMasRecientePorAlumno } = require('../utils/matriculaVigente');
 
 // Configurar multer para subir archivos de mensajes
 const mensajesStorage = multer.diskStorage({
@@ -311,7 +312,7 @@ router.get('/dashboard', async (req, res) => {
     const apoderadoData = apoderado[0];
     console.log('✅ [APODERADO DASHBOARD] Apoderado encontrado:', apoderadoData.id);
 
-    // Obtener hijos del apoderado
+    // Obtener hijos del apoderado (matrícula vigente = mayor año de grupo, no solo JWT)
     const hijos = await query(
       `SELECT DISTINCT
               a.id,
@@ -328,17 +329,14 @@ router.get('/dashboard', async (req, res) => {
        FROM apoderados ap
        INNER JOIN familias f ON f.apoderado_id = ap.id
        INNER JOIN alumnos a ON a.id = f.alumno_id
-       INNER JOIN matriculas m ON m.alumno_id = a.id
+       INNER JOIN matriculas m ON m.id = ${sqlMatriculaIdMasRecientePorAlumno('a')}
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
        WHERE ap.id = ? 
          AND ap.colegio_id = ?
-         AND m.colegio_id = ?
-         AND (m.estado = 0 OR m.estado = 4)
-         AND g.anio = ?
        ORDER BY n.nombre, g.grado, g.seccion, a.apellido_paterno, a.apellido_materno, a.nombres`,
-      [apoderadoData.id, colegio_id, colegio_id, anio_activo]
+      [colegio_id, apoderadoData.id, colegio_id]
     );
 
     // Estadísticas
@@ -350,15 +348,12 @@ router.get('/dashboard', async (req, res) => {
        FROM apoderados ap
        INNER JOIN familias f ON f.apoderado_id = ap.id
        INNER JOIN alumnos al ON al.id = f.alumno_id
-       INNER JOIN matriculas m ON m.alumno_id = al.id
+       INNER JOIN matriculas m ON m.id = ${sqlMatriculaIdMasRecientePorAlumno('al')}
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN asignaturas a ON a.grupo_id = g.id
        WHERE ap.id = ? 
-         AND ap.colegio_id = ?
-         AND m.colegio_id = ?
-         AND (m.estado = 0 OR m.estado = 4)
-         AND g.anio = ?`,
-      [apoderadoData.id, colegio_id, colegio_id, anio_activo]
+         AND ap.colegio_id = ?`,
+      [colegio_id, apoderadoData.id, colegio_id]
     );
 
     // Contar total de matrículas de todos los hijos (debe ser igual a totalHijos ya que cada hijo tiene una matrícula en el año activo)
@@ -398,16 +393,20 @@ router.get('/dashboard', async (req, res) => {
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN cursos c ON c.id = a.curso_id
        INNER JOIN personal p ON p.id = a.personal_id
-       INNER JOIN matriculas m ON m.grupo_id = g.id
-       INNER JOIN alumnos al ON al.id = m.alumno_id
-       WHERE al.id IN (${hijosIds.map(() => '?').join(',')})
-         AND a.colegio_id = ? 
-         AND g.anio = ?
-         AND (m.estado = 0 OR m.estado = 4)
+       INNER JOIN alumnos al ON al.id IN (${hijosIds.map(() => '?').join(',')})
+       INNER JOIN matriculas m ON m.id = (
+         SELECT m2.id FROM matriculas m2
+         INNER JOIN grupos g2 ON g2.id = m2.grupo_id
+         WHERE m2.alumno_id = al.id AND m2.colegio_id = ?
+           AND (m2.estado = 0 OR m2.estado = 4)
+         ORDER BY g2.anio DESC, m2.id DESC
+         LIMIT 1
+       ) AND m.grupo_id = g.id
+       WHERE a.colegio_id = ?
          AND DATE(ae.fecha_desde) >= CURDATE()
        ORDER BY COALESCE(ae.fecha_desde, '9999-12-31') ASC
        LIMIT 20`,
-      [...hijosIds, colegio_id, anio_activo]
+      [...hijosIds, colegio_id, colegio_id]
     ) : [];
 
     // Próximas tareas (de todos los hijos)
@@ -429,16 +428,20 @@ router.get('/dashboard', async (req, res) => {
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN cursos c ON c.id = a.curso_id
        INNER JOIN personal p ON p.id = a.personal_id
-       INNER JOIN matriculas m ON m.grupo_id = g.id
-       INNER JOIN alumnos al ON al.id = m.alumno_id
-       WHERE al.id IN (${hijosIds.map(() => '?').join(',')})
-         AND a.colegio_id = ? 
-         AND g.anio = ?
-         AND (m.estado = 0 OR m.estado = 4)
+       INNER JOIN alumnos al ON al.id IN (${hijosIds.map(() => '?').join(',')})
+       INNER JOIN matriculas m ON m.id = (
+         SELECT m2.id FROM matriculas m2
+         INNER JOIN grupos g2 ON g2.id = m2.grupo_id
+         WHERE m2.alumno_id = al.id AND m2.colegio_id = ?
+           AND (m2.estado = 0 OR m2.estado = 4)
+         ORDER BY g2.anio DESC, m2.id DESC
+         LIMIT 1
+       ) AND m.grupo_id = g.id
+       WHERE a.colegio_id = ?
          AND DATE(t.fecha_entrega) >= DATE(NOW())
        ORDER BY t.fecha_entrega ASC
        LIMIT 20`,
-      [...hijosIds, colegio_id, anio_activo]
+      [...hijosIds, colegio_id, colegio_id]
     ) : [];
 
     // Actividades próximas
@@ -572,7 +575,7 @@ router.get('/hijos', async (req, res) => {
 
     const apoderadoData = apoderado[0];
 
-    // Obtener hijos del apoderado
+    // Obtener hijos del apoderado (matrícula vigente = mayor año de grupo)
     const hijos = await query(
       `SELECT DISTINCT
               a.id,
@@ -589,17 +592,14 @@ router.get('/hijos', async (req, res) => {
        FROM apoderados ap
        INNER JOIN familias f ON f.apoderado_id = ap.id
        INNER JOIN alumnos a ON a.id = f.alumno_id
-       INNER JOIN matriculas m ON m.alumno_id = a.id
+       INNER JOIN matriculas m ON m.id = ${sqlMatriculaIdMasRecientePorAlumno('a')}
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
        WHERE ap.id = ? 
          AND ap.colegio_id = ?
-         AND m.colegio_id = ?
-         AND (m.estado = 0 OR m.estado = 4)
-         AND g.anio = ?
        ORDER BY n.nombre, g.grado, g.seccion, a.apellido_paterno, a.apellido_materno, a.nombres`,
-      [apoderadoData.id, colegio_id, colegio_id, anio_activo]
+      [colegio_id, apoderadoData.id, colegio_id]
     );
 
     // Construir URLs de fotos
@@ -1203,7 +1203,7 @@ async function verificarSoloVinculoApoderadoAlumno(req, hijoId) {
 router.get('/hijos/:hijoId/cursos', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id, anio_activo } = req.user;
+    const { colegio_id, apoderado_id } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -1231,16 +1231,7 @@ router.get('/hijos/:hijoId/cursos', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver estos cursos.' });
     }
 
-    // Obtener matrícula actual del alumno
-    const matricula = await query(
-      `SELECT m.*, m.grupo_id
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
-       LIMIT 1`,
-      [hijoIdNum, colegio_id, anio_activo]
-    );
+    const matricula = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id);
 
     const matriculaData = matricula.length > 0 ? matricula[0] : null;
     const grupoId = matriculaData ? matriculaData.grupo_id : null;
@@ -1318,7 +1309,7 @@ router.get('/hijos/:hijoId/cursos', async (req, res) => {
 router.get('/hijos/:hijoId/horario', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id, anio_activo } = req.user;
+    const { colegio_id, apoderado_id } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -1346,22 +1337,14 @@ router.get('/hijos/:hijoId/horario', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver este horario.' });
     }
 
-    // Obtener matrícula actual del alumno
-    const matricula = await query(
-      `SELECT m.grupo_id FROM matriculas m 
-       INNER JOIN grupos g ON g.id = m.grupo_id 
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4) 
-       LIMIT 1`,
-      [hijoIdNum, colegio_id, anio_activo]
-    );
+    const matricula = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id, 'm.grupo_id, g.anio AS grupo_anio');
 
     if (matricula.length === 0) {
       return res.json({ horario: [] });
     }
 
     const grupoId = matricula[0].grupo_id;
-    const anioActivoInt = parseInt(anio_activo);
+    const anioActivoInt = parseInt(matricula[0].grupo_anio, 10);
 
     // Obtener horario del grupo
     const horarioCrudo = await query(
@@ -1428,7 +1411,7 @@ router.get('/hijos/:hijoId/horario', async (req, res) => {
 router.get('/hijos/:hijoId/incidencias', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id, anio_activo } = req.user;
+    const { colegio_id, apoderado_id } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -1456,15 +1439,7 @@ router.get('/hijos/:hijoId/incidencias', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver estas incidencias.' });
     }
 
-    // Obtener matrícula del alumno
-    const matricula = await query(
-      `SELECT m.id FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
-       LIMIT 1`,
-      [hijoIdNum, colegio_id, anio_activo]
-    );
+    const matricula = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id, 'm.id');
 
     if (!matricula || matricula.length === 0) {
       return res.json({ incidencias: [] });
@@ -1485,9 +1460,8 @@ router.get('/hijos/:hijoId/incidencias', async (req, res) => {
        LEFT JOIN cursos c ON c.id = a.curso_id
        WHERE ei.enrollment_id = ? 
          AND ei.type = 1
-         AND g.anio = ?
        ORDER BY ei.created_at DESC`,
-      [matriculaId, anio_activo]
+      [matriculaId]
     );
 
     res.json({ incidencias: incidencias || [] });
@@ -1504,7 +1478,7 @@ router.get('/hijos/:hijoId/incidencias', async (req, res) => {
 router.get('/hijos/:hijoId/estrellas', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id, anio_activo } = req.user;
+    const { colegio_id, apoderado_id } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -1532,15 +1506,7 @@ router.get('/hijos/:hijoId/estrellas', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver estas estrellas.' });
     }
 
-    // Obtener matrícula del alumno
-    const matricula = await query(
-      `SELECT m.id FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
-       LIMIT 1`,
-      [hijoIdNum, colegio_id, anio_activo]
-    );
+    const matricula = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id, 'm.id');
 
     if (!matricula || matricula.length === 0) {
       return res.json({
@@ -1564,9 +1530,8 @@ router.get('/hijos/:hijoId/estrellas', async (req, res) => {
        LEFT JOIN cursos c ON c.id = a.curso_id
        WHERE ei.enrollment_id = ? 
          AND ei.type = 2
-         AND g.anio = ?
        ORDER BY ei.created_at DESC`,
-      [matriculaId, anio_activo]
+      [matriculaId]
     );
 
     // Calcular total de estrellas
@@ -1589,7 +1554,7 @@ router.get('/hijos/:hijoId/estrellas', async (req, res) => {
 router.get('/hijos/:hijoId/asistencias', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id, anio_activo } = req.user;
+    const { colegio_id, apoderado_id } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -1617,15 +1582,7 @@ router.get('/hijos/:hijoId/asistencias', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver estas asistencias.' });
     }
 
-    // Obtener matrícula del alumno
-    const matricula = await query(
-      `SELECT m.id FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
-       LIMIT 1`,
-      [hijoIdNum, colegio_id, anio_activo]
-    );
+    const matricula = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id, 'm.id');
 
     if (!matricula || matricula.length === 0) {
       return res.json({
@@ -1671,7 +1628,7 @@ router.get('/hijos/:hijoId/asistencias', async (req, res) => {
 router.get('/hijos/:hijoId/qr', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id, anio_activo } = req.user;
+    const { colegio_id, apoderado_id } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -1714,20 +1671,7 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
 
     const alumnoData = alumno[0];
 
-    // Obtener matrícula actual del alumno
-    const matricula = await query(
-      `SELECT m.*, 
-              g.grado, 
-              g.seccion,
-              n.nombre as nivel_nombre
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
-       LIMIT 1`,
-      [alumnoData.id, colegio_id, anio_activo]
-    );
+    const matricula = await fetchMatriculaVigenteMasReciente(query, alumnoData.id, colegio_id);
 
     // Obtener nombre del colegio
     const colegio = await query(
@@ -2371,7 +2315,7 @@ router.get('/pagos/:pagoId/boleta', async (req, res) => {
 router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id, anio_activo } = req.user;
+    const { colegio_id, apoderado_id } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -2399,16 +2343,7 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver estas notas.' });
     }
 
-    // Obtener matrícula actual del alumno
-    const matricula = await query(
-      `SELECT m.id as matricula_id, m.grupo_id
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
-       LIMIT 1`,
-      [hijoIdNum, colegio_id, anio_activo]
-    );
+    const matricula = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id, 'm.id AS matricula_id, m.grupo_id');
 
     if (!matricula || matricula.length === 0) {
       return res.json({ asignaturas: [] });
@@ -2674,7 +2609,6 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     const ciclo = Math.max(1, Math.min(4, parseInt(req.query.ciclo) || 1));
     const anioParam = req.query.anio ? parseInt(req.query.anio, 10) : null;
     const { colegio_id, apoderado_id, anio_activo } = req.user;
-    const anio = (anioParam && anioParam > 0) ? anioParam : anio_activo;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -2702,13 +2636,20 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver esta libreta.' });
     }
 
-    // Obtener matrícula del alumno para el año indicado (anio activo o año seleccionado)
+    let anio = (anioParam && anioParam > 0) ? anioParam : null;
+    if (!anio) {
+      const ultima = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id, 'g.anio AS grupo_anio');
+      anio = ultima[0]?.grupo_anio != null ? parseInt(String(ultima[0].grupo_anio), 10) : parseInt(String(anio_activo), 10);
+    }
+
+    // Obtener matrícula del alumno para el año indicado (explícito, o último año de matrícula vigente)
     const matricula = await query(
       `SELECT m.id as matricula_id, m.grupo_id, m.alumno_id
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
        AND (m.estado = 0 OR m.estado = 4)
+       ORDER BY m.id DESC
        LIMIT 1`,
       [hijoIdNum, colegio_id, anio]
     );
@@ -5228,6 +5169,43 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
   } catch (error) {
     console.error('Error enviando mensaje:', error);
     res.status(500).json({ error: 'Error al enviar mensaje' });
+  }
+});
+
+/**
+ * PUT /api/apoderado/mensajes/marcar-leidos
+ * Marcar varios mensajes recibidos como leídos
+ * Body: { ids: number[] }
+ */
+router.put('/mensajes/marcar-leidos', async (req, res) => {
+  try {
+    const { usuario_id } = req.user;
+    const rawIds = req.body?.ids;
+    if (!rawIds || !Array.isArray(rawIds) || rawIds.length === 0) {
+      return res.status(400).json({ error: 'Debe enviar un array ids con al menos un id' });
+    }
+    const uniqueIds = [...new Set(rawIds.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n) && n > 0))];
+    if (uniqueIds.length === 0) {
+      return res.status(400).json({ error: 'IDs no válidos' });
+    }
+    const placeholders = uniqueIds.map(() => '?').join(',');
+    const result = await execute(
+      `UPDATE mensajes SET estado = 'LEIDO'
+       WHERE id IN (${placeholders})
+         AND destinatario_id = ?
+         AND tipo = 'RECIBIDO'
+         AND borrado = 'NO'`,
+      [...uniqueIds, usuario_id]
+    );
+    const marcados = typeof result.affectedRows === 'number' ? result.affectedRows : 0;
+    res.json({
+      success: true,
+      marcados,
+      message: marcados === 0 ? 'Ningún mensaje actualizado' : `${marcados} mensaje(s) marcado(s) como leído(s)`
+    });
+  } catch (error) {
+    console.error('Error marcando mensajes como leídos (lote, apoderado):', error);
+    res.status(500).json({ error: 'Error al marcar mensajes como leídos' });
   }
 });
 
