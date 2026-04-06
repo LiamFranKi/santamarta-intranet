@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './DocenteMensajes.css';
+import { procesarHTMLMensaje } from '../utils/mensajesHtml';
 
 const MENSAJES_PAGE_SIZE = 50;
 
@@ -29,36 +30,10 @@ function MensajeModalContent({ mensaje, vista, onClose, onMensajeLeido }) {
     }
   }, [mensaje.id, mensaje.estado, vista, onMensajeLeido]);
 
-  // Función para procesar HTML del mensaje
-  const procesarHTMLMensaje = (html) => {
-    if (!html) return '';
-    const baseURL = (api.defaults.baseURL || '').replace(/\/api\/?$/, '');
-    const phpBase = (process.env.REACT_APP_PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe').replace(/\/$/, '');
-    return html.replace(/<img([^>]*)\ssrc=["']([^"']+)["']([^>]*)>/gi, (match, before, src, after) => {
-      let fixed = String(src || '').trim();
-      if (!fixed) return match;
-      fixed = fixed
-        .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpBase)
-        .replace(/https?:\/\/(www\.)?vanguardschools\.com\/?static/gi, `${phpBase}/Static`);
-      if (/^https?:\/\//i.test(fixed)) {
-        return `<img${before} src="${fixed}"${after}>`;
-      }
-      if (fixed.startsWith('/Static/')) {
-        return `<img${before} src="${phpBase}${fixed}"${after}>`;
-      }
-      if (fixed.startsWith('Static/')) {
-        return `<img${before} src="${phpBase}/${fixed}"${after}>`;
-      }
-      if (fixed.startsWith('/uploads/') || fixed.startsWith('uploads/')) {
-        const rel = fixed.startsWith('/') ? fixed : `/${fixed}`;
-        return `<img${before} src="${baseURL}${rel}"${after}>`;
-      }
-      return `<img${before} src="${phpBase}/${fixed.replace(/^\/+/, '')}"${after}>`;
-    });
-  };
+  const esCumple = mensaje.es_cumpleanos === 'SI';
 
   return (
-    <div className="mensaje-modal-body">
+    <div className={`mensaje-modal-body${esCumple ? ' mensaje-modal-body-cumpleanos' : ''}`}>
       <div className="mensaje-modal-info">
         <div>
           <strong>{vista === 'recibidos' ? 'De:' : 'Para:'}</strong>{' '}
@@ -71,7 +46,7 @@ function MensajeModalContent({ mensaje, vista, onClose, onMensajeLeido }) {
         </div>
       </div>
       <div 
-        className="mensaje-modal-contenido" 
+        className={`mensaje-modal-contenido${esCumple ? ' mensaje-modal-contenido-cumpleanos' : ''}`}
         dangerouslySetInnerHTML={{ __html: procesarHTMLMensaje(mensaje.mensaje) }}
         style={{
           wordBreak: 'break-word'
@@ -680,6 +655,7 @@ function DocenteMensajes() {
       formData.append('grupos', JSON.stringify(grupos));
       formData.append('asunto', asunto.trim());
       formData.append('mensaje', contenido);
+      formData.append('es_cumpleanos', mensajeDesdeCumpleanos ? 'true' : 'false');
 
       // Agregar archivos
       archivosAdjuntos.forEach((archivo) => {
@@ -742,30 +718,6 @@ function DocenteMensajes() {
       month: 'short',
       year: fecha.getFullYear() !== hoy.getFullYear() ? 'numeric' : undefined
     });
-  };
-
-  // Procesar HTML del mensaje para convertir URLs relativas de imágenes a absolutas
-  const procesarHTMLMensaje = (html) => {
-    if (!html) return '';
-    
-    const baseURL = api.defaults.baseURL.replace('/api', '');
-    
-    // Convertir URLs relativas de imágenes a absolutas
-    // Buscar todas las imágenes con src que empiecen con /uploads/
-    const htmlProcesado = html.replace(
-      /<img([^>]*)\ssrc=["'](\/uploads\/[^"']+)["']([^>]*)>/gi,
-      (match, before, src, after) => {
-        // Si ya es una URL completa (http/https), no hacer nada
-        if (src.startsWith('http://') || src.startsWith('https://')) {
-          return match;
-        }
-        // Convertir URL relativa a absoluta
-        const absoluteUrl = `${baseURL}${src}`;
-        return `<img${before} src="${absoluteUrl}"${after}>`;
-      }
-    );
-    
-    return htmlProcesado;
   };
 
   const mensajes = vista === 'recibidos' ? mensajesRecibidos : mensajesEnviados;

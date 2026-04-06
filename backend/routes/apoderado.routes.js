@@ -16,6 +16,7 @@ const {
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaVigenteMasReciente, sqlMatriculaIdMasRecientePorAlumno } = require('../utils/matriculaVigente');
+const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 
 // Configurar multer para subir archivos de mensajes
 const mensajesStorage = multer.diskStorage({
@@ -4637,9 +4638,6 @@ router.get('/mensajes/recibidos', async (req, res) => {
     const mensajes = await query(querySQL, queryParams);
 
     // Obtener archivos adjuntos para cada mensaje
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
-    const isProduction = process.env.NODE_ENV === 'production';
-    
     for (const mensaje of mensajes) {
       const archivos = await query(
         `SELECT id, nombre_archivo, archivo
@@ -4647,19 +4645,11 @@ router.get('/mensajes/recibidos', async (req, res) => {
          WHERE mensaje_id = ?`,
         [mensaje.id]
       );
-      
-      mensaje.archivos = (archivos || []).map(archivo => {
-        let archivoUrl;
-        if (isProduction) {
-          archivoUrl = `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
-        } else {
-          archivoUrl = `http://localhost:5000/Static/Archivos/${archivo.archivo}`;
-        }
-        return {
-          ...archivo,
-          archivo_url: archivoUrl
-        };
-      });
+
+      mensaje.archivos = (archivos || []).map((archivo) => ({
+        ...archivo,
+        archivo_url: urlArchivoMensajeStatic(archivo.archivo),
+      }));
     }
 
     // Contar total
@@ -4747,9 +4737,6 @@ router.get('/mensajes/enviados', async (req, res) => {
     const mensajes = await query(querySQL, queryParams);
 
     // Obtener archivos adjuntos para cada mensaje
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
-    const isProduction = process.env.NODE_ENV === 'production';
-    
     for (const mensaje of mensajes) {
       const archivos = await query(
         `SELECT id, nombre_archivo, archivo
@@ -4757,19 +4744,11 @@ router.get('/mensajes/enviados', async (req, res) => {
          WHERE mensaje_id = ?`,
         [mensaje.id]
       );
-      
-      mensaje.archivos = (archivos || []).map(archivo => {
-        let archivoUrl;
-        if (isProduction) {
-          archivoUrl = `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
-        } else {
-          archivoUrl = `http://localhost:5000/Static/Archivos/${archivo.archivo}`;
-        }
-        return {
-          ...archivo,
-          archivo_url: archivoUrl
-        };
-      });
+
+      mensaje.archivos = (archivos || []).map((archivo) => ({
+        ...archivo,
+        archivo_url: urlArchivoMensajeStatic(archivo.archivo),
+      }));
     }
 
     // Contar total
@@ -4924,16 +4903,8 @@ router.post('/mensajes/subir-imagen', uploadMensajes.single('imagen'), async (re
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
 
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
-    const isProduction = process.env.NODE_ENV === 'production';
-    
-    let imagenUrl;
-    if (isProduction) {
-      imagenUrl = `${phpSystemUrl}/Static/Archivos/${req.file.filename}`;
-    } else {
-      imagenUrl = `http://localhost:5000/Static/Archivos/${req.file.filename}`;
-    }
-    
+    const imagenUrl = urlArchivoMensajeStatic(req.file.filename);
+
     res.json({ url: imagenUrl });
   } catch (error) {
     console.error('Error subiendo imagen:', error);
@@ -4949,6 +4920,20 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
   try {
     const { usuario_id, colegio_id } = req.user;
     const { destinatarios, grupos, asunto, mensaje } = req.body;
+
+    const primerValorMultipart = (v) => {
+      if (v === undefined || v === null) return undefined;
+      return Array.isArray(v) ? v[0] : v;
+    };
+    const esCumpleanosRaw = primerValorMultipart(req.body.es_cumpleanos);
+    const esCumpleanosDb =
+      esCumpleanosRaw === true ||
+      esCumpleanosRaw === 'true' ||
+      esCumpleanosRaw === '1' ||
+      esCumpleanosRaw === 1
+        ? 'SI'
+        : 'NO';
+    const phpBaseMensajes = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
 
     const destinatariosArray = typeof destinatarios === 'string' ? JSON.parse(destinatarios) : destinatarios;
     const gruposArray = typeof grupos === 'string' ? JSON.parse(grupos || '[]') : (grupos || []);
@@ -4976,6 +4961,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         const mensajesIds = [];
         let alumnosEnGrupos = 0;
         let destinatariosDirectos = 0;
+        const mensajeCuerpo = normalizarUrlsImagenesEnHtml(mensaje, phpBaseMensajes);
 
         // Obtener alumnos de los grupos seleccionados
         const alumnosGrupos = new Set();
@@ -5009,16 +4995,16 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           try {
             // Mensaje para el remitente (tipo ENVIADO)
             const resultEnviado = await execute(
-              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
-               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO')`,
-              [usuario_id, destinatarioId, asunto, mensaje, fechaHora]
+              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito, es_cumpleanos)
+               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO', ?)`,
+              [usuario_id, destinatarioId, asunto, mensajeCuerpo, fechaHora, esCumpleanosDb]
             );
 
             // Mensaje para el destinatario (tipo RECIBIDO)
             const resultRecibido = await execute(
-              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
-               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO')`,
-              [usuario_id, destinatarioId, asunto, mensaje, fechaHora]
+              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito, es_cumpleanos)
+               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO', ?)`,
+              [usuario_id, destinatarioId, asunto, mensajeCuerpo, fechaHora, esCumpleanosDb]
             );
 
             mensajesIds.push(resultEnviado.insertId, resultRecibido.insertId);

@@ -123,7 +123,15 @@
     0 0 0 3px rgba(251, 191, 36, 0.35),
     0 8px 28px rgba(244, 114, 182, 0.12);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+}
+
+.alumno-mensajes .nuevo-mensaje-form.nuevo-mensaje-cumpleanos-wrap #mensaje-editor-wrapper,
+.alumno-mensajes .nuevo-mensaje-form.nuevo-mensaje-cumpleanos-wrap .ql-toolbar,
+.alumno-mensajes .nuevo-mensaje-form.nuevo-mensaje-cumpleanos-wrap .ql-container,
+.alumno-mensajes .nuevo-mensaje-form.nuevo-mensaje-cumpleanos-wrap .archivos-container {
+  position: relative;
+  z-index: 2;
 }
 
 .nuevo-mensaje-form.nuevo-mensaje-cumpleanos-wrap::before {
@@ -973,6 +981,19 @@
 
 .mensaje-modal-contenido p:last-child {
   margin-bottom: 0;
+}
+
+.alumno-mensajes .mensaje-modal-body.mensaje-modal-body-cumpleanos {
+  border-radius: 14px;
+  background: linear-gradient(160deg, #fff7ed 0%, #fef3c7 40%, #fce7f3 100%);
+  box-shadow: inset 0 0 0 2px rgba(251, 191, 36, 0.4);
+}
+
+.alumno-mensajes .mensaje-modal-contenido.mensaje-modal-contenido-cumpleanos {
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 1px 8px rgba(245, 158, 11, 0.12);
 }
 
 /* Responsive */

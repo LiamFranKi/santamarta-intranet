@@ -32,6 +32,7 @@ const {
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
+const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
@@ -13580,9 +13581,6 @@ router.get('/mensajes/recibidos', async (req, res) => {
     const mensajes = await query(querySQL, queryParams);
 
     // Obtener archivos adjuntos para cada mensaje
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
-    const isProduction = process.env.NODE_ENV === 'production';
-    
     for (const mensaje of mensajes) {
       const archivos = await query(
         `SELECT id, nombre_archivo, archivo
@@ -13590,22 +13588,10 @@ router.get('/mensajes/recibidos', async (req, res) => {
          WHERE mensaje_id = ?`,
         [mensaje.id]
       );
-      // Construir URLs completas para los archivos
-        // IMPORTANTE: Los archivos se guardan en Static/Archivos/ (compartido con sistema PHP)
-        // Se sirven desde Apache mediante el Alias /Static
-      mensaje.archivos = (archivos || []).map(archivo => {
-        // Construir URL completa usando PHP_SYSTEM_URL para que se sirva desde el sistema PHP compartido
-        let archivoUrl;
-        if (isProduction) {
-          archivoUrl = `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
-        } else {
-          archivoUrl = `http://localhost:5000/Static/Archivos/${archivo.archivo}`;
-        }
-        return {
-          ...archivo,
-          archivo_url: archivoUrl // URL completa
-        };
-      });
+      mensaje.archivos = (archivos || []).map((archivo) => ({
+        ...archivo,
+        archivo_url: urlArchivoMensajeStatic(archivo.archivo),
+      }));
     }
 
     // Contar total con mismo filtro de año
@@ -13702,25 +13688,10 @@ router.get('/mensajes/enviados', async (req, res) => {
          WHERE mensaje_id = ?`,
         [mensaje.id]
       );
-      // Construir URLs completas para los archivos
-        // IMPORTANTE: Los archivos se guardan en Static/Archivos/ (compartido con sistema PHP)
-        // Se sirven desde Apache mediante el Alias /Static
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
-      const isProduction = process.env.NODE_ENV === 'production';
-      
-      mensaje.archivos = (archivos || []).map(archivo => {
-        // Construir URL completa usando PHP_SYSTEM_URL para que se sirva desde el sistema PHP compartido
-        let archivoUrl;
-        if (isProduction) {
-          archivoUrl = `${phpSystemUrl}/Static/Archivos/${archivo.archivo}`;
-        } else {
-          archivoUrl = `http://localhost:5000/Static/Archivos/${archivo.archivo}`;
-        }
-        return {
-          ...archivo,
-          archivo_url: archivoUrl // URL completa
-        };
-      });
+      mensaje.archivos = (archivos || []).map((archivo) => ({
+        ...archivo,
+        archivo_url: urlArchivoMensajeStatic(archivo.archivo),
+      }));
       // Debug: verificar archivos para mensajes enviados
       if (archivos && archivos.length > 0) {
         console.log(`📎 [MENSAJES ENVIADOS] Mensaje ID ${mensaje.id} (asunto: "${mensaje.asunto}") tiene ${archivos.length} archivo(s):`, archivos.map(a => a.nombre_archivo || a.archivo));
@@ -14051,17 +14022,9 @@ router.post('/mensajes/subir-imagen', uploadMensajes.single('imagen'), async (re
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
 
-    // Construir URL completa usando PHP_SYSTEM_URL para que la imagen se sirva desde el sistema PHP compartido
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
-    const isProduction = process.env.NODE_ENV === 'production';
-    
-    let imagenUrl;
-    if (isProduction) {
-      imagenUrl = `${phpSystemUrl}/Static/Archivos/${req.file.filename}`;
-    } else {
-      imagenUrl = `http://localhost:5000/Static/Archivos/${req.file.filename}`;
-    }
-    
+    // Misma URL pública que archivos adjuntos (Static/Archivos en dominio PHP), no localhost
+    const imagenUrl = urlArchivoMensajeStatic(req.file.filename);
+
     res.json({ url: imagenUrl });
   } catch (error) {
     console.error('Error subiendo imagen:', error);
@@ -14095,6 +14058,15 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
       if (v === undefined || v === null) return undefined;
       return Array.isArray(v) ? v[0] : v;
     };
+    const esCumpleanosRaw = primerValorMultipart(req.body.es_cumpleanos);
+    const esCumpleanosDb =
+      esCumpleanosRaw === true ||
+      esCumpleanosRaw === 'true' ||
+      esCumpleanosRaw === '1' ||
+      esCumpleanosRaw === 1
+        ? 'SI'
+        : 'NO';
+    const phpBaseMensajes = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
     const contextoAlumnoIdEnvio = primerValorMultipart(contexto_alumno_id);
     const contextoGrupoIdEnvio = primerValorMultipart(contexto_grupo_id);
     const enviarAValue = String(primerValorMultipart(enviar_a) || 'todos').toLowerCase();
@@ -14472,19 +14444,21 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               console.warn('⚠️ [ENVIAR MENSAJE] Contexto docente→apoderado:', enrErr.message);
             }
 
+            mensajeDest = normalizarUrlsImagenesEnHtml(mensajeDest, phpBaseMensajes);
+
             // Mensaje para el remitente (tipo ENVIADO)
             const resultEnviado = await execute(
-              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
-               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO')`,
-              [usuario_id, destinatarioId, asuntoDest, mensajeDest, fechaHora]
+              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito, es_cumpleanos)
+               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO', ?)`,
+              [usuario_id, destinatarioId, asuntoDest, mensajeDest, fechaHora, esCumpleanosDb]
             );
             console.log(`📨 [ENVIAR MENSAJE] Mensaje ENVIADO creado - ID: ${resultEnviado.insertId}, destinatario: ${destinatarioId}`);
 
             // Mensaje para el destinatario (tipo RECIBIDO)
             const resultRecibido = await execute(
-              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
-               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO')`,
-              [usuario_id, destinatarioId, asuntoDest, mensajeDest, fechaHora]
+              `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito, es_cumpleanos)
+               VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO', ?)`,
+              [usuario_id, destinatarioId, asuntoDest, mensajeDest, fechaHora, esCumpleanosDb]
             );
             console.log(`📨 [ENVIAR MENSAJE] Mensaje RECIBIDO creado - ID: ${resultRecibido.insertId}, destinatario: ${destinatarioId}`);
 
