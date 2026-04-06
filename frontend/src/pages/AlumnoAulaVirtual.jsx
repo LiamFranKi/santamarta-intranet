@@ -44,12 +44,26 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
   const toggleCard = (cardName) => {
     setExpandedCard(expandedCard === cardName ? null : cardName);
   };
+
+  // Proxy apoderado/docente exige asignatura_id en query para GET detalle (ver apoderado.routes.js)
+  const paramsDetalleTareaApoderado =
+    modoSoloLectura && Number.isFinite(asignaturaId) && asignaturaId > 0
+      ? { params: { asignatura_id: asignaturaId } }
+      : {};
+
+  const normalizarTareaDetalleRespuesta = (data) => {
+    if (!data) return null;
+    return data.tarea != null ? data.tarea : data;
+  };
   
   const abrirModalTarea = async (tareaId) => {
     try {
       // Cargar detalles de la tarea
-      const response = await api.get(`/alumno/aula-virtual/tareas/${tareaId}`);
-      setTareaDetalle(response.data.tarea);
+      const response = await api.get(
+        `/alumno/aula-virtual/tareas/${tareaId}`,
+        paramsDetalleTareaApoderado
+      );
+      setTareaDetalle(normalizarTareaDetalleRespuesta(response.data));
       setMostrarModalTarea(true);
       
       // Marcar como visto (solo si NO es modo solo lectura)
@@ -111,8 +125,11 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
       });
       
       // Recargar detalles de la tarea para mostrar la entrega
-      const response = await api.get(`/alumno/aula-virtual/tareas/${tareaDetalle.id}`);
-      setTareaDetalle(response.data.tarea);
+      const response = await api.get(
+        `/alumno/aula-virtual/tareas/${tareaDetalle.id}`,
+        paramsDetalleTareaApoderado
+      );
+      setTareaDetalle(normalizarTareaDetalleRespuesta(response.data));
       setUrlEntrega('');
     } catch (error) {
       console.error('Error enviando entrega:', error);

@@ -3813,9 +3813,11 @@ router.get('/hijos/:hijoId/aula-virtual/tareas/:tareaId', soloLecturaProxy, asyn
     }
 
     res.json({
-      ...tarea,
-      archivos: archivosConUrls,
-      enlace_url: enlaceUrl
+      tarea: {
+        ...tarea,
+        archivos: archivosConUrls,
+        enlace_url: enlaceUrl
+      }
     });
   } catch (error) {
     console.error('Error obteniendo tarea:', error);
