@@ -43,8 +43,7 @@ function esAdminOPromotoria(tipo) {
 const ASSIGNMENT_ID_TUTORIA = -102;
 
 /**
- * IDs de grupos para publicaciones: solo asignaturas (docente); si no tiene ninguna, solo tutoría.
- * No mezcla grupos solo-tutoría cuando ya tiene al menos una asignatura.
+ * IDs de grupos para publicaciones: unión de grupos con asignatura + grupos donde es tutor (sin duplicar id).
  */
 async function obtenerGruposIdsAlcancePublicaciones(colegio_id, anio_activo, personalId) {
   const gruposAsignados = await query(
@@ -54,15 +53,16 @@ async function obtenerGruposIdsAlcancePublicaciones(colegio_id, anio_activo, per
      WHERE a.personal_id = ? AND g.colegio_id = ? AND g.anio = ?`,
     [personalId, colegio_id, anio_activo]
   );
-  if (gruposAsignados.length > 0) {
-    return gruposAsignados.map((g) => g.id);
-  }
   const gruposTutoria = await query(
     `SELECT g.id FROM grupos g
      WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
     [personalId, colegio_id, anio_activo]
   );
-  return gruposTutoria.map((g) => g.id);
+  const ids = new Set([
+    ...gruposAsignados.map((g) => g.id),
+    ...gruposTutoria.map((g) => g.id)
+  ]);
+  return Array.from(ids);
 }
 
 function ordenarGruposDocenteLista(grupos) {
@@ -1704,14 +1704,11 @@ router.get('/tiene-asignaciones', async (req, res) => {
 
 /**
  * GET /api/docente/grupos
- * Query: alcance=todos (defecto) | publicaciones
- * - todos: grupos con asignatura + grupos solo tutoría (sin duplicar si enseña en el mismo salón que tutorea).
- * - publicaciones: solo grupos por asignaturas (docente); si no tiene ninguna, solo tutoría. No mezcla tutoría extra cuando ya es docente en algún grupo.
+ * Query opcional: alcance=todos | publicaciones (misma lista: asignaturas ∪ tutoría, sin duplicar por grupo).
  */
 router.get('/grupos', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user;
-    const alcance = String(req.query.alcance || 'todos').toLowerCase();
 
     // Administrador / Promotoría: todos los grupos del año (sin restricción)
     if (esAdminOPromotoria(req.user.tipo)) {
@@ -1788,17 +1785,8 @@ router.get('/grupos', async (req, res) => {
       [colegio_id, personalId, colegio_id, anio_activo]
     );
 
-    let grupos;
-    if (alcance === 'publicaciones') {
-      // Solo asignaturas; si no tiene ninguna, solo tutoría (misma regla que feed de publicaciones)
-      grupos =
-        gruposAsignados.length > 0
-          ? gruposAsignados
-          : gruposTutoria;
-    } else {
-      // todos: docente + tutoría sin duplicar (un salón donde enseña y es tutor = una entrada, tipo asignado)
-      grupos = mergeGruposDocenteSinDuplicar(gruposAsignados, gruposTutoria);
-    }
+    // Docente + tutoría sin duplicar (un salón donde enseña y es tutor = una entrada, tipo asignado)
+    const grupos = mergeGruposDocenteSinDuplicar(gruposAsignados, gruposTutoria);
 
     res.json({ grupos: ordenarGruposDocenteLista(grupos) });
   } catch (error) {
@@ -15306,7 +15294,7 @@ function decodePublicacionImages(imagesString) {
 /**
  * GET /api/docente/publicaciones
  * Obtener publicaciones (feed tipo Facebook)
- * Filtra publicaciones según alcance publicaciones (solo asignaturas si tiene; si no, tutoría).
+ * Filtra publicaciones según grupos con asignatura o tutoría (unión, sin duplicar).
  */
 router.get('/publicaciones', async (req, res) => {
   try {
