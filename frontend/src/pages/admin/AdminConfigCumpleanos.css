@@ -1,5 +1,6 @@
 .admin-config-cumpleanos {
   max-width: 720px;
+  padding-bottom: 2rem;
 }
 
 .admin-config-cumpleanos--loading {
@@ -26,6 +27,10 @@
   padding: 1.25rem 1.5rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   border: 1px solid #e2e8f0;
+}
+
+.admin-config-cumpleanos__card--spaced {
+  margin-top: 1.25rem;
 }
 
 .admin-config-cumpleanos__card-title {
@@ -73,6 +78,35 @@
   gap: 0.75rem;
   margin-top: 1rem;
   justify-content: flex-end;
+}
+
+.admin-config-cumpleanos__actions--footer {
+  margin-top: 1.5rem;
+  padding-top: 0.5rem;
+}
+
+.admin-config-cumpleanos__label {
+  display: block;
+  margin: 0.75rem 0 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.admin-config-cumpleanos__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-family: inherit;
+}
+
+.admin-config-cumpleanos__input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
 }
 
 .admin-config-cumpleanos__btn {

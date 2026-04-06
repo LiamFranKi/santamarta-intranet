@@ -937,6 +937,10 @@ router.get('/configuracion', async (req, res) => {
       link_consulta_facturas: configMap['link_consulta_facturas'] || '',
       show_birthday_window: configMap['show_birthday_window'] || 'NO',
       cumpleanos_plantilla_push: configMap['cumpleanos_plantilla_push'] || '',
+      cumpleanos_plantilla_ventana: configMap['cumpleanos_plantilla_ventana'] || '',
+      cumpleanos_plantilla_correo_asunto: configMap['cumpleanos_plantilla_correo_asunto'] || '',
+      cumpleanos_plantilla_correo_cuerpo: configMap['cumpleanos_plantilla_correo_cuerpo'] || '',
+      cumpleanos_plantilla_mensaje_sistema: configMap['cumpleanos_plantilla_mensaje_sistema'] || '',
       enable_enrollment_form: configMap['enable_enrollment_form'] || 'NO',
       login_fondo: colegioData.login_background ? `${baseUrl}/Static/Image/Fondos/${colegioData.login_background}` : null,
       libreta_logo: configMap['libreta_logo'] ? `${baseUrl}/Static/Image/Fondos/${configMap['libreta_logo']}` : null,
@@ -1109,7 +1113,13 @@ router.put('/configuracion', uploadConfig.fields([
       'texto_intranet', 'titulo_formulario_matricula', 'recaudo_nro_sucursal',
       'recaudo_nro_cuenta', 'recaudo_razon_social', 'email_notificacion_matricula_online',
       'remitente_emails', 'email_matricula_apoderado', 'link_consulta_facturas',
-      'show_birthday_window', 'cumpleanos_plantilla_push', 'enable_enrollment_form'
+      'show_birthday_window',
+      'cumpleanos_plantilla_push',
+      'cumpleanos_plantilla_ventana',
+      'cumpleanos_plantilla_correo_asunto',
+      'cumpleanos_plantilla_correo_cuerpo',
+      'cumpleanos_plantilla_mensaje_sistema',
+      'enable_enrollment_form'
     ];
 
     for (const field of configFields) {
