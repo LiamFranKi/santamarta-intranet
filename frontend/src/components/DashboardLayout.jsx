@@ -26,7 +26,7 @@ export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
   const sidebarNavRef = useRef(null);
-  const submenuRefs = useRef({ usuarios: null, academico: null, reportes: null, herramientas: null, comunicaciones: null });
+  const submenuRefs = useRef({ usuarios: null, academico: null, reportes: null, herramientas: null, comunicaciones: null, configuracion: null });
 
   // Mantener abierto el submenú que contiene la ruta actual (evita que se "bloquee" la navegación en Config, etc.)
   useEffect(() => {
@@ -48,6 +48,7 @@ export default function DashboardLayout({ children }) {
           || path.startsWith('/admin/vanguarcito')
         ) && { comunicaciones: true }
       ),
+      ...(path.startsWith('/admin/config') && { configuracion: true }),
     }));
   }, [location.pathname]);
 
@@ -796,11 +797,28 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mensajes</span>
                 </NavLink>
               </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/config">
-                  <span className="sidebar-icon">⚙️</span>
-                  <span className="sidebar-label">Configuración</span>
-                </NavLink>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.configuracion ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('configuracion')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">⚙️</span>
+                    <span className="sidebar-label">Configuración</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div ref={(el) => { submenuRefs.current.configuracion = el; }} className={`sidebar-submenu ${expandedMenus.configuracion ? 'expanded' : ''}`}>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/config" end>
+                    <span className="sidebar-icon" aria-hidden>📋</span>
+                    <span className="sidebar-label">General</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/config/cumpleanos">
+                    <span className="sidebar-icon" aria-hidden>🎂</span>
+                    <span className="sidebar-label">Cumpleaños</span>
+                  </NavLink>
+                </div>
               </div>
             </>
           )}

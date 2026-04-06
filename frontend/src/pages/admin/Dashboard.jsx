@@ -10,6 +10,8 @@ import './AdminEstadisticas.css';
 import AdminUsuariosEquipo from './AdminUsuariosEquipo';
 import AdminUsuariosAlumnos from './AdminUsuariosAlumnos';
 import AdminUsuariosApoderados from './AdminUsuariosApoderados';
+import AdminConfiguracion from './AdminConfiguracion';
+import AdminConfigCumpleanos from './AdminConfigCumpleanos';
 
 const coloresPasteles = [
   'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',   // Verde menta
@@ -170,9 +172,14 @@ function Dashboard() {
       icon: '📈'
     },
     '/admin/config': {
-      title: '⚙️ Configuración',
-      description: 'Configuración del sistema (página temporal)',
+      title: '⚙️ Configuración general',
+      description: 'Datos del colegio, recaudo, notas y archivos',
       icon: '⚙️'
+    },
+    '/admin/config/cumpleanos': {
+      title: '🎂 Cumpleaños',
+      description: 'Plantillas de felicitaciones automáticas del colegio',
+      icon: '🎂'
     },
     '/admin/auditoria': {
       title: '🧾 Auditoría',
@@ -214,6 +221,24 @@ function Dashboard() {
         <DashboardLayout>
           <div className="dashboard-container">
             <AdminUsuariosApoderados />
+          </div>
+        </DashboardLayout>
+      );
+    }
+    if (location.pathname === '/admin/config') {
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <AdminConfiguracion />
+          </div>
+        </DashboardLayout>
+      );
+    }
+    if (location.pathname === '/admin/config/cumpleanos') {
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <AdminConfigCumpleanos />
           </div>
         </DashboardLayout>
       );
