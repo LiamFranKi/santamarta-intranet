@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
@@ -145,6 +146,8 @@ function MensajeModalContent({ mensaje, vista, onClose, onMensajeLeido }) {
 
 function AlumnoMensajes() {
   console.log('✅ [ALUMNO MENSAJES] Componente montado');
+  const location = useLocation();
+  const navigate = useNavigate();
   const [vista, setVista] = useState('recibidos'); // 'recibidos', 'enviados', 'nuevo'
   const [mensajesRecibidos, setMensajesRecibidos] = useState([]);
   const [mensajesEnviados, setMensajesEnviados] = useState([]);
@@ -171,7 +174,9 @@ function AlumnoMensajes() {
     totalPages: 0
   });
   const quillRef = React.useRef(null);
-  
+  const vistaAnteriorRef = React.useRef(vista);
+  const [mensajeDesdeCumpleanos, setMensajeDesdeCumpleanos] = useState(false);
+
   // Estados para nuevo mensaje
   const [busquedaDestinatario, setBusquedaDestinatario] = useState('');
   const [resultadosBusqueda, setResultadosBusqueda] = useState([]);
@@ -181,6 +186,35 @@ function AlumnoMensajes() {
   const [archivosAdjuntos, setArchivosAdjuntos] = useState([]);
   const [mostrarResultados, setMostrarResultados] = useState(false);
   const [enviando, setEnviando] = useState(false);
+
+  useEffect(() => {
+    const preC = location.state?.preselectCumpleanos;
+    if (preC && preC.usuario_id) {
+      setVista('nuevo');
+      setMensajeDesdeCumpleanos(!!preC.esCumpleanos);
+      setDestinatariosSeleccionados([
+        {
+          usuario_id: preC.usuario_id,
+          nombre_completo: String(preC.nombre_completo || ''),
+          tipo: String(preC.tipo || 'DOCENTE'),
+          info_adicional: preC.info_adicional || null,
+        },
+      ]);
+      setAsunto(preC.asuntoSugerido ? String(preC.asuntoSugerido) : '¡Feliz cumpleaños! 🎂');
+      setContenido('');
+      setArchivosAdjuntos([]);
+      setBusquedaDestinatario('');
+      setMostrarResultados(false);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state, location.pathname, navigate]);
+
+  useEffect(() => {
+    if (vistaAnteriorRef.current === 'nuevo' && vista !== 'nuevo') {
+      setMensajeDesdeCumpleanos(false);
+    }
+    vistaAnteriorRef.current = vista;
+  }, [vista]);
 
   // Configurar handler de imágenes para ReactQuill
   useEffect(() => {
@@ -669,6 +703,7 @@ function AlumnoMensajes() {
       setContenido('');
       setArchivosAdjuntos([]);
       setBusquedaDestinatario('');
+      setMensajeDesdeCumpleanos(false);
       setVista('enviados');
       cargarMensajesEnviados();
     } catch (error) {
@@ -767,8 +802,8 @@ function AlumnoMensajes() {
           {/* Contenido Principal */}
           <div className="mensajes-content">
             {vista === 'nuevo' ? (
-              <div className="nuevo-mensaje-form">
-                <h2>Nuevo Mensaje</h2>
+              <div className={`nuevo-mensaje-form${mensajeDesdeCumpleanos ? ' nuevo-mensaje-cumpleanos-wrap' : ''}`}>
+                <h2>{mensajeDesdeCumpleanos ? '🎂 Felicitación de cumpleaños' : 'Nuevo Mensaje'}</h2>
                 
                 {/* Campo Para */}
                 <div className="form-group">
