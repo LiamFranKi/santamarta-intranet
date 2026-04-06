@@ -17,6 +17,8 @@
   z-index: 9999;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
   transition: transform 0.3s ease;
+  pointer-events: auto;
+  isolation: isolate;
 }
 
 .sidebar-header {
@@ -399,6 +401,17 @@
 
 .dashboard-overlay.open {
   display: block;
+}
+
+/* Escritorio: el overlay no debe existir (solo se usa en ≤1024px con menú hamburguesa).
+   Si sidebarOpen quedara activo al ampliar ventana, el overlay a 9998 podía tapar el área
+   de contenido e impedir clics en la SPA aunque el menú lateral parezca “vivo”. */
+@media (min-width: 1025px) {
+  .dashboard-overlay {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden;
+  }
 }
 
 @keyframes fadeIn {

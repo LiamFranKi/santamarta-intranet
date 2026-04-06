@@ -3,7 +3,10 @@
   max-width: 1800px;
   margin: 0 auto;
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #f0f9ff 100%);
-  min-height: 100vh;
+  /* No usar 100vh aquí: en el main con overflow desborda el contenedor y en algunos navegadores
+     genera capas/rail de scroll que interfieren con el layout y la navegación lateral. */
+  min-height: 0;
+  box-sizing: border-box;
 }
 
 .admin-configuracion-loading {
