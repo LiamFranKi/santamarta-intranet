@@ -1,6 +1,5 @@
 /**
- * Servicio de notificaciones push para cumpleaños del día.
- * Envía push a cada usuario con la lista de personas de su alcance que cumplen años hoy.
+ * Servicio de notificaciones push + campanita (tabla notificaciones) para cumpleaños del día.
  * Docente: personal + alumnos/apoderados de sus grupos
  * Alumno: personal + alumnos/apoderados de su grupo
  * Apoderado: personal + alumnos/apoderados de grupos de sus hijos
@@ -9,6 +8,7 @@
 const { query, execute } = require('../utils/mysql');
 const { getAnioActivo } = require('../utils/mysql');
 const { enviarPushNotificationMultiple } = require('./pushNotificationService');
+const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -211,6 +211,7 @@ async function enviarNotificacionesCumpleanos() {
     );
 
     let totalEnviados = 0;
+    let totalCampanita = 0;
     for (const u of usuarios) {
       const colegio_id = u.colegio_id;
       const anio_activo = await getAnioActivo(colegio_id);
@@ -229,13 +230,6 @@ async function enviarNotificacionesCumpleanos() {
 
       if (cumpleanos.length === 0) continue;
 
-      const subs = await query(
-        `SELECT endpoint, p256dh, auth FROM push_subscriptions
-         WHERE usuario_id = ? AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
-        [u.id, colegio_id]
-      );
-      if (subs.length === 0) continue;
-
       const nombresLista = cumpleanos.map((c) => c.nombre).join(', ');
       const nombreColegio = await obtenerNombreColegio(colegio_id);
       const textoPush = aplicarPlantillaPush(plantillaPush, {
@@ -245,15 +239,43 @@ async function enviarNotificacionesCumpleanos() {
       });
       const { titulo, cuerpo: body } = construirTituloYBody(textoPush);
 
+      const urlDashboard = u.tipo === 'ADMINISTRADOR' ? '/admin/dashboard'
+        : u.tipo === 'ALUMNO' ? '/alumno/dashboard'
+        : u.tipo === 'APODERADO' ? '/apoderado/dashboard'
+        : '/docente/dashboard';
+
+      // Campanita in-app (todos los perfiles; independiente de si tiene push)
+      try {
+        await insertNotificacionUsuario(execute, {
+          usuario_id: u.id,
+          destinatario_id: u.id,
+          asunto: titulo,
+          contenido: body,
+          estado: 'NO ENVIADO',
+          accion_tipo: 'cumpleanos',
+          accion_payload: { tipo: 'cumpleanos', dia: diaHoy, mes: mesHoy },
+          url_destino: urlDashboard
+        });
+        totalCampanita += 1;
+      } catch (bellErr) {
+        console.error(`🎂 [CUMPLEANOS-PUSH] Error campanita usuario ${u.id}:`, bellErr.message);
+      }
+
+      const subs = await query(
+        `SELECT endpoint, p256dh, auth FROM push_subscriptions
+         WHERE usuario_id = ? AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+        [u.id, colegio_id]
+      );
+      if (subs.length === 0) {
+        console.log(`🎂 [CUMPLEANOS-PUSH] Usuario ${u.id} (${u.tipo}): sin push; campanita registrada`);
+        continue;
+      }
+
       const subscriptions = subs.map(sub => ({
         endpoint: sub.endpoint,
         keys: { p256dh: sub.p256dh, auth: sub.auth }
       }));
 
-      const urlDashboard = u.tipo === 'ADMINISTRADOR' ? '/admin/dashboard'
-        : u.tipo === 'ALUMNO' ? '/alumno/dashboard'
-        : u.tipo === 'APODERADO' ? '/apoderado/dashboard'
-        : '/docente/dashboard';
       const payload = {
         title: titulo,
         body: body,
@@ -282,7 +304,7 @@ async function enviarNotificacionesCumpleanos() {
       }
     }
 
-    console.log(`🎂 [CUMPLEANOS-PUSH] Total notificaciones enviadas: ${totalEnviados}`);
+    console.log(`🎂 [CUMPLEANOS-PUSH] Campanita (BD): ${totalCampanita} | Push enviados (dispositivos): ${totalEnviados}`);
   } catch (error) {
     console.error('🎂 [CUMPLEANOS-PUSH] Error:', error);
   } finally {
