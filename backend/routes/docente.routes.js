@@ -8890,7 +8890,7 @@ router.post('/hijos/:hijoId/reiniciar-contrasena', async (req, res) => {
 router.get('/hijos/:hijoId/qr', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, usuario_id, personal_id } = req.user;
+    const { colegio_id, usuario_id, personal_id, anio_activo } = req.user;
 
     console.log(`\n🔵 ========== [HIJOS-QR] NUEVA PETICIÓN ==========`);
     console.log(`📋 [HIJOS-QR] hijoId recibido: ${hijoId}`);
@@ -8979,6 +8979,11 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
     const colegioNombre = colegio.length > 0 ? colegio[0].nombre : 'Vanguard Schools';
     const matriculaData = matricula.length > 0 ? matricula[0] : null;
 
+    const anioCarnet =
+      anio_activo ??
+      (matriculaData && matriculaData.grupo_anio != null ? matriculaData.grupo_anio : null) ??
+      (await getAnioActivo(colegio_id));
+
     // Datos del apoderado del alumno (desde familias) para carnet: Apoderado, Celular, Dirección
     const apoderadoInfo = await query(
       `SELECT CONCAT(ap.nombres, ' ', ap.apellido_paterno, ' ', ap.apellido_materno) as nombre_completo,
@@ -9063,7 +9068,7 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
       nombre_completo: `${alumnoData.nombres || ''} ${alumnoData.apellido_paterno || ''} ${alumnoData.apellido_materno || ''}`.trim(),
       grupo: grupoTexto,
       colegio_nombre: colegioNombre,
-      anio: anio_activo,
+      anio: anioCarnet,
       qr_data: qrData,
       nro_documento: alumnoData.nro_documento || '',
       foto_url,

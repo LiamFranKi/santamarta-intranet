@@ -1628,7 +1628,7 @@ router.get('/hijos/:hijoId/asistencias', async (req, res) => {
 router.get('/hijos/:hijoId/qr', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -1681,6 +1681,11 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
 
     const colegioNombre = colegio.length > 0 ? colegio[0].nombre : 'Vanguard Schools';
     const matriculaData = matricula.length > 0 ? matricula[0] : null;
+
+    const anioCarnet =
+      anio_activo ??
+      (matriculaData && matriculaData.grupo_anio != null ? matriculaData.grupo_anio : null) ??
+      (await getAnioActivo(colegio_id));
 
     // Datos del apoderado (para carnet: Apoderado, Celular, Dirección)
     const apoderadoInfo = await query(
@@ -1761,7 +1766,7 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
       nombre_completo: `${alumnoData.nombres || ''} ${alumnoData.apellido_paterno || ''} ${alumnoData.apellido_materno || ''}`.trim(),
       grupo: grupoTexto,
       colegio_nombre: colegioNombre,
-      anio: anio_activo,
+      anio: anioCarnet,
       qr_data: qrData,
       nro_documento: alumnoData.nro_documento || '',
       foto_url,

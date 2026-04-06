@@ -2131,7 +2131,7 @@ router.put('/perfil/password', async (req, res) => {
  */
 router.get('/qr', async (req, res) => {
   try {
-    const { usuario_id, colegio_id } = req.user;
+    const { usuario_id, colegio_id, anio_activo } = req.user;
 
     // Obtener datos del alumno (incl. foto para carnet)
     const alumno = await query(
@@ -2159,6 +2159,11 @@ router.get('/qr', async (req, res) => {
 
     const colegioNombre = colegio.length > 0 ? colegio[0].nombre : 'Vanguard Schools';
     const matriculaData = matricula.length > 0 ? matricula[0] : null;
+
+    const anioCarnet =
+      anio_activo ??
+      (matriculaData && matriculaData.grupo_anio != null ? matriculaData.grupo_anio : null) ??
+      (await getAnioActivo(colegio_id));
 
     // Apoderado del alumno (para carnet: Apoderado, Celular, Dirección)
     const apoderadoInfo = await query(
@@ -2240,7 +2245,7 @@ router.get('/qr', async (req, res) => {
       nombre_completo: `${alumnoData.nombres || ''} ${alumnoData.apellido_paterno || ''} ${alumnoData.apellido_materno || ''}`.trim(),
       grupo: grupoTexto,
       colegio_nombre: colegioNombre,
-      anio: anio_activo,
+      anio: anioCarnet,
       qr_data: qrData,
       nro_documento: alumnoData.nro_documento || '',
       foto_url: foto_url || null,
