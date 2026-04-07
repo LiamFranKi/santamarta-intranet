@@ -32,7 +32,17 @@ router.use(async (req, res, next) => {
     };
     return next();
   } catch (e) {
-    if (e.code === 'ER_NO_SUCH_TABLE' || String(e.message || '').includes('supervision_supervisores')) {
+    const sinTabla =
+      e.code === 'ER_NO_SUCH_TABLE' || String(e.message || '').includes('supervision_supervisores');
+    // GET /yo: no romper sesión; devolver flags en false (DashboardLayout llama siempre).
+    const esYo =
+      req.method === 'GET' &&
+      (req.path === '/yo' || String(req.originalUrl || '').split('?')[0].endsWith('/supervision/yo'));
+    if (sinTabla && esYo) {
+      req.supervision = { isAdmin: false, isSupervisor: false };
+      return next();
+    }
+    if (sinTabla) {
       return res.status(503).json({
         error:
           'Módulo de supervisión no instalado en la base de datos. Ejecute la migración 016_supervision_mysql.sql.'
@@ -1012,7 +1022,13 @@ router.get('/evaluaciones', requireAdminOrSupervisor, async (req, res) => {
   }
 });
 
-router.get('/yo', requireAdminOrSupervisor, async (req, res) => {
+/**
+ * GET /api/supervision/yo
+ * Solo indica si el usuario es admin de supervisión o supervisor asignado.
+ * No debe usar requireAdminOrSupervisor: un 403 aquí cerraba la sesión de todos los docentes
+ * porque DashboardLayout llama a esta ruta al cargar (interceptor 403 en api.js).
+ */
+router.get('/yo', (req, res) => {
   res.json({
     is_admin: !!req.supervision?.isAdmin,
     is_supervisor: !!req.supervision?.isSupervisor

@@ -3,6 +3,7 @@ import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import Swal from 'sweetalert2';
+import './AdminUsuarios.css';
 import './AdminSupervision.css';
 
 const TABS = {
@@ -12,6 +13,18 @@ const TABS = {
   registrar: 'registrar',
   historial: 'historial'
 };
+
+function TabButton({ active, children, onClick }) {
+  return (
+    <button
+      type="button"
+      className={`admin-usu-btn ${active ? 'admin-usu-btn-primary' : 'admin-usu-btn-secondary'}`}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function AdminSupervision() {
   const { user } = useAuth();
@@ -40,80 +53,90 @@ export default function AdminSupervision() {
   }, [loadYo]);
 
   const inner = (() => {
-  if (loadErr && loadErr.includes('no instalado')) {
+    if (loadErr && loadErr.includes('no instalado')) {
+      return (
+        <div className="admin-usu-wrap">
+          <div className="admin-usu-table-card">
+            <div className="admin-sup-panel-body" style={{ textAlign: 'center' }}>
+              <p><strong>Módulo no instalado en la base de datos.</strong></p>
+              <p className="admin-sup-muted">Ejecute en MySQL el archivo <code>database/migrations/016_supervision_mysql.sql</code>.</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (yo === null && !loadErr) {
+      return (
+        <div className="admin-usu-wrap">
+          <div className="admin-usu-table-card">
+            <div className="admin-sup-panel-body" style={{ textAlign: 'center', color: '#6b7280' }}>
+              Cargando permisos…
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (!canConfig && !canExecute) {
+      return (
+        <div className="admin-usu-wrap">
+          <div className="admin-usu-table-card">
+            <div className="admin-sup-panel-body" style={{ textAlign: 'center' }}>
+              <p>No tienes acceso a Supervisión.</p>
+              <p className="admin-sup-muted">El administrador debe asignarte como supervisor en este módulo.</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className="admin-supervision">
-        <div className="admin-supervision-panel access-denied">
-          <p><strong>Módulo no instalado en la base de datos.</strong></p>
-          <p className="muted">Ejecute en MySQL el archivo <code>database/migrations/016_supervision_mysql.sql</code>.</p>
+      <div className="admin-usu-wrap">
+        <div className="admin-usu-header">
+          <h1>Supervisión</h1>
+          <p>
+            Instrumentos tipo rúbrica, supervisores asignados y registro de visitas por docente (nivel, grado y aula).
+          </p>
+        </div>
+
+        <div className="admin-usu-toolbar" style={{ flexWrap: 'wrap' }}>
+          {canConfig && (
+            <>
+              <TabButton active={tab === TABS.instrumentos} onClick={() => setTab(TABS.instrumentos)}>
+                Instrumentos
+              </TabButton>
+              <TabButton active={tab === TABS.cierre} onClick={() => setTab(TABS.cierre)}>
+                Cierre global
+              </TabButton>
+              <TabButton active={tab === TABS.supervisores} onClick={() => setTab(TABS.supervisores)}>
+                Supervisores
+              </TabButton>
+            </>
+          )}
+          {canExecute && (
+            <>
+              <TabButton active={tab === TABS.registrar} onClick={() => setTab(TABS.registrar)}>
+                Registrar supervisión
+              </TabButton>
+              <TabButton active={tab === TABS.historial} onClick={() => setTab(TABS.historial)}>
+                Historial
+              </TabButton>
+            </>
+          )}
+        </div>
+
+        <div className="admin-usu-table-card">
+          <div className="admin-sup-panel-body">
+            {tab === TABS.instrumentos && canConfig && <PanelInstrumentos />}
+            {tab === TABS.cierre && canConfig && <PanelCierreGlobal />}
+            {tab === TABS.supervisores && canConfig && <PanelSupervisores />}
+            {tab === TABS.registrar && canExecute && <PanelRegistrar onDone={loadYo} />}
+            {tab === TABS.historial && canExecute && <PanelHistorial />}
+          </div>
         </div>
       </div>
     );
-  }
-
-  if (yo === null && !loadErr) {
-    return (
-      <div className="admin-supervision">
-        <div className="admin-supervision-panel" style={{ padding: '2rem', textAlign: 'center' }}>
-          Cargando permisos…
-        </div>
-      </div>
-    );
-  }
-
-  if (!canConfig && !canExecute) {
-    return (
-      <div className="admin-supervision">
-        <div className="admin-supervision-panel access-denied">
-          <p>No tienes acceso a Supervisión.</p>
-          <p className="muted">El administrador debe asignarte como supervisor en este módulo.</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="admin-supervision">
-      <h1 style={{ marginBottom: '0.5rem', fontSize: '1.5rem' }}>Supervisión</h1>
-      <p className="muted" style={{ marginBottom: '1rem' }}>
-        Instrumentos tipo rúbrica, supervisores y registro de visitas por docente.
-      </p>
-
-      <div className="admin-supervision-tabs">
-        {canConfig && (
-          <>
-            <button type="button" className={tab === TABS.instrumentos ? 'active' : ''} onClick={() => setTab(TABS.instrumentos)}>
-              Instrumentos
-            </button>
-            <button type="button" className={tab === TABS.cierre ? 'active' : ''} onClick={() => setTab(TABS.cierre)}>
-              Cierre global
-            </button>
-            <button type="button" className={tab === TABS.supervisores ? 'active' : ''} onClick={() => setTab(TABS.supervisores)}>
-              Supervisores
-            </button>
-          </>
-        )}
-        {canExecute && (
-          <>
-            <button type="button" className={tab === TABS.registrar ? 'active' : ''} onClick={() => setTab(TABS.registrar)}>
-              Registrar supervisión
-            </button>
-            <button type="button" className={tab === TABS.historial ? 'active' : ''} onClick={() => setTab(TABS.historial)}>
-              Historial
-            </button>
-          </>
-        )}
-      </div>
-
-      <div className="admin-supervision-panel">
-        {tab === TABS.instrumentos && canConfig && <PanelInstrumentos />}
-        {tab === TABS.cierre && canConfig && <PanelCierreGlobal />}
-        {tab === TABS.supervisores && canConfig && <PanelSupervisores />}
-        {tab === TABS.registrar && canExecute && <PanelRegistrar onDone={loadYo} />}
-        {tab === TABS.historial && canExecute && <PanelHistorial />}
-      </div>
-    </div>
-  );
   })();
 
   return (
@@ -217,134 +240,166 @@ function PanelInstrumentos() {
     }
   };
 
+  async function delRango(id) {
+    try {
+      await api.delete(`/supervision/rangos/${id}`);
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error, 'error');
+    }
+  }
+
   return (
-    <div className="admin-supervision-grid2">
+    <div className="admin-sup-layout-2">
       <div>
-        <div className="row-actions" style={{ marginBottom: '0.75rem' }}>
-          <button type="button" className="btn btn-primary" onClick={openNew}>
-            Nuevo instrumento
+        <div className="admin-usu-toolbar" style={{ marginBottom: '0.75rem' }}>
+          <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={openNew}>
+            + Nuevo instrumento
           </button>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Título</th>
-              <th>Estado</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((r) => (
-              <tr key={r.id}>
-                <td>{r.titulo}</td>
-                <td>{r.activo ? 'Activo' : 'Inactivo'}</td>
-                <td className="row-actions">
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => openEdit(r)}>
-                    Editar
-                  </button>
-                  <button type="button" className="btn btn-danger btn-sm" onClick={() => deleteInst(r.id)}>
-                    Eliminar
-                  </button>
-                </td>
+        <div className="admin-usu-table-scroll">
+          <table className="admin-usu-table">
+            <thead>
+              <tr>
+                <th>Título</th>
+                <th>Estado</th>
+                <th style={{ width: 220 }}>Acciones</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {list.map((r) => (
+                <tr key={r.id}>
+                  <td style={{ textAlign: 'left' }}>{r.titulo}</td>
+                  <td>
+                    {r.activo ? (
+                      <span className="admin-usu-badge admin-usu-badge-ok">Activo</span>
+                    ) : (
+                      <span className="admin-usu-badge-off">Inactivo</span>
+                    )}
+                  </td>
+                  <td>
+                    <button type="button" className="admin-usu-btn admin-usu-btn-secondary" style={{ marginRight: 8 }} onClick={() => openEdit(r)}>
+                      Editar
+                    </button>
+                    <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => deleteInst(r.id)}>
+                      Eliminar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       <div>
-        {sel == null && <p className="muted">Seleccione o cree un instrumento para configurar preguntas, niveles y rangos.</p>}
+        {sel == null && (
+          <p className="admin-sup-muted">Seleccione o cree un instrumento para configurar preguntas, niveles y rangos.</p>
+        )}
         {sel === 'new' && (
-          <>
-            <h3 style={{ fontSize: '1.05rem', marginBottom: '0.75rem' }}>Nuevo instrumento</h3>
-            <label>Título</label>
-            <input value={formInst.titulo} onChange={(e) => setFormInst({ ...formInst, titulo: e.target.value })} />
-            <label>Descripción (opcional)</label>
-            <textarea value={formInst.descripcion} onChange={(e) => setFormInst({ ...formInst, descripcion: e.target.value })} />
-            <label>Año (vacío = todos los años)</label>
-            <input
-              type="number"
-              value={formInst.anio}
-              onChange={(e) => setFormInst({ ...formInst, anio: e.target.value })}
-              placeholder="Ej. 2026"
-            />
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <div className="admin-usu-profile-section">
+            <h3>Nuevo instrumento</h3>
+            <div className="admin-usu-field">
+              <label>Título</label>
+              <input value={formInst.titulo} onChange={(e) => setFormInst({ ...formInst, titulo: e.target.value })} />
+            </div>
+            <div className="admin-usu-field">
+              <label>Descripción (opcional)</label>
+              <textarea className="admin-usu-msg-textarea" style={{ minHeight: 88 }} value={formInst.descripcion} onChange={(e) => setFormInst({ ...formInst, descripcion: e.target.value })} />
+            </div>
+            <div className="admin-usu-field">
+              <label>Año (vacío = todos los años)</label>
               <input
-                type="checkbox"
-                checked={formInst.activo}
-                onChange={(e) => setFormInst({ ...formInst, activo: e.target.checked })}
+                type="number"
+                value={formInst.anio}
+                onChange={(e) => setFormInst({ ...formInst, anio: e.target.value })}
+                placeholder="Ej. 2026"
               />
-              Activo
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input
-                type="checkbox"
-                checked={formInst.cierre_usa_global}
-                onChange={(e) => setFormInst({ ...formInst, cierre_usa_global: e.target.checked })}
-              />
-              Usar campos de cierre globales
-            </label>
-            <button type="button" className="btn btn-primary" onClick={saveInstrumento}>
+            </div>
+            <div className="admin-usu-destino-row" style={{ marginBottom: '0.75rem' }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={formInst.activo}
+                  onChange={(e) => setFormInst({ ...formInst, activo: e.target.checked })}
+                />
+                Activo
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={formInst.cierre_usa_global}
+                  onChange={(e) => setFormInst({ ...formInst, cierre_usa_global: e.target.checked })}
+                />
+                Usar campos de cierre globales
+              </label>
+            </div>
+            <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={saveInstrumento}>
               Guardar
             </button>
-          </>
+          </div>
         )}
         {sel && sel !== 'new' && detalle && (
-          <>
-            <h3 style={{ fontSize: '1.05rem', marginBottom: '0.75rem' }}>Editar instrumento</h3>
-            <label>Título</label>
-            <input value={formInst.titulo} onChange={(e) => setFormInst({ ...formInst, titulo: e.target.value })} />
-            <label>Descripción</label>
-            <textarea value={formInst.descripcion} onChange={(e) => setFormInst({ ...formInst, descripcion: e.target.value })} />
-            <label>Año (vacío = todos)</label>
-            <input type="number" value={formInst.anio} onChange={(e) => setFormInst({ ...formInst, anio: e.target.value })} />
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input
-                type="checkbox"
-                checked={formInst.activo}
-                onChange={(e) => setFormInst({ ...formInst, activo: e.target.checked })}
-              />
-              Activo
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <input
-                type="checkbox"
-                checked={formInst.cierre_usa_global}
-                onChange={(e) => setFormInst({ ...formInst, cierre_usa_global: e.target.checked })}
-              />
-              Cierre global
-            </label>
-            <button type="button" className="btn btn-primary" onClick={saveInstrumento} style={{ marginBottom: '1.25rem' }}>
+          <div className="admin-usu-profile-section">
+            <h3>Editar instrumento</h3>
+            <div className="admin-usu-field">
+              <label>Título</label>
+              <input value={formInst.titulo} onChange={(e) => setFormInst({ ...formInst, titulo: e.target.value })} />
+            </div>
+            <div className="admin-usu-field">
+              <label>Descripción</label>
+              <textarea className="admin-usu-msg-textarea" style={{ minHeight: 88 }} value={formInst.descripcion} onChange={(e) => setFormInst({ ...formInst, descripcion: e.target.value })} />
+            </div>
+            <div className="admin-usu-field">
+              <label>Año (vacío = todos)</label>
+              <input type="number" value={formInst.anio} onChange={(e) => setFormInst({ ...formInst, anio: e.target.value })} />
+            </div>
+            <div className="admin-usu-destino-row" style={{ marginBottom: '0.75rem' }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={formInst.activo}
+                  onChange={(e) => setFormInst({ ...formInst, activo: e.target.checked })}
+                />
+                Activo
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={formInst.cierre_usa_global}
+                  onChange={(e) => setFormInst({ ...formInst, cierre_usa_global: e.target.checked })}
+                />
+                Cierre global
+              </label>
+            </div>
+            <button type="button" className="admin-usu-btn admin-usu-btn-primary" style={{ marginBottom: '1rem' }} onClick={saveInstrumento}>
               Guardar datos generales
             </button>
 
-            <h4 style={{ fontSize: '1rem', margin: '1rem 0 0.5rem' }}>Preguntas e ítems</h4>
+            <h3 style={{ marginTop: '1.25rem' }}>Preguntas e ítems</h3>
             {(detalle.preguntas || []).map((p) => (
-              <div key={p.id} className="card-pregunta">
-                <strong>{p.titulo}</strong>
-                <div className="muted" style={{ fontSize: '0.8rem' }}>
+              <div key={p.id} className="admin-usu-info-item admin-sup-pregunta-block">
+                <span className="admin-usu-info-label">{p.titulo}</span>
+                <div className="admin-sup-muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
                   {p.texto_ayuda}
                 </div>
-                <div style={{ marginTop: '0.5rem' }}>
+                <div style={{ marginTop: 8 }}>
                   {(p.niveles || []).map((n) => (
-                    <div key={n.id} className="muted" style={{ fontSize: '0.8rem' }}>
+                    <div key={n.id} className="admin-sup-muted" style={{ fontSize: '0.82rem' }}>
                       [{n.valor_numerico}] {n.etiqueta || '—'} — {n.descripcion || ''}
                     </div>
                   ))}
                 </div>
-                <div className="row-actions" style={{ marginTop: '0.5rem' }}>
-                  <MiniNivelForm preguntaId={p.id} onAdded={() => openEdit({ id: sel })} />
-                </div>
+                <MiniNivelForm preguntaId={p.id} onAdded={() => openEdit({ id: sel })} />
               </div>
             ))}
             <MiniPreguntaForm instrumentoId={sel} onAdded={() => openEdit({ id: sel })} />
 
-            <h4 style={{ fontSize: '1rem', margin: '1.25rem 0 0.5rem' }}>Rangos de resultado (puntaje total)</h4>
+            <h3 style={{ marginTop: '1.25rem' }}>Rangos de resultado (puntaje total)</h3>
             {(detalle.rangos_resultado || []).map((r) => (
-              <div key={r.id} className="row-actions" style={{ alignItems: 'center', marginBottom: '0.35rem' }}>
-                <span className="muted">
-                  {r.puntaje_min} – {r.puntaje_max}: {r.etiqueta}
+              <div key={r.id} className="admin-usu-destino-row" style={{ justifyContent: 'space-between', width: '100%', marginBottom: 8 }}>
+                <span className="admin-sup-muted" style={{ margin: 0 }}>
+                  {r.puntaje_min} – {r.puntaje_max}: <strong>{r.etiqueta}</strong>
                 </span>
-                <button type="button" className="btn btn-danger btn-sm" onClick={() => delRango(r.id).then(() => openEdit({ id: sel }))}>
+                <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => delRango(r.id).then(() => openEdit({ id: sel }))}>
                   Quitar
                 </button>
               </div>
@@ -353,23 +408,15 @@ function PanelInstrumentos() {
 
             {!formInst.cierre_usa_global && (
               <>
-                <h4 style={{ fontSize: '1rem', margin: '1.25rem 0 0.5rem' }}>Campos de cierre (solo este instrumento)</h4>
+                <h3 style={{ marginTop: '1.25rem' }}>Campos de cierre (solo este instrumento)</h3>
                 <CamposCierreInstrumento instrumentoId={sel} />
               </>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>
   );
-
-  async function delRango(id) {
-    try {
-      await api.delete(`/supervision/rangos/${id}`);
-    } catch (e) {
-      Swal.fire('Error', e.response?.data?.error, 'error');
-    }
-  }
 }
 
 function MiniPreguntaForm({ instrumentoId, onAdded }) {
@@ -387,11 +434,16 @@ function MiniPreguntaForm({ instrumentoId, onAdded }) {
     }
   };
   return (
-    <div style={{ marginTop: '0.75rem', padding: '0.75rem', border: '1px dashed #d1d5db', borderRadius: 8 }}>
-      <label>Nueva pregunta / ítem</label>
-      <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título" />
-      <textarea value={ayuda} onChange={(e) => setAyuda(e.target.value)} placeholder="Texto de ayuda (opcional)" />
-      <button type="button" className="btn btn-secondary btn-sm" onClick={submit}>
+    <div className="admin-sup-dashed">
+      <div className="admin-usu-field">
+        <label>Nueva pregunta / ítem</label>
+        <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título" />
+      </div>
+      <div className="admin-usu-field">
+        <label>Texto de ayuda (opcional)</label>
+        <textarea className="admin-usu-msg-textarea" style={{ minHeight: 72 }} value={ayuda} onChange={(e) => setAyuda(e.target.value)} />
+      </div>
+      <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={submit}>
         Añadir pregunta
       </button>
     </div>
@@ -418,11 +470,20 @@ function MiniNivelForm({ preguntaId, onAdded }) {
     }
   };
   return (
-    <div>
-      <input style={{ width: 72, display: 'inline-block' }} type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} title="Puntaje" />
-      <input style={{ width: 140, display: 'inline-block', marginLeft: 8 }} value={etiq} onChange={(e) => setEtiq(e.target.value)} placeholder="Etiqueta nivel" />
-      <input style={{ width: '55%', marginLeft: 8 }} value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Descripción" />
-      <button type="button" className="btn btn-primary btn-sm" style={{ marginLeft: 8 }} onClick={submit}>
+    <div className="admin-sup-nivel-inline">
+      <div className="admin-usu-field" style={{ maxWidth: 100 }}>
+        <label>Puntaje</label>
+        <input type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} />
+      </div>
+      <div className="admin-usu-field" style={{ flex: '1 1 140px' }}>
+        <label>Etiqueta nivel</label>
+        <input value={etiq} onChange={(e) => setEtiq(e.target.value)} placeholder="Ej. Alto" />
+      </div>
+      <div className="admin-usu-field" style={{ flex: '2 1 200px' }}>
+        <label>Descripción</label>
+        <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Descripción del nivel" />
+      </div>
+      <button type="button" className="admin-usu-btn admin-usu-btn-primary" style={{ alignSelf: 'flex-end', marginBottom: '0.85rem' }} onClick={submit}>
         + Nivel
       </button>
     </div>
@@ -450,11 +511,20 @@ function MiniRangoForm({ instrumentoId, onAdded }) {
     }
   };
   return (
-    <div style={{ marginTop: '0.5rem' }}>
-      <input style={{ width: 90, display: 'inline-block' }} type="number" step="0.01" value={min} onChange={(e) => setMin(e.target.value)} placeholder="Mín" />
-      <input style={{ width: 90, display: 'inline-block', marginLeft: 8 }} type="number" step="0.01" value={max} onChange={(e) => setMax(e.target.value)} placeholder="Máx" />
-      <input style={{ width: 200, marginLeft: 8 }} value={etiq} onChange={(e) => setEtiq(e.target.value)} placeholder="Etiqueta (ej. En proceso)" />
-      <button type="button" className="btn btn-secondary btn-sm" style={{ marginLeft: 8 }} onClick={submit}>
+    <div className="admin-sup-nivel-inline" style={{ marginTop: '0.5rem' }}>
+      <div className="admin-usu-field" style={{ maxWidth: 110 }}>
+        <label>Mín</label>
+        <input type="number" step="0.01" value={min} onChange={(e) => setMin(e.target.value)} />
+      </div>
+      <div className="admin-usu-field" style={{ maxWidth: 110 }}>
+        <label>Máx</label>
+        <input type="number" step="0.01" value={max} onChange={(e) => setMax(e.target.value)} />
+      </div>
+      <div className="admin-usu-field" style={{ flex: '1 1 200px' }}>
+        <label>Etiqueta</label>
+        <input value={etiq} onChange={(e) => setEtiq(e.target.value)} placeholder="Ej. En proceso" />
+      </div>
+      <button type="button" className="admin-usu-btn admin-usu-btn-secondary" style={{ alignSelf: 'flex-end', marginBottom: '0.85rem' }} onClick={submit}>
         Añadir rango
       </button>
     </div>
@@ -463,11 +533,13 @@ function MiniRangoForm({ instrumentoId, onAdded }) {
 
 function CamposCierreInstrumento({ instrumentoId }) {
   const [campos, setCampos] = useState([]);
-  const load = () =>
-    api.get(`/supervision/instrumentos/${instrumentoId}/campos-cierre`).then((r) => setCampos(r.data.campos || []));
+  const load = useCallback(
+    () => api.get(`/supervision/instrumentos/${instrumentoId}/campos-cierre`).then((r) => setCampos(r.data.campos || [])),
+    [instrumentoId]
+  );
   useEffect(() => {
     load().catch(() => {});
-  }, [instrumentoId]);
+  }, [load]);
   const [etiq, setEtiq] = useState('');
   const add = async () => {
     if (!etiq.trim()) return;
@@ -490,17 +562,19 @@ function CamposCierreInstrumento({ instrumentoId }) {
   return (
     <div>
       {campos.map((c) => (
-        <div key={c.id} className="row-actions" style={{ marginBottom: 6 }}>
+        <div key={c.id} className="admin-usu-destino-row" style={{ justifyContent: 'space-between', marginBottom: 8, width: '100%' }}>
           <span>{c.etiqueta}</span>
-          <button type="button" className="btn btn-danger btn-sm" onClick={() => del(c.id)}>
+          <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => del(c.id)}>
             Quitar
           </button>
         </div>
       ))}
-      <input value={etiq} onChange={(e) => setEtiq(e.target.value)} placeholder="Nueva etiqueta de campo" />
-      <button type="button" className="btn btn-secondary btn-sm" onClick={add}>
-        Añadir campo
-      </button>
+      <div className="admin-usu-toolbar" style={{ marginTop: 12, padding: 0, boxShadow: 'none', border: 'none', background: 'transparent' }}>
+        <input className="admin-usu-grow" type="text" value={etiq} onChange={(e) => setEtiq(e.target.value)} placeholder="Nueva etiqueta de campo" />
+        <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={add}>
+          Añadir campo
+        </button>
+      </div>
     </div>
   );
 }
@@ -508,10 +582,10 @@ function CamposCierreInstrumento({ instrumentoId }) {
 function PanelCierreGlobal() {
   const [campos, setCampos] = useState([]);
   const [etiq, setEtiq] = useState('');
-  const load = () => api.get('/supervision/campos-cierre/global').then((r) => setCampos(r.data.campos || []));
+  const load = useCallback(() => api.get('/supervision/campos-cierre/global').then((r) => setCampos(r.data.campos || [])), []);
   useEffect(() => {
     load().catch(() => {});
-  }, []);
+  }, [load]);
   const add = async () => {
     if (!etiq.trim()) return;
     try {
@@ -532,31 +606,35 @@ function PanelCierreGlobal() {
   };
   return (
     <div>
-      <p className="muted">Estos campos se usan al final de cada supervisión cuando el instrumento tiene &quot;Cierre global&quot; activado.</p>
-      <p className="muted">Sugerencia: Fortalezas, Oportunidades de mejora, Acción inmediata.</p>
-      <table>
-        <thead>
-          <tr>
-            <th>Etiqueta</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {campos.map((c) => (
-            <tr key={c.id}>
-              <td>{c.etiqueta}</td>
-              <td>
-                <button type="button" className="btn btn-danger btn-sm" onClick={() => del(c.id)}>
-                  Eliminar
-                </button>
-              </td>
+      <p className="admin-sup-muted">
+        Estos campos se usan al final de cada supervisión cuando el instrumento tiene &quot;Cierre global&quot; activado.
+      </p>
+      <p className="admin-sup-muted">Sugerencia: Fortalezas, Oportunidades de mejora, Acción inmediata.</p>
+      <div className="admin-usu-table-scroll">
+        <table className="admin-usu-table">
+          <thead>
+            <tr>
+              <th>Etiqueta</th>
+              <th style={{ width: 140 }}>Acción</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <div style={{ marginTop: 12 }}>
-        <input value={etiq} onChange={(e) => setEtiq(e.target.value)} placeholder="Nueva etiqueta" />
-        <button type="button" className="btn btn-primary" style={{ marginLeft: 8 }} onClick={add}>
+          </thead>
+          <tbody>
+            {campos.map((c) => (
+              <tr key={c.id}>
+                <td style={{ textAlign: 'left' }}>{c.etiqueta}</td>
+                <td>
+                  <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => del(c.id)}>
+                    Eliminar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="admin-usu-toolbar" style={{ marginTop: 16, padding: 0, boxShadow: 'none', border: 'none', background: 'transparent' }}>
+        <input className="admin-usu-grow" type="text" value={etiq} onChange={(e) => setEtiq(e.target.value)} placeholder="Nueva etiqueta" />
+        <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={add}>
           Añadir
         </button>
       </div>
@@ -568,10 +646,10 @@ function PanelSupervisores() {
   const [list, setList] = useState([]);
   const [q, setQ] = useState('');
   const [candidatos, setCandidatos] = useState([]);
-  const load = () => api.get('/supervision/supervisores').then((r) => setList(r.data.supervisores || []));
+  const load = useCallback(() => api.get('/supervision/supervisores').then((r) => setList(r.data.supervisores || [])), []);
   useEffect(() => {
     load().catch(() => {});
-  }, []);
+  }, [load]);
   const buscar = () =>
     api.get('/supervision/personal-candidatos', { params: { q } }).then((r) => setCandidatos(r.data.personal || []));
   const add = async (usuario_id) => {
@@ -593,42 +671,48 @@ function PanelSupervisores() {
   };
   return (
     <div>
-      <p className="muted">Los supervisores pueden registrar visitas e historial; no reciben el menú de configuración.</p>
-      <h4 style={{ fontSize: '1rem' }}>Actuales</h4>
-      <table>
-        <thead>
-          <tr>
-            <th>Usuario</th>
-            <th>Nombre</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {list.map((s) => (
-            <tr key={s.id}>
-              <td>{s.dni}</td>
-              <td>
-                {s.nombres} {s.apellidos}
-              </td>
-              <td>
-                <button type="button" className="btn btn-danger btn-sm" onClick={() => del(s.id)}>
-                  Quitar
-                </button>
-              </td>
+      <p className="admin-sup-muted">
+        Los supervisores pueden registrar visitas e historial; no tienen acceso a la configuración de instrumentos.
+      </p>
+      <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '0 0 0.75rem' }}>Supervisores actuales</h3>
+      <div className="admin-usu-table-scroll">
+        <table className="admin-usu-table">
+          <thead>
+            <tr>
+              <th>Usuario (DNI)</th>
+              <th>Nombre</th>
+              <th style={{ width: 120 }}>Acción</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      <h4 style={{ fontSize: '1rem', marginTop: 16 }}>Añadir personal</h4>
-      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por DNI o nombre" />
-      <button type="button" className="btn btn-secondary" style={{ marginLeft: 8 }} onClick={buscar}>
-        Buscar
-      </button>
-      <ul style={{ marginTop: 12, paddingLeft: 18 }}>
+          </thead>
+          <tbody>
+            {list.map((s) => (
+              <tr key={s.id}>
+                <td>{s.dni}</td>
+                <td style={{ textAlign: 'left' }}>
+                  {s.nombres} {s.apellidos}
+                </td>
+                <td>
+                  <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => del(s.id)}>
+                    Quitar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '1.25rem 0 0.75rem' }}>Añadir personal</h3>
+      <div className="admin-usu-toolbar" style={{ marginBottom: 12 }}>
+        <input className="admin-usu-grow" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por DNI o nombre" />
+        <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={buscar}>
+          Buscar
+        </button>
+      </div>
+      <ul className="admin-sup-lista-candidatos">
         {candidatos.map((p) => (
-          <li key={p.usuario_id} style={{ marginBottom: 8 }}>
-            {p.dni} — {p.nombres} {p.apellidos}{' '}
-            <button type="button" className="btn btn-primary btn-sm" onClick={() => add(p.usuario_id)}>
+          <li key={p.usuario_id}>
+            <strong>{p.dni}</strong> — {p.nombres} {p.apellidos}{' '}
+            <button type="button" className="admin-usu-btn admin-usu-btn-primary" style={{ marginLeft: 8 }} onClick={() => add(p.usuario_id)}>
               Asignar
             </button>
           </li>
@@ -738,9 +822,10 @@ function PanelRegistrar({ onDone }) {
   }
 
   return (
-    <div>
-      <div className="admin-supervision-grid2">
-        <div>
+    <div className="admin-sup-layout-2">
+      <div className="admin-usu-profile-section">
+        <h3>Contexto de la visita</h3>
+        <div className="admin-usu-field">
           <label>Instrumento</label>
           <select value={instId} onChange={(e) => setInstId(e.target.value)}>
             <option value="">— Elegir —</option>
@@ -750,6 +835,8 @@ function PanelRegistrar({ onDone }) {
               </option>
             ))}
           </select>
+        </div>
+        <div className="admin-usu-field">
           <label>Nivel</label>
           <select value={nivelId} onChange={(e) => setNivelId(e.target.value)}>
             <option value="">— Elegir —</option>
@@ -759,6 +846,8 @@ function PanelRegistrar({ onDone }) {
               </option>
             ))}
           </select>
+        </div>
+        <div className="admin-usu-field">
           <label>Grupo / aula</label>
           <select value={grupoId} onChange={(e) => setGrupoId(e.target.value)}>
             <option value="">— Elegir —</option>
@@ -768,6 +857,8 @@ function PanelRegistrar({ onDone }) {
               </option>
             ))}
           </select>
+        </div>
+        <div className="admin-usu-field">
           <label>Docente a supervisar</label>
           <select value={personalId} onChange={(e) => setPersonalId(e.target.value)}>
             <option value="">— Elegir —</option>
@@ -777,54 +868,62 @@ function PanelRegistrar({ onDone }) {
               </option>
             ))}
           </select>
+        </div>
+        <div className="admin-usu-field">
           <label>Fecha</label>
           <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-          <button type="button" className="btn btn-primary" onClick={cargarFormulario}>
-            Cargar formulario del instrumento
-          </button>
         </div>
-        <div>
-          {detalle && (
-            <>
-              <p className="muted">
-                Puntaje previo: <strong>{puntajePrev.toFixed(2)}</strong> (debe caer en un rango configurado)
-              </p>
-              {(detalle.preguntas || []).map((p) => (
-                <div key={p.id} className="card-pregunta">
-                  <strong>{p.titulo}</strong>
+        <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={cargarFormulario}>
+          Cargar formulario del instrumento
+        </button>
+      </div>
+      <div>
+        {detalle && (
+          <div className="admin-usu-profile-section">
+            <p className="admin-sup-muted">
+              Puntaje previo: <strong style={{ color: '#1f2937' }}>{puntajePrev.toFixed(2)}</strong> (debe encajar en un rango configurado)
+            </p>
+            {(detalle.preguntas || []).map((p) => (
+              <div key={p.id} className="admin-usu-info-item" style={{ marginBottom: '0.75rem' }}>
+                <span className="admin-usu-info-label">{p.titulo}</span>
+                <div className="admin-sup-radio-list">
                   {(p.niveles || []).map((n) => (
-                    <label key={n.id} className="nivel-option">
+                    <label key={n.id} className={respuestas[p.id] === n.id ? 'admin-sup-radio-active' : ''}>
                       <input
                         type="radio"
                         name={`preg-${p.id}`}
                         checked={respuestas[p.id] === n.id}
                         onChange={() => setRespuestas({ ...respuestas, [p.id]: n.id })}
-                      />{' '}
-                      <strong>{n.etiqueta || n.valor_numerico}</strong> ({n.valor_numerico} pt.) — {n.descripcion || '—'}
+                      />
+                      <span>
+                        <strong>{n.etiqueta || n.valor_numerico}</strong> ({n.valor_numerico} pt.) — {n.descripcion || '—'}
+                      </span>
                     </label>
                   ))}
                 </div>
-              ))}
-              <h4 style={{ fontSize: '1rem', marginTop: 16 }}>Observaciones y cierre</h4>
-              {(detalle.campos_cierre || []).map((c) => (
-                <div key={c.id}>
-                  <label>
-                    {c.etiqueta}
-                    {c.requerido ? ' *' : ''}
-                  </label>
-                  <textarea
-                    value={obs[c.id] || ''}
-                    onChange={(e) => setObs({ ...obs, [c.id]: e.target.value })}
-                    required={!!c.requerido}
-                  />
-                </div>
-              ))}
-              <button type="button" className="btn btn-primary" style={{ marginTop: 12 }} onClick={enviar}>
-                Guardar supervisión
-              </button>
-            </>
-          )}
-        </div>
+              </div>
+            ))}
+            <h3 style={{ fontSize: '1.08rem', margin: '1rem 0 0.75rem' }}>Observaciones y cierre</h3>
+            {(detalle.campos_cierre || []).map((c) => (
+              <div key={c.id} className="admin-usu-field">
+                <label>
+                  {c.etiqueta}
+                  {c.requerido ? ' *' : ''}
+                </label>
+                <textarea
+                  className="admin-usu-msg-textarea"
+                  style={{ minHeight: 100 }}
+                  value={obs[c.id] || ''}
+                  onChange={(e) => setObs({ ...obs, [c.id]: e.target.value })}
+                  required={!!c.requerido}
+                />
+              </div>
+            ))}
+            <button type="button" className="admin-usu-btn admin-usu-btn-new" style={{ marginTop: 12 }} onClick={enviar}>
+              Guardar supervisión
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -832,13 +931,13 @@ function PanelRegistrar({ onDone }) {
 
 function PanelHistorial() {
   const [rows, setRows] = useState([]);
-  const load = () => api.get('/supervision/evaluaciones').then((r) => setRows(r.data.evaluaciones || []));
+  const load = useCallback(() => api.get('/supervision/evaluaciones').then((r) => setRows(r.data.evaluaciones || [])), []);
   useEffect(() => {
     load().catch(() => {});
-  }, []);
+  }, [load]);
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <table>
+    <div className="admin-usu-table-scroll">
+      <table className="admin-usu-table">
         <thead>
           <tr>
             <th>Fecha</th>
@@ -853,15 +952,17 @@ function PanelHistorial() {
           {rows.map((e) => (
             <tr key={e.id}>
               <td>{e.fecha_evaluacion}</td>
-              <td>{e.instrumento_titulo}</td>
-              <td>
+              <td style={{ textAlign: 'left' }}>{e.instrumento_titulo}</td>
+              <td style={{ textAlign: 'left' }}>
                 {e.evaluado_apellidos}, {e.evaluado_nombres}
               </td>
               <td>
                 {e.grado}° {e.seccion} {e.nivel_nombre}
               </td>
               <td>{e.puntaje_total}</td>
-              <td>{e.resultado_etiqueta}</td>
+              <td>
+                <span className="admin-usu-badge">{e.resultado_etiqueta || '—'}</span>
+              </td>
             </tr>
           ))}
         </tbody>
