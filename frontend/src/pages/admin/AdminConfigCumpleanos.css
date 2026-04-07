@@ -376,3 +376,224 @@
 .admin-config-cumpleanos__quill-wrap .ql-editor {
   min-height: 200px;
 }
+
+.admin-config-cumpleanos__preview-row {
+  margin: 0.65rem 0 0.5rem;
+}
+
+.admin-config-cumpleanos__btn-preview {
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  border: 1px dashed #a5b4fc;
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.admin-config-cumpleanos__btn-preview:hover {
+  background: #e0e7ff;
+  border-color: #6366f1;
+}
+
+.admin-config-cumpleanos__preview-leyenda {
+  margin: 0 0 1rem;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #475569;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-config-cumpleanos__preview-leyenda code {
+  font-size: 0.8em;
+  padding: 0.1em 0.35em;
+  background: #fff;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+/* Modal vista previa */
+.admin-cumple-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.admin-cumple-preview-dialog {
+  width: min(100%, 560px);
+  max-height: min(90vh, 720px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.25rem 1.35rem 1rem;
+  box-shadow: 0 25px 50px rgba(15, 23, 42, 0.25);
+  border: 1px solid #e2e8f0;
+}
+
+.admin-cumple-preview-dialog__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-cumple-preview-dialog__title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.admin-cumple-preview-dialog__close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.admin-cumple-preview-dialog__close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.admin-cumple-preview-dialog__actions {
+  margin-top: 1.25rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Push */
+.admin-cumple-preview-push-wrap {
+  margin-top: 0.25rem;
+}
+
+.admin-cumple-preview-push-card {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.admin-cumple-preview-push-icon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+.admin-cumple-preview-push-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #0f172a;
+  margin-bottom: 0.25rem;
+}
+
+.admin-cumple-preview-push-body {
+  font-size: 0.88rem;
+  color: #475569;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.admin-cumple-preview-push-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+/* Ventana / mensaje */
+.admin-cumple-preview-ventana {
+  margin-top: 0.25rem;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.admin-cumple-preview-ventana--modal {
+  padding: 1.25rem 1.15rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(254, 243, 199, 0.88) 50%, rgba(253, 224, 231, 0.92) 100%);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+}
+
+.admin-cumple-preview-ventana--mensaje {
+  padding: 1rem 1.1rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-cumple-preview-bandeja-label {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
+}
+
+.admin-cumple-preview-ventana__body {
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #1f2937;
+}
+
+.admin-cumple-preview-ventana__body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+}
+
+/* Correo */
+.admin-cumple-preview-correo {
+  margin-top: 0.25rem;
+}
+
+.admin-cumple-preview-correo__meta {
+  padding: 0.65rem 0.85rem;
+  background: #f1f5f9;
+  border-radius: 10px 10px 0 0;
+  border: 1px solid #e2e8f0;
+  border-bottom: none;
+  font-size: 0.9rem;
+  color: #0f172a;
+  word-break: break-word;
+}
+
+.admin-cumple-preview-correo__cuerpo {
+  padding: 1rem 1rem 1.1rem;
+  border-radius: 0 0 10px 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  min-height: 80px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #334155;
+}
+
+.admin-cumple-preview-correo__cuerpo img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
