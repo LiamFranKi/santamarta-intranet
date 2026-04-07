@@ -1,0 +1,118 @@
+.birthday-welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(6px);
+  animation: birthday-welcome-fade-in 0.35s ease;
+}
+
+@keyframes birthday-welcome-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.birthday-welcome-modal {
+  position: relative;
+  width: min(100%, 520px);
+  max-height: min(88vh, 640px);
+  overflow: auto;
+  border-radius: 20px;
+  padding: 1.75rem 1.5rem 1.25rem;
+  box-shadow:
+    0 25px 50px -12px rgba(15, 23, 42, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.97) 0%, rgba(254, 243, 199, 0.92) 45%, rgba(253, 224, 231, 0.95) 100%),
+    radial-gradient(120% 80% at 10% 0%, rgba(251, 191, 36, 0.35), transparent 55%),
+    radial-gradient(100% 60% at 100% 100%, rgba(244, 114, 182, 0.3), transparent 50%);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+}
+
+.birthday-welcome-modal__decor {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.35rem;
+}
+
+.birthday-welcome-modal__cake {
+  font-size: 2.5rem;
+  line-height: 1;
+  filter: drop-shadow(0 4px 12px rgba(251, 146, 60, 0.45));
+  animation: birthday-welcome-bob 2.2s ease-in-out infinite;
+}
+
+@keyframes birthday-welcome-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.birthday-welcome-modal__title {
+  margin: 0 0 0.75rem;
+  text-align: center;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(90deg, #c026d3, #ea580c, #db2777);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.birthday-welcome-modal__body {
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: #1f2937;
+}
+
+.birthday-welcome-modal__body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 12px;
+  margin: 0.5rem 0;
+}
+
+.birthday-welcome-modal__body a {
+  color: #7c3aed;
+  font-weight: 600;
+}
+
+.birthday-welcome-modal__actions {
+  margin-top: 1.25rem;
+  display: flex;
+  justify-content: center;
+}
+
+.birthday-welcome-modal__btn {
+  padding: 0.65rem 1.75rem;
+  border: none;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, #7c3aed 0%, #db2777 50%, #ea580c 100%);
+  box-shadow: 0 10px 25px rgba(124, 58, 237, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.birthday-welcome-modal__btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(124, 58, 237, 0.45);
+}

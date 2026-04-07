@@ -9,6 +9,7 @@ const router = express.Router();
 const { query } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
+const { obtenerPayloadBienvenidaModal } = require('../services/cumpleanosPushService');
 
 router.use(authenticateToken);
 router.use(requireUserType('DOCENTE', 'ALUMNO', 'APODERADO', 'ADMINISTRADOR', 'PROMOTORIA'));
@@ -27,6 +28,20 @@ router.get('/config', async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo config cumpleaños:', error);
     res.json({ show_birthday_window: 'NO' });
+  }
+});
+
+/**
+ * GET /api/cumpleanos/bienvenida
+ * Modal al iniciar sesión: HTML ya sustituido (plantilla ventana) si aplica.
+ */
+router.get('/bienvenida', async (req, res) => {
+  try {
+    const payload = await obtenerPayloadBienvenidaModal(req.user);
+    res.json(payload);
+  } catch (error) {
+    console.error('Error cumpleaños bienvenida:', error);
+    res.status(500).json({ show_modal: false });
   }
 });
 

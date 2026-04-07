@@ -328,3 +328,40 @@
   filter: brightness(1.06);
   border-color: transparent;
 }
+
+.admin-config-cumpleanos__inline-code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.admin-config-cumpleanos__quill-wrap {
+  margin-top: 0.5rem;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.admin-config-cumpleanos__quill-wrap .admin-config-cumpleanos__quill {
+  background: #fff;
+}
+
+.admin-config-cumpleanos__quill-wrap .ql-toolbar {
+  border: none;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.admin-config-cumpleanos__quill-wrap .ql-container {
+  border: none;
+  font-size: 0.95rem;
+  min-height: 200px;
+}
+
+.admin-config-cumpleanos__quill-wrap .ql-editor {
+  min-height: 200px;
+}

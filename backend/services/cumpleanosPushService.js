@@ -312,4 +312,94 @@ async function enviarNotificacionesCumpleanos() {
   }
 }
 
-module.exports = { enviarNotificacionesCumpleanos, getCumpleanosHoyParaUsuario };
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Sustituye variables en HTML/texto de plantillas (modal, correo, mensaje).
+ * Escapa valores para evitar XSS en {nombre}, {colegio}, {mes}.
+ */
+function aplicarPlantillaCumpleanosHtml(plantilla, { nombre, colegio, mesNombre }) {
+  return String(plantilla || '')
+    .replace(/\{nombre\}/gi, escapeHtml(nombre))
+    .replace(/\{colegio\}/gi, escapeHtml(colegio))
+    .replace(/\{mes\}/gi, escapeHtml(mesNombre || ''));
+}
+
+function htmlBienvenidaVacioEfectivo(html) {
+  const t = String(html || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return !t;
+}
+
+/**
+ * Payload para el modal de bienvenida (plantilla ventana) cuando hay cumpleaños hoy
+ * en el alcance del usuario y show_birthday_window = SI.
+ */
+async function obtenerPayloadBienvenidaModal(user) {
+  const { colegio_id, tipo, personal_id, alumno_id, apoderado_id } = user;
+  const configRows = await query(
+    `SELECT clave, valor FROM config WHERE clave IN ('show_birthday_window', 'cumpleanos_plantilla_ventana')`
+  );
+  const cfg = Object.fromEntries(configRows.map((r) => [r.clave, r.valor]));
+  if ((cfg.show_birthday_window || 'NO').toUpperCase() !== 'SI') {
+    return { show_modal: false };
+  }
+
+  const anio_activo = await getAnioActivo(colegio_id);
+  if (!anio_activo) {
+    return { show_modal: false };
+  }
+
+  const hoy = new Date();
+  const diaHoy = hoy.getDate();
+  const mesHoy = hoy.getMonth() + 1;
+  const mesNombre = MESES[mesHoy - 1];
+
+  const cumpleanos = await getCumpleanosHoyParaUsuario(
+    colegio_id,
+    anio_activo,
+    tipo,
+    personal_id || 0,
+    alumno_id || 0,
+    apoderado_id || 0,
+    diaHoy,
+    mesHoy
+  );
+
+  if (!cumpleanos.length) {
+    return { show_modal: false };
+  }
+
+  const nombresLista = cumpleanos.map((c) => c.nombre).join(', ');
+  const nombreColegio = await obtenerNombreColegio(colegio_id);
+  const plantilla = (cfg.cumpleanos_plantilla_ventana || '').trim();
+
+  let html = aplicarPlantillaCumpleanosHtml(plantilla, {
+    nombre: nombresLista,
+    colegio: nombreColegio,
+    mesNombre,
+  });
+
+  if (htmlBienvenidaVacioEfectivo(html)) {
+    html = `<p>En <strong>${escapeHtml(nombreColegio)}</strong> celebramos los cumpleaños de hoy: ${escapeHtml(nombresLista)}. 🎂</p>`;
+  }
+
+  return { show_modal: true, html };
+}
+
+module.exports = {
+  enviarNotificacionesCumpleanos,
+  getCumpleanosHoyParaUsuario,
+  aplicarPlantillaCumpleanosHtml,
+  obtenerPayloadBienvenidaModal,
+};

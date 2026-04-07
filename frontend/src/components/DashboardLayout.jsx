@@ -11,6 +11,7 @@ import NotificacionesWidget from './NotificacionesWidget';
 import PWAInstallPrompt from './PWAInstallPrompt';
 import PWAUpdateNotification from './PWAUpdateNotification';
 import ModalAsistencias from './ModalAsistencias';
+import BirthdayWelcomeModal from './BirthdayWelcomeModal';
 import './DashboardLayout.css';
 
 function getInitials(nombre) {
@@ -919,6 +920,9 @@ export default function DashboardLayout({ children }) {
         
         {/* Notificación de actualización PWA */}
         <PWAUpdateNotification />
+
+        {/* Modal de bienvenida cumpleaños (plantilla ventana; z-index bajo comunicado home) */}
+        <BirthdayWelcomeModal />
 
         {/* Modal de Asistencias */}
         {user?.tipo === 'DOCENTE' && (
