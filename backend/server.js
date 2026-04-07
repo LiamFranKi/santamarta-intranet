@@ -263,6 +263,7 @@ const promotoriaRoutes = require('./routes/promotoria.routes');
 
 // Rutas de cumpleaños (widget flotante en dashboards)
 const cumpleanosRoutes = require('./routes/cumpleanos.routes');
+const supervisionRoutes = require('./routes/supervision.routes');
 
 app.use('/api/docente', docenteRoutes);
 app.use('/api/alumno', alumnoRoutes);
@@ -273,6 +274,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/apoderado', apoderadoRoutes);
 app.use('/api/promotoria', promotoriaRoutes);
 app.use('/api/cumpleanos', cumpleanosRoutes);
+app.use('/api/supervision', supervisionRoutes);
 
 // Rutas de prueba (solo desarrollo)
 if (process.env.NODE_ENV === 'development') {

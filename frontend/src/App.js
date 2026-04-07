@@ -35,6 +35,7 @@ import AdminHerramientasEmocionales from './pages/admin/AdminHerramientasEmocion
 import AdminVocabularios from './pages/admin/AdminVocabularios';
 import AdminIncidencias from './pages/admin/AdminIncidencias';
 import AdminExamenesPersonal from './pages/admin/AdminExamenesPersonal';
+import AdminSupervision from './pages/admin/AdminSupervision';
 import AdminEncuestas from './pages/admin/AdminEncuestas';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
 import AlumnoDashboard from './pages/AlumnoDashboard';
@@ -294,6 +295,15 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      <Route
+        path="/admin/herramientas/supervision"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <AdminSupervision />
+          </PrivateRoute>
+        }
+      />
+      <Route path="/admin/supervision" element={<Navigate to="/admin/herramientas/supervision" replace />} />
       <Route path="/admin/examenes-personal" element={<Navigate to="/admin/herramientas/examenes" replace />} />
       <Route path="/admin/encuestas" element={<Navigate to="/admin/herramientas/encuestas" replace />} />
       <Route path="/admin/vocabularios" element={<Navigate to="/admin/herramientas/vocabularios" replace />} />
@@ -344,6 +354,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <DocenteHerramientas />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/supervision"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <AdminSupervision />
           </PrivateRoute>
         }
       />

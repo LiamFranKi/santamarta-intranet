@@ -151,6 +151,11 @@ function Dashboard() {
       description: 'Gestiona vocabularios y glosarios',
       icon: '📖'
     },
+    '/admin/herramientas/supervision': {
+      title: '🎯 Supervisión',
+      description: 'Instrumentos de rúbrica, supervisores y registro por docente',
+      icon: '🎯'
+    },
     '/admin/vanguarcito': {
       title: '🌟 Vanguarcito',
       description: 'Gestiona el módulo Vanguarcito',

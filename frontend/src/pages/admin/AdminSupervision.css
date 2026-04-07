@@ -1,0 +1,156 @@
+.admin-supervision {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.admin-supervision-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 0.75rem;
+}
+
+.admin-supervision-tabs button {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.admin-supervision-tabs button.active {
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  color: #fff;
+  border-color: transparent;
+}
+
+.admin-supervision-panel {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.admin-supervision-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .admin-supervision-grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-supervision label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 0.25rem;
+}
+
+.admin-supervision input[type='text'],
+.admin-supervision input[type='number'],
+.admin-supervision input[type='date'],
+.admin-supervision select,
+.admin-supervision textarea {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.admin-supervision textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.admin-supervision .btn {
+  padding: 0.45rem 0.9rem;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.admin-supervision .btn-primary {
+  background: #4f46e5;
+  color: #fff;
+}
+
+.admin-supervision .btn-secondary {
+  background: #f3f4f6;
+  color: #111;
+}
+
+.admin-supervision .btn-danger {
+  background: #dc2626;
+  color: #fff;
+}
+
+.admin-supervision .btn-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.admin-supervision table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.admin-supervision th,
+.admin-supervision td {
+  text-align: left;
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.admin-supervision th {
+  background: #f9fafb;
+  font-weight: 600;
+}
+
+.admin-supervision .muted {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.admin-supervision .card-pregunta {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
+  background: #fafafa;
+}
+
+.admin-supervision .row-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.admin-supervision .nivel-option {
+  display: block;
+  margin: 0.35rem 0;
+  padding: 0.5rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #fff;
+}
+
+
+.admin-supervision .access-denied {
+  text-align: center;
+  padding: 3rem;
+  color: #6b7280;
+}

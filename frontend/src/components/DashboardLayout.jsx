@@ -78,6 +78,7 @@ export default function DashboardLayout({ children }) {
   const [cargandoAsignaciones, setCargandoAsignaciones] = useState(false);
   const [refreshPublicaciones, setRefreshPublicaciones] = useState(0);
   const [mostrarModalAsistencias, setMostrarModalAsistencias] = useState(false);
+  const [esSupervisorSupervision, setEsSupervisorSupervision] = useState(false);
   
   // Debug: verificar que el componente se monta
   React.useEffect(() => {
@@ -104,6 +105,15 @@ export default function DashboardLayout({ children }) {
             tiene_grupos: responseAsignaciones.data.tiene_grupos || false,
             tiene_cursos: responseAsignaciones.data.tiene_cursos || false
           });
+
+          try {
+            const sup = await api.get('/supervision/yo');
+            setEsSupervisorSupervision(
+              !!(sup.data?.is_supervisor || sup.data?.is_admin)
+            );
+          } catch {
+            setEsSupervisorSupervision(false);
+          }
         } catch (error) {
           console.error('Error cargando datos del docente:', error);
           // En caso de error, mantener valores por defecto (ocultar menús)
@@ -111,6 +121,7 @@ export default function DashboardLayout({ children }) {
             tiene_grupos: false,
             tiene_cursos: false
           });
+          setEsSupervisorSupervision(false);
         } finally {
           setCargandoAsignaciones(false);
         }
@@ -120,6 +131,7 @@ export default function DashboardLayout({ children }) {
           tiene_grupos: false,
           tiene_cursos: false
         });
+        setEsSupervisorSupervision(false);
         setCargandoAsignaciones(false);
       }
     };
@@ -132,6 +144,7 @@ export default function DashboardLayout({ children }) {
         tiene_grupos: false,
         tiene_cursos: false
       });
+      setEsSupervisorSupervision(false);
       setCargandoAsignaciones(false);
     }
   }, [user]);
@@ -330,6 +343,14 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Herramientas</span>
                 </NavLink>
               </div>
+              {esSupervisorSupervision && (
+                <div className="sidebar-item">
+                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/supervision">
+                    <span className="sidebar-icon">📋</span>
+                    <span className="sidebar-label">Supervisión</span>
+                  </NavLink>
+                </div>
+              )}
 
               {/* Menú Hijos a Cargo (si es apoderado) */}
               {rolesAdicionales.es_apoderado && (
@@ -704,6 +725,10 @@ export default function DashboardLayout({ children }) {
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/vocabularios">
                     <span className="sidebar-icon" aria-hidden>📚</span>
                     <span className="sidebar-label">Vocabularios</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/supervision">
+                    <span className="sidebar-icon" aria-hidden>🎯</span>
+                    <span className="sidebar-label">Supervisión</span>
                   </NavLink>
                 </div>
               </div>
