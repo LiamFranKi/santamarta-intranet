@@ -549,6 +549,25 @@ function AdminConfigCumpleanos() {
                           : 'admin-cumple-preview-ventana admin-cumple-preview-ventana--mensaje'
                       }
                     >
+                      {previewAbierto === 'ventana' && (
+                        <div className="admin-cumple-preview-fiesta" aria-hidden="true">
+                          <span className="admin-cumple-preview-fiesta__balloon admin-cumple-preview-fiesta__balloon--1">
+                            🎈
+                          </span>
+                          <span className="admin-cumple-preview-fiesta__balloon admin-cumple-preview-fiesta__balloon--2">
+                            🎈
+                          </span>
+                          <span className="admin-cumple-preview-fiesta__balloon admin-cumple-preview-fiesta__balloon--3">
+                            🎈
+                          </span>
+                          <span className="admin-cumple-preview-fiesta__confetti admin-cumple-preview-fiesta__confetti--1" />
+                          <span className="admin-cumple-preview-fiesta__confetti admin-cumple-preview-fiesta__confetti--2" />
+                          <span className="admin-cumple-preview-fiesta__confetti admin-cumple-preview-fiesta__confetti--3" />
+                          <span className="admin-cumple-preview-fiesta__confetti admin-cumple-preview-fiesta__confetti--4" />
+                          <span className="admin-cumple-preview-fiesta__confetti admin-cumple-preview-fiesta__confetti--5" />
+                          <span className="admin-cumple-preview-fiesta__confetti admin-cumple-preview-fiesta__confetti--6" />
+                        </div>
+                      )}
                       {previewAbierto === 'mensaje' && (
                         <p className="admin-cumple-preview-bandeja-label">Bandeja de mensajes (contenido del aviso)</p>
                       )}
