@@ -111,11 +111,19 @@ function AdminConfigCumpleanos() {
         setLoading(true);
         const { data } = await api.get('/admin/configuracion');
         const str = (k) => (typeof data[k] === 'string' ? data[k] : '');
-        setPlantillaPush(str('cumpleanos_plantilla_push'));
-        setPlantillaVentana(ensureHtmlForQuill(str('cumpleanos_plantilla_ventana')));
-        setPlantillaCorreoAsunto(str('cumpleanos_plantilla_correo_asunto'));
-        setPlantillaCorreoCuerpo(ensureHtmlForQuill(str('cumpleanos_plantilla_correo_cuerpo')));
-        setPlantillaMensajeSistema(ensureHtmlForQuill(str('cumpleanos_plantilla_mensaje_sistema')));
+        setPlantillaPush(str('cumpleanos_plantilla_push').trim() || DEFAULTS.push);
+        setPlantillaVentana(
+          ensureHtmlForQuill(str('cumpleanos_plantilla_ventana')) || DEFAULTS.ventana
+        );
+        setPlantillaCorreoAsunto(
+          str('cumpleanos_plantilla_correo_asunto').trim() || DEFAULTS.correoAsunto
+        );
+        setPlantillaCorreoCuerpo(
+          ensureHtmlForQuill(str('cumpleanos_plantilla_correo_cuerpo')) || DEFAULTS.correoCuerpo
+        );
+        setPlantillaMensajeSistema(
+          ensureHtmlForQuill(str('cumpleanos_plantilla_mensaje_sistema')) || DEFAULTS.mensajeSistema
+        );
       } catch (e) {
         console.error(e);
         Swal.fire({
