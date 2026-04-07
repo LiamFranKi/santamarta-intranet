@@ -1,0 +1,150 @@
+/* Globos + confeti: vista previa admin y modal real al iniciar sesión */
+
+.cumple-modal-fiesta {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+@keyframes cumple-modal-balloon-drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-6deg);
+    opacity: 0.42;
+  }
+  50% {
+    transform: translate3d(8px, -10px, 0) rotate(4deg);
+    opacity: 0.52;
+  }
+}
+
+@keyframes cumple-modal-balloon-pass {
+  0% {
+    transform: translate3d(-20%, 20%, 0) rotate(-4deg);
+    opacity: 0.35;
+  }
+  100% {
+    transform: translate3d(120%, -15%, 0) rotate(6deg);
+    opacity: 0.45;
+  }
+}
+
+@keyframes cumple-modal-confetti-fall {
+  0% {
+    transform: translate3d(0, -120%, 0) rotate(0deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translate3d(12px, 420%, 0) rotate(220deg);
+    opacity: 0.2;
+  }
+}
+
+.cumple-modal-fiesta__balloon {
+  position: absolute;
+  font-size: 1.35rem;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.12));
+  will-change: transform;
+}
+
+.cumple-modal-fiesta__balloon--1 {
+  left: 4%;
+  bottom: 8%;
+  animation: cumple-modal-balloon-drift 7s ease-in-out infinite;
+  animation-delay: 0s;
+}
+
+.cumple-modal-fiesta__balloon--2 {
+  right: 6%;
+  top: 18%;
+  font-size: 1.15rem;
+  animation: cumple-modal-balloon-pass 28s linear infinite;
+  opacity: 0.38;
+}
+
+.cumple-modal-fiesta__balloon--3 {
+  left: 38%;
+  top: 6%;
+  font-size: 1rem;
+  animation: cumple-modal-balloon-drift 9s ease-in-out infinite;
+  animation-delay: -2s;
+}
+
+.cumple-modal-fiesta__confetti {
+  position: absolute;
+  width: 5px;
+  height: 8px;
+  border-radius: 1px;
+  opacity: 0.5;
+  will-change: transform, opacity;
+}
+
+.cumple-modal-fiesta__confetti--1 {
+  left: 12%;
+  top: -5%;
+  background: #f472b6;
+  animation: cumple-modal-confetti-fall 11s linear infinite;
+}
+
+.cumple-modal-fiesta__confetti--2 {
+  left: 28%;
+  top: -8%;
+  background: #38bdf8;
+  width: 4px;
+  height: 6px;
+  animation: cumple-modal-confetti-fall 14s linear infinite;
+  animation-delay: -3s;
+}
+
+.cumple-modal-fiesta__confetti--3 {
+  left: 55%;
+  top: -6%;
+  background: #fbbf24;
+  animation: cumple-modal-confetti-fall 12s linear infinite;
+  animation-delay: -6s;
+}
+
+.cumple-modal-fiesta__confetti--4 {
+  left: 72%;
+  top: -10%;
+  background: #a78bfa;
+  animation: cumple-modal-confetti-fall 13s linear infinite;
+  animation-delay: -1.5s;
+}
+
+.cumple-modal-fiesta__confetti--5 {
+  left: 88%;
+  top: -4%;
+  background: #34d399;
+  animation: cumple-modal-confetti-fall 15s linear infinite;
+  animation-delay: -8s;
+}
+
+.cumple-modal-fiesta__confetti--6 {
+  left: 42%;
+  top: -12%;
+  background: #fb7185;
+  width: 6px;
+  height: 5px;
+  border-radius: 50%;
+  animation: cumple-modal-confetti-fall 16s linear infinite;
+  animation-delay: -5s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cumple-modal-fiesta__balloon,
+  .cumple-modal-fiesta__confetti {
+    animation: none !important;
+    opacity: 0.28;
+  }
+
+  .cumple-modal-fiesta__confetti {
+    display: none;
+  }
+}
