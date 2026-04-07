@@ -1,0 +1,31 @@
+/* Marco festivo cumpleaños: modal bienvenida, mensajes intranet, vista previa admin */
+
+.cumple-marco-festivo {
+  position: relative;
+}
+
+.cumple-marco-festivo__ribbon {
+  animation: cumple-marco-ribbon-glow 4s ease-in-out infinite;
+}
+
+@keyframes cumple-marco-ribbon-glow {
+  0%,
+  100% {
+    filter: saturate(1);
+    opacity: 0.88;
+  }
+  50% {
+    filter: saturate(1.15);
+    opacity: 1;
+  }
+}
+
+.cumple-marco-festivo__body {
+  backdrop-filter: blur(4px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cumple-marco-festivo__ribbon {
+    animation: none;
+  }
+}

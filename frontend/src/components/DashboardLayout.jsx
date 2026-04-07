@@ -12,6 +12,7 @@ import PWAInstallPrompt from './PWAInstallPrompt';
 import PWAUpdateNotification from './PWAUpdateNotification';
 import ModalAsistencias from './ModalAsistencias';
 import BirthdayWelcomeModal from './BirthdayWelcomeModal';
+import '../styles/CumpleMarcoFestivo.css';
 import './DashboardLayout.css';
 
 function getInitials(nombre) {

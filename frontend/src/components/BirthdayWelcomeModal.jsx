@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import DOMPurify from 'dompurify';
 import api from '../services/api';
 import { procesarHTMLMensaje } from '../utils/mensajesHtml';
+import '../styles/CumpleanosModalFiesta.css';
+import '../styles/CumpleMarcoFestivo.css';
 import './BirthdayWelcomeModal.css';
 
 function storageKeyDismiss() {
@@ -55,6 +57,7 @@ function BirthdayWelcomeModal() {
   const safe = DOMPurify.sanitize(procesado, {
     USE_PROFILES: { html: true },
     ADD_ATTR: ['style', 'target', 'rel', 'class'],
+    ADD_DATA_ATTR: true,
   });
 
   return createPortal(
@@ -65,14 +68,27 @@ function BirthdayWelcomeModal() {
       aria-label="Mensaje de cumpleaños"
     >
       <div className="birthday-welcome-modal" onClick={(e) => e.stopPropagation()}>
-        <div
-          className="birthday-welcome-modal__body ql-editor"
-          dangerouslySetInnerHTML={{ __html: safe }}
-        />
-        <div className="birthday-welcome-modal__actions">
-          <button type="button" className="birthday-welcome-modal__btn" onClick={cerrar}>
-            Entendido
-          </button>
+        <div className="birthday-welcome-modal__inner">
+          <div className="cumple-modal-fiesta" aria-hidden="true">
+            <span className="cumple-modal-fiesta__balloon cumple-modal-fiesta__balloon--1">🎈</span>
+            <span className="cumple-modal-fiesta__balloon cumple-modal-fiesta__balloon--2">🎈</span>
+            <span className="cumple-modal-fiesta__balloon cumple-modal-fiesta__balloon--3">🎈</span>
+            <span className="cumple-modal-fiesta__confetti cumple-modal-fiesta__confetti--1" />
+            <span className="cumple-modal-fiesta__confetti cumple-modal-fiesta__confetti--2" />
+            <span className="cumple-modal-fiesta__confetti cumple-modal-fiesta__confetti--3" />
+            <span className="cumple-modal-fiesta__confetti cumple-modal-fiesta__confetti--4" />
+            <span className="cumple-modal-fiesta__confetti cumple-modal-fiesta__confetti--5" />
+            <span className="cumple-modal-fiesta__confetti cumple-modal-fiesta__confetti--6" />
+          </div>
+          <div
+            className="birthday-welcome-modal__body ql-editor"
+            dangerouslySetInnerHTML={{ __html: safe }}
+          />
+          <div className="birthday-welcome-modal__actions">
+            <button type="button" className="birthday-welcome-modal__btn" onClick={cerrar}>
+              Entendido
+            </button>
+          </div>
         </div>
       </div>
     </div>,

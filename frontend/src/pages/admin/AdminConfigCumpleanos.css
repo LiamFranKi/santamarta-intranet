@@ -545,166 +545,29 @@
   overflow: hidden;
 }
 
-/* Decoración sutil solo vista previa modal cumpleaños (globos + confeti) */
-.admin-cumple-preview-fiesta {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.admin-cumple-preview-ventana--modal .admin-cumple-preview-bandeja-label,
 .admin-cumple-preview-ventana--modal .admin-cumple-preview-ventana__body {
   position: relative;
   z-index: 1;
-}
-
-@keyframes admin-cumple-balloon-drift {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) rotate(-6deg);
-    opacity: 0.42;
-  }
-  50% {
-    transform: translate3d(8px, -10px, 0) rotate(4deg);
-    opacity: 0.52;
-  }
-}
-
-@keyframes admin-cumple-balloon-pass {
-  0% {
-    transform: translate3d(-20%, 20%, 0) rotate(-4deg);
-    opacity: 0.35;
-  }
-  100% {
-    transform: translate3d(120%, -15%, 0) rotate(6deg);
-    opacity: 0.45;
-  }
-}
-
-@keyframes admin-cumple-confetti-fall {
-  0% {
-    transform: translate3d(0, -120%, 0) rotate(0deg);
-    opacity: 0;
-  }
-  12% {
-    opacity: 0.55;
-  }
-  100% {
-    transform: translate3d(12px, 420%, 0) rotate(220deg);
-    opacity: 0.2;
-  }
-}
-
-.admin-cumple-preview-fiesta__balloon {
-  position: absolute;
-  font-size: 1.35rem;
-  line-height: 1;
-  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.12));
-  will-change: transform;
-}
-
-.admin-cumple-preview-fiesta__balloon--1 {
-  left: 4%;
-  bottom: 8%;
-  animation: admin-cumple-balloon-drift 7s ease-in-out infinite;
-  animation-delay: 0s;
-}
-
-.admin-cumple-preview-fiesta__balloon--2 {
-  right: 6%;
-  top: 18%;
-  font-size: 1.15rem;
-  animation: admin-cumple-balloon-pass 28s linear infinite;
-  opacity: 0.38;
-}
-
-.admin-cumple-preview-fiesta__balloon--3 {
-  left: 38%;
-  top: 6%;
-  font-size: 1rem;
-  animation: admin-cumple-balloon-drift 9s ease-in-out infinite;
-  animation-delay: -2s;
-}
-
-.admin-cumple-preview-fiesta__confetti {
-  position: absolute;
-  width: 5px;
-  height: 8px;
-  border-radius: 1px;
-  opacity: 0.5;
-  will-change: transform, opacity;
-}
-
-.admin-cumple-preview-fiesta__confetti--1 {
-  left: 12%;
-  top: -5%;
-  background: #f472b6;
-  animation: admin-cumple-confetti-fall 11s linear infinite;
-}
-
-.admin-cumple-preview-fiesta__confetti--2 {
-  left: 28%;
-  top: -8%;
-  background: #38bdf8;
-  width: 4px;
-  height: 6px;
-  animation: admin-cumple-confetti-fall 14s linear infinite;
-  animation-delay: -3s;
-}
-
-.admin-cumple-preview-fiesta__confetti--3 {
-  left: 55%;
-  top: -6%;
-  background: #fbbf24;
-  animation: admin-cumple-confetti-fall 12s linear infinite;
-  animation-delay: -6s;
-}
-
-.admin-cumple-preview-fiesta__confetti--4 {
-  left: 72%;
-  top: -10%;
-  background: #a78bfa;
-  animation: admin-cumple-confetti-fall 13s linear infinite;
-  animation-delay: -1.5s;
-}
-
-.admin-cumple-preview-fiesta__confetti--5 {
-  left: 88%;
-  top: -4%;
-  background: #34d399;
-  animation: admin-cumple-confetti-fall 15s linear infinite;
-  animation-delay: -8s;
-}
-
-.admin-cumple-preview-fiesta__confetti--6 {
-  left: 42%;
-  top: -12%;
-  background: #fb7185;
-  width: 6px;
-  height: 5px;
-  border-radius: 50%;
-  animation: admin-cumple-confetti-fall 16s linear infinite;
-  animation-delay: -5s;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .admin-cumple-preview-fiesta__balloon,
-  .admin-cumple-preview-fiesta__confetti {
-    animation: none !important;
-    opacity: 0.28;
-  }
-
-  .admin-cumple-preview-fiesta__confetti {
-    display: none;
-  }
 }
 
 .admin-cumple-preview-ventana--mensaje {
   padding: 1rem 1.1rem;
   background: #fff;
   border: 1px solid #e2e8f0;
+}
+
+.admin-cumple-preview-ventana--mensaje-festivo {
+  position: relative;
+  padding: 1.25rem 1.15rem;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(254, 243, 199, 0.88) 50%, rgba(253, 224, 231, 0.92) 100%);
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  overflow: hidden;
+}
+
+.admin-cumple-preview-ventana--mensaje-festivo .admin-cumple-preview-bandeja-label {
+  position: relative;
+  z-index: 1;
 }
 
 .admin-cumple-preview-bandeja-label {
@@ -734,6 +597,27 @@
 /* Correo */
 .admin-cumple-preview-correo {
   margin-top: 0.25rem;
+}
+
+.admin-cumple-preview-correo--festivo {
+  position: relative;
+  margin-top: 0.25rem;
+  padding: 1rem;
+  border-radius: 14px;
+  background: linear-gradient(160deg, #f8fafc 0%, #fffbeb 40%, #fef3c7 100%);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  overflow: hidden;
+}
+
+.admin-cumple-preview-correo__stack {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-cumple-preview-correo--festivo .admin-cumple-preview-correo__cuerpo {
+  background: transparent;
+  border: none;
+  padding-top: 0.75rem;
 }
 
 .admin-cumple-preview-correo__meta {

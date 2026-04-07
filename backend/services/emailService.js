@@ -1,6 +1,7 @@
 const nodemailer = require('nodemailer');
 const path = require('path');
 const fs = require('fs');
+const { envolverMarcoCumpleanosEmail } = require('../utils/cumpleanosMarcoHtml');
 
 // Configurar transporter de nodemailer
 const emailConfig = {
@@ -516,11 +517,64 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
   }
 }
 
+/**
+ * Correo de cumpleaños: cuerpo HTML de plantilla (solo contenido interno) envuelto en marco festivo email-safe.
+ * Úsalo cuando automatices el envío al cumpleañero (asunto sin pasar por generarTemplateNotificacion).
+ */
+async function enviarCorreoCumpleanosHtml(destinatario, asunto, innerHtmlBody, colegioNombre = 'Vanguard Schools') {
+  try {
+    const { transporter: trans, fromUser } = getTransporterPorCategoria('GENERAL');
+    if (!fromUser) {
+      console.error('❌ [EMAIL CUMPLEAÑOS] Sin cuenta GENERAL configurada');
+      return { success: false, error: 'Configuración de email incompleta' };
+    }
+    if (!destinatario || !asunto) {
+      return { success: false, error: 'Parámetros incompletos' };
+    }
+    const emailDestino = String(destinatario).trim();
+    if (!esEmailValido(emailDestino)) {
+      console.warn(`⚠️ [EMAIL CUMPLEAÑOS] Email inválido: "${emailDestino}"`);
+      return { success: false, error: 'Email inválido' };
+    }
+
+    const bloque = envolverMarcoCumpleanosEmail(String(innerHtmlBody || '').trim() || '<p>¡Feliz cumpleaños!</p>');
+    const year = new Date().getFullYear();
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:20px 12px;background:#f3f4f6;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+${bloque}
+<p style="margin:24px 0 0;text-align:center;font-size:12px;color:#9ca3af;">© ${year} ${colegioNombre} · Mensaje automático</p>
+</body></html>`;
+
+    const mailOptions = {
+      from: `"${colegioNombre}" <${fromUser}>`,
+      to: emailDestino,
+      subject: String(asunto).trim(),
+      html,
+      headers: {
+        'Return-Path': fromUser,
+        'X-Auto-Response-Suppress': 'All',
+        Precedence: 'bulk',
+      },
+      envelope: { from: fromUser, to: emailDestino },
+    };
+
+    const info = await trans.sendMail(mailOptions);
+    console.log(`✅ [EMAIL CUMPLEAÑOS] Enviado a ${emailDestino} MessageId: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    console.error('❌ [EMAIL CUMPLEAÑOS]', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   enviarCorreoAsistencia,
   generarTemplateAsistencia,
   enviarCorreoNotificacion,
   generarTemplateNotificacion,
-  obtenerIconoYColor
+  obtenerIconoYColor,
+  enviarCorreoCumpleanosHtml,
 };
 

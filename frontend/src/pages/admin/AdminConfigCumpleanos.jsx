@@ -13,6 +13,9 @@ import {
   MUESTRA_CUMPLEANOS,
   mesActualNombre,
 } from '../../utils/cumpleanosPlantillaPreview';
+import { envolverMarcoCumpleanosWeb } from '../../utils/cumpleanosMarcoWeb';
+import '../../styles/CumpleanosModalFiesta.css';
+import '../../styles/CumpleMarcoFestivo.css';
 import './AdminConfigCumpleanos.css';
 
 const DEFAULTS = {
@@ -88,8 +91,8 @@ const CANALES = [
     titulo: 'Correo electrónico',
     destino: 'Bandeja de email',
     descripcion:
-      'Ejemplo de asunto y cuerpo; {nombre} = el cumpleañero cuando exista envío automático.',
-    activo: false,
+      'Mismo marco festivo que el correo real. Envío diario automático si “Mostrar ventana cumpleaños” está en SÍ y hay email en la ficha.',
+    activo: true,
   },
   {
     id: 'mensaje',
@@ -97,10 +100,26 @@ const CANALES = [
     titulo: 'Mensaje al sistema',
     destino: 'Mensajes de la intranet',
     descripcion:
-      'Ejemplo para el aviso en mensajes internos; {nombre} = el cumpleañero cuando se conecte el envío.',
-    activo: false,
+      'Vista con globos y marco como en la bandeja real. Envío diario desde un usuario administrador del colegio.',
+    activo: true,
   },
 ];
+
+function FiestaCapaCumplePreview() {
+  return (
+    <div className="cumple-modal-fiesta" aria-hidden="true">
+      <span className="cumple-modal-fiesta__balloon cumple-modal-fiesta__balloon--1">🎈</span>
+      <span className="cumple-modal-fiesta__balloon cumple-modal-fiesta__balloon--2">🎈</span>
+      <span className="cumple-modal-fiesta__balloon cumple-modal-fiesta__balloon--3">🎈</span>
+      <span className="cumple-modal-fiesta__confetti cumple-modal-fiesta__confetti--1" />
+      <span className="cumple-modal-fiesta__confetti cumple-modal-fiesta__confetti--2" />
+      <span className="cumple-modal-fiesta__confetti cumple-modal-fiesta__confetti--3" />
+      <span className="cumple-modal-fiesta__confetti cumple-modal-fiesta__confetti--4" />
+      <span className="cumple-modal-fiesta__confetti cumple-modal-fiesta__confetti--5" />
+      <span className="cumple-modal-fiesta__confetti cumple-modal-fiesta__confetti--6" />
+    </div>
+  );
+}
 
 function AdminConfigCumpleanos() {
   const [loading, setLoading] = useState(true);
@@ -540,40 +559,25 @@ function AdminConfigCumpleanos() {
                   const safe = DOMPurify.sanitize(procesarHTMLMensaje(html), {
                     USE_PROFILES: { html: true },
                     ADD_ATTR: ['style', 'target', 'rel', 'class'],
+                    ADD_DATA_ATTR: true,
                   });
+                  const conMarco = envolverMarcoCumpleanosWeb(safe);
+                  const esVentana = previewAbierto === 'ventana';
                   return (
                     <div
                       className={
-                        previewAbierto === 'ventana'
+                        esVentana
                           ? 'admin-cumple-preview-ventana admin-cumple-preview-ventana--modal'
-                          : 'admin-cumple-preview-ventana admin-cumple-preview-ventana--mensaje'
+                          : 'admin-cumple-preview-ventana admin-cumple-preview-ventana--mensaje-festivo'
                       }
                     >
-                      {previewAbierto === 'ventana' && (
-                        <div className="admin-cumple-preview-fiesta" aria-hidden="true">
-                          <span className="admin-cumple-preview-fiesta__balloon admin-cumple-preview-fiesta__balloon--1">
-                            🎈
-                          </span>
-                          <span className="admin-cumple-preview-fiesta__balloon admin-cumple-preview-fiesta__balloon--2">
-                            🎈
-                          </span>
-                          <span className="admin-cumple-preview-fiesta__balloon admin-cumple-preview-fiesta__balloon--3">
-                            🎈
-                          </span>
-                          <span className="admin-cumple-preview-fiesta__confetti admin-cumple-preview-fiesta__confetti--1" />
-                          <span className="admin-cumple-preview-fiesta__confetti admin-cumple-preview-fiesta__confetti--2" />
-                          <span className="admin-cumple-preview-fiesta__confetti admin-cumple-preview-fiesta__confetti--3" />
-                          <span className="admin-cumple-preview-fiesta__confetti admin-cumple-preview-fiesta__confetti--4" />
-                          <span className="admin-cumple-preview-fiesta__confetti admin-cumple-preview-fiesta__confetti--5" />
-                          <span className="admin-cumple-preview-fiesta__confetti admin-cumple-preview-fiesta__confetti--6" />
-                        </div>
-                      )}
-                      {previewAbierto === 'mensaje' && (
+                      <FiestaCapaCumplePreview />
+                      {!esVentana && (
                         <p className="admin-cumple-preview-bandeja-label">Bandeja de mensajes (contenido del aviso)</p>
                       )}
                       <div
                         className="admin-cumple-preview-ventana__body ql-editor"
-                        dangerouslySetInnerHTML={{ __html: safe }}
+                        dangerouslySetInnerHTML={{ __html: conMarco }}
                       />
                     </div>
                   );
@@ -586,13 +590,21 @@ function AdminConfigCumpleanos() {
                   const safe = DOMPurify.sanitize(procesarHTMLMensaje(html), {
                     USE_PROFILES: { html: true },
                     ADD_ATTR: ['style', 'target', 'rel', 'class'],
+                    ADD_DATA_ATTR: true,
                   });
+                  const conMarco = envolverMarcoCumpleanosWeb(safe);
                   return (
-                    <div className="admin-cumple-preview-correo">
-                      <div className="admin-cumple-preview-correo__meta">
-                        <strong>Asunto:</strong> {asunto}
+                    <div className="admin-cumple-preview-correo admin-cumple-preview-correo--festivo">
+                      <FiestaCapaCumplePreview />
+                      <div className="admin-cumple-preview-correo__stack">
+                        <div className="admin-cumple-preview-correo__meta">
+                          <strong>Asunto:</strong> {asunto}
+                        </div>
+                        <div
+                          className="admin-cumple-preview-correo__cuerpo ql-editor"
+                          dangerouslySetInnerHTML={{ __html: conMarco }}
+                        />
                       </div>
-                      <div className="admin-cumple-preview-correo__cuerpo ql-editor" dangerouslySetInnerHTML={{ __html: safe }} />
                     </div>
                   );
                 })()}

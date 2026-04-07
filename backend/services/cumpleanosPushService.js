@@ -7,8 +7,10 @@
  */
 const { query, execute } = require('../utils/mysql');
 const { getAnioActivo } = require('../utils/mysql');
+const { envolverMarcoCumpleanosWeb } = require('../utils/cumpleanosMarcoHtml');
 const { enviarPushNotificationMultiple } = require('./pushNotificationService');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
+const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -305,6 +307,8 @@ async function enviarNotificacionesCumpleanos() {
     }
 
     console.log(`🎂 [CUMPLEANOS-PUSH] Campanita (BD): ${totalCampanita} | Push enviados (dispositivos): ${totalEnviados}`);
+
+    await enviarFelicitacionesCorreoYMensajeCumpleanos();
   } catch (error) {
     console.error('🎂 [CUMPLEANOS-PUSH] Error:', error);
   } finally {
@@ -330,6 +334,152 @@ function aplicarPlantillaCumpleanosHtml(plantilla, { nombre, colegio, mesNombre 
     .replace(/\{nombre\}/gi, escapeHtml(nombre))
     .replace(/\{colegio\}/gi, escapeHtml(colegio))
     .replace(/\{mes\}/gi, escapeHtml(mesNombre || ''));
+}
+
+/** Asunto y textos planos (sin escapar HTML en valores — solo sustitución). */
+function aplicarPlantillaCumpleanosTexto(plantilla, { nombre, colegio, mesNombre }) {
+  return String(plantilla || '')
+    .replace(/\{nombre\}/gi, String(nombre ?? ''))
+    .replace(/\{colegio\}/gi, String(colegio ?? ''))
+    .replace(/\{mes\}/gi, String(mesNombre ?? ''));
+}
+
+const DEDUP_FELICITACIONES_CLAVE = 'cumpleanos_felicitaciones_ultima_fecha';
+
+/**
+ * Una vez al día: correo festivo + mensaje interno con marco web a cada cumpleañero con email/usuario.
+ * Requiere show_birthday_window=SI y plantillas configuradas; deduplica por fecha en `config`.
+ */
+async function enviarFelicitacionesCorreoYMensajeCumpleanos() {
+  const hoy = new Date();
+  const ymd = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
+  const dup = await query(`SELECT valor FROM config WHERE clave = ? LIMIT 1`, [DEDUP_FELICITACIONES_CLAVE]);
+  if (dup[0]?.valor === ymd) {
+    console.log('🎂 [CUMPLEANOS-FELIC] Ya procesado hoy (deduplicado)');
+    return;
+  }
+
+  const configRows = await query(
+    `SELECT clave, valor FROM config WHERE clave IN (
+      'show_birthday_window',
+      'cumpleanos_plantilla_correo_asunto',
+      'cumpleanos_plantilla_correo_cuerpo',
+      'cumpleanos_plantilla_mensaje_sistema'
+    )`
+  );
+  const cfg = Object.fromEntries(configRows.map((r) => [r.clave, r.valor]));
+  if ((cfg.show_birthday_window || 'NO').toUpperCase() !== 'SI') {
+    return;
+  }
+
+  const mesHoy = hoy.getMonth() + 1;
+  const diaHoy = hoy.getDate();
+  const mesNombre = MESES[mesHoy - 1];
+
+  const plantillaAsunto = (cfg.cumpleanos_plantilla_correo_asunto || '').trim();
+  const plantillaCorreo = (cfg.cumpleanos_plantilla_correo_cuerpo || '').trim();
+  const plantillaMsg = (cfg.cumpleanos_plantilla_mensaje_sistema || '').trim();
+
+  if (!plantillaCorreo && !plantillaMsg) {
+    console.log('🎂 [CUMPLEANOS-FELIC] Sin plantillas de correo ni mensaje, omitiendo');
+    return;
+  }
+
+  const { enviarCorreoCumpleanosHtml } = require('./emailService');
+
+  let correosOk = 0;
+  let mensajesPares = 0;
+
+  const colegios = await query(`SELECT id FROM colegios`);
+  for (const { id: colegio_id } of colegios) {
+    const nombreColegio = await obtenerNombreColegio(colegio_id);
+    const remRows = await query(
+      `SELECT id FROM usuarios WHERE colegio_id = ? AND tipo = 'ADMINISTRADOR' AND estado = 'ACTIVO' ORDER BY id ASC LIMIT 1`,
+      [colegio_id]
+    );
+    const remitenteId = remRows[0]?.id || null;
+
+    const alumnos = await query(
+      `SELECT u.id as usuario_id, NULLIF(TRIM(a.email), '') as email,
+        TRIM(CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres)) as nombre
+       FROM alumnos a
+       INNER JOIN usuarios u ON u.alumno_id = a.id AND u.colegio_id = a.colegio_id AND u.estado = 'ACTIVO'
+       WHERE a.colegio_id = ?
+         AND a.fecha_nacimiento IS NOT NULL AND a.fecha_nacimiento != '0000-00-00'
+         AND MONTH(a.fecha_nacimiento) = ? AND DAY(a.fecha_nacimiento) = ?`,
+      [colegio_id, mesHoy, diaHoy]
+    );
+
+    const pers = await query(
+      `SELECT u.id as usuario_id, NULLIF(TRIM(p.email), '') as email,
+        TRIM(CONCAT(COALESCE(p.apellidos, ''), ', ', COALESCE(p.nombres, ''))) as nombre
+       FROM personal p
+       INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id AND u.estado = 'ACTIVO'
+       WHERE p.colegio_id = ?
+         AND p.fecha_nacimiento IS NOT NULL AND p.fecha_nacimiento != '0000-00-00'
+         AND MONTH(p.fecha_nacimiento) = ? AND DAY(p.fecha_nacimiento) = ?`,
+      [colegio_id, mesHoy, diaHoy]
+    );
+
+    const apods = await query(
+      `SELECT u.id as usuario_id, NULLIF(TRIM(ap.email), '') as email,
+        TRIM(CONCAT(ap.apellido_paterno, ' ', ap.apellido_materno, ', ', ap.nombres)) as nombre
+       FROM apoderados ap
+       INNER JOIN usuarios u ON u.apoderado_id = ap.id AND u.colegio_id = ap.colegio_id AND u.estado = 'ACTIVO'
+       WHERE ap.colegio_id = ?
+         AND ap.fecha_nacimiento IS NOT NULL AND ap.fecha_nacimiento != '0000-00-00'
+         AND MONTH(ap.fecha_nacimiento) = ? AND DAY(ap.fecha_nacimiento) = ?`,
+      [colegio_id, mesHoy, diaHoy]
+    );
+
+    const candidatos = [...alumnos, ...pers, ...apods];
+
+    for (const c of candidatos) {
+      const nombre = c.nombre;
+      const vars = { nombre, colegio: nombreColegio, mesNombre };
+
+      if (plantillaCorreo && c.email) {
+        const innerHtml = aplicarPlantillaCumpleanosHtml(plantillaCorreo, vars);
+        const asunto = aplicarPlantillaCumpleanosTexto(
+          plantillaAsunto || '🎂 ¡Feliz cumpleaños, {nombre}! — {colegio}',
+          vars
+        );
+        const r = await enviarCorreoCumpleanosHtml(c.email, asunto, innerHtml, nombreColegio);
+        if (r.success) correosOk += 1;
+      }
+
+      if (plantillaMsg && remitenteId) {
+        const innerHtmlMsg = aplicarPlantillaCumpleanosHtml(plantillaMsg, vars);
+        const cuerpoMensaje = envolverMarcoCumpleanosWeb(innerHtmlMsg);
+        const asuntoMsg = aplicarPlantillaCumpleanosTexto('🎂 Feliz cumpleaños — {colegio}', vars);
+        const fechaHora = fechaHoraMySQLLima();
+        try {
+          await execute(
+            `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
+             VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO')`,
+            [remitenteId, c.usuario_id, asuntoMsg, cuerpoMensaje, fechaHora]
+          );
+          await execute(
+            `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
+             VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO')`,
+            [remitenteId, c.usuario_id, asuntoMsg, cuerpoMensaje, fechaHora]
+          );
+          mensajesPares += 1;
+        } catch (e) {
+          console.error(`🎂 [CUMPLEANOS-FELIC] Mensaje usuario ${c.usuario_id}:`, e.message);
+        }
+      }
+    }
+  }
+
+  const ex = await query(`SELECT valor FROM config WHERE clave = ? LIMIT 1`, [DEDUP_FELICITACIONES_CLAVE]);
+  if (ex.length) {
+    await execute(`UPDATE config SET valor = ? WHERE clave = ?`, [ymd, DEDUP_FELICITACIONES_CLAVE]);
+  } else {
+    await execute(`INSERT INTO config (clave, valor) VALUES (?, ?)`, [DEDUP_FELICITACIONES_CLAVE, ymd]);
+  }
+
+  console.log(`🎂 [CUMPLEANOS-FELIC] Correos enviados: ${correosOk} | Mensajes (pares enviado+recibido): ${mensajesPares}`);
 }
 
 function htmlBienvenidaVacioEfectivo(html) {
@@ -433,6 +583,8 @@ async function obtenerPayloadBienvenidaModal(user) {
 <p>Hola <strong>${escapeHtml(nombreCumpleanero)}</strong>, <strong>${escapeHtml(nombreColegio)}</strong> te desea un gran día.</p>`;
   }
 
+  html = envolverMarcoCumpleanosWeb(html);
+
   return { show_modal: true, html };
 }
 
@@ -441,4 +593,5 @@ module.exports = {
   getCumpleanosHoyParaUsuario,
   aplicarPlantillaCumpleanosHtml,
   obtenerPayloadBienvenidaModal,
+  envolverMarcoCumpleanosWeb,
 };
