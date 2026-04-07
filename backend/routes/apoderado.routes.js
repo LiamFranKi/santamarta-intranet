@@ -810,49 +810,46 @@ router.put('/perfil', async (req, res) => {
 
 /**
  * PUT /api/apoderado/perfil/password
- * Cambiar contraseña del apoderado
+ * Cambiar contraseña del apoderado (SHA1 como login y resto de perfiles / PHP legacy)
  */
 router.put('/perfil/password', async (req, res) => {
   try {
-    const { usuario_id } = req.user;
+    const { usuario_id, colegio_id } = req.user;
     const { password_actual, password_nueva } = req.body;
 
     if (!password_actual || !password_nueva) {
       return res.status(400).json({ error: 'Contraseña actual y nueva son requeridas' });
     }
 
-    // Verificar contraseña actual
+    if (password_nueva.length < 6) {
+      return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+    }
+
     const usuario = await query(
-      `SELECT u.*
-       FROM usuarios u
-       WHERE u.id = ? AND u.estado = 'ACTIVO'`,
-      [usuario_id]
+      `SELECT u.id, u.password FROM usuarios u
+       WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+      [usuario_id, colegio_id]
     );
 
     if (usuario.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
-    const bcrypt = require('bcrypt');
-    const passwordValida = await bcrypt.compare(password_actual, usuario[0].password);
+    const crypto = require('crypto');
+    const passwordHashActual = crypto.createHash('sha1').update(password_actual).digest('hex');
 
-    if (!passwordValida) {
+    if (usuario[0].password !== passwordHashActual) {
       return res.status(401).json({ error: 'Contraseña actual incorrecta' });
     }
 
-    // Hashear nueva contraseña
-    const saltRounds = 10;
-    const passwordHash = await bcrypt.hash(password_nueva, saltRounds);
+    const passwordHashNueva = crypto.createHash('sha1').update(password_nueva).digest('hex');
 
-    // Actualizar contraseña
     await execute(
-      `UPDATE usuarios 
-       SET password = ?
-       WHERE id = ?`,
-      [passwordHash, usuario_id]
+      `UPDATE usuarios SET password = ? WHERE id = ? AND colegio_id = ?`,
+      [passwordHashNueva, usuario_id, colegio_id]
     );
 
-    res.json({ message: 'Contraseña actualizada correctamente' });
+    res.json({ success: true, message: 'Contraseña actualizada correctamente' });
   } catch (error) {
     console.error('Error cambiando contraseña:', error);
     res.status(500).json({ error: 'Error al cambiar contraseña' });
