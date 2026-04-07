@@ -342,11 +342,52 @@ function htmlBienvenidaVacioEfectivo(html) {
 }
 
 /**
- * Payload para el modal de bienvenida (plantilla ventana) cuando hay cumpleaños hoy
- * en el alcance del usuario y show_birthday_window = SI.
+ * Si el usuario logueado cumple años HOY (según personal/alumno/apoderado vinculado), devuelve su nombre para saludo.
+ * No lista a otras personas.
+ */
+async function obtenerNombreCumpleaneroSesionHoy(colegio_id, personal_id, alumno_id, apoderado_id, mesHoy, diaHoy) {
+  if (alumno_id) {
+    const rows = await query(
+      `SELECT CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre
+       FROM alumnos a
+       WHERE a.id = ? AND a.colegio_id = ?
+         AND a.fecha_nacimiento IS NOT NULL AND a.fecha_nacimiento != '0000-00-00'
+         AND MONTH(a.fecha_nacimiento) = ? AND DAY(a.fecha_nacimiento) = ?`,
+      [alumno_id, colegio_id, mesHoy, diaHoy]
+    );
+    return rows[0]?.nombre ? String(rows[0].nombre).trim() : null;
+  }
+  if (apoderado_id) {
+    const rows = await query(
+      `SELECT CONCAT(ap.apellido_paterno, ' ', ap.apellido_materno, ', ', ap.nombres) as nombre
+       FROM apoderados ap
+       WHERE ap.id = ? AND ap.colegio_id = ?
+         AND ap.fecha_nacimiento IS NOT NULL AND ap.fecha_nacimiento != '0000-00-00'
+         AND MONTH(ap.fecha_nacimiento) = ? AND DAY(ap.fecha_nacimiento) = ?`,
+      [apoderado_id, colegio_id, mesHoy, diaHoy]
+    );
+    return rows[0]?.nombre ? String(rows[0].nombre).trim() : null;
+  }
+  if (personal_id) {
+    const rows = await query(
+      `SELECT CONCAT(COALESCE(p.apellidos,''), ', ', COALESCE(p.nombres,'')) as nombre
+       FROM personal p
+       WHERE p.id = ? AND p.colegio_id = ?
+         AND p.fecha_nacimiento IS NOT NULL AND p.fecha_nacimiento != '0000-00-00'
+         AND MONTH(p.fecha_nacimiento) = ? AND DAY(p.fecha_nacimiento) = ?`,
+      [personal_id, colegio_id, mesHoy, diaHoy]
+    );
+    return rows[0]?.nombre ? String(rows[0].nombre).trim() : null;
+  }
+  return null;
+}
+
+/**
+ * Payload para el modal de bienvenida (plantilla ventana): solo si **quien inicia sesión**
+ * cumple años hoy y show_birthday_window = SI. {nombre} = solo ese usuario.
  */
 async function obtenerPayloadBienvenidaModal(user) {
-  const { colegio_id, tipo, personal_id, alumno_id, apoderado_id } = user;
+  const { colegio_id, personal_id, alumno_id, apoderado_id } = user;
   const configRows = await query(
     `SELECT clave, valor FROM config WHERE clave IN ('show_birthday_window', 'cumpleanos_plantilla_ventana')`
   );
@@ -365,33 +406,31 @@ async function obtenerPayloadBienvenidaModal(user) {
   const mesHoy = hoy.getMonth() + 1;
   const mesNombre = MESES[mesHoy - 1];
 
-  const cumpleanos = await getCumpleanosHoyParaUsuario(
+  const nombreCumpleanero = await obtenerNombreCumpleaneroSesionHoy(
     colegio_id,
-    anio_activo,
-    tipo,
-    personal_id || 0,
-    alumno_id || 0,
-    apoderado_id || 0,
-    diaHoy,
-    mesHoy
+    personal_id || null,
+    alumno_id || null,
+    apoderado_id || null,
+    mesHoy,
+    diaHoy
   );
 
-  if (!cumpleanos.length) {
+  if (!nombreCumpleanero) {
     return { show_modal: false };
   }
 
-  const nombresLista = cumpleanos.map((c) => c.nombre).join(', ');
   const nombreColegio = await obtenerNombreColegio(colegio_id);
   const plantilla = (cfg.cumpleanos_plantilla_ventana || '').trim();
 
   let html = aplicarPlantillaCumpleanosHtml(plantilla, {
-    nombre: nombresLista,
+    nombre: nombreCumpleanero,
     colegio: nombreColegio,
     mesNombre,
   });
 
   if (htmlBienvenidaVacioEfectivo(html)) {
-    html = `<p>En <strong>${escapeHtml(nombreColegio)}</strong> celebramos los cumpleaños de hoy: ${escapeHtml(nombresLista)}. 🎂</p>`;
+    html = `<h2 style="margin:0 0 0.75rem;font-size:1.35rem;text-align:center;">¡Feliz cumpleaños! 🎂</h2>
+<p>Hola <strong>${escapeHtml(nombreCumpleanero)}</strong>, <strong>${escapeHtml(nombreColegio)}</strong> te desea un gran día.</p>`;
   }
 
   return { show_modal: true, html };

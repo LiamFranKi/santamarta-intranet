@@ -6,15 +6,16 @@ import Swal from 'sweetalert2';
 import './AdminConfigCumpleanos.css';
 
 const DEFAULTS = {
-  push: '¡Feliz cumpleaños, {nombre}! Te desea un gran día {colegio}.',
-  ventana:
-    '<p>En <strong>{colegio}</strong> celebramos los cumpleaños de hoy. 🎂</p><p>Hoy cumplen: <em>{nombre}</em>.</p>',
-  correoAsunto: '🎂 Cumpleaños — {colegio}',
-  correoCuerpo: `<p>Hola,</p>
-<p>Hoy cumplen años: <strong>{nombre}</strong>.</p>
-<p>Un saludo cordial,<br/>{colegio}</p>`,
+  push: '🎂 Cumpleaños de hoy\n{nombre} — {colegio}',
+  ventana: `<h2>¡Feliz cumpleaños! 🎂</h2>
+<p>Hola <strong>{nombre}</strong>,</p>
+<p><strong>{colegio}</strong> te desea un gran día. Mes: <em>{mes}</em></p>`,
+  correoAsunto: '🎂 ¡Feliz cumpleaños, {nombre}! — {colegio}',
+  correoCuerpo: `<p>Estimado/a <strong>{nombre}</strong>,</p>
+<p>Desde <strong>{colegio}</strong> te enviamos un saludo muy especial en tu día.</p>
+<p>¡Que lo disfrutes!</p>`,
   mensajeSistema:
-    '<p>Recordatorio de cumpleaños: <strong>{nombre}</strong>. Mes: {mes}. — {colegio}</p>',
+    '<p>🎂 <strong>{colegio}</strong> te saluda por tu cumpleaños, <strong>{nombre}</strong>. Mes: {mes}.</p>',
 };
 
 const QUILL_MODULES = {
@@ -59,7 +60,7 @@ const CANALES = [
     titulo: 'Notificación push',
     destino: 'Dispositivo (PWA / navegador)',
     descripcion:
-      'Texto de la alerta push cuando hay cumpleaños en el alcance del usuario. Ya está en uso con la tarea programada del servidor.',
+      'Ejemplo abajo. En el envío real, {nombre} lista a quienes cumplen hoy en el alcance de ese aviso. Primera línea = título.',
     activo: true,
   },
   {
@@ -68,7 +69,7 @@ const CANALES = [
     titulo: 'Ventana al iniciar sesión',
     destino: 'Modal al login',
     descripcion:
-      'Se muestra un modal con esta plantilla cuando hay cumpleaños hoy en tu alcance y la opción “Mostrar ventana cumpleaños” está activa en Configuración general.',
+      'Solo si tu usuario cumple años hoy (fecha en ficha). {nombre} = tu nombre. Título y texto salen solo de esta plantilla.',
     activo: true,
   },
   {
@@ -76,7 +77,8 @@ const CANALES = [
     emoji: '✉️',
     titulo: 'Correo electrónico',
     destino: 'Bandeja de email',
-    descripcion: 'Asunto en texto plano; cuerpo enriquecido para cuando el envío automático por correo esté conectado.',
+    descripcion:
+      'Ejemplo de asunto y cuerpo; {nombre} = el cumpleañero cuando exista envío automático.',
     activo: false,
   },
   {
@@ -85,7 +87,7 @@ const CANALES = [
     titulo: 'Mensaje al sistema',
     destino: 'Mensajes de la intranet',
     descripcion:
-      'Contenido enriquecido del aviso automático en el módulo de mensajes internos (cuando se implemente el envío).',
+      'Ejemplo para el aviso en mensajes internos; {nombre} = el cumpleañero cuando se conecte el envío.',
     activo: false,
   },
 ];
@@ -236,10 +238,10 @@ function AdminConfigCumpleanos() {
         <div className="admin-config-cumpleanos__hero-inner">
           <h1>Cumpleaños</h1>
           <p className="admin-config-cumpleanos__lead">
-            Definí el contenido de cada canal. <strong>Modal al iniciar sesión</strong>, <strong>correo</strong> y{' '}
-            <strong>mensajes</strong> usan editor enriquecido (negritas, colores, imágenes). El ícono de torta en el menú
-            es el emoji <code className="admin-config-cumpleanos__inline-code">🎂</code> (Unicode U+1F382); podés
-            insertarlo desde el teclado o copiarlo aquí.
+            Cada bloque tiene <strong>ejemplos</strong> que podés editar. En <strong>modal</strong>, <strong>correo</strong> y{' '}
+            <strong>mensaje</strong>, <code>{'{nombre}'}</code> es el <strong>cumpleañero</strong> (una persona). En{' '}
+            <strong>push</strong>, <code>{'{nombre}'}</code> es la lista de quienes cumplen hoy en el alcance de ese aviso.
+            El menú lateral usa el emoji <code className="admin-config-cumpleanos__inline-code">🎂</code> (U+1F382).
           </p>
           <div className="admin-config-cumpleanos__map">
             {CANALES.map((c) => (
@@ -274,7 +276,8 @@ function AdminConfigCumpleanos() {
             </div>
           </div>
           <p className="admin-config-cumpleanos__hint">
-            Solo texto plano: dos líneas (primera = título, resto = cuerpo). Una sola línea usa título corto fijo.
+            Texto plano: dos líneas (primera = título del push, resto = cuerpo). Una sola línea usa título corto fijo en el
+            servidor.
           </p>
           {hintPlaceholders}
           <textarea
@@ -299,8 +302,14 @@ function AdminConfigCumpleanos() {
             </div>
           </div>
           <p className="admin-config-cumpleanos__hint">
-            Se muestra cuando hay cumpleaños hoy en tu alcance. Usá imágenes con el botón de la barra; se suben al mismo
-            servidor que los mensajes.
+            Todo lo que ves en el modal (títulos, emojis, párrafos) lo definís acá. Imágenes: botón de la barra (mismo
+            servidor que mensajes).
+          </p>
+          <p className="admin-config-cumpleanos__hint admin-config-cumpleanos__hint--note">
+            Solo aparece si <strong>hoy es tu cumpleaños</strong> según la fecha de nacimiento del alumno, personal o
+            apoderado vinculado a tu usuario. Si ya pulsaste Entendido, no se repite hasta mañana en este navegador.{' '}
+            <strong>Reiniciar PM2 no vuelve a mostrarlo</strong> (no hace falta tocar la base de datos: el cierre se guarda
+            en el navegador). Para probar de nuevo: ventana privada, borrar datos del sitio o esperar al día siguiente.
           </p>
           {hintPlaceholders}
           <div className="admin-config-cumpleanos__quill-wrap">

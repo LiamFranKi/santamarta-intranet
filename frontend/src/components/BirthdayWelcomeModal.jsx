@@ -11,8 +11,9 @@ function storageKeyDismiss() {
 }
 
 /**
- * Modal de bienvenida con plantilla HTML de admin (cumpleaños del día en el alcance del usuario).
- * Una vez cerrado, no se vuelve a mostrar hasta el día siguiente (sessionStorage).
+ * Modal de bienvenida: solo contenido HTML de la plantilla (admin).
+ * El título y el texto van en la plantilla; no hay texto fijo en el componente.
+ * Una vez cerrado en el día, no se repite hasta el día siguiente (sessionStorage en el navegador).
  */
 function BirthdayWelcomeModal() {
   const [abierto, setAbierto] = useState(false);
@@ -57,14 +58,13 @@ function BirthdayWelcomeModal() {
   });
 
   return createPortal(
-    <div className="birthday-welcome-overlay" role="dialog" aria-modal="true" aria-labelledby="birthday-welcome-title">
+    <div
+      className="birthday-welcome-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Mensaje de cumpleaños"
+    >
       <div className="birthday-welcome-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="birthday-welcome-modal__decor" aria-hidden>
-          <span className="birthday-welcome-modal__cake">🎂</span>
-        </div>
-        <h2 id="birthday-welcome-title" className="birthday-welcome-modal__title">
-          ¡Feliz día!
-        </h2>
         <div
           className="birthday-welcome-modal__body ql-editor"
           dangerouslySetInnerHTML={{ __html: safe }}
