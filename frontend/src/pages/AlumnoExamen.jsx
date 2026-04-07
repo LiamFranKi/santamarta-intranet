@@ -26,6 +26,7 @@ function AlumnoExamen() {
   const [mostrarResumen, setMostrarResumen] = useState(false);
   const [error, setError] = useState(null);
   const [renderError, setRenderError] = useState(null);
+  const [esExamenPdf, setEsExamenPdf] = useState(false);
   
   const intervaloGuardado = useRef(null);
   const intervaloReloj = useRef(null);
@@ -39,8 +40,37 @@ function AlumnoExamen() {
       console.log('📝 Iniciando carga de examen:', examenId);
       setLoading(true);
       setError(null);
-      
-      // Iniciar examen (crear prueba)
+      setEsExamenPdf(false);
+
+      const examenResPrimero = await api.get(`/alumno/examenes/${examenId}`);
+      const datosMeta = examenResPrimero.data;
+      if (String(datosMeta.tipo || '').toUpperCase().trim() === 'PDF') {
+        if (datosMeta.estado !== 'ACTIVO') {
+          setLoading(false);
+          const msg = 'Este material PDF no está disponible en este momento.';
+          setError(msg);
+          Swal.fire({ icon: 'info', title: 'No disponible', text: msg, confirmButtonText: 'Volver' }).then(() =>
+            navigate(-1)
+          );
+          return;
+        }
+        if (!datosMeta.archivo_pdf_url) {
+          setLoading(false);
+          const msg = 'No hay archivo PDF configurado para este examen.';
+          setError(msg);
+          Swal.fire({ icon: 'error', title: 'Error', text: msg, confirmButtonText: 'Volver' }).then(() =>
+            navigate(-1)
+          );
+          return;
+        }
+        setExamen(datosMeta);
+        setPreguntas([]);
+        setEsExamenPdf(true);
+        setLoading(false);
+        return;
+      }
+
+      // Iniciar examen (crear prueba) — solo exámenes VIRTUAL u otros no-PDF
       console.log('📝 Llamando a /alumno/examenes/' + examenId + '/iniciar');
       const iniciarRes = await api.post(`/alumno/examenes/${examenId}/iniciar`);
       console.log('📝 Respuesta iniciar:', iniciarRes.data);
@@ -54,7 +84,7 @@ function AlumnoExamen() {
       // Cargar datos del examen y preguntas
       console.log('📝 Cargando datos del examen y preguntas');
       const [examenRes, preguntasRes] = await Promise.all([
-        api.get(`/alumno/examenes/${examenId}`),
+        Promise.resolve(examenResPrimero),
         api.get(`/alumno/examenes/${examenId}/preguntas`)
       ]);
 
@@ -161,8 +191,9 @@ function AlumnoExamen() {
     }
   }, [examen, loading, handleViolation]);
 
-  // Protección de examen - el hook debe estar siempre presente
-  useExamProtection(safeHandleViolation, false);
+  const proteccionActiva =
+    !esExamenPdf && !!examen && !loading && Array.isArray(preguntas) && preguntas.length > 0;
+  useExamProtection(safeHandleViolation, false, proteccionActiva);
 
   // Función para guardar respuestas (debe estar antes de las funciones que la usan)
   const guardarRespuestas = useCallback(async () => {
@@ -204,7 +235,12 @@ function AlumnoExamen() {
 
   // Temporizador
   useEffect(() => {
-    if (examen && examen.tiempo > 0 && (tiempoInicio.current || tiempoExpiracion.current)) {
+    if (
+      !esExamenPdf &&
+      examen &&
+      examen.tiempo > 0 &&
+      (tiempoInicio.current || tiempoExpiracion.current)
+    ) {
       const calcularTiempoRestante = () => {
         const ahora = new Date();
         let tiempoLimite;
@@ -235,11 +271,11 @@ function AlumnoExamen() {
         }
       };
     }
-  }, [examen, finalizarExamenAutomatico]);
+  }, [examen, esExamenPdf, finalizarExamenAutomatico]);
 
   // Alertas de tiempo
   useEffect(() => {
-    if (examen && examen.tiempo > 0 && tiempoRestante > 0) {
+    if (!esExamenPdf && examen && examen.tiempo > 0 && tiempoRestante > 0) {
       // Alerta cuando quedan 5 minutos
       if (tiempoRestante === 300) {
         Swal.fire({
@@ -262,7 +298,7 @@ function AlumnoExamen() {
         });
       }
     }
-  }, [tiempoRestante, examen]);
+  }, [tiempoRestante, examen, esExamenPdf]);
 
   // Actualizar ref cuando cambian las respuestas
   useEffect(() => {
@@ -271,6 +307,9 @@ function AlumnoExamen() {
 
   // Guardado automático cada 30 segundos
   useEffect(() => {
+    if (!examen || esExamenPdf) {
+      return undefined;
+    }
     intervaloGuardado.current = setInterval(() => {
       guardarRespuestas();
     }, 30000); // Cada 30 segundos
@@ -280,7 +319,7 @@ function AlumnoExamen() {
         clearInterval(intervaloGuardado.current);
       }
     };
-  }, [guardarRespuestas]);
+  }, [guardarRespuestas, examen, esExamenPdf]);
 
   const handleFinalizarExamen = async () => {
     // Mostrar resumen primero
@@ -385,6 +424,74 @@ function AlumnoExamen() {
         >
           Volver
         </button>
+      </div>
+    );
+  }
+
+  if (esExamenPdf && examen?.archivo_pdf_url) {
+    return (
+      <div
+        className="examen-pdf-material"
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f0fdf4 100%)'
+        }}
+      >
+        <div
+          style={{
+            padding: '1rem 1.25rem',
+            borderBottom: '1px solid #e5e7eb',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+            background: 'rgba(255,255,255,0.95)'
+          }}
+        >
+          <h1 style={{ margin: 0, fontSize: '1.125rem', color: '#1f2937' }}>{examen.titulo}</h1>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <a
+              href={examen.archivo_pdf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                padding: '0.5rem 1rem',
+                background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                color: 'white',
+                borderRadius: '8px',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                textDecoration: 'none'
+              }}
+            >
+              Abrir PDF en nueva pestaña
+            </a>
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              style={{
+                padding: '0.5rem 1rem',
+                background: '#f3f4f6',
+                color: '#374151',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                fontSize: '0.875rem',
+                fontWeight: '600',
+                cursor: 'pointer'
+              }}
+            >
+              Volver al aula
+            </button>
+          </div>
+        </div>
+        <iframe
+          title={examen.titulo || 'PDF'}
+          src={examen.archivo_pdf_url}
+          style={{ flex: 1, width: '100%', minHeight: '70vh', border: 'none' }}
+        />
       </div>
     );
   }

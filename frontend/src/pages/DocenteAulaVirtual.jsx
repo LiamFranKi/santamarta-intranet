@@ -6774,6 +6774,8 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
   const [dropdownPosition, setDropdownPosition] = useState(null);
   const buttonRef = useRef({});
 
+  const esExamenPdf = String(examen.tipo || '').toUpperCase().trim() === 'PDF';
+
   const toggleDropdown = (uniqueKey, e, tipo) => {
     e.stopPropagation();
     e.preventDefault();
@@ -6840,7 +6842,33 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
               </div>
         
         <div className="modal-tema-body" style={{ padding: '1.5rem' }}>
-          {!soloLectura && (
+          {esExamenPdf && (
+            <div
+              style={{
+                marginBottom: '1.25rem',
+                padding: '1rem 1.25rem',
+                background: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '8px',
+                color: '#1e3a8a'
+              }}
+            >
+              <p style={{ margin: '0 0 0.75rem', fontWeight: '600' }}>Examen tipo PDF (material descargable)</p>
+              <p style={{ margin: 0, fontSize: '0.9375rem', lineHeight: 1.5 }}>
+                Este examen no genera resultados en línea en el aula virtual. La práctica o calificación suele hacerse fuera de la plataforma.
+                {examen.archivo_pdf_url ? (
+                  <>
+                    {' '}
+                    <a href={examen.archivo_pdf_url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 600 }}>
+                      Abrir PDF del examen
+                    </a>
+                  </>
+                ) : null}
+              </p>
+            </div>
+          )}
+
+          {!soloLectura && !esExamenPdf && (
             <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
               <button 
                 className="btn-guardar" 
@@ -6893,7 +6921,9 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
                     <th style={{ padding: '0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.3)' }}>PUNTAJE</th>
                     <th style={{ padding: '0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.3)' }}>CORRECTAS</th>
                     <th style={{ padding: '0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.3)' }}>INCORRECTAS</th>
-                    <th style={{ padding: '0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.3)' }}></th>
+                    {!esExamenPdf ? (
+                      <th style={{ padding: '0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.3)' }}></th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -6909,6 +6939,7 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
                         <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600' }}>{tieneResultado ? Math.min(20, Math.round(resultado.puntaje || 0)) : '-'}</td>
                         <td style={{ padding: '0.75rem', textAlign: 'center', color: tieneResultado ? '#10b981' : '#6b7280', fontWeight: '600' }}>{tieneResultado ? resultado.correctas : '-'}</td>
                         <td style={{ padding: '0.75rem', textAlign: 'center', color: tieneResultado ? '#ef4444' : '#6b7280', fontWeight: '600' }}>{tieneResultado ? resultado.incorrectas : '-'}</td>
+                        {!esExamenPdf ? (
                         <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                           <div className="btn-group-opciones" style={{ position: 'relative' }}>
                     <button
@@ -6964,6 +6995,7 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
           )}
         </div>
                         </td>
+                        ) : null}
                       </tr>
                     );
                   })}

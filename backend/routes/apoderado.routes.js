@@ -17,6 +17,7 @@ const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaVigenteMasReciente, sqlMatriculaIdMasRecientePorAlumno } = require('../utils/matriculaVigente');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
+const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 
 // Configurar multer para subir archivos de mensajes
 const mensajesStorage = multer.diskStorage({
@@ -3922,14 +3923,19 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
           }
         }
 
+        const archivo_pdf_url = buildArchivoPdfUrl(examen.archivo_pdf);
+        const esPdf = esExamenTipoPdf(examen.tipo);
         return {
           ...examen,
+          archivo_pdf_url,
           tiene_nota,
           intentos_usados,
           puede_iniciar:
+            !esPdf &&
             examen.estado === 'ACTIVO' &&
             !tiene_nota &&
             (examen.intentos === 0 || intentos_usados < examen.intentos),
+          puede_ver_pdf: esPdf && examen.estado === 'ACTIVO' && !!archivo_pdf_url
         };
       })
     );
@@ -3938,6 +3944,50 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
   } catch (error) {
     console.error('Error obteniendo exámenes:', error);
     res.status(500).json({ error: error.message || 'Error al obtener exámenes' });
+  }
+});
+
+/**
+ * GET /api/apoderado/hijos/:hijoId/aula-virtual/examenes/:examenId
+ * Metadatos del examen (acceso del hijo), p. ej. tipo PDF y URL del archivo.
+ */
+router.get('/hijos/:hijoId/aula-virtual/examenes/:examenId', soloLecturaProxy, async (req, res) => {
+  try {
+    const { hijoId, examenId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+
+    let alumnoId;
+    try {
+      const v = await verificarHijoYUsuarioApoderado(req, hijoId);
+      alumnoId = v.alumnoId;
+    } catch (error) {
+      return res.status(403).json({ error: error.message || 'Sin permisos' });
+    }
+
+    const examen = await query(
+      `SELECT ae.*, a.id as asignatura_id, g.id as grupo_id
+       FROM asignaturas_examenes ae
+       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE ae.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [examenId, alumnoId, colegio_id, anio_activo]
+    );
+
+    if (examen.length === 0) {
+      return res.status(404).json({ error: 'Examen no encontrado o sin acceso' });
+    }
+
+    const row = examen[0];
+    res.json({
+      ...row,
+      archivo_pdf_url: buildArchivoPdfUrl(row.archivo_pdf)
+    });
+  } catch (error) {
+    console.error('Error obteniendo examen (hijo apoderado):', error);
+    res.status(500).json({ error: error.message || 'Error al obtener examen' });
   }
 });
 

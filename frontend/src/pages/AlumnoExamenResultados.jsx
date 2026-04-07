@@ -51,6 +51,11 @@ function AlumnoExamenResultados() {
           
           // Modificar URLs de exámenes (para ver resultados)
           if (config.url && (config.url.startsWith('/alumno/examenes') || config.url.startsWith('/alumno/examen'))) {
+            const matchSoloExamen = config.url.match(/^\/alumno\/examenes\/(\d+)$/);
+            if (matchSoloExamen && currentHijoId) {
+              config.url = `${basePath}/${currentHijoId}/aula-virtual/examenes/${matchSoloExamen[1]}`;
+              return config;
+            }
             if (config.url.includes('/resultado')) {
               const match = config.url.match(/\/alumno\/examen(es)?\/(\d+)\/resultado/);
               if (match) {
@@ -88,6 +93,17 @@ function AlumnoExamenResultados() {
         isApoderado && hijoId && asignaturaIdState
           ? { asignatura_id: asignaturaIdState }
           : {};
+
+      const examenMetaRes = await api.get(`/alumno/examenes/${examenId}`, { params });
+      const meta = examenMetaRes.data;
+      if (String(meta.tipo || '').toUpperCase().trim() === 'PDF') {
+        setExamen(meta);
+        setResultado(null);
+        setDetalles(null);
+        setLoading(false);
+        return;
+      }
+
       // Obtener resultado básico del examen (el interceptor reescribe URL si es apoderado/docente viendo hijo)
       const response = await api.get(`/alumno/examenes/${examenId}/resultado`, { params });
       setExamen(response.data.examen);
@@ -153,6 +169,35 @@ function AlumnoExamenResultados() {
       <DashboardLayout>
         <div style={{ padding: '2rem', textAlign: 'center' }}>
           <div className="loading-spinner">Cargando resultado del examen...</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (examen && String(examen.tipo || '').toUpperCase().trim() === 'PDF') {
+    return (
+      <DashboardLayout>
+        <div style={{ padding: '2rem', maxWidth: '640px', margin: '0 auto', textAlign: 'center' }}>
+          <h2 style={{ color: '#1f2937', marginBottom: '1rem' }}>{examen.titulo}</h2>
+          <p style={{ color: '#4b5563', lineHeight: 1.6, marginBottom: '1.25rem' }}>
+            Este examen es material en PDF. No hay resultado en línea en el aula virtual; tu docente registra la evaluación por otros medios.
+          </p>
+          {examen.archivo_pdf_url ? (
+            <a
+              href={examen.archivo_pdf_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-guardar"
+              style={{ display: 'inline-block', marginBottom: '1rem' }}
+            >
+              Abrir PDF del examen
+            </a>
+          ) : null}
+          <div>
+            <button type="button" onClick={handleVolver} className="btn-cancelar" style={{ marginTop: '0.5rem' }}>
+              Volver
+            </button>
+          </div>
         </div>
       </DashboardLayout>
     );

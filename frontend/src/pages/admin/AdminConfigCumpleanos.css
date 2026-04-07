@@ -335,9 +335,17 @@
   box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
 }
 
-.admin-config-cumpleanos__btn--primary:hover:not(:disabled) {
-  filter: brightness(1.06);
+/* Fondo y color explícitos en hover: el .btn:hover aplicaba #f8fafc y dejaba texto blanco ilegible */
+.admin-config-cumpleanos__btn.admin-config-cumpleanos__btn--primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%);
   border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(67, 56, 202, 0.45);
+}
+
+.admin-config-cumpleanos__btn.admin-config-cumpleanos__btn--primary:active:not(:disabled) {
+  background: linear-gradient(135deg, #3730a3 0%, #4338ca 100%);
+  color: #fff;
 }
 
 .admin-config-cumpleanos__inline-code {

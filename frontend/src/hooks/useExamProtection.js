@@ -4,13 +4,18 @@ import { useEffect, useRef, useState } from 'react';
  * Hook para proteger el examen contra salida de ventana
  * @param {Function} onViolation - Callback cuando se detecta una violación
  * @param {Boolean} autoFinish - Si true, finaliza el examen después de múltiples violaciones
+ * @param {Boolean} enabled - Si false, no registra listeners ni pantalla completa (p. ej. examen solo PDF)
  */
-export const useExamProtection = (onViolation, autoFinish = false) => {
+export const useExamProtection = (onViolation, autoFinish = false, enabled = true) => {
   const [violations, setViolations] = useState(0);
   const violationCountRef = useRef(0);
   const fullscreenEnabled = useRef(false);
 
   useEffect(() => {
+    if (!enabled) {
+      return undefined;
+    }
+
     // 1. Intentar entrar en pantalla completa (solo en desktop, no en móviles/tablets)
     const enableFullscreen = async () => {
       try {
@@ -252,7 +257,7 @@ export const useExamProtection = (onViolation, autoFinish = false) => {
         }
       }
     };
-  }, [onViolation, autoFinish]);
+  }, [onViolation, autoFinish, enabled]);
 
   return { violations, fullscreenEnabled: fullscreenEnabled.current };
 };

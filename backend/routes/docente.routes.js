@@ -33,6 +33,7 @@ const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesD
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
+const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
@@ -10916,11 +10917,19 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
         }
       }
       
+      const archivo_pdf_url = buildArchivoPdfUrl(examen.archivo_pdf);
+      const esPdf = esExamenTipoPdf(examen.tipo);
       return {
         ...examen,
+        archivo_pdf_url,
         tiene_nota,
         intentos_usados,
-        puede_iniciar: examen.estado === 'ACTIVO' && !tiene_nota && (examen.intentos === 0 || intentos_usados < examen.intentos)
+        puede_iniciar:
+          !esPdf &&
+          examen.estado === 'ACTIVO' &&
+          !tiene_nota &&
+          (examen.intentos === 0 || intentos_usados < examen.intentos),
+        puede_ver_pdf: esPdf && examen.estado === 'ACTIVO' && !!archivo_pdf_url
       };
     }));
 
@@ -10928,6 +10937,47 @@ router.get('/hijos/:hijoId/aula-virtual/examenes', soloLecturaProxy, async (req,
   } catch (error) {
     console.error('Error obteniendo exámenes:', error);
     res.status(500).json({ error: error.message || 'Error al obtener exámenes' });
+  }
+});
+
+// GET metadatos de un examen (vista hijo — mismo criterio de acceso que lista de exámenes)
+router.get('/hijos/:hijoId/aula-virtual/examenes/:examenId', soloLecturaProxy, async (req, res) => {
+  try {
+    const { hijoId, examenId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+
+    let alumnoId;
+    try {
+      const resultado = await verificarHijoYUsuario(req, hijoId);
+      alumnoId = resultado.alumnoId;
+    } catch (error) {
+      return res.status(403).json({ error: error.message || 'Sin permisos' });
+    }
+
+    const examen = await query(
+      `SELECT ae.*, a.id as asignatura_id, g.id as grupo_id
+       FROM asignaturas_examenes ae
+       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN matriculas m ON m.grupo_id = g.id
+       WHERE ae.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [examenId, alumnoId, colegio_id, anio_activo]
+    );
+
+    if (examen.length === 0) {
+      return res.status(404).json({ error: 'Examen no encontrado o sin acceso' });
+    }
+
+    const row = examen[0];
+    res.json({
+      ...row,
+      archivo_pdf_url: buildArchivoPdfUrl(row.archivo_pdf)
+    });
+  } catch (error) {
+    console.error('Error obteniendo examen (hijo):', error);
+    res.status(500).json({ error: error.message || 'Error al obtener examen' });
   }
 });
 
@@ -17753,43 +17803,10 @@ router.get('/aula-virtual/examenes', async (req, res) => {
       }
     }
 
-    // Construir URLs completas para los archivos PDF (usando PHP_SYSTEM_URL para compatibilidad con sistema anterior)
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    const examenesConUrls = examenes.map(examen => {
-      let archivoPdfUrl = null;
-      
-      if (examen.archivo_pdf && examen.archivo_pdf !== '') {
-        if (examen.archivo_pdf.startsWith('http')) {
-          // Ya es una URL completa, validar y corregir dominio si es necesario
-          archivoPdfUrl = examen.archivo_pdf
-            .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl)
-            .replace(/vanguardschools\.comstatic/gi, `${phpSystemUrl}/Static`)
-            .replace(/vanguardschools\.com\/static/gi, `${phpSystemUrl}/Static`)
-            .replace(/vanguardschools\.com\/Static/gi, `${phpSystemUrl}/Static`);
-        } else if (examen.archivo_pdf.startsWith('/uploads/')) {
-          // Ruta relativa desde /uploads/ (formato antiguo, migrar a /Static/Archivos/)
-          archivoPdfUrl = isDevelopment
-            ? `http://localhost:5000${examen.archivo_pdf}`
-            : `${phpSystemUrl}${examen.archivo_pdf}`;
-        } else if (examen.archivo_pdf.startsWith('/Static/')) {
-          // Ruta del sistema compartido (correcto)
-          archivoPdfUrl = isDevelopment
-            ? `http://localhost:5000${examen.archivo_pdf}`
-            : `${phpSystemUrl}${examen.archivo_pdf}`;
-        } else {
-          // Solo el nombre del archivo (compatibilidad con sistema antiguo)
-          archivoPdfUrl = isDevelopment
-            ? `http://localhost:5000/Static/Archivos/${examen.archivo_pdf}`
-            : `${phpSystemUrl}/Static/Archivos/${examen.archivo_pdf}`;
-        }
-      }
-      
-      return {
-        ...examen,
-        archivo_pdf_url: archivoPdfUrl
-      };
-    });
+    const examenesConUrls = examenes.map((examen) => ({
+      ...examen,
+      archivo_pdf_url: buildArchivoPdfUrl(examen.archivo_pdf)
+    }));
 
     res.json({ examenes: examenesConUrls || [] });
   } catch (error) {

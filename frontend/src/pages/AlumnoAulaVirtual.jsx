@@ -457,6 +457,11 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
       return;
     }
 
+    if (String(examen.tipo || '').toUpperCase().trim() === 'PDF') {
+      navegarMaterialPdf(examen);
+      return;
+    }
+
     const result = await Swal.fire({
       title: '¿Iniciar examen?',
       html: `
@@ -478,6 +483,10 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
     if (result.isConfirmed) {
       navigate(`/alumno/examen/${examen.id}`);
     }
+  };
+
+  const navegarMaterialPdf = (examen) => {
+    navigate(`/alumno/examen/${examen.id}`);
   };
 
   // Deep link desde notificaciones: ?abrir=tarea&id= / ?abrir=examen&id=
@@ -508,7 +517,13 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
       setExpandedCard('examenes');
       const ex = examenes.find((e) => Number(e.id) === id);
       limpiarQuery();
-      if (ex) handleIniciarExamen(ex);
+      if (ex) {
+        if (String(ex.tipo || '').toUpperCase().trim() === 'PDF') {
+          navigate(`/alumno/examen/${ex.id}`);
+        } else {
+          handleIniciarExamen(ex);
+        }
+      }
     }
   }, [loading, asignaturaId, searchParams, examenes, setSearchParams, navigate]);
 
@@ -548,6 +563,11 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                   .toString()
                   .trim()
                   .toUpperCase();
+                const esPdf = String(examen.tipo || '').toUpperCase().trim() === 'PDF';
+                const puedeVerPdf =
+                  typeof examen.puede_ver_pdf === 'boolean'
+                    ? examen.puede_ver_pdf
+                    : esPdf && estadoNormalizado === 'ACTIVO' && !!examen.archivo_pdf_url;
                 const tieneNota =
                   examen.tiene_nota === true ||
                   examen.tiene_nota === 1 ||
@@ -557,7 +577,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                   <tr key={examen.id}>
                     <td>{examen.titulo}</td>
                     <td className="text-center">{examen.tiempo > 0 ? examen.tiempo : 'ILIMITADO'}</td>
-                    <td className="text-center">{examen.total_preguntas || 0}</td>
+                    <td className="text-center">{esPdf ? 'PDF' : examen.total_preguntas || 0}</td>
                     <td className="text-center">
                       <span 
                         style={{
@@ -576,7 +596,34 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                       </span>
                     </td>
                     <td className="text-center">
-                      {modoSoloLectura ? (
+                      {puedeVerPdf ? (
+                        <button
+                          type="button"
+                          onClick={() => navegarMaterialPdf(examen)}
+                          style={{
+                            padding: '0.5rem 1.25rem',
+                            background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            fontSize: '0.875rem',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            boxShadow: '0 2px 8px rgba(14, 165, 233, 0.35)'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.transform = 'scale(1.05)';
+                            e.target.style.boxShadow = '0 4px 12px rgba(14, 165, 233, 0.45)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.transform = 'scale(1)';
+                            e.target.style.boxShadow = '0 2px 8px rgba(14, 165, 233, 0.35)';
+                          }}
+                        >
+                          📄 Ver material (PDF)
+                        </button>
+                      ) : modoSoloLectura ? (
                         tieneNota ? (
                           <button
                             onClick={() => navigate(`/alumno/examen/${examen.id}/resultados`, {

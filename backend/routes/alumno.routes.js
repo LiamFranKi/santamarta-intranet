@@ -12,6 +12,7 @@ const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
+const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 
 // Configurar multer para subir archivos de mensajes
 const mensajesStorage = multer.diskStorage({
@@ -3342,11 +3343,19 @@ router.get('/aula-virtual/examenes', async (req, res) => {
         }
       }
       
+      const archivo_pdf_url = buildArchivoPdfUrl(examen.archivo_pdf);
+      const esPdf = esExamenTipoPdf(examen.tipo);
       return {
         ...examen,
+        archivo_pdf_url,
         tiene_nota,
         intentos_usados,
-        puede_iniciar: examen.estado === 'ACTIVO' && !tiene_nota && (examen.intentos === 0 || intentos_usados < examen.intentos)
+        puede_iniciar:
+          !esPdf &&
+          examen.estado === 'ACTIVO' &&
+          !tiene_nota &&
+          (examen.intentos === 0 || intentos_usados < examen.intentos),
+        puede_ver_pdf: esPdf && examen.estado === 'ACTIVO' && !!archivo_pdf_url
       };
     }));
 
@@ -3383,7 +3392,11 @@ router.get('/examenes/:examenId', async (req, res) => {
       return res.status(404).json({ error: 'Examen no encontrado o sin acceso' });
     }
 
-    res.json(examen[0]);
+    const row = examen[0];
+    res.json({
+      ...row,
+      archivo_pdf_url: buildArchivoPdfUrl(row.archivo_pdf)
+    });
   } catch (error) {
     console.error('Error obteniendo examen:', error);
     res.status(500).json({ error: 'Error al obtener examen' });
@@ -3418,6 +3431,13 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
 
     if (examen[0].estado !== 'ACTIVO') {
       return res.status(400).json({ error: 'El examen no está activo' });
+    }
+
+    if (esExamenTipoPdf(examen[0].tipo)) {
+      return res.status(400).json({
+        error:
+          'Este examen es material en PDF. Ábrelo desde el aula virtual; no uses “Iniciar prueba” en línea.'
+      });
     }
 
     // Obtener matrícula del alumno
