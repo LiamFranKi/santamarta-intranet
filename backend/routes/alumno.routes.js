@@ -14,6 +14,24 @@ const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente'
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 
+/**
+ * Lista de IDs de preguntas que el alumno vio (campo preguntas: base64 + PHP serialize).
+ */
+function parsePreguntaIdsVisiblesDesdePrueba(pruebaRow) {
+  if (!pruebaRow || !pruebaRow.preguntas || String(pruebaRow.preguntas).trim() === '') {
+    return null;
+  }
+  try {
+    const decoded = Buffer.from(pruebaRow.preguntas, 'base64').toString('utf-8');
+    const arr = phpSerialize.unserialize(decoded);
+    if (!Array.isArray(arr) || arr.length === 0) return null;
+    const ids = arr.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n));
+    return ids.length > 0 ? ids : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // Configurar multer para subir archivos de mensajes
 const mensajesStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -3476,12 +3494,23 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
     );
 
     if (pruebaEnProgreso.length > 0) {
-      // Retornar la prueba existente
+      const row = pruebaEnProgreso[0];
+      // Para que el front no re-aleatorice ni sobrescriba guardar-preguntas al recargar
+      const pregunta_ids = parsePreguntaIdsVisiblesDesdePrueba(row);
+      let respuestasJson = {};
+      if (row.respuestas && String(row.respuestas).trim() !== '') {
+        try {
+          respuestasJson = JSON.parse(row.respuestas);
+        } catch (e) {
+          console.warn('[iniciar examen] respuestas JSON inválidas, usando vacío:', row.id);
+        }
+      }
       return res.json({
-        prueba_id: pruebaEnProgreso[0].id,
-        fecha_inicio: pruebaEnProgreso[0].fecha_hora,
-        fecha_expiracion: pruebaEnProgreso[0].expiracion,
-        respuestas: pruebaEnProgreso[0].respuestas ? JSON.parse(pruebaEnProgreso[0].respuestas) : {}
+        prueba_id: row.id,
+        fecha_inicio: row.fecha_hora,
+        fecha_expiracion: row.expiracion,
+        respuestas: respuestasJson,
+        pregunta_ids
       });
     }
 
@@ -3502,7 +3531,8 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
       prueba_id: resultado.insertId,
       fecha_inicio: fechaInicio,
       fecha_expiracion: fechaExpiracion,
-      respuestas: {}
+      respuestas: {},
+      pregunta_ids: null
     });
   } catch (error) {
     console.error('Error iniciando examen:', error);
@@ -3558,7 +3588,31 @@ router.get('/examenes/:examenId/preguntas', async (req, res) => {
       };
     }));
 
-    res.json({ preguntas: preguntasConAlternativas });
+    let bloque = null;
+    try {
+      const phpBase =
+        String(process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe').replace(/\/$/, '');
+      const bloqueRows = await query(
+        `SELECT contenido, imagen FROM asignaturas_examenes_bloques WHERE examen_id = ? LIMIT 1`,
+        [examenId]
+      );
+      if (bloqueRows && bloqueRows.length > 0) {
+        const b = bloqueRows[0];
+        const contenidoHtml = normalizarUrlsImagenesEnHtml(b.contenido || '', phpBase);
+        const imagen_url = buildArchivoPdfUrl(b.imagen);
+        const plain = (contenidoHtml || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+        const tieneImagenEnHtml = /<img\s/i.test(contenidoHtml || '');
+        if (plain || imagen_url || tieneImagenEnHtml) {
+          bloque = { contenido: contenidoHtml || '', imagen_url };
+        }
+      }
+    } catch (bloqueErr) {
+      if (bloqueErr && bloqueErr.code !== 'ER_NO_SUCH_TABLE') {
+        console.warn('[alumno preguntas] bloque examen:', bloqueErr.message);
+      }
+    }
+
+    res.json({ preguntas: preguntasConAlternativas, bloque });
   } catch (error) {
     console.error('Error obteniendo preguntas:', error);
     res.status(500).json({ error: 'Error al obtener preguntas' });
@@ -3729,9 +3783,49 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
     
     console.log(`📊 Calificando examen ${examenId}: tipo_puntaje=${tipoPuntaje}, puntos_correcta=${puntosCorrecta}`);
 
-    const respuestas = prueba[0].respuestas ? JSON.parse(prueba[0].respuestas) : {};
+    let respuestas = {};
+    if (prueba[0].respuestas && String(prueba[0].respuestas).trim() !== '') {
+      try {
+        respuestas = JSON.parse(prueba[0].respuestas);
+        if (!respuestas || typeof respuestas !== 'object' || Array.isArray(respuestas)) {
+          respuestas = {};
+        }
+      } catch (e) {
+        console.warn(`[finalizar examen] respuestas JSON inválidas en prueba ${prueba[0].id}:`, e.message);
+        respuestas = {};
+      }
+    }
     
-    const preguntas = await fetchPreguntasConAlternativas(query, examenId, [], 'SI_NO');
+    const preguntasConAlternativas = await fetchPreguntasConAlternativas(query, examenId, [], 'SI_NO');
+
+    // Misma lógica que POST .../calificar (docente): solo las preguntas que el alumno vio
+    // (preguntas_max, orden ALEATORIO). Campo prueba.preguntas = base64(serialize(ids)).
+    let preguntaIdsVisibles = [];
+    try {
+      if (prueba[0].preguntas && String(prueba[0].preguntas).trim() !== '') {
+        const decoded = Buffer.from(prueba[0].preguntas, 'base64').toString('utf-8');
+        preguntaIdsVisibles = phpSerialize.unserialize(decoded) || [];
+        if (!Array.isArray(preguntaIdsVisibles)) {
+          preguntaIdsVisibles = [];
+        }
+      }
+    } catch (e) {
+      console.warn(`[finalizar examen] No se pudo leer lista de preguntas de la prueba ${prueba[0].id}:`, e.message);
+      preguntaIdsVisibles = [];
+    }
+    const idsSet = new Set(
+      preguntaIdsVisibles.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n))
+    );
+    let preguntas =
+      idsSet.size > 0
+        ? preguntasConAlternativas.filter((p) => idsSet.has(parseInt(p.id, 10)))
+        : preguntasConAlternativas;
+    if (idsSet.size > 0 && preguntas.length === 0) {
+      console.warn(
+        `[finalizar examen] prueba ${prueba[0].id}: IDs de preguntas visibles no coinciden; usando todas (fallback)`
+      );
+      preguntas = preguntasConAlternativas;
+    }
 
     // Calificar examen
     let puntosTotal = 0;

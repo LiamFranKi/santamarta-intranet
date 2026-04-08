@@ -12,6 +12,47 @@ import PreguntaEmparejar from '../components/examen/PreguntaEmparejar';
 import PreguntaArrastrarSoltar from '../components/examen/PreguntaArrastrarSoltar';
 import './AlumnoExamen.css';
 
+/** Acepta ALEATORIO aunque venga con espacios o distinta capitalización desde la API/BD */
+function ordenPreguntasEsAleatorio(val) {
+  return String(val ?? '').trim().toUpperCase() === 'ALEATORIO';
+}
+
+function shuffleArray(source) {
+  const a = [...source];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function ordenarPreguntasSegunIds(todas, idsOrden) {
+  const map = new Map(todas.map((p) => [Number(p.id), p]));
+  const ordered = [];
+  for (const id of idsOrden) {
+    const p = map.get(Number(id));
+    if (p) ordered.push(p);
+  }
+  return ordered;
+}
+
+function respuestaTieneValor(v) {
+  if (v === null || v === undefined) return false;
+  if (v === '') return false;
+  if (Array.isArray(v)) return v.length > 0;
+  if (typeof v === 'object') return Object.keys(v).length > 0;
+  return true;
+}
+
+/** Evita persistir claves vacías que pueden confundir resultados o informes */
+function sanitizarRespuestasExamen(raw) {
+  const out = {};
+  for (const [k, v] of Object.entries(raw || {})) {
+    if (respuestaTieneValor(v)) out[k] = v;
+  }
+  return out;
+}
+
 function AlumnoExamen() {
   const { examenId } = useParams();
   const navigate = useNavigate();
@@ -27,12 +68,16 @@ function AlumnoExamen() {
   const [error, setError] = useState(null);
   const [renderError, setRenderError] = useState(null);
   const [esExamenPdf, setEsExamenPdf] = useState(false);
+  /** Contexto compartido (caso + imagen) definido por el docente; no forma parte del sorteo de preguntas. */
+  const [bloqueExamen, setBloqueExamen] = useState(null);
   
   const intervaloGuardado = useRef(null);
   const intervaloReloj = useRef(null);
   const tiempoInicio = useRef(null);
   const tiempoExpiracion = useRef(null);
   const respuestasRef = useRef({});
+  /** Evita que un guardado en curso haga que otro salga sin enviar (p. ej. al finalizar justo tras el autosave). */
+  const guardarRespuestasMutexRef = useRef(Promise.resolve());
 
   // Función para cargar examen
   const cargarExamen = useCallback(async () => {
@@ -65,6 +110,7 @@ function AlumnoExamen() {
         }
         setExamen(datosMeta);
         setPreguntas([]);
+        setBloqueExamen(null);
         setEsExamenPdf(true);
         setLoading(false);
         return;
@@ -91,44 +137,64 @@ function AlumnoExamen() {
       console.log('📝 Examen cargado:', examenRes.data);
       console.log('📝 Preguntas cargadas:', preguntasRes.data.preguntas?.length || 0);
       setExamen(examenRes.data);
-      
-      // Cargar respuestas guardadas si existen
-      if (iniciarRes.data.respuestas) {
-        setRespuestas(iniciarRes.data.respuestas);
-        respuestasRef.current = iniciarRes.data.respuestas;
+
+      const bloqueRaw = preguntasRes.data.bloque;
+      if (bloqueRaw && (bloqueRaw.contenido || bloqueRaw.imagen_url)) {
+        setBloqueExamen({
+          contenido: bloqueRaw.contenido || '',
+          imagen_url: bloqueRaw.imagen_url || null
+        });
+      } else {
+        setBloqueExamen(null);
       }
-      
-      // Ordenar preguntas según configuración del examen
-      let preguntasOrdenadas = preguntasRes.data.preguntas || [];
-      if (examenRes.data.orden_preguntas === 'ALEATORIO') {
-        preguntasOrdenadas = [...preguntasOrdenadas].sort(() => Math.random() - 0.5);
+
+      const listaBase = preguntasRes.data.preguntas || [];
+      const esAleatorio = ordenPreguntasEsAleatorio(examenRes.data.orden_preguntas);
+      const idsDesdeServidor = iniciarRes.data.pregunta_ids;
+      let recuperandoSesion = Array.isArray(idsDesdeServidor) && idsDesdeServidor.length > 0;
+
+      let preguntasOrdenadas;
+      if (recuperandoSesion) {
+        preguntasOrdenadas = ordenarPreguntasSegunIds(listaBase, idsDesdeServidor);
+        if (preguntasOrdenadas.length === 0) {
+          recuperandoSesion = false;
+          preguntasOrdenadas = esAleatorio ? shuffleArray(listaBase) : [...listaBase];
+        }
+      } else {
+        preguntasOrdenadas = esAleatorio ? shuffleArray(listaBase) : [...listaBase];
       }
-      
-      // Aplicar límite de preguntas a mostrar (preguntas_max)
-      if (examenRes.data.preguntas_max && examenRes.data.preguntas_max > 0) {
-        preguntasOrdenadas = preguntasOrdenadas.slice(0, examenRes.data.preguntas_max);
+
+      const maxPreguntas = parseInt(examenRes.data.preguntas_max, 10);
+      if (maxPreguntas > 0 && preguntasOrdenadas.length > maxPreguntas) {
+        preguntasOrdenadas = preguntasOrdenadas.slice(0, maxPreguntas);
       }
-      
-      // Aleatorizar alternativas si el orden es ALEATORIO
-      if (examenRes.data.orden_preguntas === 'ALEATORIO') {
-        preguntasOrdenadas = preguntasOrdenadas.map(pregunta => ({
+
+      if (esAleatorio && !recuperandoSesion) {
+        preguntasOrdenadas = preguntasOrdenadas.map((pregunta) => ({
           ...pregunta,
-          alternativas: pregunta.alternativas 
-            ? [...pregunta.alternativas].sort(() => Math.random() - 0.5)
-            : []
+          alternativas: pregunta.alternativas ? shuffleArray(pregunta.alternativas) : []
         }));
       }
-      
-      // Guardar los IDs de las preguntas que verá el alumno (para que el docente vea las mismas)
-      const preguntaIds = preguntasOrdenadas.map(p => p.id);
-      try {
-        await api.post(`/alumno/examenes/${examenId}/guardar-preguntas`, {
-          pregunta_ids: preguntaIds
-        });
-      } catch (error) {
-        console.warn('No se pudieron guardar las preguntas:', error);
+
+      if (!recuperandoSesion) {
+        const preguntaIds = preguntasOrdenadas.map((p) => p.id);
+        try {
+          await api.post(`/alumno/examenes/${examenId}/guardar-preguntas`, {
+            pregunta_ids: preguntaIds
+          });
+        } catch (error) {
+          console.warn('No se pudieron guardar las preguntas:', error);
+        }
       }
-      
+
+      const respuestasCrudas =
+        iniciarRes.data.respuestas && typeof iniciarRes.data.respuestas === 'object'
+          ? iniciarRes.data.respuestas
+          : {};
+      const respuestasLimpias = sanitizarRespuestasExamen(respuestasCrudas);
+      setRespuestas(respuestasLimpias);
+      respuestasRef.current = respuestasLimpias;
+
       setPreguntas(preguntasOrdenadas);
       console.log('📝 Preguntas ordenadas:', preguntasOrdenadas.length);
       setLoading(false);
@@ -196,25 +262,36 @@ function AlumnoExamen() {
   useExamProtection(safeHandleViolation, false, proteccionActiva);
 
   // Función para guardar respuestas (debe estar antes de las funciones que la usan)
-  const guardarRespuestas = useCallback(async () => {
-    if (guardando) return;
-    
-    setGuardando(true);
-    try {
-      // Usar respuestasRef para obtener el valor más actualizado
-      await api.post(`/alumno/examenes/${examenId}/respuestas`, {
-        respuestas: respuestasRef.current
-      });
-    } catch (error) {
-      console.error('Error guardando respuestas:', error);
-    } finally {
-      setGuardando(false);
-    }
-  }, [examenId, guardando]);
+  const guardarRespuestas = useCallback(() => {
+    const ejecutar = async () => {
+      setGuardando(true);
+      try {
+        const limpio = sanitizarRespuestasExamen(respuestasRef.current);
+        await api.post(`/alumno/examenes/${examenId}/respuestas`, {
+          respuestas: limpio
+        });
+        setRespuestas(limpio);
+        respuestasRef.current = limpio;
+      } catch (error) {
+        console.error('Error guardando respuestas:', error);
+      } finally {
+        setGuardando(false);
+      }
+    };
+    const encadenado = guardarRespuestasMutexRef.current.then(ejecutar, ejecutar);
+    guardarRespuestasMutexRef.current = encadenado.catch(() => {});
+    return encadenado;
+  }, [examenId]);
+
+  /** Tras una operación crítica, segunda pasada para cubrir cambios al `ref` durante el POST anterior. */
+  const persistirRespuestasParaFinalizar = useCallback(async () => {
+    await guardarRespuestas();
+    await guardarRespuestas();
+  }, [guardarRespuestas]);
 
   // Función para finalizar examen automáticamente
   const finalizarExamenAutomatico = useCallback(async () => {
-    await guardarRespuestas();
+    await persistirRespuestasParaFinalizar();
     
     try {
       const response = await api.post(`/alumno/examenes/${examenId}/finalizar`);
@@ -231,7 +308,7 @@ function AlumnoExamen() {
     } catch (error) {
       console.error('Error finalizando examen:', error);
     }
-  }, [examenId, navigate, guardarRespuestas]);
+  }, [examenId, navigate, persistirRespuestasParaFinalizar]);
 
   // Temporizador
   useEffect(() => {
@@ -339,7 +416,7 @@ function AlumnoExamen() {
     });
 
     if (result.isConfirmed) {
-      await guardarRespuestas();
+      await persistirRespuestasParaFinalizar();
       
       try {
         await api.post(`/alumno/examenes/${examenId}/finalizar`);
@@ -718,6 +795,31 @@ function AlumnoExamen() {
       <div className="examen-resumen-container">
         <div className="examen-resumen-card">
           <h2>📋 Resumen del Examen</h2>
+          {bloqueExamen && (bloqueExamen.contenido || bloqueExamen.imagen_url) && (
+            <div
+              className="examen-bloque-contexto examen-bloque-contexto--resumen"
+              style={{
+                marginBottom: '1.25rem',
+                padding: '1rem',
+                background: '#f0fdfa',
+                border: '1px solid #99f6e4',
+                borderRadius: '12px',
+                color: '#134e4a'
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: '0.5rem', fontSize: '0.95rem' }}>📎 Contexto del examen</div>
+              {bloqueExamen.imagen_url ? (
+                <img
+                  src={bloqueExamen.imagen_url}
+                  alt="Contexto"
+                  style={{ maxWidth: '100%', maxHeight: '240px', display: 'block', marginBottom: '0.75rem', borderRadius: '8px', objectFit: 'contain' }}
+                />
+              ) : null}
+              {bloqueExamen.contenido ? (
+                <div className="examen-bloque-html" dangerouslySetInnerHTML={{ __html: bloqueExamen.contenido }} />
+              ) : null}
+            </div>
+          )}
           <div className="resumen-preguntas">
             {preguntas.map((p, index) => {
               const respuesta = respuestas[p.id];
@@ -807,6 +909,38 @@ function AlumnoExamen() {
 
       {/* Contenido Principal */}
       <div className="examen-content">
+        {bloqueExamen && (bloqueExamen.contenido || bloqueExamen.imagen_url) && (
+          <div
+            className="examen-bloque-contexto"
+            style={{
+              marginBottom: '1.25rem',
+              padding: '1rem 1.1rem',
+              background: '#f0fdfa',
+              border: '1px solid #99f6e4',
+              borderRadius: '12px',
+              color: '#134e4a'
+            }}
+          >
+            <div style={{ fontWeight: 700, marginBottom: '0.5rem', fontSize: '0.95rem' }}>📎 Contexto del examen</div>
+            {bloqueExamen.imagen_url ? (
+              <img
+                src={bloqueExamen.imagen_url}
+                alt="Contexto del examen"
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: 'min(40vh, 320px)',
+                  display: 'block',
+                  marginBottom: '0.75rem',
+                  borderRadius: '8px',
+                  objectFit: 'contain'
+                }}
+              />
+            ) : null}
+            {bloqueExamen.contenido ? (
+              <div className="examen-bloque-html" dangerouslySetInnerHTML={{ __html: bloqueExamen.contenido }} />
+            ) : null}
+          </div>
+        )}
         {/* Barra de Progreso */}
         <div className="examen-progress">
           <div className="examen-progress-bar">
@@ -825,7 +959,7 @@ function AlumnoExamen() {
           {preguntas.map((p, index) => (
             <button
               key={p.id}
-              className={`examen-nav-btn ${index === preguntaActual ? 'active' : ''} ${respuestas[p.id] ? 'answered' : ''}`}
+              className={`examen-nav-btn ${index === preguntaActual ? 'active' : ''} ${respuestaTieneValor(respuestas[p.id]) ? 'answered' : ''}`}
               onClick={() => setPreguntaActual(index)}
             >
               {index + 1}

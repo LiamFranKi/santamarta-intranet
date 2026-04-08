@@ -34,6 +34,7 @@ const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlter
 const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
+const { assertDocentePuedeEditarContenidoExamenVirtual, examenBloqueaEdicionContenidoDocente } = require('../utils/examenBloqueoEdicionContenido');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
@@ -763,6 +764,36 @@ const uploadAulaVirtual = multer({
   storage: aulaVirtualStorage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB
   fileFilter: fileFilterAulaVirtual
+});
+
+// Imagen opcional del bloque de contexto del examen (comparte carpeta Static/Archivos con el aula virtual)
+const examenBloqueImagenStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Archivos';
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `examen-bloque-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+const fileFilterExamenBloqueImagen = (req, file, cb) => {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const allowedExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+  const okExt = allowedExt.includes(ext);
+  const okMime = file.mimetype && file.mimetype.startsWith('image/');
+  if (okExt && okMime) return cb(null, true);
+  cb(new Error('Solo se permiten imágenes (jpg, png, gif, webp)'));
+};
+
+const uploadExamenBloqueImagen = multer({
+  storage: examenBloqueImagenStorage,
+  limits: { fileSize: 8 * 1024 * 1024 }, // 8MB
+  fileFilter: fileFilterExamenBloqueImagen
 });
 
 // Configurar multer para subir archivos de mensajes
@@ -5170,9 +5201,31 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
             ]
           );
 
-          const nuevoExamenId = resultado.insertId;
+        const nuevoExamenId = resultado.insertId;
 
-          // Copiar preguntas
+        try {
+          const bloqueSrc = await query(
+            `SELECT contenido, imagen FROM asignaturas_examenes_bloques WHERE examen_id = ? LIMIT 1`,
+            [examenId]
+          );
+          if (bloqueSrc.length > 0) {
+            const bs = bloqueSrc[0];
+            const plain = (bs.contenido || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+            const hasImg = bs.imagen && String(bs.imagen).trim();
+            if (plain || hasImg) {
+              await execute(
+                `INSERT INTO asignaturas_examenes_bloques (examen_id, contenido, imagen) VALUES (?, ?, ?)`,
+                [nuevoExamenId, bs.contenido || null, hasImg ? bs.imagen : null]
+              );
+            }
+          }
+        } catch (bloqueCopyErr) {
+          if (bloqueCopyErr && bloqueCopyErr.code !== 'ER_NO_SUCH_TABLE') {
+            console.warn('Copiar bloque examen (curso):', bloqueCopyErr.message);
+          }
+        }
+
+        // Copiar preguntas
           const preguntas = await query(
             `SELECT * FROM asignaturas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC`,
             [examenId]
@@ -18996,11 +19049,20 @@ router.post('/aula-virtual/examenes/:examenId/calificar', async (req, res) => {
           preguntaIds = [];
         }
 
-        // Filtrar preguntas: solo las que vio el alumno
-        // Si no hay preguntas guardadas (resultados antiguos), usar todas como fallback
-        const preguntasAValuar = preguntaIds.length > 0
-          ? preguntasConAlternativas.filter(p => preguntaIds.includes(p.id))
-          : preguntasConAlternativas; // Fallback para resultados antiguos
+        // Filtrar preguntas: solo las que vio el alumno (misma lógica que POST .../finalizar del alumno)
+        const idsSetCalif = new Set(
+          preguntaIds.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n))
+        );
+        let preguntasAValuar =
+          idsSetCalif.size > 0
+            ? preguntasConAlternativas.filter((p) => idsSetCalif.has(parseInt(p.id, 10)))
+            : preguntasConAlternativas;
+        if (idsSetCalif.size > 0 && preguntasAValuar.length === 0) {
+          console.warn(
+            `[calificar examen] prueba ${prueba.id}: IDs de preguntas visibles no coinciden; usando todas (fallback)`
+          );
+          preguntasAValuar = preguntasConAlternativas;
+        }
 
         // Parsear respuestas del alumno
         let respuestasAlumno = {};
@@ -19662,6 +19724,10 @@ router.delete('/aula-virtual/examenes/:examenId', async (req, res) => {
       return res.status(404).json({ error: 'Examen no encontrado o sin permisos' });
     }
 
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, examenId))) {
+      return;
+    }
+
     const examenActual = examen[0];
 
     // Obtener todas las preguntas del examen para la auditoría
@@ -19702,6 +19768,15 @@ router.delete('/aula-virtual/examenes/:examenId', async (req, res) => {
       `DELETE FROM asignaturas_examenes_preguntas WHERE examen_id = ?`,
       [examenId]
     );
+
+    // Bloque de contexto (sin FK en BD en algunos despliegues; evitar huérfanos)
+    try {
+      await execute(`DELETE FROM asignaturas_examenes_bloques WHERE examen_id = ?`, [examenId]);
+    } catch (bloqueDel) {
+      if (bloqueDel && bloqueDel.code !== 'ER_NO_SUCH_TABLE') {
+        console.warn('Eliminar bloque examen:', bloqueDel.message);
+      }
+    }
 
     // Eliminar el examen
     await execute(
@@ -20221,6 +20296,27 @@ router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
           [personal_id, ex.titulo, ex.tipo || 'VIRTUAL', ex.archivo_pdf || '', ex.fecha_desde || new Date(), ex.fecha_hasta || new Date(), ex.hora_desde || '08:00', ex.hora_hasta || '20:00', asignatura_id, ex.ciclo, ex.preguntas_max || 1, ex.tipo_puntaje || 'GENERAL', ex.puntos_correcta || 1, ex.penalizar_incorrecta || 'NO', ex.penalizacion_incorrecta || 0, ex.tiempo || 60, ex.intentos || 1, ex.estado || 'INACTIVO', ex.orden_preguntas || 'PREDETERMINADO']
         );
         const nuevoExamenId = resultado.insertId;
+        try {
+          const bloqueSrc = await query(
+            `SELECT contenido, imagen FROM asignaturas_examenes_bloques WHERE examen_id = ? LIMIT 1`,
+            [item_id]
+          );
+          if (bloqueSrc.length > 0) {
+            const bs = bloqueSrc[0];
+            const plain = (bs.contenido || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+            const hasImg = bs.imagen && String(bs.imagen).trim();
+            if (plain || hasImg) {
+              await execute(
+                `INSERT INTO asignaturas_examenes_bloques (examen_id, contenido, imagen) VALUES (?, ?, ?)`,
+                [nuevoExamenId, bs.contenido || null, hasImg ? bs.imagen : null]
+              );
+            }
+          }
+        } catch (bloqueCopyErr) {
+          if (bloqueCopyErr && bloqueCopyErr.code !== 'ER_NO_SUCH_TABLE') {
+            console.warn('Copiar bloque examen (biblioteca):', bloqueCopyErr.message);
+          }
+        }
         const preguntas = await query(`SELECT * FROM asignaturas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC`, [item_id]);
         const mapeoAlt = {};
         for (const p of preguntas) {
@@ -21562,10 +21658,144 @@ router.get('/aula-virtual/examenes/:examenId/preguntas', async (req, res) => {
       [examenId]
     );
 
-    res.json({ preguntas: preguntas || [] });
+    let contenido_bloqueado_para_docente = false;
+    if (req.user.tipo !== 'ADMINISTRADOR') {
+      contenido_bloqueado_para_docente = await examenBloqueaEdicionContenidoDocente(query, examenId);
+    }
+
+    let bloque = null;
+    try {
+      const bloqueRows = await query(
+        `SELECT id, examen_id, contenido, imagen FROM asignaturas_examenes_bloques WHERE examen_id = ? LIMIT 1`,
+        [examenId]
+      );
+      if (bloqueRows && bloqueRows.length > 0) {
+        const b = bloqueRows[0];
+        bloque = {
+          id: b.id,
+          examen_id: b.examen_id,
+          contenido: b.contenido || '',
+          imagen: b.imagen || null,
+          imagen_url: buildArchivoPdfUrl(b.imagen)
+        };
+      }
+    } catch (bloqueErr) {
+      if (bloqueErr && bloqueErr.code === 'ER_NO_SUCH_TABLE') {
+        bloque = null;
+      } else {
+        throw bloqueErr;
+      }
+    }
+
+    res.json({
+      preguntas: preguntas || [],
+      contenido_bloqueado_para_docente,
+      bloque
+    });
   } catch (error) {
     console.error('Error obteniendo preguntas:', error);
     res.status(500).json({ error: 'Error al obtener preguntas' });
+  }
+});
+
+/**
+ * PUT /api/docente/aula-virtual/examenes/:examenId/bloque
+ * Crear o actualizar el bloque de contexto (texto enriquecido + imagen opcional). Una fila por examen.
+ */
+router.put('/aula-virtual/examenes/:examenId/bloque', uploadExamenBloqueImagen.single('imagen'), async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { examenId } = req.params;
+    const contenido = req.body.contenido != null ? String(req.body.contenido) : '';
+    const remove_imagen =
+      req.body.remove_imagen === '1' ||
+      req.body.remove_imagen === 'true' ||
+      req.body.remove_imagen === true;
+
+    const examen = await query(
+      `SELECT ae.id FROM asignaturas_examenes ae
+       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [examenId, personal_id, colegio_id, anio_activo]
+    );
+
+    if (examen.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este examen' });
+    }
+
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, examenId))) {
+      return;
+    }
+
+    const textoPlano = contenido.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    /** Imágenes incrustadas con Quill (toolbar imagen) no dejan texto plano; no tratar como vacío. */
+    const tieneImagenEnHtml = /<img\s/i.test(contenido);
+    let imagenNueva = null;
+    if (req.file && req.file.filename) {
+      imagenNueva = req.file.filename;
+    }
+
+    const existente = await query(
+      `SELECT id, imagen FROM asignaturas_examenes_bloques WHERE examen_id = ? LIMIT 1`,
+      [examenId]
+    );
+
+    let imagenFinal = null;
+    if (imagenNueva) {
+      imagenFinal = imagenNueva;
+    } else if (remove_imagen) {
+      imagenFinal = null;
+    } else if (existente.length > 0) {
+      imagenFinal = existente[0].imagen || null;
+    }
+
+    const tieneImagen = !!(imagenFinal && String(imagenFinal).trim());
+    if (!textoPlano && !tieneImagen && !tieneImagenEnHtml) {
+      if (existente.length > 0) {
+        await execute(`DELETE FROM asignaturas_examenes_bloques WHERE examen_id = ?`, [examenId]);
+      }
+      return res.json({ success: true, bloque: null });
+    }
+
+    if (existente.length > 0) {
+      await execute(
+        `UPDATE asignaturas_examenes_bloques SET contenido = ?, imagen = ? WHERE examen_id = ?`,
+        [contenido, imagenFinal, examenId]
+      );
+    } else {
+      await execute(
+        `INSERT INTO asignaturas_examenes_bloques (examen_id, contenido, imagen) VALUES (?, ?, ?)`,
+        [examenId, contenido, imagenFinal]
+      );
+    }
+
+    const bloqueRows = await query(
+      `SELECT id, examen_id, contenido, imagen FROM asignaturas_examenes_bloques WHERE examen_id = ? LIMIT 1`,
+      [examenId]
+    );
+    const b = bloqueRows[0];
+    return res.json({
+      success: true,
+      bloque: {
+        id: b.id,
+        examen_id: b.examen_id,
+        contenido: b.contenido || '',
+        imagen: b.imagen || null,
+        imagen_url: buildArchivoPdfUrl(b.imagen)
+      }
+    });
+  } catch (error) {
+    console.error('Error guardando bloque de examen:', error);
+    const code = error && error.code ? String(error.code) : '';
+    const msg = error && error.message ? String(error.message) : '';
+    if (code === 'ER_NO_SUCH_TABLE' || msg.includes('ER_NO_SUCH_TABLE')) {
+      return res.status(503).json({
+        error:
+          'La tabla del bloque de contexto aún no existe en la base de datos. Ejecute la migración 017_examen_bloque_contexto_mysql.sql.'
+      });
+    }
+    res.status(500).json({ error: 'Error al guardar el bloque del examen' });
   }
 });
 
@@ -21595,6 +21825,10 @@ router.post('/aula-virtual/examenes/:examenId/preguntas', async (req, res) => {
 
     if (examen.length === 0) {
       return res.status(403).json({ error: 'No tienes acceso a este examen' });
+    }
+
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, examenId))) {
+      return;
     }
 
     // Obtener el siguiente orden
@@ -21682,6 +21916,10 @@ router.put('/aula-virtual/preguntas/:preguntaId', async (req, res) => {
 
     if (pregunta.length === 0) {
       return res.status(403).json({ error: 'No tienes acceso a esta pregunta' });
+    }
+
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, pregunta[0].examen_id))) {
+      return;
     }
 
     // Obtener examen para verificar tipo_puntaje
@@ -21773,6 +22011,10 @@ router.delete('/aula-virtual/preguntas/:preguntaId', async (req, res) => {
 
     if (pregunta.length === 0) {
       return res.status(403).json({ error: 'No tienes acceso a esta pregunta' });
+    }
+
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, pregunta[0].examen_id))) {
+      return;
     }
 
     // Obtener alternativas para auditoría
@@ -21892,6 +22134,10 @@ router.post('/aula-virtual/preguntas/:preguntaId/alternativas', async (req, res)
       return res.status(403).json({ error: 'No tienes acceso a esta pregunta' });
     }
 
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, pregunta[0].examen_id))) {
+      return;
+    }
+
     // Insertar alternativa
     const result = await execute(
       `INSERT INTO asignaturas_examenes_preguntas_alternativas 
@@ -21962,6 +22208,10 @@ router.put('/aula-virtual/alternativas/:alternativaId', async (req, res) => {
 
     if (alternativa.length === 0) {
       return res.status(403).json({ error: 'No tienes acceso a esta alternativa' });
+    }
+
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, alternativa[0].examen_id))) {
+      return;
     }
 
     // Datos anteriores para auditoría
@@ -22039,6 +22289,10 @@ router.delete('/aula-virtual/alternativas/:alternativaId', async (req, res) => {
 
     if (alternativa.length === 0) {
       return res.status(403).json({ error: 'No tienes acceso a esta alternativa' });
+    }
+
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, alternativa[0].examen_id))) {
+      return;
     }
 
     // Registrar auditoría ANTES de eliminar

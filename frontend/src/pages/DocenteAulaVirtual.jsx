@@ -192,6 +192,10 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const [mostrarPreguntasAlternativas, setMostrarPreguntasAlternativas] = useState(false);
   const [preguntas, setPreguntas] = useState([]);
   const [cargandoPreguntas, setCargandoPreguntas] = useState(false);
+  /** Bloque de contexto del examen (caso + imagen opcional); viene con GET preguntas. */
+  const [examenBloque, setExamenBloque] = useState(null);
+  /** Docente: bloqueado si hay pruebas ACTIVO/FINALIZADA; administrador siempre puede editar (API). */
+  const [contenidoExamenBloqueado, setContenidoExamenBloqueado] = useState(false);
   const [preguntaEditando, setPreguntaEditando] = useState(null);
   const [mostrarFormPregunta, setMostrarFormPregunta] = useState(false);
   const [alternativas, setAlternativas] = useState([]);
@@ -2588,11 +2592,15 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
 
   const cargarPreguntas = async (examenId) => {
     setCargandoPreguntas(true);
+    setExamenBloque(null);
     try {
       const response = await api.get(`/docente/aula-virtual/examenes/${examenId}/preguntas`);
       setPreguntas(response.data.preguntas || []);
+      setContenidoExamenBloqueado(response.data.contenido_bloqueado_para_docente === true);
+      setExamenBloque(response.data.bloque ?? null);
     } catch (error) {
       console.error('Error cargando preguntas:', error);
+      setExamenBloque(null);
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -4934,10 +4942,14 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
           preguntas={preguntas}
           setPreguntas={setPreguntas}
           cargandoPreguntas={cargandoPreguntas}
+          contenidoBloqueado={contenidoExamenBloqueado}
+          bloque={examenBloque}
           onClose={() => {
             setMostrarPreguntasAlternativas(false);
             setExamenSeleccionado(null);
             setPreguntas([]);
+            setExamenBloque(null);
+            setContenidoExamenBloqueado(false);
           }}
           onNuevaPregunta={handleNuevaPregunta}
           onEditarPregunta={handleEditarPregunta}
@@ -4992,6 +5004,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
           setFormPregunta={setFormPregunta}
           alternativas={alternativas}
           setAlternativas={setAlternativas}
+          contenidoBloqueado={contenidoExamenBloqueado}
           onClose={() => {
             setMostrarFormPregunta(false);
             setPreguntaEditando(null);
@@ -5462,8 +5475,196 @@ function ExamenForm({ asignaturaId, formExamen, setFormExamen, onClose, onSucces
   );
 }
 
+/** Bloque de contexto compartido (caso / imagen) visible en el examen del alumno — una fila por examen. */
+function ExamenBloqueContextoEditor({ examen, bloque, contenidoBloqueado, onGuardado }) {
+  const [contenido, setContenido] = useState('');
+  const [archivoImagen, setArchivoImagen] = useState(null);
+  const [quitarImagen, setQuitarImagen] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const quillRef = useRef(null);
+
+  useEffect(() => {
+    setContenido(bloque?.contenido || '');
+    setArchivoImagen(null);
+    setQuitarImagen(false);
+  }, [bloque?.id, bloque?.contenido, bloque?.imagen, examen?.id]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const q = quillRef.current?.getEditor?.();
+      if (q) attachQuillImageUploadHandler(q);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [contenidoBloqueado, examen?.id]);
+
+  const guardarBloque = async () => {
+    if (contenidoBloqueado) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Solo lectura',
+        text: 'El contenido de este examen está bloqueado.',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 3500
+      });
+      return;
+    }
+    setGuardando(true);
+    try {
+      const fd = new FormData();
+      fd.append('contenido', contenido || '');
+      if (archivoImagen) fd.append('imagen', archivoImagen);
+      if (quitarImagen) fd.append('remove_imagen', '1');
+      await api.put(`/docente/aula-virtual/examenes/${examen.id}/bloque`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      Swal.fire({
+        icon: 'success',
+        title: 'Contexto guardado',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 2000
+      });
+      onGuardado();
+    } catch (err) {
+      console.error(err);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: err.response?.data?.error || 'No se pudo guardar el contexto del examen',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 4000
+      });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        marginBottom: '1.5rem',
+        padding: '1rem 1.25rem',
+        background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
+        border: '1px solid #6ee7b7',
+        borderRadius: '12px'
+      }}
+    >
+      <h3 style={{ margin: '0 0 0.75rem', fontSize: '1.05rem', color: '#065f46', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        📎 Contexto del examen (opcional)
+      </h3>
+      <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: '#047857', lineHeight: 1.5 }}>
+        Texto enriquecido y/o una imagen que verá el alumno durante toda la prueba (caso, gráfico, etc.). Las preguntas se basan en este contexto.
+      </p>
+      <div className="form-group" style={{ marginBottom: '1rem' }}>
+        <label style={{ fontWeight: 600, color: '#065f46' }}>Enunciado / caso</label>
+        <ReactQuill
+          ref={quillRef}
+          theme="snow"
+          readOnly={contenidoBloqueado}
+          value={contenido}
+          onChange={setContenido}
+          placeholder="Escriba aquí el contexto compartido..."
+          modules={{
+            toolbar: [
+              [{ header: [1, 2, 3, false] }],
+              ['bold', 'italic', 'underline', 'strike'],
+              [{ list: 'ordered' }, { list: 'bullet' }],
+              [{ color: [] }, { background: [] }],
+              [{ align: [] }],
+              ['link', 'image'],
+              ['clean']
+            ]
+          }}
+          formats={[
+            'header',
+            'bold',
+            'italic',
+            'underline',
+            'strike',
+            'list',
+            'bullet',
+            'color',
+            'background',
+            'align',
+            'link',
+            'image'
+          ]}
+        />
+      </div>
+      <div className="form-group" style={{ marginBottom: '1rem' }}>
+        <label style={{ fontWeight: 600, color: '#065f46' }}>Imagen del contexto (opcional)</label>
+        {!contenidoBloqueado && (
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/gif,image/webp"
+            onChange={(e) => {
+              setArchivoImagen(e.target.files?.[0] || null);
+              setQuitarImagen(false);
+            }}
+            style={{ display: 'block', marginTop: '0.35rem' }}
+          />
+        )}
+        {bloque?.imagen_url && !quitarImagen && (
+          <div style={{ marginTop: '0.75rem' }}>
+            <img
+              src={bloque.imagen_url}
+              alt="Contexto del examen"
+              style={{ maxWidth: '100%', maxHeight: '240px', borderRadius: '8px', border: '1px solid #a7f3d0', objectFit: 'contain' }}
+            />
+            {!contenidoBloqueado && (
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  marginTop: '0.5rem',
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  color: '#065f46'
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={quitarImagen}
+                  onChange={(e) => {
+                    setQuitarImagen(e.target.checked);
+                    if (e.target.checked) setArchivoImagen(null);
+                  }}
+                />
+                Quitar imagen al guardar
+              </label>
+            )}
+          </div>
+        )}
+      </div>
+      {!contenidoBloqueado && (
+        <button type="button" className="btn-guardar" onClick={guardarBloque} disabled={guardando} style={{ marginTop: '0.25rem' }}>
+          {guardando ? '⏳ Guardando...' : '💾 Guardar contexto del examen'}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // Componente para el modal de Preguntas y Alternativas
-function PreguntasAlternativasModal({ examen, preguntas, setPreguntas, cargandoPreguntas, onClose, onNuevaPregunta, onEditarPregunta, onEliminarPregunta, onRecargar }) {
+function PreguntasAlternativasModal({
+  examen,
+  preguntas,
+  setPreguntas,
+  cargandoPreguntas,
+  contenidoBloqueado = false,
+  bloque,
+  onClose,
+  onNuevaPregunta,
+  onEditarPregunta,
+  onEliminarPregunta,
+  onRecargar
+}) {
   const [preguntaVistaPrevia, setPreguntaVistaPrevia] = useState(null);
   const [mostrarVistaPrevia, setMostrarVistaPrevia] = useState(false);
   const sensors = useSensors(
@@ -5474,6 +5675,7 @@ function PreguntasAlternativasModal({ examen, preguntas, setPreguntas, cargandoP
   );
 
   const handleDragEnd = async (event) => {
+    if (contenidoBloqueado) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -5557,6 +5759,28 @@ function PreguntasAlternativasModal({ examen, preguntas, setPreguntas, cargandoP
           </div>
 
           <div className="modal-tema-body">
+            {contenidoBloqueado && (
+              <div
+                style={{
+                  marginBottom: '1rem',
+                  padding: '0.875rem 1rem',
+                  background: '#fef3c7',
+                  border: '1px solid #fbbf24',
+                  borderRadius: '8px',
+                  color: '#78350f',
+                  fontSize: '0.9rem',
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong>Contenido del examen bloqueado.</strong> Hay alumnos con el examen en curso o con intento finalizado. Puedes revisar preguntas y vista previa; solo el administrador puede editar o reordenar.
+              </div>
+            )}
+            <ExamenBloqueContextoEditor
+              examen={examen}
+              bloque={bloque}
+              contenidoBloqueado={contenidoBloqueado}
+              onGuardado={onRecargar}
+            />
             <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
               <div>
                 <p style={{ margin: 0, color: '#6b7280', fontSize: '0.9rem' }}>
@@ -5564,9 +5788,11 @@ function PreguntasAlternativasModal({ examen, preguntas, setPreguntas, cargandoP
                 </p>
               </div>
               <button
+                type="button"
                 className="btn-nuevo-item"
                 onClick={() => onNuevaPregunta(examen)}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                disabled={contenidoBloqueado}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', opacity: contenidoBloqueado ? 0.55 : 1 }}
               >
                 <span>➕</span> Registrar Nuevo
               </button>
@@ -5596,6 +5822,7 @@ function PreguntasAlternativasModal({ examen, preguntas, setPreguntas, cargandoP
                           pregunta={pregunta}
                           examen={examen}
                           index={index}
+                          contenidoBloqueado={contenidoBloqueado}
                           onEditar={onEditarPregunta}
                           onEliminar={onEliminarPregunta}
                           onVistaPrevia={verVistaPrevia}
@@ -5609,9 +5836,11 @@ function PreguntasAlternativasModal({ examen, preguntas, setPreguntas, cargandoP
               <div className="empty-state">
                 <p>📋 No hay preguntas registradas para este examen</p>
                 <button
+                  type="button"
                   className="btn-nuevo-item"
                   onClick={() => onNuevaPregunta(examen)}
-                  style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '1rem auto 0' }}
+                  disabled={contenidoBloqueado}
+                  style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: '1rem auto 0', opacity: contenidoBloqueado ? 0.55 : 1 }}
                 >
                   <span>➕</span> Registrar Primera Pregunta
                 </button>
@@ -5643,7 +5872,7 @@ function PreguntasAlternativasModal({ examen, preguntas, setPreguntas, cargandoP
 }
 
 // Componente para fila ordenable de pregunta
-function SortablePreguntaRow({ pregunta, examen, index, onEditar, onEliminar, onVistaPrevia }) {
+function SortablePreguntaRow({ pregunta, examen, index, contenidoBloqueado = false, onEditar, onEliminar, onVistaPrevia }) {
   const {
     attributes,
     listeners,
@@ -5651,14 +5880,16 @@ function SortablePreguntaRow({ pregunta, examen, index, onEditar, onEliminar, on
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: pregunta.id });
+  } = useSortable({ id: pregunta.id, disabled: contenidoBloqueado });
 
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    cursor: isDragging ? 'grabbing' : 'grab',
+    cursor: contenidoBloqueado ? 'default' : isDragging ? 'grabbing' : 'grab',
   };
+
+  const dragHandleProps = contenidoBloqueado ? {} : { ...attributes, ...listeners };
 
   const getTipoColor = (tipo) => {
     const colores = {
@@ -5684,10 +5915,10 @@ function SortablePreguntaRow({ pregunta, examen, index, onEditar, onEliminar, on
     <tr ref={setNodeRef} style={style} className={isDragging ? 'dragging' : ''}>
       <td style={{ padding: '0.75rem', textAlign: 'center' }}>
         <div
-          {...attributes}
-          {...listeners}
+          {...dragHandleProps}
           className="drag-handle"
-          style={{ cursor: 'grab', fontSize: '1.2rem', userSelect: 'none' }}
+          style={{ cursor: contenidoBloqueado ? 'not-allowed' : 'grab', fontSize: '1.2rem', userSelect: 'none', opacity: contenidoBloqueado ? 0.35 : 1 }}
+          title={contenidoBloqueado ? 'Reordenar deshabilitado' : 'Arrastrar para reordenar'}
         >
           ⋮⋮
         </div>
@@ -5739,25 +5970,10 @@ function SortablePreguntaRow({ pregunta, examen, index, onEditar, onEliminar, on
             👁️
           </button>
           <button
+            type="button"
             className="btn-opciones"
             onClick={() => onEditar(pregunta)}
-            style={{ 
-              fontSize: '1.2rem', 
-              padding: '0.5rem',
-              width: '36px',
-              height: '36px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: '8px'
-            }}
-            title="Editar"
-          >
-            ✏️
-          </button>
-          <button
-            className="btn-opciones"
-            onClick={() => onEliminar(pregunta)}
+            disabled={contenidoBloqueado}
             style={{ 
               fontSize: '1.2rem', 
               padding: '0.5rem',
@@ -5767,10 +5983,31 @@ function SortablePreguntaRow({ pregunta, examen, index, onEditar, onEliminar, on
               alignItems: 'center',
               justifyContent: 'center',
               borderRadius: '8px',
+              opacity: contenidoBloqueado ? 0.45 : 1,
+            }}
+            title={contenidoBloqueado ? 'Solo lectura — contenido bloqueado' : 'Editar'}
+          >
+            ✏️
+          </button>
+          <button
+            type="button"
+            className="btn-opciones"
+            onClick={() => onEliminar(pregunta)}
+            disabled={contenidoBloqueado}
+            style={{ 
+              fontSize: '1.2rem', 
+              padding: '0.5rem',
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              opacity: contenidoBloqueado ? 0.45 : 1,
+              justifyContent: 'center',
+              borderRadius: '8px',
               background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
               color: 'white'
             }}
-            title="Eliminar"
+            title={contenidoBloqueado ? 'Eliminar deshabilitado' : 'Eliminar'}
           >
             🗑️
           </button>
@@ -5963,7 +6200,7 @@ function VistaPreviaPreguntaModal({ pregunta, examen, onClose }) {
 }
 
 // Componente para el formulario de pregunta
-function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, alternativas, setAlternativas, onClose, onSuccess }) {
+function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, alternativas, setAlternativas, contenidoBloqueado = false, onClose, onSuccess }) {
   const [guardando, setGuardando] = useState(false);
   const quillRefDescripcion = useRef(null);
   const quillRefsAlternativas = useRef({});
@@ -6078,6 +6315,19 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (contenidoBloqueado) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Solo lectura',
+        text: 'El contenido de este examen está bloqueado porque hay intentos en curso o finalizados. Solo el administrador puede modificarlo.',
+        toast: true,
+        position: 'top-end',
+        showConfirmButton: false,
+        timer: 4000,
+      });
+      return;
+    }
 
     if (!formPregunta.descripcion || formPregunta.descripcion.trim() === '') {
       Swal.fire({
@@ -6305,6 +6555,23 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
 
         <div className="modal-tema-body">
           <form onSubmit={handleSubmit}>
+            {contenidoBloqueado && (
+              <div
+                style={{
+                  marginBottom: '1rem',
+                  padding: '0.875rem 1rem',
+                  background: '#fef3c7',
+                  border: '1px solid #fbbf24',
+                  borderRadius: '8px',
+                  color: '#78350f',
+                  fontSize: '0.9rem',
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong>Modo solo lectura.</strong> Hay alumnos con el examen en curso o con intento finalizado. Puedes revisar la pregunta; solo el administrador puede guardar cambios.
+              </div>
+            )}
+            <fieldset disabled={contenidoBloqueado} style={{ border: 'none', margin: 0, padding: 0, minWidth: 0 }}>
             <div className="form-group">
               <label htmlFor="pregunta-tipo">
                 <span style={{ marginRight: '0.5rem' }}>🎯</span>Tipo de Pregunta *
@@ -6348,6 +6615,7 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
                 <ReactQuill
                   ref={quillRefDescripcion}
                   theme="snow"
+                  readOnly={contenidoBloqueado}
                   value={formPregunta.descripcion}
                   onChange={(value) => setFormPregunta({ ...formPregunta, descripcion: value })}
                 placeholder="Escribe la pregunta aquí..."
@@ -6422,6 +6690,7 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
                     type="button"
                     onClick={agregarAlternativa}
                     className="btn-nuevo-item"
+                    disabled={contenidoBloqueado}
                     style={{ 
                       display: 'flex', 
                       alignItems: 'center', 
@@ -6603,6 +6872,7 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
                                     if (el) quillRefsAlternativas.current[index] = el;
                                   }}
                                   theme="snow"
+                                  readOnly={contenidoBloqueado}
                                   value={alternativa.descripcion || ''}
                                   onChange={(value) => actualizarAlternativa(index, 'descripcion', value)}
                                   placeholder="Escribe la alternativa..."
@@ -6752,13 +7022,14 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
                 )}
               </div>
             )}
+            </fieldset>
 
             <div className="modal-tema-footer" style={{ padding: '1.5rem', borderTop: '1px solid #e5e7eb', display: 'flex', gap: '1rem', justifyContent: 'flex-end', marginTop: '2rem' }}>
               <button type="button" className="btn-cancelar-tema" onClick={onClose} disabled={guardando}>
                 ✖️ Cancelar
           </button>
-              <button type="submit" className="btn-guardar-tema" disabled={guardando}>
-                {guardando ? '⏳ Guardando...' : '💾 Guardar Datos'}
+              <button type="submit" className="btn-guardar-tema" disabled={guardando || contenidoBloqueado}>
+                {guardando ? '⏳ Guardando...' : contenidoBloqueado ? '🔒 Solo lectura' : '💾 Guardar Datos'}
           </button>
               </div>
       </form>

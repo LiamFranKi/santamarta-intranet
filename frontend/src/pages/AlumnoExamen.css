@@ -855,3 +855,14 @@
   }
 }
 
+/* HTML embebido en el bloque de contexto (Quill) */
+.examen-bloque-html {
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+.examen-bloque-html img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
