@@ -507,23 +507,12 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
         <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModal('supervisores')}>
           Supervisores
         </button>
-        {canExecute && (
-          <>
-            <span className="admin-sup-toolbar-gap" aria-hidden />
-            <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setRegistrarModal({})}>
-              Registrar supervisión
-            </button>
-            <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setHistorialModal({})}>
-              Historial
-            </button>
-          </>
-        )}
       </div>
 
       <div className="admin-usu-table-card">
         <div className="admin-sup-panel-body">
           <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-            Listado de rúbricas de supervisión. <strong>Supervisores</strong> en la barra define quién del colegio puede registrar supervisiones. En <strong>Opciones</strong> por fila: editar la rúbrica, registrar una supervisión con esa rúbrica, historial o eliminar.
+            Listado de rúbricas de supervisión. <strong>Supervisores</strong> en la barra define quién del colegio puede registrar supervisiones. Use <strong>Opciones</strong> en cada fila para editar, registrar supervisión, historial o eliminar (sin duplicar botones arriba).
           </p>
           <div className="admin-usu-table-scroll">
             <table className="admin-usu-table">
@@ -764,23 +753,10 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
 
   return (
     <>
-      <div className="admin-usu-toolbar" style={{ flexWrap: 'wrap' }}>
-        {canExecute && (
-          <>
-            <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setRegistrarModal({})}>
-              Registrar supervisión
-            </button>
-            <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setHistorialModal({})}>
-              Historial
-            </button>
-          </>
-        )}
-      </div>
-
       <div className="admin-usu-table-card">
         <div className="admin-sup-panel-body">
           <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-            Rúbricas activas para el año lectivo. En <strong>Opciones</strong>: registrar una supervisión (elige docente y aula) o ver el historial filtrado por esa rúbrica. Quién puede usar el módulo lo define el administrador con el botón <strong>Supervisores</strong> en Herramientas.
+            Rúbricas activas para el año lectivo. Use <strong>Opciones</strong> en cada fila para registrar una supervisión o ver el historial de esa rúbrica. El permiso de supervisor lo asigna el administrador en Herramientas → Supervisión → <strong>Supervisores</strong>.
           </p>
           <div className="admin-usu-table-scroll">
             <table className="admin-usu-table">
