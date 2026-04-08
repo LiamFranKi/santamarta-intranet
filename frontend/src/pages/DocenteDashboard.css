@@ -248,6 +248,13 @@
   line-height: 1.2;
 }
 
+.evento-card-curso {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: #4b5563;
+  line-height: 1.2;
+}
+
 .evento-card-tipo {
   font-size: 0.75rem;
   font-weight: 600;

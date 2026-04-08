@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
+import Swal from 'sweetalert2';
 import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import BirthdayWidget from '../components/BirthdayWidget';
@@ -32,6 +33,12 @@ function AlumnoDashboard() {
   const [loadingCursos, setLoadingCursos] = useState(false);
   const [loadingDocentes, setLoadingDocentes] = useState(false);
   const [loadingMatriculas, setLoadingMatriculas] = useState(false);
+
+  const [modalMensajeTutor, setModalMensajeTutor] = useState(false);
+  const [asuntoTutor, setAsuntoTutor] = useState('');
+  const [cuerpoMensajeTutor, setCuerpoMensajeTutor] = useState('');
+  const [enviandoMensajeTutor, setEnviandoMensajeTutor] = useState(false);
+  const [tutorFotoError, setTutorFotoError] = useState(false);
 
   const cargarDashboard = async () => {
     try {
@@ -81,6 +88,10 @@ function AlumnoDashboard() {
   }, []);
 
   useEffect(() => {
+    setTutorFotoError(false);
+  }, [dashboardData?.tutor?.foto]);
+
+  useEffect(() => {
     if (location.hash !== '#publicaciones') return;
     const t = window.setTimeout(() => {
       document.getElementById('dashboard-publicaciones')?.scrollIntoView({
@@ -96,7 +107,7 @@ function AlumnoDashboard() {
   }, [dashboardData?.avatar_widget, setAvatarWidget]);
 
   // Extraer datos del dashboard (con valores por defecto para evitar errores)
-  const { alumno, matricula, estadisticas, asignaturas, proximosExamenes, proximasTareas, proximasActividades, comunicadoHome } = dashboardData || {};
+  const { alumno, matricula, tutor, estadisticas, asignaturas, proximosExamenes, proximasTareas, proximasActividades, comunicadoHome } = dashboardData || {};
 
   // Mostrar modal de comunicado home si existe
   useEffect(() => {
@@ -423,6 +434,60 @@ function AlumnoDashboard() {
     navigate('/alumno/mensajes');
   };
 
+  const abrirModalMensajeTutor = () => {
+    setAsuntoTutor('');
+    setCuerpoMensajeTutor('');
+    setModalMensajeTutor(true);
+  };
+
+  const cerrarModalMensajeTutor = () => {
+    if (enviandoMensajeTutor) return;
+    setModalMensajeTutor(false);
+  };
+
+  const enviarMensajeAlTutor = async () => {
+    if (!tutor?.usuario_id || enviandoMensajeTutor) return;
+    const asunto = asuntoTutor.trim();
+    const texto = cuerpoMensajeTutor.trim();
+    if (!asunto) {
+      Swal.fire('Error', 'El asunto es obligatorio.', 'error');
+      return;
+    }
+    if (!texto) {
+      Swal.fire('Error', 'Escribe el mensaje.', 'error');
+      return;
+    }
+    setEnviandoMensajeTutor(true);
+    try {
+      const formData = new FormData();
+      formData.append('destinatarios', JSON.stringify([tutor.usuario_id]));
+      formData.append('asunto', asunto);
+      const esc = (s) =>
+        s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      formData.append('mensaje', `<p>${esc(texto).replace(/\n/g, '<br/>')}</p>`);
+
+      await api.post('/alumno/mensajes/enviar', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      Swal.fire({
+        title: 'Mensaje enviado',
+        text: 'Tu tutor recibirá el mensaje en su bandeja.',
+        icon: 'success',
+        confirmButtonText: 'Aceptar',
+      });
+      setModalMensajeTutor(false);
+      setAsuntoTutor('');
+      setCuerpoMensajeTutor('');
+      cargarDashboard();
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', err.response?.data?.error || 'No se pudo enviar el mensaje.', 'error');
+    } finally {
+      setEnviandoMensajeTutor(false);
+    }
+  };
+
   // Colores pasteles distintos para cada card del dashboard
   const coloresPastelesDashboard = [
     'linear-gradient(135deg, #ffe0f0 0%, #ffcce5 100%)', // Rosa pastel
@@ -434,9 +499,172 @@ function AlumnoDashboard() {
     'linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%)', // Rosa claro pastel
   ];
 
+  const anioLectivo = matricula?.anio_lectivo ?? new Date().getFullYear();
+  const textoUbicacionGrado =
+    matricula &&
+    [
+      matricula.nivel_nombre,
+      matricula.grado != null && matricula.grado !== '' ? `${matricula.grado}°` : null,
+      matricula.seccion ? `Sección ${matricula.seccion}` : null,
+      matricula.turno_nombre ? `${matricula.turno_nombre}` : null
+    ]
+      .filter(Boolean)
+      .join(' · ');
+
   return (
     <DashboardLayout>
       <div className="alumno-dashboard">
+        <div
+          className={`alumno-dashboard-top-row${matricula ? '' : ' alumno-dashboard-top-row--solo-aviso'}`}
+        >
+          <div
+            className={`alumno-dashboard-pastel-card alumno-dashboard-pastel-card--aula${matricula ? '' : ' alumno-dashboard-pastel-card--full'}`}
+            role="region"
+            aria-label="Año y grado escolar"
+          >
+            {matricula ? (
+              <>
+                <div className="alumno-dashboard-pastel-card__badge" aria-hidden="true">
+                  <span className="alumno-dashboard-pastel-card__badge-label">Año lectivo</span>
+                  <span className="alumno-dashboard-pastel-card__badge-year">{anioLectivo}</span>
+                </div>
+                <div className="alumno-dashboard-pastel-card__body">
+                  <p className="alumno-dashboard-pastel-card__kicker">Tu aula este año</p>
+                  <p className="alumno-dashboard-pastel-card__line">
+                    {textoUbicacionGrado || 'Tu grupo aparecerá aquí cuando la matrícula esté completa.'}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div className="alumno-dashboard-pastel-card__body">
+                <p className="alumno-dashboard-pastel-card__kicker">Matrícula</p>
+                <p className="alumno-dashboard-pastel-card__line alumno-dashboard-pastel-card__line--muted">
+                  No hay matrícula activa para el año lectivo {anioLectivo}. Si crees que es un error, avisa en
+                  secretaría.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {matricula && (
+            <div
+              className="alumno-dashboard-pastel-card alumno-dashboard-pastel-card--tutor"
+              role="region"
+              aria-label="Tutor del grupo"
+            >
+              {tutor?.usuario_id ? (
+                <>
+                  <div className="alumno-dashboard-tutor__photo-wrap">
+                    {tutor.foto && !tutorFotoError ? (
+                      <img
+                        src={tutor.foto}
+                        alt=""
+                        className="alumno-dashboard-tutor__photo"
+                        onError={() => setTutorFotoError(true)}
+                      />
+                    ) : (
+                      <div className="alumno-dashboard-tutor__photo alumno-dashboard-tutor__photo--placeholder" aria-hidden>
+                        👤
+                      </div>
+                    )}
+                  </div>
+                  <div className="alumno-dashboard-tutor__info">
+                    <p className="alumno-dashboard-pastel-card__kicker">Tutor del grupo</p>
+                    <p className="alumno-dashboard-tutor__name">{tutor.nombre_completo}</p>
+                    <button
+                      type="button"
+                      className="alumno-dashboard-tutor__btn-msg"
+                      onClick={abrirModalMensajeTutor}
+                    >
+                      Enviar mensaje
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="alumno-dashboard-pastel-card__body alumno-dashboard-tutor__empty">
+                  <p className="alumno-dashboard-pastel-card__kicker">Tutor del grupo</p>
+                  <p className="alumno-dashboard-pastel-card__line alumno-dashboard-pastel-card__line--muted">
+                    Aún no hay tutor asignado a tu aula. Consulta en secretaría si necesitas ayuda.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {modalMensajeTutor &&
+          tutor?.usuario_id &&
+          createPortal(
+            <div
+              className="alumno-tutor-msg-modal-overlay"
+              role="presentation"
+              onClick={(e) => e.target === e.currentTarget && cerrarModalMensajeTutor()}
+            >
+              <div
+                className="alumno-tutor-msg-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="alumno-tutor-msg-titulo"
+              >
+                <div className="alumno-tutor-msg-modal__head">
+                  <h2 id="alumno-tutor-msg-titulo">Mensaje al tutor</h2>
+                  <button
+                    type="button"
+                    className="alumno-tutor-msg-modal__close"
+                    onClick={cerrarModalMensajeTutor}
+                    aria-label="Cerrar"
+                  >
+                    ×
+                  </button>
+                </div>
+                <p className="alumno-tutor-msg-modal__dest">
+                  Para: <strong>{tutor.nombre_completo}</strong>
+                </p>
+                <label className="alumno-tutor-msg-modal__label">
+                  Asunto
+                  <input
+                    type="text"
+                    className="alumno-tutor-msg-modal__input"
+                    value={asuntoTutor}
+                    onChange={(e) => setAsuntoTutor(e.target.value)}
+                    maxLength={200}
+                    placeholder="Ej. Consulta sobre el grupo"
+                    autoFocus
+                  />
+                </label>
+                <label className="alumno-tutor-msg-modal__label">
+                  Mensaje
+                  <textarea
+                    className="alumno-tutor-msg-modal__textarea"
+                    value={cuerpoMensajeTutor}
+                    onChange={(e) => setCuerpoMensajeTutor(e.target.value)}
+                    rows={5}
+                    placeholder="Escribe tu mensaje..."
+                  />
+                </label>
+                <div className="alumno-tutor-msg-modal__actions">
+                  <button
+                    type="button"
+                    className="alumno-tutor-msg-modal__btn-cancel"
+                    onClick={cerrarModalMensajeTutor}
+                    disabled={enviandoMensajeTutor}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className="alumno-tutor-msg-modal__btn-send"
+                    onClick={enviarMensajeAlTutor}
+                    disabled={enviandoMensajeTutor}
+                  >
+                    {enviandoMensajeTutor ? 'Enviando…' : 'Enviar'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )}
+
         {/* Tarjetas de estadísticas - 4 columnas */}
         <div className="stats-grid-4">
           <div className="stat-card mundo-card" onClick={abrirModalCursos} style={{ cursor: 'pointer', background: coloresPastelesDashboard[0] }}>

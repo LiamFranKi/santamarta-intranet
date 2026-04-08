@@ -124,6 +124,47 @@ router.get('/dashboard', async (req, res) => {
     const grupoId = matriculaData ? matriculaData.grupo_id : null;
     console.log('✅ [ALUMNO DASHBOARD] Matrícula:', matriculaData ? `Grupo ${grupoId}` : 'Sin matrícula');
 
+    // Tutor del grupo (mensajería: usuario_id del docente asignado como tutor)
+    let tutorDashboard = null;
+    if (grupoId) {
+      try {
+        const tutorRows = await query(
+          `SELECT p.nombres,
+                  p.apellidos,
+                  p.foto,
+                  u.id AS usuario_id
+           FROM grupos g
+           INNER JOIN personal p ON p.id = g.tutor_id AND p.colegio_id = g.colegio_id
+           INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = p.colegio_id AND u.estado = 'ACTIVO'
+           WHERE g.id = ? AND g.colegio_id = ? AND g.tutor_id IS NOT NULL
+           LIMIT 1`,
+          [grupoId, colegio_id]
+        );
+        if (tutorRows.length > 0) {
+          const tr = tutorRows[0];
+          const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+          const isProduction = process.env.NODE_ENV === 'production';
+          let fotoTutor = null;
+          if (tr.foto && String(tr.foto).trim() !== '') {
+            fotoTutor = isProduction
+              ? `${phpSystemUrl}/Static/Image/Fotos/${tr.foto}`
+              : `http://localhost:5000/Static/Image/Fotos/${tr.foto}`;
+          }
+          const nom = (tr.nombres || '').trim();
+          const ape = (tr.apellidos || '').trim();
+          tutorDashboard = {
+            usuario_id: tr.usuario_id,
+            nombres: nom,
+            apellidos: ape,
+            nombre_completo: [nom, ape].filter(Boolean).join(' ') || 'Tutor',
+            foto: fotoTutor
+          };
+        }
+      } catch (tutorErr) {
+        console.warn('⚠️ [ALUMNO DASHBOARD] Tutor:', tutorErr.message);
+      }
+    }
+
     // Contar cursos asignados (asignaturas del grupo del alumno en el año activo)
     const cursosAsignados = grupoId ? await query(
       `SELECT COUNT(DISTINCT a.id) as total
@@ -420,8 +461,10 @@ router.get('/dashboard', async (req, res) => {
         seccion: matriculaData.seccion,
         nivel_nombre: matriculaData.nivel_nombre,
         turno_nombre: matriculaData.turno_nombre,
-        grupo_id: matriculaData.grupo_id
+        grupo_id: matriculaData.grupo_id,
+        anio_lectivo: anio_activo
       } : null,
+      tutor: tutorDashboard,
       estadisticas: {
         cursosAsignados: cursosAsignados[0]?.total || 0,
         totalDocentes: totalDocentes[0]?.total || 0,

@@ -560,7 +560,8 @@ function DocenteDashboard() {
                   if ((evento.tipo === 'tarea' || evento.tipo === 'examen') && evento.grado && evento.seccion && evento.nivel_nombre) {
                     grupoInfo = `${evento.grado}° ${evento.seccion} - ${evento.nivel_nombre}`;
                   }
-                  
+                  const cursoNombre = evento.asignatura_nombre || evento.curso_nombre || '';
+
                   return (
                     <div
                       key={`${evento.tipo}-${evento.id}-${index}`}
@@ -575,6 +576,9 @@ function DocenteDashboard() {
                         <h3 className="evento-card-titulo">{titulo}</h3>
                         {grupoInfo && (
                           <span className="evento-card-grupo">{grupoInfo}</span>
+                        )}
+                        {cursoNombre && (
+                          <span className="evento-card-curso">📚 {cursoNombre}</span>
                         )}
                         <span className="evento-card-tipo">{getTipoTexto(evento.tipo)}</span>
                       </div>

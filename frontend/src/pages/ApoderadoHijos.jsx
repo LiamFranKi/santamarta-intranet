@@ -740,9 +740,34 @@ function ApoderadoHijos() {
     const docenteData = {
       id: curso.docente_usuario_id || curso.docente_id,
       nombre: curso.docente_nombre,
-      curso_nombre: curso.curso_nombre
+      curso_nombre: curso.curso_nombre,
+      esTutor: false
     };
     setDocenteParaMensaje(docenteData);
+    setMostrarModalMensaje(true);
+  };
+
+  const handleMensajeAlTutor = (hijo) => {
+    const uid = hijo.tutor_usuario_id != null ? Number(hijo.tutor_usuario_id) : null;
+    if (!uid) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Sin tutor',
+        text: 'No hay tutor asignado al aula de este grupo. Consulte en secretaría si necesita contacto.',
+        confirmButtonText: 'Entendido'
+      });
+      return;
+    }
+    setHijoSeleccionado(hijo);
+    setDocenteParaMensaje({
+      id: uid,
+      nombre: (hijo.tutor_nombre_completo || '').trim() || 'Tutor',
+      curso_nombre: 'Tutor del aula',
+      esTutor: true
+    });
+    setAsuntoMensaje('');
+    setContenidoMensaje('');
+    setArchivosAdjuntos([]);
     setMostrarModalMensaje(true);
   };
 
@@ -762,6 +787,10 @@ function ApoderadoHijos() {
   const enviarMensajeAlDocente = async () => {
     if (!docenteParaMensaje) {
       Swal.fire('Error', 'No se ha seleccionado un docente', 'error');
+      return;
+    }
+    if (!hijoSeleccionado?.id) {
+      Swal.fire('Error', 'No se pudo identificar al alumno para el envío.', 'error');
       return;
     }
 
@@ -784,7 +813,7 @@ function ApoderadoHijos() {
 
     try {
       const formData = new FormData();
-      formData.append('destinatarios', JSON.stringify([docenteParaMensaje.id]));
+      formData.append('destinatarios', JSON.stringify([Number(docenteParaMensaje.id)]));
       formData.append('asunto', asuntoMensaje.trim());
       formData.append('mensaje', contenidoMensaje);
 
@@ -858,7 +887,7 @@ function ApoderadoHijos() {
         };
       });
     }
-  }, [mostrarModalMensaje]);
+  }, [mostrarModalMensaje, hijoSeleccionado?.id]);
 
   // Función para formatear fecha
   const formatearFecha = (fecha) => {
@@ -3916,6 +3945,161 @@ function ApoderadoHijos() {
     }
   };
 
+  const renderMensajeDocenteModal = () => {
+    if (!mostrarModalMensaje || !docenteParaMensaje || !hijoSeleccionado) return null;
+    const esTutor = !!docenteParaMensaje.esTutor;
+    return createPortal(
+      <div
+        className="modal-mensaje-overlay"
+        onClick={() => setMostrarModalMensaje(false)}
+        style={{ zIndex: 100000 }}
+      >
+        <div
+          className="modal-mensaje-container"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-mensaje-docente-title"
+        >
+          <div className="modal-mensaje-header">
+            <h2 id="modal-mensaje-docente-title">
+              {esTutor ? '✉️ Mensaje al tutor del aula' : '✉️ Enviar Mensaje al Docente'}
+            </h2>
+            <button
+              className="modal-mensaje-close"
+              onClick={() => {
+                setMostrarModalMensaje(false);
+                setAsuntoMensaje('');
+                setContenidoMensaje('');
+                setArchivosAdjuntos([]);
+                setDocenteParaMensaje(null);
+              }}
+              type="button"
+              aria-label="Cerrar modal"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div className="modal-mensaje-body">
+            <div className="mensaje-grupo-info">
+              <p>
+                <strong>{esTutor ? 'Tutor' : 'Docente'}:</strong> {docenteParaMensaje.nombre}
+              </p>
+              <p>
+                <strong>{esTutor ? 'Ámbito' : 'Curso'}:</strong> {docenteParaMensaje.curso_nombre}
+              </p>
+              <p className="mensaje-info-text">
+                {esTutor
+                  ? 'El mensaje se enviará al tutor asignado a esta aula (referencia a tu hijo/a incluida en el envío).'
+                  : 'El mensaje se enviará directamente al docente'}
+              </p>
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="asunto-mensaje-docente">Asunto:</label>
+              <input
+                type="text"
+                id="asunto-mensaje-docente"
+                className="form-input"
+                value={asuntoMensaje}
+                onChange={(e) => setAsuntoMensaje(e.target.value)}
+                placeholder="Asunto del mensaje"
+              />
+            </div>
+
+            <div className="form-group">
+              <label htmlFor="mensaje-editor-docente">Mensaje:</label>
+              <div id="mensaje-editor-wrapper-docente">
+                <ReactQuill
+                  ref={quillRefMensaje}
+                  theme="snow"
+                  value={contenidoMensaje}
+                  onChange={setContenidoMensaje}
+                  placeholder="Escribe tu mensaje aquí..."
+                  modules={{
+                    toolbar: [
+                      [{ header: [1, 2, 3, false] }],
+                      ['bold', 'italic', 'underline', 'strike'],
+                      [{ list: 'ordered' }, { list: 'bullet' }],
+                      [{ color: [] }, { background: [] }],
+                      [{ align: [] }],
+                      ['link', 'image'],
+                      ['clean']
+                    ]
+                  }}
+                  formats={[
+                    'header', 'bold', 'italic', 'underline', 'strike',
+                    'list', 'bullet', 'color', 'background', 'align',
+                    'link', 'image'
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label>Archivos Adjuntos:</label>
+              <div className="archivos-container">
+                <input
+                  type="file"
+                  id="archivos-input-docente"
+                  multiple
+                  onChange={handleArchivoChange}
+                  style={{ display: 'none' }}
+                />
+                <label htmlFor="archivos-input-docente" className="btn-adjuntar-archivo">
+                  📎 Adjuntar Archivos
+                </label>
+                {archivosAdjuntos.length > 0 && (
+                  <div className="archivos-lista">
+                    {archivosAdjuntos.map((archivo, index) => (
+                      <div key={index} className="archivo-item">
+                        <span className="archivo-nombre">{archivo.name}</span>
+                        <span className="archivo-tamaño">{(archivo.size / 1024).toFixed(2)} KB</span>
+                        <button
+                          type="button"
+                          className="archivo-eliminar"
+                          onClick={() => eliminarArchivo(index)}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="form-actions">
+              <button
+                className="btn-cancelar"
+                onClick={() => {
+                  setMostrarModalMensaje(false);
+                  setAsuntoMensaje('');
+                  setContenidoMensaje('');
+                  setArchivosAdjuntos([]);
+                  setDocenteParaMensaje(null);
+                }}
+                type="button"
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn-enviar"
+                onClick={enviarMensajeAlDocente}
+                disabled={enviandoMensaje}
+                type="button"
+              >
+                {enviandoMensaje ? '⏳ Enviando...' : '✉️ Enviar Mensaje'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -4034,149 +4218,7 @@ function ApoderadoHijos() {
             </div>
           )}
 
-          {/* Modal de Enviar Mensaje al Docente */}
-          {mostrarModalMensaje && docenteParaMensaje && createPortal(
-            <div 
-              className="modal-mensaje-overlay" 
-              onClick={() => setMostrarModalMensaje(false)}
-              style={{ zIndex: 100000 }}
-            >
-              <div 
-                className="modal-mensaje-container" 
-                onClick={(e) => e.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="modal-mensaje-docente-title"
-              >
-                <div className="modal-mensaje-header">
-                  <h2 id="modal-mensaje-docente-title">✉️ Enviar Mensaje al Docente</h2>
-                  <button
-                    className="modal-mensaje-close"
-                    onClick={() => {
-                      setMostrarModalMensaje(false);
-                      setAsuntoMensaje('');
-                      setContenidoMensaje('');
-                      setArchivosAdjuntos([]);
-                      setDocenteParaMensaje(null);
-                    }}
-                    type="button"
-                    aria-label="Cerrar modal"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                <div className="modal-mensaje-body">
-                  <div className="mensaje-grupo-info">
-                    <p><strong>Docente:</strong> {docenteParaMensaje.nombre}</p>
-                    <p><strong>Curso:</strong> {docenteParaMensaje.curso_nombre}</p>
-                    <p className="mensaje-info-text">El mensaje se enviará directamente al docente</p>
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="asunto-mensaje-docente">Asunto:</label>
-                    <input
-                      type="text"
-                      id="asunto-mensaje-docente"
-                      className="form-input"
-                      value={asuntoMensaje}
-                      onChange={(e) => setAsuntoMensaje(e.target.value)}
-                      placeholder="Asunto del mensaje"
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label htmlFor="mensaje-editor-docente">Mensaje:</label>
-                    <div id="mensaje-editor-wrapper-docente">
-                      <ReactQuill
-                        ref={quillRefMensaje}
-                        theme="snow"
-                        value={contenidoMensaje}
-                        onChange={setContenidoMensaje}
-                        placeholder="Escribe tu mensaje aquí..."
-                        modules={{
-                          toolbar: [
-                            [{ 'header': [1, 2, 3, false] }],
-                            ['bold', 'italic', 'underline', 'strike'],
-                            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                            [{ 'color': [] }, { 'background': [] }],
-                            [{ 'align': [] }],
-                            ['link', 'image'],
-                            ['clean']
-                          ]
-                        }}
-                        formats={[
-                          'header', 'bold', 'italic', 'underline', 'strike',
-                          'list', 'bullet', 'color', 'background', 'align',
-                          'link', 'image'
-                        ]}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Archivos Adjuntos:</label>
-                    <div className="archivos-container">
-                      <input
-                        type="file"
-                        id="archivos-input-docente"
-                        multiple
-                        onChange={handleArchivoChange}
-                        style={{ display: 'none' }}
-                      />
-                      <label htmlFor="archivos-input-docente" className="btn-adjuntar-archivo">
-                        📎 Adjuntar Archivos
-                      </label>
-                      {archivosAdjuntos.length > 0 && (
-                        <div className="archivos-lista">
-                          {archivosAdjuntos.map((archivo, index) => (
-                            <div key={index} className="archivo-item">
-                              <span className="archivo-nombre">{archivo.name}</span>
-                              <span className="archivo-tamaño">
-                                {(archivo.size / 1024).toFixed(2)} KB
-                              </span>
-                              <button
-                                type="button"
-                                className="archivo-eliminar"
-                                onClick={() => eliminarArchivo(index)}
-                              >
-                                ×
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="form-actions">
-                    <button
-                      className="btn-cancelar"
-                      onClick={() => {
-                        setMostrarModalMensaje(false);
-                        setAsuntoMensaje('');
-                        setContenidoMensaje('');
-                        setArchivosAdjuntos([]);
-                        setDocenteParaMensaje(null);
-                      }}
-                      type="button"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      className="btn-enviar"
-                      onClick={enviarMensajeAlDocente}
-                      disabled={enviandoMensaje}
-                      type="button"
-                    >
-                      {enviandoMensaje ? '⏳ Enviando...' : '✉️ Enviar Mensaje'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>,
-            document.body
-          )}
+          {renderMensajeDocenteModal()}
         </div>
       </DashboardLayout>
     );
@@ -4250,9 +4292,29 @@ function ApoderadoHijos() {
                             <span className="label">Turno:</span>
                             <span className="value">{hijo.turno_nombre}</span>
                           </p>
+                          <p className="hijo-tutor">
+                            <span className="label">Tutor:</span>
+                            <span className="value hijo-tutor-line">
+                              {(hijo.tutor_nombre_completo || '').trim() || 'Sin tutor asignado'}
+                              {hijo.tutor_usuario_id ? (
+                                <button
+                                  type="button"
+                                  className="btn-msg-tutor"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleMensajeAlTutor(hijo);
+                                  }}
+                                  title="Enviar mensaje al tutor"
+                                  aria-label="Enviar mensaje al tutor"
+                                >
+                                  ✉️
+                                </button>
+                              ) : null}
+                            </span>
+                          </p>
                         </div>
                       </div>
-                      
+
                       <div className="hijo-actions">
                         <div className="dropdown-container">
                           <button 
@@ -4377,6 +4439,8 @@ function ApoderadoHijos() {
           document.body
         );
       })()}
+
+      {renderMensajeDocenteModal()}
 
       {/* Modal Editar Datos */}
       {showModalEditar && hijoSeleccionado && createPortal(

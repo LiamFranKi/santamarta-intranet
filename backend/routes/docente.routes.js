@@ -8399,7 +8399,19 @@ router.get('/roles-adicionales', async (req, res) => {
                     g.seccion,
                     n.nombre as nivel_nombre,
                     t.nombre as turno_nombre,
-                    m.id as matricula_id
+                    m.id as matricula_id,
+                    (SELECT MIN(u.id)
+                     FROM usuarios u
+                     WHERE g.tutor_id IS NOT NULL
+                       AND u.personal_id = g.tutor_id
+                       AND u.colegio_id = g.colegio_id
+                       AND u.estado = 'ACTIVO') AS tutor_usuario_id,
+                    (SELECT TRIM(CONCAT(COALESCE(pt.nombres, ''), ' ', COALESCE(pt.apellidos, '')))
+                     FROM personal pt
+                     WHERE g.tutor_id IS NOT NULL
+                       AND pt.id = g.tutor_id
+                       AND pt.colegio_id = g.colegio_id
+                     LIMIT 1) AS tutor_nombre_completo
              FROM apoderados ap
              INNER JOIN familias f ON f.apoderado_id = ap.id
              INNER JOIN alumnos a ON a.id = f.alumno_id

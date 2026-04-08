@@ -4,6 +4,309 @@
   margin: 0 auto;
 }
 
+/* Fila superior: ubicación escolar (pastel) + tutor (pastel distinto) */
+.alumno-dashboard-top-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  align-items: stretch;
+}
+
+.alumno-dashboard-top-row--solo-aviso {
+  grid-template-columns: 1fr;
+}
+
+.alumno-dashboard-pastel-card {
+  border-radius: 16px;
+  padding: 1rem 1.15rem;
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  gap: 1rem 1.25rem;
+  flex-wrap: wrap;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+}
+
+.alumno-dashboard-pastel-card--full {
+  grid-column: 1 / -1;
+}
+
+/* Cara 1: aula — tonos lavanda / menta suave */
+.alumno-dashboard-pastel-card--aula {
+  background: linear-gradient(145deg, #eef2ff 0%, #e0e7ff 45%, #f5f3ff 100%);
+  color: #312e81;
+}
+
+/* Cara 2: tutor — melocotón / coral pastel */
+.alumno-dashboard-pastel-card--tutor {
+  background: linear-gradient(145deg, #fff7ed 0%, #ffedd5 50%, #fef3c7 100%);
+  color: #7c2d12;
+}
+
+.alumno-dashboard-pastel-card__badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  padding: 0.4rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  min-width: 92px;
+}
+
+.alumno-dashboard-pastel-card__badge-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  opacity: 0.85;
+  color: #4338ca;
+}
+
+.alumno-dashboard-pastel-card__badge-year {
+  font-size: 1.4rem;
+  font-weight: 800;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: #3730a3;
+}
+
+.alumno-dashboard-pastel-card__body {
+  flex: 1;
+  min-width: min(100%, 200px);
+}
+
+.alumno-dashboard-pastel-card__kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.82;
+}
+
+.alumno-dashboard-pastel-card__line {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.alumno-dashboard-pastel-card__line--muted {
+  font-weight: 500;
+  opacity: 0.92;
+}
+
+.alumno-dashboard-pastel-card--aula .alumno-dashboard-pastel-card__line {
+  color: #1e1b4b;
+}
+
+.alumno-dashboard-tutor__photo-wrap {
+  flex-shrink: 0;
+}
+
+.alumno-dashboard-tutor__photo {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid rgba(251, 191, 36, 0.45);
+  box-shadow: 0 4px 12px rgba(180, 83, 9, 0.12);
+  background: #fff;
+}
+
+.alumno-dashboard-tutor__photo--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  background: linear-gradient(160deg, #fde68a 0%, #fcd34d 100%);
+  border-color: rgba(217, 119, 6, 0.35);
+}
+
+.alumno-dashboard-tutor__info {
+  flex: 1;
+  min-width: 140px;
+}
+
+.alumno-dashboard-tutor__name {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #431407;
+}
+
+.alumno-dashboard-tutor__btn-msg {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem 0.95rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #7c2d12;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(234, 88, 12, 0.35);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.alumno-dashboard-tutor__btn-msg:hover {
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(234, 88, 12, 0.15);
+}
+
+.alumno-dashboard-tutor__empty {
+  width: 100%;
+}
+
+/* Modal mensaje al tutor */
+.alumno-tutor-msg-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.alumno-tutor-msg-modal {
+  width: 100%;
+  max-width: 440px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+  padding: 1.15rem 1.25rem 1.25rem;
+}
+
+.alumno-tutor-msg-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.alumno-tutor-msg-modal__head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.alumno-tutor-msg-modal__close {
+  border: none;
+  background: transparent;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #64748b;
+  padding: 0 0.25rem;
+}
+
+.alumno-tutor-msg-modal__close:hover {
+  color: #0f172a;
+}
+
+.alumno-tutor-msg-modal__dest {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.alumno-tutor-msg-modal__label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 0.85rem;
+}
+
+.alumno-tutor-msg-modal__input,
+.alumno-tutor-msg-modal__textarea {
+  font: inherit;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.alumno-tutor-msg-modal__textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.alumno-tutor-msg-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+}
+
+.alumno-tutor-msg-modal__btn-cancel {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  color: #475569;
+}
+
+.alumno-tutor-msg-modal__btn-send {
+  padding: 0.5rem 1.1rem;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alumno-tutor-msg-modal__btn-send:disabled,
+.alumno-tutor-msg-modal__btn-cancel:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .alumno-dashboard-top-row {
+    grid-template-columns: 1fr;
+  }
+
+  .alumno-dashboard-pastel-card {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .alumno-dashboard-pastel-card__badge {
+    flex-direction: row;
+    gap: 0.6rem;
+    align-self: center;
+  }
+
+  .alumno-dashboard-pastel-card--tutor {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .alumno-dashboard-tutor__info {
+    text-align: center;
+  }
+}
+
 .alumno-dashboard-loading,
 .alumno-dashboard-error {
   display: flex;
@@ -269,6 +572,13 @@
   font-weight: 500;
   color: #6b7280;
   margin-top: 0.25rem;
+  line-height: 1.2;
+}
+
+.evento-card-alumno {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #5b21b6;
   line-height: 1.2;
 }
 

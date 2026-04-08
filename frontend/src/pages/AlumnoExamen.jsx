@@ -70,8 +70,8 @@ function AlumnoExamen() {
   const [esExamenPdf, setEsExamenPdf] = useState(false);
   /** Contexto compartido (caso + imagen) definido por el docente; no forma parte del sorteo de preguntas. */
   const [bloqueExamen, setBloqueExamen] = useState(null);
-  /** Por defecto colapsado: en móvil no empuja la pregunta hacia abajo hasta que el alumno elija "Ver contexto". */
-  const [bloqueContextoExpandido, setBloqueContextoExpandido] = useState(false);
+  /** Por defecto expandido si hay contexto: el alumno ve el caso al entrar; puede ocultar para ganar espacio. */
+  const [bloqueContextoExpandido, setBloqueContextoExpandido] = useState(true);
   
   const intervaloGuardado = useRef(null);
   const intervaloReloj = useRef(null);
@@ -226,6 +226,20 @@ function AlumnoExamen() {
       if (intervaloReloj.current) clearInterval(intervaloReloj.current);
     };
   }, [examenId, cargarExamen]);
+
+  const prevMostrarResumenRef = useRef(false);
+  /** Al pasar de examen → resumen, abrir de nuevo el contexto para repasar (no fuerza si ya estabas en resumen y lo ocultaste). */
+  useEffect(() => {
+    const entroResumen = mostrarResumen && !prevMostrarResumenRef.current;
+    prevMostrarResumenRef.current = mostrarResumen;
+    if (
+      entroResumen &&
+      bloqueExamen &&
+      (bloqueExamen.contenido || bloqueExamen.imagen_url)
+    ) {
+      setBloqueContextoExpandido(true);
+    }
+  }, [mostrarResumen, bloqueExamen]);
 
   // Protección de examen
   const handleViolation = useCallback((violation) => {
@@ -798,7 +812,11 @@ function AlumnoExamen() {
         <div className="examen-resumen-card">
           <h2>📋 Resumen del Examen</h2>
           {bloqueExamen && (bloqueExamen.contenido || bloqueExamen.imagen_url) && (
-            <div className="examen-bloque-contexto examen-bloque-contexto--resumen examen-bloque-alumno-acc">
+            <div
+              className={`examen-bloque-contexto examen-bloque-contexto--resumen examen-bloque-alumno-acc${
+                bloqueContextoExpandido ? ' examen-bloque-alumno-acc--abierto' : ''
+              }`}
+            >
               <button
                 type="button"
                 className="examen-bloque-alumno-acc__bar"
@@ -916,7 +934,11 @@ function AlumnoExamen() {
       {/* Contenido Principal */}
       <div className="examen-content">
         {bloqueExamen && (bloqueExamen.contenido || bloqueExamen.imagen_url) && (
-          <div className="examen-bloque-contexto examen-bloque-alumno-acc">
+          <div
+            className={`examen-bloque-contexto examen-bloque-alumno-acc${
+              bloqueContextoExpandido ? ' examen-bloque-alumno-acc--abierto' : ''
+            }`}
+          >
             <button
               type="button"
               className="examen-bloque-alumno-acc__bar"

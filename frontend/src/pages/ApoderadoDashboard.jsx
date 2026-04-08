@@ -403,7 +403,11 @@ function ApoderadoDashboard() {
                   if ((evento.tipo === 'tarea' || evento.tipo === 'examen') && evento.grado && evento.seccion && evento.nivel_nombre) {
                     grupoInfo = `${evento.grado}° ${evento.seccion} - ${evento.nivel_nombre}`;
                   }
-                  
+                  const cursoNombre = evento.asignatura_nombre || evento.curso_nombre || '';
+                  const docenteNombre = evento.docente_nombre || '';
+                  const alumnoNombre =
+                    (evento.tipo === 'tarea' || evento.tipo === 'examen') ? (evento.alumno_nombre || '').trim() : '';
+
                   return (
                     <div
                       key={`${evento.tipo}-${evento.id}-${index}`}
@@ -418,6 +422,15 @@ function ApoderadoDashboard() {
                         <h3 className="evento-card-titulo">{titulo}</h3>
                         {grupoInfo && (
                           <span className="evento-card-grupo">{grupoInfo}</span>
+                        )}
+                        {alumnoNombre && (
+                          <span className="evento-card-alumno">🧒 {alumnoNombre}</span>
+                        )}
+                        {cursoNombre && (
+                          <span className="evento-card-curso">📚 {cursoNombre}</span>
+                        )}
+                        {docenteNombre && (
+                          <span className="evento-card-docente">👨‍🏫 {docenteNombre}</span>
                         )}
                         <span className="evento-card-tipo">{getTipoTexto(evento.tipo)}</span>
                       </div>
