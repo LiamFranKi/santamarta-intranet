@@ -302,31 +302,35 @@
 .hijo-tutor .hijo-tutor-line {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.25rem;
   flex-wrap: wrap;
   flex: 1;
   min-width: 0;
 }
 
+/* Ícono ✉️ junto al nombre del tutor: pequeño, sin caja ni fondo */
 .btn-msg-tutor {
   flex-shrink: 0;
-  min-width: 44px;
-  min-height: 44px;
-  padding: 0 0.5rem;
+  margin: 0 0 0 0.15rem;
+  padding: 0;
   border: none;
-  background: rgba(99, 102, 241, 0.12);
-  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
   cursor: pointer;
-  font-size: 1.15rem;
-  line-height: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s ease;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  display: inline;
+  vertical-align: baseline;
+  min-width: unset;
+  min-height: unset;
+  opacity: 0.92;
+  transition: opacity 0.15s ease;
 }
 
 .btn-msg-tutor:hover {
-  background: rgba(99, 102, 241, 0.22);
+  opacity: 1;
+  background: transparent;
 }
 
 .empty-state {

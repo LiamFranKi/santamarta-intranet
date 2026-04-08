@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import BirthdayWidget from '../components/BirthdayWidget';
@@ -11,6 +13,7 @@ import { useAvatarWidget } from '../context/AvatarWidgetContext';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './AlumnoDashboard.css';
 import './DocenteGrupos.css';
+import './AlumnoCursos.css';
 
 function AlumnoDashboard() {
   const navigate = useNavigate();
@@ -36,9 +39,11 @@ function AlumnoDashboard() {
 
   const [modalMensajeTutor, setModalMensajeTutor] = useState(false);
   const [asuntoTutor, setAsuntoTutor] = useState('');
-  const [cuerpoMensajeTutor, setCuerpoMensajeTutor] = useState('');
+  const [contenidoMensajeTutor, setContenidoMensajeTutor] = useState('');
+  const [archivosAdjuntosTutor, setArchivosAdjuntosTutor] = useState([]);
   const [enviandoMensajeTutor, setEnviandoMensajeTutor] = useState(false);
   const [tutorFotoError, setTutorFotoError] = useState(false);
+  const quillRefTutor = useRef(null);
 
   const cargarDashboard = async () => {
     try {
@@ -436,7 +441,8 @@ function AlumnoDashboard() {
 
   const abrirModalMensajeTutor = () => {
     setAsuntoTutor('');
-    setCuerpoMensajeTutor('');
+    setContenidoMensajeTutor('');
+    setArchivosAdjuntosTutor([]);
     setModalMensajeTutor(true);
   };
 
@@ -445,26 +451,71 @@ function AlumnoDashboard() {
     setModalMensajeTutor(false);
   };
 
+  const handleArchivoChangeTutor = (e) => {
+    const archivos = Array.from(e.target.files || []);
+    setArchivosAdjuntosTutor((prev) => [...prev, ...archivos]);
+    e.target.value = '';
+  };
+
+  const eliminarArchivoTutor = (index) => {
+    setArchivosAdjuntosTutor((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  useEffect(() => {
+    if (!modalMensajeTutor) return;
+    const timer = window.setTimeout(() => {
+      if (!quillRefTutor.current) return;
+      const quill = quillRefTutor.current.getEditor();
+      const toolbar = quill.getModule('toolbar');
+      toolbar.addHandler('image', () => {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+        input.onchange = async () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          try {
+            const fd = new FormData();
+            fd.append('imagen', file);
+            const response = await api.post('/alumno/mensajes/subir-imagen', fd, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            const imagenUrl = response.data.url;
+            const range = quill.getSelection(true);
+            quill.insertEmbed(range.index, 'image', imagenUrl);
+            quill.setSelection(range.index + 1);
+          } catch (error) {
+            console.error(error);
+            Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+          }
+        };
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [modalMensajeTutor]);
+
   const enviarMensajeAlTutor = async () => {
     if (!tutor?.usuario_id || enviandoMensajeTutor) return;
     const asunto = asuntoTutor.trim();
-    const texto = cuerpoMensajeTutor.trim();
+    const contenidoLimpio = (contenidoMensajeTutor || '').replace(/<[^>]*>/g, '').trim();
     if (!asunto) {
       Swal.fire('Error', 'El asunto es obligatorio.', 'error');
       return;
     }
-    if (!texto) {
+    if (!contenidoLimpio) {
       Swal.fire('Error', 'Escribe el mensaje.', 'error');
       return;
     }
     setEnviandoMensajeTutor(true);
     try {
       const formData = new FormData();
-      formData.append('destinatarios', JSON.stringify([tutor.usuario_id]));
+      formData.append('destinatarios', JSON.stringify([Number(tutor.usuario_id)]));
       formData.append('asunto', asunto);
-      const esc = (s) =>
-        s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      formData.append('mensaje', `<p>${esc(texto).replace(/\n/g, '<br/>')}</p>`);
+      formData.append('mensaje', contenidoMensajeTutor || '');
+      archivosAdjuntosTutor.forEach((archivo) => {
+        formData.append('archivos', archivo);
+      });
 
       await api.post('/alumno/mensajes/enviar', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -478,7 +529,8 @@ function AlumnoDashboard() {
       });
       setModalMensajeTutor(false);
       setAsuntoTutor('');
-      setCuerpoMensajeTutor('');
+      setContenidoMensajeTutor('');
+      setArchivosAdjuntosTutor([]);
       cargarDashboard();
     } catch (err) {
       console.error(err);
@@ -596,69 +648,143 @@ function AlumnoDashboard() {
           tutor?.usuario_id &&
           createPortal(
             <div
-              className="alumno-tutor-msg-modal-overlay"
+              className="modal-mensaje-overlay"
               role="presentation"
               onClick={(e) => e.target === e.currentTarget && cerrarModalMensajeTutor()}
+              style={{ zIndex: 100050 }}
             >
               <div
-                className="alumno-tutor-msg-modal"
+                className="modal-mensaje-container"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="alumno-tutor-msg-titulo"
+                onClick={(e) => e.stopPropagation()}
               >
-                <div className="alumno-tutor-msg-modal__head">
-                  <h2 id="alumno-tutor-msg-titulo">Mensaje al tutor</h2>
+                <div className="modal-mensaje-header">
+                  <h2 id="alumno-tutor-msg-titulo">✉️ Mensaje al tutor</h2>
                   <button
                     type="button"
-                    className="alumno-tutor-msg-modal__close"
+                    className="modal-mensaje-close"
                     onClick={cerrarModalMensajeTutor}
                     aria-label="Cerrar"
                   >
-                    ×
+                    ✕
                   </button>
                 </div>
-                <p className="alumno-tutor-msg-modal__dest">
-                  Para: <strong>{tutor.nombre_completo}</strong>
-                </p>
-                <label className="alumno-tutor-msg-modal__label">
-                  Asunto
-                  <input
-                    type="text"
-                    className="alumno-tutor-msg-modal__input"
-                    value={asuntoTutor}
-                    onChange={(e) => setAsuntoTutor(e.target.value)}
-                    maxLength={200}
-                    placeholder="Ej. Consulta sobre el grupo"
-                    autoFocus
-                  />
-                </label>
-                <label className="alumno-tutor-msg-modal__label">
-                  Mensaje
-                  <textarea
-                    className="alumno-tutor-msg-modal__textarea"
-                    value={cuerpoMensajeTutor}
-                    onChange={(e) => setCuerpoMensajeTutor(e.target.value)}
-                    rows={5}
-                    placeholder="Escribe tu mensaje..."
-                  />
-                </label>
-                <div className="alumno-tutor-msg-modal__actions">
-                  <button
-                    type="button"
-                    className="alumno-tutor-msg-modal__btn-cancel"
-                    onClick={cerrarModalMensajeTutor}
-                    disabled={enviandoMensajeTutor}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="button"
-                    className="alumno-tutor-msg-modal__btn-send"
-                    onClick={enviarMensajeAlTutor}
-                    disabled={enviandoMensajeTutor}
-                  >
-                    {enviandoMensajeTutor ? 'Enviando…' : 'Enviar'}
-                  </button>
+
+                <div className="modal-mensaje-body">
+                  <div className="mensaje-grupo-info">
+                    <p>
+                      <strong>Para:</strong> {tutor.nombre_completo}
+                    </p>
+                    <p>
+                      <strong>Ámbito:</strong> Tutor del aula
+                    </p>
+                    <p className="mensaje-info-text">Mismo formato que en mensajes a docentes: texto enriquecido y archivos adjuntos.</p>
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="asunto-tutor-dashboard">Asunto:</label>
+                    <input
+                      type="text"
+                      id="asunto-tutor-dashboard"
+                      className="form-input"
+                      value={asuntoTutor}
+                      onChange={(e) => setAsuntoTutor(e.target.value)}
+                      maxLength={200}
+                      placeholder="Asunto del mensaje"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Mensaje:</label>
+                    <div id="mensaje-editor-wrapper-docente">
+                      <ReactQuill
+                        ref={quillRefTutor}
+                        theme="snow"
+                        value={contenidoMensajeTutor}
+                        onChange={setContenidoMensajeTutor}
+                        placeholder="Escribe tu mensaje aquí..."
+                        modules={{
+                          toolbar: [
+                            [{ header: [1, 2, 3, false] }],
+                            ['bold', 'italic', 'underline', 'strike'],
+                            [{ list: 'ordered' }, { list: 'bullet' }],
+                            [{ color: [] }, { background: [] }],
+                            [{ align: [] }],
+                            ['link', 'image'],
+                            ['clean'],
+                          ],
+                        }}
+                        formats={[
+                          'header',
+                          'bold',
+                          'italic',
+                          'underline',
+                          'strike',
+                          'list',
+                          'bullet',
+                          'color',
+                          'background',
+                          'align',
+                          'link',
+                          'image',
+                        ]}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Archivos adjuntos:</label>
+                    <div className="archivos-container">
+                      <input
+                        type="file"
+                        id="archivos-input-tutor-dashboard"
+                        multiple
+                        onChange={handleArchivoChangeTutor}
+                        style={{ display: 'none' }}
+                      />
+                      <label htmlFor="archivos-input-tutor-dashboard" className="btn-adjuntar-archivo">
+                        📎 Adjuntar archivos
+                      </label>
+                      {archivosAdjuntosTutor.length > 0 && (
+                        <div className="archivos-lista">
+                          {archivosAdjuntosTutor.map((archivo, index) => (
+                            <div key={`${archivo.name}-${index}`} className="archivo-item">
+                              <span className="archivo-nombre">{archivo.name}</span>
+                              <span className="archivo-tamaño">{(archivo.size / 1024).toFixed(2)} KB</span>
+                              <button
+                                type="button"
+                                className="archivo-eliminar"
+                                onClick={() => eliminarArchivoTutor(index)}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="form-actions">
+                    <button
+                      type="button"
+                      className="btn-cancelar"
+                      onClick={cerrarModalMensajeTutor}
+                      disabled={enviandoMensajeTutor}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-enviar"
+                      onClick={enviarMensajeAlTutor}
+                      disabled={enviandoMensajeTutor}
+                    >
+                      {enviandoMensajeTutor ? '⏳ Enviando…' : '✉️ Enviar mensaje'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>,
