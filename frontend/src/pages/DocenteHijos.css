@@ -57,18 +57,19 @@
 
 .hijos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1.5rem;
 }
 
 .hijo-card {
   background: linear-gradient(145deg, #f0f9ff, #ffffff);
   border-radius: 12px;
-  padding: 1.5rem;
+  padding: 1.25rem 1.35rem 1.1rem;
   border: 2px solid #e0f2fe;
   display: flex;
-  align-items: center;
-  gap: 1.5rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.85rem;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   position: relative;
@@ -83,24 +84,50 @@
   z-index: 1000;
 }
 
+/* Botón Opciones: flujo normal, centrado, separado del borde inferior */
 .hijo-actions {
-  position: absolute;
-  bottom: 1rem;
-  right: 1rem;
+  position: static;
   z-index: 10;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 0.35rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
 }
 
-/* Escritorio (card con botón absoluto): evita que Opciones se superponga al tutor y baja un poco el botón */
-@media (min-width: 1025px) {
-  .hijo-card .hijo-info {
-    padding-right: 8rem;
-    padding-bottom: 2.85rem;
-  }
+.hijo-card-header {
+  width: 100%;
+  min-width: 0;
+}
 
-  .hijo-card .hijo-actions {
-    bottom: 0.45rem;
-    right: 1rem;
-  }
+.hijo-nombre-alumno {
+  width: 100%;
+  margin: 0;
+  padding: 0 0 0.15rem;
+  font-size: 1.22rem;
+  line-height: 1.28;
+  font-weight: 700;
+  color: #111827;
+  text-align: left;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.hijo-card-main {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.hijo-details-column {
+  flex: 1;
+  min-width: 0;
 }
 
 .dropdown-container {
@@ -129,12 +156,12 @@
 .btn-opciones-hijo {
   background: linear-gradient(135deg, #6ba3d4 0%, #4a83c1 100%);
   color: white;
-  padding: 0.5rem 0.85rem;
+  padding: 0.55rem 1.15rem;
   border: none;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -255,8 +282,8 @@
 }
 
 .hijo-avatar {
-  width: 80px;
-  height: 80px;
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
@@ -275,17 +302,6 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-}
-
-.hijo-info {
-  flex: 1;
-}
-
-.hijo-info h3 {
-  font-size: 1.2rem;
-  color: #1f2937;
-  margin: 0 0 0.75rem 0;
-  font-weight: 700;
 }
 
 .hijo-details {
@@ -312,12 +328,16 @@
   color: #1f2937;
 }
 
+.hijo-details p.hijo-tutor {
+  flex-direction: column;
+  align-items: flex-start;
+  align-self: stretch;
+  gap: 0.3rem;
+}
+
 .hijo-tutor .hijo-tutor-line {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.25rem;
-  flex-wrap: wrap;
-  flex: 1;
+  display: block;
+  width: 100%;
   min-width: 0;
 }
 
@@ -330,15 +350,19 @@
   box-shadow: none;
   cursor: pointer;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.98rem;
   color: #2563eb;
   text-decoration: underline;
   text-decoration-color: rgba(37, 99, 235, 0.35);
   text-underline-offset: 2px;
   text-align: left;
-  line-height: 1.35;
-  display: inline;
+  line-height: 1.45;
+  display: block;
+  width: 100%;
   max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
 }
 
 .hijo-tutor-nombre-link:hover {
@@ -354,8 +378,11 @@
 
 .hijo-tutor-texto-plano {
   color: #1f2937;
-  font-size: 0.9rem;
-  line-height: 1.35;
+  font-size: 0.98rem;
+  line-height: 1.45;
+  display: block;
+  width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .empty-state {
@@ -718,31 +745,10 @@
 @media (min-width: 769px) and (max-width: 1024px) {
   .hijo-card {
     position: relative;
-    flex-direction: column;
   }
 
-  .hijo-info {
-    width: 100%;
-    margin-bottom: 0.75rem;
-  }
-
-  .hijo-actions {
-    position: static !important;
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    margin-top: 0.75rem;
-    margin-bottom: 0;
-    order: 10; /* Mover después de los detalles */
-  }
-
-  .hijo-details {
-    order: 1; /* Mantener los detalles primero */
-  }
-
-  .btn-opciones-hijo {
-    width: auto;
-    margin: 0 auto;
+  .hijo-nombre-alumno {
+    font-size: 1.18rem;
   }
 }
 
@@ -761,22 +767,47 @@
 
   .hijo-card {
     flex-direction: column;
+    padding: 1.25rem 1.15rem 1rem;
+  }
+
+  .hijo-nombre-alumno {
     text-align: center;
-    padding: 1.25rem;
+    font-size: 1.12rem;
+  }
+
+  .hijo-card-main {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
   }
 
   .hijo-details {
     align-items: center;
     width: 100%;
-    margin-bottom: 1rem;
+  }
+
+  .hijo-details p {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .hijo-details p.hijo-tutor {
+    align-items: center;
+    text-align: center;
+  }
+
+  .hijo-tutor .hijo-tutor-line {
+    text-align: center;
+  }
+
+  .hijo-tutor-nombre-link,
+  .hijo-tutor-texto-plano {
+    text-align: center;
   }
 
   .hijo-actions {
-    position: static !important;
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    margin-top: 0.5rem;
+    margin-top: 0.25rem;
+    padding-top: 0.6rem;
   }
 
   .btn-opciones-hijo {

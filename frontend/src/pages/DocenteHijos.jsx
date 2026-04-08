@@ -4191,57 +4191,61 @@ function DocenteHijos() {
                         borderColor: colorCard.border
                       }}
                     >
-                      <div 
-                        className="hijo-avatar"
-                        style={{ backgroundColor: colorCard.avatar }}
-                      >
-                        {fotoUrl ? (
-                          <img src={fotoUrl} alt={nombreCompleto} />
-                        ) : (
-                          <span>{hijo.nombres?.[0] || 'A'}</span>
-                        )}
+                      <div className="hijo-card-header">
+                        <h3 className="hijo-nombre-alumno">{nombreCompleto}</h3>
                       </div>
-                      <div className="hijo-info">
-                        <h3>{nombreCompleto}</h3>
-                        <div className="hijo-details">
-                          <p className="hijo-grupo">
-                            <span className="label">Grupo:</span>
-                            <span className="value">{hijo.grado}° {hijo.seccion}</span>
-                          </p>
-                          <p className="hijo-nivel">
-                            <span className="label">Nivel:</span>
-                            <span className="value">{hijo.nivel_nombre}</span>
-                          </p>
-                          <p className="hijo-turno">
-                            <span className="label">Turno:</span>
-                            <span className="value">{hijo.turno_nombre}</span>
-                          </p>
-                          <p className="hijo-tutor">
-                            <span className="label">Tutor:</span>
-                            <span className="value hijo-tutor-line">
-                              {hijo.tutor_usuario_id ? (
-                                <button
-                                  type="button"
-                                  className="hijo-tutor-nombre-link"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleMensajeAlTutor(hijo);
-                                  }}
-                                  title="Enviar mensaje al tutor"
-                                  aria-label={`Enviar mensaje al tutor: ${(hijo.tutor_nombre_completo || '').trim() || 'tutor'}`}
-                                >
-                                  {(hijo.tutor_nombre_completo || '').trim() || 'Tutor'}
-                                </button>
-                              ) : (
-                                <span className="hijo-tutor-texto-plano">
-                                  {(hijo.tutor_nombre_completo || '').trim() || 'Sin tutor asignado'}
-                                </span>
-                              )}
-                            </span>
-                          </p>
+                      <div className="hijo-card-main">
+                        <div 
+                          className="hijo-avatar"
+                          style={{ backgroundColor: colorCard.avatar }}
+                        >
+                          {fotoUrl ? (
+                            <img src={fotoUrl} alt={nombreCompleto} />
+                          ) : (
+                            <span>{hijo.nombres?.[0] || 'A'}</span>
+                          )}
+                        </div>
+                        <div className="hijo-details-column">
+                          <div className="hijo-details">
+                            <p className="hijo-grupo">
+                              <span className="label">Grupo:</span>
+                              <span className="value">{hijo.grado}° {hijo.seccion}</span>
+                            </p>
+                            <p className="hijo-nivel">
+                              <span className="label">Nivel:</span>
+                              <span className="value">{hijo.nivel_nombre}</span>
+                            </p>
+                            <p className="hijo-turno">
+                              <span className="label">Turno:</span>
+                              <span className="value">{hijo.turno_nombre}</span>
+                            </p>
+                            <p className="hijo-tutor">
+                              <span className="label">Tutor:</span>
+                              <span className="value hijo-tutor-line">
+                                {hijo.tutor_usuario_id ? (
+                                  <button
+                                    type="button"
+                                    className="hijo-tutor-nombre-link"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMensajeAlTutor(hijo);
+                                    }}
+                                    title="Enviar mensaje al tutor"
+                                    aria-label={`Enviar mensaje al tutor: ${(hijo.tutor_nombre_completo || '').trim() || 'tutor'}`}
+                                  >
+                                    {(hijo.tutor_nombre_completo || '').trim() || 'Tutor'}
+                                  </button>
+                                ) : (
+                                  <span className="hijo-tutor-texto-plano">
+                                    {(hijo.tutor_nombre_completo || '').trim() || 'Sin tutor asignado'}
+                                  </span>
+                                )}
+                              </span>
+                            </p>
+                          </div>
                         </div>
                       </div>
-                      
+
                       <div className="hijo-actions">
                         <div className="dropdown-container">
                           <button 
