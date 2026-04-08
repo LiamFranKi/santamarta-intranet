@@ -322,6 +322,41 @@ function AlumnoDashboard() {
     setPaginaActual(1);
   }, [todosEventos.length]);
 
+  // Editor Quill (modal mensaje al tutor): debe ir antes de cualquier return (reglas de hooks)
+  useEffect(() => {
+    if (!modalMensajeTutor) return;
+    const timer = window.setTimeout(() => {
+      if (!quillRefTutor.current) return;
+      const quill = quillRefTutor.current.getEditor();
+      const toolbar = quill.getModule('toolbar');
+      toolbar.addHandler('image', () => {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+        input.onchange = async () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          try {
+            const fd = new FormData();
+            fd.append('imagen', file);
+            const response = await api.post('/alumno/mensajes/subir-imagen', fd, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            const imagenUrl = response.data.url;
+            const range = quill.getSelection(true);
+            quill.insertEmbed(range.index, 'image', imagenUrl);
+            quill.setSelection(range.index + 1);
+          } catch (error) {
+            console.error(error);
+            Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+          }
+        };
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [modalMensajeTutor]);
+
   // Ahora sí, los returns condicionales DESPUÉS de todos los hooks
   if (loading) {
     return (
@@ -460,40 +495,6 @@ function AlumnoDashboard() {
   const eliminarArchivoTutor = (index) => {
     setArchivosAdjuntosTutor((prev) => prev.filter((_, i) => i !== index));
   };
-
-  useEffect(() => {
-    if (!modalMensajeTutor) return;
-    const timer = window.setTimeout(() => {
-      if (!quillRefTutor.current) return;
-      const quill = quillRefTutor.current.getEditor();
-      const toolbar = quill.getModule('toolbar');
-      toolbar.addHandler('image', () => {
-        const input = document.createElement('input');
-        input.setAttribute('type', 'file');
-        input.setAttribute('accept', 'image/*');
-        input.click();
-        input.onchange = async () => {
-          const file = input.files?.[0];
-          if (!file) return;
-          try {
-            const fd = new FormData();
-            fd.append('imagen', file);
-            const response = await api.post('/alumno/mensajes/subir-imagen', fd, {
-              headers: { 'Content-Type': 'multipart/form-data' },
-            });
-            const imagenUrl = response.data.url;
-            const range = quill.getSelection(true);
-            quill.insertEmbed(range.index, 'image', imagenUrl);
-            quill.setSelection(range.index + 1);
-          } catch (error) {
-            console.error(error);
-            Swal.fire('Error', 'No se pudo subir la imagen', 'error');
-          }
-        };
-      });
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [modalMensajeTutor]);
 
   const enviarMensajeAlTutor = async () => {
     if (!tutor?.usuario_id || enviandoMensajeTutor) return;
