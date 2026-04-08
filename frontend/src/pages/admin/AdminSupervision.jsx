@@ -177,7 +177,10 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
   const [sel, setSel] = useState(null);
   const [detalle, setDetalle] = useState(null);
   const [modal, setModal] = useState(null); // 'create' | 'edit' | 'cierre' | 'supervisores'
-  const [adminExec, setAdminExec] = useState(null); // 'registrar' | 'historial'
+  const [menuRowId, setMenuRowId] = useState(null);
+  const [participantesRow, setParticipantesRow] = useState(null);
+  const [registrarModal, setRegistrarModal] = useState(null);
+  const [historialModal, setHistorialModal] = useState(null);
   const [yearChoice, setYearChoice] = useState('activo');
   const [yearOtro, setYearOtro] = useState('');
   const [formInst, setFormInst] = useState({
@@ -197,9 +200,20 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
     setModal(null);
     setSel(null);
     setDetalle(null);
+    setMenuRowId(null);
   };
 
+  useEffect(() => {
+    if (menuRowId == null) return undefined;
+    const close = (e) => {
+      if (!e.target.closest?.('.admin-sup-opciones-wrap')) setMenuRowId(null);
+    };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [menuRowId]);
+
   const openNew = () => {
+    setMenuRowId(null);
     setSel('new');
     setDetalle(null);
     setYearChoice('activo');
@@ -214,6 +228,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
   };
 
   const openEdit = async (row) => {
+    setMenuRowId(null);
     setSel(row.id);
     setDetalle(null);
     setModal('edit');
@@ -371,18 +386,10 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
         {canExecute && (
           <>
             <span className="admin-sup-toolbar-gap" aria-hidden />
-            <button
-              type="button"
-              className={`admin-usu-btn ${adminExec === 'registrar' ? 'admin-usu-btn-primary' : 'admin-usu-btn-secondary'}`}
-              onClick={() => setAdminExec(adminExec === 'registrar' ? null : 'registrar')}
-            >
+            <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setRegistrarModal({})}>
               Registrar supervisión
             </button>
-            <button
-              type="button"
-              className={`admin-usu-btn ${adminExec === 'historial' ? 'admin-usu-btn-primary' : 'admin-usu-btn-secondary'}`}
-              onClick={() => setAdminExec(adminExec === 'historial' ? null : 'historial')}
-            >
+            <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setHistorialModal({})}>
               Historial
             </button>
           </>
@@ -392,7 +399,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
       <div className="admin-usu-table-card">
         <div className="admin-sup-panel-body">
           <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-            Listado de supervisiones configuradas. Use <strong>Nueva supervisión</strong> para crear una o <strong>Editar</strong> para el detalle (preguntas, rangos y cierre).
+            Listado de supervisiones. Use <strong>Opciones</strong> en cada fila para editar, participantes, registrar visita o historial.
           </p>
           <div className="admin-usu-table-scroll">
             <table className="admin-usu-table">
@@ -400,7 +407,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
                 <tr>
                   <th>Título</th>
                   <th>Estado</th>
-                  <th style={{ width: 220 }}>Acciones</th>
+                  <th style={{ width: 200 }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -414,13 +421,93 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
                         <span className="admin-usu-badge-off">Inactivo</span>
                       )}
                     </td>
-                    <td>
-                      <button type="button" className="admin-usu-btn admin-usu-btn-secondary" style={{ marginRight: 8 }} onClick={() => openEdit(r)}>
-                        Editar
-                      </button>
-                      <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => deleteInst(r.id)}>
-                        Eliminar
-                      </button>
+                    <td style={{ position: 'relative', verticalAlign: 'middle' }}>
+                      <div className="admin-sup-opciones-wrap">
+                        <button
+                          type="button"
+                          className="admin-usu-btn admin-usu-btn-secondary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuRowId(menuRowId === r.id ? null : r.id);
+                          }}
+                        >
+                          Opciones ▼
+                        </button>
+                        {menuRowId === r.id && (
+                          <ul className="admin-sup-opciones-menu" role="menu">
+                            <li>
+                              <button type="button" role="menuitem" onClick={() => { openEdit(r); setMenuRowId(null); }}>
+                                Editar
+                              </button>
+                            </li>
+                            <li>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setParticipantesRow({ id: r.id, titulo: r.titulo });
+                                  setMenuRowId(null);
+                                }}
+                              >
+                                Participantes
+                              </button>
+                            </li>
+                            {canExecute && (
+                              <li>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setRegistrarModal({ presetId: r.id, titulo: r.titulo });
+                                    setMenuRowId(null);
+                                  }}
+                                >
+                                  Registrar visita
+                                </button>
+                              </li>
+                            )}
+                            {canExecute && (
+                              <li>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setHistorialModal({ instrumentoId: r.id, titulo: r.titulo });
+                                    setMenuRowId(null);
+                                  }}
+                                >
+                                  Historial de esta supervisión
+                                </button>
+                              </li>
+                            )}
+                            <li>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setModal('supervisores');
+                                  setMenuRowId(null);
+                                }}
+                              >
+                                Supervisores del colegio
+                              </button>
+                            </li>
+                            <li>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="admin-sup-opcion-danger"
+                                onClick={() => {
+                                  deleteInst(r.id);
+                                  setMenuRowId(null);
+                                }}
+                              >
+                                Eliminar
+                              </button>
+                            </li>
+                          </ul>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -429,21 +516,6 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
           </div>
         </div>
       </div>
-
-      {adminExec === 'registrar' && canExecute && (
-        <div className="admin-usu-table-card" style={{ marginTop: '1rem' }}>
-          <div className="admin-sup-panel-body">
-            <PanelRegistrar onDone={loadYo} />
-          </div>
-        </div>
-      )}
-      {adminExec === 'historial' && canExecute && (
-        <div className="admin-usu-table-card" style={{ marginTop: '1rem' }}>
-          <div className="admin-sup-panel-body">
-            <PanelHistorial />
-          </div>
-        </div>
-      )}
 
       {(modal === 'create' || modal === 'edit') && (
         <SupervisionModal title={editorTitulo} onClose={cerrarEditor}>
@@ -501,8 +573,45 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
       )}
 
       {modal === 'supervisores' && (
-        <SupervisionModal title="Supervisores" onClose={() => setModal(null)}>
+        <SupervisionModal title="Supervisores del colegio" onClose={() => setModal(null)}>
           <PanelSupervisores />
+        </SupervisionModal>
+      )}
+
+      {registrarModal != null && canExecute && (
+        <SupervisionModal
+          title={registrarModal.presetId ? `Registrar visita — ${registrarModal.titulo || ''}` : 'Registrar supervisión'}
+          onClose={() => setRegistrarModal(null)}
+        >
+          <PanelRegistrar
+            onDone={() => {
+              loadYo?.();
+              setRegistrarModal(null);
+            }}
+            instrumentoIdInicial={registrarModal.presetId || null}
+            supervisionTitulo={registrarModal.titulo || ''}
+            bloquearInstrumento={!!registrarModal.presetId}
+            modoModal
+          />
+        </SupervisionModal>
+      )}
+
+      {historialModal != null && canExecute && (
+        <SupervisionModal
+          title={
+            historialModal.instrumentoId
+              ? `Historial — ${historialModal.titulo || ''}`
+              : 'Historial de supervisiones'
+          }
+          onClose={() => setHistorialModal(null)}
+        >
+          <PanelHistorial instrumentoId={historialModal.instrumentoId} tituloFiltro={historialModal.titulo} />
+        </SupervisionModal>
+      )}
+
+      {participantesRow && (
+        <SupervisionModal title={`Participantes — ${participantesRow.titulo}`} onClose={() => setParticipantesRow(null)}>
+          <PanelInstrumentoParticipantes instrumentoId={participantesRow.id} />
         </SupervisionModal>
       )}
     </>
@@ -732,6 +841,89 @@ function PanelCierreGlobal() {
   );
 }
 
+function PanelInstrumentoParticipantes({ instrumentoId }) {
+  const [list, setList] = useState([]);
+  const [q, setQ] = useState('');
+  const [candidatos, setCandidatos] = useState([]);
+  const load = useCallback(
+    () => api.get(`/supervision/instrumentos/${instrumentoId}/participantes`).then((r) => setList(r.data.participantes || [])),
+    [instrumentoId]
+  );
+  useEffect(() => {
+    load().catch(() => {});
+  }, [load]);
+  const buscar = () =>
+    api.get('/supervision/personal-candidatos', { params: { q } }).then((r) => setCandidatos(r.data.personal || []));
+  const add = async (usuario_id) => {
+    try {
+      await api.post(`/supervision/instrumentos/${instrumentoId}/participantes`, { usuario_id });
+      await load();
+      Swal.fire({ icon: 'success', title: 'Agregado', timer: 1200, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || 'No se pudo agregar', 'error');
+    }
+  };
+  const del = async (id) => {
+    try {
+      await api.delete(`/supervision/instrumento-participantes/${id}`);
+      await load();
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error, 'error');
+    }
+  };
+  return (
+    <div>
+      <p className="admin-sup-muted">
+        Personal de referencia vinculado a esta supervisión (seguimiento, coordinación). No es el mismo listado que &quot;Supervisores del colegio&quot;, que autoriza registrar visitas.
+      </p>
+      <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '0 0 0.75rem' }}>Personas asignadas</h3>
+      <div className="admin-usu-table-scroll">
+        <table className="admin-usu-table">
+          <thead>
+            <tr>
+              <th>Usuario (DNI)</th>
+              <th>Nombre</th>
+              <th style={{ width: 120 }}>Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((s) => (
+              <tr key={s.id}>
+                <td>{s.dni}</td>
+                <td style={{ textAlign: 'left' }}>
+                  {s.nombres} {s.apellidos}
+                </td>
+                <td>
+                  <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => del(s.id)}>
+                    Quitar
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '1.25rem 0 0.75rem' }}>Añadir personal</h3>
+      <div className="admin-usu-toolbar" style={{ marginBottom: 12 }}>
+        <input className="admin-usu-grow" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por DNI o nombre" />
+        <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={buscar}>
+          Buscar
+        </button>
+      </div>
+      <ul className="admin-sup-lista-candidatos">
+        {candidatos.map((p) => (
+          <li key={p.usuario_id}>
+            <strong>{p.dni}</strong> — {p.nombres} {p.apellidos}{' '}
+            <button type="button" className="admin-usu-btn admin-usu-btn-primary" style={{ marginLeft: 8 }} onClick={() => add(p.usuario_id)}>
+              Añadir
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function PanelSupervisores() {
   const [list, setList] = useState([]);
   const [q, setQ] = useState('');
@@ -812,12 +1004,18 @@ function PanelSupervisores() {
   );
 }
 
-function PanelRegistrar({ onDone }) {
+function PanelRegistrar({
+  onDone,
+  instrumentoIdInicial = null,
+  supervisionTitulo = '',
+  bloquearInstrumento = false,
+  modoModal = false
+}) {
   const [instrumentos, setInstrumentos] = useState([]);
   const [niveles, setNiveles] = useState([]);
   const [grupos, setGrupos] = useState([]);
   const [docentes, setDocentes] = useState([]);
-  const [instId, setInstId] = useState('');
+  const [instId, setInstId] = useState(instrumentoIdInicial ? String(instrumentoIdInicial) : '');
   const [nivelId, setNivelId] = useState('');
   const [grupoId, setGrupoId] = useState('');
   const [personalId, setPersonalId] = useState('');
@@ -825,6 +1023,18 @@ function PanelRegistrar({ onDone }) {
   const [detalle, setDetalle] = useState(null);
   const [respuestas, setRespuestas] = useState({});
   const [obs, setObs] = useState({});
+
+  useEffect(() => {
+    if (instrumentoIdInicial) {
+      setInstId(String(instrumentoIdInicial));
+      setNivelId('');
+      setGrupoId('');
+      setPersonalId('');
+      setDetalle(null);
+      setRespuestas({});
+      setObs({});
+    }
+  }, [instrumentoIdInicial]);
 
   useEffect(() => {
     api.get('/supervision/instrumentos/activos').then((r) => setInstrumentos(r.data.instrumentos || [])).catch(() => {});
@@ -912,19 +1122,28 @@ function PanelRegistrar({ onDone }) {
   }
 
   return (
-    <div className="admin-sup-layout-2">
+    <div className={modoModal ? 'admin-sup-registrar-modal' : 'admin-sup-layout-2'}>
       <div className="admin-usu-profile-section">
         <h3>Contexto de la visita</h3>
+        {modoModal && (
+          <p className="admin-sup-muted" style={{ marginTop: 0 }}>
+            Elija nivel, grupo y docente. Luego cargue el formulario de la rúbrica y complete observaciones y cierre.
+          </p>
+        )}
         <div className="admin-usu-field">
           <label>Supervisión</label>
-          <select value={instId} onChange={(e) => setInstId(e.target.value)}>
-            <option value="">— Elegir —</option>
-            {instrumentos.map((i) => (
-              <option key={i.id} value={i.id}>
-                {i.titulo}
-              </option>
-            ))}
-          </select>
+          {bloquearInstrumento ? (
+            <div className="admin-sup-instrumento-locked">{supervisionTitulo || `ID ${instId}`}</div>
+          ) : (
+            <select value={instId} onChange={(e) => setInstId(e.target.value)}>
+              <option value="">— Elegir —</option>
+              {instrumentos.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.titulo}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="admin-usu-field">
           <label>Nivel</label>
@@ -1019,14 +1238,24 @@ function PanelRegistrar({ onDone }) {
   );
 }
 
-function PanelHistorial() {
+function PanelHistorial({ instrumentoId: filtroInstrumentoId = null, tituloFiltro = '' }) {
   const [rows, setRows] = useState([]);
-  const load = useCallback(() => api.get('/supervision/evaluaciones').then((r) => setRows(r.data.evaluaciones || [])), []);
+  const load = useCallback(() => {
+    const params = {};
+    if (filtroInstrumentoId) params.instrumento_id = filtroInstrumentoId;
+    return api.get('/supervision/evaluaciones', { params }).then((r) => setRows(r.data.evaluaciones || []));
+  }, [filtroInstrumentoId]);
   useEffect(() => {
     load().catch(() => {});
   }, [load]);
   return (
-    <div className="admin-usu-table-scroll">
+    <div>
+      {tituloFiltro ? (
+        <p className="admin-sup-muted" style={{ marginTop: 0 }}>
+          Mostrando visitas registradas con la supervisión: <strong>{tituloFiltro}</strong>
+        </p>
+      ) : null}
+      <div className="admin-usu-table-scroll">
       <table className="admin-usu-table">
         <thead>
           <tr>
@@ -1057,6 +1286,7 @@ function PanelHistorial() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

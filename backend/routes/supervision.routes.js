@@ -663,6 +663,96 @@ router.post('/instrumentos/:id/campos-cierre', requireAdmin, async (req, res) =>
   }
 });
 
+// --- Participantes por supervisión (instrumento) — migración 018 ---
+
+router.get('/instrumentos/:instrumentoId/participantes', requireAdmin, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const instrumentoId = parseInt(req.params.instrumentoId, 10);
+    if (!instrumentoId) return res.status(400).json({ error: 'instrumento inválido' });
+    const chk = await query(
+      `SELECT id FROM supervision_instrumentos WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [instrumentoId, colegio_id]
+    );
+    if (!Array.isArray(chk) || !chk.length) return res.status(404).json({ error: 'Supervisión no encontrada' });
+    const rows = await query(
+      `SELECT ip.id, ip.usuario_id, u.usuario as dni, p.nombres, p.apellidos
+       FROM supervision_instrumento_participantes ip
+       INNER JOIN usuarios u ON u.id = ip.usuario_id
+       LEFT JOIN personal p ON p.id = u.personal_id
+       WHERE ip.colegio_id = ? AND ip.instrumento_id = ?
+       ORDER BY p.apellidos, p.nombres, u.usuario`,
+      [colegio_id, instrumentoId]
+    );
+    res.json({ participantes: rows || [] });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Ejecute la migración database/migrations/018_supervision_instrumento_participantes_mysql.sql'
+      });
+    }
+    console.error('[supervision] list participantes instrumento', e);
+    res.status(500).json({ error: 'Error al listar participantes' });
+  }
+});
+
+router.post('/instrumentos/:instrumentoId/participantes', requireAdmin, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const instrumentoId = parseInt(req.params.instrumentoId, 10);
+    const uid = parseInt(req.body?.usuario_id, 10);
+    if (!instrumentoId || !uid) return res.status(400).json({ error: 'Datos inválidos' });
+    const chk = await query(
+      `SELECT id FROM supervision_instrumentos WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [instrumentoId, colegio_id]
+    );
+    if (!Array.isArray(chk) || !chk.length) return res.status(404).json({ error: 'Supervisión no encontrada' });
+    const u = await query(`SELECT id FROM usuarios WHERE id = ? AND colegio_id = ? AND estado = 'ACTIVO'`, [
+      uid,
+      colegio_id
+    ]);
+    if (!u.length) return res.status(404).json({ error: 'Usuario no encontrado en este colegio' });
+    await execute(
+      `INSERT INTO supervision_instrumento_participantes (colegio_id, instrumento_id, usuario_id) VALUES (?, ?, ?)`,
+      [colegio_id, instrumentoId, uid]
+    );
+    res.json({ success: true });
+  } catch (e) {
+    if (e.code === 'ER_DUP_ENTRY' || e.errno === 1062) {
+      return res.status(409).json({ error: 'Esa persona ya está en la lista' });
+    }
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Ejecute la migración database/migrations/018_supervision_instrumento_participantes_mysql.sql'
+      });
+    }
+    console.error('[supervision] add participante instrumento', e);
+    res.status(500).json({ error: 'Error al agregar participante' });
+  }
+});
+
+router.delete('/instrumento-participantes/:id', requireAdmin, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    if (!id) return res.status(400).json({ error: 'id inválido' });
+    const r = await execute(
+      `DELETE FROM supervision_instrumento_participantes WHERE id = ? AND colegio_id = ?`,
+      [id, colegio_id]
+    );
+    if (!r.affectedRows) return res.status(404).json({ error: 'Registro no encontrado' });
+    res.json({ success: true });
+  } catch (e) {
+    if (e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Ejecute la migración database/migrations/018_supervision_instrumento_participantes_mysql.sql'
+      });
+    }
+    console.error('[supervision] delete participante instrumento', e);
+    res.status(500).json({ error: 'Error al quitar participante' });
+  }
+});
+
 // --- Supervisores ---
 
 router.get('/supervisores', requireAdmin, async (req, res) => {
