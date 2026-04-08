@@ -4295,21 +4295,24 @@ function ApoderadoHijos() {
                           <p className="hijo-tutor">
                             <span className="label">Tutor:</span>
                             <span className="value hijo-tutor-line">
-                              {(hijo.tutor_nombre_completo || '').trim() || 'Sin tutor asignado'}
                               {hijo.tutor_usuario_id ? (
                                 <button
                                   type="button"
-                                  className="btn-msg-tutor"
+                                  className="hijo-tutor-nombre-link"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleMensajeAlTutor(hijo);
                                   }}
                                   title="Enviar mensaje al tutor"
-                                  aria-label="Enviar mensaje al tutor"
+                                  aria-label={`Enviar mensaje al tutor: ${(hijo.tutor_nombre_completo || '').trim() || 'tutor'}`}
                                 >
-                                  ✉️
+                                  {(hijo.tutor_nombre_completo || '').trim() || 'Tutor'}
                                 </button>
-                              ) : null}
+                              ) : (
+                                <span className="hijo-tutor-texto-plano">
+                                  {(hijo.tutor_nombre_completo || '').trim() || 'Sin tutor asignado'}
+                                </span>
+                              )}
                             </span>
                           </p>
                         </div>

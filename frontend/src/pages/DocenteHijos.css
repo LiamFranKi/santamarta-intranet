@@ -90,6 +90,19 @@
   z-index: 10;
 }
 
+/* Escritorio (card con botón absoluto): evita que Opciones se superponga al tutor y baja un poco el botón */
+@media (min-width: 1025px) {
+  .hijo-card .hijo-info {
+    padding-right: 8rem;
+    padding-bottom: 2.85rem;
+  }
+
+  .hijo-card .hijo-actions {
+    bottom: 0.45rem;
+    right: 1rem;
+  }
+}
+
 .dropdown-container {
   position: relative;
 }
@@ -301,36 +314,48 @@
 
 .hijo-tutor .hijo-tutor-line {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.25rem;
   flex-wrap: wrap;
   flex: 1;
   min-width: 0;
 }
 
-/* Ícono ✉️ junto al nombre del tutor: pequeño, sin caja ni fondo */
-.btn-msg-tutor {
-  flex-shrink: 0;
-  margin: 0 0 0 0.15rem;
+/* Nombre del tutor = enlace al mismo modal de mensaje (sin ícono aparte) */
+.hijo-tutor-nombre-link {
+  margin: 0;
   padding: 0;
   border: none;
-  background: transparent;
+  background: none;
   box-shadow: none;
-  border-radius: 0;
   cursor: pointer;
-  font-size: 0.95rem;
-  line-height: 1.2;
+  font: inherit;
+  font-size: 0.9rem;
+  color: #2563eb;
+  text-decoration: underline;
+  text-decoration-color: rgba(37, 99, 235, 0.35);
+  text-underline-offset: 2px;
+  text-align: left;
+  line-height: 1.35;
   display: inline;
-  vertical-align: baseline;
-  min-width: unset;
-  min-height: unset;
-  opacity: 0.92;
-  transition: opacity 0.15s ease;
+  max-width: 100%;
 }
 
-.btn-msg-tutor:hover {
-  opacity: 1;
-  background: transparent;
+.hijo-tutor-nombre-link:hover {
+  color: #1d4ed8;
+  text-decoration-color: rgba(29, 78, 216, 0.55);
+}
+
+.hijo-tutor-nombre-link:focus-visible {
+  outline: 2px solid #4a83c1;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.hijo-tutor-texto-plano {
+  color: #1f2937;
+  font-size: 0.9rem;
+  line-height: 1.35;
 }
 
 .empty-state {
