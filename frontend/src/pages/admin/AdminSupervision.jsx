@@ -7,6 +7,81 @@ import Swal from 'sweetalert2';
 import './AdminUsuarios.css';
 import './AdminSupervision.css';
 
+/** Iconos outline (Heroicons-style) para el menú Opciones */
+function IcoPencil() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+    </svg>
+  );
+}
+function IcoUsers() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+function IcoClipboard() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+      <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+      <path d="M9 14h6" />
+      <path d="M9 18h6" />
+      <path d="M9 10h4" />
+    </svg>
+  );
+}
+function IcoClock() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 6v6l4 2" />
+    </svg>
+  );
+}
+function IcoShield() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+function IcoTrash() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
+
+function OpcionesMenuItem({ icon: Icon, label, hint, onClick, danger }) {
+  return (
+    <li>
+      <button
+        type="button"
+        role="menuitem"
+        className={`admin-sup-opciones-item${danger ? ' admin-sup-opcion-danger' : ''}`}
+        onClick={onClick}
+      >
+        <span className="admin-sup-opciones-item-icon" aria-hidden>
+          <Icon />
+        </span>
+        <span className="admin-sup-opciones-item-body">
+          <span className="admin-sup-opciones-item-label">{label}</span>
+          {hint ? <span className="admin-sup-opciones-item-hint">{hint}</span> : null}
+        </span>
+      </button>
+    </li>
+  );
+}
+
 export default function AdminSupervision() {
   const { user } = useAuth();
   const [yo, setYo] = useState(null);
@@ -107,21 +182,20 @@ export default function AdminSupervision() {
 
 /** Menú desplegable en document.body (evita recorte por overflow del dashboard / tabla). */
 function OpcionesMenuLayer({ open, anchorEl, onClose, children }) {
-  const [pos, setPos] = useState({ top: 8, left: 8, width: 260 });
+  const [pos, setPos] = useState({ top: 8, left: 8, width: 300, maxH: 420 });
 
   useLayoutEffect(() => {
     if (!open || !anchorEl) return undefined;
     const place = () => {
       const r = anchorEl.getBoundingClientRect();
-      const w = 260;
+      const w = 300;
       let left = r.right - w;
       left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
-      let top = r.bottom + 4;
-      const estH = 360;
-      if (top + estH > window.innerHeight - 8 && r.top > 80) {
-        top = Math.max(8, r.top - estH - 4);
-      }
-      setPos({ top, left, width: w });
+      const gap = 4;
+      // Siempre justo debajo del botón (antes se “volteaba” con altura fija ~360px y quedaba arriba del todo)
+      const top = r.bottom + gap;
+      const maxH = Math.max(100, Math.min(420, window.innerHeight - top - 8));
+      setPos({ top, left, width: w, maxH });
     };
     place();
     const t = window.setTimeout(place, 0);
@@ -154,7 +228,7 @@ function OpcionesMenuLayer({ open, anchorEl, onClose, children }) {
           left: pos.left,
           width: pos.width,
           zIndex: 10050,
-          maxHeight: 'min(420px, calc(100vh - 16px))',
+          maxHeight: pos.maxH,
           overflowY: 'auto'
         }}
         role="menu"
@@ -441,7 +515,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
       <div className="admin-usu-table-card">
         <div className="admin-sup-panel-body">
           <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-            Listado de supervisiones. Use <strong>Opciones</strong> en cada fila para editar, participantes, registrar visita o historial.
+            Listado de supervisiones. Use <strong>Opciones</strong> en cada fila para las acciones. El botón <strong>Supervisores</strong> de la barra superior abre lo mismo que <strong>Supervisores del colegio</strong> en el menú (quién puede usar este módulo).
           </p>
           <div className="admin-usu-table-scroll">
             <table className="admin-usu-table">
@@ -590,76 +664,64 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
 
       {menuRow && menuAnchor && (
         <OpcionesMenuLayer open anchorEl={menuAnchor} onClose={closeMenu}>
-          <li>
-            <button type="button" role="menuitem" onClick={() => { openEdit(menuRow); }}>
-              Editar
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              role="menuitem"
+          <OpcionesMenuItem
+            icon={IcoPencil}
+            label="Editar"
+            hint="Título, año, preguntas de la rúbrica, rangos y tipo de cierre."
+            onClick={() => {
+              openEdit(menuRow);
+            }}
+          />
+          <OpcionesMenuItem
+            icon={IcoUsers}
+            label="Participantes"
+            hint="Personal de referencia vinculado a esta rúbrica (seguimiento; no son los supervisores)."
+            onClick={() => {
+              setParticipantesRow({ id: menuRow.id, titulo: menuRow.titulo });
+              closeMenu();
+            }}
+          />
+          {canExecute && (
+            <OpcionesMenuItem
+              icon={IcoClipboard}
+              label="Registrar visita"
+              hint="Evaluar a un docente con esta rúbrica (nivel, grado, aula y puntajes)."
               onClick={() => {
-                setParticipantesRow({ id: menuRow.id, titulo: menuRow.titulo });
+                setRegistrarModal({ presetId: menuRow.id, titulo: menuRow.titulo });
                 closeMenu();
               }}
-            >
-              Participantes
-            </button>
-          </li>
-          {canExecute && (
-            <li>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setRegistrarModal({ presetId: menuRow.id, titulo: menuRow.titulo });
-                  closeMenu();
-                }}
-              >
-                Registrar visita
-              </button>
-            </li>
+            />
           )}
           {canExecute && (
-            <li>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setHistorialModal({ instrumentoId: menuRow.id, titulo: menuRow.titulo });
-                  closeMenu();
-                }}
-              >
-                Historial de esta supervisión
-              </button>
-            </li>
+            <OpcionesMenuItem
+              icon={IcoClock}
+              label="Historial de esta supervisión"
+              hint="Visitas ya registradas solo con esta rúbrica."
+              onClick={() => {
+                setHistorialModal({ instrumentoId: menuRow.id, titulo: menuRow.titulo });
+                closeMenu();
+              }}
+            />
           )}
-          <li>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setModal('supervisores');
-                closeMenu();
-              }}
-            >
-              Supervisores del colegio
-            </button>
-          </li>
-          <li>
-            <button
-              type="button"
-              role="menuitem"
-              className="admin-sup-opcion-danger"
-              onClick={() => {
-                deleteInst(menuRow.id);
-                closeMenu();
-              }}
-            >
-              Eliminar
-            </button>
-          </li>
+          <OpcionesMenuItem
+            icon={IcoShield}
+            label="Supervisores del colegio"
+            hint="Mismo panel que el botón Supervisores arriba: quién puede registrar visitas en el colegio."
+            onClick={() => {
+              setModal('supervisores');
+              closeMenu();
+            }}
+          />
+          <OpcionesMenuItem
+            icon={IcoTrash}
+            label="Eliminar"
+            hint="Quita esta rúbrica (no permitido si ya hay evaluaciones)."
+            danger
+            onClick={() => {
+              deleteInst(menuRow.id);
+              closeMenu();
+            }}
+          />
         </OpcionesMenuLayer>
       )}
     </>
@@ -706,7 +768,7 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
       <div className="admin-usu-table-card">
         <div className="admin-sup-panel-body">
           <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-            Supervisiones activas para el año lectivo. Use <strong>Opciones</strong> para participantes (consulta), registrar visita o historial filtrado.
+            Supervisiones activas para el año lectivo. En <strong>Opciones</strong>: participantes (consulta), registrar visita a un docente con esa rúbrica, o historial solo de esa supervisión.
           </p>
           <div className="admin-usu-table-scroll">
             <table className="admin-usu-table">
@@ -754,45 +816,36 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
 
       {menuRow && menuAnchor && (
         <OpcionesMenuLayer open anchorEl={menuAnchor} onClose={closeMenu}>
-          <li>
-            <button
-              type="button"
-              role="menuitem"
+          <OpcionesMenuItem
+            icon={IcoUsers}
+            label="Participantes"
+            hint="Quién está asociado como referencia a esta rúbrica (solo lectura)."
+            onClick={() => {
+              setParticipantesRow({ id: menuRow.id, titulo: menuRow.titulo });
+              closeMenu();
+            }}
+          />
+          {canExecute && (
+            <OpcionesMenuItem
+              icon={IcoClipboard}
+              label="Registrar visita"
+              hint="Evaluar a un docente con esta rúbrica (aula, puntajes)."
               onClick={() => {
-                setParticipantesRow({ id: menuRow.id, titulo: menuRow.titulo });
+                setRegistrarModal({ presetId: menuRow.id, titulo: menuRow.titulo });
                 closeMenu();
               }}
-            >
-              Participantes
-            </button>
-          </li>
-          {canExecute && (
-            <li>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setRegistrarModal({ presetId: menuRow.id, titulo: menuRow.titulo });
-                  closeMenu();
-                }}
-              >
-                Registrar visita
-              </button>
-            </li>
+            />
           )}
           {canExecute && (
-            <li>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setHistorialModal({ instrumentoId: menuRow.id, titulo: menuRow.titulo });
-                  closeMenu();
-                }}
-              >
-                Historial de esta supervisión
-              </button>
-            </li>
+            <OpcionesMenuItem
+              icon={IcoClock}
+              label="Historial de esta supervisión"
+              hint="Visitas ya guardadas solo con esta rúbrica."
+              onClick={() => {
+                setHistorialModal({ instrumentoId: menuRow.id, titulo: menuRow.titulo });
+                closeMenu();
+              }}
+            />
           )}
         </OpcionesMenuLayer>
       )}

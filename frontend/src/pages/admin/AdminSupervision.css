@@ -174,30 +174,73 @@
   margin: 0;
 }
 
-.admin-sup-opciones-menu button {
-  display: block;
+.admin-sup-opciones-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
   width: 100%;
   text-align: left;
-  padding: 0.55rem 1rem;
+  padding: 0.5rem 0.85rem;
   border: none;
   background: transparent;
-  font-size: 0.9rem;
+  font-size: inherit;
   color: #1f2937;
   cursor: pointer;
   transition: background 0.12s ease;
 }
 
-.admin-sup-opciones-menu button:hover {
+.admin-sup-opciones-item-icon {
+  flex-shrink: 0;
+  margin-top: 0.12rem;
+  color: #4a83c1;
+}
+
+.admin-sup-opciones-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.admin-sup-opciones-item-label {
+  font-weight: 600;
+  font-size: 0.9rem;
+  line-height: 1.25;
+  color: inherit;
+}
+
+.admin-sup-opciones-item-hint {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: #6b7280;
+  font-weight: 400;
+}
+
+.admin-sup-opciones-item:hover {
   background: #f0f7ff;
+}
+
+.admin-sup-opciones-item:hover .admin-sup-opciones-item-label {
   color: #2d5a8f;
 }
 
-.admin-sup-opciones-menu .admin-sup-opcion-danger {
+.admin-sup-opciones-menu .admin-sup-opcion-danger .admin-sup-opciones-item-icon {
   color: #b91c1c;
+}
+
+.admin-sup-opciones-menu .admin-sup-opcion-danger .admin-sup-opciones-item-label {
+  color: #b91c1c;
+}
+
+.admin-sup-opciones-menu .admin-sup-opcion-danger .admin-sup-opciones-item-hint {
+  color: #9ca3af;
 }
 
 .admin-sup-opciones-menu .admin-sup-opcion-danger:hover {
   background: #fef2f2;
+}
+
+.admin-sup-opciones-menu .admin-sup-opcion-danger:hover .admin-sup-opciones-item-label {
   color: #991b1b;
 }
 
