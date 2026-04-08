@@ -16,16 +16,6 @@ function IcoPencil() {
     </svg>
   );
 }
-function IcoUsers() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="9" cy="7" r="4" />
-      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-    </svg>
-  );
-}
 function IcoClipboard() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -42,13 +32,6 @@ function IcoClock() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
       <circle cx="12" cy="12" r="10" />
       <path d="M12 6v6l4 2" />
-    </svg>
-  );
-}
-function IcoShield() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>
   );
 }
@@ -152,7 +135,7 @@ export default function AdminSupervision() {
           <div className="admin-usu-header">
             <h1>Supervisión</h1>
             <p>
-              Rúbricas de supervisión, cierre global, personal autorizado y registro de visitas por docente (nivel, grado y aula).
+              Rúbricas de supervisión, cierre global, personal autorizado y registro de supervisiones por docente (nivel, grado y aula).
             </p>
           </div>
           <PanelSupervisionAdmin user={user} canExecute={canExecute} loadYo={loadYo} />
@@ -165,7 +148,7 @@ export default function AdminSupervision() {
         <div className="admin-usu-header">
           <h1>Supervisión</h1>
           <p>
-            Registro de visitas e historial según el acceso asignado. Use <strong>Opciones</strong> en cada fila o los botones superiores.
+            Registro de supervisiones e historial según el acceso asignado. Use <strong>Opciones</strong> en cada fila o los botones superiores.
           </p>
         </div>
         <PanelSupervisionEjecutor loadYo={loadYo} canExecute={canExecute} />
@@ -296,7 +279,6 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
   const [modal, setModal] = useState(null); // 'create' | 'edit' | 'cierre' | 'supervisores'
   const [menuRowId, setMenuRowId] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
-  const [participantesRow, setParticipantesRow] = useState(null);
   const [registrarModal, setRegistrarModal] = useState(null);
   const [historialModal, setHistorialModal] = useState(null);
   const [yearChoice, setYearChoice] = useState('activo');
@@ -515,7 +497,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
       <div className="admin-usu-table-card">
         <div className="admin-sup-panel-body">
           <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-            Listado de supervisiones. Use <strong>Opciones</strong> en cada fila para las acciones. El botón <strong>Supervisores</strong> de la barra superior abre lo mismo que <strong>Supervisores del colegio</strong> en el menú (quién puede usar este módulo).
+            Listado de rúbricas de supervisión. <strong>Supervisores</strong> en la barra define quién del colegio puede registrar supervisiones. En <strong>Opciones</strong> por fila: editar la rúbrica, registrar una supervisión con esa rúbrica, historial o eliminar.
           </p>
           <div className="admin-usu-table-scroll">
             <table className="admin-usu-table">
@@ -607,6 +589,12 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
                   <CamposCierreInstrumento instrumentoId={sel} />
                 </>
               )}
+
+              <h3 className="admin-sup-modal-section-title">Personal de referencia (opcional)</h3>
+              <p className="admin-sup-muted" style={{ marginTop: 0 }}>
+                Quién aparece aquí no es el docente que se evalúa (eso se elige al pulsar <strong>Registrar supervisión</strong>) ni los usuarios con permiso de supervisor (eso se configura con el botón <strong>Supervisores</strong> arriba). Es solo un listado opcional de contactos de coordinación o seguimiento vinculados a esta rúbrica.
+              </p>
+              <PanelInstrumentoParticipantes instrumentoId={sel} />
             </>
           )}
           {pieEditor}
@@ -627,7 +615,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
 
       {registrarModal != null && canExecute && (
         <SupervisionModal
-          title={registrarModal.presetId ? `Registrar visita — ${registrarModal.titulo || ''}` : 'Registrar supervisión'}
+          title={registrarModal.presetId ? `Registrar supervisión — ${registrarModal.titulo || ''}` : 'Registrar supervisión'}
           onClose={() => setRegistrarModal(null)}
         >
           <PanelRegistrar
@@ -656,36 +644,21 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
         </SupervisionModal>
       )}
 
-      {participantesRow && (
-        <SupervisionModal title={`Participantes — ${participantesRow.titulo}`} onClose={() => setParticipantesRow(null)}>
-          <PanelInstrumentoParticipantes instrumentoId={participantesRow.id} />
-        </SupervisionModal>
-      )}
-
       {menuRow && menuAnchor && (
         <OpcionesMenuLayer open anchorEl={menuAnchor} onClose={closeMenu}>
           <OpcionesMenuItem
             icon={IcoPencil}
             label="Editar"
-            hint="Título, año, preguntas de la rúbrica, rangos y tipo de cierre."
+            hint="Rúbrica, preguntas, rangos, cierre y personal de referencia opcional."
             onClick={() => {
               openEdit(menuRow);
-            }}
-          />
-          <OpcionesMenuItem
-            icon={IcoUsers}
-            label="Participantes"
-            hint="Personal de referencia vinculado a esta rúbrica (seguimiento; no son los supervisores)."
-            onClick={() => {
-              setParticipantesRow({ id: menuRow.id, titulo: menuRow.titulo });
-              closeMenu();
             }}
           />
           {canExecute && (
             <OpcionesMenuItem
               icon={IcoClipboard}
-              label="Registrar visita"
-              hint="Evaluar a un docente con esta rúbrica (nivel, grado, aula y puntajes)."
+              label="Registrar supervisión"
+              hint="Elige docente, aula y aplica esta rúbrica (es la evaluación en sí)."
               onClick={() => {
                 setRegistrarModal({ presetId: menuRow.id, titulo: menuRow.titulo });
                 closeMenu();
@@ -696,22 +669,13 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
             <OpcionesMenuItem
               icon={IcoClock}
               label="Historial de esta supervisión"
-              hint="Visitas ya registradas solo con esta rúbrica."
+              hint="Evaluaciones ya guardadas solo con esta rúbrica."
               onClick={() => {
                 setHistorialModal({ instrumentoId: menuRow.id, titulo: menuRow.titulo });
                 closeMenu();
               }}
             />
           )}
-          <OpcionesMenuItem
-            icon={IcoShield}
-            label="Supervisores del colegio"
-            hint="Mismo panel que el botón Supervisores arriba: quién puede registrar visitas en el colegio."
-            onClick={() => {
-              setModal('supervisores');
-              closeMenu();
-            }}
-          />
           <OpcionesMenuItem
             icon={IcoTrash}
             label="Eliminar"
@@ -733,7 +697,6 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
   const [list, setList] = useState([]);
   const [menuRowId, setMenuRowId] = useState(null);
   const [menuAnchor, setMenuAnchor] = useState(null);
-  const [participantesRow, setParticipantesRow] = useState(null);
   const [registrarModal, setRegistrarModal] = useState(null);
   const [historialModal, setHistorialModal] = useState(null);
 
@@ -768,7 +731,7 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
       <div className="admin-usu-table-card">
         <div className="admin-sup-panel-body">
           <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-            Supervisiones activas para el año lectivo. En <strong>Opciones</strong>: participantes (consulta), registrar visita a un docente con esa rúbrica, o historial solo de esa supervisión.
+            Rúbricas activas para el año lectivo. En <strong>Opciones</strong>: registrar una supervisión (elige docente y aula) o ver el historial filtrado por esa rúbrica. Quién puede usar el módulo lo define el administrador con el botón <strong>Supervisores</strong> en Herramientas.
           </p>
           <div className="admin-usu-table-scroll">
             <table className="admin-usu-table">
@@ -816,20 +779,11 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
 
       {menuRow && menuAnchor && (
         <OpcionesMenuLayer open anchorEl={menuAnchor} onClose={closeMenu}>
-          <OpcionesMenuItem
-            icon={IcoUsers}
-            label="Participantes"
-            hint="Quién está asociado como referencia a esta rúbrica (solo lectura)."
-            onClick={() => {
-              setParticipantesRow({ id: menuRow.id, titulo: menuRow.titulo });
-              closeMenu();
-            }}
-          />
           {canExecute && (
             <OpcionesMenuItem
               icon={IcoClipboard}
-              label="Registrar visita"
-              hint="Evaluar a un docente con esta rúbrica (aula, puntajes)."
+              label="Registrar supervisión"
+              hint="Elige docente, aula y completa la evaluación con esta rúbrica."
               onClick={() => {
                 setRegistrarModal({ presetId: menuRow.id, titulo: menuRow.titulo });
                 closeMenu();
@@ -840,7 +794,7 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
             <OpcionesMenuItem
               icon={IcoClock}
               label="Historial de esta supervisión"
-              hint="Visitas ya guardadas solo con esta rúbrica."
+              hint="Evaluaciones ya guardadas solo con esta rúbrica."
               onClick={() => {
                 setHistorialModal({ instrumentoId: menuRow.id, titulo: menuRow.titulo });
                 closeMenu();
@@ -852,7 +806,7 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
 
       {registrarModal != null && canExecute && (
         <SupervisionModal
-          title={registrarModal.presetId ? `Registrar visita — ${registrarModal.titulo || ''}` : 'Registrar supervisión'}
+          title={registrarModal.presetId ? `Registrar supervisión — ${registrarModal.titulo || ''}` : 'Registrar supervisión'}
           onClose={() => setRegistrarModal(null)}
         >
           <PanelRegistrar
@@ -879,11 +833,6 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
         </SupervisionModal>
       )}
 
-      {participantesRow && (
-        <SupervisionModal title={`Participantes — ${participantesRow.titulo}`} onClose={() => setParticipantesRow(null)}>
-          <PanelInstrumentoParticipantes instrumentoId={participantesRow.id} readOnly />
-        </SupervisionModal>
-      )}
     </>
   );
 }
@@ -1144,11 +1093,11 @@ function PanelInstrumentoParticipantes({ instrumentoId, readOnly = false }) {
   return (
     <div>
       <p className="admin-sup-muted">
-        Personal de referencia vinculado a esta supervisión (seguimiento, coordinación). No es el mismo listado que &quot;Supervisores del colegio&quot;, que autoriza registrar visitas.
+        Opcional. Personas de coordinación o seguimiento asociadas a <strong>esta rúbrica</strong> (información interna). No son el docente que se evalúa (eso se elige al registrar la supervisión) ni los usuarios con permiso de supervisor (eso es el botón <strong>Supervisores</strong> en la barra).
       </p>
       {readOnly && (
         <p className="admin-sup-muted" style={{ marginTop: 8 }}>
-          Solo consulta. Para agregar o quitar personas, el administrador debe usar Herramientas → Supervisión.
+          Solo consulta. Solo el administrador puede editar este listado desde <strong>Editar</strong> la rúbrica.
         </p>
       )}
       <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '0 0 0.75rem' }}>Personas asignadas</h3>
@@ -1235,7 +1184,7 @@ function PanelSupervisores() {
   return (
     <div>
       <p className="admin-sup-muted">
-        Los supervisores pueden registrar visitas e historial; no tienen acceso a la configuración de este módulo.
+        Los supervisores pueden registrar supervisiones y ver historial; no tienen acceso a la configuración de este módulo.
       </p>
       <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '0 0 0.75rem' }}>Supervisores actuales</h3>
       <div className="admin-usu-table-scroll">
@@ -1405,7 +1354,7 @@ function PanelRegistrar({
   return (
     <div className={modoModal ? 'admin-sup-registrar-modal' : 'admin-sup-layout-2'}>
       <div className="admin-usu-profile-section">
-        <h3>Contexto de la visita</h3>
+        <h3>Contexto de la supervisión</h3>
         {modoModal && (
           <p className="admin-sup-muted" style={{ marginTop: 0 }}>
             Elija nivel, grupo y docente. Luego cargue el formulario de la rúbrica y complete observaciones y cierre.
@@ -1533,7 +1482,7 @@ function PanelHistorial({ instrumentoId: filtroInstrumentoId = null, tituloFiltr
     <div>
       {tituloFiltro ? (
         <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-          Mostrando visitas registradas con la supervisión: <strong>{tituloFiltro}</strong>
+          Mostrando supervisiones registradas con la rúbrica: <strong>{tituloFiltro}</strong>
         </p>
       ) : null}
       <div className="admin-usu-table-scroll">
