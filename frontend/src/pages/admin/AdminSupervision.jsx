@@ -6,30 +6,10 @@ import Swal from 'sweetalert2';
 import './AdminUsuarios.css';
 import './AdminSupervision.css';
 
-const TABS = {
-  instrumentos: 'instrumentos',
-  cierre: 'cierre',
-  supervisores: 'supervisores',
-  registrar: 'registrar',
-  historial: 'historial'
-};
-
-function TabButton({ active, children, onClick }) {
-  return (
-    <button
-      type="button"
-      className={`admin-usu-btn ${active ? 'admin-usu-btn-primary' : 'admin-usu-btn-secondary'}`}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
-
 export default function AdminSupervision() {
   const { user } = useAuth();
   const [yo, setYo] = useState(null);
-  const [tab, setTab] = useState(() => (user?.tipo === 'ADMINISTRADOR' ? TABS.instrumentos : TABS.registrar));
+  const [supervisorVista, setSupervisorVista] = useState('registrar'); // 'registrar' | 'historial' (solo no-admin)
   const [loadErr, setLoadErr] = useState(null);
 
   const isAdmin = user?.tipo === 'ADMINISTRADOR';
@@ -91,48 +71,46 @@ export default function AdminSupervision() {
       );
     }
 
+    if (canConfig) {
+      return (
+        <div className="admin-usu-wrap admin-sup-page admin-sup-root">
+          <div className="admin-usu-header">
+            <h1>Supervisión</h1>
+            <p>
+              Rúbricas de supervisión, cierre global, personal autorizado y registro de visitas por docente (nivel, grado y aula).
+            </p>
+          </div>
+          <PanelSupervisionAdmin user={user} canExecute={canExecute} loadYo={loadYo} />
+        </div>
+      );
+    }
+
     return (
-      <div className="admin-usu-wrap">
+      <div className="admin-usu-wrap admin-sup-page">
         <div className="admin-usu-header">
           <h1>Supervisión</h1>
-          <p>
-            Instrumentos tipo rúbrica, supervisores asignados y registro de visitas por docente (nivel, grado y aula).
-          </p>
+          <p>Registro de visitas e historial según el acceso asignado.</p>
         </div>
-
         <div className="admin-usu-toolbar" style={{ flexWrap: 'wrap' }}>
-          {canConfig && (
-            <>
-              <TabButton active={tab === TABS.instrumentos} onClick={() => setTab(TABS.instrumentos)}>
-                Instrumentos
-              </TabButton>
-              <TabButton active={tab === TABS.cierre} onClick={() => setTab(TABS.cierre)}>
-                Cierre global
-              </TabButton>
-              <TabButton active={tab === TABS.supervisores} onClick={() => setTab(TABS.supervisores)}>
-                Supervisores
-              </TabButton>
-            </>
-          )}
-          {canExecute && (
-            <>
-              <TabButton active={tab === TABS.registrar} onClick={() => setTab(TABS.registrar)}>
-                Registrar supervisión
-              </TabButton>
-              <TabButton active={tab === TABS.historial} onClick={() => setTab(TABS.historial)}>
-                Historial
-              </TabButton>
-            </>
-          )}
+          <button
+            type="button"
+            className={`admin-usu-btn ${supervisorVista === 'registrar' ? 'admin-usu-btn-primary' : 'admin-usu-btn-secondary'}`}
+            onClick={() => setSupervisorVista('registrar')}
+          >
+            Registrar supervisión
+          </button>
+          <button
+            type="button"
+            className={`admin-usu-btn ${supervisorVista === 'historial' ? 'admin-usu-btn-primary' : 'admin-usu-btn-secondary'}`}
+            onClick={() => setSupervisorVista('historial')}
+          >
+            Historial
+          </button>
         </div>
-
         <div className="admin-usu-table-card">
           <div className="admin-sup-panel-body">
-            {tab === TABS.instrumentos && canConfig && <PanelInstrumentos />}
-            {tab === TABS.cierre && canConfig && <PanelCierreGlobal />}
-            {tab === TABS.supervisores && canConfig && <PanelSupervisores />}
-            {tab === TABS.registrar && canExecute && <PanelRegistrar onDone={loadYo} />}
-            {tab === TABS.historial && canExecute && <PanelHistorial />}
+            {supervisorVista === 'registrar' && canExecute && <PanelRegistrar onDone={loadYo} />}
+            {supervisorVista === 'historial' && canExecute && <PanelHistorial />}
           </div>
         </div>
       </div>
@@ -146,14 +124,65 @@ export default function AdminSupervision() {
   );
 }
 
-function PanelInstrumentos() {
+function SupervisionModal({ title, children, onClose }) {
+  return (
+    <div
+      className="admin-sup-modal-backdrop"
+      role="presentation"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="admin-sup-modal-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-sup-modal-title"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="admin-sup-modal-header">
+          <h2 id="admin-sup-modal-title">{title}</h2>
+          <button type="button" className="admin-sup-modal-close" onClick={onClose} aria-label="Cerrar">
+            ×
+          </button>
+        </div>
+        <div className="admin-sup-modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function anioDesdeSeleccion(yearChoice, yearOtro, anioActivo) {
+  if (yearChoice === 'activo') return anioActivo;
+  if (yearChoice === 'anterior') return anioActivo - 1;
+  if (yearChoice === 'todos') return null;
+  if (yearChoice === 'otro') {
+    const n = parseInt(String(yearOtro || '').trim(), 10);
+    return Number.isFinite(n) ? n : null;
+  }
+  return anioActivo;
+}
+
+function inferirYearChoice(anio, anioActivo) {
+  if (anio == null || anio === '') return 'todos';
+  const n = parseInt(String(anio), 10);
+  if (n === anioActivo) return 'activo';
+  if (n === anioActivo - 1) return 'anterior';
+  return 'otro';
+}
+
+function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
+  const anioActivo = parseInt(String(user?.anio_activo ?? new Date().getFullYear()), 10);
   const [list, setList] = useState([]);
   const [sel, setSel] = useState(null);
   const [detalle, setDetalle] = useState(null);
+  const [modal, setModal] = useState(null); // 'create' | 'edit' | 'cierre' | 'supervisores'
+  const [adminExec, setAdminExec] = useState(null); // 'registrar' | 'historial'
+  const [yearChoice, setYearChoice] = useState('activo');
+  const [yearOtro, setYearOtro] = useState('');
   const [formInst, setFormInst] = useState({
     titulo: '',
     descripcion: '',
-    anio: '',
     activo: true,
     cierre_usa_global: true
   });
@@ -164,50 +193,64 @@ function PanelInstrumentos() {
     loadList().catch(() => {});
   }, []);
 
+  const cerrarEditor = () => {
+    setModal(null);
+    setSel(null);
+    setDetalle(null);
+  };
+
   const openNew = () => {
     setSel('new');
     setDetalle(null);
+    setYearChoice('activo');
+    setYearOtro('');
     setFormInst({
       titulo: '',
       descripcion: '',
-      anio: '',
       activo: true,
       cierre_usa_global: true
     });
+    setModal('create');
   };
 
   const openEdit = async (row) => {
     setSel(row.id);
+    setDetalle(null);
+    setModal('edit');
     try {
       const { data } = await api.get(`/supervision/instrumentos/${row.id}/detalle`);
       setDetalle(data);
+      const a = data.instrumento.anio;
+      const yc = inferirYearChoice(a, anioActivo);
+      setYearChoice(yc);
+      setYearOtro(yc === 'otro' && a != null ? String(a) : '');
       setFormInst({
         titulo: data.instrumento.titulo,
         descripcion: data.instrumento.descripcion || '',
-        anio: data.instrumento.anio != null ? String(data.instrumento.anio) : '',
         activo: !!data.instrumento.activo,
         cierre_usa_global: !!data.instrumento.cierre_usa_global
       });
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error || 'No se pudo cargar', 'error');
+      cerrarEditor();
     }
   };
 
   const saveInstrumento = async () => {
     try {
+      const anio = anioDesdeSeleccion(yearChoice, yearOtro, anioActivo);
       const payload = {
         titulo: formInst.titulo,
         descripcion: formInst.descripcion || null,
-        anio: formInst.anio === '' ? null : parseInt(formInst.anio, 10),
+        anio,
         activo: formInst.activo,
         cierre_usa_global: formInst.cierre_usa_global
       };
       if (sel === 'new') {
         await api.post('/supervision/instrumentos', payload);
-        Swal.fire({ icon: 'success', title: 'Creado', timer: 1600, showConfirmButton: false });
+        Swal.fire({ icon: 'success', title: 'Supervisión creada', timer: 1600, showConfirmButton: false });
         await loadList();
-        setSel(null);
-        setDetalle(null);
+        cerrarEditor();
       } else {
         await api.put(`/supervision/instrumentos/${sel}`, payload);
         Swal.fire({ icon: 'success', title: 'Guardado', timer: 1600, showConfirmButton: false });
@@ -221,7 +264,7 @@ function PanelInstrumentos() {
 
   const deleteInst = async (id) => {
     const c = await Swal.fire({
-      title: '¿Eliminar instrumento?',
+      title: '¿Eliminar esta supervisión?',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Sí, eliminar'
@@ -230,10 +273,7 @@ function PanelInstrumentos() {
     try {
       await api.delete(`/supervision/instrumentos/${id}`);
       await loadList();
-      if (sel === id) {
-        setSel(null);
-        setDetalle(null);
-      }
+      if (sel === id) cerrarEditor();
       Swal.fire({ icon: 'success', title: 'Eliminado', timer: 1400, showConfirmButton: false });
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error || 'No se pudo eliminar', 'error');
@@ -248,174 +288,224 @@ function PanelInstrumentos() {
     }
   }
 
-  return (
-    <div className="admin-sup-layout-2">
-      <div>
-        <div className="admin-usu-toolbar" style={{ marginBottom: '0.75rem' }}>
-          <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={openNew}>
-            + Nuevo instrumento
-          </button>
-        </div>
-        <div className="admin-usu-table-scroll">
-          <table className="admin-usu-table">
-            <thead>
-              <tr>
-                <th>Título</th>
-                <th>Estado</th>
-                <th style={{ width: 220 }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.map((r) => (
-                <tr key={r.id}>
-                  <td style={{ textAlign: 'left' }}>{r.titulo}</td>
-                  <td>
-                    {r.activo ? (
-                      <span className="admin-usu-badge admin-usu-badge-ok">Activo</span>
-                    ) : (
-                      <span className="admin-usu-badge-off">Inactivo</span>
-                    )}
-                  </td>
-                  <td>
-                    <button type="button" className="admin-usu-btn admin-usu-btn-secondary" style={{ marginRight: 8 }} onClick={() => openEdit(r)}>
-                      Editar
-                    </button>
-                    <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => deleteInst(r.id)}>
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+  const editorTitulo = modal === 'create' ? 'Nueva supervisión' : 'Editar supervisión';
+
+  const formCampos = (
+    <>
+      <div className="admin-usu-field">
+        <label>Título</label>
+        <input value={formInst.titulo} onChange={(e) => setFormInst({ ...formInst, titulo: e.target.value })} />
       </div>
-      <div>
-        {sel == null && (
-          <p className="admin-sup-muted">Seleccione o cree un instrumento para configurar preguntas, niveles y rangos.</p>
-        )}
-        {sel === 'new' && (
-          <div className="admin-usu-profile-section">
-            <h3>Nuevo instrumento</h3>
-            <div className="admin-usu-field">
-              <label>Título</label>
-              <input value={formInst.titulo} onChange={(e) => setFormInst({ ...formInst, titulo: e.target.value })} />
-            </div>
-            <div className="admin-usu-field">
-              <label>Descripción (opcional)</label>
-              <textarea className="admin-usu-msg-textarea" style={{ minHeight: 88 }} value={formInst.descripcion} onChange={(e) => setFormInst({ ...formInst, descripcion: e.target.value })} />
-            </div>
-            <div className="admin-usu-field">
-              <label>Año (vacío = todos los años)</label>
-              <input
-                type="number"
-                value={formInst.anio}
-                onChange={(e) => setFormInst({ ...formInst, anio: e.target.value })}
-                placeholder="Ej. 2026"
-              />
-            </div>
-            <div className="admin-usu-destino-row" style={{ marginBottom: '0.75rem' }}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={formInst.activo}
-                  onChange={(e) => setFormInst({ ...formInst, activo: e.target.checked })}
-                />
-                Activo
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={formInst.cierre_usa_global}
-                  onChange={(e) => setFormInst({ ...formInst, cierre_usa_global: e.target.checked })}
-                />
-                Usar campos de cierre globales
-              </label>
-            </div>
-            <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={saveInstrumento}>
-              Guardar
-            </button>
-          </div>
-        )}
-        {sel && sel !== 'new' && detalle && (
-          <div className="admin-usu-profile-section">
-            <h3>Editar instrumento</h3>
-            <div className="admin-usu-field">
-              <label>Título</label>
-              <input value={formInst.titulo} onChange={(e) => setFormInst({ ...formInst, titulo: e.target.value })} />
-            </div>
-            <div className="admin-usu-field">
-              <label>Descripción</label>
-              <textarea className="admin-usu-msg-textarea" style={{ minHeight: 88 }} value={formInst.descripcion} onChange={(e) => setFormInst({ ...formInst, descripcion: e.target.value })} />
-            </div>
-            <div className="admin-usu-field">
-              <label>Año (vacío = todos)</label>
-              <input type="number" value={formInst.anio} onChange={(e) => setFormInst({ ...formInst, anio: e.target.value })} />
-            </div>
-            <div className="admin-usu-destino-row" style={{ marginBottom: '0.75rem' }}>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={formInst.activo}
-                  onChange={(e) => setFormInst({ ...formInst, activo: e.target.checked })}
-                />
-                Activo
-              </label>
-              <label>
-                <input
-                  type="checkbox"
-                  checked={formInst.cierre_usa_global}
-                  onChange={(e) => setFormInst({ ...formInst, cierre_usa_global: e.target.checked })}
-                />
-                Cierre global
-              </label>
-            </div>
-            <button type="button" className="admin-usu-btn admin-usu-btn-primary" style={{ marginBottom: '1rem' }} onClick={saveInstrumento}>
-              Guardar datos generales
-            </button>
-
-            <h3 style={{ marginTop: '1.25rem' }}>Preguntas e ítems</h3>
-            {(detalle.preguntas || []).map((p) => (
-              <div key={p.id} className="admin-usu-info-item admin-sup-pregunta-block">
-                <span className="admin-usu-info-label">{p.titulo}</span>
-                <div className="admin-sup-muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
-                  {p.texto_ayuda}
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  {(p.niveles || []).map((n) => (
-                    <div key={n.id} className="admin-sup-muted" style={{ fontSize: '0.82rem' }}>
-                      [{n.valor_numerico}] {n.etiqueta || '—'} — {n.descripcion || ''}
-                    </div>
-                  ))}
-                </div>
-                <MiniNivelForm preguntaId={p.id} onAdded={() => openEdit({ id: sel })} />
-              </div>
-            ))}
-            <MiniPreguntaForm instrumentoId={sel} onAdded={() => openEdit({ id: sel })} />
-
-            <h3 style={{ marginTop: '1.25rem' }}>Rangos de resultado (puntaje total)</h3>
-            {(detalle.rangos_resultado || []).map((r) => (
-              <div key={r.id} className="admin-usu-destino-row" style={{ justifyContent: 'space-between', width: '100%', marginBottom: 8 }}>
-                <span className="admin-sup-muted" style={{ margin: 0 }}>
-                  {r.puntaje_min} – {r.puntaje_max}: <strong>{r.etiqueta}</strong>
-                </span>
-                <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => delRango(r.id).then(() => openEdit({ id: sel }))}>
-                  Quitar
-                </button>
-              </div>
-            ))}
-            <MiniRangoForm instrumentoId={sel} onAdded={() => openEdit({ id: sel })} />
-
-            {!formInst.cierre_usa_global && (
-              <>
-                <h3 style={{ marginTop: '1.25rem' }}>Campos de cierre (solo este instrumento)</h3>
-                <CamposCierreInstrumento instrumentoId={sel} />
-              </>
-            )}
-          </div>
-        )}
+      <div className="admin-usu-field">
+        <label>Descripción (opcional)</label>
+        <textarea
+          className="admin-usu-msg-textarea"
+          style={{ minHeight: 88 }}
+          value={formInst.descripcion}
+          onChange={(e) => setFormInst({ ...formInst, descripcion: e.target.value })}
+        />
       </div>
+      <div className="admin-usu-field">
+        <label>Año lectivo</label>
+        <select value={yearChoice} onChange={(e) => setYearChoice(e.target.value)}>
+          <option value="activo">Año activo ({anioActivo})</option>
+          <option value="anterior">Año anterior ({anioActivo - 1})</option>
+          <option value="todos">Todos los años</option>
+          <option value="otro">Otro año…</option>
+        </select>
+      </div>
+      {yearChoice === 'otro' && (
+        <div className="admin-usu-field">
+          <label>Especificar año</label>
+          <input
+            type="number"
+            value={yearOtro}
+            onChange={(e) => setYearOtro(e.target.value)}
+            placeholder={`Ej. ${anioActivo}`}
+          />
+        </div>
+      )}
+      <div className="admin-usu-field">
+        <label>Estado</label>
+        <select value={formInst.activo ? '1' : '0'} onChange={(e) => setFormInst({ ...formInst, activo: e.target.value === '1' })}>
+          <option value="1">Activo</option>
+          <option value="0">Inactivo</option>
+        </select>
+      </div>
+      <div className="admin-usu-field">
+        <label>Tipo de cierre</label>
+        <select
+          value={formInst.cierre_usa_global ? 'global' : 'propio'}
+          onChange={(e) => setFormInst({ ...formInst, cierre_usa_global: e.target.value === 'global' })}
+        >
+          <option value="global">Cierre global (campos definidos en &quot;Cierre global&quot;)</option>
+          <option value="propio">Cierre propio (campos solo para esta supervisión)</option>
+        </select>
+      </div>
+    </>
+  );
+
+  const pieEditor = (
+    <div className="admin-sup-modal-actions">
+      <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={cerrarEditor}>
+        Cancelar
+      </button>
+      <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={saveInstrumento}>
+        {sel === 'new' ? 'Crear supervisión' : 'Guardar'}
+      </button>
     </div>
+  );
+
+  return (
+    <>
+      <div className="admin-usu-toolbar" style={{ flexWrap: 'wrap' }}>
+        <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={openNew}>
+          + Nueva supervisión
+        </button>
+        <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModal('cierre')}>
+          Cierre global
+        </button>
+        <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModal('supervisores')}>
+          Supervisores
+        </button>
+        {canExecute && (
+          <>
+            <span className="admin-sup-toolbar-gap" aria-hidden />
+            <button
+              type="button"
+              className={`admin-usu-btn ${adminExec === 'registrar' ? 'admin-usu-btn-primary' : 'admin-usu-btn-secondary'}`}
+              onClick={() => setAdminExec(adminExec === 'registrar' ? null : 'registrar')}
+            >
+              Registrar supervisión
+            </button>
+            <button
+              type="button"
+              className={`admin-usu-btn ${adminExec === 'historial' ? 'admin-usu-btn-primary' : 'admin-usu-btn-secondary'}`}
+              onClick={() => setAdminExec(adminExec === 'historial' ? null : 'historial')}
+            >
+              Historial
+            </button>
+          </>
+        )}
+      </div>
+
+      <div className="admin-usu-table-card">
+        <div className="admin-sup-panel-body">
+          <p className="admin-sup-muted" style={{ marginTop: 0 }}>
+            Listado de supervisiones configuradas. Use <strong>Nueva supervisión</strong> para crear una o <strong>Editar</strong> para el detalle (preguntas, rangos y cierre).
+          </p>
+          <div className="admin-usu-table-scroll">
+            <table className="admin-usu-table">
+              <thead>
+                <tr>
+                  <th>Título</th>
+                  <th>Estado</th>
+                  <th style={{ width: 220 }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((r) => (
+                  <tr key={r.id}>
+                    <td style={{ textAlign: 'left' }}>{r.titulo}</td>
+                    <td>
+                      {r.activo ? (
+                        <span className="admin-usu-badge admin-usu-badge-ok">Activo</span>
+                      ) : (
+                        <span className="admin-usu-badge-off">Inactivo</span>
+                      )}
+                    </td>
+                    <td>
+                      <button type="button" className="admin-usu-btn admin-usu-btn-secondary" style={{ marginRight: 8 }} onClick={() => openEdit(r)}>
+                        Editar
+                      </button>
+                      <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => deleteInst(r.id)}>
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {adminExec === 'registrar' && canExecute && (
+        <div className="admin-usu-table-card" style={{ marginTop: '1rem' }}>
+          <div className="admin-sup-panel-body">
+            <PanelRegistrar onDone={loadYo} />
+          </div>
+        </div>
+      )}
+      {adminExec === 'historial' && canExecute && (
+        <div className="admin-usu-table-card" style={{ marginTop: '1rem' }}>
+          <div className="admin-sup-panel-body">
+            <PanelHistorial />
+          </div>
+        </div>
+      )}
+
+      {(modal === 'create' || modal === 'edit') && (
+        <SupervisionModal title={editorTitulo} onClose={cerrarEditor}>
+          {formCampos}
+          {modal === 'edit' && sel && sel !== 'new' && detalle && (
+            <>
+              <h3 className="admin-sup-modal-section-title">Preguntas e ítems</h3>
+              {(detalle.preguntas || []).map((p) => (
+                <div key={p.id} className="admin-usu-info-item admin-sup-pregunta-block">
+                  <span className="admin-usu-info-label">{p.titulo}</span>
+                  <div className="admin-sup-muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
+                    {p.texto_ayuda}
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    {(p.niveles || []).map((n) => (
+                      <div key={n.id} className="admin-sup-muted" style={{ fontSize: '0.82rem' }}>
+                        [{n.valor_numerico}] {n.etiqueta || '—'} — {n.descripcion || ''}
+                      </div>
+                    ))}
+                  </div>
+                  <MiniNivelForm preguntaId={p.id} onAdded={() => openEdit({ id: sel })} />
+                </div>
+              ))}
+              <MiniPreguntaForm instrumentoId={sel} onAdded={() => openEdit({ id: sel })} />
+
+              <h3 className="admin-sup-modal-section-title">Rangos de resultado (puntaje total)</h3>
+              {(detalle.rangos_resultado || []).map((r) => (
+                <div key={r.id} className="admin-usu-destino-row" style={{ justifyContent: 'space-between', width: '100%', marginBottom: 8 }}>
+                  <span className="admin-sup-muted" style={{ margin: 0 }}>
+                    {r.puntaje_min} – {r.puntaje_max}: <strong>{r.etiqueta}</strong>
+                  </span>
+                  <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => delRango(r.id).then(() => openEdit({ id: sel }))}>
+                    Quitar
+                  </button>
+                </div>
+              ))}
+              <MiniRangoForm instrumentoId={sel} onAdded={() => openEdit({ id: sel })} />
+
+              {!formInst.cierre_usa_global && (
+                <>
+                  <h3 className="admin-sup-modal-section-title">Campos de cierre (solo esta supervisión)</h3>
+                  <CamposCierreInstrumento instrumentoId={sel} />
+                </>
+              )}
+            </>
+          )}
+          {pieEditor}
+        </SupervisionModal>
+      )}
+
+      {modal === 'cierre' && (
+        <SupervisionModal title="Cierre global" onClose={() => setModal(null)}>
+          <PanelCierreGlobal />
+        </SupervisionModal>
+      )}
+
+      {modal === 'supervisores' && (
+        <SupervisionModal title="Supervisores" onClose={() => setModal(null)}>
+          <PanelSupervisores />
+        </SupervisionModal>
+      )}
+    </>
   );
 }
 
@@ -607,7 +697,7 @@ function PanelCierreGlobal() {
   return (
     <div>
       <p className="admin-sup-muted">
-        Estos campos se usan al final de cada supervisión cuando el instrumento tiene &quot;Cierre global&quot; activado.
+        Estos campos se usan al final de cada supervisión cuando la rúbrica tiene &quot;Cierre global&quot; activado.
       </p>
       <p className="admin-sup-muted">Sugerencia: Fortalezas, Oportunidades de mejora, Acción inmediata.</p>
       <div className="admin-usu-table-scroll">
@@ -672,7 +762,7 @@ function PanelSupervisores() {
   return (
     <div>
       <p className="admin-sup-muted">
-        Los supervisores pueden registrar visitas e historial; no tienen acceso a la configuración de instrumentos.
+        Los supervisores pueden registrar visitas e historial; no tienen acceso a la configuración de este módulo.
       </p>
       <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '0 0 0.75rem' }}>Supervisores actuales</h3>
       <div className="admin-usu-table-scroll">
@@ -759,7 +849,7 @@ function PanelRegistrar({ onDone }) {
 
   const cargarFormulario = async () => {
     if (!instId) {
-      Swal.fire('Atención', 'Elija un instrumento', 'warning');
+      Swal.fire('Atención', 'Elija una supervisión', 'warning');
       return;
     }
     try {
@@ -776,7 +866,7 @@ function PanelRegistrar({ onDone }) {
       });
       setObs(o0);
     } catch (e) {
-      Swal.fire('Error', e.response?.data?.error || 'No se pudo cargar el instrumento', 'error');
+      Swal.fire('Error', e.response?.data?.error || 'No se pudo cargar la supervisión', 'error');
     }
   };
 
@@ -826,7 +916,7 @@ function PanelRegistrar({ onDone }) {
       <div className="admin-usu-profile-section">
         <h3>Contexto de la visita</h3>
         <div className="admin-usu-field">
-          <label>Instrumento</label>
+          <label>Supervisión</label>
           <select value={instId} onChange={(e) => setInstId(e.target.value)}>
             <option value="">— Elegir —</option>
             {instrumentos.map((i) => (
@@ -874,7 +964,7 @@ function PanelRegistrar({ onDone }) {
           <input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
         </div>
         <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={cargarFormulario}>
-          Cargar formulario del instrumento
+          Cargar formulario de la supervisión
         </button>
       </div>
       <div>
@@ -941,7 +1031,7 @@ function PanelHistorial() {
         <thead>
           <tr>
             <th>Fecha</th>
-            <th>Instrumento</th>
+            <th>Supervisión</th>
             <th>Docente</th>
             <th>Grupo</th>
             <th>Puntaje</th>
