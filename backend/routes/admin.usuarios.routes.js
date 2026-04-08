@@ -360,6 +360,106 @@ router.get('/equipo/:personalId', async (req, res) => {
       }
     }
 
+    const dniPersonal = String(rows[0].nro_documento || '').trim();
+    let hijos_como_alumnos = [];
+    let otros_apoderados_hijos = [];
+    try {
+      const apoderadoSelfRows = dniPersonal
+        ? await query(
+            `SELECT id FROM apoderados WHERE colegio_id = ? AND TRIM(nro_documento) = ?`,
+            [colegio_id, dniPersonal]
+          )
+        : [];
+      const selfApoderadoIds = (apoderadoSelfRows || []).map((r) => r.id).filter((id) => id > 0);
+
+      if (dniPersonal && selfApoderadoIds.length > 0) {
+        const hijosRows = await query(
+          `SELECT DISTINCT
+              a.id AS alumno_id,
+              a.nombres,
+              a.apellido_paterno,
+              a.apellido_materno,
+              a.nro_documento,
+              g.anio,
+              g.grado,
+              g.seccion,
+              n.nombre AS nivel_nombre,
+              m.estado AS matricula_estado
+           FROM apoderados ap_self
+           INNER JOIN familias f ON f.apoderado_id = ap_self.id
+           INNER JOIN alumnos a ON a.id = f.alumno_id AND a.colegio_id = ap_self.colegio_id
+           LEFT JOIN matriculas m ON m.id = (
+             SELECT m2.id
+             FROM matriculas m2
+             INNER JOIN grupos g2 ON g2.id = m2.grupo_id AND g2.colegio_id = m2.colegio_id
+             WHERE m2.alumno_id = a.id AND m2.colegio_id = a.colegio_id
+             ORDER BY (m2.estado = 0 OR m2.estado = 4) DESC, g2.anio DESC, m2.id DESC
+             LIMIT 1
+           )
+           LEFT JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = a.colegio_id
+           LEFT JOIN niveles n ON n.id = g.nivel_id
+           WHERE ap_self.colegio_id = ? AND ap_self.id IN (${selfApoderadoIds.map(() => '?').join(',')})
+           ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
+          [colegio_id, ...selfApoderadoIds]
+        );
+        hijos_como_alumnos = (hijosRows || []).map((h) => {
+          const grupoTxt = `${h.nivel_nombre || ''} ${h.grado ? `${h.grado}°` : ''} ${h.seccion || ''} - ${h.anio || ''}`
+            .replace(/\s+/g, ' ')
+            .trim();
+          const est = h.matricula_estado;
+          const vigente = est === 0 || est === 4;
+          return {
+            alumno_id: h.alumno_id,
+            nombres: h.nombres || '',
+            apellido_paterno: h.apellido_paterno || '',
+            apellido_materno: h.apellido_materno || '',
+            nro_documento: h.nro_documento != null ? String(h.nro_documento).trim() : '',
+            grupo_texto: grupoTxt || '—',
+            matricula_estado: est,
+            matricula_vigente: vigente,
+          };
+        });
+
+        const alumnoIds = [...new Set(hijos_como_alumnos.map((h) => h.alumno_id).filter(Boolean))];
+        if (alumnoIds.length > 0) {
+          const ph = alumnoIds.map(() => '?').join(',');
+          const exPh = selfApoderadoIds.map(() => '?').join(',');
+          const otrosRows = await query(
+            `SELECT DISTINCT
+                ap.id,
+                ap.nombres,
+                ap.apellido_paterno,
+                ap.apellido_materno,
+                ap.nro_documento,
+                ap.email,
+                ap.telefono_celular,
+                ap.parentesco,
+                u.id AS usuario_id
+             FROM familias f
+             INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
+             LEFT JOIN usuarios u ON u.apoderado_id = ap.id AND u.colegio_id = ap.colegio_id
+             WHERE f.alumno_id IN (${ph})
+               AND ap.id NOT IN (${exPh})
+             ORDER BY ap.apellido_paterno, ap.apellido_materno, ap.nombres`,
+            [colegio_id, ...alumnoIds, ...selfApoderadoIds]
+          );
+          otros_apoderados_hijos = (otrosRows || []).map((ap) => ({
+            id: ap.id,
+            nombres: ap.nombres || '',
+            apellido_paterno: ap.apellido_paterno || '',
+            apellido_materno: ap.apellido_materno || '',
+            nro_documento: ap.nro_documento != null ? String(ap.nro_documento).trim() : '',
+            email: ap.email || '',
+            telefono_celular: ap.telefono_celular || '',
+            parentesco: ap.parentesco || '',
+            usuario_id: ap.usuario_id || null,
+          }));
+        }
+      }
+    } catch (famErr) {
+      console.warn('[GET equipo/:id] hijos/apoderados familias:', famErr.message);
+    }
+
     res.json({
       ...rows[0],
       grupos_cargo: Array.from(gruposMap.values()),
@@ -369,6 +469,8 @@ router.get('/equipo/:personalId', async (req, res) => {
             .replace(/\s+/g, ' ')
             .trim()
         : '',
+      hijos_como_alumnos,
+      otros_apoderados_hijos,
     });
   } catch (e) {
       console.error('GET /admin/usuarios/equipo/:id', e);

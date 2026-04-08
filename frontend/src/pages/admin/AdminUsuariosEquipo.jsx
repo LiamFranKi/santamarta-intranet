@@ -14,6 +14,20 @@ function nombreCompletoEquipo(row) {
   return `${ap} ${nom}`.trim() || '—';
 }
 
+function nombreAlumnoDesdeHijo(h) {
+  const ap = [h.apellido_paterno, h.apellido_materno].filter(Boolean).join(' ').trim();
+  const nom = (h.nombres || '').trim();
+  if (ap && nom) return `${ap}, ${nom}`;
+  return `${ap} ${nom}`.trim() || '—';
+}
+
+function nombreApoderadoDesdeFila(a) {
+  const ap = [a.apellido_paterno, a.apellido_materno].filter(Boolean).join(' ').trim();
+  const nom = (a.nombres || '').trim();
+  if (ap && nom) return `${ap}, ${nom}`;
+  return `${ap} ${nom}`.trim() || '—';
+}
+
 export default function AdminUsuariosEquipo() {
   const [searchParams, setSearchParams] = useSearchParams();
   const perfilFilter = (searchParams.get('perfil') || '').toUpperCase();
@@ -969,6 +983,86 @@ export default function AdminUsuariosEquipo() {
                     <span className="admin-usu-info-value">Sin asignaciones académicas en el año activo</span>
                   )}
                 </div>
+
+                {(modalInfo.hijos_como_alumnos || []).length > 0 && (
+                  <div className="admin-usu-profile-section">
+                    <h3>Hijos en el colegio</h3>
+                    <p className="admin-usu-hint" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
+                      Alumnos vinculados en familias con la misma ficha de apoderado que el DNI de este personal.
+                    </p>
+                    <div className="admin-usu-familia-lista">
+                      {(modalInfo.hijos_como_alumnos || []).map((h) => (
+                        <div key={h.alumno_id} className="admin-usu-familia-card">
+                          <div className="admin-usu-familia-card-title">{nombreAlumnoDesdeHijo(h)}</div>
+                          <div className="admin-usu-info-grid admin-usu-info-grid--compact">
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">DNI</span>
+                              <span className="admin-usu-info-value">{h.nro_documento || '—'}</span>
+                            </div>
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">Grupo / año</span>
+                              <span className="admin-usu-info-value">{h.grupo_texto || '—'}</span>
+                            </div>
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">Matrícula</span>
+                              <span className="admin-usu-info-value">
+                                {h.matricula_vigente ? (
+                                  <span className="admin-usu-chip admin-usu-chip--ok">Vigente</span>
+                                ) : (
+                                  <span className="admin-usu-chip admin-usu-chip--muted">No vigente / sin datos</span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {(modalInfo.otros_apoderados_hijos || []).length > 0 && (
+                  <div className="admin-usu-profile-section">
+                    <h3>Cónyuge u otros apoderados de los mismos hijos</h3>
+                    <p className="admin-usu-hint" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
+                      Personas registradas como apoderado en familias de esos alumnos, distintas del DNI de este personal (por ejemplo cónyuge).
+                    </p>
+                    <div className="admin-usu-familia-lista">
+                      {(modalInfo.otros_apoderados_hijos || []).map((ap) => (
+                        <div key={ap.id} className="admin-usu-familia-card">
+                          <div className="admin-usu-familia-card-title">{nombreApoderadoDesdeFila(ap)}</div>
+                          <div className="admin-usu-info-grid admin-usu-info-grid--compact">
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">DNI</span>
+                              <span className="admin-usu-info-value">{ap.nro_documento || '—'}</span>
+                            </div>
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">Parentesco</span>
+                              <span className="admin-usu-info-value">{ap.parentesco || '—'}</span>
+                            </div>
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">Correo</span>
+                              <span className="admin-usu-info-value">{ap.email || '—'}</span>
+                            </div>
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">Celular</span>
+                              <span className="admin-usu-info-value">{ap.telefono_celular || '—'}</span>
+                            </div>
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">Acceso app</span>
+                              <span className="admin-usu-info-value">
+                                {ap.usuario_id ? (
+                                  <span className="admin-usu-chip admin-usu-chip--ok">Sí</span>
+                                ) : (
+                                  <span className="admin-usu-chip admin-usu-chip--muted">No</span>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="admin-usu-modal-actions">
                 <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalInfo(null)}>Cerrar</button>

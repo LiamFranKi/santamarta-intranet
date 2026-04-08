@@ -638,7 +638,9 @@
   border: 2px solid rgba(74, 131, 193, 0.2);
 }
 
-/* Modal para ver imagen en grande */
+/* Modal para ver imagen en grande.
+   --portal: renderizado en document.body (createPortal) para no quedar debajo de .dashboard-main (z-index 2)
+   frente a .dashboard-sidebar-right (z-index 1). */
 .imagen-modal-overlay {
   position: fixed;
   inset: 0;

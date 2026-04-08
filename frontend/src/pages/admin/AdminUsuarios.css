@@ -774,3 +774,44 @@
   margin-top: 0.75rem;
   line-height: 1.4;
 }
+
+.admin-usu-chip--ok {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.admin-usu-chip--muted {
+  background: #f3f4f6;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.admin-usu-familia-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.admin-usu-familia-card {
+  background: #f8fafc;
+  border: 1px solid #dbe4ef;
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+}
+
+.admin-usu-familia-card-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #1f2937;
+  margin-bottom: 0.55rem;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.admin-usu-info-grid--compact {
+  gap: 0.45rem 0.65rem;
+}
+
+.admin-usu-info-grid--compact .admin-usu-info-item {
+  padding: 0.45rem 0.55rem;
+}

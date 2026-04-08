@@ -262,20 +262,21 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
       {/* Modal para ver imagen en grande */}
       {imagenModal &&
         createPortal(
-          <div className="imagen-modal-overlay" onClick={() => setImagenModal(null)}>
-            <div className="imagen-modal-content" onClick={(e) => e.stopPropagation()}>
-              <button 
+          <div
+            className="imagen-modal-overlay imagen-modal-overlay--portal"
+            onClick={() => setImagenModal(null)}
+            role="presentation"
+          >
+            <div className="imagen-modal-content" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+              <button
+                type="button"
                 className="imagen-modal-close"
                 onClick={() => setImagenModal(null)}
                 title="Cerrar"
               >
                 ✕
               </button>
-              <img 
-                src={imagenModal} 
-                alt="Imagen ampliada"
-                className="imagen-modal-img"
-              />
+              <img src={imagenModal} alt="Imagen ampliada" className="imagen-modal-img" />
             </div>
           </div>,
           document.body
