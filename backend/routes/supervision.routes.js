@@ -1,8 +1,9 @@
 /**
  * Módulo SUPERVISIÓN: rúbricas configurables, supervisores y evaluaciones por docente.
  * Montaje: /api/supervision
- * - Configuración (instrumentos, preguntas, rangos, cierre, supervisores): solo ADMINISTRADOR.
+ * - Configuración (instrumentos, preguntas, rangos, cierre, supervisores, alta/baja participantes): solo ADMINISTRADOR.
  * - Ejecución y consultas: ADMINISTRADOR o usuario en supervision_supervisores (activo).
+ * - Listado GET de participantes por instrumento: también supervisores (solo lectura en UI).
  */
 const express = require('express');
 const router = express.Router();
@@ -665,7 +666,7 @@ router.post('/instrumentos/:id/campos-cierre', requireAdmin, async (req, res) =>
 
 // --- Participantes por supervisión (instrumento) — migración 018 ---
 
-router.get('/instrumentos/:instrumentoId/participantes', requireAdmin, async (req, res) => {
+router.get('/instrumentos/:instrumentoId/participantes', requireAdminOrSupervisor, async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const instrumentoId = parseInt(req.params.instrumentoId, 10);

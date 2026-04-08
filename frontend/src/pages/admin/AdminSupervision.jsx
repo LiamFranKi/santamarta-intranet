@@ -9,7 +9,6 @@ import './AdminSupervision.css';
 export default function AdminSupervision() {
   const { user } = useAuth();
   const [yo, setYo] = useState(null);
-  const [supervisorVista, setSupervisorVista] = useState('registrar'); // 'registrar' | 'historial' (solo no-admin)
   const [loadErr, setLoadErr] = useState(null);
 
   const isAdmin = user?.tipo === 'ADMINISTRADOR';
@@ -86,33 +85,14 @@ export default function AdminSupervision() {
     }
 
     return (
-      <div className="admin-usu-wrap admin-sup-page">
+      <div className="admin-usu-wrap admin-sup-page admin-sup-root">
         <div className="admin-usu-header">
           <h1>Supervisión</h1>
-          <p>Registro de visitas e historial según el acceso asignado.</p>
+          <p>
+            Registro de visitas e historial según el acceso asignado. Use <strong>Opciones</strong> en cada fila o los botones superiores.
+          </p>
         </div>
-        <div className="admin-usu-toolbar" style={{ flexWrap: 'wrap' }}>
-          <button
-            type="button"
-            className={`admin-usu-btn ${supervisorVista === 'registrar' ? 'admin-usu-btn-primary' : 'admin-usu-btn-secondary'}`}
-            onClick={() => setSupervisorVista('registrar')}
-          >
-            Registrar supervisión
-          </button>
-          <button
-            type="button"
-            className={`admin-usu-btn ${supervisorVista === 'historial' ? 'admin-usu-btn-primary' : 'admin-usu-btn-secondary'}`}
-            onClick={() => setSupervisorVista('historial')}
-          >
-            Historial
-          </button>
-        </div>
-        <div className="admin-usu-table-card">
-          <div className="admin-sup-panel-body">
-            {supervisorVista === 'registrar' && canExecute && <PanelRegistrar onDone={loadYo} />}
-            {supervisorVista === 'historial' && canExecute && <PanelHistorial />}
-          </div>
-        </div>
+        <PanelSupervisionEjecutor loadYo={loadYo} canExecute={canExecute} />
       </div>
     );
   })();
@@ -618,6 +598,170 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
   );
 }
 
+/** Vista docente/supervisor (sin configuración): misma UX que admin — tabla, Opciones, modales. */
+function PanelSupervisionEjecutor({ loadYo, canExecute }) {
+  const [list, setList] = useState([]);
+  const [menuRowId, setMenuRowId] = useState(null);
+  const [participantesRow, setParticipantesRow] = useState(null);
+  const [registrarModal, setRegistrarModal] = useState(null);
+  const [historialModal, setHistorialModal] = useState(null);
+
+  const loadList = () => api.get('/supervision/instrumentos/activos').then((r) => setList(r.data.instrumentos || []));
+
+  useEffect(() => {
+    loadList().catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (menuRowId == null) return undefined;
+    const close = (e) => {
+      if (!e.target.closest?.('.admin-sup-opciones-wrap')) setMenuRowId(null);
+    };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [menuRowId]);
+
+  return (
+    <>
+      <div className="admin-usu-toolbar" style={{ flexWrap: 'wrap' }}>
+        {canExecute && (
+          <>
+            <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setRegistrarModal({})}>
+              Registrar supervisión
+            </button>
+            <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setHistorialModal({})}>
+              Historial
+            </button>
+          </>
+        )}
+      </div>
+
+      <div className="admin-usu-table-card">
+        <div className="admin-sup-panel-body">
+          <p className="admin-sup-muted" style={{ marginTop: 0 }}>
+            Supervisiones activas para el año lectivo. Use <strong>Opciones</strong> para participantes (consulta), registrar visita o historial filtrado.
+          </p>
+          <div className="admin-usu-table-scroll">
+            <table className="admin-usu-table">
+              <thead>
+                <tr>
+                  <th>Título</th>
+                  <th style={{ width: 200 }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {list.map((r) => (
+                  <tr key={r.id}>
+                    <td style={{ textAlign: 'left' }}>{r.titulo}</td>
+                    <td style={{ position: 'relative', verticalAlign: 'middle' }}>
+                      <div className="admin-sup-opciones-wrap">
+                        <button
+                          type="button"
+                          className="admin-usu-btn admin-usu-btn-secondary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMenuRowId(menuRowId === r.id ? null : r.id);
+                          }}
+                        >
+                          Opciones ▼
+                        </button>
+                        {menuRowId === r.id && (
+                          <ul className="admin-sup-opciones-menu" role="menu">
+                            <li>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setParticipantesRow({ id: r.id, titulo: r.titulo });
+                                  setMenuRowId(null);
+                                }}
+                              >
+                                Participantes
+                              </button>
+                            </li>
+                            {canExecute && (
+                              <li>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setRegistrarModal({ presetId: r.id, titulo: r.titulo });
+                                    setMenuRowId(null);
+                                  }}
+                                >
+                                  Registrar visita
+                                </button>
+                              </li>
+                            )}
+                            {canExecute && (
+                              <li>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => {
+                                    setHistorialModal({ instrumentoId: r.id, titulo: r.titulo });
+                                    setMenuRowId(null);
+                                  }}
+                                >
+                                  Historial de esta supervisión
+                                </button>
+                              </li>
+                            )}
+                          </ul>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {list.length === 0 && (
+            <p className="admin-sup-muted" style={{ marginBottom: 0 }}>
+              No hay supervisiones activas para el año actual. El administrador debe activar una rúbrica o asignarla al año lectivo.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {registrarModal != null && canExecute && (
+        <SupervisionModal
+          title={registrarModal.presetId ? `Registrar visita — ${registrarModal.titulo || ''}` : 'Registrar supervisión'}
+          onClose={() => setRegistrarModal(null)}
+        >
+          <PanelRegistrar
+            onDone={() => {
+              loadYo?.();
+              setRegistrarModal(null);
+            }}
+            instrumentoIdInicial={registrarModal.presetId || null}
+            supervisionTitulo={registrarModal.titulo || ''}
+            bloquearInstrumento={!!registrarModal.presetId}
+            modoModal
+          />
+        </SupervisionModal>
+      )}
+
+      {historialModal != null && canExecute && (
+        <SupervisionModal
+          title={
+            historialModal.instrumentoId ? `Historial — ${historialModal.titulo || ''}` : 'Historial de supervisiones'
+          }
+          onClose={() => setHistorialModal(null)}
+        >
+          <PanelHistorial instrumentoId={historialModal.instrumentoId} tituloFiltro={historialModal.titulo} />
+        </SupervisionModal>
+      )}
+
+      {participantesRow && (
+        <SupervisionModal title={`Participantes — ${participantesRow.titulo}`} onClose={() => setParticipantesRow(null)}>
+          <PanelInstrumentoParticipantes instrumentoId={participantesRow.id} readOnly />
+        </SupervisionModal>
+      )}
+    </>
+  );
+}
+
 function MiniPreguntaForm({ instrumentoId, onAdded }) {
   const [titulo, setTitulo] = useState('');
   const [ayuda, setAyuda] = useState('');
@@ -841,7 +985,7 @@ function PanelCierreGlobal() {
   );
 }
 
-function PanelInstrumentoParticipantes({ instrumentoId }) {
+function PanelInstrumentoParticipantes({ instrumentoId, readOnly = false }) {
   const [list, setList] = useState([]);
   const [q, setQ] = useState('');
   const [candidatos, setCandidatos] = useState([]);
@@ -876,6 +1020,11 @@ function PanelInstrumentoParticipantes({ instrumentoId }) {
       <p className="admin-sup-muted">
         Personal de referencia vinculado a esta supervisión (seguimiento, coordinación). No es el mismo listado que &quot;Supervisores del colegio&quot;, que autoriza registrar visitas.
       </p>
+      {readOnly && (
+        <p className="admin-sup-muted" style={{ marginTop: 8 }}>
+          Solo consulta. Para agregar o quitar personas, el administrador debe usar Herramientas → Supervisión.
+        </p>
+      )}
       <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '0 0 0.75rem' }}>Personas asignadas</h3>
       <div className="admin-usu-table-scroll">
         <table className="admin-usu-table">
@@ -883,7 +1032,7 @@ function PanelInstrumentoParticipantes({ instrumentoId }) {
             <tr>
               <th>Usuario (DNI)</th>
               <th>Nombre</th>
-              <th style={{ width: 120 }}>Acción</th>
+              {!readOnly && <th style={{ width: 120 }}>Acción</th>}
             </tr>
           </thead>
           <tbody>
@@ -893,33 +1042,39 @@ function PanelInstrumentoParticipantes({ instrumentoId }) {
                 <td style={{ textAlign: 'left' }}>
                   {s.nombres} {s.apellidos}
                 </td>
-                <td>
-                  <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => del(s.id)}>
-                    Quitar
-                  </button>
-                </td>
+                {!readOnly && (
+                  <td>
+                    <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => del(s.id)}>
+                      Quitar
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '1.25rem 0 0.75rem' }}>Añadir personal</h3>
-      <div className="admin-usu-toolbar" style={{ marginBottom: 12 }}>
-        <input className="admin-usu-grow" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por DNI o nombre" />
-        <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={buscar}>
-          Buscar
-        </button>
-      </div>
-      <ul className="admin-sup-lista-candidatos">
-        {candidatos.map((p) => (
-          <li key={p.usuario_id}>
-            <strong>{p.dni}</strong> — {p.nombres} {p.apellidos}{' '}
-            <button type="button" className="admin-usu-btn admin-usu-btn-primary" style={{ marginLeft: 8 }} onClick={() => add(p.usuario_id)}>
-              Añadir
+      {!readOnly && (
+        <>
+          <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '1.25rem 0 0.75rem' }}>Añadir personal</h3>
+          <div className="admin-usu-toolbar" style={{ marginBottom: 12 }}>
+            <input className="admin-usu-grow" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por DNI o nombre" />
+            <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={buscar}>
+              Buscar
             </button>
-          </li>
-        ))}
-      </ul>
+          </div>
+          <ul className="admin-sup-lista-candidatos">
+            {candidatos.map((p) => (
+              <li key={p.usuario_id}>
+                <strong>{p.dni}</strong> — {p.nombres} {p.apellidos}{' '}
+                <button type="button" className="admin-usu-btn admin-usu-btn-primary" style={{ marginLeft: 8 }} onClick={() => add(p.usuario_id)}>
+                  Añadir
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
