@@ -70,6 +70,8 @@ function AlumnoExamen() {
   const [esExamenPdf, setEsExamenPdf] = useState(false);
   /** Contexto compartido (caso + imagen) definido por el docente; no forma parte del sorteo de preguntas. */
   const [bloqueExamen, setBloqueExamen] = useState(null);
+  /** Por defecto colapsado: en móvil no empuja la pregunta hacia abajo hasta que el alumno elija "Ver contexto". */
+  const [bloqueContextoExpandido, setBloqueContextoExpandido] = useState(false);
   
   const intervaloGuardado = useRef(null);
   const intervaloReloj = useRef(null);
@@ -796,28 +798,32 @@ function AlumnoExamen() {
         <div className="examen-resumen-card">
           <h2>📋 Resumen del Examen</h2>
           {bloqueExamen && (bloqueExamen.contenido || bloqueExamen.imagen_url) && (
-            <div
-              className="examen-bloque-contexto examen-bloque-contexto--resumen"
-              style={{
-                marginBottom: '1.25rem',
-                padding: '1rem',
-                background: '#f0fdfa',
-                border: '1px solid #99f6e4',
-                borderRadius: '12px',
-                color: '#134e4a'
-              }}
-            >
-              <div style={{ fontWeight: 700, marginBottom: '0.5rem', fontSize: '0.95rem' }}>📎 Contexto del examen</div>
-              {bloqueExamen.imagen_url ? (
-                <img
-                  src={bloqueExamen.imagen_url}
-                  alt="Contexto"
-                  style={{ maxWidth: '100%', maxHeight: '240px', display: 'block', marginBottom: '0.75rem', borderRadius: '8px', objectFit: 'contain' }}
-                />
-              ) : null}
-              {bloqueExamen.contenido ? (
-                <div className="examen-bloque-html" dangerouslySetInnerHTML={{ __html: bloqueExamen.contenido }} />
-              ) : null}
+            <div className="examen-bloque-contexto examen-bloque-contexto--resumen examen-bloque-alumno-acc">
+              <button
+                type="button"
+                className="examen-bloque-alumno-acc__bar"
+                onClick={() => setBloqueContextoExpandido((v) => !v)}
+                aria-expanded={bloqueContextoExpandido}
+              >
+                <span className="examen-bloque-alumno-acc__bar-title">📎 Contexto del examen</span>
+                <span className="examen-bloque-alumno-acc__bar-action">
+                  {bloqueContextoExpandido ? 'Ocultar' : 'Ver contexto'}
+                </span>
+              </button>
+              {bloqueContextoExpandido && (
+                <div className="examen-bloque-alumno-acc__body">
+                  {bloqueExamen.imagen_url ? (
+                    <img
+                      src={bloqueExamen.imagen_url}
+                      alt="Contexto"
+                      className="examen-bloque-alumno-acc__img"
+                    />
+                  ) : null}
+                  {bloqueExamen.contenido ? (
+                    <div className="examen-bloque-html" dangerouslySetInnerHTML={{ __html: bloqueExamen.contenido }} />
+                  ) : null}
+                </div>
+              )}
             </div>
           )}
           <div className="resumen-preguntas">
@@ -910,35 +916,32 @@ function AlumnoExamen() {
       {/* Contenido Principal */}
       <div className="examen-content">
         {bloqueExamen && (bloqueExamen.contenido || bloqueExamen.imagen_url) && (
-          <div
-            className="examen-bloque-contexto"
-            style={{
-              marginBottom: '1.25rem',
-              padding: '1rem 1.1rem',
-              background: '#f0fdfa',
-              border: '1px solid #99f6e4',
-              borderRadius: '12px',
-              color: '#134e4a'
-            }}
-          >
-            <div style={{ fontWeight: 700, marginBottom: '0.5rem', fontSize: '0.95rem' }}>📎 Contexto del examen</div>
-            {bloqueExamen.imagen_url ? (
-              <img
-                src={bloqueExamen.imagen_url}
-                alt="Contexto del examen"
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: 'min(40vh, 320px)',
-                  display: 'block',
-                  marginBottom: '0.75rem',
-                  borderRadius: '8px',
-                  objectFit: 'contain'
-                }}
-              />
-            ) : null}
-            {bloqueExamen.contenido ? (
-              <div className="examen-bloque-html" dangerouslySetInnerHTML={{ __html: bloqueExamen.contenido }} />
-            ) : null}
+          <div className="examen-bloque-contexto examen-bloque-alumno-acc">
+            <button
+              type="button"
+              className="examen-bloque-alumno-acc__bar"
+              onClick={() => setBloqueContextoExpandido((v) => !v)}
+              aria-expanded={bloqueContextoExpandido}
+            >
+              <span className="examen-bloque-alumno-acc__bar-title">📎 Contexto del examen</span>
+              <span className="examen-bloque-alumno-acc__bar-action">
+                {bloqueContextoExpandido ? 'Ocultar' : 'Ver contexto'}
+              </span>
+            </button>
+            {bloqueContextoExpandido && (
+              <div className="examen-bloque-alumno-acc__body">
+                {bloqueExamen.imagen_url ? (
+                  <img
+                    src={bloqueExamen.imagen_url}
+                    alt="Contexto del examen"
+                    className="examen-bloque-alumno-acc__img"
+                  />
+                ) : null}
+                {bloqueExamen.contenido ? (
+                  <div className="examen-bloque-html" dangerouslySetInnerHTML={{ __html: bloqueExamen.contenido }} />
+                ) : null}
+              </div>
+            )}
           </div>
         )}
         {/* Barra de Progreso */}

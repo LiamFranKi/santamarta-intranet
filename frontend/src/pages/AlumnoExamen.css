@@ -866,3 +866,64 @@
   border-radius: 6px;
 }
 
+/* Contexto del examen: barra colapsable (alumno) — no ocupa espacio hasta "Ver contexto" */
+.examen-bloque-alumno-acc {
+  margin-bottom: 1.25rem;
+  padding: 0;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  border-radius: 12px;
+  color: #134e4a;
+  overflow: hidden;
+}
+
+.examen-bloque-alumno-acc__bar {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  transition: background 0.15s;
+}
+
+.examen-bloque-alumno-acc__bar:hover {
+  background: rgba(153, 246, 232, 0.35);
+}
+
+.examen-bloque-alumno-acc__bar-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.examen-bloque-alumno-acc__bar-action {
+  flex-shrink: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0d9488;
+  text-decoration: underline;
+}
+
+.examen-bloque-alumno-acc__body {
+  padding: 0 1rem 1rem;
+  max-height: min(55vh, 420px);
+  overflow-y: auto;
+  border-top: 1px solid rgba(45, 212, 191, 0.45);
+}
+
+.examen-bloque-alumno-acc__img {
+  max-width: 100%;
+  max-height: min(40vh, 320px);
+  display: block;
+  margin-bottom: 0.75rem;
+  border-radius: 8px;
+  object-fit: contain;
+}
+

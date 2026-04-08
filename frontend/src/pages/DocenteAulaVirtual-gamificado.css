@@ -1967,3 +1967,109 @@
   transform: none;
 }
 
+/* Acordeón: contexto del examen en modal Preguntas (docente) */
+.docente-examen-bloque-acc {
+  margin-bottom: 1.5rem;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #6ee7b7;
+  border-radius: 12px;
+}
+
+.docente-examen-bloque-acc__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.docente-examen-bloque-acc__title {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #065f46;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.docente-examen-bloque-acc__link-ocultar {
+  border: none;
+  background: transparent;
+  color: #047857;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0.25rem 0.5rem;
+}
+
+.docente-examen-bloque-acc__link-ocultar:hover {
+  color: #065f46;
+}
+
+.docente-examen-bloque-acc__collapsed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.docente-examen-bloque-acc__hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #047857;
+  line-height: 1.5;
+}
+
+.docente-examen-bloque-acc__hint--panel {
+  margin-bottom: 1rem;
+}
+
+.docente-examen-bloque-acc__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.docente-examen-bloque-acc__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.docente-examen-bloque-acc__badge--ok {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.docente-examen-bloque-acc__badge--muted {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.docente-examen-bloque-acc__btn-agregar {
+  align-self: flex-start;
+  padding: 0.55rem 1rem;
+  border-radius: 10px;
+  border: 2px dashed #34d399;
+  background: rgba(255, 255, 255, 0.7);
+  color: #047857;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.docente-examen-bloque-acc__btn-agregar:hover {
+  background: #fff;
+  border-color: #10b981;
+}
+
+.docente-examen-bloque-acc__panel {
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(16, 185, 129, 0.35);
+}

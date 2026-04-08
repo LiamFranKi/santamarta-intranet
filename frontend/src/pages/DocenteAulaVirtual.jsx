@@ -5475,13 +5475,26 @@ function ExamenForm({ asignaturaId, formExamen, setFormExamen, onClose, onSucces
   );
 }
 
+function textoPlanoBloqueContexto(html) {
+  return String(html || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+}
+
 /** Bloque de contexto compartido (caso / imagen) visible en el examen del alumno — una fila por examen. */
 function ExamenBloqueContextoEditor({ examen, bloque, contenidoBloqueado, onGuardado }) {
   const [contenido, setContenido] = useState('');
   const [archivoImagen, setArchivoImagen] = useState(null);
   const [quitarImagen, setQuitarImagen] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  /** Panel del editor colapsado por defecto; se abre con "+ Agregar contexto" / "+ Editar contexto". */
+  const [panelContextoAbierto, setPanelContextoAbierto] = useState(false);
   const quillRef = useRef(null);
+
+  const tieneTextoImagenGuardado =
+    !!textoPlanoBloqueContexto(bloque?.contenido) ||
+    !!(bloque?.imagen_url || bloque?.imagen);
 
   useEffect(() => {
     setContenido(bloque?.contenido || '');
@@ -5490,12 +5503,13 @@ function ExamenBloqueContextoEditor({ examen, bloque, contenidoBloqueado, onGuar
   }, [bloque?.id, bloque?.contenido, bloque?.imagen, examen?.id]);
 
   useEffect(() => {
+    if (!panelContextoAbierto) return undefined;
     const t = setTimeout(() => {
       const q = quillRef.current?.getEditor?.();
       if (q) attachQuillImageUploadHandler(q);
     }, 250);
     return () => clearTimeout(t);
-  }, [contenidoBloqueado, examen?.id]);
+  }, [contenidoBloqueado, examen?.id, panelContextoAbierto]);
 
   const guardarBloque = async () => {
     if (contenidoBloqueado) {
@@ -5545,107 +5559,145 @@ function ExamenBloqueContextoEditor({ examen, bloque, contenidoBloqueado, onGuar
   };
 
   return (
-    <div
-      style={{
-        marginBottom: '1.5rem',
-        padding: '1rem 1.25rem',
-        background: 'linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%)',
-        border: '1px solid #6ee7b7',
-        borderRadius: '12px'
-      }}
-    >
-      <h3 style={{ margin: '0 0 0.75rem', fontSize: '1.05rem', color: '#065f46', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        📎 Contexto del examen (opcional)
-      </h3>
-      <p style={{ margin: '0 0 1rem', fontSize: '0.875rem', color: '#047857', lineHeight: 1.5 }}>
-        Texto enriquecido y/o una imagen que verá el alumno durante toda la prueba (caso, gráfico, etc.). Las preguntas se basan en este contexto.
-      </p>
-      <div className="form-group" style={{ marginBottom: '1rem' }}>
-        <label style={{ fontWeight: 600, color: '#065f46' }}>Enunciado / caso</label>
-        <ReactQuill
-          ref={quillRef}
-          theme="snow"
-          readOnly={contenidoBloqueado}
-          value={contenido}
-          onChange={setContenido}
-          placeholder="Escriba aquí el contexto compartido..."
-          modules={{
-            toolbar: [
-              [{ header: [1, 2, 3, false] }],
-              ['bold', 'italic', 'underline', 'strike'],
-              [{ list: 'ordered' }, { list: 'bullet' }],
-              [{ color: [] }, { background: [] }],
-              [{ align: [] }],
-              ['link', 'image'],
-              ['clean']
-            ]
-          }}
-          formats={[
-            'header',
-            'bold',
-            'italic',
-            'underline',
-            'strike',
-            'list',
-            'bullet',
-            'color',
-            'background',
-            'align',
-            'link',
-            'image'
-          ]}
-        />
-      </div>
-      <div className="form-group" style={{ marginBottom: '1rem' }}>
-        <label style={{ fontWeight: 600, color: '#065f46' }}>Imagen del contexto (opcional)</label>
-        {!contenidoBloqueado && (
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp"
-            onChange={(e) => {
-              setArchivoImagen(e.target.files?.[0] || null);
-              setQuitarImagen(false);
-            }}
-            style={{ display: 'block', marginTop: '0.35rem' }}
-          />
+    <div className="docente-examen-bloque-acc">
+      <div className="docente-examen-bloque-acc__head">
+        <h3 className="docente-examen-bloque-acc__title">
+          <span aria-hidden="true">📎</span> Contexto del examen (opcional)
+        </h3>
+        {panelContextoAbierto && (
+          <button
+            type="button"
+            className="docente-examen-bloque-acc__link-ocultar"
+            onClick={() => setPanelContextoAbierto(false)}
+          >
+            Ocultar
+          </button>
         )}
-        {bloque?.imagen_url && !quitarImagen && (
-          <div style={{ marginTop: '0.75rem' }}>
-            <img
-              src={bloque.imagen_url}
-              alt="Contexto del examen"
-              style={{ maxWidth: '100%', maxHeight: '240px', borderRadius: '8px', border: '1px solid #a7f3d0', objectFit: 'contain' }}
-            />
-            {!contenidoBloqueado && (
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  marginTop: '0.5rem',
-                  fontSize: '0.875rem',
-                  cursor: 'pointer',
-                  color: '#065f46'
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={quitarImagen}
-                  onChange={(e) => {
-                    setQuitarImagen(e.target.checked);
-                    if (e.target.checked) setArchivoImagen(null);
-                  }}
-                />
-                Quitar imagen al guardar
-              </label>
+      </div>
+
+      {!panelContextoAbierto && (
+        <div className="docente-examen-bloque-acc__collapsed">
+          <p className="docente-examen-bloque-acc__hint">
+            Texto e imagen opcionales que el alumno puede consultar durante la prueba. El panel permanece cerrado hasta que lo necesites.
+          </p>
+          <div className="docente-examen-bloque-acc__status">
+            {tieneTextoImagenGuardado ? (
+              <span className="docente-examen-bloque-acc__badge docente-examen-bloque-acc__badge--ok">
+                ✓ Hay contexto guardado
+              </span>
+            ) : (
+              <span className="docente-examen-bloque-acc__badge docente-examen-bloque-acc__badge--muted">
+                Sin contexto aún
+              </span>
             )}
           </div>
-        )}
-      </div>
-      {!contenidoBloqueado && (
-        <button type="button" className="btn-guardar" onClick={guardarBloque} disabled={guardando} style={{ marginTop: '0.25rem' }}>
-          {guardando ? '⏳ Guardando...' : '💾 Guardar contexto del examen'}
-        </button>
+          <button
+            type="button"
+            className="docente-examen-bloque-acc__btn-agregar"
+            onClick={() => setPanelContextoAbierto(true)}
+          >
+            {contenidoBloqueado && tieneTextoImagenGuardado
+              ? '+ Ver contexto'
+              : tieneTextoImagenGuardado
+                ? '+ Editar contexto'
+                : '+ Agregar contexto'}
+          </button>
+        </div>
+      )}
+
+      {panelContextoAbierto && (
+        <div className="docente-examen-bloque-acc__panel">
+          <p className="docente-examen-bloque-acc__hint docente-examen-bloque-acc__hint--panel">
+            Texto enriquecido y/o una imagen que verá el alumno durante toda la prueba (caso, gráfico, etc.). Las preguntas se basan en este contexto.
+          </p>
+          <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <label style={{ fontWeight: 600, color: '#065f46' }}>Enunciado / caso</label>
+            <ReactQuill
+              ref={quillRef}
+              theme="snow"
+              readOnly={contenidoBloqueado}
+              value={contenido}
+              onChange={setContenido}
+              placeholder="Escriba aquí el contexto compartido..."
+              modules={{
+                toolbar: [
+                  [{ header: [1, 2, 3, false] }],
+                  ['bold', 'italic', 'underline', 'strike'],
+                  [{ list: 'ordered' }, { list: 'bullet' }],
+                  [{ color: [] }, { background: [] }],
+                  [{ align: [] }],
+                  ['link', 'image'],
+                  ['clean']
+                ]
+              }}
+              formats={[
+                'header',
+                'bold',
+                'italic',
+                'underline',
+                'strike',
+                'list',
+                'bullet',
+                'color',
+                'background',
+                'align',
+                'link',
+                'image'
+              ]}
+            />
+          </div>
+          <div className="form-group" style={{ marginBottom: '1rem' }}>
+            <label style={{ fontWeight: 600, color: '#065f46' }}>Imagen del contexto (opcional)</label>
+            {!contenidoBloqueado && (
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                onChange={(e) => {
+                  setArchivoImagen(e.target.files?.[0] || null);
+                  setQuitarImagen(false);
+                }}
+                style={{ display: 'block', marginTop: '0.35rem' }}
+              />
+            )}
+            {bloque?.imagen_url && !quitarImagen && (
+              <div style={{ marginTop: '0.75rem' }}>
+                <img
+                  src={bloque.imagen_url}
+                  alt="Contexto del examen"
+                  style={{ maxWidth: '100%', maxHeight: '240px', borderRadius: '8px', border: '1px solid #a7f3d0', objectFit: 'contain' }}
+                />
+                {!contenidoBloqueado && (
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      marginTop: '0.5rem',
+                      fontSize: '0.875rem',
+                      cursor: 'pointer',
+                      color: '#065f46'
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={quitarImagen}
+                      onChange={(e) => {
+                        setQuitarImagen(e.target.checked);
+                        if (e.target.checked) setArchivoImagen(null);
+                      }}
+                    />
+                    Quitar imagen al guardar
+                  </label>
+                )}
+              </div>
+            )}
+          </div>
+          {!contenidoBloqueado && (
+            <button type="button" className="btn-guardar" onClick={guardarBloque} disabled={guardando} style={{ marginTop: '0.25rem' }}>
+              {guardando ? '⏳ Guardando...' : '💾 Guardar contexto del examen'}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
