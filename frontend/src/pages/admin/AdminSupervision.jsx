@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -104,6 +105,68 @@ export default function AdminSupervision() {
   );
 }
 
+/** Menú desplegable en document.body (evita recorte por overflow del dashboard / tabla). */
+function OpcionesMenuLayer({ open, anchorEl, onClose, children }) {
+  const [pos, setPos] = useState({ top: 8, left: 8, width: 260 });
+
+  useLayoutEffect(() => {
+    if (!open || !anchorEl) return undefined;
+    const place = () => {
+      const r = anchorEl.getBoundingClientRect();
+      const w = 260;
+      let left = r.right - w;
+      left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+      let top = r.bottom + 4;
+      const estH = 360;
+      if (top + estH > window.innerHeight - 8 && r.top > 80) {
+        top = Math.max(8, r.top - estH - 4);
+      }
+      setPos({ top, left, width: w });
+    };
+    place();
+    const t = window.setTimeout(place, 0);
+    window.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+    };
+  }, [open, anchorEl]);
+
+  if (!open || !anchorEl) return null;
+
+  return createPortal(
+    <>
+      <div
+        className="admin-sup-opciones-backdrop"
+        aria-hidden
+        onMouseDown={(e) => {
+          e.preventDefault();
+          onClose();
+        }}
+      />
+      <ul
+        className="admin-sup-opciones-menu admin-sup-opciones-menu--fixed"
+        style={{
+          position: 'fixed',
+          top: pos.top,
+          left: pos.left,
+          width: pos.width,
+          zIndex: 10050,
+          maxHeight: 'min(420px, calc(100vh - 16px))',
+          overflowY: 'auto'
+        }}
+        role="menu"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        {children}
+      </ul>
+    </>,
+    document.body
+  );
+}
+
 function SupervisionModal({ title, children, onClose }) {
   return (
     <div
@@ -158,6 +221,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
   const [detalle, setDetalle] = useState(null);
   const [modal, setModal] = useState(null); // 'create' | 'edit' | 'cierre' | 'supervisores'
   const [menuRowId, setMenuRowId] = useState(null);
+  const [menuAnchor, setMenuAnchor] = useState(null);
   const [participantesRow, setParticipantesRow] = useState(null);
   const [registrarModal, setRegistrarModal] = useState(null);
   const [historialModal, setHistorialModal] = useState(null);
@@ -176,24 +240,20 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
     loadList().catch(() => {});
   }, []);
 
+  const closeMenu = () => {
+    setMenuRowId(null);
+    setMenuAnchor(null);
+  };
+
   const cerrarEditor = () => {
     setModal(null);
     setSel(null);
     setDetalle(null);
-    setMenuRowId(null);
+    closeMenu();
   };
 
-  useEffect(() => {
-    if (menuRowId == null) return undefined;
-    const close = (e) => {
-      if (!e.target.closest?.('.admin-sup-opciones-wrap')) setMenuRowId(null);
-    };
-    document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
-  }, [menuRowId]);
-
   const openNew = () => {
-    setMenuRowId(null);
+    closeMenu();
     setSel('new');
     setDetalle(null);
     setYearChoice('activo');
@@ -208,7 +268,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
   };
 
   const openEdit = async (row) => {
-    setMenuRowId(null);
+    closeMenu();
     setSel(row.id);
     setDetalle(null);
     setModal('edit');
@@ -351,6 +411,8 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
     </div>
   );
 
+  const menuRow = menuRowId != null ? list.find((x) => x.id === menuRowId) : null;
+
   return (
     <>
       <div className="admin-usu-toolbar" style={{ flexWrap: 'wrap' }}>
@@ -405,88 +467,19 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
                       <div className="admin-sup-opciones-wrap">
                         <button
                           type="button"
-                          className="admin-usu-btn admin-usu-btn-secondary"
+                          className="admin-usu-btn admin-usu-btn-primary admin-sup-opciones-btn"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setMenuRowId(menuRowId === r.id ? null : r.id);
+                            if (menuRowId === r.id) {
+                              closeMenu();
+                            } else {
+                              setMenuRowId(r.id);
+                              setMenuAnchor(e.currentTarget);
+                            }
                           }}
                         >
                           Opciones ▼
                         </button>
-                        {menuRowId === r.id && (
-                          <ul className="admin-sup-opciones-menu" role="menu">
-                            <li>
-                              <button type="button" role="menuitem" onClick={() => { openEdit(r); setMenuRowId(null); }}>
-                                Editar
-                              </button>
-                            </li>
-                            <li>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => {
-                                  setParticipantesRow({ id: r.id, titulo: r.titulo });
-                                  setMenuRowId(null);
-                                }}
-                              >
-                                Participantes
-                              </button>
-                            </li>
-                            {canExecute && (
-                              <li>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => {
-                                    setRegistrarModal({ presetId: r.id, titulo: r.titulo });
-                                    setMenuRowId(null);
-                                  }}
-                                >
-                                  Registrar visita
-                                </button>
-                              </li>
-                            )}
-                            {canExecute && (
-                              <li>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => {
-                                    setHistorialModal({ instrumentoId: r.id, titulo: r.titulo });
-                                    setMenuRowId(null);
-                                  }}
-                                >
-                                  Historial de esta supervisión
-                                </button>
-                              </li>
-                            )}
-                            <li>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => {
-                                  setModal('supervisores');
-                                  setMenuRowId(null);
-                                }}
-                              >
-                                Supervisores del colegio
-                              </button>
-                            </li>
-                            <li>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                className="admin-sup-opcion-danger"
-                                onClick={() => {
-                                  deleteInst(r.id);
-                                  setMenuRowId(null);
-                                }}
-                              >
-                                Eliminar
-                              </button>
-                            </li>
-                          </ul>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -594,6 +587,81 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
           <PanelInstrumentoParticipantes instrumentoId={participantesRow.id} />
         </SupervisionModal>
       )}
+
+      {menuRow && menuAnchor && (
+        <OpcionesMenuLayer open anchorEl={menuAnchor} onClose={closeMenu}>
+          <li>
+            <button type="button" role="menuitem" onClick={() => { openEdit(menuRow); }}>
+              Editar
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setParticipantesRow({ id: menuRow.id, titulo: menuRow.titulo });
+                closeMenu();
+              }}
+            >
+              Participantes
+            </button>
+          </li>
+          {canExecute && (
+            <li>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setRegistrarModal({ presetId: menuRow.id, titulo: menuRow.titulo });
+                  closeMenu();
+                }}
+              >
+                Registrar visita
+              </button>
+            </li>
+          )}
+          {canExecute && (
+            <li>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setHistorialModal({ instrumentoId: menuRow.id, titulo: menuRow.titulo });
+                  closeMenu();
+                }}
+              >
+                Historial de esta supervisión
+              </button>
+            </li>
+          )}
+          <li>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setModal('supervisores');
+                closeMenu();
+              }}
+            >
+              Supervisores del colegio
+            </button>
+          </li>
+          <li>
+            <button
+              type="button"
+              role="menuitem"
+              className="admin-sup-opcion-danger"
+              onClick={() => {
+                deleteInst(menuRow.id);
+                closeMenu();
+              }}
+            >
+              Eliminar
+            </button>
+          </li>
+        </OpcionesMenuLayer>
+      )}
     </>
   );
 }
@@ -602,6 +670,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
 function PanelSupervisionEjecutor({ loadYo, canExecute }) {
   const [list, setList] = useState([]);
   const [menuRowId, setMenuRowId] = useState(null);
+  const [menuAnchor, setMenuAnchor] = useState(null);
   const [participantesRow, setParticipantesRow] = useState(null);
   const [registrarModal, setRegistrarModal] = useState(null);
   const [historialModal, setHistorialModal] = useState(null);
@@ -612,14 +681,12 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
     loadList().catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (menuRowId == null) return undefined;
-    const close = (e) => {
-      if (!e.target.closest?.('.admin-sup-opciones-wrap')) setMenuRowId(null);
-    };
-    document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
-  }, [menuRowId]);
+  const closeMenu = () => {
+    setMenuRowId(null);
+    setMenuAnchor(null);
+  };
+
+  const menuRow = menuRowId != null ? list.find((x) => x.id === menuRowId) : null;
 
   return (
     <>
@@ -657,58 +724,19 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
                       <div className="admin-sup-opciones-wrap">
                         <button
                           type="button"
-                          className="admin-usu-btn admin-usu-btn-secondary"
+                          className="admin-usu-btn admin-usu-btn-primary admin-sup-opciones-btn"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setMenuRowId(menuRowId === r.id ? null : r.id);
+                            if (menuRowId === r.id) {
+                              closeMenu();
+                            } else {
+                              setMenuRowId(r.id);
+                              setMenuAnchor(e.currentTarget);
+                            }
                           }}
                         >
                           Opciones ▼
                         </button>
-                        {menuRowId === r.id && (
-                          <ul className="admin-sup-opciones-menu" role="menu">
-                            <li>
-                              <button
-                                type="button"
-                                role="menuitem"
-                                onClick={() => {
-                                  setParticipantesRow({ id: r.id, titulo: r.titulo });
-                                  setMenuRowId(null);
-                                }}
-                              >
-                                Participantes
-                              </button>
-                            </li>
-                            {canExecute && (
-                              <li>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => {
-                                    setRegistrarModal({ presetId: r.id, titulo: r.titulo });
-                                    setMenuRowId(null);
-                                  }}
-                                >
-                                  Registrar visita
-                                </button>
-                              </li>
-                            )}
-                            {canExecute && (
-                              <li>
-                                <button
-                                  type="button"
-                                  role="menuitem"
-                                  onClick={() => {
-                                    setHistorialModal({ instrumentoId: r.id, titulo: r.titulo });
-                                    setMenuRowId(null);
-                                  }}
-                                >
-                                  Historial de esta supervisión
-                                </button>
-                              </li>
-                            )}
-                          </ul>
-                        )}
                       </div>
                     </td>
                   </tr>
@@ -723,6 +751,51 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
           )}
         </div>
       </div>
+
+      {menuRow && menuAnchor && (
+        <OpcionesMenuLayer open anchorEl={menuAnchor} onClose={closeMenu}>
+          <li>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setParticipantesRow({ id: menuRow.id, titulo: menuRow.titulo });
+                closeMenu();
+              }}
+            >
+              Participantes
+            </button>
+          </li>
+          {canExecute && (
+            <li>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setRegistrarModal({ presetId: menuRow.id, titulo: menuRow.titulo });
+                  closeMenu();
+                }}
+              >
+                Registrar visita
+              </button>
+            </li>
+          )}
+          {canExecute && (
+            <li>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setHistorialModal({ instrumentoId: menuRow.id, titulo: menuRow.titulo });
+                  closeMenu();
+                }}
+              >
+                Historial de esta supervisión
+              </button>
+            </li>
+          )}
+        </OpcionesMenuLayer>
+      )}
 
       {registrarModal != null && canExecute && (
         <SupervisionModal

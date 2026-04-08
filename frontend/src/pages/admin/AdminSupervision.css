@@ -131,10 +131,23 @@
   }
 }
 
-/* Menú Opciones por fila */
+/* Menú Opciones por fila (el listado flotante usa portal + position:fixed; ver OpcionesMenuLayer) */
 .admin-sup-opciones-wrap {
   position: relative;
   display: inline-block;
+}
+
+/* Clic fuera del menú: capa bajo el menú, sobre el resto de la página */
+.admin-sup-opciones-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10049;
+  background: transparent;
+}
+
+.admin-sup-opciones-btn {
+  min-width: 7.75rem;
+  font-weight: 600;
 }
 
 .admin-sup-opciones-menu {
@@ -150,6 +163,11 @@
   border-radius: 12px;
   box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
   z-index: 50;
+}
+
+.admin-sup-opciones-menu--fixed {
+  right: auto;
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.18);
 }
 
 .admin-sup-opciones-menu li {
