@@ -399,6 +399,32 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
     }
   }
 
+  async function delNivel(nivelId) {
+    try {
+      await api.delete(`/supervision/niveles/${nivelId}`);
+      if (sel) await openEdit({ id: sel });
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || 'No se pudo quitar la alternativa', 'error');
+    }
+  }
+
+  async function deletePregunta(preguntaId) {
+    const c = await Swal.fire({
+      title: '¿Eliminar esta pregunta?',
+      text: 'Se quitarán también todas sus alternativas.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar'
+    });
+    if (!c.isConfirmed) return;
+    try {
+      await api.delete(`/supervision/preguntas/${preguntaId}`);
+      if (sel) await openEdit({ id: sel });
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || 'No se pudo eliminar', 'error');
+    }
+  }
+
   const editorTitulo = modal === 'create' ? 'Nueva supervisión' : 'Editar supervisión';
 
   const formCampos = (
@@ -552,20 +578,49 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
           {modal === 'edit' && sel && sel !== 'new' && detalle && (
             <>
               <h3 className="admin-sup-modal-section-title">Preguntas e ítems</h3>
+              <p className="admin-sup-muted" style={{ marginTop: 0 }}>
+                Por cada pregunta defina <strong>alternativas</strong>: cada una tiene un <strong>valor</strong> numérico que suma si el supervisor la elige. La suma de todas las preguntas es el puntaje total, que luego se compara con los <strong>rangos de resultado</strong> de más abajo.
+              </p>
               {(detalle.preguntas || []).map((p) => (
-                <div key={p.id} className="admin-usu-info-item admin-sup-pregunta-block">
-                  <span className="admin-usu-info-label">{p.titulo}</span>
-                  <div className="admin-sup-muted" style={{ fontSize: '0.85rem', marginTop: 4 }}>
-                    {p.texto_ayuda}
+                <div key={p.id} className="admin-sup-pregunta-card">
+                  <div className="admin-sup-pregunta-card-head">
+                    <h4 className="admin-sup-pregunta-h">Pregunta</h4>
+                    <p className="admin-sup-pregunta-titulo">{p.titulo}</p>
+                    {p.texto_ayuda ? <p className="admin-sup-muted admin-sup-pregunta-ayuda">{p.texto_ayuda}</p> : null}
+                    <button
+                      type="button"
+                      className="admin-usu-btn admin-usu-btn-danger admin-sup-pregunta-del"
+                      onClick={() => deletePregunta(p.id)}
+                    >
+                      Eliminar pregunta
+                    </button>
                   </div>
-                  <div style={{ marginTop: 8 }}>
+                  <div className="admin-sup-alternativas">
+                    <div className="admin-sup-alternativas-sub">Alternativas (una fila = una opción al evaluar)</div>
+                    <div className="admin-sup-alternativas-grid admin-sup-alternativas-grid--head">
+                      <span>Valor</span>
+                      <span>Descripción</span>
+                      <span className="admin-sup-alternativas-acc" aria-hidden />
+                    </div>
                     {(p.niveles || []).map((n) => (
-                      <div key={n.id} className="admin-sup-muted" style={{ fontSize: '0.82rem' }}>
-                        [{n.valor_numerico}] {n.etiqueta || '—'} — {n.descripcion || ''}
+                      <div key={n.id} className="admin-sup-alternativas-grid">
+                        <span className="admin-sup-alternativa-valor">{n.valor_numerico}</span>
+                        <div className="admin-sup-alternativa-desc">
+                          {n.etiqueta ? (
+                            <>
+                              <strong>{n.etiqueta}</strong>
+                              {n.descripcion ? ': ' : null}
+                            </>
+                          ) : null}
+                          {n.descripcion || (n.etiqueta ? '' : '—')}
+                        </div>
+                        <button type="button" className="admin-usu-btn admin-usu-btn-danger admin-sup-alternativas-acc" onClick={() => delNivel(n.id)}>
+                          Quitar
+                        </button>
                       </div>
                     ))}
+                    <MiniNivelForm preguntaId={p.id} onAdded={() => openEdit({ id: sel })} />
                   </div>
-                  <MiniNivelForm preguntaId={p.id} onAdded={() => openEdit({ id: sel })} />
                 </div>
               ))}
               <MiniPreguntaForm instrumentoId={sel} onAdded={() => openEdit({ id: sel })} />
@@ -589,12 +644,6 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
                   <CamposCierreInstrumento instrumentoId={sel} />
                 </>
               )}
-
-              <h3 className="admin-sup-modal-section-title">Personal de referencia (opcional)</h3>
-              <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-                Quién aparece aquí no es el docente que se evalúa (eso se elige al pulsar <strong>Registrar supervisión</strong>) ni los usuarios con permiso de supervisor (eso se configura con el botón <strong>Supervisores</strong> arriba). Es solo un listado opcional de contactos de coordinación o seguimiento vinculados a esta rúbrica.
-              </p>
-              <PanelInstrumentoParticipantes instrumentoId={sel} />
             </>
           )}
           {pieEditor}
@@ -649,7 +698,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
           <OpcionesMenuItem
             icon={IcoPencil}
             label="Editar"
-            hint="Rúbrica, preguntas, rangos, cierre y personal de referencia opcional."
+            hint="Rúbrica, preguntas con alternativas, rangos de puntaje total y cierre."
             onClick={() => {
               openEdit(menuRow);
             }}
@@ -870,17 +919,19 @@ function MiniPreguntaForm({ instrumentoId, onAdded }) {
 
 function MiniNivelForm({ preguntaId, onAdded }) {
   const [valor, setValor] = useState('1');
-  const [etiq, setEtiq] = useState('');
   const [desc, setDesc] = useState('');
   const submit = async () => {
+    if (!String(desc).trim()) {
+      Swal.fire('Atención', 'Indique la descripción de la alternativa.', 'info');
+      return;
+    }
     try {
       await api.post(`/supervision/preguntas/${preguntaId}/niveles`, {
         valor_numerico: parseFloat(valor),
-        etiqueta: etiq || null,
-        descripcion: desc || null,
+        etiqueta: null,
+        descripcion: String(desc).trim(),
         orden: 0
       });
-      setEtiq('');
       setDesc('');
       onAdded();
     } catch (e) {
@@ -888,21 +939,23 @@ function MiniNivelForm({ preguntaId, onAdded }) {
     }
   };
   return (
-    <div className="admin-sup-nivel-inline">
-      <div className="admin-usu-field" style={{ maxWidth: 100 }}>
-        <label>Puntaje</label>
+    <div className="admin-sup-alternativa-nueva">
+      <div className="admin-usu-field admin-sup-alternativa-nueva-valor">
+        <label>Valor</label>
         <input type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} />
       </div>
-      <div className="admin-usu-field" style={{ flex: '1 1 140px' }}>
-        <label>Etiqueta nivel</label>
-        <input value={etiq} onChange={(e) => setEtiq(e.target.value)} placeholder="Ej. Alto" />
-      </div>
-      <div className="admin-usu-field" style={{ flex: '2 1 200px' }}>
+      <div className="admin-usu-field admin-sup-alternativa-nueva-desc">
         <label>Descripción</label>
-        <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Descripción del nivel" />
+        <textarea
+          className="admin-usu-msg-textarea"
+          style={{ minHeight: 56 }}
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+          placeholder="Texto que verá el supervisor al elegir esta opción"
+        />
       </div>
-      <button type="button" className="admin-usu-btn admin-usu-btn-primary" style={{ alignSelf: 'flex-end', marginBottom: '0.85rem' }} onClick={submit}>
-        + Nivel
+      <button type="button" className="admin-usu-btn admin-usu-btn-primary admin-sup-alternativa-nueva-btn" onClick={submit}>
+        + Alternativa
       </button>
     </div>
   );
@@ -1056,100 +1109,6 @@ function PanelCierreGlobal() {
           Añadir
         </button>
       </div>
-    </div>
-  );
-}
-
-function PanelInstrumentoParticipantes({ instrumentoId, readOnly = false }) {
-  const [list, setList] = useState([]);
-  const [q, setQ] = useState('');
-  const [candidatos, setCandidatos] = useState([]);
-  const load = useCallback(
-    () => api.get(`/supervision/instrumentos/${instrumentoId}/participantes`).then((r) => setList(r.data.participantes || [])),
-    [instrumentoId]
-  );
-  useEffect(() => {
-    load().catch(() => {});
-  }, [load]);
-  const buscar = () =>
-    api.get('/supervision/personal-candidatos', { params: { q } }).then((r) => setCandidatos(r.data.personal || []));
-  const add = async (usuario_id) => {
-    try {
-      await api.post(`/supervision/instrumentos/${instrumentoId}/participantes`, { usuario_id });
-      await load();
-      Swal.fire({ icon: 'success', title: 'Agregado', timer: 1200, showConfirmButton: false });
-    } catch (e) {
-      Swal.fire('Error', e.response?.data?.error || 'No se pudo agregar', 'error');
-    }
-  };
-  const del = async (id) => {
-    try {
-      await api.delete(`/supervision/instrumento-participantes/${id}`);
-      await load();
-    } catch (e) {
-      Swal.fire('Error', e.response?.data?.error, 'error');
-    }
-  };
-  return (
-    <div>
-      <p className="admin-sup-muted">
-        Opcional. Personas de coordinación o seguimiento asociadas a <strong>esta rúbrica</strong> (información interna). No son el docente que se evalúa (eso se elige al registrar la supervisión) ni los usuarios con permiso de supervisor (eso es el botón <strong>Supervisores</strong> en la barra).
-      </p>
-      {readOnly && (
-        <p className="admin-sup-muted" style={{ marginTop: 8 }}>
-          Solo consulta. Solo el administrador puede editar este listado desde <strong>Editar</strong> la rúbrica.
-        </p>
-      )}
-      <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '0 0 0.75rem' }}>Personas asignadas</h3>
-      <div className="admin-usu-table-scroll">
-        <table className="admin-usu-table">
-          <thead>
-            <tr>
-              <th>Usuario (DNI)</th>
-              <th>Nombre</th>
-              {!readOnly && <th style={{ width: 120 }}>Acción</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {list.map((s) => (
-              <tr key={s.id}>
-                <td>{s.dni}</td>
-                <td style={{ textAlign: 'left' }}>
-                  {s.nombres} {s.apellidos}
-                </td>
-                {!readOnly && (
-                  <td>
-                    <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => del(s.id)}>
-                      Quitar
-                    </button>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {!readOnly && (
-        <>
-          <h3 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#1f2937', margin: '1.25rem 0 0.75rem' }}>Añadir personal</h3>
-          <div className="admin-usu-toolbar" style={{ marginBottom: 12 }}>
-            <input className="admin-usu-grow" type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por DNI o nombre" />
-            <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={buscar}>
-              Buscar
-            </button>
-          </div>
-          <ul className="admin-sup-lista-candidatos">
-            {candidatos.map((p) => (
-              <li key={p.usuario_id}>
-                <strong>{p.dni}</strong> — {p.nombres} {p.apellidos}{' '}
-                <button type="button" className="admin-usu-btn admin-usu-btn-primary" style={{ marginLeft: 8 }} onClick={() => add(p.usuario_id)}>
-                  Añadir
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
     </div>
   );
 }
