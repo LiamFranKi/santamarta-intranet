@@ -94,7 +94,15 @@
   align-items: center;
   margin-top: 0.35rem;
   padding-top: 0.65rem;
+  padding-bottom: 0.45rem;
   border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.hijo-actions .dropdown-container {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .hijo-card-header {
@@ -328,20 +336,22 @@
   color: #1f2937;
 }
 
+/* Tutor: misma línea que la etiqueta; nombre con ellipsis si no cabe */
 .hijo-details p.hijo-tutor {
-  flex-direction: column;
-  align-items: flex-start;
+  flex-wrap: nowrap;
+  align-items: center;
+  min-width: 0;
   align-self: stretch;
-  gap: 0.3rem;
 }
 
 .hijo-tutor .hijo-tutor-line {
-  display: block;
-  width: 100%;
+  flex: 1;
   min-width: 0;
+  overflow: hidden;
+  display: block;
 }
 
-/* Nombre del tutor = enlace al mismo modal de mensaje (sin ícono aparte) */
+/* Nombre del tutor = enlace (mismo tamaño que Grupo/Nivel/Turno, naranja, sin subrayado) */
 .hijo-tutor-nombre-link {
   margin: 0;
   padding: 0;
@@ -350,39 +360,41 @@
   box-shadow: none;
   cursor: pointer;
   font: inherit;
-  font-size: 0.98rem;
-  color: #2563eb;
-  text-decoration: underline;
-  text-decoration-color: rgba(37, 99, 235, 0.35);
-  text-underline-offset: 2px;
+  font-size: 0.9rem;
+  font-weight: 400;
+  line-height: 1.35;
+  color: #ea580c;
+  text-decoration: none;
   text-align: left;
-  line-height: 1.45;
   display: block;
   width: 100%;
   max-width: 100%;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-wrap: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hijo-tutor-nombre-link:hover {
-  color: #1d4ed8;
-  text-decoration-color: rgba(29, 78, 216, 0.55);
+  color: #c2410c;
+  text-decoration: none;
 }
 
 .hijo-tutor-nombre-link:focus-visible {
-  outline: 2px solid #4a83c1;
+  outline: 2px solid #ea580c;
   outline-offset: 2px;
   border-radius: 2px;
 }
 
 .hijo-tutor-texto-plano {
   color: #1f2937;
-  font-size: 0.98rem;
-  line-height: 1.45;
+  font-size: 0.9rem;
+  font-weight: 400;
+  line-height: 1.35;
   display: block;
   width: 100%;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .empty-state {
@@ -788,26 +800,29 @@
 
   .hijo-details p {
     justify-content: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    max-width: 100%;
   }
 
   .hijo-details p.hijo-tutor {
-    align-items: center;
-    text-align: center;
+    justify-content: flex-start;
+    width: 100%;
+    max-width: 100%;
   }
 
   .hijo-tutor .hijo-tutor-line {
-    text-align: center;
+    text-align: left;
   }
 
   .hijo-tutor-nombre-link,
   .hijo-tutor-texto-plano {
-    text-align: center;
+    text-align: left;
   }
 
   .hijo-actions {
     margin-top: 0.25rem;
     padding-top: 0.6rem;
+    padding-bottom: 0.5rem;
   }
 
   .btn-opciones-hijo {
