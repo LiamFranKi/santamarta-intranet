@@ -12,6 +12,7 @@ import PWAInstallPrompt from './PWAInstallPrompt';
 import PWAUpdateNotification from './PWAUpdateNotification';
 import ModalAsistencias from './ModalAsistencias';
 import BirthdayWelcomeModal from './BirthdayWelcomeModal';
+import EncuestaActivacionModal from './EncuestaActivacionModal';
 import '../styles/CumpleMarcoFestivo.css';
 import './DashboardLayout.css';
 
@@ -537,6 +538,12 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mensajes</span>
                 </NavLink>
               </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/encuestas">
+                  <span className="sidebar-icon">📋</span>
+                  <span className="sidebar-label">Encuestas</span>
+                </NavLink>
+              </div>
             </>
           ) : role === 'PROMOTORIA' ? (
             <>
@@ -664,6 +671,12 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/mensajes">
                   <span className="sidebar-icon">✉️</span>
                   <span className="sidebar-label">Mensajes</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/encuestas">
+                  <span className="sidebar-icon">📋</span>
+                  <span className="sidebar-label">Encuestas</span>
                 </NavLink>
               </div>
             </>
@@ -1008,6 +1021,9 @@ export default function DashboardLayout({ children }) {
         
         {/* Notificación de actualización PWA */}
         <PWAUpdateNotification />
+
+        {/* Encuesta activa: aviso una vez por encuesta (z-index sobre cumpleaños) */}
+        <EncuestaActivacionModal />
 
         {/* Modal de bienvenida cumpleaños (plantilla ventana; z-index bajo comunicado home) */}
         <BirthdayWelcomeModal />

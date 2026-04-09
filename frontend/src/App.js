@@ -37,6 +37,10 @@ import AdminIncidencias from './pages/admin/AdminIncidencias';
 import AdminExamenesPersonal from './pages/admin/AdminExamenesPersonal';
 import AdminSupervision from './pages/admin/AdminSupervision';
 import AdminEncuestas from './pages/admin/AdminEncuestas';
+import AdminEncuestaEditor from './pages/admin/AdminEncuestaEditor';
+import AdminEncuestaEstadisticas from './pages/admin/AdminEncuestaEstadisticas';
+import MisEncuestas from './pages/MisEncuestas';
+import EncuestaResponder from './pages/EncuestaResponder';
 import AdminEnConstruccion from './pages/admin/AdminEnConstruccion';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
 import AlumnoDashboard from './pages/AlumnoDashboard';
@@ -289,6 +293,46 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/herramientas/encuestas/nueva"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminEncuestaEditor />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/encuestas/:id/editar"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminEncuestaEditor />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/encuestas/:id/estadisticas"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminEncuestaEstadisticas />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/encuestas"
+        element={
+          <PrivateRoute>
+            <MisEncuestas />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/encuestas/responder/:id"
+        element={
+          <PrivateRoute>
+            <EncuestaResponder />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/admin/herramientas/vocabularios"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
@@ -370,7 +414,7 @@ function AppRoutes() {
         path="/docente/herramientas/encuestas"
         element={
           <PrivateRoute requiredType="DOCENTE">
-            <AdminEnConstruccion titulo="Encuestas" />
+            <MisEncuestas />
           </PrivateRoute>
         }
       />

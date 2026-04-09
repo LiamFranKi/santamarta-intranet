@@ -99,6 +99,10 @@ export function normalizarUrlNotificacion(notif, user) {
     return '/docente/dashboard';
   }
 
+  if (tipoAccion === 'encuesta_activa' && payload.encuesta_id) {
+    return `/encuestas/responder/${payload.encuesta_id}`;
+  }
+
   if (url) return url;
 
   // ——— Respaldo: sin url_destino (datos viejos o respuesta parcial) ———
