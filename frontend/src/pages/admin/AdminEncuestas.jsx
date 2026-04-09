@@ -33,20 +33,21 @@ export default function AdminEncuestas() {
 
   const eliminarEncuesta = async (e) => {
     const r = await Swal.fire({
-      title: '¿Desactivar encuesta?',
-      text: 'Dejará de mostrarse a los usuarios (quedará como inactiva en el listado).',
+      title: '¿Eliminar esta encuesta?',
+      html: 'Se borrarán <strong>definitivamente</strong> la encuesta, preguntas, audiencias y todas las respuestas registradas. Esta acción no se puede deshacer.',
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonText: 'Sí, desactivar',
-      cancelButtonText: 'Cancelar'
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      focusCancel: true
     });
     if (!r.isConfirmed) return;
     try {
       await api.delete(`/encuestas/admin/${e.id}`);
-      await Swal.fire('Listo', 'Encuesta desactivada.', 'success');
+      await Swal.fire('Listo', 'Encuesta eliminada.', 'success');
       loadEncuestas();
     } catch (err) {
-      Swal.fire('Error', err.response?.data?.error || 'No se pudo desactivar', 'error');
+      Swal.fire('Error', err.response?.data?.error || 'No se pudo eliminar', 'error');
     }
   };
 

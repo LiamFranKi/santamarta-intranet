@@ -20,7 +20,6 @@ async function obtenerDestinatariosEncuesta(colegio_id, audiencias) {
   if (types.includes('DOCENTE')) parts.push(`tipo = 'DOCENTE'`);
   if (types.includes('PROMOTORIA')) parts.push(`tipo = 'PROMOTORIA'`);
   if (types.includes('ADMINISTRADOR')) parts.push(`tipo = 'ADMINISTRADOR'`);
-  if (types.includes('PERSONAL')) parts.push(`(personal_id IS NOT NULL AND personal_id > 0)`);
   if (parts.length === 0) return [];
   const sql = `SELECT id, email, tipo, personal_id FROM usuarios WHERE colegio_id = ? AND (estado = 'ACTIVO' OR estado IS NULL) AND (${parts.join(' OR ')})`;
   return query(sql, [colegio_id]);

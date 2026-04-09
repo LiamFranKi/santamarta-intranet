@@ -22,7 +22,6 @@ function usuarioCoincideAudiencia(user, audiencias) {
   if (!audiencias || audiencias.length === 0) return false;
   if (audiencias.some((a) => a.tipo === 'TODOS')) return true;
   if (audiencias.some((a) => a.tipo === user.tipo)) return true;
-  if (audiencias.some((a) => a.tipo === 'PERSONAL') && user.personal_id) return true;
   return false;
 }
 
@@ -321,29 +320,34 @@ router.post('/admin', authenticateToken, requireAdminOrPromotoria, async (req, r
     if (!titulo || !String(titulo).trim()) {
       return res.status(400).json({ error: 'Título requerido' });
     }
-    if (!Array.isArray(audiencias) || audiencias.length === 0) {
+    const audienciasLimpias = (audiencias || []).filter((t) => t && t !== 'PERSONAL');
+    if (!Array.isArray(audienciasLimpias) || audienciasLimpias.length === 0) {
       return res.status(400).json({ error: 'Selecciona al menos una audiencia' });
     }
     if (!Array.isArray(preguntas) || preguntas.length === 0) {
       return res.status(400).json({ error: 'Agrega al menos una pregunta' });
     }
 
-    const tipoLegacy = audiencias[0] || 'APODERADO';
+    const tipoLegacy = audienciasLimpias[0] || 'APODERADO';
     const msg = mensaje_agradecimiento || '¡Gracias por tu participación!';
     const desc = descripcion || null;
     const fi = fecha_inicio || null;
     const ff = fecha_fin || null;
     const cat = categoria_metrica || null;
     const pers = personal_id || null;
+    const est = String(estado || 'ACTIVO').toUpperCase();
+    if (est !== 'ACTIVO' && est !== 'INACTIVO') {
+      return res.status(400).json({ error: 'Estado debe ser ACTIVO o INACTIVO' });
+    }
 
     const ins = await execute(
       `INSERT INTO encuestas (colegio_id, personal_id, titulo, estado, tipo, descripcion, fecha_inicio, fecha_fin, mensaje_agradecimiento, categoria_metrica, modelo_encuesta)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2)`,
-      [colegio_id, pers, String(titulo).trim(), estado, tipoLegacy, desc, fi, ff, msg, cat]
+      [colegio_id, pers, String(titulo).trim(), est, tipoLegacy, desc, fi, ff, msg, cat]
     );
     const encuestaId = ins.insertId;
 
-    for (const t of new Set(audiencias)) {
+    for (const t of new Set(audienciasLimpias)) {
       await execute(`INSERT INTO encuestas_audiencias (encuesta_id, tipo) VALUES (?, ?)`, [encuestaId, t]);
     }
 
@@ -366,7 +370,7 @@ router.post('/admin', authenticateToken, requireAdminOrPromotoria, async (req, r
 
     res.json({ success: true, encuesta_id: encuestaId });
 
-    if (String(estado).toUpperCase() === 'ACTIVO') {
+    if (est === 'ACTIVO') {
       setImmediate(() => {
         cargarAudiencias(encuestaId)
           .then((aud) =>
@@ -418,6 +422,11 @@ router.put('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req
     }
 
     const v = (x, fallback) => (x !== undefined ? x : fallback);
+    let estadoFinal = v(estado, cur.estado) ?? 'ACTIVO';
+    estadoFinal = String(estadoFinal).toUpperCase();
+    if (estadoFinal !== 'ACTIVO' && estadoFinal !== 'INACTIVO') {
+      return res.status(400).json({ error: 'Estado debe ser ACTIVO o INACTIVO' });
+    }
     await execute(
       `UPDATE encuestas SET titulo = ?, descripcion = ?, fecha_inicio = ?, fecha_fin = ?, mensaje_agradecimiento = ?, categoria_metrica = ?, estado = ?
        WHERE id = ? AND colegio_id = ?`,
@@ -428,18 +437,21 @@ router.put('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req
         v(fecha_fin, cur.fecha_fin) ?? null,
         v(mensaje_agradecimiento, cur.mensaje_agradecimiento) ?? null,
         v(categoria_metrica, cur.categoria_metrica) ?? null,
-        v(estado, cur.estado) ?? 'ACTIVO',
+        estadoFinal,
         id,
         colegio_id
       ]
     );
 
     if (!tiene && Array.isArray(audiencias) && audiencias.length) {
-      await execute(`DELETE FROM encuestas_audiencias WHERE encuesta_id = ?`, [id]);
-      for (const t of new Set(audiencias)) {
-        await execute(`INSERT INTO encuestas_audiencias (encuesta_id, tipo) VALUES (?, ?)`, [id, t]);
+      const audLimpias = audiencias.filter((t) => t && t !== 'PERSONAL');
+      if (audLimpias.length) {
+        await execute(`DELETE FROM encuestas_audiencias WHERE encuesta_id = ?`, [id]);
+        for (const t of new Set(audLimpias)) {
+          await execute(`INSERT INTO encuestas_audiencias (encuesta_id, tipo) VALUES (?, ?)`, [id, t]);
+        }
+        await execute(`UPDATE encuestas SET tipo = ? WHERE id = ?`, [audLimpias[0], id]);
       }
-      await execute(`UPDATE encuestas SET tipo = ? WHERE id = ?`, [audiencias[0], id]);
     }
 
     if (!tiene && Array.isArray(preguntas)) {
@@ -462,7 +474,7 @@ router.put('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req
       }
     }
 
-    const newEstado = String((estado !== undefined ? estado : cur.estado) || '').toUpperCase();
+    const newEstado = estadoFinal;
     if (newEstado === 'ACTIVO' && oldEstado !== 'ACTIVO') {
       setImmediate(() => {
         cargarAudiencias(id)
@@ -490,12 +502,25 @@ router.delete('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (
   try {
     const { colegio_id } = req.user;
     const id = parseInt(req.params.id, 10);
-    const r = await execute(`UPDATE encuestas SET estado = 'INACTIVO' WHERE id = ? AND colegio_id = ?`, [id, colegio_id]);
+    const enc = await query(`SELECT id FROM encuestas WHERE id = ? AND colegio_id = ? LIMIT 1`, [id, colegio_id]);
+    if (!enc || !enc.length) return res.status(404).json({ error: 'No encontrada' });
+
+    await execute(
+      `DELETE d FROM encuestas_respuestas_detalle d
+       INNER JOIN encuestas_respuestas r ON r.id = d.respuesta_id
+       WHERE r.encuesta_id = ?`,
+      [id]
+    );
+    await execute(`DELETE FROM encuestas_respuestas WHERE encuesta_id = ?`, [id]);
+    await execute(`DELETE FROM encuestas_modal_visto WHERE encuesta_id = ?`, [id]);
+    await execute(`DELETE FROM encuestas_audiencias WHERE encuesta_id = ?`, [id]);
+    await execute(`DELETE FROM encuestas_preguntas WHERE encuesta_id = ?`, [id]);
+    const r = await execute(`DELETE FROM encuestas WHERE id = ? AND colegio_id = ?`, [id, colegio_id]);
     if (!r.affectedRows) return res.status(404).json({ error: 'No encontrada' });
     res.json({ success: true });
   } catch (err) {
     console.error('[encuestas] admin delete', err);
-    res.status(500).json({ error: 'Error al desactivar' });
+    res.status(500).json({ error: err.message || 'Error al eliminar' });
   }
 });
 

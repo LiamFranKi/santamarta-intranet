@@ -1,16 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
   Button,
   Card,
   CardContent,
   Checkbox,
-  Divider,
   FormControl,
   FormControlLabel,
   FormGroup,
   IconButton,
+  InputLabel,
   MenuItem,
   Select,
   Stack,
@@ -21,6 +24,7 @@ import {
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
@@ -31,7 +35,6 @@ const AUDIENCIAS = [
   { value: 'ALUMNO', label: 'Alumnos' },
   { value: 'APODERADO', label: 'Apoderados' },
   { value: 'DOCENTE', label: 'Docentes' },
-  { value: 'PERSONAL', label: 'Personal (con ficha)' },
   { value: 'PROMOTORIA', label: 'Promotoría' },
   { value: 'ADMINISTRADOR', label: 'Administradores' },
   { value: 'TODOS', label: 'Todos los usuarios' }
@@ -68,7 +71,9 @@ export default function AdminEncuestaEditor() {
   const [mensaje, setMensaje] = useState('¡Gracias por tu participación!');
   const [categoria, setCategoria] = useState('');
   const [audiencias, setAudiencias] = useState([]);
+  const [estadoEncuesta, setEstadoEncuesta] = useState('ACTIVO');
   const [preguntas, setPreguntas] = useState([nuevaPregunta()]);
+  const [preguntaExpandida, setPreguntaExpandida] = useState(false);
   const [tieneRespuestas, setTieneRespuestas] = useState(false);
 
   useEffect(() => {
@@ -85,7 +90,8 @@ export default function AdminEncuestaEditor() {
         setFechaFin(e.fecha_fin ? String(e.fecha_fin).slice(0, 10) : '');
         setMensaje(e.mensaje_agradecimiento || '¡Gracias por tu participación!');
         setCategoria(e.categoria_metrica || '');
-        setAudiencias(data.audiencias || []);
+        setEstadoEncuesta(String(e.estado || 'ACTIVO').toUpperCase() === 'INACTIVO' ? 'INACTIVO' : 'ACTIVO');
+        setAudiencias((data.audiencias || []).filter((t) => t !== 'PERSONAL'));
         const pr = (data.preguntas || []).map((p) => ({
           id: p.id,
           texto_pregunta: p.texto_pregunta,
@@ -137,10 +143,25 @@ export default function AdminEncuestaEditor() {
       [n[idx], n[j]] = [n[j], n[idx]];
       return n;
     });
+    setPreguntaExpandida(false);
   };
 
   const eliminarPregunta = (idx) => {
     setPreguntas((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
+    setPreguntaExpandida((exp) => {
+      if (exp === false) return false;
+      if (exp === idx) return false;
+      if (typeof exp === 'number' && exp > idx) return exp - 1;
+      return exp;
+    });
+  };
+
+  const addPregunta = () => {
+    setPreguntas((prev) => {
+      const n = [...prev, nuevaPregunta()];
+      setPreguntaExpandida(n.length - 1);
+      return n;
+    });
   };
 
   const guardar = async () => {
@@ -169,7 +190,7 @@ export default function AdminEncuestaEditor() {
       fecha_fin: fechaFin || null,
       mensaje_agradecimiento: mensaje,
       categoria_metrica: categoria || null,
-      estado: 'ACTIVO'
+      estado: estadoEncuesta
     };
     const payload = tieneRespuestas
       ? payloadBase
@@ -287,6 +308,18 @@ export default function AdminEncuestaEditor() {
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value)}
               />
+              <FormControl fullWidth size="small">
+                <InputLabel id="enc-estado-label">Estado</InputLabel>
+                <Select
+                  labelId="enc-estado-label"
+                  label="Estado"
+                  value={estadoEncuesta}
+                  onChange={(e) => setEstadoEncuesta(e.target.value)}
+                >
+                  <MenuItem value="ACTIVO">Activa</MenuItem>
+                  <MenuItem value="INACTIVO">Inactiva</MenuItem>
+                </Select>
+              </FormControl>
             </Stack>
           </CardContent>
         </Card>
@@ -324,131 +357,166 @@ export default function AdminEncuestaEditor() {
                 variant="outlined"
                 size="small"
                 disabled={tieneRespuestas}
-                onClick={() => setPreguntas((p) => [...p, nuevaPregunta()])}
+                onClick={addPregunta}
                 sx={{ textTransform: 'none' }}
               >
                 + Pregunta
               </Button>
             </Stack>
 
-            {preguntas.map((p, idx) => (
-              <Box key={idx} className="enc-pregunta-editor">
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                  <ChipMini label={`Pregunta ${idx + 1}`} />
-                  <Stack direction="row">
-                    <IconButton size="small" onClick={() => mover(idx, 'up')} disabled={idx === 0}>
-                      <ArrowUpwardIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton size="small" onClick={() => mover(idx, 'down')} disabled={idx === preguntas.length - 1}>
-                      <ArrowDownwardIcon fontSize="small" />
-                    </IconButton>
-                    <IconButton
-                      size="small"
-                      color="error"
-                      disabled={preguntas.length <= 1 || tieneRespuestas}
-                      onClick={() => eliminarPregunta(idx)}
-                    >
-                      <DeleteOutlineIcon fontSize="small" />
-                    </IconButton>
-                  </Stack>
-                </Stack>
-                <TextField
-                  label="Texto"
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 1 }}
-                  value={p.texto_pregunta}
-                  onChange={(e) => actualizarPregunta(idx, 'texto_pregunta', e.target.value)}
-                  disabled={tieneRespuestas}
-                />
-                <TextField
-                  label="Subtítulo (opcional)"
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 1 }}
-                  value={p.subtitulo}
-                  onChange={(e) => actualizarPregunta(idx, 'subtitulo', e.target.value)}
-                  disabled={tieneRespuestas}
-                />
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 1 }} alignItems="center">
-                  <FormControl size="small" fullWidth>
-                    <Typography variant="caption" color="text.secondary">
-                      Tipo
+            {preguntas.map((p, idx) => {
+              const preview =
+                p.tipo_interfaz === 'titulo'
+                  ? (String(p.texto_pregunta || '').trim() || '(Solo título / sección)').slice(0, 72)
+                  : (String(p.texto_pregunta || '').trim() || '(sin texto)').slice(0, 72);
+              return (
+                <Accordion
+                  key={p.id ?? `n-${idx}`}
+                  expanded={preguntaExpandida === idx}
+                  onChange={(_, exp) => setPreguntaExpandida(exp ? idx : false)}
+                  disableGutters
+                  elevation={0}
+                  sx={{
+                    mb: 1,
+                    border: '1px solid rgba(0,0,0,0.08)',
+                    borderRadius: '12px !important',
+                    '&:before': { display: 'none' },
+                    overflow: 'hidden'
+                  }}
+                >
+                  <AccordionSummary
+                    expandIcon={<ExpandMoreIcon />}
+                    sx={{
+                      bgcolor: 'action.hover',
+                      '& .MuiAccordionSummary-content': {
+                        alignItems: 'center',
+                        gap: 1,
+                        flexWrap: 'wrap',
+                        my: 1
+                      }
+                    }}
+                  >
+                    <Typography variant="subtitle2" fontWeight={700} sx={{ minWidth: 88 }}>
+                      Pregunta {idx + 1}
                     </Typography>
-                    <Select
-                      value={p.tipo_interfaz}
-                      onChange={(e) => actualizarPregunta(idx, 'tipo_interfaz', e.target.value)}
+                    <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 120 }} noWrap title={preview}>
+                      {preview}
+                    </Typography>
+                    <Stack direction="row" onClick={(ev) => ev.stopPropagation()}>
+                      <IconButton size="small" onClick={() => mover(idx, 'up')} disabled={idx === 0}>
+                        <ArrowUpwardIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" onClick={() => mover(idx, 'down')} disabled={idx === preguntas.length - 1}>
+                        <ArrowDownwardIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        disabled={preguntas.length <= 1 || tieneRespuestas}
+                        onClick={() => eliminarPregunta(idx)}
+                      >
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Stack>
+                  </AccordionSummary>
+                  <AccordionDetails className="enc-pregunta-editor">
+                    <TextField
+                      label="Texto"
+                      fullWidth
+                      size="small"
+                      sx={{ mb: 1 }}
+                      value={p.texto_pregunta}
+                      onChange={(e) => actualizarPregunta(idx, 'texto_pregunta', e.target.value)}
                       disabled={tieneRespuestas}
-                    >
-                      {TIPOS_PREG.map((t) => (
-                        <MenuItem key={t.value} value={t.value}>
-                          {t.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={p.obligatoria}
-                        onChange={(e) => actualizarPregunta(idx, 'obligatoria', e.target.checked)}
-                        disabled={tieneRespuestas || p.tipo_interfaz === 'titulo'}
+                    />
+                    <TextField
+                      label="Subtítulo (opcional)"
+                      fullWidth
+                      size="small"
+                      sx={{ mb: 1 }}
+                      value={p.subtitulo}
+                      onChange={(e) => actualizarPregunta(idx, 'subtitulo', e.target.value)}
+                      disabled={tieneRespuestas}
+                    />
+                    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 1 }} alignItems="center">
+                      <FormControl size="small" fullWidth>
+                        <Typography variant="caption" color="text.secondary">
+                          Tipo
+                        </Typography>
+                        <Select
+                          value={p.tipo_interfaz}
+                          onChange={(e) => actualizarPregunta(idx, 'tipo_interfaz', e.target.value)}
+                          disabled={tieneRespuestas}
+                        >
+                          {TIPOS_PREG.map((t) => (
+                            <MenuItem key={t.value} value={t.value}>
+                              {t.label}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={p.obligatoria}
+                            onChange={(e) => actualizarPregunta(idx, 'obligatoria', e.target.checked)}
+                            disabled={tieneRespuestas || p.tipo_interfaz === 'titulo'}
+                          />
+                        }
+                        label="Obligatoria"
                       />
-                    }
-                    label="Obligatoria"
-                  />
-                </Stack>
+                    </Stack>
 
-                {(p.tipo_interfaz === 'marcar' || p.tipo_interfaz === 'lista') && !tieneRespuestas && (
-                  <OpcionesLista p={p} idx={idx} actualizarOpciones={actualizarOpciones} />
-                )}
+                    {(p.tipo_interfaz === 'marcar' || p.tipo_interfaz === 'lista') && !tieneRespuestas && (
+                      <OpcionesLista p={p} idx={idx} actualizarOpciones={actualizarOpciones} />
+                    )}
 
-                {p.tipo_interfaz === 'marcar' && !tieneRespuestas && (
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={!!p.opciones.multiple}
-                        onChange={(e) => actualizarOpciones(idx, { multiple: e.target.checked })}
+                    {p.tipo_interfaz === 'marcar' && !tieneRespuestas && (
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            checked={!!p.opciones.multiple}
+                            onChange={(e) => actualizarOpciones(idx, { multiple: e.target.checked })}
+                          />
+                        }
+                        label="Selección múltiple"
                       />
-                    }
-                    label="Selección múltiple"
-                  />
-                )}
+                    )}
 
-                {p.tipo_interfaz === 'escala' && !tieneRespuestas && (
-                  <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
-                    <TextField
-                      label="Mín"
-                      type="number"
-                      size="small"
-                      value={p.opciones.min ?? 1}
-                      onChange={(e) => actualizarOpciones(idx, { min: parseInt(e.target.value, 10) || 1 })}
-                    />
-                    <TextField
-                      label="Máx"
-                      type="number"
-                      size="small"
-                      value={p.opciones.max ?? 5}
-                      onChange={(e) => actualizarOpciones(idx, { max: parseInt(e.target.value, 10) || 5 })}
-                    />
-                    <TextField
-                      label="Etiqueta mín"
-                      size="small"
-                      value={p.opciones.etiqueta_min || ''}
-                      onChange={(e) => actualizarOpciones(idx, { etiqueta_min: e.target.value })}
-                    />
-                    <TextField
-                      label="Etiqueta máx"
-                      size="small"
-                      value={p.opciones.etiqueta_max || ''}
-                      onChange={(e) => actualizarOpciones(idx, { etiqueta_max: e.target.value })}
-                    />
-                  </Stack>
-                )}
-
-                <Divider sx={{ mt: 2 }} />
-              </Box>
-            ))}
+                    {p.tipo_interfaz === 'escala' && !tieneRespuestas && (
+                      <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap sx={{ mt: 1 }}>
+                        <TextField
+                          label="Mín"
+                          type="number"
+                          size="small"
+                          value={p.opciones.min ?? 1}
+                          onChange={(e) => actualizarOpciones(idx, { min: parseInt(e.target.value, 10) || 1 })}
+                        />
+                        <TextField
+                          label="Máx"
+                          type="number"
+                          size="small"
+                          value={p.opciones.max ?? 5}
+                          onChange={(e) => actualizarOpciones(idx, { max: parseInt(e.target.value, 10) || 5 })}
+                        />
+                        <TextField
+                          label="Etiqueta mín"
+                          size="small"
+                          value={p.opciones.etiqueta_min || ''}
+                          onChange={(e) => actualizarOpciones(idx, { etiqueta_min: e.target.value })}
+                        />
+                        <TextField
+                          label="Etiqueta máx"
+                          size="small"
+                          value={p.opciones.etiqueta_max || ''}
+                          onChange={(e) => actualizarOpciones(idx, { etiqueta_max: e.target.value })}
+                        />
+                      </Stack>
+                    )}
+                  </AccordionDetails>
+                </Accordion>
+              );
+            })}
           </CardContent>
         </Card>
 
@@ -457,19 +525,11 @@ export default function AdminEncuestaEditor() {
             Cancelar
           </Button>
           <Button variant="contained" onClick={guardar} sx={{ textTransform: 'none', px: 3 }}>
-            Guardar y activar
+            Guardar
           </Button>
         </Stack>
       </div>
     </DashboardLayout>
-  );
-}
-
-function ChipMini({ label }) {
-  return (
-    <Typography variant="caption" sx={{ fontWeight: 700, color: 'primary.main', letterSpacing: 0.5 }}>
-      {label}
-    </Typography>
   );
 }
 
