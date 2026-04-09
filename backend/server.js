@@ -265,6 +265,7 @@ const promotoriaRoutes = require('./routes/promotoria.routes');
 const cumpleanosRoutes = require('./routes/cumpleanos.routes');
 const supervisionRoutes = require('./routes/supervision.routes');
 const encuestasRoutes = require('./routes/encuestas.routes');
+const herramientasExamenesRoutes = require('./routes/herramientasExamenes.routes');
 
 app.use('/api/docente', docenteRoutes);
 app.use('/api/alumno', alumnoRoutes);
@@ -277,6 +278,7 @@ app.use('/api/promotoria', promotoriaRoutes);
 app.use('/api/cumpleanos', cumpleanosRoutes);
 app.use('/api/supervision', supervisionRoutes);
 app.use('/api/encuestas', encuestasRoutes);
+app.use('/api/herramientas-examenes', herramientasExamenesRoutes);
 
 // Rutas de prueba (solo desarrollo)
 if (process.env.NODE_ENV === 'development') {

@@ -286,8 +286,11 @@ function AlumnoExamen() {
         await api.post(`/alumno/examenes/${examenId}/respuestas`, {
           respuestas: limpio
         });
-        setRespuestas(limpio);
-        respuestasRef.current = limpio;
+        // Tras el POST, el ref puede tener texto más reciente que `limpio` (red lenta).
+        // Sincronizar siempre con el ref actual para no rebobinar el teclado.
+        const actual = sanitizarRespuestasExamen(respuestasRef.current);
+        setRespuestas(actual);
+        respuestasRef.current = actual;
       } catch (error) {
         console.error('Error guardando respuestas:', error);
       } finally {

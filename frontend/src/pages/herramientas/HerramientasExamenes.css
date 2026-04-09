@@ -1,0 +1,94 @@
+/* Exámenes de herramientas — coherente con AdminEncuestas (gradiente violeta) */
+.hex-exam-wrap {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 10px 36px;
+}
+
+.hex-exam-hero {
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #a855f7 100%);
+  border-radius: 18px;
+  padding: 28px 32px;
+  color: #fff;
+  margin-bottom: 24px;
+  box-shadow: 0 12px 40px rgba(79, 70, 229, 0.35);
+}
+
+.hex-exam-hero h1 {
+  margin: 0 0 10px;
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.hex-exam-hero p {
+  margin: 0;
+  opacity: 0.94;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.hex-exam-badge-modo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.2);
+  margin-top: 12px;
+}
+
+.hex-exam-card {
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
+  padding: 20px 22px;
+  margin-bottom: 16px;
+}
+
+.hex-exam-preg-editor {
+  border: 1px solid rgba(79, 70, 229, 0.15);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+  background: linear-gradient(145deg, #fafbff 0%, #f4f6ff 100%);
+}
+
+.hex-exam-stat-kpi {
+  text-align: center;
+  padding: 1rem 0.75rem;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 12px rgba(79, 70, 229, 0.06);
+}
+
+.hex-exam-stat-kpi-num {
+  font-size: 1.65rem;
+  font-weight: 800;
+  background: linear-gradient(90deg, #4f46e5, #a855f7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  line-height: 1.2;
+}
+
+.hex-exam-mini-hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.hex-exam-realizar-hero {
+  background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #8b5cf6 100%);
+  border-radius: 16px;
+  padding: 22px 24px;
+  color: #fff;
+  margin-bottom: 20px;
+  box-shadow: 0 10px 36px rgba(14, 165, 233, 0.3);
+}

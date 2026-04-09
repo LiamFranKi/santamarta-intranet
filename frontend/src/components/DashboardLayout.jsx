@@ -385,6 +385,15 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                   <NavLink
                     className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/herramientas-examenes"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      🎯
+                    </span>
+                    <span className="sidebar-label">Rendir exámenes</span>
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
                     to="/docente/herramientas/encuestas"
                   >
                     <span className="sidebar-icon" aria-hidden>
@@ -544,6 +553,12 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Encuestas</span>
                 </NavLink>
               </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/herramientas-examenes">
+                  <span className="sidebar-icon">📝</span>
+                  <span className="sidebar-label">Exámenes</span>
+                </NavLink>
+              </div>
             </>
           ) : role === 'PROMOTORIA' ? (
             <>
@@ -677,6 +692,12 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/encuestas">
                   <span className="sidebar-icon">📋</span>
                   <span className="sidebar-label">Encuestas</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/herramientas-examenes">
+                  <span className="sidebar-icon">📝</span>
+                  <span className="sidebar-label">Exámenes</span>
                 </NavLink>
               </div>
             </>
@@ -897,6 +918,12 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/mensajes">
                   <span className="sidebar-icon">✉️</span>
                   <span className="sidebar-label">Mensajes</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/herramientas-examenes">
+                  <span className="sidebar-icon">📝</span>
+                  <span className="sidebar-label">Exámenes (responder)</span>
                 </NavLink>
               </div>
               <div className="sidebar-menu-item">

@@ -34,7 +34,11 @@ import AdminHerramientasAcademicas from './pages/admin/AdminHerramientasAcademic
 import AdminHerramientasEmocionales from './pages/admin/AdminHerramientasEmocionales';
 import AdminVocabularios from './pages/admin/AdminVocabularios';
 import AdminIncidencias from './pages/admin/AdminIncidencias';
-import AdminExamenesPersonal from './pages/admin/AdminExamenesPersonal';
+import HerramientasExamenesLista from './pages/herramientas/HerramientasExamenesLista';
+import HerramientasExamenEditor from './pages/herramientas/HerramientasExamenEditor';
+import HerramientasExamenEstadisticas from './pages/herramientas/HerramientasExamenEstadisticas';
+import MisHerramientasExamenes from './pages/herramientas/MisHerramientasExamenes';
+import HerramientasExamenRealizar from './pages/herramientas/HerramientasExamenRealizar';
 import AdminSupervision from './pages/admin/AdminSupervision';
 import AdminEncuestas from './pages/admin/AdminEncuestas';
 import AdminEncuestaEditor from './pages/admin/AdminEncuestaEditor';
@@ -281,7 +285,31 @@ function AppRoutes() {
         path="/admin/herramientas/examenes"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
-            <AdminExamenesPersonal />
+            <HerramientasExamenesLista variant="admin" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/examenes/nueva"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <HerramientasExamenEditor variant="admin" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/examenes/:id/editar"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <HerramientasExamenEditor variant="admin" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/examenes/:id/estadisticas"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <HerramientasExamenEstadisticas variant="admin" />
           </PrivateRoute>
         }
       />
@@ -338,6 +366,22 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <EncuestaResponder />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/herramientas-examenes"
+        element={
+          <PrivateRoute>
+            <MisHerramientasExamenes />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/herramientas-examenes/realizar/:id"
+        element={
+          <PrivateRoute>
+            <HerramientasExamenRealizar />
           </PrivateRoute>
         }
       />
@@ -415,7 +459,31 @@ function AppRoutes() {
         path="/docente/herramientas/examenes"
         element={
           <PrivateRoute requiredType="DOCENTE">
-            <AdminEnConstruccion titulo="Exámenes" />
+            <HerramientasExamenesLista variant="docente" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas/examenes/nueva"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <HerramientasExamenEditor variant="docente" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas/examenes/:id/editar"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <HerramientasExamenEditor variant="docente" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas/examenes/:id/estadisticas"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <HerramientasExamenEstadisticas variant="docente" />
           </PrivateRoute>
         }
       />
