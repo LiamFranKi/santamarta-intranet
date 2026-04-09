@@ -1,17 +1,157 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Box, Card, CardContent, Chip, CircularProgress, Stack, Typography } from '@mui/material';
+import {
+  Box,
+  Button,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Stack,
+  TextField,
+  Typography
+} from '@mui/material';
+import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './AdminUsuarios.css';
 import './AdminEncuestas.css';
 
+const COLORS = ['#3f74ad', '#667eea', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444'];
+
+function maxVal(obj) {
+  const vals = Object.values(obj || {}).map((x) => Number(x) || 0);
+  return Math.max(1, ...vals);
+}
+
+function DistribucionBarraSegmentada({ entries, total }) {
+  const t = total > 0 ? total : 1;
+  const list = Array.isArray(entries) ? entries : Object.entries(entries || {});
+  return (
+    <Box sx={{ mt: 1 }}>
+      <div className="admin-enc-stat-pie-strip">
+        {list.map(([label, count], i) => {
+          const c = Number(count) || 0;
+          if (c <= 0) return null;
+          const pct = (c / t) * 100;
+          return (
+            <Box
+              key={String(label)}
+              title={`${label}: ${c}`}
+              sx={{
+                width: `${pct}%`,
+                minWidth: c > 0 ? 3 : 0,
+                bgcolor: COLORS[i % COLORS.length],
+                transition: 'width 0.3s ease'
+              }}
+            />
+          );
+        })}
+      </div>
+    </Box>
+  );
+}
+
+function LeyendaFilas({ entries, total, labelKey = 0, valueKey = 1 }) {
+  const t = total > 0 ? total : 1;
+  const list = Array.isArray(entries) ? entries.map((e, i) => [e[labelKey], e[valueKey], i]) : Object.entries(entries || {}).map(([k, v], i) => [k, v, i]);
+  return (
+    <Stack spacing={1}>
+      {list.map(([label, count, i]) => {
+        const c = Number(count) || 0;
+        return (
+          <Stack key={String(label)} direction="row" alignItems="center" spacing={1.5}>
+            <Box
+              sx={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                flexShrink: 0,
+                bgcolor: COLORS[(typeof i === 'number' ? i : 0) % COLORS.length]
+              }}
+            />
+            <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap title={String(label)}>
+              {label}
+            </Typography>
+            <Typography variant="body2" fontWeight={700}>
+              {c}{' '}
+              <Typography component="span" variant="caption" color="text.secondary">
+                ({Math.round((c / t) * 100)}%)
+              </Typography>
+            </Typography>
+          </Stack>
+        );
+      })}
+    </Stack>
+  );
+}
+
+function ModalTextos({ open, onClose, titulo, textos }) {
+  const [q, setQ] = useState('');
+  useEffect(() => {
+    if (open) setQ('');
+  }, [open, titulo]);
+
+  const filtrados = useMemo(() => {
+    const arr = textos || [];
+    const s = q.trim().toLowerCase();
+    if (!s) return arr;
+    return arr.filter((t) => String(t).toLowerCase().includes(s));
+  }, [textos, q]);
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth scroll="paper">
+      <DialogTitle sx={{ pr: 6 }}>
+        {titulo}
+        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 0.5 }}>
+          {filtrados.length} de {(textos || []).length} respuestas
+        </Typography>
+      </DialogTitle>
+      <DialogContent dividers>
+        <TextField
+          size="small"
+          fullWidth
+          placeholder="Buscar en las respuestas…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          sx={{ mb: 2 }}
+        />
+        <div className="enc-stat-modal-list">
+          <Stack spacing={1.25}>
+            {filtrados.map((t, i) => (
+              <div key={i} className="admin-enc-stat-texto-fila">
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+                  #{i + 1}
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  {t}
+                </Typography>
+              </div>
+            ))}
+          </Stack>
+          {filtrados.length === 0 ? (
+            <Typography color="text.secondary" align="center" sx={{ py: 3 }}>
+              No hay coincidencias.
+            </Typography>
+          ) : null}
+        </div>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cerrar</Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export default function AdminEncuestaEstadisticas() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [modal, setModal] = useState({ open: false, titulo: '', textos: [] });
 
   useEffect(() => {
     let c = false;
@@ -31,6 +171,12 @@ export default function AdminEncuestaEstadisticas() {
     };
   }, [id, navigate]);
 
+  const { encuesta, totalRespuestas, porRol, resultadosPreguntas } = data || {};
+  const totalPorRol = useMemo(() => {
+    const rows = porRol || [];
+    return rows.reduce((s, r) => s + Number(r.c || 0), 0);
+  }, [porRol]);
+
   if (loading || !data) {
     return (
       <DashboardLayout>
@@ -41,16 +187,10 @@ export default function AdminEncuestaEstadisticas() {
     );
   }
 
-  const { encuesta, totalRespuestas, porRol, resultadosPreguntas } = data;
-  const maxBar = (obj) => {
-    const vals = Object.values(obj || {}).map((x) => Number(x) || 0);
-    return Math.max(1, ...vals);
-  };
-
   return (
     <DashboardLayout>
       <div className="admin-encuestas-wrap">
-        <div className="admin-usu-toolbar" style={{ marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <div className="admin-usu-toolbar" style={{ marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <button
             type="button"
             className="admin-usu-btn admin-usu-btn-secondary"
@@ -58,123 +198,211 @@ export default function AdminEncuestaEstadisticas() {
           >
             ← Volver a la lista
           </button>
+          <Stack direction="row" alignItems="center" spacing={1} sx={{ ml: { xs: 0, sm: 1 } }}>
+            <BarChartOutlinedIcon color="primary" />
+            <Typography variant="subtitle1" fontWeight={700} color="primary">
+              Estadísticas de encuesta
+            </Typography>
+          </Stack>
         </div>
 
-        <div className="admin-encuestas-hero" style={{ marginBottom: 24 }}>
-          <Typography variant="h5" fontWeight={700}>
-            Estadísticas: {encuesta.titulo}
+        <div className="admin-enc-stat-hero">
+          <Typography variant="h5" fontWeight={800} sx={{ color: '#1e3a5f', mb: 0.5 }}>
+            {encuesta.titulo}
           </Typography>
-          <Typography variant="body2" sx={{ mt: 1, opacity: 0.92 }}>
-            Total de respuestas: <strong>{totalRespuestas}</strong>
+          <Typography variant="body2" color="text.secondary">
             {encuesta.categoria_metrica ? (
               <>
-                {' '}
-                · Categoría: <strong>{encuesta.categoria_metrica}</strong>
+                Categoría: <strong>{encuesta.categoria_metrica}</strong>
+                {' · '}
               </>
             ) : null}
+            Resumen de respuestas recopiladas
           </Typography>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 2 }}>
+            <div className="admin-enc-stat-kpi" style={{ flex: 1 }}>
+              <div className="admin-enc-stat-kpi-num">{totalRespuestas}</div>
+              <Typography variant="caption" color="text.secondary">
+                Respuestas totales
+              </Typography>
+            </div>
+            <div className="admin-enc-stat-kpi" style={{ flex: 1 }}>
+              <div className="admin-enc-stat-kpi-num">{(resultadosPreguntas || []).length}</div>
+              <Typography variant="caption" color="text.secondary">
+                Preguntas con datos
+              </Typography>
+            </div>
+          </Stack>
         </div>
 
-        <Card sx={{ mb: 2, borderRadius: 2 }}>
-          <CardContent>
-            <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-              Por tipo de usuario (rol al responder)
+        <div className="admin-usu-table-card" style={{ marginBottom: '1rem' }}>
+          <Box sx={{ p: 2.5 }}>
+            <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ color: '#374151' }}>
+              Participación por rol
             </Typography>
-            <Stack direction="row" gap={1} flexWrap="wrap" useFlexGap>
-              {(porRol || []).map((r) => (
-                <Chip
-                  key={r.rol_respondiente}
-                  label={`${r.rol_respondiente}: ${r.c}`}
-                  color="primary"
-                  variant="outlined"
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Distribución de quién envió cada respuesta (según rol en el momento de responder).
+            </Typography>
+            {(porRol || []).length === 0 ? (
+              <Typography color="text.secondary">Sin datos aún.</Typography>
+            ) : (
+              <>
+                <DistribucionBarraSegmentada
+                  entries={(porRol || []).map((r) => [r.rol_respondiente, r.c])}
+                  total={totalPorRol || totalRespuestas}
                 />
-              ))}
-            </Stack>
-          </CardContent>
-        </Card>
+                <LeyendaFilas
+                  entries={(porRol || []).map((r) => [r.rol_respondiente, r.c])}
+                  total={totalPorRol || totalRespuestas}
+                />
+              </>
+            )}
+          </Box>
+        </div>
 
-        {(resultadosPreguntas || []).map((rp) => (
-          <Card key={rp.pregunta_id} sx={{ mb: 2, borderRadius: 2 }}>
-            <CardContent>
-              <Typography fontWeight={700} gutterBottom>
-                {rp.orden}. {rp.texto_pregunta}
-              </Typography>
-              <Chip size="small" label={rp.tipo_respuesta} sx={{ mb: 2 }} />
+        {(resultadosPreguntas || []).map((rp) => {
+          const datosObj = rp.datos || {};
+          const m = rp.tipo_respuesta === 'marcar' || rp.tipo_respuesta === 'lista' ? maxVal(datosObj) : 1;
 
-              {(rp.tipo_respuesta === 'marcar' || rp.tipo_respuesta === 'lista') && (
-                <Stack spacing={1.5}>
-                  {Object.entries(rp.datos || {}).map(([label, count]) => {
-                    const m = maxBar(rp.datos);
-                    const pct = Math.round((Number(count) / m) * 100);
-                    return (
-                      <Box key={label}>
-                        <Stack direction="row" justifyContent="space-between">
-                          <Typography variant="body2">{label}</Typography>
-                          <Typography variant="body2" fontWeight={600}>
-                            {count}
+          return (
+            <div className="admin-usu-table-card" key={rp.pregunta_id} style={{ marginBottom: '1rem' }}>
+              <Box sx={{ p: 2.5 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} sx={{ mb: 2 }}>
+                  <Box>
+                    <Typography variant="caption" color="primary" fontWeight={700}>
+                      Pregunta {rp.orden}
+                    </Typography>
+                    <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 0.25 }}>
+                      {rp.texto_pregunta}
+                    </Typography>
+                  </Box>
+                  <Chip size="small" label={rp.tipo_respuesta} variant="outlined" />
+                </Stack>
+
+                {(rp.tipo_respuesta === 'marcar' || rp.tipo_respuesta === 'lista') && (
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Frecuencia por opción (gráfico de barras)
+                    </Typography>
+                    <DistribucionBarraSegmentada entries={datosObj} total={Object.values(datosObj).reduce((a, b) => a + (Number(b) || 0), 0)} />
+                    <Stack spacing={1.25} sx={{ mt: 2 }}>
+                      {Object.entries(datosObj).map(([label, count], idx) => {
+                        const pct = Math.round((Number(count) / m) * 100);
+                        return (
+                          <Box key={label}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                              <Typography variant="body2" sx={{ pr: 1 }}>
+                                {label}
+                              </Typography>
+                              <Typography variant="body2" fontWeight={700}>
+                                {count}
+                              </Typography>
+                            </Stack>
+                            <Box sx={{ position: 'relative', height: 10, borderRadius: 1, bgcolor: 'grey.200', mt: 0.5 }}>
+                              <Box
+                                sx={{
+                                  position: 'absolute',
+                                  left: 0,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: `${pct}%`,
+                                  borderRadius: 1,
+                                  bgcolor: COLORS[idx % COLORS.length],
+                                  transition: 'width 0.35s ease'
+                                }}
+                              />
+                            </Box>
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+                )}
+
+                {rp.tipo_respuesta === 'escala' && datosObj?.distribucion && (
+                  <Box>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Promedio: <strong>{datosObj.promedio ?? '—'}</strong> · n = {datosObj.total ?? 0}
+                    </Typography>
+                    <DistribucionBarraSegmentada entries={datosObj.distribucion} total={datosObj.total || 1} />
+                    <Stack spacing={1} sx={{ mt: 2 }}>
+                      {Object.entries(datosObj.distribucion).map(([val, count], idx) => {
+                        const mm = maxVal(datosObj.distribucion);
+                        const pct = Math.round((Number(count) / mm) * 100);
+                        return (
+                          <Box key={val}>
+                            <Stack direction="row" justifyContent="space-between">
+                              <Typography variant="body2">Valor {val}</Typography>
+                              <Typography variant="body2" fontWeight={600}>
+                                {count}
+                              </Typography>
+                            </Stack>
+                            <Box sx={{ position: 'relative', height: 10, borderRadius: 1, bgcolor: 'grey.200', mt: 0.5 }}>
+                              <Box
+                                sx={{
+                                  position: 'absolute',
+                                  left: 0,
+                                  top: 0,
+                                  bottom: 0,
+                                  width: `${pct}%`,
+                                  borderRadius: 1,
+                                  bgcolor: COLORS[idx % COLORS.length]
+                                }}
+                              />
+                            </Box>
+                          </Box>
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+                )}
+
+                {(rp.tipo_respuesta === 'texto_corto' || rp.tipo_respuesta === 'texto_largo') && (
+                  <Box>
+                    <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1} sx={{ mb: 1.5 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        {(datosObj.muestras || []).length} respuesta(s) de texto
+                      </Typography>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        sx={{ textTransform: 'none' }}
+                        onClick={() =>
+                          setModal({
+                            open: true,
+                            titulo: `Respuestas — ${rp.texto_pregunta}`,
+                            textos: datosObj.muestras || []
+                          })
+                        }
+                      >
+                        Ver todas en ventana
+                      </Button>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                      Vista previa (máx. 5). Abre el modal para listado completo y buscador.
+                    </Typography>
+                    <Stack spacing={1}>
+                      {(datosObj.muestras || []).slice(0, 5).map((t, i) => (
+                        <div key={i} className="admin-enc-stat-texto-fila">
+                          <Typography variant="body2" sx={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {t}
                           </Typography>
-                        </Stack>
-                        <div className="enc-stat-bar-wrap">
-                          <div className="enc-stat-bar-fill" style={{ width: `${pct}%` }} />
                         </div>
-                      </Box>
-                    );
-                  })}
-                </Stack>
-              )}
+                      ))}
+                    </Stack>
+                  </Box>
+                )}
+              </Box>
+            </div>
+          );
+        })}
 
-              {rp.tipo_respuesta === 'escala' && rp.datos?.distribucion && (
-                <Box>
-                  <Typography variant="body2" color="text.secondary" gutterBottom>
-                    Promedio: {rp.datos.promedio ?? '—'} (n = {rp.datos.total ?? 0})
-                  </Typography>
-                  <Stack spacing={1}>
-                    {Object.entries(rp.datos.distribucion).map(([val, count]) => {
-                      const m = maxBar(rp.datos.distribucion);
-                      const pct = Math.round((Number(count) / m) * 100);
-                      return (
-                        <Box key={val}>
-                          <Stack direction="row" justifyContent="space-between">
-                            <Typography variant="body2">Valor {val}</Typography>
-                            <Typography variant="body2">{count}</Typography>
-                          </Stack>
-                          <div className="enc-stat-bar-wrap">
-                            <div className="enc-stat-bar-fill" style={{ width: `${pct}%` }} />
-                          </div>
-                        </Box>
-                      );
-                    })}
-                  </Stack>
-                </Box>
-              )}
-
-              {(rp.tipo_respuesta === 'texto_corto' || rp.tipo_respuesta === 'texto_largo') && (
-                <Stack spacing={1}>
-                  {(rp.datos?.muestras || []).slice(0, 40).map((t, i) => (
-                    <Typography
-                      key={i}
-                      variant="body2"
-                      sx={{
-                        p: 1.5,
-                        borderRadius: 1,
-                        bgcolor: 'action.hover',
-                        borderLeft: '3px solid',
-                        borderColor: 'primary.main'
-                      }}
-                    >
-                      {t}
-                    </Typography>
-                  ))}
-                  {(rp.datos?.muestras || []).length > 40 ? (
-                    <Typography variant="caption" color="text.secondary">
-                      Mostrando 40 de {(rp.datos?.muestras || []).length} respuestas.
-                    </Typography>
-                  ) : null}
-                </Stack>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+        <ModalTextos
+          open={modal.open}
+          onClose={() => setModal((m) => ({ ...m, open: false }))}
+          titulo={modal.titulo}
+          textos={modal.textos}
+        />
       </div>
     </DashboardLayout>
   );

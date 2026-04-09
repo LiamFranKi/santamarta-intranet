@@ -6,7 +6,12 @@ const express = require('express');
 const router = express.Router();
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
-const { notificarEncuestaActivada } = require('../services/encuestasNotificacionService');
+const {
+  notificarEncuestaActivada,
+  notificarAdminsEncuestaActivada,
+  notificarAdminsEncuestaRespondida,
+  obtenerNombreMostrarUsuario
+} = require('../services/encuestasNotificacionService');
 
 const ADMIN_TYPES = new Set(['ADMINISTRADOR', 'PROMOTORIA']);
 
@@ -246,7 +251,7 @@ router.get('/admin/:id/estadisticas', authenticateToken, requireAdminOrPromotori
           `SELECT d.texto_respuesta FROM encuestas_respuestas_detalle d
            INNER JOIN encuestas_respuestas r ON r.id = d.respuesta_id
            WHERE d.pregunta_id = ? AND r.encuesta_id = ? AND d.texto_respuesta IS NOT NULL AND TRIM(d.texto_respuesta) <> ''
-           ORDER BY d.id DESC LIMIT 200`,
+           ORDER BY d.id DESC LIMIT 3000`,
           [p.id, id]
         );
         item.datos = { muestras: (det || []).map((x) => x.texto_respuesta) };
@@ -372,14 +377,23 @@ router.post('/admin', authenticateToken, requireAdminOrPromotoria, async (req, r
 
     if (est === 'ACTIVO') {
       setImmediate(() => {
+        const tituloTrim = String(titulo).trim();
         cargarAudiencias(encuestaId)
           .then((aud) =>
             notificarEncuestaActivada({
               colegio_id,
               encuesta_id: encuestaId,
-              titulo: String(titulo).trim(),
+              titulo: tituloTrim,
               usuario_id_emisor: usuario_id,
               audiencias: aud
+            })
+          )
+          .then(() =>
+            notificarAdminsEncuestaActivada({
+              colegio_id,
+              encuesta_id: encuestaId,
+              titulo: tituloTrim,
+              usuario_id_emisor: usuario_id
             })
           )
           .catch((err) => console.error('[encuestas] notif activación (create)', err));
@@ -477,14 +491,23 @@ router.put('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req
     const newEstado = estadoFinal;
     if (newEstado === 'ACTIVO' && oldEstado !== 'ACTIVO') {
       setImmediate(() => {
+        const tituloN = titulo != null ? String(titulo).trim() : cur.titulo;
         cargarAudiencias(id)
           .then((aud) =>
             notificarEncuestaActivada({
               colegio_id,
               encuesta_id: id,
-              titulo: titulo != null ? String(titulo).trim() : cur.titulo,
+              titulo: tituloN,
               usuario_id_emisor: usuarioIdAdmin,
               audiencias: aud
+            })
+          )
+          .then(() =>
+            notificarAdminsEncuestaActivada({
+              colegio_id,
+              encuesta_id: id,
+              titulo: tituloN,
+              usuario_id_emisor: usuarioIdAdmin
             })
           )
           .catch((err) => console.error('[encuestas] notif activación (update)', err));
@@ -736,6 +759,20 @@ router.post('/contestar/:id', authenticateToken, async (req, res) => {
     } catch (e) {
       /* tabla opcional hasta migración */
     }
+
+    setImmediate(() => {
+      obtenerNombreMostrarUsuario(usuario_id)
+        .then((nombre) =>
+          notificarAdminsEncuestaRespondida({
+            colegio_id,
+            encuesta_id: id,
+            titulo: e.titulo,
+            usuario_respondedor_id: usuario_id,
+            nombre_respondedor: nombre
+          })
+        )
+        .catch((err) => console.error('[encuestas] notif respondida admin', err));
+    });
 
     res.json({ success: true, respuesta_id: respuestaId });
   } catch (err) {

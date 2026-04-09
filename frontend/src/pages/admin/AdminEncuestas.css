@@ -72,3 +72,50 @@
   background: linear-gradient(90deg, #667eea, #764ba2);
   transition: width 0.4s ease;
 }
+
+.admin-enc-stat-hero {
+  background: linear-gradient(145deg, #f8fafc 0%, #ffffff 100%);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid rgba(74, 131, 193, 0.15);
+  box-shadow: 0 4px 20px rgba(74, 131, 193, 0.08);
+  margin-bottom: 1.25rem;
+}
+
+.admin-enc-stat-kpi {
+  text-align: center;
+  padding: 1rem;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.admin-enc-stat-kpi-num {
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #3f74ad;
+  line-height: 1.2;
+}
+
+.admin-enc-stat-pie-strip {
+  display: flex;
+  height: 16px;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+
+.admin-enc-stat-texto-fila {
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  background: #f9fafb;
+  border-left: 3px solid #4a83c1;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.enc-stat-modal-list {
+  max-height: min(60vh, 480px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
