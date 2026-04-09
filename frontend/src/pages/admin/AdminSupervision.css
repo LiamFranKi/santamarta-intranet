@@ -52,24 +52,25 @@
   overflow: hidden;
 }
 
-/* Modal Nuevo/Editar/Registrar: más alto dentro del contenedor de la página */
+/* Modal Nuevo/Editar/Registrar: altura acotada, centrado (no pegado al borde) */
 .admin-sup-modal-backdrop--tall {
-  align-items: stretch;
+  align-items: center;
 }
 
 .admin-sup-modal-backdrop--tall .admin-sup-modal-panel--tall {
-  min-height: min(88vh, 840px);
-  max-height: min(94vh, 960px);
+  flex: 0 1 auto;
+  width: 100%;
+  max-height: min(80vh, 720px);
 }
 
-/* Segundo modal (formulario de respuesta): encima de todo el viewport */
+/* Segundo modal (formulario de respuesta): viewport con margen, sin forzar altura mínima */
 .admin-sup-modal-backdrop--nested {
   position: fixed;
   inset: 0;
   z-index: 10060;
   align-items: center;
   justify-content: center;
-  padding: 0.75rem;
+  padding: 1.25rem 1rem;
   border-radius: 0;
   background: rgba(15, 23, 42, 0.5);
 }
@@ -77,8 +78,21 @@
 .admin-sup-modal-backdrop--nested .admin-sup-modal-panel {
   width: 100%;
   max-width: min(720px, 100%);
-  max-height: min(92vh, 920px);
-  min-height: min(72vh, 640px);
+  max-height: min(80vh, 680px);
+  min-height: 0;
+  flex: 0 1 auto;
+}
+
+/* Títulos de preguntas en el formulario de evaluación (sobrescribe .admin-usu-info-label) */
+.admin-usu-info-label.admin-sup-form-pregunta-titulo {
+  display: block;
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.4;
+  text-transform: none;
+  letter-spacing: 0.01em;
+  margin-bottom: 0.5rem;
 }
 
 .admin-sup-dashed--pregunta {

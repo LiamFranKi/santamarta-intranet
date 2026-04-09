@@ -1338,7 +1338,7 @@ function PanelRegistrar({
         </p>
         {(detalle.preguntas || []).map((p) => (
           <div key={p.id} className="admin-usu-info-item" style={{ marginBottom: '0.75rem' }}>
-            <span className="admin-usu-info-label">{p.titulo}</span>
+            <span className="admin-usu-info-label admin-sup-form-pregunta-titulo">{p.titulo}</span>
             <div className="admin-sup-radio-list">
               {(p.niveles || []).map((n) => (
                 <label key={n.id} className={respuestas[p.id] === n.id ? 'admin-sup-radio-active' : ''}>
