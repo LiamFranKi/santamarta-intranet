@@ -621,7 +621,7 @@ function DocenteDashboard() {
           documentos={docsGestion}
           loading={loadingDocsGestion}
           maxPorCategoria={4}
-          verMasTo="/docente/herramientas"
+          verMasTo="/docente/herramientas/documentos"
         />
 
         {/* Card amarillo - Solo en móvil */}

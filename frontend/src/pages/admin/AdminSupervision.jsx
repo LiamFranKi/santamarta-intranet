@@ -210,7 +210,7 @@ function OpcionesMenuLayer({ open, anchorEl, onClose, children }) {
           top: pos.top,
           left: pos.left,
           width: pos.width,
-          zIndex: 10050,
+          zIndex: 10055,
           maxHeight: pos.maxH,
           overflowY: 'auto'
         }}
@@ -258,8 +258,8 @@ function SupervisionModal({ title, children, onClose, tall = false, nested = fal
       </div>
     </div>
   );
-  if (nested) return createPortal(inner, document.body);
-  return inner;
+  /* Siempre en body: evita quedar debajo del header sticky (z-index 100) y del sidebar (9999). */
+  return createPortal(inner, document.body);
 }
 
 function anioDesdeSeleccion(yearChoice, yearOtro, anioActivo) {

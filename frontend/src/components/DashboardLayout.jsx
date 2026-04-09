@@ -28,7 +28,15 @@ export default function DashboardLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
   const sidebarNavRef = useRef(null);
-  const submenuRefs = useRef({ usuarios: null, academico: null, reportes: null, herramientas: null, comunicaciones: null, configuracion: null });
+  const submenuRefs = useRef({
+    usuarios: null,
+    academico: null,
+    reportes: null,
+    herramientas: null,
+    comunicaciones: null,
+    configuracion: null,
+    docenteHerramientas: null
+  });
 
   // Mantener abierto el submenú que contiene la ruta actual (evita que se "bloquee" la navegación en Config, etc.)
   useEffect(() => {
@@ -51,6 +59,7 @@ export default function DashboardLayout({ children }) {
         ) && { comunicaciones: true }
       ),
       ...(path.startsWith('/admin/config') && { configuracion: true }),
+      ...((path.startsWith('/docente/herramientas') || path === '/docente/supervision') && { docenteHerramientas: true }),
     }));
   }, [location.pathname]);
 
@@ -337,20 +346,73 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mis Asistencias</span>
                 </button>
               </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/herramientas">
-                  <span className="sidebar-icon">🧰</span>
-                  <span className="sidebar-label">Herramientas</span>
-                </NavLink>
-              </div>
-              {esSupervisorSupervision && (
-                <div className="sidebar-item">
-                  <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/supervision">
-                    <span className="sidebar-icon">📋</span>
-                    <span className="sidebar-label">Supervisión</span>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.docenteHerramientas ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('docenteHerramientas')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">🧰</span>
+                    <span className="sidebar-label">Herramientas</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div
+                  ref={(el) => {
+                    submenuRefs.current.docenteHerramientas = el;
+                  }}
+                  className={`sidebar-submenu ${expandedMenus.docenteHerramientas ? 'expanded' : ''}`}
+                >
+                  <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/docente/herramientas/documentos"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      📄
+                    </span>
+                    <span className="sidebar-label">Documentos</span>
                   </NavLink>
+                  <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/docente/herramientas/examenes"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      📝
+                    </span>
+                    <span className="sidebar-label">Exámenes</span>
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/docente/herramientas/encuestas"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      📋
+                    </span>
+                    <span className="sidebar-label">Encuestas</span>
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/docente/herramientas/vocabularios"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      📚
+                    </span>
+                    <span className="sidebar-label">Vocabularios</span>
+                  </NavLink>
+                  {esSupervisorSupervision ? (
+                    <NavLink
+                      className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                      to="/docente/herramientas/supervision"
+                    >
+                      <span className="sidebar-icon" aria-hidden>
+                        🎯
+                      </span>
+                      <span className="sidebar-label">Supervisión</span>
+                    </NavLink>
+                  ) : null}
                 </div>
-              )}
+              </div>
 
               {/* Menú Hijos a Cargo (si es apoderado) */}
               {rolesAdicionales.es_apoderado && (

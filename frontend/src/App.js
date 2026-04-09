@@ -37,6 +37,7 @@ import AdminIncidencias from './pages/admin/AdminIncidencias';
 import AdminExamenesPersonal from './pages/admin/AdminExamenesPersonal';
 import AdminSupervision from './pages/admin/AdminSupervision';
 import AdminEncuestas from './pages/admin/AdminEncuestas';
+import AdminEnConstruccion from './pages/admin/AdminEnConstruccion';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
 import AlumnoDashboard from './pages/AlumnoDashboard';
 import AlumnoPerfil from './pages/AlumnoPerfil';
@@ -350,21 +351,47 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/docente/herramientas"
+        path="/docente/herramientas/documentos"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="DOCENTE">
             <DocenteHerramientas />
           </PrivateRoute>
         }
       />
       <Route
-        path="/docente/supervision"
+        path="/docente/herramientas/examenes"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <AdminEnConstruccion titulo="Exámenes" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas/encuestas"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <AdminEnConstruccion titulo="Encuestas" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas/vocabularios"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <AdminEnConstruccion titulo="Vocabularios" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas/supervision"
         element={
           <PrivateRoute requiredType="DOCENTE">
             <AdminSupervision />
           </PrivateRoute>
         }
       />
+      <Route path="/docente/herramientas" element={<Navigate to="/docente/herramientas/documentos" replace />} />
+      <Route path="/docente/supervision" element={<Navigate to="/docente/herramientas/supervision" replace />} />
       <Route
         path="/docente/perfil"
         element={

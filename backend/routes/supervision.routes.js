@@ -9,6 +9,9 @@ const express = require('express');
 const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
+const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
+const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
+const { enviarCorreoNotificacion } = require('../services/emailService');
 
 router.use(authenticateToken);
 
@@ -916,6 +919,203 @@ function etiquetaPorRango(total, rangos) {
   return null;
 }
 
+function formatoPuntajeSupervision(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return String(n);
+  return Math.abs(x - Math.round(x)) < 1e-9 ? String(Math.round(x)) : String(x);
+}
+
+/**
+ * Tras guardar una evaluación: campanita, push y correo a administradores/promotoría y al docente evaluado (si tiene usuario).
+ * No bloquea la respuesta HTTP (se llama desde setImmediate).
+ */
+async function notificarNuevaEvaluacionSupervision({
+  colegio_id,
+  usuario_id_evaluador,
+  evalId,
+  instId,
+  tituloInstrumento,
+  persId,
+  fecha,
+  total,
+  etiquetaResultado
+}) {
+  const tituloInst = String(tituloInstrumento || 'Supervisión').trim() || 'Supervisión';
+  const ptsStr = formatoPuntajeSupervision(total);
+  const etiqueta = String(etiquetaResultado || '—').trim();
+
+  const persRows = await query(
+    `SELECT nombres, apellidos, email FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
+    [persId, colegio_id]
+  );
+  const pers = persRows && persRows[0];
+  const nombreEvaluado = pers
+    ? `${String(pers.apellidos || '').trim()}, ${String(pers.nombres || '').trim()}`.replace(/^,\s*|,\s*$/g, '').trim() || 'Docente'
+    : 'Docente';
+  const emailPersonal = pers && pers.email ? String(pers.email).trim() : '';
+
+  const colRows = await query(`SELECT nombre FROM colegios WHERE id = ? LIMIT 1`, [colegio_id]);
+  const colegioNombre = (colRows && colRows[0] && colRows[0].nombre) || 'Vanguard Schools';
+
+  const evRows = await query(
+    `SELECT pe.nombres, pe.apellidos FROM usuarios u
+     LEFT JOIN personal pe ON pe.id = u.personal_id
+     WHERE u.id = ? LIMIT 1`,
+    [usuario_id_evaluador]
+  );
+  const ev = evRows && evRows[0];
+  const nombreEvaluador = ev
+    ? `${String(ev.apellidos || '').trim()}, ${String(ev.nombres || '').trim()}`.replace(/^,\s*|,\s*$/g, '').trim() || 'Supervisor'
+    : 'Supervisor';
+
+  const admins = await query(
+    `SELECT id, email FROM usuarios
+     WHERE colegio_id = ? AND tipo IN ('ADMINISTRADOR', 'PROMOTORIA') AND estado = 'ACTIVO'`,
+    [colegio_id]
+  );
+
+  const docenteUsuario = await query(
+    `SELECT id, email FROM usuarios
+     WHERE colegio_id = ? AND personal_id = ? AND tipo = 'DOCENTE' AND (estado = 'ACTIVO' OR estado IS NULL)
+     LIMIT 1`,
+    [colegio_id, persId]
+  );
+  const docUser = docenteUsuario && docenteUsuario[0];
+  const docenteUsuarioId = docUser ? parseInt(docUser.id, 10) : null;
+  const emailUsuarioDocente = docUser && docUser.email ? String(docUser.email).trim() : '';
+
+  const asuntoAdmin = 'Nueva supervisión registrada';
+  const contenidoAdmin = `Se registró una supervisión con el instrumento «${tituloInst}». Docente evaluado: ${nombreEvaluado}. Puntaje: ${ptsStr} (${etiqueta}). Fecha: ${fecha}. Registró: ${nombreEvaluador}.`;
+
+  const asuntoDocente = 'Supervisión de su desempeño registrada';
+  const contenidoDocente = `Se ha registrado una supervisión de su desempeño con el instrumento «${tituloInst}». Puntaje obtenido: ${ptsStr} (${etiqueta}). Fecha: ${fecha}.`;
+
+  const urlAdmin = '/admin/herramientas/supervision';
+  const urlDocente = '/docente/dashboard';
+
+  const destinatariosCampana = new Map();
+
+  for (const a of admins || []) {
+    const aid = parseInt(a.id, 10);
+    if (!aid) continue;
+    destinatariosCampana.set(aid, 'ADMIN');
+    try {
+      await insertNotificacionUsuario(execute, {
+        usuario_id: usuario_id_evaluador,
+        destinatario_id: aid,
+        asunto: asuntoAdmin,
+        contenido: contenidoAdmin,
+        estado: 'ENVIADO',
+        accion_tipo: 'supervision_evaluacion',
+        accion_payload: { evaluacion_id: evalId, instrumento_id: instId, rol: 'admin' },
+        url_destino: urlAdmin
+      });
+    } catch (e) {
+      console.warn('[supervision] campanita admin', aid, e.message);
+    }
+  }
+
+  if (docenteUsuarioId && !destinatariosCampana.has(docenteUsuarioId)) {
+    destinatariosCampana.set(docenteUsuarioId, 'DOCENTE');
+    try {
+      await insertNotificacionUsuario(execute, {
+        usuario_id: usuario_id_evaluador,
+        destinatario_id: docenteUsuarioId,
+        asunto: asuntoDocente,
+        contenido: contenidoDocente,
+        estado: 'ENVIADO',
+        accion_tipo: 'supervision_evaluacion',
+        accion_payload: { evaluacion_id: evalId, instrumento_id: instId, rol: 'evaluado' },
+        url_destino: urlDocente
+      });
+    } catch (e) {
+      console.warn('[supervision] campanita docente', e.message);
+    }
+  } else if (docenteUsuarioId && destinatariosCampana.has(docenteUsuarioId)) {
+    try {
+      await insertNotificacionUsuario(execute, {
+        usuario_id: usuario_id_evaluador,
+        destinatario_id: docenteUsuarioId,
+        asunto: asuntoDocente,
+        contenido: contenidoDocente,
+        estado: 'ENVIADO',
+        accion_tipo: 'supervision_evaluacion',
+        accion_payload: { evaluacion_id: evalId, instrumento_id: instId, rol: 'evaluado' },
+        url_destino: urlDocente
+      });
+    } catch (e) {
+      console.warn('[supervision] campanita docente (también admin)', e.message);
+    }
+  }
+
+  const idsPush = [...destinatariosCampana.keys()];
+  if (idsPush.length > 0) {
+    const ph = idsPush.map(() => '?').join(',');
+    const subsData = await query(
+      `SELECT usuario_id, endpoint, p256dh, auth FROM push_subscriptions
+       WHERE usuario_id IN (${ph}) AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+      [...idsPush, colegio_id]
+    );
+    if ((subsData || []).length > 0) {
+      const tipos = await query(
+        `SELECT id, tipo FROM usuarios WHERE id IN (${ph}) AND colegio_id = ?`,
+        [...idsPush, colegio_id]
+      );
+      const tipoPorId = new Map((tipos || []).map((r) => [parseInt(r.id, 10), r.tipo]));
+      const pushItems = (subsData || []).map((sub) => {
+        const uid = parseInt(sub.usuario_id, 10);
+        const tipo = tipoPorId.get(uid);
+        const esDocenteEval =
+          docenteUsuarioId && uid === docenteUsuarioId && tipo === 'DOCENTE';
+        const body = esDocenteEval
+          ? `Su supervisión: ${ptsStr} pts — ${etiqueta}`
+          : `${nombreEvaluado}: ${ptsStr} pts — ${etiqueta}`;
+        let urlPush = urlDocente;
+        if (tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA') urlPush = urlAdmin;
+        return {
+          subscription: {
+            endpoint: sub.endpoint,
+            keys: { p256dh: sub.p256dh, auth: sub.auth }
+          },
+          payload: {
+            title: esDocenteEval ? 'Supervisión registrada' : 'Nueva supervisión',
+            body: body.substring(0, 120),
+            icon: '/icons/icon-192x192.png',
+            badge: '/icons/icon-192x192.png',
+            vibrate: [200, 100, 200],
+            tag: `supervision-eval-${evalId}`,
+            data: { url: urlPush, tipo: 'supervision_evaluacion', evaluacion_id: evalId }
+          }
+        };
+      });
+      enviarPushNotificacionesIndividuales(pushItems).catch((err) =>
+        console.error('[supervision] push evaluación:', err)
+      );
+    }
+  }
+
+  const categoriaMail = 'ALERTAS';
+
+  for (const a of admins || []) {
+    const em = a.email ? String(a.email).trim() : '';
+    if (!em || !em.includes('@')) continue;
+    enviarCorreoNotificacion(em, asuntoAdmin, contenidoAdmin, colegioNombre, categoriaMail).catch((err) =>
+      console.error('[supervision] email admin', err.message)
+    );
+  }
+
+  const emailDocenteFinal = emailUsuarioDocente || emailPersonal;
+  if (emailDocenteFinal && emailDocenteFinal.includes('@')) {
+    enviarCorreoNotificacion(
+      emailDocenteFinal,
+      asuntoDocente,
+      contenidoDocente,
+      colegioNombre,
+      categoriaMail
+    ).catch((err) => console.error('[supervision] email docente', err.message));
+  }
+}
+
 router.post('/evaluaciones', requireAdminOrSupervisor, async (req, res) => {
   try {
     const { colegio_id, usuario_id, anio_activo } = req.user;
@@ -1044,11 +1244,30 @@ router.post('/evaluaciones', requireAdminOrSupervisor, async (req, res) => {
       );
     }
 
+    const tituloInstrumento = detalle.instrumento?.titulo || '';
+
     res.json({
       success: true,
       evaluacion_id: evalId,
       puntaje_total: total,
       resultado_etiqueta: etiquetaResultado
+    });
+
+    const notifCtx = {
+      colegio_id,
+      usuario_id_evaluador: usuario_id,
+      evalId,
+      instId,
+      tituloInstrumento,
+      persId,
+      fecha,
+      total,
+      etiquetaResultado
+    };
+    setImmediate(() => {
+      notificarNuevaEvaluacionSupervision(notifCtx).catch((err) =>
+        console.error('[supervision] notificar evaluación (async)', err)
+      );
     });
   } catch (e) {
     console.error('[supervision] post evaluacion', e);

@@ -6,7 +6,7 @@ import '../pages/DocenteDashboard.css';
 /**
  * Listado de documentos de gestión (Herramientas) por categoría.
  * @param {number} [maxPorCategoria] — si se indica, solo se muestran las N más recientes por categoría.
- * @param {string} [verMasTo] — ruta del botón «Ver más» (p. ej. /docente/herramientas).
+ * @param {string} [verMasTo] — ruta del botón «Ver más» (p. ej. /docente/herramientas/documentos).
  */
 export default function DocenteDocumentosGestionSection({
   documentos,

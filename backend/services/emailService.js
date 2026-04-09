@@ -271,6 +271,8 @@ function obtenerIconoYColor(titulo) {
     return { icono: '❌', color: '#ef4444' }; // Rojo
   } else if (tituloLower.includes('nota de tarea')) {
     return { icono: '📝', color: '#10b981' }; // Verde
+  } else if (tituloLower.includes('supervisión') || tituloLower.includes('supervision')) {
+    return { icono: '📋', color: '#4a83c1' };
   } else if (tituloLower.includes('proyecto se vence') || tituloLower.includes('tarea se vence')) {
     if (tituloLower.includes('hoy')) {
       return { icono: '⚠️', color: '#ef4444' }; // Rojo

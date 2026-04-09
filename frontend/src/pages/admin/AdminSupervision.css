@@ -15,16 +15,17 @@
   min-width: 0.5rem;
 }
 
+/* fixed + z-index > sidebar (9999) y header sticky (100); el modal se renderiza con portal en body */
 .admin-sup-modal-backdrop {
-  position: absolute;
+  position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: 10050;
   display: flex;
-  align-items: stretch;
+  align-items: center;
   justify-content: center;
-  padding: 0.75rem;
-  background: rgba(15, 23, 42, 0.4);
-  border-radius: 0 0 16px 16px;
+  padding: 1rem 0.75rem;
+  background: rgba(15, 23, 42, 0.45);
+  border-radius: 0;
   animation: admin-sup-fade-in 0.2s ease;
 }
 
@@ -37,12 +38,17 @@
   }
 }
 
+/* SweetAlert2 debe quedar por encima del backdrop (10050) y del modal anidado (10060) */
+.swal2-container {
+  z-index: 10080 !important;
+}
+
 .admin-sup-modal-panel {
-  flex: 1;
+  flex: 0 1 auto;
   width: 100%;
-  max-width: 100%;
+  max-width: min(1080px, 100%);
   min-height: 0;
-  max-height: 100%;
+  max-height: min(92vh, 900px);
   background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
   border-radius: 16px;
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.18);
@@ -52,7 +58,7 @@
   overflow: hidden;
 }
 
-/* Modal Nuevo/Editar/Registrar: altura acotada, centrado (no pegado al borde) */
+/* Editor / registrar: panel ya centrado por backdrop */
 .admin-sup-modal-backdrop--tall {
   align-items: center;
 }
@@ -63,15 +69,12 @@
   max-height: min(80vh, 720px);
 }
 
-/* Segundo modal (formulario de respuesta): viewport con margen, sin forzar altura mínima */
+/* Segundo modal (formulario de respuesta): encima del primero */
 .admin-sup-modal-backdrop--nested {
-  position: fixed;
-  inset: 0;
   z-index: 10060;
   align-items: center;
   justify-content: center;
   padding: 1.25rem 1rem;
-  border-radius: 0;
   background: rgba(15, 23, 42, 0.5);
 }
 
@@ -203,7 +206,8 @@
 .admin-sup-opciones-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 10049;
+  /* Entre modal principal (10050) y segundo modal (10060) */
+  z-index: 10054;
   background: transparent;
 }
 

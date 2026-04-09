@@ -92,6 +92,13 @@ export function normalizarUrlNotificacion(notif, user) {
     return '/docente/dashboard#publicaciones';
   }
 
+  if (tipoAccion === 'supervision_evaluacion') {
+    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') {
+      return '/admin/herramientas/supervision';
+    }
+    return '/docente/dashboard';
+  }
+
   if (url) return url;
 
   // ——— Respaldo: sin url_destino (datos viejos o respuesta parcial) ———
