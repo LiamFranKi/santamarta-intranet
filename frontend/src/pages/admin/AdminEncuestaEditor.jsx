@@ -24,6 +24,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
+import './AdminUsuarios.css';
 import './AdminEncuestas.css';
 
 const AUDIENCIAS = [
@@ -214,6 +215,15 @@ export default function AdminEncuestaEditor() {
   return (
     <DashboardLayout>
       <div className="admin-encuestas-wrap">
+        <div className="admin-usu-toolbar" style={{ marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="admin-usu-btn admin-usu-btn-secondary"
+            onClick={() => navigate('/admin/herramientas/encuestas')}
+          >
+            ← Volver a la lista
+          </button>
+        </div>
         <Typography variant="h5" fontWeight={700} sx={{ mb: 2 }}>
           {esNueva ? 'Nueva encuesta' : 'Editar encuesta'}
         </Typography>

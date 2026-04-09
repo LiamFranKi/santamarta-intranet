@@ -1,19 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  CircularProgress,
-  Stack,
-  Typography
-} from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import { Box, Card, CardContent, Chip, CircularProgress, Stack, Typography } from '@mui/material';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
+import './AdminUsuarios.css';
 import './AdminEncuestas.css';
 
 export default function AdminEncuestaEstadisticas() {
@@ -59,13 +50,15 @@ export default function AdminEncuestaEstadisticas() {
   return (
     <DashboardLayout>
       <div className="admin-encuestas-wrap">
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate('/admin/herramientas/encuestas')}
-          sx={{ mb: 2, textTransform: 'none' }}
-        >
-          Volver
-        </Button>
+        <div className="admin-usu-toolbar" style={{ marginBottom: '1rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="admin-usu-btn admin-usu-btn-secondary"
+            onClick={() => navigate('/admin/herramientas/encuestas')}
+          >
+            ← Volver a la lista
+          </button>
+        </div>
 
         <div className="admin-encuestas-hero" style={{ marginBottom: 24 }}>
           <Typography variant="h5" fontWeight={700}>
