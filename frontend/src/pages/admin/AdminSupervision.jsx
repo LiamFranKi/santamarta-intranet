@@ -224,17 +224,25 @@ function OpcionesMenuLayer({ open, anchorEl, onClose, children }) {
   );
 }
 
-function SupervisionModal({ title, children, onClose }) {
-  return (
+/** Muestra puntajes como enteros cuando aplica (evita 1.00 en pantalla). */
+function fmtValorEntero(v) {
+  if (v == null || v === '') return '—';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return String(v);
+  return Math.abs(n - Math.round(n)) < 1e-9 ? String(Math.round(n)) : String(n);
+}
+
+function SupervisionModal({ title, children, onClose, tall = false, nested = false }) {
+  const inner = (
     <div
-      className="admin-sup-modal-backdrop"
+      className={`admin-sup-modal-backdrop${tall ? ' admin-sup-modal-backdrop--tall' : ''}${nested ? ' admin-sup-modal-backdrop--nested' : ''}`}
       role="presentation"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="admin-sup-modal-panel"
+        className={`admin-sup-modal-panel${tall ? ' admin-sup-modal-panel--tall' : ''}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="admin-sup-modal-title"
@@ -250,6 +258,8 @@ function SupervisionModal({ title, children, onClose }) {
       </div>
     </div>
   );
+  if (nested) return createPortal(inner, document.body);
+  return inner;
 }
 
 function anioDesdeSeleccion(yearChoice, yearOtro, anioActivo) {
@@ -562,18 +572,27 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
       </div>
 
       {(modal === 'create' || modal === 'edit') && (
-        <SupervisionModal title={editorTitulo} onClose={cerrarEditor}>
+        <SupervisionModal title={editorTitulo} onClose={cerrarEditor} tall>
           {formCampos}
           {modal === 'edit' && sel && sel !== 'new' && detalle && (
             <>
               <h3 className="admin-sup-modal-section-title">Preguntas e ítems</h3>
               <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-                Por cada pregunta defina <strong>alternativas</strong>: cada una tiene un <strong>valor</strong> numérico que suma si el supervisor la elige. La suma de todas las preguntas es el puntaje total, que luego se compara con los <strong>rangos de resultado</strong> de más abajo.
+                Por cada pregunta defina <strong>alternativas</strong>: cada una tiene un <strong>valor</strong> (número entero) que suma si el supervisor la elige. La suma total se compara con los <strong>rangos de resultado</strong> más abajo.
               </p>
-              {(detalle.preguntas || []).map((p) => (
+
+              <div className="admin-sup-nueva-pregunta-wrap">
+                <h4 className="admin-sup-nueva-pregunta-titulo">1. Añadir una pregunta nueva</h4>
+                <p className="admin-sup-muted" style={{ marginTop: 0, marginBottom: 10 }}>
+                  Escriba el texto de la pregunta y, si quiere, ayuda para quien evalúa. Luego use <strong>2</strong> en cada tarjeta para agregar alternativas con valor y descripción.
+                </p>
+                <MiniPreguntaForm instrumentoId={sel} onAdded={() => openEdit({ id: sel })} />
+              </div>
+
+              {(detalle.preguntas || []).map((p, idx) => (
                 <div key={p.id} className="admin-sup-pregunta-card">
                   <div className="admin-sup-pregunta-card-head">
-                    <h4 className="admin-sup-pregunta-h">Pregunta</h4>
+                    <h4 className="admin-sup-pregunta-h">Pregunta {idx + 1}</h4>
                     <p className="admin-sup-pregunta-titulo">{p.titulo}</p>
                     {p.texto_ayuda ? <p className="admin-sup-muted admin-sup-pregunta-ayuda">{p.texto_ayuda}</p> : null}
                     <button
@@ -585,7 +604,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
                     </button>
                   </div>
                   <div className="admin-sup-alternativas">
-                    <div className="admin-sup-alternativas-sub">Alternativas (una fila = una opción al evaluar)</div>
+                    <div className="admin-sup-alternativas-sub">2. Alternativas de esta pregunta (una fila = una opción al evaluar)</div>
                     <div className="admin-sup-alternativas-grid admin-sup-alternativas-grid--head">
                       <span>Valor</span>
                       <span>Descripción</span>
@@ -593,7 +612,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
                     </div>
                     {(p.niveles || []).map((n) => (
                       <div key={n.id} className="admin-sup-alternativas-grid">
-                        <span className="admin-sup-alternativa-valor">{n.valor_numerico}</span>
+                        <span className="admin-sup-alternativa-valor">{fmtValorEntero(n.valor_numerico)}</span>
                         <div className="admin-sup-alternativa-desc">
                           {n.etiqueta ? (
                             <>
@@ -612,13 +631,12 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
                   </div>
                 </div>
               ))}
-              <MiniPreguntaForm instrumentoId={sel} onAdded={() => openEdit({ id: sel })} />
 
               <h3 className="admin-sup-modal-section-title">Rangos de resultado (puntaje total)</h3>
               {(detalle.rangos_resultado || []).map((r) => (
                 <div key={r.id} className="admin-usu-destino-row" style={{ justifyContent: 'space-between', width: '100%', marginBottom: 8 }}>
                   <span className="admin-sup-muted" style={{ margin: 0 }}>
-                    {r.puntaje_min} – {r.puntaje_max}: <strong>{r.etiqueta}</strong>
+                    {fmtValorEntero(r.puntaje_min)} – {fmtValorEntero(r.puntaje_max)}: <strong>{r.etiqueta}</strong>
                   </span>
                   <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => delRango(r.id).then(() => openEdit({ id: sel }))}>
                     Quitar
@@ -653,6 +671,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
 
       {registrarModal != null && canExecute && (
         <SupervisionModal
+          tall
           title={registrarModal.presetId ? `Registrar supervisión — ${registrarModal.titulo || ''}` : 'Registrar supervisión'}
           onClose={() => setRegistrarModal(null)}
         >
@@ -831,6 +850,7 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
 
       {registrarModal != null && canExecute && (
         <SupervisionModal
+          tall
           title={registrarModal.presetId ? `Registrar supervisión — ${registrarModal.titulo || ''}` : 'Registrar supervisión'}
           onClose={() => setRegistrarModal(null)}
         >
@@ -877,17 +897,17 @@ function MiniPreguntaForm({ instrumentoId, onAdded }) {
     }
   };
   return (
-    <div className="admin-sup-dashed">
+    <div className="admin-sup-dashed admin-sup-dashed--pregunta">
       <div className="admin-usu-field">
-        <label>Nueva pregunta / ítem</label>
-        <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Título" />
+        <label>Enunciado de la pregunta</label>
+        <input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ej. Clima del aula" />
       </div>
       <div className="admin-usu-field">
         <label>Texto de ayuda (opcional)</label>
-        <textarea className="admin-usu-msg-textarea" style={{ minHeight: 72 }} value={ayuda} onChange={(e) => setAyuda(e.target.value)} />
+        <textarea className="admin-usu-msg-textarea" style={{ minHeight: 72 }} value={ayuda} onChange={(e) => setAyuda(e.target.value)} placeholder="Orientación para quien aplica la rúbrica" />
       </div>
-      <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={submit}>
-        Añadir pregunta
+      <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={submit}>
+        Guardar pregunta
       </button>
     </div>
   );
@@ -901,9 +921,14 @@ function MiniNivelForm({ preguntaId, onAdded }) {
       Swal.fire('Atención', 'Indique la descripción de la alternativa.', 'info');
       return;
     }
+    const vi = parseInt(String(valor).trim(), 10);
+    if (!Number.isFinite(vi)) {
+      Swal.fire('Atención', 'El valor debe ser un número entero.', 'info');
+      return;
+    }
     try {
       await api.post(`/supervision/preguntas/${preguntaId}/niveles`, {
-        valor_numerico: parseFloat(valor),
+        valor_numerico: vi,
         etiqueta: null,
         descripcion: String(desc).trim(),
         orden: 0
@@ -917,8 +942,8 @@ function MiniNivelForm({ preguntaId, onAdded }) {
   return (
     <div className="admin-sup-alternativa-nueva">
       <div className="admin-usu-field admin-sup-alternativa-nueva-valor">
-        <label>Valor</label>
-        <input type="number" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} />
+        <label>Valor (entero)</label>
+        <input type="number" step="1" min="0" value={valor} onChange={(e) => setValor(e.target.value)} />
       </div>
       <div className="admin-usu-field admin-sup-alternativa-nueva-desc">
         <label>Descripción</label>
@@ -942,10 +967,16 @@ function MiniRangoForm({ instrumentoId, onAdded }) {
   const [max, setMax] = useState('');
   const [etiq, setEtiq] = useState('');
   const submit = async () => {
+    const mini = parseInt(String(min).trim(), 10);
+    const maxi = parseInt(String(max).trim(), 10);
+    if (!Number.isFinite(mini) || !Number.isFinite(maxi)) {
+      Swal.fire('Atención', 'Indique mínimo y máximo como números enteros.', 'info');
+      return;
+    }
     try {
       await api.post(`/supervision/instrumentos/${instrumentoId}/rangos`, {
-        puntaje_min: parseFloat(min),
-        puntaje_max: parseFloat(max),
+        puntaje_min: mini,
+        puntaje_max: maxi,
         etiqueta: etiq,
         orden: 0
       });
@@ -961,11 +992,11 @@ function MiniRangoForm({ instrumentoId, onAdded }) {
     <div className="admin-sup-nivel-inline" style={{ marginTop: '0.5rem' }}>
       <div className="admin-usu-field" style={{ maxWidth: 110 }}>
         <label>Mín</label>
-        <input type="number" step="0.01" value={min} onChange={(e) => setMin(e.target.value)} />
+        <input type="number" step="1" min="0" value={min} onChange={(e) => setMin(e.target.value)} />
       </div>
       <div className="admin-usu-field" style={{ maxWidth: 110 }}>
         <label>Máx</label>
-        <input type="number" step="0.01" value={max} onChange={(e) => setMax(e.target.value)} />
+        <input type="number" step="1" min="0" value={max} onChange={(e) => setMax(e.target.value)} />
       </div>
       <div className="admin-usu-field" style={{ flex: '1 1 200px' }}>
         <label>Etiqueta</label>
@@ -1186,6 +1217,7 @@ function PanelRegistrar({
   const [personalId, setPersonalId] = useState('');
   const [fecha, setFecha] = useState(() => new Date().toISOString().slice(0, 10));
   const [detalle, setDetalle] = useState(null);
+  const [formularioRespuestaAbierto, setFormularioRespuestaAbierto] = useState(false);
   const [respuestas, setRespuestas] = useState({});
   const [obs, setObs] = useState({});
 
@@ -1196,6 +1228,7 @@ function PanelRegistrar({
       setGrupoId('');
       setPersonalId('');
       setDetalle(null);
+      setFormularioRespuestaAbierto(false);
       setRespuestas({});
       setObs({});
     }
@@ -1240,9 +1273,17 @@ function PanelRegistrar({
         o0[c.id] = '';
       });
       setObs(o0);
+      if (modoModal) setFormularioRespuestaAbierto(true);
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error || 'No se pudo cargar la supervisión', 'error');
     }
+  };
+
+  const cerrarFormularioRespuesta = () => {
+    setFormularioRespuestaAbierto(false);
+    setDetalle(null);
+    setRespuestas({});
+    setObs({});
   };
 
   const enviar = async () => {
@@ -1269,6 +1310,7 @@ function PanelRegistrar({
       });
       Swal.fire({ icon: 'success', title: 'Supervisión registrada', timer: 2000, showConfirmButton: false });
       setDetalle(null);
+      setFormularioRespuestaAbierto(false);
       setRespuestas({});
       setObs({});
       onDone?.();
@@ -1285,16 +1327,67 @@ function PanelRegistrar({
       if (n) puntajePrev += parseFloat(n.valor_numerico);
     }
   }
+  const puntajePrevStr = fmtValorEntero(puntajePrev);
+
+  const bloqueFormularioRespuesta =
+    detalle &&
+    (!modoModal || formularioRespuestaAbierto) ? (
+      <div className="admin-usu-profile-section">
+        <p className="admin-sup-muted">
+          Puntaje previo: <strong style={{ color: '#1f2937' }}>{puntajePrevStr}</strong> (debe encajar en un rango configurado)
+        </p>
+        {(detalle.preguntas || []).map((p) => (
+          <div key={p.id} className="admin-usu-info-item" style={{ marginBottom: '0.75rem' }}>
+            <span className="admin-usu-info-label">{p.titulo}</span>
+            <div className="admin-sup-radio-list">
+              {(p.niveles || []).map((n) => (
+                <label key={n.id} className={respuestas[p.id] === n.id ? 'admin-sup-radio-active' : ''}>
+                  <input
+                    type="radio"
+                    name={`preg-${p.id}`}
+                    checked={respuestas[p.id] === n.id}
+                    onChange={() => setRespuestas({ ...respuestas, [p.id]: n.id })}
+                  />
+                  <span>
+                    <strong>{n.etiqueta || fmtValorEntero(n.valor_numerico)}</strong> ({fmtValorEntero(n.valor_numerico)} pt.) — {n.descripcion || '—'}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+        <h3 style={{ fontSize: '1.08rem', margin: '1rem 0 0.75rem' }}>Observaciones y cierre</h3>
+        {(detalle.campos_cierre || []).map((c) => (
+          <div key={c.id} className="admin-usu-field">
+            <label>
+              {c.etiqueta}
+              {c.requerido ? ' *' : ''}
+            </label>
+            <textarea
+              className="admin-usu-msg-textarea"
+              style={{ minHeight: 100 }}
+              value={obs[c.id] || ''}
+              onChange={(e) => setObs({ ...obs, [c.id]: e.target.value })}
+              required={!!c.requerido}
+            />
+          </div>
+        ))}
+        <button type="button" className="admin-usu-btn admin-usu-btn-new" style={{ marginTop: 12 }} onClick={enviar}>
+          Guardar supervisión
+        </button>
+      </div>
+    ) : null;
 
   return (
-    <div className={modoModal ? 'admin-sup-registrar-modal' : 'admin-sup-layout-2'}>
-      <div className="admin-usu-profile-section">
-        <h3>Contexto de la supervisión</h3>
-        {modoModal && (
-          <p className="admin-sup-muted" style={{ marginTop: 0 }}>
-            Elija nivel, grupo y docente. Luego cargue el formulario de la rúbrica y complete observaciones y cierre.
-          </p>
-        )}
+    <>
+      <div className={modoModal ? 'admin-sup-registrar-modal' : 'admin-sup-layout-2'}>
+        <div className="admin-usu-profile-section">
+          <h3>Contexto de la supervisión</h3>
+          {modoModal && (
+            <p className="admin-sup-muted" style={{ marginTop: 0 }}>
+              Elija nivel, grupo y docente. Pulse «Cargar formulario de la supervisión» para abrir la rúbrica en una ventana aparte.
+            </p>
+          )}
         <div className="admin-usu-field">
           <label>Supervisión</label>
           {bloquearInstrumento ? (
@@ -1351,55 +1444,19 @@ function PanelRegistrar({
           Cargar formulario de la supervisión
         </button>
       </div>
-      <div>
-        {detalle && (
-          <div className="admin-usu-profile-section">
-            <p className="admin-sup-muted">
-              Puntaje previo: <strong style={{ color: '#1f2937' }}>{puntajePrev.toFixed(2)}</strong> (debe encajar en un rango configurado)
-            </p>
-            {(detalle.preguntas || []).map((p) => (
-              <div key={p.id} className="admin-usu-info-item" style={{ marginBottom: '0.75rem' }}>
-                <span className="admin-usu-info-label">{p.titulo}</span>
-                <div className="admin-sup-radio-list">
-                  {(p.niveles || []).map((n) => (
-                    <label key={n.id} className={respuestas[p.id] === n.id ? 'admin-sup-radio-active' : ''}>
-                      <input
-                        type="radio"
-                        name={`preg-${p.id}`}
-                        checked={respuestas[p.id] === n.id}
-                        onChange={() => setRespuestas({ ...respuestas, [p.id]: n.id })}
-                      />
-                      <span>
-                        <strong>{n.etiqueta || n.valor_numerico}</strong> ({n.valor_numerico} pt.) — {n.descripcion || '—'}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <h3 style={{ fontSize: '1.08rem', margin: '1rem 0 0.75rem' }}>Observaciones y cierre</h3>
-            {(detalle.campos_cierre || []).map((c) => (
-              <div key={c.id} className="admin-usu-field">
-                <label>
-                  {c.etiqueta}
-                  {c.requerido ? ' *' : ''}
-                </label>
-                <textarea
-                  className="admin-usu-msg-textarea"
-                  style={{ minHeight: 100 }}
-                  value={obs[c.id] || ''}
-                  onChange={(e) => setObs({ ...obs, [c.id]: e.target.value })}
-                  required={!!c.requerido}
-                />
-              </div>
-            ))}
-            <button type="button" className="admin-usu-btn admin-usu-btn-new" style={{ marginTop: 12 }} onClick={enviar}>
-              Guardar supervisión
-            </button>
-          </div>
-        )}
-      </div>
+      {!modoModal && <div>{bloqueFormularioRespuesta}</div>}
     </div>
+      {modoModal && detalle && formularioRespuestaAbierto && (
+        <SupervisionModal
+          nested
+          tall
+          title={`Formulario — ${detalle.titulo || 'Supervisión'}`}
+          onClose={cerrarFormularioRespuesta}
+        >
+          {bloqueFormularioRespuesta}
+        </SupervisionModal>
+      )}
+    </>
   );
 }
 
@@ -1443,7 +1500,7 @@ function PanelHistorial({ instrumentoId: filtroInstrumentoId = null, tituloFiltr
               <td>
                 {e.grado}° {e.seccion} {e.nivel_nombre}
               </td>
-              <td>{e.puntaje_total}</td>
+              <td>{fmtValorEntero(e.puntaje_total)}</td>
               <td>
                 <span className="admin-usu-badge">{e.resultado_etiqueta || '—'}</span>
               </td>
