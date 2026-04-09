@@ -274,6 +274,177 @@ router.get('/admin/:id/estadisticas', authenticateToken, requireAdminOrPromotori
   }
 });
 
+/** Vista previa del formulario (admin): sin comprobar audiencia ni “ya respondió”. */
+router.get('/admin/:id/vista-previa', authenticateToken, requireAdminOrPromotoria, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const enc = await query(`SELECT * FROM encuestas WHERE id = ? AND colegio_id = ? LIMIT 1`, [id, colegio_id]);
+    if (!enc || !enc.length) return res.status(404).json({ error: 'Encuesta no encontrada' });
+    const e = enc[0];
+    const preg = await query(
+      `SELECT * FROM encuestas_preguntas WHERE encuesta_id = ? ORDER BY orden ASC, id ASC`,
+      [id]
+    );
+    const preguntas = (preg || []).map(normalizarPreguntaPublica);
+    res.json({
+      success: true,
+      preview: true,
+      encuesta: {
+        id: e.id,
+        titulo: e.titulo,
+        descripcion: e.descripcion,
+        mensaje_agradecimiento: e.mensaje_agradecimiento
+      },
+      preguntas,
+      usuario_contexto: { tipo: 'ADMIN', etiqueta: 'Vista previa (no se guarda)' }
+    });
+  } catch (err) {
+    console.error('[encuestas] vista-previa', err);
+    res.status(500).json({ error: 'Error al cargar vista previa' });
+  }
+});
+
+/** Listado de quién respondió (admin). */
+router.get('/admin/:id/historial', authenticateToken, requireAdminOrPromotoria, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const encuestaId = parseInt(req.params.id, 10);
+    const enc = await query(`SELECT id, titulo FROM encuestas WHERE id = ? AND colegio_id = ? LIMIT 1`, [
+      encuestaId,
+      colegio_id
+    ]);
+    if (!enc || !enc.length) return res.status(404).json({ error: 'No encontrada' });
+
+    const filas = await query(
+      `SELECT r.id AS respuesta_id, r.usuario_id, r.rol_respondiente, r.fecha_respuesta,
+              r.grado_snapshot, r.nivel_snapshot, u.usuario AS usuario_login, u.tipo AS usuario_tipo,
+              COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(a.nombres,''), ' ', COALESCE(a.apellido_paterno,''), ' ', COALESCE(a.apellido_materno,''))), ''),
+                NULLIF(TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))), ''),
+                NULLIF(TRIM(CONCAT(COALESCE(ap.nombres,''), ' ', COALESCE(ap.apellido_paterno,''), ' ', COALESCE(ap.apellido_materno,''))), ''),
+                u.usuario
+              ) AS nombre_mostrar
+       FROM encuestas_respuestas r
+       INNER JOIN usuarios u ON u.id = r.usuario_id
+       LEFT JOIN alumnos a ON a.id = u.alumno_id
+       LEFT JOIN personal p ON p.id = u.personal_id
+       LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
+       WHERE r.encuesta_id = ?
+       ORDER BY r.fecha_respuesta DESC`,
+      [encuestaId]
+    );
+
+    res.json({
+      success: true,
+      encuesta: enc[0],
+      filas: filas || []
+    });
+  } catch (err) {
+    console.error('[encuestas] historial', err);
+    res.status(500).json({ error: 'Error al cargar historial' });
+  }
+});
+
+/** Detalle de una respuesta concreta (pregunta → texto legible). */
+router.get('/admin/:id/respuestas/:respuestaId', authenticateToken, requireAdminOrPromotoria, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const encuestaId = parseInt(req.params.id, 10);
+    const respuestaId = parseInt(req.params.respuestaId, 10);
+
+    const rcheck = await query(
+      `SELECT r.id, r.usuario_id, r.rol_respondiente, r.fecha_respuesta, r.grado_snapshot, r.nivel_snapshot
+       FROM encuestas_respuestas r
+       INNER JOIN encuestas e ON e.id = r.encuesta_id AND e.colegio_id = ?
+       WHERE r.id = ? AND r.encuesta_id = ?`,
+      [colegio_id, respuestaId, encuestaId]
+    );
+    if (!rcheck || !rcheck.length) return res.status(404).json({ error: 'Respuesta no encontrada' });
+    const resp = rcheck[0];
+
+    const nombreRows = await query(
+      `SELECT COALESCE(
+          NULLIF(TRIM(CONCAT(COALESCE(a.nombres,''), ' ', COALESCE(a.apellido_paterno,''), ' ', COALESCE(a.apellido_materno,''))), ''),
+          NULLIF(TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))), ''),
+          NULLIF(TRIM(CONCAT(COALESCE(ap.nombres,''), ' ', COALESCE(ap.apellido_paterno,''), ' ', COALESCE(ap.apellido_materno,''))), ''),
+          u.usuario
+        ) AS nombre_mostrar, u.usuario AS usuario_login, u.tipo AS usuario_tipo
+       FROM usuarios u
+       LEFT JOIN alumnos a ON a.id = u.alumno_id
+       LEFT JOIN personal p ON p.id = u.personal_id
+       LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
+       WHERE u.id = ?
+       LIMIT 1`,
+      [resp.usuario_id]
+    );
+    const nombreMostrar = nombreRows && nombreRows[0] ? nombreRows[0].nombre_mostrar : 'Usuario';
+
+    const det = await query(
+      `SELECT d.pregunta_id, d.texto_respuesta, d.valor_numerico, d.opciones_json,
+              pr.descripcion AS pregunta_texto, pr.orden, pr.subtitulo,
+              pr.tipo_interfaz, pr.tipo_respuesta
+       FROM encuestas_respuestas_detalle d
+       INNER JOIN encuestas_preguntas pr ON pr.id = d.pregunta_id
+       WHERE d.respuesta_id = ?
+       ORDER BY pr.orden ASC, pr.id ASC`,
+      [respuestaId]
+    );
+
+    const items = (det || []).map((row) => {
+      const ti = row.tipo_interfaz || mapLegacyTipo(row.tipo_respuesta);
+      let respuestaLegible = '';
+      if (ti === 'titulo') {
+        respuestaLegible = '—';
+      } else if (ti === 'texto_corto' || ti === 'texto_largo') {
+        respuestaLegible = row.texto_respuesta != null ? String(row.texto_respuesta) : '';
+      } else if (ti === 'escala') {
+        respuestaLegible = row.valor_numerico != null ? String(row.valor_numerico) : '—';
+      } else if (ti === 'marcar' || ti === 'lista') {
+        let arr = row.opciones_json;
+        if (typeof arr === 'string') {
+          try {
+            arr = JSON.parse(arr);
+          } catch {
+            arr = [];
+          }
+        }
+        if (!Array.isArray(arr)) arr = arr ? [arr] : [];
+        respuestaLegible = arr.length ? arr.join(', ') : '—';
+      } else {
+        respuestaLegible = row.texto_respuesta != null ? String(row.texto_respuesta) : '—';
+      }
+      return {
+        pregunta_id: row.pregunta_id,
+        orden: row.orden,
+        texto_pregunta: row.pregunta_texto,
+        subtitulo: row.subtitulo || '',
+        tipo_interfaz: ti,
+        respuesta_legible: respuestaLegible
+      };
+    });
+
+    res.json({
+      success: true,
+      respuesta: {
+        id: resp.id,
+        usuario_id: resp.usuario_id,
+        nombre_mostrar: nombreMostrar,
+        usuario_login: nombreRows && nombreRows[0] ? nombreRows[0].usuario_login : '',
+        usuario_tipo: nombreRows && nombreRows[0] ? nombreRows[0].usuario_tipo : '',
+        rol_respondiente: resp.rol_respondiente,
+        fecha_respuesta: resp.fecha_respuesta,
+        grado_snapshot: resp.grado_snapshot,
+        nivel_snapshot: resp.nivel_snapshot
+      },
+      items
+    });
+  } catch (err) {
+    console.error('[encuestas] admin respuesta detalle', err);
+    res.status(500).json({ error: 'Error al cargar el detalle' });
+  }
+});
+
 router.get('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req, res) => {
   try {
     const { colegio_id } = req.user;

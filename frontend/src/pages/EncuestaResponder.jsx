@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
+  Alert,
   Box,
   Button,
   Card,
@@ -25,6 +26,8 @@ import Swal from 'sweetalert2';
 export default function EncuestaResponder() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const preview = searchParams.get('preview') === '1';
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
   const [data, setData] = useState(null);
@@ -34,16 +37,18 @@ export default function EncuestaResponder() {
     let c = false;
     (async () => {
       try {
-        const { data: d } = await api.get(`/encuestas/contestar/${id}`);
+        const url = preview ? `/encuestas/admin/${id}/vista-previa` : `/encuestas/contestar/${id}`;
+        const { data: d } = await api.get(url);
         if (c) return;
         setData(d);
       } catch (err) {
-        if (err.response?.data?.ya_respondio) {
+        if (!preview && err.response?.data?.ya_respondio) {
           Swal.fire('Listo', 'Ya habías respondido esta encuesta.', 'info').then(() => navigate('/encuestas'));
           return;
         }
         const msg = err.response?.data?.error || 'No se pudo cargar';
-        Swal.fire('Error', msg, 'error').then(() => navigate('/encuestas'));
+        const back = preview ? '/admin/herramientas/encuestas' : '/encuestas';
+        Swal.fire('Error', msg, 'error').then(() => navigate(back));
       } finally {
         if (!c) setLoading(false);
       }
@@ -51,7 +56,7 @@ export default function EncuestaResponder() {
     return () => {
       c = true;
     };
-  }, [id, navigate]);
+  }, [id, navigate, preview]);
 
   const setVal = (preguntaId, patch) => {
     setRespuestas((prev) => ({
@@ -71,6 +76,7 @@ export default function EncuestaResponder() {
   };
 
   const enviar = async () => {
+    if (preview) return;
     if (!data?.preguntas) return;
     const lista = [];
     for (const p of data.preguntas) {
@@ -136,6 +142,11 @@ export default function EncuestaResponder() {
   return (
     <DashboardLayout>
       <Box sx={{ maxWidth: 720, mx: 'auto', px: 1, pb: 6 }}>
+        {preview ? (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <strong>Vista previa (administrador).</strong> Así verán el formulario los usuarios. No se guardan respuestas.
+          </Alert>
+        ) : null}
         <Card sx={{ mb: 2, borderRadius: 2, overflow: 'visible' }}>
           <Box
             sx={{
@@ -160,6 +171,15 @@ export default function EncuestaResponder() {
             />
           </Box>
           <CardContent>
+            <fieldset
+              disabled={preview}
+              style={{
+                border: 'none',
+                padding: 0,
+                margin: 0,
+                minWidth: 0
+              }}
+            >
             <Stack spacing={3}>
               {preguntas.map((p, idx) => {
                 const ti = p.tipo_respuesta;
@@ -300,19 +320,26 @@ export default function EncuestaResponder() {
                 );
               })}
             </Stack>
+            </fieldset>
 
             <Stack direction="row" justifyContent="flex-end" sx={{ mt: 4 }}>
-              <Button variant="outlined" onClick={() => navigate('/encuestas')} sx={{ mr: 1, textTransform: 'none' }}>
-                Volver
-              </Button>
               <Button
-                variant="contained"
-                disabled={enviando}
-                onClick={enviar}
-                sx={{ textTransform: 'none', px: 3, borderRadius: 2 }}
+                variant="outlined"
+                onClick={() => navigate(preview ? '/admin/herramientas/encuestas' : '/encuestas')}
+                sx={{ mr: 1, textTransform: 'none' }}
               >
-                {enviando ? 'Enviando…' : 'Enviar respuestas'}
+                {preview ? 'Volver al listado' : 'Volver'}
               </Button>
+              {!preview ? (
+                <Button
+                  variant="contained"
+                  disabled={enviando}
+                  onClick={enviar}
+                  sx={{ textTransform: 'none', px: 3, borderRadius: 2 }}
+                >
+                  {enviando ? 'Enviando…' : 'Enviar respuestas'}
+                </Button>
+              ) : null}
             </Stack>
           </CardContent>
         </Card>

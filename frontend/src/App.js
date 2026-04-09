@@ -39,6 +39,7 @@ import AdminSupervision from './pages/admin/AdminSupervision';
 import AdminEncuestas from './pages/admin/AdminEncuestas';
 import AdminEncuestaEditor from './pages/admin/AdminEncuestaEditor';
 import AdminEncuestaEstadisticas from './pages/admin/AdminEncuestaEstadisticas';
+import AdminEncuestaHistorial from './pages/admin/AdminEncuestaHistorial';
 import MisEncuestas from './pages/MisEncuestas';
 import EncuestaResponder from './pages/EncuestaResponder';
 import AdminEnConstruccion from './pages/admin/AdminEnConstruccion';
@@ -313,6 +314,14 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <AdminEncuestaEstadisticas />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/encuestas/:id/historial"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminEncuestaHistorial />
           </PrivateRoute>
         }
       />

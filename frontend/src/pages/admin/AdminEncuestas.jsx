@@ -1,6 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CircularProgress } from '@mui/material';
+import {
+  CircularProgress,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem
+} from '@mui/material';
+import BarChartIcon from '@mui/icons-material/BarChart';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import EditIcon from '@mui/icons-material/Edit';
+import HistoryIcon from '@mui/icons-material/History';
+import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
@@ -11,6 +23,7 @@ export default function AdminEncuestas() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [encuestas, setEncuestas] = useState([]);
+  const [menuCtx, setMenuCtx] = useState(null);
 
   const loadEncuestas = useCallback(async () => {
     setLoading(true);
@@ -31,7 +44,10 @@ export default function AdminEncuestas() {
 
   const fmt = (d) => (d ? String(d).slice(0, 10) : '—');
 
+  const closeMenu = () => setMenuCtx(null);
+
   const eliminarEncuesta = async (e) => {
+    closeMenu();
     const r = await Swal.fire({
       title: '¿Eliminar esta encuesta?',
       html: 'Se borrarán <strong>definitivamente</strong> la encuesta, preguntas, audiencias y todas las respuestas registradas. Esta acción no se puede deshacer.',
@@ -92,7 +108,7 @@ export default function AdminEncuestas() {
                     <th>Vigencia</th>
                     <th>Audiencias</th>
                     <th>Respuestas</th>
-                    <th style={{ minWidth: 220 }}>Acciones</th>
+                    <th style={{ minWidth: 140 }}>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -125,27 +141,14 @@ export default function AdminEncuestas() {
                       </td>
                       <td>{e.total_respuestas ?? 0}</td>
                       <td>
-                        <div className="admin-enc-tabla-acciones">
+                        <div className="admin-enc-tabla-acciones" style={{ justifyContent: 'center' }}>
                           <button
                             type="button"
-                            className="admin-usu-btn admin-usu-btn-primary"
-                            onClick={() => navigate(`/admin/herramientas/encuestas/${e.id}/estadisticas`)}
+                            className="admin-usu-btn admin-usu-btn-primary admin-enc-opciones-btn"
+                            onClick={(ev) => setMenuCtx({ anchor: ev.currentTarget, enc: e })}
                           >
-                            Estadísticas
-                          </button>
-                          <button
-                            type="button"
-                            className="admin-usu-btn admin-usu-btn-secondary"
-                            onClick={() => navigate(`/admin/herramientas/encuestas/${e.id}/editar`)}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type="button"
-                            className="admin-usu-btn admin-usu-btn-danger"
-                            onClick={() => eliminarEncuesta(e)}
-                          >
-                            Eliminar
+                            <MoreHorizIcon style={{ fontSize: 18, marginRight: 4, verticalAlign: 'text-bottom' }} />
+                            Opciones
                           </button>
                         </div>
                       </td>
@@ -156,6 +159,75 @@ export default function AdminEncuestas() {
             </div>
           )}
         </div>
+
+        <Menu
+          anchorEl={menuCtx?.anchor}
+          open={Boolean(menuCtx)}
+          onClose={closeMenu}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        >
+          <MenuItem
+            onClick={() => {
+              const enc = menuCtx.enc;
+              closeMenu();
+              navigate(`/encuestas/responder/${enc.id}?preview=1`);
+            }}
+          >
+            <ListItemIcon>
+              <VisibilityIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Ver encuesta</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              const enc = menuCtx.enc;
+              closeMenu();
+              navigate(`/admin/herramientas/encuestas/${enc.id}/editar`);
+            }}
+          >
+            <ListItemIcon>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Editar</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              const enc = menuCtx.enc;
+              closeMenu();
+              navigate(`/admin/herramientas/encuestas/${enc.id}/estadisticas`);
+            }}
+          >
+            <ListItemIcon>
+              <BarChartIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Estadísticas</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              const enc = menuCtx.enc;
+              closeMenu();
+              navigate(`/admin/herramientas/encuestas/${enc.id}/historial`);
+            }}
+          >
+            <ListItemIcon>
+              <HistoryIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Historial de respuestas</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              const enc = menuCtx.enc;
+              eliminarEncuesta(enc);
+            }}
+            sx={{ color: 'error.main' }}
+          >
+            <ListItemIcon>
+              <DeleteOutlineIcon fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText>Eliminar</ListItemText>
+          </MenuItem>
+        </Menu>
       </div>
     </DashboardLayout>
   );
