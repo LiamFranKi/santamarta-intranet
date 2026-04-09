@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Accordion, AccordionDetails, AccordionSummary, Box, Stack, Typography } from '@mui/material';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -293,6 +295,8 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
   const [historialModal, setHistorialModal] = useState(null);
   const [yearChoice, setYearChoice] = useState('activo');
   const [yearOtro, setYearOtro] = useState('');
+  /** Índice de la pregunta expandida en el editor (false = ninguna). */
+  const [supPreguntaExpandida, setSupPreguntaExpandida] = useState(false);
   const [formInst, setFormInst] = useState({
     titulo: '',
     descripcion: '',
@@ -315,6 +319,7 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
     setModal(null);
     setSel(null);
     setDetalle(null);
+    setSupPreguntaExpandida(false);
     closeMenu();
   };
 
@@ -351,9 +356,11 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
         activo: !!data.instrumento.activo,
         cierre_usa_global: !!data.instrumento.cierre_usa_global
       });
+      return data;
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error || 'No se pudo cargar', 'error');
       cerrarEditor();
+      return undefined;
     }
   };
 
@@ -412,7 +419,10 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
   async function delNivel(nivelId) {
     try {
       await api.delete(`/supervision/niveles/${nivelId}`);
-      if (sel) await openEdit({ id: sel });
+      if (sel) {
+        await openEdit({ id: sel });
+        setSupPreguntaExpandida(false);
+      }
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error || 'No se pudo quitar la alternativa', 'error');
     }
@@ -429,7 +439,10 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
     if (!c.isConfirmed) return;
     try {
       await api.delete(`/supervision/preguntas/${preguntaId}`);
-      if (sel) await openEdit({ id: sel });
+      if (sel) {
+        await openEdit({ id: sel });
+        setSupPreguntaExpandida(false);
+      }
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error || 'No se pudo eliminar', 'error');
     }
@@ -586,51 +599,105 @@ function PanelSupervisionAdmin({ user, canExecute, loadYo }) {
                 <p className="admin-sup-muted" style={{ marginTop: 0, marginBottom: 10 }}>
                   Escriba el texto de la pregunta y, si quiere, ayuda para quien evalúa. Luego use <strong>2</strong> en cada tarjeta para agregar alternativas con valor y descripción.
                 </p>
-                <MiniPreguntaForm instrumentoId={sel} onAdded={() => openEdit({ id: sel })} />
+                <MiniPreguntaForm
+                  instrumentoId={sel}
+                  onAdded={async () => {
+                    const d = await openEdit({ id: sel });
+                    if (d?.preguntas?.length) setSupPreguntaExpandida(d.preguntas.length - 1);
+                  }}
+                />
               </div>
 
-              {(detalle.preguntas || []).map((p, idx) => (
-                <div key={p.id} className="admin-sup-pregunta-card">
-                  <div className="admin-sup-pregunta-card-head">
-                    <h4 className="admin-sup-pregunta-h">Pregunta {idx + 1}</h4>
-                    <p className="admin-sup-pregunta-titulo">{p.titulo}</p>
-                    {p.texto_ayuda ? <p className="admin-sup-muted admin-sup-pregunta-ayuda">{p.texto_ayuda}</p> : null}
-                    <button
-                      type="button"
-                      className="admin-usu-btn admin-usu-btn-danger admin-sup-pregunta-del"
-                      onClick={() => deletePregunta(p.id)}
+              {(detalle.preguntas || []).map((p, idx) => {
+                const preview = String(p.titulo || '').trim().slice(0, 80) || '(sin título)';
+                return (
+                  <Accordion
+                    key={p.id}
+                    className="admin-sup-pregunta-accordion"
+                    expanded={supPreguntaExpandida === idx}
+                    onChange={(_, exp) => setSupPreguntaExpandida(exp ? idx : false)}
+                    disableGutters
+                    elevation={0}
+                    sx={{
+                      mb: 1,
+                      border: '1px solid rgba(0,0,0,0.1)',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      '&:before': { display: 'none' },
+                      bgcolor: 'background.paper'
+                    }}
+                  >
+                    <AccordionSummary
+                      expandIcon={<ExpandMoreIcon />}
+                      sx={{
+                        bgcolor: 'action.hover',
+                        '& .MuiAccordionSummary-content': {
+                          alignItems: 'center',
+                          gap: 1,
+                          flexWrap: 'wrap',
+                          my: 1
+                        }
+                      }}
                     >
-                      Eliminar pregunta
-                    </button>
-                  </div>
-                  <div className="admin-sup-alternativas">
-                    <div className="admin-sup-alternativas-sub">2. Alternativas de esta pregunta (una fila = una opción al evaluar)</div>
-                    <div className="admin-sup-alternativas-grid admin-sup-alternativas-grid--head">
-                      <span>Valor</span>
-                      <span>Descripción</span>
-                      <span className="admin-sup-alternativas-acc" aria-hidden />
-                    </div>
-                    {(p.niveles || []).map((n) => (
-                      <div key={n.id} className="admin-sup-alternativas-grid">
-                        <span className="admin-sup-alternativa-valor">{fmtValorEntero(n.valor_numerico)}</span>
-                        <div className="admin-sup-alternativa-desc">
-                          {n.etiqueta ? (
-                            <>
-                              <strong>{n.etiqueta}</strong>
-                              {n.descripcion ? ': ' : null}
-                            </>
-                          ) : null}
-                          {n.descripcion || (n.etiqueta ? '' : '—')}
-                        </div>
-                        <button type="button" className="admin-usu-btn admin-usu-btn-danger admin-sup-alternativas-acc" onClick={() => delNivel(n.id)}>
-                          Quitar
+                      <Typography variant="caption" className="admin-sup-pregunta-h" sx={{ fontWeight: 700, color: 'primary.main', minWidth: 72 }}>
+                        Pregunta {idx + 1}
+                      </Typography>
+                      <Typography variant="body2" sx={{ flex: 1, minWidth: 140 }} noWrap title={p.titulo}>
+                        {preview}
+                      </Typography>
+                      <Stack direction="row" onClick={(ev) => ev.stopPropagation()}>
+                        <button
+                          type="button"
+                          className="admin-usu-btn admin-usu-btn-danger admin-sup-pregunta-del"
+                          onClick={() => deletePregunta(p.id)}
+                        >
+                          Eliminar pregunta
                         </button>
-                      </div>
-                    ))}
-                    <MiniNivelForm preguntaId={p.id} onAdded={() => openEdit({ id: sel })} />
-                  </div>
-                </div>
-              ))}
+                      </Stack>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ pt: 0, px: 2, pb: 2 }}>
+                      <Box className="admin-sup-pregunta-card-inner">
+                        <p className="admin-sup-pregunta-titulo" style={{ marginTop: 0 }}>
+                          {p.titulo}
+                        </p>
+                        {p.texto_ayuda ? <p className="admin-sup-muted admin-sup-pregunta-ayuda">{p.texto_ayuda}</p> : null}
+                        <div className="admin-sup-alternativas">
+                          <div className="admin-sup-alternativas-sub">2. Alternativas de esta pregunta (una fila = una opción al evaluar)</div>
+                          <div className="admin-sup-alternativas-grid admin-sup-alternativas-grid--head">
+                            <span>Valor</span>
+                            <span>Descripción</span>
+                            <span className="admin-sup-alternativas-acc" aria-hidden />
+                          </div>
+                          {(p.niveles || []).map((n) => (
+                            <div key={n.id} className="admin-sup-alternativas-grid">
+                              <span className="admin-sup-alternativa-valor">{fmtValorEntero(n.valor_numerico)}</span>
+                              <div className="admin-sup-alternativa-desc">
+                                {n.etiqueta ? (
+                                  <>
+                                    <strong>{n.etiqueta}</strong>
+                                    {n.descripcion ? ': ' : null}
+                                  </>
+                                ) : null}
+                                {n.descripcion || (n.etiqueta ? '' : '—')}
+                              </div>
+                              <button type="button" className="admin-usu-btn admin-usu-btn-danger admin-sup-alternativas-acc" onClick={() => delNivel(n.id)}>
+                                Quitar
+                              </button>
+                            </div>
+                          ))}
+                          <MiniNivelForm
+                            preguntaId={p.id}
+                            onAdded={async () => {
+                              await openEdit({ id: sel });
+                              setSupPreguntaExpandida(idx);
+                            }}
+                          />
+                        </div>
+                      </Box>
+                    </AccordionDetails>
+                  </Accordion>
+                );
+              })}
 
               <h3 className="admin-sup-modal-section-title">Rangos de resultado (puntaje total)</h3>
               {(detalle.rangos_resultado || []).map((r) => (

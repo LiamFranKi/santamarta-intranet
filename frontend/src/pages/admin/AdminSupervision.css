@@ -557,3 +557,13 @@
 .admin-sup-lista-candidatos li {
   margin-bottom: 0.65rem;
 }
+
+/* Preguntas en acordeón (editar supervisión): cabecera compacta */
+.admin-sup-pregunta-accordion .admin-sup-pregunta-del {
+  position: static;
+  margin-top: 0;
+}
+
+.admin-sup-pregunta-card-inner .admin-sup-pregunta-titulo {
+  margin-bottom: 0.35rem;
+}
