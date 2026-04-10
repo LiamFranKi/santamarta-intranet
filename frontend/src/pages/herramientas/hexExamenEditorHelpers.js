@@ -96,13 +96,46 @@ export function emptyExamenMeta() {
   };
 }
 
+/** Copia profunda de opciones + datos de fila para el editor (evita mutar estado compartido). */
+export function clonePreguntaForm(p) {
+  if (!p) return nuevaPreguntaLocal();
+  const tipo = String(p.tipo || 'ALTERNATIVAS').toUpperCase();
+  let opciones = {};
+  if (tipo === 'ALTERNATIVAS') {
+    const o = p.opciones || {};
+    const opts = Array.isArray(o.opciones) ? o.opciones.map((x) => String(x ?? '')) : ['', '', '', ''];
+    opciones = {
+      opciones: [...opts],
+      correcta: typeof o.correcta === 'number' && !Number.isNaN(o.correcta) ? o.correcta : 0
+    };
+  } else if (tipo === 'VERDADERO_FALSO') {
+    const o = p.opciones || {};
+    opciones = { correcta: o.correcta === false ? false : true };
+  } else {
+    opciones = {};
+  }
+  const id = p.id != null ? p.id : undefined;
+  const _localKey =
+    p._localKey || (id != null ? `id-${id}` : `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`);
+  return {
+    ...(id != null ? { id } : {}),
+    _localKey,
+    texto: p.texto ?? '',
+    tipo,
+    opciones,
+    puntos: p.puntos ?? 1,
+    solo_informativo: !!p.solo_informativo,
+    obligatoria: p.obligatoria !== false
+  };
+}
+
 export function nuevaPreguntaLocal() {
   return {
     _localKey: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     texto: '',
     tipo: 'ALTERNATIVAS',
     opciones: {
-      opciones: ['<p>Opción A</p>', '<p>Opción B</p>', '<p>Opción C</p>', '<p>Opción D</p>'],
+      opciones: ['', '', '', ''],
       correcta: 0
     },
     puntos: 1,
@@ -113,14 +146,15 @@ export function nuevaPreguntaLocal() {
 
 export function mapPreguntasFromApi(list) {
   const arr = Array.isArray(list) ? list : [];
-  return arr.map((p) => ({
-    id: p.id,
-    _localKey: `id-${p.id}`,
-    texto: p.texto || '',
-    tipo: p.tipo || 'ALTERNATIVAS',
-    opciones: p.opciones || {},
-    puntos: p.puntos ?? 1,
-    solo_informativo: !!p.solo_informativo,
-    obligatoria: p.obligatoria !== false
-  }));
+  return arr.map((p) =>
+    clonePreguntaForm({
+      id: p.id,
+      texto: p.texto || '',
+      tipo: p.tipo || 'ALTERNATIVAS',
+      opciones: p.opciones || {},
+      puntos: p.puntos ?? 1,
+      solo_informativo: !!p.solo_informativo,
+      obligatoria: p.obligatoria !== false
+    })
+  );
 }

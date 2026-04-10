@@ -14,6 +14,7 @@ import '../DocenteAulaVirtual-gamificado.css';
 import './HerramientasExamenes.css';
 import {
   attachQuillImageUploadHandler,
+  clonePreguntaForm,
   emptyExamenMeta,
   mapExamenFromApi,
   mapPreguntasFromApi,
@@ -362,11 +363,7 @@ function ModalDatosExamen({ open, onClose, examenMeta, setExamenMeta, guardando 
 function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, bloqueado, uploadImagenUrl }) {
   const quillRef = useRef(null);
   const quillRefsAlternativas = useRef({});
-  const [form, setForm] = useState(() => pregunta || nuevaPreguntaLocal());
-
-  useEffect(() => {
-    if (pregunta) setForm({ ...pregunta });
-  }, [pregunta, open]);
+  const [form, setForm] = useState(() => clonePreguntaForm(pregunta));
 
   useEffect(() => {
     if (!open) return undefined;
@@ -445,7 +442,7 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                     let opciones = form.opciones;
                     if (t === 'ALTERNATIVAS') {
                       opciones = {
-                        opciones: ['<p>Opción A</p>', '<p>Opción B</p>', '<p>Opción C</p>', '<p>Opción D</p>'],
+                        opciones: ['', '', '', ''],
                         correcta: 0
                       };
                     }
@@ -462,6 +459,7 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
               <div className="form-group">
                 <label>Descripción *</label>
                 <ReactQuill
+                  key={`hex-enunciado-${form._localKey || form.id || 'n'}`}
                   ref={quillRef}
                   theme="snow"
                   value={form.texto ?? ''}
@@ -538,7 +536,7 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                       style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
                       onClick={() => {
                         const arr = [...(form.opciones?.opciones || [])];
-                        arr.push('<p>Nueva opción</p>');
+                        arr.push('');
                         setForm({ ...form, opciones: { ...form.opciones, opciones: arr } });
                       }}
                     >
@@ -559,9 +557,10 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                       </thead>
                       <tbody>
                         {(form.opciones?.opciones || []).map((op, j) => (
-                          <tr key={j}>
+                          <tr key={`${form._localKey || 'p'}-alt-row-${j}`}>
                             <td style={{ padding: '0.75rem', verticalAlign: 'top' }}>
                               <ReactQuill
+                                key={`${form._localKey || 'p'}-alt-q-${j}`}
                                 ref={(el) => {
                                   if (el) quillRefsAlternativas.current[j] = el;
                                 }}
@@ -589,7 +588,7 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                               <label className="checkbox-label" style={{ justifyContent: 'center', cursor: 'pointer' }}>
                                 <input
                                   type="radio"
-                                  name="hex-alt-correcta"
+                                  name={`hex-alt-correcta-${form._localKey || form.id || 'x'}`}
                                   checked={Number(form.opciones?.correcta) === j}
                                   onChange={() =>
                                     setForm({
@@ -1016,15 +1015,17 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
   };
 
   const guardarPreguntaEnLista = (form) => {
+    const f = clonePreguntaForm(form);
     setPreguntas((prev) => {
-      const key = form.id != null ? `id-${form.id}` : form._localKey;
+      const key = f.id != null ? `id-${f.id}` : f._localKey;
+      if (!key) return prev;
       const idx = prev.findIndex((p) => preguntaKey(p) === key);
       if (idx >= 0) {
         const n = [...prev];
-        n[idx] = { ...form };
+        n[idx] = f;
         return n;
       }
-      return [...prev, { ...form, _localKey: form._localKey || `tmp-${Date.now()}` }];
+      return [...prev, f];
     });
   };
 
@@ -1034,7 +1035,7 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
   };
 
   const abrirEditarPregunta = (p) => {
-    setEditPregunta({ ...p });
+    setEditPregunta(clonePreguntaForm(p));
     setModalPregunta(true);
   };
 
@@ -1225,6 +1226,13 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
       />
 
       <ModalFormPregunta
+        key={
+          modalPregunta && editPregunta
+            ? editPregunta.id != null
+              ? `hex-q-id-${editPregunta.id}`
+              : editPregunta._localKey || 'hex-q-nueva'
+            : 'hex-q-cerrado'
+        }
         open={modalPregunta}
         onClose={() => {
           setModalPregunta(false);
@@ -1233,7 +1241,7 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
         examenMeta={examenMeta}
         pregunta={editPregunta}
         bloqueado={bloqueado}
-        onGuardar={(form) => guardarPreguntaEnLista({ ...editPregunta, ...form })}
+        onGuardar={(form) => guardarPreguntaEnLista(form)}
         uploadImagenUrl={uploadImagenUrl}
       />
     </DashboardLayout>
