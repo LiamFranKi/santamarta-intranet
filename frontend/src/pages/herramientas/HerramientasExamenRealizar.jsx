@@ -21,6 +21,17 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './HerramientasExamenes.css';
 
+/** Mismo criterio que el listado del editor: GENERAL → puntos_correcta del examen; INDIVIDUAL → puntos de la pregunta. */
+function puntosMostrarHex(examen, pregunta) {
+  const tp = String(examen?.tipo_puntaje || 'GENERAL').toUpperCase();
+  if (tp === 'GENERAL') {
+    const pc = examen?.puntos_correcta;
+    if (pc != null && pc !== '') return Number(pc);
+    return Number(pregunta?.puntos) || 0;
+  }
+  return Number(pregunta?.puntos) || 0;
+}
+
 export default function HerramientasExamenRealizar() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -205,18 +216,19 @@ export default function HerramientasExamenRealizar() {
                 {preguntas.map((p, idx) => {
                   const tipo = String(p.tipo || '').toUpperCase();
                   const r = respuestas[p.id] || {};
+                  const pts = puntosMostrarHex(examen, p);
                   return (
                     <Box key={p.id}>
-                      <Box
-                        sx={{ mb: 1, fontWeight: 700, '& p': { margin: 0 }, lineHeight: 1.5 }}
-                        component="div"
-                      >
-                        <span>{idx + 1}. </span>
-                        <span dangerouslySetInnerHTML={{ __html: p.texto || '' }} />
-                      </Box>
-                      <Typography variant="caption" color="text.secondary">
+                      <div className="hex-q-enunciado">
+                        <span className="hex-q-enunciado-num">{idx + 1}.</span>
+                        <div
+                          className="hex-q-enunciado-body"
+                          dangerouslySetInnerHTML={{ __html: p.texto || '' }}
+                        />
+                      </div>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                         {p.solo_informativo ? 'Informativo · ' : ''}
-                        {p.puntos != null ? `${p.puntos} pt.` : ''}
+                        {`${pts} pt.`}
                       </Typography>
 
                       {tipo === 'ALTERNATIVAS' ? (

@@ -532,6 +532,8 @@ router.get('/admin/:id/vista-previa', authenticateToken, requireAdminOrPromotori
         mensaje_agradecimiento: ex.mensaje_agradecimiento,
         modo: ex.modo,
         intentos_max: ex.intentos_max,
+        tipo_puntaje: ex.tipo_puntaje,
+        puntos_correcta: ex.puntos_correcta,
         bloque_contenido: ex.bloque_contenido,
         bloque_imagen_url: ex.bloque_imagen_url
       },
@@ -569,6 +571,8 @@ router.get('/preview/:id', authenticateToken, async (req, res) => {
         mensaje_agradecimiento: ex.mensaje_agradecimiento,
         modo: ex.modo,
         intentos_max: ex.intentos_max,
+        tipo_puntaje: ex.tipo_puntaje,
+        puntos_correcta: ex.puntos_correcta,
         bloque_contenido: ex.bloque_contenido,
         bloque_imagen_url: ex.bloque_imagen_url
       },

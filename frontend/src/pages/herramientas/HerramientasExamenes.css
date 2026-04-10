@@ -137,3 +137,29 @@
   padding: 20px 22px;
   box-shadow: 0 2px 16px rgba(15, 23, 42, 0.06);
 }
+
+/* Realizar examen: número y enunciado en la misma línea (Quill suele envolver en <p> bloque) */
+.hex-q-enunciado {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  font-weight: 700;
+  line-height: 1.5;
+  margin-bottom: 0.5rem;
+}
+.hex-q-enunciado-num {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+.hex-q-enunciado-body {
+  flex: 1;
+  min-width: 0;
+}
+.hex-q-enunciado-body > p:first-of-type {
+  display: inline;
+  margin: 0;
+}
+.hex-q-enunciado-body > p:not(:first-of-type) {
+  display: block;
+  margin: 0.5em 0 0;
+}
