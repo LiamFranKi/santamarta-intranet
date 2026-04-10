@@ -328,6 +328,32 @@ function preguntaEditor(row) {
   };
 }
 
+/** GENERAL → puntos_correcta del examen; INDIVIDUAL → puntos de la pregunta (fila). */
+function puntosBasePorPregunta(ex, row) {
+  const tipoP = String(ex.tipo_puntaje || 'GENERAL').toUpperCase();
+  if (tipoP === 'GENERAL') {
+    return Math.max(0, Number(ex.puntos_correcta) || 0);
+  }
+  return Math.max(0, Number(row.puntos) || 0);
+}
+
+function puntajeMaximoPregunta(ex, row) {
+  const exModo = String(ex.modo || 'MIXTO').toUpperCase();
+  const base = puntosBasePorPregunta(ex, row);
+  const inf = row.solo_informativo === 1 || row.solo_informativo === true;
+  if (exModo === 'PRACTICA') return base;
+  if (exModo === 'CALIFICADO') return inf ? 0 : base;
+  return inf ? 0 : base;
+}
+
+function puntajeMaximoExamen(ex, preguntasRows) {
+  let s = 0;
+  for (const p of preguntasRows || []) {
+    s += puntajeMaximoPregunta(ex, p);
+  }
+  return s;
+}
+
 async function assertExamenColegio(examenId, colegio_id) {
   const rows = await query(`SELECT * FROM herramientas_examenes WHERE id = ? AND colegio_id = ? LIMIT 1`, [
     examenId,
@@ -1068,13 +1094,21 @@ router.get('/gestion/:id/estadisticas', authenticateToken, async (req, res) => {
     );
 
     const preguntas = await query(
-      `SELECT id, texto, tipo, puntos FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden`,
+      `SELECT id, texto, tipo, puntos, solo_informativo FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden`,
       [id]
     );
+    const puntajeMaxCfg = puntajeMaximoExamen(ex, preguntas || []);
 
     res.json({
       success: true,
-      examen: { id: ex.id, titulo: ex.titulo, modo: ex.modo },
+      examen: {
+        id: ex.id,
+        titulo: ex.titulo,
+        modo: ex.modo,
+        tipo_puntaje: ex.tipo_puntaje,
+        puntos_correcta: ex.puntos_correcta
+      },
+      puntaje_max_examen: puntajeMaxCfg,
       totalIntentos: total[0]?.c || 0,
       pendientesRevision: pendientes[0]?.c || 0,
       intentos: intentos || [],
@@ -1099,14 +1133,24 @@ router.get('/gestion/:id/intento/:intentoId', authenticateToken, async (req, res
     );
     if (!ir || !ir[0]) return res.status(404).json({ error: 'Intento no encontrado' });
     const lineas = await query(
-      `SELECT d.*, p.texto AS pregunta_texto, p.tipo AS pregunta_tipo, p.opciones_json AS pregunta_opciones
+      `SELECT d.*, p.texto AS pregunta_texto, p.tipo AS pregunta_tipo, p.opciones_json AS pregunta_opciones,
+              p.solo_informativo AS pregunta_solo_informativo, p.puntos AS pregunta_puntos
        FROM herramientas_examenes_respuestas_linea d
        INNER JOIN herramientas_examenes_preguntas p ON p.id = d.pregunta_id
        WHERE d.intento_id = ?
        ORDER BY p.orden`,
       [intentoId]
     );
-    res.json({ success: true, intento: ir[0], lineas: lineas || [] });
+    res.json({
+      success: true,
+      intento: ir[0],
+      lineas: lineas || [],
+      examen: {
+        modo: ex.modo,
+        tipo_puntaje: ex.tipo_puntaje,
+        puntos_correcta: ex.puntos_correcta
+      }
+    });
   } catch (err) {
     console.error('[hex] intento detalle', err);
     res.status(500).json({ error: 'Error' });
@@ -1142,15 +1186,85 @@ router.put('/gestion/:id/intento/:intentoId/revision', authenticateToken, async 
       [intentoId]
     );
     const nuevoEstado = pend[0]?.c > 0 ? 'ENVIADO' : 'CALIFICADO';
+    const preguntasEx = await query(
+      `SELECT * FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC, id ASC`,
+      [examenId]
+    );
+    const maxSnap = puntajeMaximoExamen(ex, preguntasEx || []);
     await execute(
-      `UPDATE herramientas_examenes_intentos SET puntaje_obtenido = ?, estado = ? WHERE id = ?`,
-      [sum[0]?.s ?? 0, nuevoEstado, intentoId]
+      `UPDATE herramientas_examenes_intentos SET puntaje_obtenido = ?, estado = ?, puntaje_max_snapshot = ? WHERE id = ?`,
+      [sum[0]?.s ?? 0, nuevoEstado, maxSnap, intentoId]
     );
 
     res.json({ success: true, puntaje_obtenido: sum[0]?.s ?? 0, estado: nuevoEstado });
   } catch (err) {
     console.error('[hex] revision', err);
     res.status(500).json({ error: 'Error al guardar revisión' });
+  }
+});
+
+/** Recalcula puntos de líneas autoevaluables y totales según configuración actual del examen (útil tras cambiar GENERAL/puntos_correcta). */
+router.post('/gestion/:id/recalcular-puntos', authenticateToken, async (req, res) => {
+  try {
+    const examenId = parseInt(req.params.id, 10);
+    const ex = await puedeGestionarEstadisticas(req, examenId);
+    if (!ex) return res.status(403).json({ error: 'No autorizado' });
+    const preguntas = await query(
+      `SELECT * FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC, id ASC`,
+      [examenId]
+    );
+    const mapP = new Map((preguntas || []).map((p) => [p.id, p]));
+    const intentosRows = await query(
+      `SELECT id FROM herramientas_examenes_intentos WHERE examen_id = ? AND estado IN ('ENVIADO','CALIFICADO')`,
+      [examenId]
+    );
+    let n = 0;
+    for (const it of intentosRows || []) {
+      const intentoId = it.id;
+      const lineas = await query(`SELECT * FROM herramientas_examenes_respuestas_linea WHERE intento_id = ?`, [intentoId]);
+      for (const d of lineas || []) {
+        const p = mapP.get(d.pregunta_id);
+        if (!p) continue;
+        const tipo = String(p.tipo || '').toUpperCase();
+        const rj = parseJsonSafe(d.respuesta_json) || {};
+        const o = parseJsonSafe(p.opciones_json) || {};
+        const maxLocal = puntajeMaximoPregunta(ex, p);
+        let pts = 0;
+        if (tipo === 'ALTERNATIVAS') {
+          const ok = typeof o.correcta === 'number' && rj && Number(rj.indice) === Number(o.correcta);
+          pts = ok ? maxLocal : 0;
+        } else if (tipo === 'VERDADERO_FALSO') {
+          const ok = rj && (rj.valor === true || rj.valor === false) && rj.valor === !!o.correcta;
+          pts = ok ? maxLocal : 0;
+        } else if (tipo === 'RESPUESTA_CORTA') {
+          if (d.requiere_revision === 1 || d.requiere_revision === true) pts = 0;
+          else pts = d.puntos_otorgados != null ? Number(d.puntos_otorgados) : 0;
+        }
+        await execute(
+          `UPDATE herramientas_examenes_respuestas_linea SET puntos_otorgados = ? WHERE id = ? AND intento_id = ?`,
+          [pts, d.id, intentoId]
+        );
+      }
+      const sum = await query(
+        `SELECT COALESCE(SUM(puntos_otorgados),0) AS s FROM herramientas_examenes_respuestas_linea WHERE intento_id = ?`,
+        [intentoId]
+      );
+      const pend = await query(
+        `SELECT COUNT(*) AS c FROM herramientas_examenes_respuestas_linea WHERE intento_id = ? AND requiere_revision = 1`,
+        [intentoId]
+      );
+      const nuevoEstado = pend[0]?.c > 0 ? 'ENVIADO' : 'CALIFICADO';
+      const maxSnap = puntajeMaximoExamen(ex, preguntas || []);
+      await execute(
+        `UPDATE herramientas_examenes_intentos SET puntaje_obtenido = ?, puntaje_max_snapshot = ?, estado = ? WHERE id = ?`,
+        [sum[0]?.s ?? 0, maxSnap, nuevoEstado, intentoId]
+      );
+      n += 1;
+    }
+    res.json({ success: true, intentos_actualizados: n, puntaje_max_examen: puntajeMaximoExamen(ex, preguntas || []) });
+  } catch (err) {
+    console.error('[hex] recalcular-puntos', err);
+    res.status(500).json({ error: 'Error al recalcular' });
   }
 });
 
@@ -1307,14 +1421,6 @@ router.put('/intento/:intentoId/borrador', authenticateToken, async (req, res) =
   }
 });
 
-function puntajeMaximoPregunta(exModo, row) {
-  const inf = row.solo_informativo === 1 || row.solo_informativo === true;
-  if (exModo === 'PRACTICA') return Number(row.puntos) || 0;
-  if (exModo === 'CALIFICADO') return inf ? 0 : Number(row.puntos) || 0;
-  /* MIXTO */
-  return inf ? 0 : Number(row.puntos) || 0;
-}
-
 router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) => {
   try {
     const intentoId = parseInt(req.params.intentoId, 10);
@@ -1364,7 +1470,7 @@ router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) =>
 
     let puntajeMax = 0;
     for (const p of preguntas || []) {
-      puntajeMax += puntajeMaximoPregunta(ex.modo, p);
+      puntajeMax += puntajeMaximoPregunta(ex, p);
     }
 
     await execute(`DELETE FROM herramientas_examenes_respuestas_linea WHERE intento_id = ?`, [intentoId]);
@@ -1376,7 +1482,7 @@ router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) =>
       const tipo = String(p.tipo || '').toUpperCase();
       const rr = mapR[p.id];
       const o = parseJsonSafe(p.opciones_json) || {};
-      const maxLocal = puntajeMaximoPregunta(ex.modo, p);
+      const maxLocal = puntajeMaximoPregunta(ex, p);
       let pts = null;
       let reqRev = false;
       let rj = {};
