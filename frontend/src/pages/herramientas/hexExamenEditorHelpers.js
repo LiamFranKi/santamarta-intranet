@@ -1,7 +1,7 @@
 /** Utilidades compartidas del editor de exámenes de herramientas (mismo criterio que aula virtual). */
 import Swal from 'sweetalert2';
 
-export function attachQuillImageUploadHandler(quill, api) {
+export function attachQuillImageUploadHandler(quill, api, uploadEndpoint = '/docente/mensajes/subir-imagen') {
   if (!quill || !api) return;
   const toolbar = quill.getModule('toolbar');
   if (!toolbar) return;
@@ -13,8 +13,8 @@ export function attachQuillImageUploadHandler(quill, api) {
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
-      if (file.size > 5 * 1024 * 1024) {
-        Swal.fire('Error', 'La imagen no puede ser mayor a 5MB', 'error');
+      if (file.size > 8 * 1024 * 1024) {
+        Swal.fire('Error', 'La imagen no puede ser mayor a 8MB', 'error');
         return;
       }
       if (!file.type.startsWith('image/')) {
@@ -24,7 +24,7 @@ export function attachQuillImageUploadHandler(quill, api) {
       try {
         const formData = new FormData();
         formData.append('imagen', file);
-        const { data } = await api.post('/docente/mensajes/subir-imagen', formData, {
+        const { data } = await api.post(uploadEndpoint, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         const range = quill.getSelection(true) || { index: Math.max(0, quill.getLength() - 1) };
@@ -101,7 +101,10 @@ export function nuevaPreguntaLocal() {
     _localKey: `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
     texto: '',
     tipo: 'ALTERNATIVAS',
-    opciones: { opciones: ['Opción A', 'Opción B', 'Opción C', 'Opción D'], correcta: 0 },
+    opciones: {
+      opciones: ['<p>Opción A</p>', '<p>Opción B</p>', '<p>Opción C</p>', '<p>Opción D</p>'],
+      correcta: 0
+    },
     puntos: 1,
     solo_informativo: false,
     obligatoria: true

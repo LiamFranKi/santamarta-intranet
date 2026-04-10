@@ -3,9 +3,47 @@
  * preguntas con puntaje, intentos y corrección auto + manual (respuesta corta).
  */
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const router = express.Router();
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
+const { urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
+
+/** Misma carpeta pública que mensajes / aula virtual (Static/Archivos). */
+const hexEditorImagenStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const primary = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Archivos';
+    const fallback = path.join(__dirname, '../uploads/archivos');
+    let dir = primary;
+    try {
+      if (!fs.existsSync(primary)) dir = fallback;
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    } catch (e) {
+      dir = fallback;
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `hex-editor-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+const fileFilterHexImagen = (req, file, cb) => {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const allowedExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+  if (allowedExt.includes(ext) && file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+  cb(new Error('Solo imágenes (jpg, png, gif, webp)'));
+};
+
+const uploadHexEditorImagen = multer({
+  storage: hexEditorImagenStorage,
+  limits: { fileSize: 8 * 1024 * 1024 },
+  fileFilter: fileFilterHexImagen
+});
 
 const ADMIN_TYPES = new Set(['ADMINISTRADOR', 'PROMOTORIA']);
 
@@ -267,6 +305,52 @@ router.get('/meta/grupos', authenticateToken, async (req, res) => {
     res.status(500).json({ error: 'Error al cargar grupos' });
   }
 });
+
+/**
+ * POST /api/herramientas-examenes/admin/subir-imagen
+ * Imagen para editor Quill o contexto del examen (misma URL pública que mensajes).
+ */
+router.post(
+  '/admin/subir-imagen',
+  authenticateToken,
+  requireAdminOrPromotoria,
+  (req, res, next) => {
+    uploadHexEditorImagen.single('imagen')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message || 'Archivo no válido' });
+      next();
+    });
+  },
+  (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No se envió imagen' });
+      res.json({ url: urlArchivoMensajeStatic(req.file.filename) });
+    } catch (e) {
+      console.error('[hex] admin subir-imagen', e);
+      res.status(500).json({ error: 'Error al subir' });
+    }
+  }
+);
+
+router.post(
+  '/docente/subir-imagen',
+  authenticateToken,
+  requireDocente,
+  (req, res, next) => {
+    uploadHexEditorImagen.single('imagen')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message || 'Archivo no válido' });
+      next();
+    });
+  },
+  (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No se envió imagen' });
+      res.json({ url: urlArchivoMensajeStatic(req.file.filename) });
+    } catch (e) {
+      console.error('[hex] docente subir-imagen', e);
+      res.status(500).json({ error: 'Error al subir' });
+    }
+  }
+);
 
 // ---------- Admin ----------
 

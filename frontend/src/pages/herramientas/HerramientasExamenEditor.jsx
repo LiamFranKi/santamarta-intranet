@@ -358,9 +358,10 @@ function ModalDatosExamen({ open, onClose, examenMeta, setExamenMeta, guardando 
   );
 }
 
-/** Formulario una pregunta — tipos soportados por BD */
-function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, bloqueado }) {
+/** Formulario una pregunta — tipos soportados por BD (alternativas con Quill + correcta como el docente) */
+function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, bloqueado, uploadImagenUrl }) {
   const quillRef = useRef(null);
+  const quillRefsAlternativas = useRef({});
   const [form, setForm] = useState(() => pregunta || nuevaPreguntaLocal());
 
   useEffect(() => {
@@ -371,10 +372,21 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
     if (!open) return undefined;
     const t = setTimeout(() => {
       const q = quillRef.current?.getEditor?.();
-      if (q) attachQuillImageUploadHandler(q, api);
+      if (q) attachQuillImageUploadHandler(q, api, uploadImagenUrl);
     }, 200);
     return () => clearTimeout(t);
-  }, [open, form.tipo]);
+  }, [open, form.tipo, uploadImagenUrl]);
+
+  useEffect(() => {
+    if (!open || form.tipo !== 'ALTERNATIVAS') return undefined;
+    const t = setTimeout(() => {
+      Object.values(quillRefsAlternativas.current).forEach((ref) => {
+        const ed = ref?.getEditor?.();
+        if (ed) attachQuillImageUploadHandler(ed, api, uploadImagenUrl);
+      });
+    }, 250);
+    return () => clearTimeout(t);
+  }, [open, form.tipo, form.opciones?.opciones?.length, uploadImagenUrl]);
 
   if (!open) return null;
 
@@ -389,6 +401,20 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
       const opts = form.opciones?.opciones || [];
       if (opts.length < 2) {
         Swal.fire('Atención', 'Agrega al menos 2 alternativas', 'warning');
+        return;
+      }
+      const conTexto = opts.map((op) => textoPlano(op)).filter(Boolean);
+      if (conTexto.length < 2) {
+        Swal.fire('Atención', 'Completa al menos 2 alternativas con texto', 'warning');
+        return;
+      }
+      const cor = Number(form.opciones?.correcta);
+      if (Number.isNaN(cor) || cor < 0 || cor >= opts.length) {
+        Swal.fire('Atención', 'Marca cuál es la alternativa correcta', 'warning');
+        return;
+      }
+      if (!textoPlano(opts[cor])) {
+        Swal.fire('Atención', 'La alternativa marcada como correcta debe tener texto', 'warning');
         return;
       }
     }
@@ -417,7 +443,12 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                   onChange={(e) => {
                     const t = e.target.value;
                     let opciones = form.opciones;
-                    if (t === 'ALTERNATIVAS') opciones = { opciones: ['Opción A', 'Opción B', 'Opción C', 'Opción D'], correcta: 0 };
+                    if (t === 'ALTERNATIVAS') {
+                      opciones = {
+                        opciones: ['<p>Opción A</p>', '<p>Opción B</p>', '<p>Opción C</p>', '<p>Opción D</p>'],
+                        correcta: 0
+                      };
+                    }
                     if (t === 'VERDADERO_FALSO') opciones = { correcta: true };
                     if (t === 'RESPUESTA_CORTA') opciones = {};
                     setForm({ ...form, tipo: t, opciones });
@@ -441,10 +472,26 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
                       [{ header: [1, 2, 3, false] }],
                       ['bold', 'italic', 'underline', 'strike'],
                       [{ list: 'ordered' }, { list: 'bullet' }],
+                      [{ color: [] }, { background: [] }],
+                      [{ align: [] }],
                       ['link', 'image'],
                       ['clean']
                     ]
                   }}
+                  formats={[
+                    'header',
+                    'bold',
+                    'italic',
+                    'underline',
+                    'strike',
+                    'list',
+                    'bullet',
+                    'color',
+                    'background',
+                    'align',
+                    'link',
+                    'image'
+                  ]}
                 />
               </div>
               {examenMeta.tipo_puntaje === 'INDIVIDUAL' && (
@@ -482,35 +529,122 @@ function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, blo
               </div>
 
               {form.tipo === 'ALTERNATIVAS' && (
-                <div className="form-group">
-                  <label>Alternativas</label>
-                  {(form.opciones?.opciones || []).map((op, j) => (
-                    <input
-                      key={j}
-                      className="form-input"
-                      style={{ marginBottom: 8 }}
-                      value={op}
-                      onChange={(e) => {
-                        const next = [...(form.opciones?.opciones || [])];
-                        next[j] = e.target.value;
-                        setForm({ ...form, opciones: { ...form.opciones, opciones: next } });
+                <div className="form-group" style={{ marginTop: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <label style={{ margin: 0, fontWeight: 700, color: '#1e3a8a' }}>Alternativas</label>
+                    <button
+                      type="button"
+                      className="btn-nuevo-item"
+                      style={{ padding: '0.35rem 0.75rem', fontSize: '0.85rem' }}
+                      onClick={() => {
+                        const arr = [...(form.opciones?.opciones || [])];
+                        arr.push('<p>Nueva opción</p>');
+                        setForm({ ...form, opciones: { ...form.opciones, opciones: arr } });
                       }}
-                    />
-                  ))}
-                  <div className="form-group">
-                    <label>Índice correcto (0 = primera)</label>
-                    <input
-                      type="number"
-                      className="form-input"
-                      min="0"
-                      value={form.opciones?.correcta ?? 0}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          opciones: { ...form.opciones, correcta: parseInt(e.target.value, 10) || 0 }
-                        })
-                      }
-                    />
+                    >
+                      + Agregar
+                    </button>
+                  </div>
+                  <p style={{ fontSize: '0.82rem', color: '#64748b', marginBottom: 10 }}>
+                    Marca la alternativa correcta (como en el examen del aula del docente). Puedes insertar imágenes desde la barra de cada opción.
+                  </p>
+                  <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
+                    <table className="tabla-aula-virtual" style={{ margin: 0 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ minWidth: 280 }}>Descripción</th>
+                          <th style={{ width: 130, textAlign: 'center' }}>Correcta</th>
+                          <th style={{ width: 72, textAlign: 'center' }}> </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(form.opciones?.opciones || []).map((op, j) => (
+                          <tr key={j}>
+                            <td style={{ padding: '0.75rem', verticalAlign: 'top' }}>
+                              <ReactQuill
+                                ref={(el) => {
+                                  if (el) quillRefsAlternativas.current[j] = el;
+                                }}
+                                theme="snow"
+                                value={op || ''}
+                                onChange={(v) => {
+                                  const next = [...(form.opciones?.opciones || [])];
+                                  next[j] = v;
+                                  setForm({ ...form, opciones: { ...form.opciones, opciones: next } });
+                                }}
+                                placeholder="Escribe la alternativa..."
+                                modules={{
+                                  toolbar: [
+                                    [{ header: [1, 2, 3, false] }],
+                                    ['bold', 'italic', 'underline'],
+                                    [{ list: 'ordered' }, { list: 'bullet' }],
+                                    ['link', 'image'],
+                                    ['clean']
+                                  ]
+                                }}
+                                formats={['header', 'bold', 'italic', 'underline', 'list', 'bullet', 'link', 'image']}
+                              />
+                            </td>
+                            <td style={{ padding: '0.75rem', textAlign: 'center', verticalAlign: 'middle' }}>
+                              <label className="checkbox-label" style={{ justifyContent: 'center', cursor: 'pointer' }}>
+                                <input
+                                  type="radio"
+                                  name="hex-alt-correcta"
+                                  checked={Number(form.opciones?.correcta) === j}
+                                  onChange={() =>
+                                    setForm({
+                                      ...form,
+                                      opciones: { ...form.opciones, correcta: j }
+                                    })
+                                  }
+                                  style={{ width: 18, height: 18, cursor: 'pointer' }}
+                                />
+                                <span
+                                  style={{
+                                    marginLeft: 6,
+                                    fontWeight: 600,
+                                    color: Number(form.opciones?.correcta) === j ? '#10b981' : '#6b7280'
+                                  }}
+                                >
+                                  {Number(form.opciones?.correcta) === j ? '✓ Correcta' : 'Marcar'}
+                                </span>
+                              </label>
+                            </td>
+                            <td style={{ padding: '0.75rem', textAlign: 'center', verticalAlign: 'middle' }}>
+                              <button
+                                type="button"
+                                className="btn-opciones"
+                                title="Eliminar opción"
+                                disabled={(form.opciones?.opciones || []).length <= 2}
+                                onClick={() => {
+                                  const arr = [...(form.opciones?.opciones || [])];
+                                  if (arr.length <= 2) return;
+                                  arr.splice(j, 1);
+                                  let cor = Number(form.opciones?.correcta) || 0;
+                                  if (cor === j) cor = 0;
+                                  else if (cor > j) cor -= 1;
+                                  quillRefsAlternativas.current = {};
+                                  setForm({
+                                    ...form,
+                                    opciones: { ...form.opciones, opciones: arr, correcta: cor }
+                                  });
+                                }}
+                                style={{
+                                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: 8,
+                                  padding: '0.4rem 0.55rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                🗑️
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}
@@ -564,19 +698,41 @@ function ModalPreguntas({
   setPreguntas,
   bloqueado,
   onNueva,
-  onEditar
+  onEditar,
+  uploadImagenUrl
 }) {
   const quillBloqueRef = useRef(null);
+  const [subiendoBloqueImg, setSubiendoBloqueImg] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
 
   useEffect(() => {
     if (!open) return undefined;
     const t = setTimeout(() => {
       const q = quillBloqueRef.current?.getEditor?.();
-      if (q) attachQuillImageUploadHandler(q, api);
+      if (q) attachQuillImageUploadHandler(q, api, uploadImagenUrl);
     }, 250);
     return () => clearTimeout(t);
-  }, [open]);
+  }, [open, uploadImagenUrl]);
+
+  const subirImagenContexto = async (file) => {
+    if (!file || bloqueado) return;
+    if (file.size > 8 * 1024 * 1024) {
+      Swal.fire('Error', 'La imagen no puede superar 8MB', 'error');
+      return;
+    }
+    setSubiendoBloqueImg(true);
+    try {
+      const fd = new FormData();
+      fd.append('imagen', file);
+      const { data } = await api.post(uploadImagenUrl, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      if (data?.url) setExamenMeta((m) => ({ ...m, bloque_imagen_url: data.url }));
+    } catch (err) {
+      console.error(err);
+      Swal.fire('Error', err.response?.data?.error || 'No se pudo subir la imagen', 'error');
+    } finally {
+      setSubiendoBloqueImg(false);
+    }
+  };
 
   const handleDragEnd = (event) => {
     if (bloqueado) return;
@@ -630,20 +786,104 @@ function ModalPreguntas({
           <div style={{ marginBottom: '1.25rem' }}>
             <h3 style={{ fontSize: '1rem', marginBottom: 8, color: '#065f46' }}>📎 Contexto del examen (opcional)</h3>
             <p style={{ fontSize: '0.88rem', color: '#6b7280', marginBottom: 8 }}>
-              Texto enriquecido visible durante la prueba (caso, gráfico). Opcional.
+              Texto enriquecido y/o una imagen que verá el alumno durante toda la prueba (caso, gráfico). Las preguntas pueden basarse en este contexto.
             </p>
-            <ReactQuill
-              ref={quillBloqueRef}
-              theme="snow"
-              readOnly={bloqueado}
-              value={examenMeta.bloque_contenido ?? ''}
-              onChange={(v) => setExamenMeta({ ...examenMeta, bloque_contenido: v })}
-            />
+            <div className="form-group" style={{ marginBottom: 12 }}>
+              <label style={{ fontWeight: 600, color: '#065f46' }}>Enunciado / caso</label>
+              <ReactQuill
+                ref={quillBloqueRef}
+                theme="snow"
+                readOnly={bloqueado}
+                value={examenMeta.bloque_contenido ?? ''}
+                onChange={(v) => setExamenMeta({ ...examenMeta, bloque_contenido: v })}
+                placeholder="Escriba aquí el contexto compartido..."
+                modules={{
+                  toolbar: [
+                    [{ header: [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ list: 'ordered' }, { list: 'bullet' }],
+                    [{ color: [] }, { background: [] }],
+                    [{ align: [] }],
+                    ['link', 'image'],
+                    ['clean']
+                  ]
+                }}
+                formats={[
+                  'header',
+                  'bold',
+                  'italic',
+                  'underline',
+                  'strike',
+                  'list',
+                  'bullet',
+                  'color',
+                  'background',
+                  'align',
+                  'link',
+                  'image'
+                ]}
+              />
+            </div>
             <div className="form-group" style={{ marginTop: 12 }}>
-              <label>URL imagen contexto (opcional)</label>
+              <label style={{ fontWeight: 600, color: '#065f46' }}>Imagen del contexto (opcional)</label>
+              {!bloqueado && (
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  disabled={subiendoBloqueImg}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = '';
+                    if (f) subirImagenContexto(f);
+                  }}
+                  style={{ display: 'block', marginTop: '0.35rem' }}
+                />
+              )}
+              {subiendoBloqueImg && (
+                <p style={{ fontSize: '0.85rem', color: '#6366f1', marginTop: 8 }}>Subiendo imagen…</p>
+              )}
+              {examenMeta.bloque_imagen_url ? (
+                <div style={{ marginTop: '0.75rem' }}>
+                  <img
+                    src={examenMeta.bloque_imagen_url}
+                    alt="Contexto del examen"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: 240,
+                      borderRadius: 8,
+                      border: '1px solid #a7f3d0',
+                      objectFit: 'contain'
+                    }}
+                  />
+                  {!bloqueado && (
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginTop: 8,
+                        fontSize: '0.875rem',
+                        cursor: 'pointer',
+                        color: '#065f46'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        onChange={(e) => {
+                          if (e.target.checked) setExamenMeta((m) => ({ ...m, bloque_imagen_url: '' }));
+                        }}
+                      />
+                      Quitar imagen
+                    </label>
+                  )}
+                </div>
+              ) : null}
+            </div>
+            <div className="form-group" style={{ marginTop: 12 }}>
+              <label>O pegar URL de imagen (opcional)</label>
               <input
                 className="form-input"
-                value={examenMeta.bloque_imagen_url}
+                value={examenMeta.bloque_imagen_url || ''}
                 onChange={(e) => setExamenMeta({ ...examenMeta, bloque_imagen_url: e.target.value })}
                 placeholder="https://..."
                 disabled={bloqueado}
@@ -887,6 +1127,7 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
   }
 
   const bloqueado = tieneIntentos;
+  const uploadImagenUrl = esAdmin ? '/herramientas-examenes/admin/subir-imagen' : '/herramientas-examenes/docente/subir-imagen';
 
   return (
     <DashboardLayout>
@@ -980,6 +1221,7 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
         bloqueado={bloqueado}
         onNueva={abrirNuevaPregunta}
         onEditar={abrirEditarPregunta}
+        uploadImagenUrl={uploadImagenUrl}
       />
 
       <ModalFormPregunta
@@ -992,6 +1234,7 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
         pregunta={editPregunta}
         bloqueado={bloqueado}
         onGuardar={(form) => guardarPreguntaEnLista({ ...editPregunta, ...form })}
+        uploadImagenUrl={uploadImagenUrl}
       />
     </DashboardLayout>
   );
