@@ -769,7 +769,7 @@ async function guardarExamenCompleto(req, res, opts) {
     }
     await execute(
       `INSERT INTO herramientas_examenes_preguntas (examen_id, orden, texto, tipo, opciones_json, puntos, solo_informativo, obligatoria)
-       VALUES (?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [examenId, ord, texto, tipo, opciones_json, puntos, soloInf, oblig]
     );
     ord += 1;
@@ -969,7 +969,7 @@ router.post('/docente', authenticateToken, requireDocente, async (req, res) => {
       }
       await execute(
         `INSERT INTO herramientas_examenes_preguntas (examen_id, orden, texto, tipo, opciones_json, puntos, solo_informativo, obligatoria)
-         VALUES (?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [examenId, ord, texto, tipo, opciones_json, puntos, soloInf, oblig]
       );
       ord += 1;
@@ -1284,7 +1284,7 @@ router.put('/intento/:intentoId/borrador', authenticateToken, async (req, res) =
     if (!ir || !ir[0] || Number(ir[0].colegio_id) !== Number(colegio_id)) return res.status(404).json({ error: 'No encontrado' });
     if (Number(ir[0].usuario_id) !== Number(uid(user))) return res.status(403).json({ error: 'No autorizado' });
     if (ir[0].estado !== 'EN_CURSO') return res.status(400).json({ error: 'Este intento ya fue enviado' });
-    await execute(`UPDATE herramientas_examenes_intentos SET borrador_json = CAST(? AS JSON) WHERE id = ?`, [
+    await execute(`UPDATE herramientas_examenes_intentos SET borrador_json = ? WHERE id = ?`, [
       JSON.stringify(borrador || {}),
       intentoId
     ]);
@@ -1391,7 +1391,7 @@ router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) =>
 
       await execute(
         `INSERT INTO herramientas_examenes_respuestas_linea (intento_id, pregunta_id, respuesta_json, puntos_otorgados, requiere_revision, comentario_docente)
-         VALUES (?, ?, CAST(? AS JSON), ?, ?, NULL)`,
+         VALUES (?, ?, ?, ?, ?, NULL)`,
         [intentoId, p.id, JSON.stringify(rj), pts, reqRev ? 1 : 0]
       );
     }
