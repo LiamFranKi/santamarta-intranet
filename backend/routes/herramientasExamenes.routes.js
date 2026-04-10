@@ -10,6 +10,13 @@ const router = express.Router();
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 const { urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
+const {
+  notificarExamenHerramientasActivado,
+  notificarAdminsExamenActivado,
+  notificarUsuarioExamenEnviado,
+  notificarAdminsExamenCompletado,
+  obtenerNombreMostrarUsuario
+} = require('../services/herramientasExamenesNotificacionService');
 
 /** Misma carpeta pública que mensajes / aula virtual (Static/Archivos). */
 const hexEditorImagenStorage = multer.diskStorage({
@@ -168,6 +175,68 @@ async function puedeVerExamen(user, colegio_id, examenRow) {
   return usuarioCoincideAlcanceGrupos(user, gids, ug);
 }
 
+function scheduleHexActivacionNotifs({ colegio_id, examenId, titulo, usuarioId }) {
+  setImmediate(async () => {
+    try {
+      const anio = await getAnioActivo(colegio_id);
+      const audRows = await cargarAudiencias(examenId);
+      const gids = await cargarGruposIds(examenId);
+      await notificarExamenHerramientasActivado({
+        colegio_id,
+        examen_id: examenId,
+        titulo,
+        usuario_id_emisor: usuarioId,
+        audiencias: audRows,
+        grupo_ids: gids,
+        anio
+      });
+      await notificarAdminsExamenActivado({
+        colegio_id,
+        examen_id: examenId,
+        titulo,
+        usuario_id_emisor: usuarioId
+      });
+    } catch (err) {
+      console.error('[hex] notif activación', err);
+    }
+  });
+}
+
+/** Primera fila para modal tipo encuesta: activo, en audiencia/grupo, sin intento finalizado, sin marcar modal. */
+async function buscarExamenHexModalPendiente(user, colegio_id) {
+  const uident = user.usuario_id || user.id;
+  const rows = await query(
+    `SELECT e.* FROM herramientas_examenes e
+     WHERE e.colegio_id = ? AND e.estado = 'ACTIVO'
+       AND (e.fecha_inicio IS NULL OR DATE(e.fecha_inicio) <= CURDATE())
+       AND (e.fecha_fin IS NULL OR DATE(e.fecha_fin) >= CURDATE())
+       AND NOT EXISTS (
+         SELECT 1 FROM herramientas_examenes_intentos i
+         WHERE i.examen_id = e.id AND i.usuario_id = ? AND i.estado IN ('ENVIADO','CALIFICADO')
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM herramientas_examenes_modal_visto m WHERE m.examen_id = e.id AND m.usuario_id = ?
+       )
+     ORDER BY e.id DESC`,
+    [colegio_id, uident, uident]
+  );
+  for (const e of rows || []) {
+    if (!examenVigente(e)) continue;
+    try {
+      if (await puedeVerExamen(user, colegio_id, e)) {
+        return {
+          id: e.id,
+          titulo: e.titulo,
+          descripcion: e.descripcion || null
+        };
+      }
+    } catch (err) {
+      console.warn('[hex] modal-pendiente fila', e.id, err.message);
+    }
+  }
+  return null;
+}
+
 function parseJsonSafe(v) {
   if (v == null) return null;
   if (typeof v === 'object') return v;
@@ -303,6 +372,33 @@ router.get('/meta/grupos', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('[hex] meta grupos', err);
     res.status(500).json({ error: 'Error al cargar grupos' });
+  }
+});
+
+/** Modal tipo encuesta: primera fila pendiente para el usuario autenticado. */
+router.get('/modal-pendiente', authenticateToken, async (req, res) => {
+  try {
+    const ex = await buscarExamenHexModalPendiente(req.user, req.user.colegio_id);
+    res.json({ success: true, examen: ex });
+  } catch (err) {
+    console.error('[hex] modal-pendiente', err);
+    res.json({ success: true, examen: null });
+  }
+});
+
+router.post('/modal-visto/:examenId', authenticateToken, async (req, res) => {
+  try {
+    const eid = parseInt(req.params.examenId, 10);
+    const { colegio_id, usuario_id } = req.user;
+    if (!eid) return res.status(400).json({ error: 'ID inválido' });
+    await execute(
+      `INSERT IGNORE INTO herramientas_examenes_modal_visto (usuario_id, examen_id, colegio_id) VALUES (?, ?, ?)`,
+      [usuario_id, eid, colegio_id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[hex] modal-visto', err);
+    res.status(500).json({ error: 'No se pudo registrar' });
   }
 });
 
@@ -524,6 +620,15 @@ async function guardarExamenCompleto(req, res, opts) {
     ...ext
   };
 
+  let oldEstado = null;
+  if (!opts.insert && opts.examenId) {
+    const pr = await query(`SELECT estado FROM herramientas_examenes WHERE id = ? AND colegio_id = ? LIMIT 1`, [
+      opts.examenId,
+      colegio_id
+    ]);
+    oldEstado = pr[0] ? String(pr[0].estado).toUpperCase() : null;
+  }
+
   let examenId = opts.examenId;
   if (opts.insert) {
     const ins = await execute(
@@ -590,6 +695,9 @@ async function guardarExamenCompleto(req, res, opts) {
           colegio_id
         ]
       );
+      if (params.estado === 'ACTIVO' && oldEstado !== 'ACTIVO') {
+        scheduleHexActivacionNotifs({ colegio_id, examenId, titulo: params.titulo, usuarioId });
+      }
       return res.json({ success: true, id: examenId, soloMetadatos: true });
     }
     await execute(
@@ -667,6 +775,10 @@ async function guardarExamenCompleto(req, res, opts) {
     ord += 1;
   }
 
+  if (params.estado === 'ACTIVO' && (opts.insert || oldEstado !== 'ACTIVO')) {
+    scheduleHexActivacionNotifs({ colegio_id, examenId, titulo: params.titulo, usuarioId });
+  }
+
   res.json({ success: true, id: examenId });
 }
 
@@ -698,6 +810,11 @@ router.delete('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (
     const { colegio_id } = req.user;
     const ex = await assertExamenColegio(id, colegio_id);
     if (!ex) return res.status(404).json({ error: 'No encontrado' });
+    try {
+      await execute(`DELETE FROM herramientas_examenes_modal_visto WHERE examen_id = ?`, [id]);
+    } catch (e) {
+      if (e && String(e.code) !== 'ER_NO_SUCH_TABLE') console.warn('[hex] delete modal_visto', e.message);
+    }
     await execute(`DELETE FROM herramientas_examenes WHERE id = ? AND colegio_id = ?`, [id, colegio_id]);
     res.json({ success: true });
   } catch (err) {
@@ -857,6 +974,9 @@ router.post('/docente', authenticateToken, requireDocente, async (req, res) => {
       );
       ord += 1;
     }
+    if (params.estado === 'ACTIVO') {
+      scheduleHexActivacionNotifs({ colegio_id, examenId, titulo: params.titulo, usuarioId });
+    }
     res.json({ success: true, id: examenId });
   } catch (err) {
     console.error('[hex] docente create', err);
@@ -886,6 +1006,11 @@ router.delete('/docente/:id', authenticateToken, requireDocente, async (req, res
     const u = uid(req);
     const ex = await assertExamenColegio(id, colegio_id);
     if (!ex || Number(ex.creador_usuario_id) !== Number(u)) return res.status(404).json({ error: 'No encontrado' });
+    try {
+      await execute(`DELETE FROM herramientas_examenes_modal_visto WHERE examen_id = ?`, [id]);
+    } catch (e) {
+      if (e && String(e.code) !== 'ER_NO_SUCH_TABLE') console.warn('[hex] docente delete modal_visto', e.message);
+    }
     await execute(`DELETE FROM herramientas_examenes WHERE id = ? AND colegio_id = ?`, [id, colegio_id]);
     res.json({ success: true });
   } catch (err) {
@@ -1276,6 +1401,37 @@ router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) =>
       `UPDATE herramientas_examenes_intentos SET estado = ?, fecha_envio = NOW(), puntaje_obtenido = ?, puntaje_max_snapshot = ?, borrador_json = NULL WHERE id = ?`,
       [estadoFinal, puntajeParcial, puntajeMax, intentoId]
     );
+
+    const uidRespond = uid(user);
+    const tituloEx = ex.titulo || 'Examen';
+    const mostrarN = ex.mostrar_nota || 'AL_ENVIAR';
+    setImmediate(async () => {
+      try {
+        const nombre = await obtenerNombreMostrarUsuario(uidRespond);
+        await notificarUsuarioExamenEnviado({
+          colegio_id,
+          usuario_id_dest: uidRespond,
+          examen_id: examenId,
+          titulo: tituloEx,
+          puntaje_obtenido: puntajeParcial,
+          puntaje_max: puntajeMax,
+          mostrar_nota: mostrarN,
+          estado_intento: estadoFinal
+        });
+        await notificarAdminsExamenCompletado({
+          colegio_id,
+          examen_id: examenId,
+          titulo: tituloEx,
+          usuario_respondedor_id: uidRespond,
+          nombre_respondedor: nombre,
+          puntaje_obtenido: puntajeParcial,
+          puntaje_max: puntajeMax,
+          estado_intento: estadoFinal
+        });
+      } catch (nerr) {
+        console.error('[hex] notif enviar', nerr);
+      }
+    });
 
     res.json({
       success: true,
