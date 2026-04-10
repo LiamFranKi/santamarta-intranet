@@ -1,6 +1,11 @@
 /**
  * Exámenes de Herramientas: audiencias, alcance por grupos, modo PRACTICA/CALIFICADO/MIXTO,
  * preguntas con puntaje, intentos y corrección auto + manual (respuesta corta).
+ *
+ * Columnas JSON (opciones_json, borrador_json, respuesta_json): enlazar con `?` el string que
+ * devuelve JSON.stringify(...) — mismo criterio que el aula del docente en docente.routes.js
+ * (p. ej. datos_adicionales en INSERT/UPDATE de asignaturas_examenes_preguntas: solo placeholders).
+ * No usar CAST(? AS JSON) en prepared statements: en MariaDB suele fallar con ER_PARSE_ERROR 1064.
  */
 const express = require('express');
 const fs = require('fs');
@@ -745,6 +750,8 @@ async function guardarExamenCompleto(req, res, opts) {
   await execute(`DELETE FROM herramientas_examenes_preguntas WHERE examen_id = ?`, [examenId]);
   const plist = Array.isArray(preguntas) ? preguntas : [];
   let ord = 1;
+  /* Inserción de preguntas: modelo distinto al aula (docente usa tabla de alternativas por fila);
+   * aquí todo va en opciones_json. El guardado SQL debe seguir el patrón docente para JSON: ? + string. */
   for (const p of plist) {
     const texto = String(p.texto || '');
     const tipo = String(p.tipo || 'ALTERNATIVAS').toUpperCase();
