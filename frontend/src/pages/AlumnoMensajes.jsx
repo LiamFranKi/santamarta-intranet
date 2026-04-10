@@ -7,6 +7,7 @@ import Swal from 'sweetalert2';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './AlumnoMensajes.css';
+import DestinatarioSearchField from '../components/mensajes/DestinatarioSearchField';
 import {
   procesarHTMLMensaje,
   MARCA_CUMPLEANOS_HTML,
@@ -380,7 +381,7 @@ function AlumnoMensajes() {
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       buscarDestinatarios(busquedaDestinatario);
-    }, 300);
+    }, 400);
 
     return () => clearTimeout(timeoutId);
   }, [busquedaDestinatario, buscarDestinatarios]);
@@ -768,68 +769,16 @@ function AlumnoMensajes() {
                 {/* Campo Para */}
                 <div className="form-group">
                   <label>Para:</label>
-                  <div className="destinatarios-input-container">
-                    <div className="destinatarios-seleccionados">
-                      {destinatariosSeleccionados.map((dest, index) => {
-                        const nombreCompleto = String(dest?.nombre_completo || 'Sin nombre');
-                        const tipo = String(dest?.tipo || '');
-                        return (
-                          <span key={index} className="destinatario-tag">
-                            {nombreCompleto}
-                            {tipo && <span className="destinatario-tipo">{tipo}</span>}
-                            <button
-                              type="button"
-                              className="destinatario-remove"
-                              onClick={() => eliminarDestinatario(index)}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        );
-                      })}
-                    </div>
-                    <input
-                      type="text"
-                      className="destinatarios-input"
-                      placeholder="Buscar destinatario, grupo, alumno o apoderado..."
-                      value={busquedaDestinatario}
-                      onChange={(e) => setBusquedaDestinatario(e.target.value)}
-                      onFocus={() => setMostrarResultados(true)}
-                    />
-                    {mostrarResultados && resultadosBusqueda.length > 0 && (
-                      <div className="resultados-busqueda">
-                        {resultadosBusqueda.map((resultado, index) => {
-                          // Asegurarse de que todos los valores sean strings válidos
-                          const nombreCompleto = String(resultado?.nombre_completo || 'Sin nombre');
-                          const tipo = String(resultado?.tipo || '');
-                          const infoAdicional = resultado?.info_adicional ? String(resultado.info_adicional) : null;
-                          
-                          return (
-                            <div
-                              key={index}
-                              className="resultado-item"
-                              onClick={() => seleccionarDestinatario(resultado)}
-                            >
-                              <div className="resultado-info">
-                                <span className="resultado-nombre">{nombreCompleto}</span>
-                                {tipo && <span className="resultado-tipo">{tipo}</span>}
-                              </div>
-                              {infoAdicional && (
-                                <span className="resultado-extra">{infoAdicional}</span>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {mostrarResultados && resultadosBusqueda.length === 0 && busquedaDestinatario.trim().length >= 2 && (
-                      <div className="resultados-busqueda">
-                        <div className="resultado-item resultado-vacio">
-                          <span>No se encontraron resultados</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <DestinatarioSearchField
+                    busquedaDestinatario={busquedaDestinatario}
+                    onBusquedaChange={setBusquedaDestinatario}
+                    destinatariosSeleccionados={destinatariosSeleccionados}
+                    onEliminarDestinatario={eliminarDestinatario}
+                    resultadosBusqueda={resultadosBusqueda}
+                    mostrarResultados={mostrarResultados}
+                    onMostrarResultadosChange={setMostrarResultados}
+                    onSeleccionarDestinatario={seleccionarDestinatario}
+                  />
                 </div>
 
                 {/* Campo Asunto */}

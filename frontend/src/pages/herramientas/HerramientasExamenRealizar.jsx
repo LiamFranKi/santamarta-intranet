@@ -173,6 +173,31 @@ export default function HerramientasExamenRealizar() {
           </Stack>
         </div>
 
+        {examen.bloque_contenido || examen.bloque_imagen_url ? (
+          <Card sx={{ borderRadius: 3, mb: 2, border: '1px solid', borderColor: 'divider' }}>
+            <CardContent>
+              <Typography variant="subtitle2" fontWeight={800} sx={{ mb: 1, color: 'primary.main' }}>
+                Contexto del examen
+              </Typography>
+              {examen.bloque_imagen_url ? (
+                <Box
+                  component="img"
+                  src={examen.bloque_imagen_url}
+                  alt=""
+                  sx={{ maxWidth: '100%', maxHeight: 280, borderRadius: 2, mb: examen.bloque_contenido ? 2 : 0, objectFit: 'contain' }}
+                />
+              ) : null}
+              {examen.bloque_contenido ? (
+                <Box
+                  className="hex-exam-bloque-html"
+                  sx={{ '& p': { marginTop: 0 }, lineHeight: 1.6 }}
+                  dangerouslySetInnerHTML={{ __html: examen.bloque_contenido }}
+                />
+              ) : null}
+            </CardContent>
+          </Card>
+        ) : null}
+
         <Card sx={{ borderRadius: 3, mb: 2 }}>
           <CardContent>
             <fieldset disabled={preview} style={{ border: 'none', padding: 0, margin: 0 }}>
@@ -182,9 +207,13 @@ export default function HerramientasExamenRealizar() {
                   const r = respuestas[p.id] || {};
                   return (
                     <Box key={p.id}>
-                      <Typography fontWeight={700} sx={{ mb: 1 }}>
-                        {idx + 1}. {p.texto}
-                      </Typography>
+                      <Box
+                        sx={{ mb: 1, fontWeight: 700, '& p': { margin: 0 }, lineHeight: 1.5 }}
+                        component="div"
+                      >
+                        <span>{idx + 1}. </span>
+                        <span dangerouslySetInnerHTML={{ __html: p.texto || '' }} />
+                      </Box>
                       <Typography variant="caption" color="text.secondary">
                         {p.solo_informativo ? 'Informativo · ' : ''}
                         {p.puntos != null ? `${p.puntos} pt.` : ''}
@@ -197,7 +226,12 @@ export default function HerramientasExamenRealizar() {
                             onChange={(e) => setVal(p.id, { indice: parseInt(e.target.value, 10) })}
                           >
                             {(p.opciones?.opciones || []).map((op, j) => (
-                              <FormControlLabel key={j} value={String(j)} control={<Radio />} label={op} />
+                              <FormControlLabel
+                                key={j}
+                                value={String(j)}
+                                control={<Radio />}
+                                label={<span dangerouslySetInnerHTML={{ __html: String(op || '') }} />}
+                              />
                             ))}
                           </RadioGroup>
                         </FormControl>

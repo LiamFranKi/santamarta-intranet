@@ -1,0 +1,142 @@
+/* Campo "Para:" compartido (docente / alumno / apoderado / admin). El listado va en portal position:fixed. */
+
+.destinatarios-input-container {
+  position: relative;
+  z-index: 2;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 0.75rem;
+  min-height: 50px;
+  background: white;
+  transition: all 0.2s;
+}
+
+.destinatarios-input-container:focus-within {
+  border-color: #4a83c1;
+  box-shadow: 0 0 0 3px rgba(74, 131, 193, 0.1);
+}
+
+.destinatarios-seleccionados {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.destinatario-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: linear-gradient(135deg, #eff6ff, #dbeafe);
+  border: 1px solid #93c5fd;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  color: #1e40af;
+  font-weight: 500;
+}
+
+.destinatario-tipo {
+  font-size: 0.7rem;
+  background: #3b82f6;
+  color: white;
+  padding: 0.15rem 0.5rem;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.destinatario-remove {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+
+.destinatario-remove:hover {
+  background: #3b82f6;
+  color: white;
+}
+
+.destinatarios-input {
+  width: 100%;
+  border: none;
+  outline: none;
+  font-size: 0.95rem;
+  color: #1f2937;
+  background: transparent;
+}
+
+/* Panel en portal (position:fixed inline) */
+.destinatario-search-dropdown {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  max-height: min(320px, 50vh);
+  overflow-y: auto;
+}
+
+.resultado-item {
+  padding: 0.875rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.resultado-item:hover {
+  background: #f9fafb;
+}
+
+.resultado-item:last-child {
+  border-bottom: none;
+}
+
+.resultado-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.resultado-nombre {
+  font-weight: 600;
+  color: #1f2937;
+  font-size: 0.95rem;
+}
+
+.resultado-tipo {
+  font-size: 0.75rem;
+  background: #e5e7eb;
+  color: #6b7280;
+  padding: 0.2rem 0.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.resultado-extra {
+  font-size: 0.8rem;
+  color: #6b7280;
+  display: block;
+}
+
+.resultado-vacio {
+  text-align: center;
+  color: #6b7280;
+  font-style: italic;
+  padding: 1rem;
+  cursor: default;
+}
+
+.resultado-vacio:hover {
+  background: transparent;
+}

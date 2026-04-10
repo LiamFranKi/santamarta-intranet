@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CircularProgress,
   ListItemIcon,
@@ -18,6 +18,7 @@ import Swal from 'sweetalert2';
 import '../../pages/admin/AdminUsuarios.css';
 import '../../pages/admin/AdminEncuestas.css';
 import './HerramientasExamenes.css';
+import HerramientasExamenesDisponiblesPanel from './HerramientasExamenesDisponiblesPanel';
 
 const MODO_LABEL = {
   PRACTICA: 'Práctica',
@@ -27,7 +28,17 @@ const MODO_LABEL = {
 
 export default function HerramientasExamenesLista({ variant = 'admin' }) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const esAdmin = variant === 'admin';
+  const adminTab = esAdmin && searchParams.get('tab') === 'responder' ? 'responder' : 'gestionar';
+
+  const setAdminTab = (t) => {
+    if (t === 'gestionar') {
+      setSearchParams({}, { replace: true });
+    } else {
+      setSearchParams({ tab: 'responder' }, { replace: true });
+    }
+  };
   const base = esAdmin ? '/admin/herramientas/examenes' : '/docente/herramientas/examenes';
   const apiLista = esAdmin ? '/herramientas-examenes/admin/lista' : '/herramientas-examenes/docente/lista';
   const apiDel = (id) =>
@@ -53,6 +64,10 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (esAdmin) setMenuCtx(null);
+  }, [adminTab, esAdmin]);
 
   const fmt = (d) => (d ? String(d).slice(0, 10) : '—');
 
@@ -92,99 +107,141 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
           ) : null}
         </div>
 
-        <div className="admin-usu-toolbar" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <button
-            type="button"
-            className="admin-usu-btn admin-usu-btn-secondary"
-            onClick={() => navigate('/herramientas-examenes')}
-          >
-            Ver exámenes disponibles para responder
-          </button>
-          <button
-            type="button"
-            className="admin-usu-btn admin-usu-btn-new"
-            onClick={() => navigate(`${base}/nueva`)}
-          >
-            + Nuevo examen
-          </button>
-        </div>
+        {esAdmin ? (
+          <div className="hex-exam-admin-tabs" role="tablist" aria-label="Vista de exámenes">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={adminTab === 'gestionar'}
+              className={`hex-exam-admin-tab ${adminTab === 'gestionar' ? 'active' : ''}`}
+              onClick={() => setAdminTab('gestionar')}
+            >
+              Gestionar exámenes
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={adminTab === 'responder'}
+              className={`hex-exam-admin-tab ${adminTab === 'responder' ? 'active' : ''}`}
+              onClick={() => setAdminTab('responder')}
+            >
+              Exámenes para responder
+            </button>
+          </div>
+        ) : null}
 
-        <div className="admin-usu-table-card" style={{ marginTop: 16 }}>
-          {loading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '2.5rem' }}>
-              <CircularProgress />
+        {(!esAdmin || adminTab === 'gestionar') && (
+          <>
+            <div
+              className="admin-usu-toolbar"
+              style={{
+                justifyContent: esAdmin ? 'flex-end' : 'space-between',
+                flexWrap: 'wrap',
+                gap: 12
+              }}
+            >
+              {!esAdmin ? (
+                <button
+                  type="button"
+                  className="admin-usu-btn admin-usu-btn-secondary"
+                  onClick={() => navigate('/herramientas-examenes')}
+                >
+                  Ver exámenes disponibles para responder
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="admin-usu-btn admin-usu-btn-new"
+                onClick={() => navigate(`${base}/nueva`)}
+              >
+                + Nuevo examen
+              </button>
             </div>
-          ) : items.length === 0 ? (
-            <div style={{ padding: '2.5rem', textAlign: 'center', color: '#6b7280' }}>
-              No hay exámenes aún. Pulsa «Nuevo examen» para comenzar.
+
+            <div className="admin-usu-table-card" style={{ marginTop: 16 }}>
+              {loading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '2.5rem' }}>
+                  <CircularProgress />
+                </div>
+              ) : items.length === 0 ? (
+                <div style={{ padding: '2.5rem', textAlign: 'center', color: '#6b7280' }}>
+                  No hay exámenes aún. Pulsa «Nuevo examen» para comenzar.
+                </div>
+              ) : (
+                <div className="admin-usu-table-scroll">
+                  <table className="admin-usu-table">
+                    <thead>
+                      <tr>
+                        <th>Título</th>
+                        <th>Estado</th>
+                        <th>Modo</th>
+                        <th>Vigencia</th>
+                        <th>Audiencias</th>
+                        <th>Intentos</th>
+                        <th style={{ minWidth: 140 }}>Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((e) => (
+                        <tr key={e.id}>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{e.titulo}</div>
+                            {e.grupos_count > 0 ? (
+                              <div className="hex-exam-mini-hint">{e.grupos_count} aula(s) seleccionada(s)</div>
+                            ) : (
+                              <div className="hex-exam-mini-hint">Toda la institución</div>
+                            )}
+                          </td>
+                          <td>
+                            {e.estado === 'ACTIVO' ? (
+                              <span className="admin-usu-badge admin-usu-badge-ok">Activo</span>
+                            ) : (
+                              <span className="admin-usu-badge admin-usu-badge-off">{e.estado || '—'}</span>
+                            )}
+                          </td>
+                          <td>
+                            <span className="admin-usu-badge admin-usu-badge-muted">{MODO_LABEL[e.modo] || e.modo}</span>
+                          </td>
+                          <td>
+                            {fmt(e.fecha_inicio)} → {fmt(e.fecha_fin)}
+                          </td>
+                          <td>
+                            <div className="admin-enc-audiencias-chips">
+                              {(e.audiencias || []).map((a) => (
+                                <span key={a} className="admin-usu-badge admin-usu-badge-muted">
+                                  {a}
+                                </span>
+                              ))}
+                            </div>
+                          </td>
+                          <td>{e.total_intentos ?? 0}</td>
+                          <td>
+                            <div className="admin-enc-tabla-acciones" style={{ justifyContent: 'center' }}>
+                              <button
+                                type="button"
+                                className="admin-usu-btn admin-usu-btn-primary admin-enc-opciones-btn"
+                                onClick={(ev) => setMenuCtx({ anchor: ev.currentTarget, row: e })}
+                              >
+                                <MoreHorizIcon style={{ fontSize: 18, marginRight: 4, verticalAlign: 'text-bottom' }} />
+                                Opciones
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="admin-usu-table-scroll">
-              <table className="admin-usu-table">
-                <thead>
-                  <tr>
-                    <th>Título</th>
-                    <th>Estado</th>
-                    <th>Modo</th>
-                    <th>Vigencia</th>
-                    <th>Audiencias</th>
-                    <th>Intentos</th>
-                    <th style={{ minWidth: 140 }}>Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((e) => (
-                    <tr key={e.id}>
-                      <td>
-                        <div style={{ fontWeight: 600 }}>{e.titulo}</div>
-                        {e.grupos_count > 0 ? (
-                          <div className="hex-exam-mini-hint">{e.grupos_count} aula(s) seleccionada(s)</div>
-                        ) : (
-                          <div className="hex-exam-mini-hint">Toda la institución</div>
-                        )}
-                      </td>
-                      <td>
-                        {e.estado === 'ACTIVO' ? (
-                          <span className="admin-usu-badge admin-usu-badge-ok">Activo</span>
-                        ) : (
-                          <span className="admin-usu-badge admin-usu-badge-off">{e.estado || '—'}</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className="admin-usu-badge admin-usu-badge-muted">{MODO_LABEL[e.modo] || e.modo}</span>
-                      </td>
-                      <td>
-                        {fmt(e.fecha_inicio)} → {fmt(e.fecha_fin)}
-                      </td>
-                      <td>
-                        <div className="admin-enc-audiencias-chips">
-                          {(e.audiencias || []).map((a) => (
-                            <span key={a} className="admin-usu-badge admin-usu-badge-muted">
-                              {a}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td>{e.total_intentos ?? 0}</td>
-                      <td>
-                        <div className="admin-enc-tabla-acciones" style={{ justifyContent: 'center' }}>
-                          <button
-                            type="button"
-                            className="admin-usu-btn admin-usu-btn-primary admin-enc-opciones-btn"
-                            onClick={(ev) => setMenuCtx({ anchor: ev.currentTarget, row: e })}
-                          >
-                            <MoreHorizIcon style={{ fontSize: 18, marginRight: 4, verticalAlign: 'text-bottom' }} />
-                            Opciones
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+          </>
+        )}
+
+        {esAdmin && adminTab === 'responder' ? (
+          <div className="hex-exam-panel-embedded-wrap" style={{ marginTop: 16 }}>
+            <HerramientasExamenesDisponiblesPanel compact />
+          </div>
+        ) : null}
 
         <Menu
           anchorEl={menuCtx?.anchor}

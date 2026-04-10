@@ -92,3 +92,48 @@
   margin-bottom: 20px;
   box-shadow: 0 10px 36px rgba(14, 165, 233, 0.3);
 }
+
+/* Pestañas admin: gestionar vs responder */
+.hex-exam-admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px;
+  margin-bottom: 8px;
+  border-radius: 14px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+}
+
+.hex-exam-admin-tab {
+  flex: 1;
+  min-width: 160px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: #64748b;
+  background: transparent;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hex-exam-admin-tab:hover {
+  color: #334155;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.hex-exam-admin-tab.active {
+  color: #fff;
+  background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+}
+
+.hex-exam-panel-embedded-wrap {
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  padding: 20px 22px;
+  box-shadow: 0 2px 16px rgba(15, 23, 42, 0.06);
+}

@@ -1,27 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
-  Box,
-  Checkbox,
-  FormControl,
-  FormControlLabel,
-  InputLabel,
-  MenuItem,
-  Select,
-  Stack,
-  TextField,
-  Typography,
-  Alert
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import '../../pages/admin/AdminUsuarios.css';
+import '../DocenteAulaVirtual-gamificado.css';
 import './HerramientasExamenes.css';
+import {
+  attachQuillImageUploadHandler,
+  emptyExamenMeta,
+  mapExamenFromApi,
+  mapPreguntasFromApi,
+  nuevaPreguntaLocal,
+  textoPlano
+} from './hexExamenEditorHelpers';
 
 const AUDIENCIAS = [
   { value: 'ALUMNO', label: 'Alumnos' },
@@ -32,21 +30,683 @@ const AUDIENCIAS = [
   { value: 'TODOS', label: 'Todos los usuarios' }
 ];
 
-const TIPOS = [
-  { value: 'ALTERNATIVAS', label: 'Alternativas (automático)' },
-  { value: 'VERDADERO_FALSO', label: 'Verdadero / Falso (automático)' },
-  { value: 'RESPUESTA_CORTA', label: 'Respuesta corta (revisión manual)' }
-];
+function preguntaKey(p) {
+  return p.id != null ? `id-${p.id}` : p._localKey;
+}
 
-function nuevaPregunta() {
-  return {
-    texto: '',
-    tipo: 'ALTERNATIVAS',
-    opciones: { opciones: ['Opción A', 'Opción B', 'Opción C', 'Opción D'], correcta: 0 },
-    puntos: 1,
-    solo_informativo: false,
-    obligatoria: true
+function SortablePreguntaHex({ pregunta, examenMeta, bloqueado, onEditar, onEliminar }) {
+  const pid = preguntaKey(pregunta);
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: pid,
+    disabled: bloqueado
+  });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1
   };
+  const puntosMostrar =
+    examenMeta.tipo_puntaje === 'GENERAL' ? examenMeta.puntos_correcta || 0 : pregunta.puntos || 0;
+  const tipoColor = {
+    ALTERNATIVAS: { bg: '#dbeafe', color: '#1e40af' },
+    VERDADERO_FALSO: { bg: '#d1fae5', color: '#065f46' },
+    RESPUESTA_CORTA: { bg: '#e0e7ff', color: '#3730a3' }
+  }[pregunta.tipo] || { bg: '#f3f4f6', color: '#374151' };
+
+  return (
+    <tr ref={setNodeRef} style={style} className={isDragging ? 'dragging' : ''}>
+      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+        <div
+          {...(bloqueado ? {} : attributes)}
+          {...(bloqueado ? {} : listeners)}
+          className="drag-handle"
+          style={{
+            cursor: bloqueado ? 'not-allowed' : 'grab',
+            fontSize: '1.2rem',
+            userSelect: 'none',
+            opacity: bloqueado ? 0.35 : 1
+          }}
+          title={bloqueado ? 'Reordenar deshabilitado' : 'Arrastrar para reordenar'}
+        >
+          ⋮⋮
+        </div>
+      </td>
+      <td style={{ padding: '0.75rem' }}>
+        <div
+          dangerouslySetInnerHTML={{ __html: pregunta.texto || '<span style="color:#9ca3af">(sin texto)</span>' }}
+          style={{ maxHeight: '72px', overflow: 'hidden', lineHeight: 1.5, color: '#1f2937' }}
+        />
+      </td>
+      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+        <span
+          style={{
+            padding: '0.375rem 0.875rem',
+            borderRadius: '12px',
+            fontSize: '0.75rem',
+            fontWeight: '600',
+            backgroundColor: tipoColor.bg,
+            color: tipoColor.color,
+            display: 'inline-block'
+          }}
+        >
+          {String(pregunta.tipo || '').replace(/_/g, ' ')}
+        </span>
+      </td>
+      <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: 600, color: '#6366f1' }}>{puntosMostrar}</td>
+      <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', alignItems: 'center' }}>
+          <button type="button" className="btn-opciones" title="Editar" onClick={() => onEditar(pregunta)} disabled={bloqueado}>
+            ✏️
+          </button>
+          <button
+            type="button"
+            className="btn-opciones"
+            title="Eliminar"
+            onClick={() => onEliminar(pregunta)}
+            disabled={bloqueado}
+            style={{
+              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+              color: 'white'
+            }}
+          >
+            🗑️
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+/** Modal datos del examen — mismo patrón visual que ExamenForm (aula virtual) + campos institucionales */
+function ModalDatosExamen({ open, onClose, examenMeta, setExamenMeta, guardando }) {
+  if (!open) return null;
+  return createPortal(
+    <div className="modal-tema-overlay" onClick={onClose}>
+      <div className="modal-tema-container" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="modal-tema-header">
+          <h2>📝 Datos del examen (herramientas)</h2>
+          <button type="button" className="modal-tema-close" onClick={onClose} aria-label="Cerrar">
+            ×
+          </button>
+        </div>
+        <div className="modal-tema-body">
+          <div className="form-group">
+            <label htmlFor="hex-titulo">Título *</label>
+            <input
+              id="hex-titulo"
+              className="form-input"
+              value={examenMeta.titulo}
+              onChange={(e) => setExamenMeta({ ...examenMeta, titulo: e.target.value })}
+              placeholder="Ej: Evaluación institucional"
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="hex-desc">Descripción</label>
+            <textarea
+              id="hex-desc"
+              className="form-input"
+              rows={3}
+              value={examenMeta.descripcion}
+              onChange={(e) => setExamenMeta({ ...examenMeta, descripcion: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="hex-modo">Modo institucional *</label>
+            <select
+              id="hex-modo"
+              className="form-input"
+              value={examenMeta.modo}
+              onChange={(e) => setExamenMeta({ ...examenMeta, modo: e.target.value })}
+            >
+              <option value="PRACTICA">Práctica</option>
+              <option value="CALIFICADO">Calificatorio</option>
+              <option value="MIXTO">Mixto</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="hex-estado">Estado *</label>
+            <select
+              id="hex-estado"
+              className="form-input"
+              value={examenMeta.estado}
+              onChange={(e) => setExamenMeta({ ...examenMeta, estado: e.target.value })}
+            >
+              <option value="BORRADOR">BORRADOR</option>
+              <option value="ACTIVO">ACTIVO</option>
+              <option value="CERRADO">CERRADO</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="hex-tipo-puntaje">Calificación (como examen virtual)</label>
+            <select
+              id="hex-tipo-puntaje"
+              className="form-input"
+              value={examenMeta.tipo_puntaje}
+              onChange={(e) => setExamenMeta({ ...examenMeta, tipo_puntaje: e.target.value })}
+            >
+              <option value="GENERAL">GENERAL</option>
+              <option value="INDIVIDUAL">INDIVIDUAL</option>
+            </select>
+          </div>
+          {examenMeta.tipo_puntaje === 'GENERAL' && (
+            <>
+              <div className="form-group">
+                <label htmlFor="hex-puntos-corr">Puntos por respuesta correcta *</label>
+                <input
+                  id="hex-puntos-corr"
+                  type="number"
+                  className="form-input"
+                  min="0"
+                  step="0.5"
+                  value={examenMeta.puntos_correcta}
+                  onChange={(e) => setExamenMeta({ ...examenMeta, puntos_correcta: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="hex-penalizar">Penalizar incorrecta</label>
+                <select
+                  id="hex-penalizar"
+                  className="form-input"
+                  value={examenMeta.penalizar_incorrecta}
+                  onChange={(e) => setExamenMeta({ ...examenMeta, penalizar_incorrecta: e.target.value })}
+                >
+                  <option value="NO">NO</option>
+                  <option value="SI">SI</option>
+                </select>
+              </div>
+              {examenMeta.penalizar_incorrecta === 'SI' && (
+                <div className="form-group">
+                  <label htmlFor="hex-penalizacion">Penalización por incorrecta</label>
+                  <input
+                    id="hex-penalizacion"
+                    type="number"
+                    className="form-input"
+                    min="0"
+                    value={examenMeta.penalizacion_incorrecta}
+                    onChange={(e) => setExamenMeta({ ...examenMeta, penalizacion_incorrecta: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              )}
+            </>
+          )}
+          <div className="form-group">
+            <label htmlFor="hex-tiempo">Tiempo (minutos) *</label>
+            <input
+              id="hex-tiempo"
+              type="number"
+              className="form-input"
+              min="1"
+              value={examenMeta.tiempo_minutos}
+              onChange={(e) => setExamenMeta({ ...examenMeta, tiempo_minutos: parseInt(e.target.value, 10) || 60 })}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="hex-intentos">Intentos permitidos</label>
+            <input
+              id="hex-intentos"
+              type="number"
+              className="form-input"
+              min="1"
+              max="20"
+              value={examenMeta.intentos_max}
+              onChange={(e) => setExamenMeta({ ...examenMeta, intentos_max: parseInt(e.target.value, 10) || 1 })}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="hex-orden-p">Orden de preguntas</label>
+            <select
+              id="hex-orden-p"
+              className="form-input"
+              value={examenMeta.orden_preguntas}
+              onChange={(e) => setExamenMeta({ ...examenMeta, orden_preguntas: e.target.value })}
+            >
+              <option value="PREDETERMINADO">PREDETERMINADO</option>
+              <option value="ALEATORIO">ALEATORIO</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="hex-pmax">Preguntas máx. *</label>
+            <input
+              id="hex-pmax"
+              type="number"
+              className="form-input"
+              min="1"
+              value={examenMeta.preguntas_max}
+              onChange={(e) => setExamenMeta({ ...examenMeta, preguntas_max: parseInt(e.target.value, 10) || 1 })}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="hex-escala">Escala / referencia máx.</label>
+            <input
+              id="hex-escala"
+              type="number"
+              className="form-input"
+              min="0"
+              value={examenMeta.escala_max}
+              onChange={(e) => setExamenMeta({ ...examenMeta, escala_max: Number(e.target.value) })}
+            />
+          </div>
+          <div className="form-group">
+            <label htmlFor="hex-mostrar-nota">Mostrar nota</label>
+            <select
+              id="hex-mostrar-nota"
+              className="form-input"
+              value={examenMeta.mostrar_nota}
+              onChange={(e) => setExamenMeta({ ...examenMeta, mostrar_nota: e.target.value })}
+            >
+              <option value="NO">No mostrar</option>
+              <option value="AL_ENVIAR">Al enviar (auto)</option>
+              <option value="TRAS_REVISION">Tras revisión manual</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label htmlFor="hex-msg">Mensaje final</label>
+            <input
+              id="hex-msg"
+              className="form-input"
+              value={examenMeta.mensaje_agradecimiento}
+              onChange={(e) => setExamenMeta({ ...examenMeta, mensaje_agradecimiento: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={examenMeta.habilitar_fecha_hora}
+                onChange={(e) => setExamenMeta({ ...examenMeta, habilitar_fecha_hora: e.target.checked })}
+              />
+              Habilitar vigencia (fechas)
+            </label>
+          </div>
+          {examenMeta.habilitar_fecha_hora && (
+            <>
+              <div className="form-group">
+                <label htmlFor="hex-fi">Desde</label>
+                <input
+                  id="hex-fi"
+                  type="date"
+                  className="form-input"
+                  value={examenMeta.fecha_inicio}
+                  onChange={(e) => setExamenMeta({ ...examenMeta, fecha_inicio: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label htmlFor="hex-ff">Hasta</label>
+                <input
+                  id="hex-ff"
+                  type="date"
+                  className="form-input"
+                  value={examenMeta.fecha_fin}
+                  onChange={(e) => setExamenMeta({ ...examenMeta, fecha_fin: e.target.value })}
+                />
+              </div>
+            </>
+          )}
+          <div className="form-actions">
+            <button type="button" className="btn-cancelar" onClick={onClose} disabled={guardando}>
+              ✖️ Cerrar
+            </button>
+            <button type="button" className="btn-guardar" onClick={onClose} disabled={guardando}>
+              💾 Listo
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/** Formulario una pregunta — tipos soportados por BD */
+function ModalFormPregunta({ open, onClose, examenMeta, pregunta, onGuardar, bloqueado }) {
+  const quillRef = useRef(null);
+  const [form, setForm] = useState(() => pregunta || nuevaPreguntaLocal());
+
+  useEffect(() => {
+    if (pregunta) setForm({ ...pregunta });
+  }, [pregunta, open]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const t = setTimeout(() => {
+      const q = quillRef.current?.getEditor?.();
+      if (q) attachQuillImageUploadHandler(q, api);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [open, form.tipo]);
+
+  if (!open) return null;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (bloqueado) return;
+    if (!textoPlano(form.texto)) {
+      Swal.fire({ icon: 'error', title: 'La descripción es obligatoria', toast: true, position: 'top-end', timer: 2500 });
+      return;
+    }
+    if (form.tipo === 'ALTERNATIVAS') {
+      const opts = form.opciones?.opciones || [];
+      if (opts.length < 2) {
+        Swal.fire('Atención', 'Agrega al menos 2 alternativas', 'warning');
+        return;
+      }
+    }
+    onGuardar(form);
+    onClose();
+  };
+
+  return createPortal(
+    <div className="modal-tema-overlay" style={{ zIndex: 10060 }} onClick={onClose}>
+      <div className="modal-tema-container" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ maxWidth: '92%', width: '920px', maxHeight: '92vh', overflow: 'auto' }}>
+        <div className="modal-tema-header" style={{ background: 'linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)' }}>
+          <h2>{pregunta?.id ? '✏️ Editar pregunta' : '📝 Nueva pregunta'}</h2>
+          <button type="button" className="modal-tema-close" onClick={onClose} aria-label="Cerrar">
+            ×
+          </button>
+        </div>
+        <div className="modal-tema-body">
+          <form onSubmit={handleSubmit}>
+            <fieldset disabled={bloqueado} style={{ border: 'none', margin: 0, padding: 0 }}>
+              <div className="form-group">
+                <label htmlFor="hex-p-tipo">Tipo *</label>
+                <select
+                  id="hex-p-tipo"
+                  className="form-input"
+                  value={form.tipo}
+                  onChange={(e) => {
+                    const t = e.target.value;
+                    let opciones = form.opciones;
+                    if (t === 'ALTERNATIVAS') opciones = { opciones: ['Opción A', 'Opción B', 'Opción C', 'Opción D'], correcta: 0 };
+                    if (t === 'VERDADERO_FALSO') opciones = { correcta: true };
+                    if (t === 'RESPUESTA_CORTA') opciones = {};
+                    setForm({ ...form, tipo: t, opciones });
+                  }}
+                >
+                  <option value="ALTERNATIVAS">ALTERNATIVAS</option>
+                  <option value="VERDADERO_FALSO">VERDADERO / FALSO</option>
+                  <option value="RESPUESTA_CORTA">RESPUESTA CORTA</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Descripción *</label>
+                <ReactQuill
+                  ref={quillRef}
+                  theme="snow"
+                  value={form.texto ?? ''}
+                  onChange={(v) => setForm({ ...form, texto: v })}
+                  placeholder="Enunciado de la pregunta"
+                  modules={{
+                    toolbar: [
+                      [{ header: [1, 2, 3, false] }],
+                      ['bold', 'italic', 'underline', 'strike'],
+                      [{ list: 'ordered' }, { list: 'bullet' }],
+                      ['link', 'image'],
+                      ['clean']
+                    ]
+                  }}
+                />
+              </div>
+              {examenMeta.tipo_puntaje === 'INDIVIDUAL' && (
+                <div className="form-group">
+                  <label>Puntos *</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min="0"
+                    step="0.5"
+                    value={form.puntos}
+                    onChange={(e) => setForm({ ...form, puntos: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
+              )}
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={!!form.solo_informativo}
+                    onChange={(e) => setForm({ ...form, solo_informativo: e.target.checked })}
+                  />
+                  Solo informativo (no suma en modo mixto)
+                </label>
+              </div>
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={form.obligatoria !== false}
+                    onChange={(e) => setForm({ ...form, obligatoria: e.target.checked })}
+                  />
+                  Obligatoria
+                </label>
+              </div>
+
+              {form.tipo === 'ALTERNATIVAS' && (
+                <div className="form-group">
+                  <label>Alternativas</label>
+                  {(form.opciones?.opciones || []).map((op, j) => (
+                    <input
+                      key={j}
+                      className="form-input"
+                      style={{ marginBottom: 8 }}
+                      value={op}
+                      onChange={(e) => {
+                        const next = [...(form.opciones?.opciones || [])];
+                        next[j] = e.target.value;
+                        setForm({ ...form, opciones: { ...form.opciones, opciones: next } });
+                      }}
+                    />
+                  ))}
+                  <div className="form-group">
+                    <label>Índice correcto (0 = primera)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      min="0"
+                      value={form.opciones?.correcta ?? 0}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          opciones: { ...form.opciones, correcta: parseInt(e.target.value, 10) || 0 }
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              )}
+              {form.tipo === 'VERDADERO_FALSO' && (
+                <div className="form-group">
+                  <label>Respuesta correcta</label>
+                  <select
+                    className="form-input"
+                    value={form.opciones?.correcta === false ? 'false' : 'true'}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        opciones: { ...form.opciones, correcta: e.target.value === 'true' }
+                      })
+                    }
+                  >
+                    <option value="true">Verdadero</option>
+                    <option value="false">Falso</option>
+                  </select>
+                </div>
+              )}
+              {form.tipo === 'RESPUESTA_CORTA' && (
+                <p style={{ color: '#92400e', fontSize: '0.9rem' }}>Se califica manualmente en estadísticas.</p>
+              )}
+
+              <div className="form-actions">
+                <button type="button" className="btn-cancelar" onClick={onClose}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-guardar" disabled={bloqueado}>
+                  Guardar pregunta
+                </button>
+              </div>
+            </fieldset>
+          </form>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+/** Modal listado + contexto compartido */
+function ModalPreguntas({
+  open,
+  onClose,
+  examenTitulo,
+  examenMeta,
+  setExamenMeta,
+  preguntas,
+  setPreguntas,
+  bloqueado,
+  onNueva,
+  onEditar
+}) {
+  const quillBloqueRef = useRef(null);
+  const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const t = setTimeout(() => {
+      const q = quillBloqueRef.current?.getEditor?.();
+      if (q) attachQuillImageUploadHandler(q, api);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [open]);
+
+  const handleDragEnd = (event) => {
+    if (bloqueado) return;
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = preguntas.map(preguntaKey);
+    const oldIndex = ids.indexOf(active.id);
+    const newIndex = ids.indexOf(over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    setPreguntas(arrayMove(preguntas, oldIndex, newIndex));
+  };
+
+  const eliminar = (p) => {
+    if (bloqueado) return;
+    setPreguntas((prev) => prev.filter((x) => preguntaKey(x) !== preguntaKey(p)));
+  };
+
+  if (!open) return null;
+
+  return createPortal(
+    <div className="modal-tema-overlay" onClick={onClose}>
+      <div
+        className="modal-tema-container"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        style={{ maxWidth: '95%', width: '1200px', maxHeight: '92vh', overflow: 'auto' }}
+      >
+        <div className="modal-tema-header" style={{ background: 'linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)' }}>
+          <h2>📝 Preguntas y alternativas — {examenTitulo || 'Examen'}</h2>
+          <button type="button" className="modal-tema-close" onClick={onClose} aria-label="Cerrar">
+            ×
+          </button>
+        </div>
+        <div className="modal-tema-body">
+          {bloqueado && (
+            <div
+              style={{
+                marginBottom: '1rem',
+                padding: '0.875rem 1rem',
+                background: '#fef3c7',
+                border: '1px solid #fbbf24',
+                borderRadius: '8px',
+                color: '#78350f',
+                fontSize: '0.9rem'
+              }}
+            >
+              <strong>Contenido bloqueado.</strong> Hay intentos enviados; solo puedes revisar. Los metadatos del examen sí se pueden ajustar desde el otro modal.
+            </div>
+          )}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <h3 style={{ fontSize: '1rem', marginBottom: 8, color: '#065f46' }}>📎 Contexto del examen (opcional)</h3>
+            <p style={{ fontSize: '0.88rem', color: '#6b7280', marginBottom: 8 }}>
+              Texto enriquecido visible durante la prueba (caso, gráfico). Opcional.
+            </p>
+            <ReactQuill
+              ref={quillBloqueRef}
+              theme="snow"
+              readOnly={bloqueado}
+              value={examenMeta.bloque_contenido ?? ''}
+              onChange={(v) => setExamenMeta({ ...examenMeta, bloque_contenido: v })}
+            />
+            <div className="form-group" style={{ marginTop: 12 }}>
+              <label>URL imagen contexto (opcional)</label>
+              <input
+                className="form-input"
+                value={examenMeta.bloque_imagen_url}
+                onChange={(e) => setExamenMeta({ ...examenMeta, bloque_imagen_url: e.target.value })}
+                placeholder="https://..."
+                disabled={bloqueado}
+              />
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <p style={{ margin: 0, color: '#6b7280', fontSize: '0.9rem' }}>
+              Total: <strong style={{ color: '#6366f1' }}>{preguntas.length}</strong>
+            </p>
+            <button type="button" className="btn-nuevo-item" onClick={onNueva} disabled={bloqueado}>
+              <span>➕</span> Registrar nuevo
+            </button>
+          </div>
+
+          {preguntas.length === 0 ? (
+            <div className="empty-state">
+              <p>📋 No hay preguntas aún</p>
+              <button type="button" className="btn-nuevo-item" style={{ marginTop: '1rem' }} onClick={onNueva} disabled={bloqueado}>
+                Registrar primera pregunta
+              </button>
+            </div>
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <table className="tabla-aula-virtual">
+                <thead>
+                  <tr>
+                    <th style={{ width: 40 }} />
+                    <th style={{ textAlign: 'left' }}>DESCRIPCIÓN</th>
+                    <th style={{ textAlign: 'center', width: 150 }}>TIPO</th>
+                    <th style={{ textAlign: 'center', width: 100 }}>PUNTOS</th>
+                    <th style={{ textAlign: 'center', width: 160 }}>ACCIONES</th>
+                  </tr>
+                </thead>
+                <SortableContext items={preguntas.map(preguntaKey)} strategy={verticalListSortingStrategy}>
+                  <tbody>
+                    {preguntas.map((p) => (
+                      <SortablePreguntaHex
+                        key={preguntaKey(p)}
+                        pregunta={p}
+                        examenMeta={examenMeta}
+                        bloqueado={bloqueado}
+                        onEditar={onEditar}
+                        onEliminar={eliminar}
+                      />
+                    ))}
+                  </tbody>
+                </SortableContext>
+              </table>
+            </DndContext>
+          )}
+
+          <div className="modal-tema-footer" style={{ padding: '1rem 0 0', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+            <button type="button" className="btn-cancelar-tema" onClick={onClose}>
+              ✖️ Cerrar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
 }
 
 export default function HerramientasExamenEditor({ variant = 'admin' }) {
@@ -59,20 +719,16 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
 
   const [loading, setLoading] = useState(!esNueva);
   const [gruposOpts, setGruposOpts] = useState([]);
-  const [titulo, setTitulo] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [fechaInicio, setFechaInicio] = useState('');
-  const [fechaFin, setFechaFin] = useState('');
-  const [mensaje, setMensaje] = useState('¡Gracias por tu participación!');
-  const [estadoEx, setEstadoEx] = useState('BORRADOR');
-  const [modo, setModo] = useState('MIXTO');
-  const [intentosMax, setIntentosMax] = useState(1);
-  const [mostrarNota, setMostrarNota] = useState('AL_ENVIAR');
-  const [escalaMax, setEscalaMax] = useState(100);
+  const [examenMeta, setExamenMeta] = useState(() => emptyExamenMeta());
   const [audiencias, setAudiencias] = useState([]);
   const [grupoIds, setGrupoIds] = useState([]);
-  const [preguntas, setPreguntas] = useState([nuevaPregunta()]);
-  const [expIdx, setExpIdx] = useState(false);
+  const [preguntas, setPreguntas] = useState([]);
+  const [tieneIntentos, setTieneIntentos] = useState(false);
+  const [modalDatos, setModalDatos] = useState(false);
+  const [modalLista, setModalLista] = useState(false);
+  const [modalPregunta, setModalPregunta] = useState(false);
+  const [editPregunta, setEditPregunta] = useState(null);
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     let c = false;
@@ -89,47 +745,27 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
     };
   }, []);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (esNueva) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const { data } = await api.get(`${apiBase}/${id}`);
-        if (cancelled) return;
-        const e = data.examen;
-        setTitulo(e.titulo || '');
-        setDescripcion(e.descripcion || '');
-        setFechaInicio(e.fecha_inicio ? String(e.fecha_inicio).slice(0, 10) : '');
-        setFechaFin(e.fecha_fin ? String(e.fecha_fin).slice(0, 10) : '');
-        setMensaje(e.mensaje_agradecimiento || '¡Gracias por tu participación!');
-        setEstadoEx(String(e.estado || 'BORRADOR').toUpperCase());
-        setModo(e.modo || 'MIXTO');
-        setIntentosMax(e.intentos_max || 1);
-        setMostrarNota(e.mostrar_nota || 'AL_ENVIAR');
-        setEscalaMax(e.escala_max != null ? Number(e.escala_max) : 100);
-        setAudiencias(data.audiencias || []);
-        setGrupoIds((data.grupo_ids || []).map(Number));
-        const pr = (data.preguntas || []).map((p) => ({
-          id: p.id,
-          texto: p.texto,
-          tipo: p.tipo,
-          opciones: p.opciones || {},
-          puntos: p.puntos ?? 1,
-          solo_informativo: !!p.solo_informativo,
-          obligatoria: p.obligatoria !== false
-        }));
-        setPreguntas(pr.length ? pr : [nuevaPregunta()]);
-      } catch (err) {
-        Swal.fire('Error', err.response?.data?.error || 'No se pudo cargar', 'error');
-        navigate(base);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [id, esNueva, apiBase, navigate, base]);
+    setLoading(true);
+    try {
+      const { data } = await api.get(`${apiBase}/${id}`);
+      setExamenMeta(mapExamenFromApi(data.examen));
+      setAudiencias(data.audiencias || []);
+      setGrupoIds((data.grupo_ids || []).map(Number));
+      setPreguntas(mapPreguntasFromApi(data.preguntas));
+      setTieneIntentos(!!data.tiene_intentos_finalizados);
+    } catch (err) {
+      Swal.fire('Error', err.response?.data?.error || 'No se pudo cargar', 'error');
+      navigate(base);
+    } finally {
+      setLoading(false);
+    }
+  }, [apiBase, id, esNueva, navigate, base]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const toggleAud = (v) => {
     setAudiencias((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
@@ -139,413 +775,224 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
     setGrupoIds((prev) => (prev.includes(gid) ? prev.filter((x) => x !== gid) : [...prev, gid]));
   };
 
-  const actualizarPregunta = (idx, campo, val) => {
+  const guardarPreguntaEnLista = (form) => {
     setPreguntas((prev) => {
-      const n = [...prev];
-      n[idx] = { ...n[idx], [campo]: val };
-      return n;
+      const key = form.id != null ? `id-${form.id}` : form._localKey;
+      const idx = prev.findIndex((p) => preguntaKey(p) === key);
+      if (idx >= 0) {
+        const n = [...prev];
+        n[idx] = { ...form };
+        return n;
+      }
+      return [...prev, { ...form, _localKey: form._localKey || `tmp-${Date.now()}` }];
     });
   };
 
-  const actualizarOpciones = (idx, patch) => {
-    setPreguntas((prev) => {
-      const n = [...prev];
-      n[idx] = { ...n[idx], opciones: { ...n[idx].opciones, ...patch } };
-      return n;
-    });
+  const abrirNuevaPregunta = () => {
+    setEditPregunta(nuevaPreguntaLocal());
+    setModalPregunta(true);
   };
 
-  const mover = (idx, dir) => {
-    setPreguntas((prev) => {
-      const j = dir === 'up' ? idx - 1 : idx + 1;
-      if (j < 0 || j >= prev.length) return prev;
-      const n = [...prev];
-      [n[idx], n[j]] = [n[j], n[idx]];
-      return n;
-    });
-    setExpIdx(false);
+  const abrirEditarPregunta = (p) => {
+    setEditPregunta({ ...p });
+    setModalPregunta(true);
   };
 
-  const eliminarPregunta = (idx) => {
-    setPreguntas((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)));
-  };
-
-  const addPregunta = () => {
-    setPreguntas((prev) => {
-      const n = [...prev, nuevaPregunta()];
-      setExpIdx(n.length - 1);
-      return n;
-    });
+  const buildPayload = () => {
+    const fi = examenMeta.habilitar_fecha_hora ? examenMeta.fecha_inicio || null : null;
+    const ff = examenMeta.habilitar_fecha_hora ? examenMeta.fecha_fin || null : null;
+    return {
+      titulo: examenMeta.titulo.trim(),
+      descripcion: examenMeta.descripcion || null,
+      estado: examenMeta.estado,
+      modo: examenMeta.modo,
+      fecha_inicio: fi,
+      fecha_fin: ff,
+      mensaje_agradecimiento: examenMeta.mensaje_agradecimiento,
+      intentos_max: examenMeta.intentos_max,
+      mostrar_nota: examenMeta.mostrar_nota,
+      escala_max: examenMeta.escala_max,
+      tiempo_minutos: examenMeta.tiempo_minutos,
+      tipo_puntaje: examenMeta.tipo_puntaje,
+      puntos_correcta: examenMeta.tipo_puntaje === 'INDIVIDUAL' ? null : examenMeta.puntos_correcta,
+      penalizar_incorrecta: examenMeta.penalizar_incorrecta,
+      penalizacion_incorrecta: examenMeta.penalizacion_incorrecta,
+      orden_preguntas: examenMeta.orden_preguntas,
+      preguntas_max: examenMeta.preguntas_max,
+      bloque_contenido: examenMeta.bloque_contenido || null,
+      bloque_imagen_url: examenMeta.bloque_imagen_url || null,
+      audiencias,
+      grupo_ids: grupoIds,
+      preguntas: preguntas
+        .filter((p) => textoPlano(p.texto))
+        .map((p) => ({
+          texto: p.texto,
+          tipo: p.tipo,
+          opciones: p.opciones,
+          puntos: Math.max(0, Number(p.puntos) || 0),
+          solo_informativo: !!p.solo_informativo,
+          obligatoria: p.obligatoria !== false
+        }))
+    };
   };
 
   const guardar = async () => {
-    if (!titulo.trim()) {
-      Swal.fire('Atención', 'El título es obligatorio', 'warning');
+    if (!examenMeta.titulo.trim()) {
+      Swal.fire('Atención', 'El título es obligatorio (modal Datos del examen)', 'warning');
       return;
     }
     if (audiencias.length === 0) {
       Swal.fire('Atención', 'Selecciona al menos una audiencia', 'warning');
       return;
     }
-    const validas = preguntas.filter((p) => String(p.texto || '').trim().length > 0);
+    const validas = preguntas.filter((p) => textoPlano(p.texto));
     if (!validas.length) {
-      Swal.fire('Atención', 'Agrega al menos una pregunta con texto', 'warning');
+      Swal.fire('Atención', 'Agrega al menos una pregunta con texto (modal Preguntas)', 'warning');
       return;
     }
 
-    const payload = {
-      titulo: titulo.trim(),
-      descripcion: descripcion || null,
-      estado: estadoEx,
-      modo,
-      fecha_inicio: fechaInicio || null,
-      fecha_fin: fechaFin || null,
-      mensaje_agradecimiento: mensaje,
-      intentos_max: intentosMax,
-      mostrar_nota: mostrarNota,
-      escala_max: escalaMax,
-      audiencias,
-      grupo_ids: grupoIds,
-      preguntas: preguntas
-        .filter((p) => String(p.texto || '').trim())
-        .map((p, i) => ({
-          texto: p.texto.trim(),
-          tipo: p.tipo,
-          opciones:
-            p.tipo === 'ALTERNATIVAS'
-              ? {
-                  opciones: p.opciones?.opciones?.length ? p.opciones.opciones : ['A', 'B', 'C', 'D'],
-                  correcta: typeof p.opciones?.correcta === 'number' ? p.opciones.correcta : 0
-                }
-              : p.tipo === 'VERDADERO_FALSO'
-                ? { correcta: p.opciones?.correcta === false ? false : true }
-                : {},
-          puntos: Math.max(0, Number(p.puntos) || 0),
-          solo_informativo: !!p.solo_informativo,
-          obligatoria: p.obligatoria !== false
-        }))
-    };
-
+    setGuardando(true);
     try {
+      const payload = buildPayload();
       if (esNueva) {
-        await api.post(apiBase, payload);
-        Swal.fire({ icon: 'success', title: 'Examen creado', timer: 1600, showConfirmButton: false });
+        const { data } = await api.post(esAdmin ? '/herramientas-examenes/admin' : '/herramientas-examenes/docente', payload);
+        const newId = data.id;
+        Swal.fire({ icon: 'success', title: 'Examen creado', timer: 1400, showConfirmButton: false });
+        if (newId) navigate(`${base}/${newId}/editar`, { replace: true });
+        else navigate(base);
       } else {
-        await api.put(`${apiBase}/${id}`, payload);
-        Swal.fire({ icon: 'success', title: 'Guardado', timer: 1600, showConfirmButton: false });
+        const { data } = await api.put(`${apiBase}/${id}`, payload);
+        if (data.soloMetadatos) {
+          Swal.fire('Guardado', 'Solo se actualizaron datos generales (hay intentos enviados).', 'info');
+        } else {
+          Swal.fire({ icon: 'success', title: 'Guardado', timer: 1400, showConfirmButton: false });
+        }
+        await load();
       }
-      navigate(base);
     } catch (err) {
       Swal.fire('Error', err.response?.data?.error || 'No se pudo guardar', 'error');
+    } finally {
+      setGuardando(false);
     }
   };
 
   if (loading) {
     return (
       <DashboardLayout>
-        <Box sx={{ p: 4, textAlign: 'center' }}>Cargando…</Box>
+        <div className="hex-exam-wrap" style={{ padding: '2rem', textAlign: 'center' }}>
+          Cargando…
+        </div>
       </DashboardLayout>
     );
   }
 
+  const bloqueado = tieneIntentos;
+
   return (
     <DashboardLayout>
       <div className="hex-exam-wrap">
-        <div className="admin-usu-toolbar" style={{ marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <div className="admin-usu-toolbar" style={{ marginBottom: '1rem', flexWrap: 'wrap', gap: 8 }}>
           <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => navigate(base)}>
             ← Volver a la lista
           </button>
         </div>
 
-        <div className="hex-exam-hero" style={{ marginBottom: 22 }}>
-          <Typography variant="h5" fontWeight={800} sx={{ mb: 1 }}>
-            {esNueva ? 'Nuevo examen' : 'Editar examen'}
-          </Typography>
-          <Typography variant="body2" sx={{ opacity: 0.95 }}>
-            Define audiencias y, si quieres limitar por aulas, elige grupos; si no marcas ninguno, aplica a toda la
-            institución (según audiencia).
-          </Typography>
+        <div className="aula-virtual-header" style={{ marginBottom: '1.25rem' }}>
+          <h1 className="aula-virtual-title" style={{ fontSize: '1.5rem' }}>
+            {esNueva ? 'Nuevo examen de herramientas' : 'Editar examen de herramientas'}
+          </h1>
+          <p className="aula-virtual-subtitle" style={{ maxWidth: 720 }}>
+            Mismo flujo que el aula virtual: primero <strong>datos del examen</strong>, luego <strong>preguntas y alternativas</strong>. Sin vínculo a registro de notas del curso.
+          </p>
         </div>
 
-        <div className="hex-exam-card">
-          <Stack spacing={2}>
-            <TextField label="Título" fullWidth value={titulo} onChange={(e) => setTitulo(e.target.value)} required />
-            <TextField
-              label="Descripción"
-              fullWidth
-              multiline
-              minRows={2}
-              value={descripcion}
-              onChange={(e) => setDescripcion(e.target.value)}
-            />
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <FormControl fullWidth>
-                <InputLabel>Estado</InputLabel>
-                <Select value={estadoEx} label="Estado" onChange={(e) => setEstadoEx(e.target.value)}>
-                  <MenuItem value="BORRADOR">Borrador</MenuItem>
-                  <MenuItem value="ACTIVO">Activo</MenuItem>
-                  <MenuItem value="CERRADO">Cerrado</MenuItem>
-                </Select>
-              </FormControl>
-              <FormControl fullWidth>
-                <InputLabel>Modo</InputLabel>
-                <Select value={modo} label="Modo" onChange={(e) => setModo(e.target.value)}>
-                  <MenuItem value="PRACTICA">Práctica (feedback sin peso de libreta)</MenuItem>
-                  <MenuItem value="CALIFICADO">Calificatorio</MenuItem>
-                  <MenuItem value="MIXTO">Mixto (preguntas informativas sin puntaje)</MenuItem>
-                </Select>
-              </FormControl>
-            </Stack>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                label="Vigencia desde"
-                type="date"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={fechaInicio}
-                onChange={(e) => setFechaInicio(e.target.value)}
-              />
-              <TextField
-                label="Vigencia hasta"
-                type="date"
-                fullWidth
-                InputLabelProps={{ shrink: true }}
-                value={fechaFin}
-                onChange={(e) => setFechaFin(e.target.value)}
-              />
-            </Stack>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-              <TextField
-                label="Intentos permitidos"
-                type="number"
-                fullWidth
-                inputProps={{ min: 1, max: 20 }}
-                value={intentosMax}
-                onChange={(e) => setIntentosMax(parseInt(e.target.value, 10) || 1)}
-              />
-              <FormControl fullWidth>
-                <InputLabel>Mostrar nota</InputLabel>
-                <Select value={mostrarNota} label="Mostrar nota" onChange={(e) => setMostrarNota(e.target.value)}>
-                  <MenuItem value="NO">No mostrar</MenuItem>
-                  <MenuItem value="AL_ENVIAR">Al enviar (auto)</MenuItem>
-                  <MenuItem value="TRAS_REVISION">Tras revisión manual (texto)</MenuItem>
-                </Select>
-              </FormControl>
-              <TextField
-                label="Escala / referencia máx."
-                type="number"
-                fullWidth
-                value={escalaMax}
-                onChange={(e) => setEscalaMax(Number(e.target.value))}
-              />
-            </Stack>
-            <TextField
-              label="Mensaje final"
-              fullWidth
-              value={mensaje}
-              onChange={(e) => setMensaje(e.target.value)}
-            />
-          </Stack>
+        <div className="docente-examen-bloque-acc" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+            <button type="button" className="btn-nuevo-item" onClick={() => setModalDatos(true)}>
+              📝 Datos del examen
+            </button>
+            <button type="button" className="btn-nuevo-item" onClick={() => setModalLista(true)} style={{ background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' }}>
+              📝 Preguntas y alternativas
+            </button>
+          </div>
+          {examenMeta.titulo ? (
+            <p style={{ marginTop: 12, color: '#374151', fontWeight: 600 }}>
+              {examenMeta.titulo}{' '}
+              <span style={{ color: '#6b7280', fontWeight: 400, fontSize: '0.9rem' }}>
+                — {examenMeta.estado} · {examenMeta.modo}
+              </span>
+            </p>
+          ) : (
+            <p style={{ marginTop: 12, color: '#9ca3af' }}>Aún no has definido el título (abre «Datos del examen»).</p>
+          )}
         </div>
 
-        <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 3, mb: 1 }}>
-          Audiencias
-        </Typography>
-        <div className="hex-exam-card">
-          <Stack direction="row" flexWrap="wrap" gap={1}>
+        <div className="hex-exam-card" style={{ marginBottom: 20 }}>
+          <h3 style={{ marginTop: 0, color: '#0f172a' }}>Audiencias</h3>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {AUDIENCIAS.map((a) => (
-              <FormControlLabel
-                key={a.value}
-                control={<Checkbox checked={audiencias.includes(a.value)} onChange={() => toggleAud(a.value)} />}
-                label={a.label}
-              />
+              <label key={a.value} className="checkbox-label" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <input type="checkbox" checked={audiencias.includes(a.value)} onChange={() => toggleAud(a.value)} />
+                {a.label}
+              </label>
             ))}
-          </Stack>
+          </div>
         </div>
 
-        <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 2, mb: 1 }}>
-          Alcance por aulas (opcional)
-        </Typography>
         <div className="hex-exam-card">
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Si no seleccionas ningún grupo, el examen aplica a <strong>toda la institución</strong> (respetando la
-            audiencia). Si eliges grupos, solo usuarios vinculados a esas aulas lo verán.
-          </Alert>
-          <Stack spacing={0.5} sx={{ maxHeight: 220, overflow: 'auto' }}>
+          <h3 style={{ marginTop: 0, color: '#0f172a' }}>Alcance por aulas (opcional)</h3>
+          <p style={{ fontSize: '0.9rem', color: '#64748b', marginBottom: 12 }}>
+            Sin selección = toda la institución (según audiencia).
+          </p>
+          <div style={{ maxHeight: 220, overflow: 'auto' }}>
             {gruposOpts.map((g) => {
               const label = `${g.nivel_nombre || ''} ${g.grado}° ${g.seccion || ''}`.trim();
               return (
-                <FormControlLabel
-                  key={g.id}
-                  control={<Checkbox checked={grupoIds.includes(g.id)} onChange={() => toggleGrupo(g.id)} />}
-                  label={label || `Grupo ${g.id}`}
-                />
+                <label key={g.id} className="checkbox-label" style={{ display: 'block', marginBottom: 6 }}>
+                  <input type="checkbox" checked={grupoIds.includes(g.id)} onChange={() => toggleGrupo(g.id)} />
+                  {label || `Grupo ${g.id}`}
+                </label>
               );
             })}
-          </Stack>
+          </div>
         </div>
 
-        <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 2, mb: 1 }}>
-          Preguntas
-        </Typography>
-
-        {preguntas.map((p, idx) => (
-          <Accordion
-            key={idx}
-            expanded={expIdx === idx}
-            onChange={(_, v) => setExpIdx(v ? idx : false)}
-            sx={{ borderRadius: '14px !important', mb: 1, '&:before': { display: 'none' } }}
-          >
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography fontWeight={600}>
-                {idx + 1}. {p.texto?.slice(0, 56) || 'Sin texto'} — {p.tipo}
-              </Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <div className="hex-exam-preg-editor">
-                <Stack spacing={2}>
-                  <FormControl fullWidth size="small">
-                    <InputLabel>Tipo</InputLabel>
-                    <Select
-                      label="Tipo"
-                      value={p.tipo}
-                      onChange={(e) => {
-                        const t = e.target.value;
-                        actualizarPregunta(idx, 'tipo', t);
-                        if (t === 'ALTERNATIVAS') {
-                          actualizarOpciones(idx, { opciones: ['A', 'B', 'C', 'D'], correcta: 0 });
-                        }
-                        if (t === 'VERDADERO_FALSO') {
-                          actualizarOpciones(idx, { correcta: true });
-                        }
-                      }}
-                    >
-                      {TIPOS.map((t) => (
-                        <MenuItem key={t.value} value={t.value}>
-                          {t.label}
-                        </MenuItem>
-                      ))}
-                    </Select>
-                  </FormControl>
-                  <TextField
-                    label="Texto de la pregunta"
-                    fullWidth
-                    multiline
-                    value={p.texto}
-                    onChange={(e) => actualizarPregunta(idx, 'texto', e.target.value)}
-                  />
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-                    <TextField
-                      label="Puntos"
-                      type="number"
-                      size="small"
-                      value={p.puntos}
-                      onChange={(e) => actualizarPregunta(idx, 'puntos', Number(e.target.value))}
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={!!p.solo_informativo}
-                          onChange={(e) => actualizarPregunta(idx, 'solo_informativo', e.target.checked)}
-                        />
-                      }
-                      label="Solo informativo (no suma en modo mixto)"
-                    />
-                    <FormControlLabel
-                      control={
-                        <Checkbox
-                          checked={p.obligatoria !== false}
-                          onChange={(e) => actualizarPregunta(idx, 'obligatoria', e.target.checked)}
-                        />
-                      }
-                      label="Obligatoria"
-                    />
-                  </Stack>
-
-                  {p.tipo === 'ALTERNATIVAS' ? (
-                    <Stack spacing={1}>
-                      {(p.opciones?.opciones || []).map((op, j) => (
-                        <TextField
-                          key={j}
-                          size="small"
-                          label={`Opción ${j + 1}`}
-                          value={op}
-                          onChange={(e) => {
-                            const next = [...(p.opciones?.opciones || [])];
-                            next[j] = e.target.value;
-                            actualizarOpciones(idx, { opciones: next });
-                          }}
-                        />
-                      ))}
-                      <TextField
-                        label="Índice correcto (0 = primera opción)"
-                        type="number"
-                        size="small"
-                        value={p.opciones?.correcta ?? 0}
-                        onChange={(e) => actualizarOpciones(idx, { correcta: parseInt(e.target.value, 10) || 0 })}
-                      />
-                    </Stack>
-                  ) : null}
-
-                  {p.tipo === 'VERDADERO_FALSO' ? (
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Respuesta correcta</InputLabel>
-                      <Select
-                        label="Respuesta correcta"
-                        value={p.opciones?.correcta === false ? 'false' : 'true'}
-                        onChange={(e) =>
-                          actualizarOpciones(idx, { correcta: e.target.value === 'true' })
-                        }
-                      >
-                        <MenuItem value="true">Verdadero</MenuItem>
-                        <MenuItem value="false">Falso</MenuItem>
-                      </Select>
-                    </FormControl>
-                  ) : null}
-
-                  {p.tipo === 'RESPUESTA_CORTA' ? (
-                    <Alert severity="warning">Esta pregunta se califica manualmente en estadísticas.</Alert>
-                  ) : null}
-
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => mover(idx, 'up')}>
-                      Subir
-                    </button>
-                    <button
-                      type="button"
-                      className="admin-usu-btn admin-usu-btn-secondary"
-                      onClick={() => mover(idx, 'down')}
-                    >
-                      Bajar
-                    </button>
-                    <button
-                      type="button"
-                      className="admin-usu-btn admin-usu-btn-secondary"
-                      onClick={() => eliminarPregunta(idx)}
-                      disabled={preguntas.length <= 1}
-                    >
-                      Quitar
-                    </button>
-                  </Stack>
-                </Stack>
-              </div>
-            </AccordionDetails>
-          </Accordion>
-        ))}
-
-        <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={addPregunta} style={{ marginTop: 8 }}>
-          + Agregar pregunta
-        </button>
-
-        <Stack direction="row" spacing={2} sx={{ mt: 3, justifyContent: 'flex-end' }}>
-          <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => navigate(base)}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24, flexWrap: 'wrap' }}>
+          <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => navigate(base)} disabled={guardando}>
             Cancelar
           </button>
-          <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={guardar}>
-            Guardar examen
+          <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={guardar} disabled={guardando}>
+            {guardando ? 'Guardando…' : 'Guardar examen'}
           </button>
-        </Stack>
+        </div>
       </div>
+
+      <ModalDatosExamen open={modalDatos} onClose={() => setModalDatos(false)} examenMeta={examenMeta} setExamenMeta={setExamenMeta} guardando={guardando} />
+
+      <ModalPreguntas
+        open={modalLista}
+        onClose={() => setModalLista(false)}
+        examenTitulo={examenMeta.titulo}
+        examenMeta={examenMeta}
+        setExamenMeta={setExamenMeta}
+        preguntas={preguntas}
+        setPreguntas={setPreguntas}
+        bloqueado={bloqueado}
+        onNueva={abrirNuevaPregunta}
+        onEditar={abrirEditarPregunta}
+      />
+
+      <ModalFormPregunta
+        open={modalPregunta}
+        onClose={() => {
+          setModalPregunta(false);
+          setEditPregunta(null);
+        }}
+        examenMeta={examenMeta}
+        pregunta={editPregunta}
+        bloqueado={bloqueado}
+        onGuardar={(form) => guardarPreguntaEnLista({ ...editPregunta, ...form })}
+      />
     </DashboardLayout>
   );
 }

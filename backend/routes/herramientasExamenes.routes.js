@@ -140,6 +140,41 @@ function parseJsonSafe(v) {
   }
 }
 
+/** Texto visible de una pregunta HTML (Quill) — validación mínima */
+function textoPreguntaNoVacio(html) {
+  const t = String(html || '')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+  return t.length > 0;
+}
+
+function examenParamsExtendidos(body) {
+  const tipoP = body.tipo_puntaje === 'INDIVIDUAL' ? 'INDIVIDUAL' : 'GENERAL';
+  const puntosC =
+    tipoP === 'INDIVIDUAL'
+      ? null
+      : body.puntos_correcta != null
+        ? Number(body.puntos_correcta)
+        : 1;
+  return {
+    tiempo_minutos: Math.min(600, Math.max(1, parseInt(body.tiempo_minutos, 10) || 60)),
+    tipo_puntaje: tipoP,
+    puntos_correcta: puntosC,
+    penalizar_incorrecta: body.penalizar_incorrecta === 'SI' ? 'SI' : 'NO',
+    penalizacion_incorrecta: Math.max(0, Number(body.penalizacion_incorrecta) || 0),
+    orden_preguntas: body.orden_preguntas === 'ALEATORIO' ? 'ALEATORIO' : 'PREDETERMINADO',
+    preguntas_max: Math.max(1, parseInt(body.preguntas_max, 10) || 1),
+    bloque_contenido:
+      body.bloque_contenido != null && String(body.bloque_contenido).trim()
+        ? String(body.bloque_contenido)
+        : null,
+    bloque_imagen_url: body.bloque_imagen_url != null && String(body.bloque_imagen_url).trim()
+      ? String(body.bloque_imagen_url).trim().slice(0, 500)
+      : null
+  };
+}
+
 function preguntaPublicaSinClaves(row) {
   const o = parseJsonSafe(row.opciones_json);
   const tipo = String(row.tipo || '').toUpperCase();
@@ -275,12 +310,17 @@ router.get('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req
       `SELECT * FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC, id ASC`,
       [id]
     );
+    const cntI = await query(
+      `SELECT COUNT(*) AS c FROM herramientas_examenes_intentos WHERE examen_id = ? AND estado IN ('ENVIADO','CALIFICADO')`,
+      [id]
+    );
     res.json({
       success: true,
       examen: ex,
       audiencias: aud.map((a) => a.tipo),
       grupo_ids: gids,
-      preguntas: (preg || []).map(preguntaEditor)
+      preguntas: (preg || []).map(preguntaEditor),
+      tiene_intentos_finalizados: (cntI[0]?.c || 0) > 0
     });
   } catch (err) {
     console.error('[hex] admin get', err);
@@ -306,7 +346,9 @@ router.get('/admin/:id/vista-previa', authenticateToken, requireAdminOrPromotori
         descripcion: ex.descripcion,
         mensaje_agradecimiento: ex.mensaje_agradecimiento,
         modo: ex.modo,
-        intentos_max: ex.intentos_max
+        intentos_max: ex.intentos_max,
+        bloque_contenido: ex.bloque_contenido,
+        bloque_imagen_url: ex.bloque_imagen_url
       },
       preguntas: (preg || []).map(preguntaPublicaSinClaves),
       usuario_contexto: { etiqueta: 'Vista previa' }
@@ -341,7 +383,9 @@ router.get('/preview/:id', authenticateToken, async (req, res) => {
         descripcion: ex.descripcion,
         mensaje_agradecimiento: ex.mensaje_agradecimiento,
         modo: ex.modo,
-        intentos_max: ex.intentos_max
+        intentos_max: ex.intentos_max,
+        bloque_contenido: ex.bloque_contenido,
+        bloque_imagen_url: ex.bloque_imagen_url
       },
       preguntas: (preg || []).map(preguntaPublicaSinClaves),
       usuario_contexto: { etiqueta: 'Vista previa' }
@@ -380,6 +424,8 @@ async function guardarExamenCompleto(req, res, opts) {
     return res.status(400).json({ error: 'Selecciona al menos una audiencia' });
   }
 
+  const ext = examenParamsExtendidos(body);
+
   const params = {
     titulo: String(titulo).trim(),
     descripcion: descripcion || null,
@@ -390,15 +436,17 @@ async function guardarExamenCompleto(req, res, opts) {
     mensaje_agradecimiento: mensaje_agradecimiento || null,
     intentos_max: Math.min(20, Math.max(1, parseInt(intentos_max, 10) || 1)),
     mostrar_nota: ['NO', 'AL_ENVIAR', 'TRAS_REVISION'].includes(mostrar_nota) ? mostrar_nota : 'AL_ENVIAR',
-    escala_max: escala_max != null ? Number(escala_max) : 100
+    escala_max: escala_max != null ? Number(escala_max) : 100,
+    ...ext
   };
 
   let examenId = opts.examenId;
   if (opts.insert) {
     const ins = await execute(
       `INSERT INTO herramientas_examenes
-       (colegio_id, creador_usuario_id, titulo, descripcion, estado, modo, fecha_inicio, fecha_fin, mensaje_agradecimiento, intentos_max, mostrar_nota, escala_max)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (colegio_id, creador_usuario_id, titulo, descripcion, estado, modo, fecha_inicio, fecha_fin, mensaje_agradecimiento, intentos_max, mostrar_nota, escala_max,
+        tiempo_minutos, tipo_puntaje, puntos_correcta, penalizar_incorrecta, penalizacion_incorrecta, orden_preguntas, preguntas_max, bloque_contenido, bloque_imagen_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         colegio_id,
         usuarioId,
@@ -411,7 +459,16 @@ async function guardarExamenCompleto(req, res, opts) {
         params.mensaje_agradecimiento,
         params.intentos_max,
         params.mostrar_nota,
-        params.escala_max
+        params.escala_max,
+        params.tiempo_minutos,
+        params.tipo_puntaje,
+        params.puntos_correcta,
+        params.penalizar_incorrecta,
+        params.penalizacion_incorrecta,
+        params.orden_preguntas,
+        params.preguntas_max,
+        params.bloque_contenido,
+        params.bloque_imagen_url
       ]
     );
     examenId = ins.insertId;
@@ -423,7 +480,9 @@ async function guardarExamenCompleto(req, res, opts) {
     const tieneIntentos = (cnt[0]?.c || 0) > 0;
     if (tieneIntentos) {
       await execute(
-        `UPDATE herramientas_examenes SET titulo=?, descripcion=?, fecha_inicio=?, fecha_fin=?, mensaje_agradecimiento=?, estado=?, intentos_max=?, mostrar_nota=?, escala_max=? WHERE id=? AND colegio_id=?`,
+        `UPDATE herramientas_examenes SET titulo=?, descripcion=?, fecha_inicio=?, fecha_fin=?, mensaje_agradecimiento=?, estado=?, intentos_max=?, mostrar_nota=?, escala_max=?,
+         tiempo_minutos=?, tipo_puntaje=?, puntos_correcta=?, penalizar_incorrecta=?, penalizacion_incorrecta=?, orden_preguntas=?, preguntas_max=?, bloque_contenido=?, bloque_imagen_url=?
+         WHERE id=? AND colegio_id=?`,
         [
           params.titulo,
           params.descripcion,
@@ -434,6 +493,15 @@ async function guardarExamenCompleto(req, res, opts) {
           params.intentos_max,
           params.mostrar_nota,
           params.escala_max,
+          params.tiempo_minutos,
+          params.tipo_puntaje,
+          params.puntos_correcta,
+          params.penalizar_incorrecta,
+          params.penalizacion_incorrecta,
+          params.orden_preguntas,
+          params.preguntas_max,
+          params.bloque_contenido,
+          params.bloque_imagen_url,
           examenId,
           colegio_id
         ]
@@ -441,7 +509,9 @@ async function guardarExamenCompleto(req, res, opts) {
       return res.json({ success: true, id: examenId, soloMetadatos: true });
     }
     await execute(
-      `UPDATE herramientas_examenes SET titulo=?, descripcion=?, estado=?, modo=?, fecha_inicio=?, fecha_fin=?, mensaje_agradecimiento=?, intentos_max=?, mostrar_nota=?, escala_max=? WHERE id=? AND colegio_id=?`,
+      `UPDATE herramientas_examenes SET titulo=?, descripcion=?, estado=?, modo=?, fecha_inicio=?, fecha_fin=?, mensaje_agradecimiento=?, intentos_max=?, mostrar_nota=?, escala_max=?,
+       tiempo_minutos=?, tipo_puntaje=?, puntos_correcta=?, penalizar_incorrecta=?, penalizacion_incorrecta=?, orden_preguntas=?, preguntas_max=?, bloque_contenido=?, bloque_imagen_url=?
+       WHERE id=? AND colegio_id=?`,
       [
         params.titulo,
         params.descripcion,
@@ -453,6 +523,15 @@ async function guardarExamenCompleto(req, res, opts) {
         params.intentos_max,
         params.mostrar_nota,
         params.escala_max,
+        params.tiempo_minutos,
+        params.tipo_puntaje,
+        params.puntos_correcta,
+        params.penalizar_incorrecta,
+        params.penalizacion_incorrecta,
+        params.orden_preguntas,
+        params.preguntas_max,
+        params.bloque_contenido,
+        params.bloque_imagen_url,
         examenId,
         colegio_id
       ]
@@ -475,9 +554,9 @@ async function guardarExamenCompleto(req, res, opts) {
   const plist = Array.isArray(preguntas) ? preguntas : [];
   let ord = 1;
   for (const p of plist) {
-    const texto = String(p.texto || '').trim();
+    const texto = String(p.texto || '');
     const tipo = String(p.tipo || 'ALTERNATIVAS').toUpperCase();
-    if (!texto) continue;
+    if (!textoPreguntaNoVacio(texto)) continue;
     if (!['ALTERNATIVAS', 'VERDADERO_FALSO', 'RESPUESTA_CORTA'].includes(tipo)) continue;
     const puntos = Math.max(0, Number(p.puntos) || 0);
     const soloInf = p.solo_informativo ? 1 : 0;
@@ -583,12 +662,17 @@ router.get('/docente/:id', authenticateToken, requireDocente, async (req, res) =
       `SELECT * FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC, id ASC`,
       [id]
     );
+    const cntI = await query(
+      `SELECT COUNT(*) AS c FROM herramientas_examenes_intentos WHERE examen_id = ? AND estado IN ('ENVIADO','CALIFICADO')`,
+      [id]
+    );
     res.json({
       success: true,
       examen: ex,
       audiencias: aud.map((a) => a.tipo),
       grupo_ids: gids,
-      preguntas: (preg || []).map(preguntaEditor)
+      preguntas: (preg || []).map(preguntaEditor),
+      tiene_intentos_finalizados: (cntI[0]?.c || 0) > 0
     });
   } catch (err) {
     console.error('[hex] docente get', err);
@@ -607,6 +691,7 @@ router.post('/docente', authenticateToken, requireDocente, async (req, res) => {
     const audLimpias = Array.isArray(body.audiencias) ? [...new Set(body.audiencias.map((a) => String(a).toUpperCase()))] : [];
     if (audLimpias.length === 0) return res.status(400).json({ error: 'Selecciona al menos una audiencia' });
 
+    const ext = examenParamsExtendidos(body);
     const params = {
       titulo: String(body.titulo).trim(),
       descripcion: body.descripcion || null,
@@ -617,13 +702,15 @@ router.post('/docente', authenticateToken, requireDocente, async (req, res) => {
       mensaje_agradecimiento: body.mensaje_agradecimiento || null,
       intentos_max: Math.min(20, Math.max(1, parseInt(body.intentos_max, 10) || 1)),
       mostrar_nota: ['NO', 'AL_ENVIAR', 'TRAS_REVISION'].includes(body.mostrar_nota) ? body.mostrar_nota : 'AL_ENVIAR',
-      escala_max: body.escala_max != null ? Number(body.escala_max) : 100
+      escala_max: body.escala_max != null ? Number(body.escala_max) : 100,
+      ...ext
     };
 
     const ins = await execute(
       `INSERT INTO herramientas_examenes
-       (colegio_id, creador_usuario_id, titulo, descripcion, estado, modo, fecha_inicio, fecha_fin, mensaje_agradecimiento, intentos_max, mostrar_nota, escala_max)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (colegio_id, creador_usuario_id, titulo, descripcion, estado, modo, fecha_inicio, fecha_fin, mensaje_agradecimiento, intentos_max, mostrar_nota, escala_max,
+        tiempo_minutos, tipo_puntaje, puntos_correcta, penalizar_incorrecta, penalizacion_incorrecta, orden_preguntas, preguntas_max, bloque_contenido, bloque_imagen_url)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         colegio_id,
         usuarioId,
@@ -636,7 +723,16 @@ router.post('/docente', authenticateToken, requireDocente, async (req, res) => {
         params.mensaje_agradecimiento,
         params.intentos_max,
         params.mostrar_nota,
-        params.escala_max
+        params.escala_max,
+        params.tiempo_minutos,
+        params.tipo_puntaje,
+        params.puntos_correcta,
+        params.penalizar_incorrecta,
+        params.penalizacion_incorrecta,
+        params.orden_preguntas,
+        params.preguntas_max,
+        params.bloque_contenido,
+        params.bloque_imagen_url
       ]
     );
     const examenId = ins.insertId;
@@ -651,9 +747,9 @@ router.post('/docente', authenticateToken, requireDocente, async (req, res) => {
     const plist = Array.isArray(body.preguntas) ? body.preguntas : [];
     let ord = 1;
     for (const p of plist) {
-      const texto = String(p.texto || '').trim();
+      const texto = String(p.texto || '');
       const tipo = String(p.tipo || 'ALTERNATIVAS').toUpperCase();
-      if (!texto) continue;
+      if (!textoPreguntaNoVacio(texto)) continue;
       if (!['ALTERNATIVAS', 'VERDADERO_FALSO', 'RESPUESTA_CORTA'].includes(tipo)) continue;
       const puntos = Math.max(0, Number(p.puntos) || 0);
       const soloInf = p.solo_informativo ? 1 : 0;
@@ -906,7 +1002,12 @@ router.post('/realizar/:examenId/iniciar', authenticateToken, async (req, res) =
           mensaje_agradecimiento: ex.mensaje_agradecimiento,
           intentos_max: ex.intentos_max,
           mostrar_nota: ex.mostrar_nota,
-          escala_max: ex.escala_max
+          escala_max: ex.escala_max,
+          tiempo_minutos: ex.tiempo_minutos,
+          tipo_puntaje: ex.tipo_puntaje,
+          puntos_correcta: ex.puntos_correcta,
+          bloque_contenido: ex.bloque_contenido,
+          bloque_imagen_url: ex.bloque_imagen_url
         },
         preguntas: (preg || []).map(preguntaPublicaSinClaves)
       });
@@ -944,7 +1045,12 @@ router.post('/realizar/:examenId/iniciar', authenticateToken, async (req, res) =
         mensaje_agradecimiento: ex.mensaje_agradecimiento,
         intentos_max: ex.intentos_max,
         mostrar_nota: ex.mostrar_nota,
-        escala_max: ex.escala_max
+        escala_max: ex.escala_max,
+        tiempo_minutos: ex.tiempo_minutos,
+        tipo_puntaje: ex.tipo_puntaje,
+        puntos_correcta: ex.puntos_correcta,
+        bloque_contenido: ex.bloque_contenido,
+        bloque_imagen_url: ex.bloque_imagen_url
       },
       preguntas: (preg || []).map(preguntaPublicaSinClaves)
     });
