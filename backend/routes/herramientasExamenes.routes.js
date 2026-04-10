@@ -74,7 +74,8 @@ function requireDocente(req, res, next) {
 }
 
 function uid(req) {
-  return req.user.usuario_id || req.user.id;
+  if (!req?.user) return undefined;
+  return req.user.usuario_id ?? req.user.id;
 }
 
 function usuarioCoincideAudiencia(user, audiencias) {
@@ -1171,7 +1172,7 @@ router.get('/mis-disponibles', authenticateToken, async (req, res) => {
       const aud = await cargarAudiencias(e.id);
       const intentosHechos = await query(
         `SELECT COUNT(*) AS c FROM herramientas_examenes_intentos WHERE examen_id = ? AND usuario_id = ? AND estado IN ('ENVIADO','CALIFICADO')`,
-        [e.id, uid(user)]
+        [e.id, uid(req)]
       );
       const maxI = e.intentos_max || 1;
       const puedeOtro = (intentosHechos[0]?.c || 0) < maxI;
@@ -1204,7 +1205,7 @@ router.post('/realizar/:examenId/iniciar', authenticateToken, async (req, res) =
 
     const enCurso = await query(
       `SELECT * FROM herramientas_examenes_intentos WHERE examen_id = ? AND usuario_id = ? AND estado = 'EN_CURSO' ORDER BY id DESC LIMIT 1`,
-      [examenId, uid(user)]
+      [examenId, uid(req)]
     );
     if (enCurso && enCurso[0]) {
       const preg = await query(
@@ -1235,7 +1236,7 @@ router.post('/realizar/:examenId/iniciar', authenticateToken, async (req, res) =
 
     const hechos = await query(
       `SELECT COUNT(*) AS c FROM herramientas_examenes_intentos WHERE examen_id = ? AND usuario_id = ? AND estado IN ('ENVIADO','CALIFICADO')`,
-      [examenId, uid(user)]
+      [examenId, uid(req)]
     );
     if ((hechos[0]?.c || 0) >= (ex.intentos_max || 1)) {
       return res.status(400).json({ error: 'Agotaste los intentos permitidos' });
@@ -1246,7 +1247,7 @@ router.post('/realizar/:examenId/iniciar', authenticateToken, async (req, res) =
       `INSERT INTO herramientas_examenes_intentos
        (examen_id, colegio_id, usuario_id, rol_respondiente, alumno_id, numero_intento, estado, borrador_json)
        VALUES (?, ?, ?, ?, ?, ?, 'EN_CURSO', NULL)`,
-      [examenId, colegio_id, uid(user), tipo, alumno_id || null, n]
+      [examenId, colegio_id, uid(req), tipo, alumno_id || null, n]
     );
     const intentoId = ins.insertId;
     const row = await query(`SELECT * FROM herramientas_examenes_intentos WHERE id = ?`, [intentoId]);
@@ -1293,7 +1294,7 @@ router.put('/intento/:intentoId/borrador', authenticateToken, async (req, res) =
       [intentoId]
     );
     if (!ir || !ir[0] || Number(ir[0].colegio_id) !== Number(colegio_id)) return res.status(404).json({ error: 'No encontrado' });
-    if (Number(ir[0].usuario_id) !== Number(uid(user))) return res.status(403).json({ error: 'No autorizado' });
+    if (Number(ir[0].usuario_id) !== Number(uid(req))) return res.status(403).json({ error: 'No autorizado' });
     if (ir[0].estado !== 'EN_CURSO') return res.status(400).json({ error: 'Este intento ya fue enviado' });
     await execute(`UPDATE herramientas_examenes_intentos SET borrador_json = ? WHERE id = ?`, [
       JSON.stringify(borrador || {}),
@@ -1328,7 +1329,7 @@ router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) =>
       [intentoId]
     );
     if (!ir || !ir[0] || Number(ir[0].colegio_id) !== Number(colegio_id)) return res.status(404).json({ error: 'No encontrado' });
-    if (Number(ir[0].usuario_id) !== Number(uid(user))) return res.status(403).json({ error: 'No autorizado' });
+    if (Number(ir[0].usuario_id) !== Number(uid(req))) return res.status(403).json({ error: 'No autorizado' });
     if (ir[0].estado !== 'EN_CURSO') return res.status(400).json({ error: 'Este intento ya fue enviado' });
 
     const examenId = ir[0].examen_id;
@@ -1413,7 +1414,7 @@ router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) =>
       [estadoFinal, puntajeParcial, puntajeMax, intentoId]
     );
 
-    const uidRespond = uid(user);
+    const uidRespond = uid(req);
     const tituloEx = ex.titulo || 'Examen';
     const mostrarN = ex.mostrar_nota || 'AL_ENVIAR';
     setImmediate(async () => {
