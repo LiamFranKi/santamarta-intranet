@@ -38,6 +38,14 @@ export function normalizarUrlNotificacion(notif, user) {
   let url = (notif?.url_destino != null ? String(notif.url_destino) : '').trim();
   const tipoAccion = String(notif?.accion_tipo || '');
 
+  // Mensajes: el backend a veces guarda /alumno/mensajes; apoderado/docente deben abrir su propia bandeja (evita 403 y cierre de sesión)
+  if (user?.tipo === 'APODERADO' && /^\/alumno\/mensajes(\/|[?#]|$)/.test(url)) {
+    return url.replace(/^\/alumno\/mensajes/, '/apoderado/mensajes');
+  }
+  if (user?.tipo === 'DOCENTE' && /^\/alumno\/mensajes(\/|[?#]|$)/.test(url)) {
+    return url.replace(/^\/alumno\/mensajes/, '/docente/mensajes');
+  }
+
   // Apoderado/docente: reescribir URL guardada como alumno (avisos “del hijo” en la bandeja del apoderado)
   if (user?.tipo === 'APODERADO' && url.startsWith('/alumno/aula-virtual/') && payload.asignatura_id && payload.alumno_id) {
     const qs = url.includes('?') ? url.slice(url.indexOf('?')) : '';

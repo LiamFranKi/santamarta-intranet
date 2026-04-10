@@ -742,7 +742,7 @@ function AppRoutes() {
       <Route
         path="/alumno/mensajes"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredType="ALUMNO">
             <AlumnoMensajes />
           </PrivateRoute>
         }
