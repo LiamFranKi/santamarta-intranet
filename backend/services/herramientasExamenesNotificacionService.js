@@ -14,6 +14,22 @@ const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { enviarPushNotificacionesIndividuales } = require('./pushNotificationService');
 const { obtenerDestinatariosEncuesta } = require('./encuestasNotificacionService');
 
+/** Deep link según rol: docente/admin no deben recibir solo /herramientas-examenes/... (fuera de su menú). */
+function urlHerramientasExamenPorTipo(examen_id, tipoUsuario, pagina) {
+  const id = parseInt(examen_id, 10);
+  if (!Number.isFinite(id)) return '/herramientas-examenes';
+  const t = String(tipoUsuario || '').toUpperCase();
+  const tail = pagina === 'resultado' ? `resultado/${id}` : `realizar/${id}`;
+  if (t === 'DOCENTE') return `/docente/herramientas/examenes/${tail}`;
+  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA') return `/admin/herramientas/examenes/${tail}`;
+  return `/herramientas-examenes/${tail}`;
+}
+
+async function obtenerTipoUsuario(usuario_id) {
+  const rows = await query(`SELECT tipo FROM usuarios WHERE id = ? LIMIT 1`, [usuario_id]);
+  return rows?.[0]?.tipo || null;
+}
+
 async function obtenerIdsAdminsColegio(colegio_id) {
   const rows = await query(
     `SELECT id FROM usuarios
@@ -128,7 +144,6 @@ async function notificarExamenHerramientasActivado({
 }) {
   const dest = await obtenerDestinatariosHerramientasExamen(colegio_id, anio, audiencias, grupo_ids);
   const tituloSafe = String(titulo || 'Examen').trim() || 'Examen';
-  const urlDestino = `/herramientas-examenes/realizar/${examen_id}`;
   const asunto = 'Nuevo examen disponible';
   const contenido = `«${tituloSafe}». Tienes un examen pendiente; complétalo cuando puedas.`;
 
@@ -138,7 +153,10 @@ async function notificarExamenHerramientasActivado({
     if (did) destinatariosIds.add(did);
   }
 
-  for (const did of destinatariosIds) {
+  for (const d of dest || []) {
+    const did = parseInt(d.id, 10);
+    if (!did) continue;
+    const urlDestino = urlHerramientasExamenPorTipo(examen_id, d.tipo, 'realizar');
     try {
       await insertNotificacionUsuario(execute, {
         usuario_id: usuario_id_emisor,
@@ -166,21 +184,31 @@ async function notificarExamenHerramientasActivado({
   );
   if (!subsData || subsData.length === 0) return;
 
-  const pushItems = subsData.map((sub) => ({
-    subscription: {
-      endpoint: sub.endpoint,
-      keys: { p256dh: sub.p256dh, auth: sub.auth }
-    },
-    payload: {
-      title: 'Nuevo examen',
-      body: tituloSafe.substring(0, 110),
-      icon: '/icons/icon-192x192.png',
-      badge: '/icons/icon-192x192.png',
-      vibrate: [200, 100, 200],
-      tag: `hex-examen-${examen_id}`,
-      data: { url: urlDestino, tipo: 'herramientas_examen_activo', examen_id }
-    }
-  }));
+  const tipoPorUsuario = new Map();
+  for (const d of dest || []) {
+    const did = parseInt(d.id, 10);
+    if (did) tipoPorUsuario.set(did, d.tipo);
+  }
+
+  const pushItems = subsData.map((sub) => {
+    const uid = parseInt(sub.usuario_id, 10);
+    const pushUrl = urlHerramientasExamenPorTipo(examen_id, tipoPorUsuario.get(uid), 'realizar');
+    return {
+      subscription: {
+        endpoint: sub.endpoint,
+        keys: { p256dh: sub.p256dh, auth: sub.auth }
+      },
+      payload: {
+        title: 'Nuevo examen',
+        body: tituloSafe.substring(0, 110),
+        icon: '/icons/icon-192x192.png',
+        badge: '/icons/icon-192x192.png',
+        vibrate: [200, 100, 200],
+        tag: `hex-examen-${examen_id}`,
+        data: { url: pushUrl, tipo: 'herramientas_examen_activo', examen_id }
+      }
+    };
+  });
 
   enviarPushNotificacionesIndividuales(pushItems).catch((err) => console.error('[hexNotif] push', err.message));
 }
@@ -273,7 +301,8 @@ async function notificarUsuarioExamenEnviado({
   estado_intento
 }) {
   const tituloSafe = String(titulo || 'Examen').trim() || 'Examen';
-  const urlDestino = `/herramientas-examenes/realizar/${examen_id}`;
+  const tipoDest = await obtenerTipoUsuario(usuario_id_dest);
+  const urlDestino = urlHerramientasExamenPorTipo(examen_id, tipoDest, 'resultado');
   let contenido = `Enviaste el examen «${tituloSafe}».`;
   if (mostrar_nota === 'AL_ENVIAR' && estado_intento === 'CALIFICADO' && puntaje_max != null && puntaje_obtenido != null) {
     contenido = `Resultado «${tituloSafe}»: ${fmtPtsNotif(puntaje_obtenido)} / ${fmtPtsNotif(puntaje_max)}.`;
@@ -381,7 +410,8 @@ async function notificarUsuarioExamenRevisadoCalificado({
   mostrar_nota
 }) {
   const tituloSafe = String(titulo || 'Examen').trim() || 'Examen';
-  const urlDestino = `/herramientas-examenes/resultado/${examen_id}`;
+  const tipoDest = await obtenerTipoUsuario(usuario_id_dest);
+  const urlDestino = urlHerramientasExamenPorTipo(examen_id, tipoDest, 'resultado');
   let contenido = `Tu examen «${tituloSafe}» ya fue evaluado.`;
   if (mostrar_nota !== 'NO' && puntaje_obtenido != null && puntaje_max != null) {
     contenido = `Tu nota en «${tituloSafe}»: ${fmtPtsNotif(puntaje_obtenido)} / ${fmtPtsNotif(puntaje_max)}.`;
@@ -426,7 +456,11 @@ async function notificarUsuarioExamenRevisadoCalificado({
       badge: '/icons/icon-192x192.png',
       vibrate: [150, 80, 150],
       tag: `hex-revisado-${examen_id}-${usuario_id_dest}`,
-      data: { url: urlDestino, tipo: 'herramientas_examen_revisado', examen_id }
+      data: {
+        url: urlHerramientasExamenPorTipo(examen_id, tipoDest, 'resultado'),
+        tipo: 'herramientas_examen_revisado',
+        examen_id
+      }
     }
   }));
 

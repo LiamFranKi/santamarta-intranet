@@ -355,6 +355,100 @@ function puntajeMaximoExamen(ex, preguntasRows) {
   return s;
 }
 
+/** Coherente con aula (AlumnoExamen): orden ALEATORIO baraja preguntas y alternativas por intento. */
+function hexShuffleArray(arr) {
+  const a = [...(arr || [])];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function hexOrdenAleatorio(ex) {
+  return String(ex?.orden_preguntas || '')
+    .toUpperCase()
+    .trim() === 'ALEATORIO';
+}
+
+/** Elige preguntas del intento: si ALEATORIO baraja antes; aplica preguntas_max. */
+function hexSeleccionarPreguntasParaIntento(ex, preguntasRows) {
+  const aleatorio = hexOrdenAleatorio(ex);
+  const maxP = Math.max(1, parseInt(ex?.preguntas_max, 10) || 1);
+  let list = [...(preguntasRows || [])];
+  if (aleatorio) {
+    list = hexShuffleArray(list);
+  }
+  if (list.length > maxP) {
+    list = list.slice(0, maxP);
+  }
+  return list;
+}
+
+function hexShuffleAlternativasRow(row) {
+  const tipo = String(row.tipo || '').toUpperCase();
+  if (tipo !== 'ALTERNATIVAS') return row;
+  const o = parseJsonSafe(row.opciones_json);
+  if (!o || !Array.isArray(o.opciones) || o.opciones.length < 2) return row;
+  const n = o.opciones.length;
+  const perm = [...Array(n).keys()];
+  for (let i = n - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [perm[i], perm[j]] = [perm[j], perm[i]];
+  }
+  const newOpciones = perm.map((idx) => o.opciones[idx]);
+  const oldCor = typeof o.correcta === 'number' ? o.correcta : 0;
+  const newCorrecta = perm.indexOf(oldCor);
+  const newO = { ...o, opciones: newOpciones, correcta: newCorrecta };
+  return { ...row, opciones_json: JSON.stringify(newO) };
+}
+
+/** Baraja alternativas solo si el examen está en modo ALEATORIO (comportamiento aula). */
+function hexAplicarAlternativasSiAleatorio(ex, row) {
+  if (!hexOrdenAleatorio(ex)) return row;
+  return hexShuffleAlternativasRow(row);
+}
+
+function hexBuildPresMeta(rowsShown) {
+  const orden_ids = (rowsShown || []).map((r) => Number(r.id));
+  const opciones_por_id = {};
+  for (const r of rowsShown || []) {
+    const tipo = String(r.tipo || '').toUpperCase();
+    if (tipo === 'ALTERNATIVAS') {
+      const o = parseJsonSafe(r.opciones_json);
+      if (o) opciones_por_id[r.id] = o;
+    }
+  }
+  return { v: 1, orden_ids, opciones_por_id };
+}
+
+function hexPreguntasDesdePresMeta(allRowsFromDb, meta) {
+  if (!meta || !Array.isArray(meta.orden_ids) || meta.orden_ids.length === 0) return null;
+  const map = new Map((allRowsFromDb || []).map((r) => [Number(r.id), r]));
+  const opPorId = meta.opciones_por_id || {};
+  const out = [];
+  for (const rawId of meta.orden_ids) {
+    const id = Number(rawId);
+    const base = map.get(id);
+    if (!base) continue;
+    let row = { ...base };
+    const ovl = opPorId[id] ?? opPorId[String(id)];
+    if (ovl && typeof ovl === 'object') {
+      row = { ...row, opciones_json: JSON.stringify(ovl) };
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+function hexMergeBorradorPreservarMeta(prevJson, incomingBorrador) {
+  const prev = parseJsonSafe(prevJson) || {};
+  const inc = incomingBorrador && typeof incomingBorrador === 'object' ? incomingBorrador : {};
+  const next = { ...prev, ...inc };
+  if (prev._hex_pres) next._hex_pres = prev._hex_pres;
+  return next;
+}
+
 async function assertExamenColegio(examenId, colegio_id) {
   const rows = await query(`SELECT * FROM herramientas_examenes WHERE id = ? AND colegio_id = ? LIMIT 1`, [
     examenId,
@@ -533,10 +627,12 @@ router.get('/admin/:id/vista-previa', authenticateToken, requireAdminOrPromotori
     const { colegio_id } = req.user;
     const ex = await assertExamenColegio(id, colegio_id);
     if (!ex) return res.status(404).json({ error: 'No encontrado' });
-    const preg = await query(
+    const pregAll = await query(
       `SELECT * FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC, id ASC`,
       [id]
     );
+    const sel = hexSeleccionarPreguntasParaIntento(ex, pregAll);
+    const mostradas = (sel || []).map((r) => hexAplicarAlternativasSiAleatorio(ex, { ...r }));
     res.json({
       success: true,
       examen: {
@@ -551,7 +647,7 @@ router.get('/admin/:id/vista-previa', authenticateToken, requireAdminOrPromotori
         bloque_contenido: ex.bloque_contenido,
         bloque_imagen_url: ex.bloque_imagen_url
       },
-      preguntas: (preg || []).map(preguntaPublicaSinClaves),
+      preguntas: (mostradas || []).map(preguntaPublicaSinClaves),
       usuario_contexto: { etiqueta: 'Vista previa' }
     });
   } catch (err) {
@@ -568,10 +664,12 @@ router.get('/preview/:id', authenticateToken, async (req, res) => {
     const ex = await assertExamenColegio(id, colegio_id);
     if (!ex) return res.status(404).json({ error: 'No encontrado' });
     if (!ADMIN_TYPES.has(req.user.tipo)) return res.status(403).json({ error: 'No autorizado' });
-    const preg = await query(
+    const pregAll = await query(
       `SELECT * FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC, id ASC`,
       [id]
     );
+    const sel = hexSeleccionarPreguntasParaIntento(ex, pregAll);
+    const mostradas = (sel || []).map((r) => hexAplicarAlternativasSiAleatorio(ex, { ...r }));
     res.json({
       success: true,
       preview: true,
@@ -587,7 +685,7 @@ router.get('/preview/:id', authenticateToken, async (req, res) => {
         bloque_contenido: ex.bloque_contenido,
         bloque_imagen_url: ex.bloque_imagen_url
       },
-      preguntas: (preg || []).map(preguntaPublicaSinClaves),
+      preguntas: (mostradas || []).map(preguntaPublicaSinClaves),
       usuario_contexto: { etiqueta: 'Vista previa' }
     });
   } catch (err) {
@@ -1270,10 +1368,15 @@ router.post('/realizar/:examenId/iniciar', authenticateToken, async (req, res) =
       [examenId, uid(req)]
     );
     if (enCurso && enCurso[0]) {
-      const preg = await query(
+      const pregAll = await query(
         `SELECT * FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC, id ASC`,
         [examenId]
       );
+      const borrador = parseJsonSafe(enCurso[0].borrador_json);
+      let filas = hexPreguntasDesdePresMeta(pregAll, borrador?._hex_pres);
+      if (!filas || filas.length === 0) {
+        filas = pregAll || [];
+      }
       return res.json({
         success: true,
         intento: enCurso[0],
@@ -1292,7 +1395,7 @@ router.post('/realizar/:examenId/iniciar', authenticateToken, async (req, res) =
           bloque_contenido: ex.bloque_contenido,
           bloque_imagen_url: ex.bloque_imagen_url
         },
-        preguntas: (preg || []).map(preguntaPublicaSinClaves)
+        preguntas: (filas || []).map(preguntaPublicaSinClaves)
       });
     }
 
@@ -1312,11 +1415,18 @@ router.post('/realizar/:examenId/iniciar', authenticateToken, async (req, res) =
       [examenId, colegio_id, uid(req), tipo, alumno_id || null, n]
     );
     const intentoId = ins.insertId;
-    const row = await query(`SELECT * FROM herramientas_examenes_intentos WHERE id = ?`, [intentoId]);
-    const preg = await query(
+    const pregAll = await query(
       `SELECT * FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC, id ASC`,
       [examenId]
     );
+    const seleccionadas = hexSeleccionarPreguntasParaIntento(ex, pregAll);
+    const mostradas = seleccionadas.map((r) => hexAplicarAlternativasSiAleatorio(ex, { ...r }));
+    const meta = hexBuildPresMeta(mostradas);
+    await execute(`UPDATE herramientas_examenes_intentos SET borrador_json = ? WHERE id = ?`, [
+      JSON.stringify({ _hex_pres: meta }),
+      intentoId
+    ]);
+    const row = await query(`SELECT * FROM herramientas_examenes_intentos WHERE id = ?`, [intentoId]);
     res.json({
       success: true,
       intento: row[0],
@@ -1335,7 +1445,7 @@ router.post('/realizar/:examenId/iniciar', authenticateToken, async (req, res) =
         bloque_contenido: ex.bloque_contenido,
         bloque_imagen_url: ex.bloque_imagen_url
       },
-      preguntas: (preg || []).map(preguntaPublicaSinClaves)
+      preguntas: (mostradas || []).map(preguntaPublicaSinClaves)
     });
   } catch (err) {
     console.error('[hex] iniciar', err);
@@ -1358,8 +1468,9 @@ router.put('/intento/:intentoId/borrador', authenticateToken, async (req, res) =
     if (!ir || !ir[0] || Number(ir[0].colegio_id) !== Number(colegio_id)) return res.status(404).json({ error: 'No encontrado' });
     if (Number(ir[0].usuario_id) !== Number(uid(req))) return res.status(403).json({ error: 'No autorizado' });
     if (ir[0].estado !== 'EN_CURSO') return res.status(400).json({ error: 'Este intento ya fue enviado' });
+    const merged = hexMergeBorradorPreservarMeta(ir[0].borrador_json, borrador);
     await execute(`UPDATE herramientas_examenes_intentos SET borrador_json = ? WHERE id = ?`, [
-      JSON.stringify(borrador || {}),
+      JSON.stringify(merged),
       intentoId
     ]);
     res.json({ success: true });
@@ -1390,10 +1501,15 @@ router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) =>
     const ex = await assertExamenColegio(examenId, colegio_id);
     if (!examenVigente(ex)) return res.status(400).json({ error: 'Examen cerrado' });
 
-    const preguntas = await query(
+    const borradorInt = parseJsonSafe(ir[0].borrador_json) || {};
+    const allPreguntasDb = await query(
       `SELECT * FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC, id ASC`,
       [examenId]
     );
+    let preguntas = hexPreguntasDesdePresMeta(allPreguntasDb, borradorInt._hex_pres);
+    if (!preguntas || preguntas.length === 0) {
+      preguntas = allPreguntasDb || [];
+    }
     const mapR = {};
     if (Array.isArray(respuestas)) {
       for (const r of respuestas) {

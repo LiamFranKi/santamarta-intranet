@@ -33,10 +33,28 @@ function parsePayload(raw) {
  * 2) Si falta, reconstruye desde accion_tipo + accion_payload (respaldo).
  * 3) Si no hay datos, va al dashboard del rol.
  */
+/**
+ * Exámenes de herramientas: las notificaciones guardaban /herramientas-examenes/...
+ * Docente y admin deben ir a /docente/... y /admin/... para no salir del área ni provocar errores de ruta.
+ */
+function reescribirUrlHerramientasExamen(url, tipoUsuario) {
+  if (!url || !url.startsWith('/herramientas-examenes')) return url;
+  const t = String(tipoUsuario || '').toUpperCase();
+  const base = '/herramientas-examenes';
+  const suffix = url.length > base.length ? url.slice(base.length) : '';
+  if (t === 'DOCENTE') return `/docente/herramientas/examenes${suffix}`;
+  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA') return `/admin/herramientas/examenes${suffix}`;
+  return url;
+}
+
 export function normalizarUrlNotificacion(notif, user) {
   const payload = parsePayload(notif?.accion_payload);
   let url = (notif?.url_destino != null ? String(notif.url_destino) : '').trim();
   const tipoAccion = String(notif?.accion_tipo || '');
+
+  if (url && url.startsWith('/herramientas-examenes')) {
+    url = reescribirUrlHerramientasExamen(url, user?.tipo);
+  }
 
   // Mensajes: el backend a veces guarda /alumno/mensajes; apoderado/docente deben abrir su propia bandeja (evita 403 y cierre de sesión)
   if (user?.tipo === 'APODERADO' && /^\/alumno\/mensajes(\/|[?#]|$)/.test(url)) {
@@ -109,6 +127,17 @@ export function normalizarUrlNotificacion(notif, user) {
 
   if (tipoAccion === 'encuesta_activa' && payload.encuesta_id) {
     return `/encuestas/responder/${payload.encuesta_id}`;
+  }
+
+  if (!url && payload.examen_id != null && tipoAccion.startsWith('herramientas_examen')) {
+    const eid = payload.examen_id;
+    if (tipoAccion === 'herramientas_examen_activo_admin' || tipoAccion === 'herramientas_examen_completado_admin') {
+      url = `/admin/herramientas/examenes/${eid}/estadisticas`;
+    } else if (tipoAccion === 'herramientas_examen_activo') {
+      url = reescribirUrlHerramientasExamen(`/herramientas-examenes/realizar/${eid}`, user?.tipo);
+    } else {
+      url = reescribirUrlHerramientasExamen(`/herramientas-examenes/resultado/${eid}`, user?.tipo);
+    }
   }
 
   if (url) return url;
