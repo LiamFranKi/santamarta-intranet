@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography, Chip } from '@mui/material';
+import { Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -47,7 +47,8 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
       const edits = {};
       for (const L of d.lineas || []) {
         edits[L.id] = {
-          puntos_otorgados: L.puntos_otorgados != null ? String(L.puntos_otorgados) : '',
+          puntos_otorgados:
+            L.puntos_otorgados != null ? String(Math.round(Number(L.puntos_otorgados))) : '',
           comentario_docente: L.comentario_docente || ''
         };
       }
@@ -109,7 +110,10 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
     if (!dlg) return;
     const lineas = Object.entries(lineEdits).map(([linea_id, v]) => ({
       linea_id: parseInt(linea_id, 10),
-      puntos_otorgados: v.puntos_otorgados === '' ? null : Number(v.puntos_otorgados),
+      puntos_otorgados:
+        v.puntos_otorgados === '' || v.puntos_otorgados == null
+          ? null
+          : Math.round(Number(v.puntos_otorgados)),
       comentario_docente: v.comentario_docente || null
     }));
     try {

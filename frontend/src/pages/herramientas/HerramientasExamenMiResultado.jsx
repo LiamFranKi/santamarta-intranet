@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Box, Button, CircularProgress, Stack, Typography } from '@mui/material';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
@@ -11,6 +11,12 @@ import './HerramientasExamenes.css';
 export default function HerramientasExamenMiResultado() {
   const { examenId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isAdminResultRoute = location.pathname.startsWith('/admin/herramientas/examenes/resultado');
+  const volverPath = isAdminResultRoute
+    ? '/admin/herramientas/examenes?tab=responder'
+    : '/herramientas-examenes';
+
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
 
@@ -21,11 +27,11 @@ export default function HerramientasExamenMiResultado() {
       setData(d);
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error || 'No se pudo cargar el resultado', 'error');
-      navigate('/herramientas-examenes');
+      navigate(volverPath);
     } finally {
       setLoading(false);
     }
-  }, [examenId, navigate]);
+  }, [examenId, navigate, volverPath]);
 
   useEffect(() => {
     load();
@@ -56,7 +62,7 @@ export default function HerramientasExamenMiResultado() {
           <button
             type="button"
             className="admin-usu-btn admin-usu-btn-secondary"
-            onClick={() => navigate('/herramientas-examenes')}
+            onClick={() => navigate(volverPath)}
           >
             ← Volver
           </button>
@@ -89,7 +95,7 @@ export default function HerramientasExamenMiResultado() {
         <HexExamenesRevisionLineas lineas={lineas || []} examen={examen || {}} adminMode={false} />
 
         <Stack direction="row" justifyContent="flex-end" sx={{ mt: 3 }}>
-          <Button variant="contained" onClick={() => navigate('/herramientas-examenes')}>
+          <Button variant="contained" onClick={() => navigate(volverPath)}>
             Volver a exámenes
           </Button>
         </Stack>

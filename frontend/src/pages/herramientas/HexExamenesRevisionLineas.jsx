@@ -202,14 +202,26 @@ export default function HexExamenesRevisionLineas({
                   size="small"
                   label="Puntos"
                   type="number"
+                  inputProps={{ min: 0, max: Math.round(ptsMax), step: 1 }}
                   helperText={`Máximo según examen: ${fmtPts(ptsMax)}`}
                   value={lineEdits[L.id]?.puntos_otorgados ?? ''}
-                  onChange={(e) =>
-                    setLineEdits?.((prev) => ({
-                      ...prev,
-                      [L.id]: { ...prev[L.id], puntos_otorgados: e.target.value }
-                    }))
-                  }
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === '') {
+                      setLineEdits?.((prev) => ({
+                        ...prev,
+                        [L.id]: { ...prev[L.id], puntos_otorgados: '' }
+                      }));
+                      return;
+                    }
+                    const n = parseInt(raw, 10);
+                    if (!Number.isNaN(n)) {
+                      setLineEdits?.((prev) => ({
+                        ...prev,
+                        [L.id]: { ...prev[L.id], puntos_otorgados: String(n) }
+                      }));
+                    }
+                  }}
                 />
                 <TextField
                   size="small"

@@ -315,6 +315,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/herramientas/examenes/resultado/:examenId"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <HerramientasExamenMiResultado />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/admin/herramientas/encuestas"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>

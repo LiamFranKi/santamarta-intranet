@@ -1,0 +1,37 @@
+---
+description: Enfoque de módulo Administrador, roles (Director, Coordinador, etc.) y dashboards por rol. Contexto para no duplicar código.
+globs: frontend/src/**/Admin*.jsx, frontend/src/**/admin*.jsx, backend/routes/admin*.js
+alwaysApply: false
+---
+
+# Módulo Administrador, Roles y Dashboards
+
+## Enfoque acordado (no duplicar código)
+
+1. **Un solo módulo administrador**  
+   Se construye una vez con todas las funciones: usuarios, comunicados, alertas, reportes, etc. (el perfil "Administrador" completo).
+
+2. **Otros roles = mismo código, menos permisos**  
+   Director, Coordinador, Gerente, etc. **no** se programan por separado. Usan el **mismo** código del administrador; solo se **restringe por rol** qué opciones ven y qué pueden hacer:
+   - **Backend:** cada ruta verifica el rol (o permisos); si un rol no tiene permiso, se responde 403.
+   - **Frontend:** el menú se arma según rol: mismas pantallas, pero ítems de menú **visibles u ocultos** según permisos.
+
+3. **No crear una app distinta por perfil**  
+   Un solo "admin" con control de acceso por rol. Ejemplo: Director puede tener Comunicados y Alertas pero no Usuarios; Coordinador solo Alertas; etc.
+
+## Dashboard distinto por rol
+
+- **Cada rol puede tener una "cara principal" (dashboard) distinta.**  
+  No es obligatorio que todos vean la misma pantalla de inicio.
+
+- Opciones válidas:
+  - **Dashboard dinámico:** una ruta (ej. `/admin` o `/dashboard`) que según el rol muestra distintos bloques/estadísticas (KPIs, gráficos, resúmenes).
+  - **Dashboard por rol:** componentes distintos (ej. `DashboardAdministrador`, `DashboardDirector`) y la ruta principal elige cuál renderizar según el rol.
+
+- El **menú lateral** puede ser común (con ítems ocultos por permiso); lo que cambia es la **pantalla de inicio** y las estadísticas que ve cada rol.
+
+## Resumen para implementación
+
+- Construir primero el Administrador completo (menús, pantallas, APIs).
+- Definir permisos/roles y usarlos para: ocultar ítems de menú y proteger rutas en backend.
+- Implementar dashboards por rol (misma ruta con contenido distinto por rol, o rutas/componentes distintos por rol) según lo que necesite cada perfil.

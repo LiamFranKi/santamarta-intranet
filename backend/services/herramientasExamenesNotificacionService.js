@@ -2,6 +2,14 @@
  * Exámenes de herramientas: campanita + push al activar; aviso a admins; nota al usuario y aviso admin al enviar.
  */
 const { query, execute } = require('../utils/mysql');
+
+/** Enteros en textos de notificación / push (evita 20.00 en campanita y Chrome). */
+function fmtPtsNotif(n) {
+  if (n == null || n === '') return '';
+  const x = Number(n);
+  if (Number.isNaN(x)) return String(n);
+  return String(Math.round(x));
+}
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { enviarPushNotificacionesIndividuales } = require('./pushNotificationService');
 const { obtenerDestinatariosEncuesta } = require('./encuestasNotificacionService');
@@ -268,7 +276,7 @@ async function notificarUsuarioExamenEnviado({
   const urlDestino = `/herramientas-examenes/realizar/${examen_id}`;
   let contenido = `Enviaste el examen «${tituloSafe}».`;
   if (mostrar_nota === 'AL_ENVIAR' && estado_intento === 'CALIFICADO' && puntaje_max != null && puntaje_obtenido != null) {
-    contenido = `Resultado «${tituloSafe}»: ${puntaje_obtenido} / ${puntaje_max}.`;
+    contenido = `Resultado «${tituloSafe}»: ${fmtPtsNotif(puntaje_obtenido)} / ${fmtPtsNotif(puntaje_max)}.`;
   } else if (mostrar_nota === 'AL_ENVIAR' && estado_intento === 'ENVIADO') {
     contenido = `Enviaste «${tituloSafe}». Queda pendiente de revisión para la nota final.`;
   }
@@ -309,7 +317,7 @@ async function notificarAdminsExamenCompletado({
   const urlDestino = `/admin/herramientas/examenes/${examen_id}/estadisticas`;
   let contenido = `${nombre} completó el examen «${tituloSafe}».`;
   if (estado_intento === 'CALIFICADO' && puntaje_obtenido != null && puntaje_max != null) {
-    contenido = `${nombre} completó «${tituloSafe}» con nota ${puntaje_obtenido} / ${puntaje_max}.`;
+    contenido = `${nombre} completó «${tituloSafe}» con nota ${fmtPtsNotif(puntaje_obtenido)} / ${fmtPtsNotif(puntaje_max)}.`;
   } else if (estado_intento === 'ENVIADO') {
     contenido = `${nombre} envió «${tituloSafe}» (pendiente de revisión manual).`;
   }
@@ -373,10 +381,10 @@ async function notificarUsuarioExamenRevisadoCalificado({
   mostrar_nota
 }) {
   const tituloSafe = String(titulo || 'Examen').trim() || 'Examen';
-  const urlDestino = `/herramientas-examenes`;
+  const urlDestino = `/herramientas-examenes/resultado/${examen_id}`;
   let contenido = `Tu examen «${tituloSafe}» ya fue evaluado.`;
   if (mostrar_nota !== 'NO' && puntaje_obtenido != null && puntaje_max != null) {
-    contenido = `Tu nota en «${tituloSafe}»: ${puntaje_obtenido} / ${puntaje_max}.`;
+    contenido = `Tu nota en «${tituloSafe}»: ${fmtPtsNotif(puntaje_obtenido)} / ${fmtPtsNotif(puntaje_max)}.`;
   }
 
   try {
@@ -403,7 +411,7 @@ async function notificarUsuarioExamenRevisadoCalificado({
 
   const body =
     mostrar_nota !== 'NO' && puntaje_obtenido != null && puntaje_max != null
-      ? `${tituloSafe}: ${puntaje_obtenido} / ${puntaje_max}`.substring(0, 110)
+      ? `${tituloSafe}: ${fmtPtsNotif(puntaje_obtenido)} / ${fmtPtsNotif(puntaje_max)}`.substring(0, 110)
       : `«${tituloSafe}» — revisión lista`.substring(0, 110);
 
   const pushItems = subsData.map((sub) => ({

@@ -42,7 +42,7 @@ function chipResultadoExamen(e) {
  * Listado de exámenes de herramientas disponibles para el usuario (mis-disponibles).
  * Sin DashboardLayout: para incrustar en la página admin de gestión o en MisHerramientasExamenes.
  */
-export default function HerramientasExamenesDisponiblesPanel({ compact = false }) {
+export default function HerramientasExamenesDisponiblesPanel({ compact = false, adminResponderTab = false }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -147,7 +147,13 @@ export default function HerramientasExamenesDisponiblesPanel({ compact = false }
                         <Button
                           variant="outlined"
                           size="small"
-                          onClick={() => navigate(`/herramientas-examenes/resultado/${e.id}`)}
+                          onClick={() =>
+                            navigate(
+                              adminResponderTab && compact
+                                ? `/admin/herramientas/examenes/resultado/${e.id}`
+                                : `/herramientas-examenes/resultado/${e.id}`
+                            )
+                          }
                           sx={{ textTransform: 'none', fontWeight: 700 }}
                         >
                           Ver mis respuestas
@@ -158,7 +164,13 @@ export default function HerramientasExamenesDisponiblesPanel({ compact = false }
                       ) : (
                         <Button
                           variant="contained"
-                          onClick={() => navigate(`/herramientas-examenes/realizar/${e.id}`)}
+                          onClick={() =>
+                            navigate(
+                              adminResponderTab && compact
+                                ? `/herramientas-examenes/realizar/${e.id}?from=admin&responder=1`
+                                : `/herramientas-examenes/realizar/${e.id}`
+                            )
+                          }
                           sx={{
                             textTransform: 'none',
                             borderRadius: 2,

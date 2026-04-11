@@ -39,7 +39,12 @@ export default function HerramientasExamenRealizar() {
   const [searchParams] = useSearchParams();
   const preview = searchParams.get('preview') === '1';
   const fromAdmin = searchParams.get('from') === 'admin';
-  const volverPath = preview && fromAdmin ? '/admin/herramientas/examenes' : '/herramientas-examenes';
+  const adminResponder = searchParams.get('responder') === '1';
+  const volverPath = preview && fromAdmin
+    ? '/admin/herramientas/examenes'
+    : !preview && fromAdmin && adminResponder
+      ? '/admin/herramientas/examenes?tab=responder'
+      : '/herramientas-examenes';
 
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
@@ -157,7 +162,13 @@ export default function HerramientasExamenRealizar() {
         title: 'Enviado',
         html: `<p>${data.mensaje || 'Gracias.'}</p>${lines.join('')}`,
         confirmButtonText: 'OK'
-      }).then(() => navigate('/herramientas-examenes'));
+      }).then(() =>
+        navigate(
+          !preview && fromAdmin && adminResponder
+            ? `/admin/herramientas/examenes/resultado/${id}`
+            : '/herramientas-examenes'
+        )
+      );
     } catch (err) {
       Swal.fire('Error', err.response?.data?.error || 'No se pudo enviar', 'error');
     } finally {

@@ -228,7 +228,7 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
 
         {adminTab === 'responder' ? (
           <div className="hex-exam-panel-embedded-wrap" style={{ marginTop: 16 }}>
-            <HerramientasExamenesDisponiblesPanel compact />
+            <HerramientasExamenesDisponiblesPanel compact adminResponderTab={adminTab === 'responder'} />
           </div>
         ) : null}
 

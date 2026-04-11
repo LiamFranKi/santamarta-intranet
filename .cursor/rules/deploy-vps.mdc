@@ -1,0 +1,22 @@
+---
+description: Comando estándar de despliegue en el VPS (PuTTY). No perder este contexto.
+globs:
+alwaysApply: true
+---
+
+# Despliegue en VPS (PuTTY)
+
+El flujo que **siempre** se usa para actualizar el servidor es:
+
+```bash
+cd /home/vanguard/intranet2026 && git pull origin main && cd frontend && npm run build && cd .. && pm2 restart all
+```
+
+- Ruta del proyecto en el servidor: `/home/vanguard/intranet2026`
+- Después de `git pull` es obligatorio `npm run build` en `frontend` para que se vean los cambios.
+- Al final se ejecuta `pm2 restart all` desde la raíz del proyecto (`cd ..` después del build).
+
+Cuando el usuario pida "subir a GitHub y el código putty" o "comando putty", incluir:
+1. Que ya está subido (o hacer push si hay cambios).
+2. El enlace del repo: https://github.com/LiamFranKi/intranet-2026
+3. El comando de despliegue en una línea para copiar en PuTTY (el de arriba).
