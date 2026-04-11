@@ -14,6 +14,8 @@ import {
   Chip,
   Divider
 } from '@mui/material';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
@@ -51,6 +53,7 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
   const [dlg, setDlg] = useState(null);
   const [lineEdits, setLineEdits] = useState({});
   const [recalculando, setRecalculando] = useState(false);
+  const [eliminandoId, setEliminandoId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,6 +86,31 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
       setDlg({ intento: d.intento, lineas: d.lineas || [], examen: d.examen || {} });
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error || 'No se pudo abrir', 'error');
+    }
+  };
+
+  const eliminarIntento = async (row) => {
+    const ok = await Swal.fire({
+      title: '¿Eliminar este intento?',
+      html:
+        'Se borrarán las respuestas de este intento. El participante podrá <strong>volver a rendir</strong> el examen si aún hay cupo de intentos.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      focusCancel: true
+    });
+    if (!ok.isConfirmed) return;
+    setEliminandoId(row.id);
+    try {
+      await api.delete(`/herramientas-examenes/gestion/${id}/intento/${row.id}`);
+      if (dlg?.intento?.id === row.id) setDlg(null);
+      await load();
+      Swal.fire('Listo', 'Intento eliminado. El usuario puede volver a dar el examen.', 'success');
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || 'No se pudo eliminar', 'error');
+    } finally {
+      setEliminandoId(null);
     }
   };
 
@@ -194,7 +222,6 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
                 <tr>
                   <th>Usuario</th>
                   <th>Rol</th>
-                  <th>Intento</th>
                   <th>Estado</th>
                   <th>Puntaje</th>
                   <th>Fecha</th>
@@ -204,9 +231,8 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
               <tbody>
                 {(data.intentos || []).map((row) => (
                   <tr key={row.id}>
-                    <td>{row.login_usuario || `#${row.usuario_id}`}</td>
+                    <td>{row.nombre_mostrar || row.login_usuario || `#${row.usuario_id}`}</td>
                     <td>{row.rol_respondiente}</td>
-                    <td>{row.numero_intento}</td>
                     <td>
                       {row.estado === 'CALIFICADO' ? (
                         <span className="admin-usu-badge admin-usu-badge-ok">Calificado</span>
@@ -221,14 +247,34 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
                     </td>
                     <td>{row.fecha_envio ? String(row.fecha_envio).slice(0, 19) : '—'}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="admin-usu-btn admin-usu-btn-primary"
-                        style={{ fontSize: '0.8rem' }}
-                        onClick={() => abrirRevision(row)}
-                      >
-                        Revisar
-                      </button>
+                      <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                        <button
+                          type="button"
+                          className="admin-usu-btn admin-usu-btn-primary"
+                          style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                          disabled={eliminandoId === row.id}
+                          onClick={() => abrirRevision(row)}
+                        >
+                          <RateReviewOutlinedIcon sx={{ fontSize: 18 }} />
+                          Revisar
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-usu-btn admin-usu-btn-secondary"
+                          style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                          disabled={eliminandoId === row.id}
+                          onClick={() => eliminarIntento(row)}
+                        >
+                          {eliminandoId === row.id ? (
+                            '…'
+                          ) : (
+                            <>
+                              <DeleteOutlineIcon sx={{ fontSize: 18 }} />
+                              Eliminar
+                            </>
+                          )}
+                        </button>
+                      </Stack>
                     </td>
                   </tr>
                 ))}

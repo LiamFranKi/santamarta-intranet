@@ -1084,9 +1084,18 @@ router.get('/gestion/:id/estadisticas', authenticateToken, async (req, res) => {
     );
     const intentos = await query(
       `SELECT i.id, i.usuario_id, i.rol_respondiente, i.numero_intento, i.estado, i.puntaje_obtenido, i.puntaje_max_snapshot, i.fecha_envio,
-              u.usuario AS login_usuario
+              u.usuario AS login_usuario,
+              COALESCE(
+                NULLIF(TRIM(CONCAT(COALESCE(a.nombres,''), ' ', COALESCE(a.apellido_paterno,''), ' ', COALESCE(a.apellido_materno,''))), ''),
+                NULLIF(TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))), ''),
+                NULLIF(TRIM(CONCAT(COALESCE(ap.nombres,''), ' ', COALESCE(ap.apellido_paterno,''), ' ', COALESCE(ap.apellido_materno,''))), ''),
+                u.usuario
+              ) AS nombre_mostrar
        FROM herramientas_examenes_intentos i
        LEFT JOIN usuarios u ON u.id = i.usuario_id
+       LEFT JOIN alumnos a ON a.id = u.alumno_id
+       LEFT JOIN personal p ON p.id = u.personal_id
+       LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
        WHERE i.examen_id = ? AND i.estado IN ('ENVIADO','CALIFICADO')
        ORDER BY i.fecha_envio DESC, i.id DESC
        LIMIT 500`,
@@ -1154,6 +1163,30 @@ router.get('/gestion/:id/intento/:intentoId', authenticateToken, async (req, res
   } catch (err) {
     console.error('[hex] intento detalle', err);
     res.status(500).json({ error: 'Error' });
+  }
+});
+
+/** Elimina un intento enviado/calificado y sus respuestas (CASCADE). El usuario puede volver a intentar según intentos_max. */
+router.delete('/gestion/:id/intento/:intentoId', authenticateToken, async (req, res) => {
+  try {
+    const examenId = parseInt(req.params.id, 10);
+    const intentoId = parseInt(req.params.intentoId, 10);
+    const { colegio_id } = req.user;
+    const ex = await puedeGestionarEstadisticas(req, examenId);
+    if (!ex) return res.status(403).json({ error: 'No autorizado' });
+
+    const result = await execute(
+      `DELETE FROM herramientas_examenes_intentos
+       WHERE id = ? AND examen_id = ? AND colegio_id = ? AND estado IN ('ENVIADO','CALIFICADO')`,
+      [intentoId, examenId, colegio_id]
+    );
+    if (!result.affectedRows) {
+      return res.status(404).json({ error: 'Intento no encontrado o no se puede eliminar' });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[hex] eliminar intento gestión', err);
+    res.status(500).json({ error: 'Error al eliminar el intento' });
   }
 });
 
