@@ -382,7 +382,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>
                       🎯
                     </span>
-                    <span className="sidebar-label">Rendir exámenes</span>
+                    <span className="sidebar-label">Exámenes</span>
                   </NavLink>
                   <NavLink
                     className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
