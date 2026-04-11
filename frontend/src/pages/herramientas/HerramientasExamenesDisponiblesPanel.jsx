@@ -16,6 +16,7 @@ import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import './HerramientasExamenes.css';
 import { fmtPts } from './hexExamenesFormat';
+import { hexExamenesUrls } from './hexExamenesPaths';
 
 const MODO = { PRACTICA: 'Práctica', CALIFICADO: 'Calificatorio', MIXTO: 'Mixto' };
 
@@ -42,9 +43,16 @@ function chipResultadoExamen(e) {
  * Listado de exámenes de herramientas disponibles para el usuario (mis-disponibles).
  * Sin DashboardLayout: para incrustar en la página admin de gestión o en MisHerramientasExamenes.
  */
-export default function HerramientasExamenesDisponiblesPanel({ compact = false, adminResponderTab = false }) {
+export default function HerramientasExamenesDisponiblesPanel({
+  compact = false,
+  adminResponderTab = false,
+  docenteContext = false
+}) {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const urls = hexExamenesUrls(
+    adminResponderTab && compact ? 'admin' : docenteContext ? 'docente' : 'default'
+  );
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
 
@@ -147,13 +155,7 @@ export default function HerramientasExamenesDisponiblesPanel({ compact = false, 
                         <Button
                           variant="outlined"
                           size="small"
-                          onClick={() =>
-                            navigate(
-                              adminResponderTab && compact
-                                ? `/admin/herramientas/examenes/resultado/${e.id}`
-                                : `/herramientas-examenes/resultado/${e.id}`
-                            )
-                          }
+                          onClick={() => navigate(urls.resultado(e.id))}
                           sx={{ textTransform: 'none', fontWeight: 700 }}
                         >
                           Ver mis respuestas
@@ -166,9 +168,10 @@ export default function HerramientasExamenesDisponiblesPanel({ compact = false, 
                           variant="contained"
                           onClick={() =>
                             navigate(
-                              adminResponderTab && compact
-                                ? `/herramientas-examenes/realizar/${e.id}?from=admin&responder=1`
-                                : `/herramientas-examenes/realizar/${e.id}`
+                              urls.realizar(
+                                e.id,
+                                adminResponderTab && compact ? { from: 'admin', responder: '1' } : {}
+                              )
                             )
                           }
                           sx={{

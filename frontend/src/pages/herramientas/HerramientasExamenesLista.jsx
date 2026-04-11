@@ -19,6 +19,7 @@ import '../../pages/admin/AdminUsuarios.css';
 import '../../pages/admin/AdminEncuestas.css';
 import './HerramientasExamenes.css';
 import HerramientasExamenesDisponiblesPanel from './HerramientasExamenesDisponiblesPanel';
+import { HEX_ADMIN_BASE } from './hexExamenesPaths';
 
 const MODO_LABEL = {
   PRACTICA: 'Práctica',
@@ -243,7 +244,7 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
             onClick={() => {
               const row = menuCtx.row;
               setMenuCtx(null);
-              navigate(`/herramientas-examenes/realizar/${row.id}?preview=1&from=admin`);
+              navigate(`${HEX_ADMIN_BASE}/realizar/${row.id}?preview=1&from=admin`);
             }}
           >
             <ListItemIcon>

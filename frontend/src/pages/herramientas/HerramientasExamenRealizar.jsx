@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Alert,
   Box,
@@ -21,6 +21,7 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './HerramientasExamenes.css';
 import { fmtPts } from './hexExamenesFormat';
+import { getHexContext, HEX_ADMIN_BASE, HEX_DOCENTE_BASE, HEX_ROOT } from './hexExamenesPaths';
 
 /** Mismo criterio que el listado del editor: GENERAL → puntos_correcta del examen; INDIVIDUAL → puntos de la pregunta. */
 function puntosMostrarHex(examen, pregunta) {
@@ -36,15 +37,19 @@ function puntosMostrarHex(examen, pregunta) {
 export default function HerramientasExamenRealizar() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const ctx = getHexContext(pathname);
   const [searchParams] = useSearchParams();
   const preview = searchParams.get('preview') === '1';
   const fromAdmin = searchParams.get('from') === 'admin';
   const adminResponder = searchParams.get('responder') === '1';
   const volverPath = preview && fromAdmin
-    ? '/admin/herramientas/examenes'
+    ? HEX_ADMIN_BASE
     : !preview && fromAdmin && adminResponder
-      ? '/admin/herramientas/examenes?tab=responder'
-      : '/herramientas-examenes';
+      ? `${HEX_ADMIN_BASE}?tab=responder`
+      : ctx === 'docente'
+        ? HEX_DOCENTE_BASE
+        : HEX_ROOT;
 
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
@@ -87,7 +92,7 @@ export default function HerramientasExamenRealizar() {
     return () => {
       c = true;
     };
-  }, [id, navigate, preview, volverPath]);
+  }, [id, navigate, preview, volverPath, pathname]);
 
   const setVal = (preguntaId, patch) => {
     setRespuestas((prev) => ({
@@ -162,13 +167,12 @@ export default function HerramientasExamenRealizar() {
         title: 'Enviado',
         html: `<p>${data.mensaje || 'Gracias.'}</p>${lines.join('')}`,
         confirmButtonText: 'OK'
-      }).then(() =>
-        navigate(
-          !preview && fromAdmin && adminResponder
-            ? `/admin/herramientas/examenes/resultado/${id}`
-            : '/herramientas-examenes'
-        )
-      );
+      }).then(() => {
+        let dest = HEX_ROOT;
+        if (!preview && fromAdmin && adminResponder) dest = `${HEX_ADMIN_BASE}/resultado/${id}`;
+        else if (ctx === 'docente') dest = `${HEX_DOCENTE_BASE}/resultado/${id}`;
+        navigate(dest);
+      });
     } catch (err) {
       Swal.fire('Error', err.response?.data?.error || 'No se pudo enviar', 'error');
     } finally {

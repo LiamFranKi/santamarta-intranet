@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
+import { HEX_ADMIN_BASE, HEX_DOCENTE_BASE, HEX_ROOT } from '../pages/herramientas/hexExamenesPaths';
 import './EncuestaActivacionModal.css';
 
 /**
@@ -11,12 +13,17 @@ import './EncuestaActivacionModal.css';
 function HerramientasExamenActivacionModal() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
   const [examen, setExamen] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const path = location.pathname || '';
-    if (path.startsWith('/login') || path.includes('/herramientas-examenes/realizar')) {
+    const enRealizar =
+      path.includes('/herramientas-examenes/realizar') ||
+      path.includes(`${HEX_DOCENTE_BASE}/realizar`) ||
+      path.includes(`${HEX_ADMIN_BASE}/realizar`);
+    if (path.startsWith('/login') || enRealizar) {
       setLoading(false);
       return undefined;
     }
@@ -60,7 +67,14 @@ function HerramientasExamenActivacionModal() {
     if (!examen?.id) return;
     await marcarVisto(examen.id);
     setExamen(null);
-    navigate(`/herramientas-examenes/realizar/${examen.id}`);
+    const tipo = user?.tipo;
+    const base =
+      tipo === 'DOCENTE'
+        ? HEX_DOCENTE_BASE
+        : tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA'
+          ? HEX_ADMIN_BASE
+          : HEX_ROOT;
+    navigate(`${base}/realizar/${examen.id}`);
   };
 
   const masTarde = async () => {

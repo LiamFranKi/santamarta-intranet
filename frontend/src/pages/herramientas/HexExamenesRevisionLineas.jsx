@@ -237,12 +237,33 @@ export default function HexExamenesRevisionLineas({
                 />
               </Stack>
             ) : (
-              <Chip
-                size="small"
-                color="primary"
-                variant="outlined"
-                label={`Puntos: ${fmtPts(L.puntos_otorgados)} / ${fmtPts(ptsMax)}`}
-              />
+              <>
+                <Chip
+                  size="small"
+                  color="primary"
+                  variant="outlined"
+                  label={`Puntos: ${fmtPts(L.puntos_otorgados)} / ${fmtPts(ptsMax)}`}
+                />
+                {!(adminMode && L.requiere_revision) && String(L.comentario_docente || '').trim() ? (
+                  <Box
+                    sx={{
+                      mt: 1.5,
+                      p: 1.5,
+                      borderRadius: 1,
+                      bgcolor: 'action.hover',
+                      border: '1px solid',
+                      borderColor: 'divider'
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary" fontWeight={700} display="block">
+                      {adminMode ? 'Comentario al estudiante' : 'Comentario del revisor'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 0.75, whiteSpace: 'pre-wrap' }}>
+                      {String(L.comentario_docente).trim()}
+                    </Typography>
+                  </Box>
+                ) : null}
+              </>
             )}
           </Box>
         );

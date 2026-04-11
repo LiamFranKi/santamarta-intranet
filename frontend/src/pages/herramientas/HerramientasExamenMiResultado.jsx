@@ -6,16 +6,20 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import HexExamenesRevisionLineas from './HexExamenesRevisionLineas';
 import { fmtPts } from './hexExamenesFormat';
+import { getHexContext, HEX_ADMIN_BASE, HEX_DOCENTE_BASE, HEX_ROOT } from './hexExamenesPaths';
 import './HerramientasExamenes.css';
 
 export default function HerramientasExamenMiResultado() {
   const { examenId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const isAdminResultRoute = location.pathname.startsWith('/admin/herramientas/examenes/resultado');
-  const volverPath = isAdminResultRoute
-    ? '/admin/herramientas/examenes?tab=responder'
-    : '/herramientas-examenes';
+  const ctx = getHexContext(location.pathname);
+  const volverPath =
+    ctx === 'admin'
+      ? `${HEX_ADMIN_BASE}?tab=responder`
+      : ctx === 'docente'
+        ? HEX_DOCENTE_BASE
+        : HEX_ROOT;
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);

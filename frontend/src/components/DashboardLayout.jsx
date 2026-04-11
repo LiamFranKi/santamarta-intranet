@@ -377,7 +377,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                   <NavLink
                     className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
-                    to="/herramientas-examenes"
+                    to="/docente/herramientas/examenes"
                   >
                     <span className="sidebar-icon" aria-hidden>
                       🎯

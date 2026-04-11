@@ -323,6 +323,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/herramientas/examenes/realizar/:id"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <HerramientasExamenRealizar />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/admin/herramientas/encuestas"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
@@ -472,7 +480,30 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
-      <Route path="/docente/herramientas/examenes/*" element={<Navigate to="/herramientas-examenes" replace />} />
+      <Route
+        path="/docente/herramientas/examenes"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <MisHerramientasExamenes />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas/examenes/realizar/:id"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <HerramientasExamenRealizar />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas/examenes/resultado/:examenId"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <HerramientasExamenMiResultado />
+          </PrivateRoute>
+        }
+      />
       <Route
         path="/docente/herramientas/encuestas"
         element={
