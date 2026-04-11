@@ -22,8 +22,9 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
-# IDE
-.vscode/
+# IDE (compartimos solo settings del workspace; el resto sigue local)
+.vscode/*
+!.vscode/settings.json
 .idea/
 *.swp
 *.swo

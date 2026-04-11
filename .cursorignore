@@ -1,0 +1,8 @@
+﻿# Menos archivos indexados por Cursor (IA y busqueda semantica)
+
+**/node_modules/**
+frontend/build/**
+**/dist/**
+**/coverage/**
+**/.cache/**
+**/*.min.js
