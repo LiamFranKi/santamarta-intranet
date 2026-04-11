@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import './HerramientasExamenes.css';
+import { fmtPts } from './hexExamenesFormat';
 
 const MODO = { PRACTICA: 'Práctica', CALIFICADO: 'Calificatorio', MIXTO: 'Mixto' };
 
@@ -29,10 +30,8 @@ function chipResultadoExamen(e) {
     return { label: 'Pendiente de revisión', color: 'warning' };
   }
   if (u.estado === 'CALIFICADO' && u.puntaje_obtenido != null && u.puntaje_max_snapshot != null) {
-    const a = Number(u.puntaje_obtenido);
-    const b = Number(u.puntaje_max_snapshot);
     return {
-      label: `Nota: ${a.toFixed(2)} / ${b.toFixed(2)}`,
+      label: `Nota: ${fmtPts(u.puntaje_obtenido)} / ${fmtPts(u.puntaje_max_snapshot)}`,
       color: 'success'
     };
   }
@@ -143,23 +142,35 @@ export default function HerramientasExamenesDisponiblesPanel({ compact = false }
                     </Typography>
                   </Box>
                   <Box>
-                    {!e.puede_intentar ? (
-                      <Chip label="Sin intentos" color="default" />
-                    ) : (
-                      <Button
-                        variant="contained"
-                        onClick={() => navigate(`/herramientas-examenes/realizar/${e.id}`)}
-                        sx={{
-                          textTransform: 'none',
-                          borderRadius: 2,
-                          fontWeight: 700,
-                          background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
-                          boxShadow: '0 8px 24px rgba(79, 70, 229, 0.35)'
-                        }}
-                      >
-                        {e.intentos_usados > 0 ? 'Nuevo intento' : 'Comenzar'}
-                      </Button>
-                    )}
+                    <Stack direction="column" spacing={1} alignItems="flex-end">
+                      {e.ultimo_intento ? (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          onClick={() => navigate(`/herramientas-examenes/resultado/${e.id}`)}
+                          sx={{ textTransform: 'none', fontWeight: 700 }}
+                        >
+                          Ver mis respuestas
+                        </Button>
+                      ) : null}
+                      {!e.puede_intentar ? (
+                        <Chip label="Sin intentos" color="default" />
+                      ) : (
+                        <Button
+                          variant="contained"
+                          onClick={() => navigate(`/herramientas-examenes/realizar/${e.id}`)}
+                          sx={{
+                            textTransform: 'none',
+                            borderRadius: 2,
+                            fontWeight: 700,
+                            background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+                            boxShadow: '0 8px 24px rgba(79, 70, 229, 0.35)'
+                          }}
+                        >
+                          {e.intentos_usados > 0 ? 'Nuevo intento' : 'Comenzar'}
+                        </Button>
+                      )}
+                    </Stack>
                   </Box>
                 </Stack>
               </CardContent>

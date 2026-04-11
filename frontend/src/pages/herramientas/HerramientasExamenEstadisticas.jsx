@@ -1,19 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import {
-  Box,
-  Button,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Stack,
-  TextField,
-  Typography,
-  Chip,
-  Divider
-} from '@mui/material';
+import { Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography, Chip } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import DashboardLayout from '../../components/DashboardLayout';
@@ -21,26 +8,8 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import '../../pages/admin/AdminUsuarios.css';
 import './HerramientasExamenes.css';
-
-/** Coherente con backend: GENERAL → puntos_correcta; INDIVIDUAL → pregunta_puntos */
-function puntosMaxLineaRevision(examen, L) {
-  const tp = String(examen?.tipo_puntaje || 'GENERAL').toUpperCase();
-  const base = tp === 'GENERAL' ? Number(examen?.puntos_correcta) || 0 : Number(L.pregunta_puntos) || 0;
-  const inf = L.pregunta_solo_informativo === true || L.pregunta_solo_informativo === 1;
-  const modo = String(examen?.modo || 'MIXTO').toUpperCase();
-  if (modo === 'PRACTICA') return base;
-  return inf ? 0 : base;
-}
-
-function parsePreguntaOpciones(raw) {
-  if (raw == null) return null;
-  if (typeof raw === 'object') return raw;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
+import HexExamenesRevisionLineas from './HexExamenesRevisionLineas';
+import { fmtPts } from './hexExamenesFormat';
 
 export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
   const { id } = useParams();
@@ -192,13 +161,13 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
           <Typography variant="body2" sx={{ mt: 1, opacity: 0.95 }}>
             Modo: {data.examen?.modo}
             {data.examen?.tipo_puntaje === 'GENERAL' && data.examen?.puntos_correcta != null
-              ? ` · Puntos por respuesta: ${data.examen.puntos_correcta}`
+              ? ` · Puntos por respuesta: ${fmtPts(data.examen.puntos_correcta)}`
               : data.examen?.tipo_puntaje === 'INDIVIDUAL'
                 ? ' · Puntaje por pregunta (individual)'
                 : ''}
             {' · '}
             Intentos enviados: {data.totalIntentos} · Pendientes de revisión (texto): {data.pendientesRevision}
-            {data.puntaje_max_examen != null ? ` · Máximo posible: ${data.puntaje_max_examen} pt.` : ''}
+            {data.puntaje_max_examen != null ? ` · Máximo posible: ${fmtPts(data.puntaje_max_examen)} pt.` : ''}
           </Typography>
         </div>
 
@@ -246,7 +215,7 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
                     </td>
                     <td>
                       {row.puntaje_obtenido != null
-                        ? `${row.puntaje_obtenido} / ${data.puntaje_max_examen ?? row.puntaje_max_snapshot ?? '—'}`
+                        ? `${fmtPts(row.puntaje_obtenido)} / ${fmtPts(data.puntaje_max_examen ?? row.puntaje_max_snapshot)}`
                         : '—'}
                     </td>
                     <td>{row.fecha_envio ? String(row.fecha_envio).slice(0, 19) : '—'}</td>
@@ -291,108 +260,13 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
       <Dialog open={Boolean(dlg)} onClose={() => setDlg(null)} maxWidth="md" fullWidth>
         <DialogTitle>Revisión de intento</DialogTitle>
         <DialogContent dividers>
-          {(dlg?.lineas || []).map((L, idx) => {
-            let rj = L.respuesta_json || {};
-            if (typeof rj === 'string') {
-              try {
-                rj = JSON.parse(rj);
-              } catch {
-                rj = {};
-              }
-            }
-            const tipo = String(L.pregunta_tipo || '').toUpperCase();
-            const exRev = dlg?.examen || {};
-            const ptsMax = puntosMaxLineaRevision(exRev, L);
-
-            let respuestaContenido = null;
-            if (tipo === 'RESPUESTA_CORTA') {
-              respuestaContenido = <Typography variant="body2">{rj.texto || '—'}</Typography>;
-            } else if (tipo === 'VERDADERO_FALSO') {
-              respuestaContenido = (
-                <Typography variant="body2" fontWeight={600}>
-                  {rj.valor === true ? 'Verdadero' : rj.valor === false ? 'Falso' : '—'}
-                </Typography>
-              );
-            } else if (tipo === 'ALTERNATIVAS') {
-              const op = parsePreguntaOpciones(L.pregunta_opciones);
-              const idxSel = rj.indice;
-              const rawOp = idxSel != null && op?.opciones ? op.opciones[idxSel] : null;
-              respuestaContenido = rawOp ? (
-                <Box
-                  className="hex-revision-resp-html"
-                  sx={{ lineHeight: 1.5, '& p': { m: 0 } }}
-                  dangerouslySetInnerHTML={{ __html: String(rawOp) }}
-                />
-              ) : (
-                <Typography variant="body2">{idxSel != null ? `Opción ${Number(idxSel) + 1}` : '—'}</Typography>
-              );
-            } else {
-              respuestaContenido = <Typography variant="body2">—</Typography>;
-            }
-
-            return (
-              <Box key={L.id} sx={{ mb: 2.5 }}>
-                <Stack direction="row" alignItems="baseline" spacing={1} flexWrap="wrap" sx={{ mb: 0.5 }}>
-                  <Typography variant="caption" color="primary" fontWeight={800}>
-                    {idx + 1}.
-                  </Typography>
-                  <Chip size="small" label={tipo.replace(/_/g, ' ')} variant="outlined" />
-                </Stack>
-                <Box
-                  className="hex-revision-pregunta-html"
-                  sx={{
-                    fontWeight: 700,
-                    color: '#0f172a',
-                    lineHeight: 1.45,
-                    '& p': { margin: '0 0 0.35rem' },
-                    '& p:last-of-type': { marginBottom: 0 }
-                  }}
-                  dangerouslySetInnerHTML={{ __html: L.pregunta_texto || '' }}
-                />
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                  Respuesta del participante
-                </Typography>
-                <Box sx={{ pl: 0.5, mt: 0.5, mb: 1 }}>{respuestaContenido}</Box>
-                <Divider sx={{ my: 1.5 }} />
-                {L.requiere_revision ? (
-                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 1 }}>
-                    <TextField
-                      size="small"
-                      label="Puntos"
-                      type="number"
-                      helperText={`Máximo según examen: ${ptsMax}`}
-                      value={lineEdits[L.id]?.puntos_otorgados ?? ''}
-                      onChange={(e) =>
-                        setLineEdits((prev) => ({
-                          ...prev,
-                          [L.id]: { ...prev[L.id], puntos_otorgados: e.target.value }
-                        }))
-                      }
-                    />
-                    <TextField
-                      size="small"
-                      fullWidth
-                      label="Comentario al estudiante"
-                      value={lineEdits[L.id]?.comentario_docente ?? ''}
-                      onChange={(e) =>
-                        setLineEdits((prev) => ({
-                          ...prev,
-                          [L.id]: { ...prev[L.id], comentario_docente: e.target.value }
-                        }))
-                      }
-                    />
-                  </Stack>
-                ) : (
-                  <Chip
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                    label={`Puntos: ${L.puntos_otorgados ?? '—'} / ${ptsMax}`}
-                  />
-                )}
-              </Box>
-            );
-          })}
+          <HexExamenesRevisionLineas
+            lineas={dlg?.lineas || []}
+            examen={dlg?.examen || {}}
+            adminMode
+            lineEdits={lineEdits}
+            setLineEdits={setLineEdits}
+          />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDlg(null)}>Cerrar</Button>

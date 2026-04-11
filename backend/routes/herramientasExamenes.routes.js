@@ -1208,6 +1208,54 @@ router.get('/mis-disponibles', authenticateToken, async (req, res) => {
   }
 });
 
+/** Último intento enviado/calificado del usuario: detalle para ver respuestas y corrección (solo lectura). */
+router.get('/mi-resultado/:examenId', authenticateToken, async (req, res) => {
+  try {
+    const examenId = parseInt(req.params.examenId, 10);
+    const user = req.user;
+    const { colegio_id } = user;
+    const ex = await assertExamenColegio(examenId, colegio_id);
+    if (!ex) return res.status(404).json({ error: 'No encontrado' });
+    if (!(await puedeVerExamen(user, colegio_id, ex))) return res.status(403).json({ error: 'No autorizado' });
+
+    const ir = await query(
+      `SELECT * FROM herramientas_examenes_intentos
+       WHERE examen_id = ? AND usuario_id = ? AND estado IN ('ENVIADO','CALIFICADO')
+       ORDER BY fecha_envio DESC, id DESC
+       LIMIT 1`,
+      [examenId, uid(req)]
+    );
+    if (!ir || !ir[0]) return res.status(404).json({ error: 'No hay resultado aún' });
+
+    const intentoId = ir[0].id;
+    const lineas = await query(
+      `SELECT d.*, p.texto AS pregunta_texto, p.tipo AS pregunta_tipo, p.opciones_json AS pregunta_opciones,
+              p.solo_informativo AS pregunta_solo_informativo, p.puntos AS pregunta_puntos
+       FROM herramientas_examenes_respuestas_linea d
+       INNER JOIN herramientas_examenes_preguntas p ON p.id = d.pregunta_id
+       WHERE d.intento_id = ?
+       ORDER BY p.orden`,
+      [intentoId]
+    );
+    res.json({
+      success: true,
+      intento: ir[0],
+      lineas: lineas || [],
+      examen: {
+        id: ex.id,
+        titulo: ex.titulo,
+        modo: ex.modo,
+        tipo_puntaje: ex.tipo_puntaje,
+        puntos_correcta: ex.puntos_correcta,
+        mostrar_nota: ex.mostrar_nota
+      }
+    });
+  } catch (err) {
+    console.error('[hex] mi-resultado', err);
+    res.status(500).json({ error: 'Error' });
+  }
+});
+
 router.post('/realizar/:examenId/iniciar', authenticateToken, async (req, res) => {
   try {
     const user = req.user;

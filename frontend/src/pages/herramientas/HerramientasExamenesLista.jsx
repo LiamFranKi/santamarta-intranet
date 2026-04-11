@@ -243,25 +243,13 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
             onClick={() => {
               const row = menuCtx.row;
               setMenuCtx(null);
-              navigate(`/herramientas-examenes/realizar/${row.id}?preview=1`);
+              navigate(`/herramientas-examenes/realizar/${row.id}?preview=1&from=admin`);
             }}
           >
             <ListItemIcon>
               <VisibilityIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText>Vista previa (nueva pestaña)</ListItemText>
-          </MenuItem>
-          <MenuItem
-            onClick={() => {
-              const row = menuCtx.row;
-              setMenuCtx(null);
-              navigate(`${base}/${row.id}/editar`);
-            }}
-          >
-            <ListItemIcon>
-              <EditIcon fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>Editar</ListItemText>
           </MenuItem>
           <MenuItem
             onClick={() => {
@@ -274,6 +262,18 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
               <BarChartIcon fontSize="small" />
             </ListItemIcon>
             <ListItemText>Estadísticas y revisiones</ListItemText>
+          </MenuItem>
+          <MenuItem
+            onClick={() => {
+              const row = menuCtx.row;
+              setMenuCtx(null);
+              navigate(`${base}/${row.id}/editar`);
+            }}
+          >
+            <ListItemIcon>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Editar</ListItemText>
           </MenuItem>
           <MenuItem
             onClick={() => {

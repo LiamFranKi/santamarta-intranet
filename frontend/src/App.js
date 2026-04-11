@@ -39,6 +39,7 @@ import HerramientasExamenEditor from './pages/herramientas/HerramientasExamenEdi
 import HerramientasExamenEstadisticas from './pages/herramientas/HerramientasExamenEstadisticas';
 import MisHerramientasExamenes from './pages/herramientas/MisHerramientasExamenes';
 import HerramientasExamenRealizar from './pages/herramientas/HerramientasExamenRealizar';
+import HerramientasExamenMiResultado from './pages/herramientas/HerramientasExamenMiResultado';
 import AdminSupervision from './pages/admin/AdminSupervision';
 import AdminEncuestas from './pages/admin/AdminEncuestas';
 import AdminEncuestaEditor from './pages/admin/AdminEncuestaEditor';
@@ -382,6 +383,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <HerramientasExamenRealizar />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/herramientas-examenes/resultado/:examenId"
+        element={
+          <PrivateRoute>
+            <HerramientasExamenMiResultado />
           </PrivateRoute>
         }
       />

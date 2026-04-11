@@ -20,6 +20,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './HerramientasExamenes.css';
+import { fmtPts } from './hexExamenesFormat';
 
 /** Mismo criterio que el listado del editor: GENERAL → puntos_correcta del examen; INDIVIDUAL → puntos de la pregunta. */
 function puntosMostrarHex(examen, pregunta) {
@@ -37,6 +38,8 @@ export default function HerramientasExamenRealizar() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const preview = searchParams.get('preview') === '1';
+  const fromAdmin = searchParams.get('from') === 'admin';
+  const volverPath = preview && fromAdmin ? '/admin/herramientas/examenes' : '/herramientas-examenes';
 
   const [loading, setLoading] = useState(true);
   const [enviando, setEnviando] = useState(false);
@@ -71,7 +74,7 @@ export default function HerramientasExamenRealizar() {
         }
       } catch (err) {
         const msg = err.response?.data?.error || 'No se pudo cargar';
-        Swal.fire('Error', msg, 'error').then(() => navigate('/herramientas-examenes'));
+        Swal.fire('Error', msg, 'error').then(() => navigate(volverPath));
       } finally {
         if (!c) setLoading(false);
       }
@@ -79,7 +82,7 @@ export default function HerramientasExamenRealizar() {
     return () => {
       c = true;
     };
-  }, [id, navigate, preview]);
+  }, [id, navigate, preview, volverPath]);
 
   const setVal = (preguntaId, patch) => {
     setRespuestas((prev) => ({
@@ -136,18 +139,18 @@ export default function HerramientasExamenRealizar() {
       }
       if (mn !== 'NO' && data.puntaje_max != null && data.estado === 'CALIFICADO') {
         lines.push(
-          `<p><strong>Nota: ${data.puntaje_obtenido} / ${data.puntaje_max}</strong></p>`
+          `<p><strong>Nota: ${fmtPts(data.puntaje_obtenido)} / ${fmtPts(data.puntaje_max)}</strong></p>`
         );
       } else if (mn !== 'NO' && data.puntaje_max != null && data.estado === 'ENVIADO' && data.requiere_revision_docente) {
         if (mn === 'AL_ENVIAR') {
           lines.push(
-            `<p>Puntaje parcial (autoevaluable): <strong>${data.puntaje_obtenido} / ${data.puntaje_max}</strong></p>`
+            `<p>Puntaje parcial (autoevaluable): <strong>${fmtPts(data.puntaje_obtenido)} / ${fmtPts(data.puntaje_max)}</strong></p>`
           );
         } else if (mn === 'TRAS_REVISION') {
           lines.push('<p>La nota se mostrará cuando termine la revisión.</p>');
         }
       } else if (mn !== 'NO' && data.puntaje_max != null && !data.requiere_revision_docente) {
-        lines.push(`<p><strong>Nota: ${data.puntaje_obtenido} / ${data.puntaje_max}</strong></p>`);
+        lines.push(`<p><strong>Nota: ${fmtPts(data.puntaje_obtenido)} / ${fmtPts(data.puntaje_max)}</strong></p>`);
       }
       Swal.fire({
         icon: 'success',
@@ -243,7 +246,7 @@ export default function HerramientasExamenRealizar() {
                       </div>
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                         {p.solo_informativo ? 'Informativo · ' : ''}
-                        {`${pts} pt.`}
+                        {`${fmtPts(pts)} pt.`}
                       </Typography>
 
                       {tipo === 'ALTERNATIVAS' ? (
@@ -296,7 +299,7 @@ export default function HerramientasExamenRealizar() {
         </Card>
 
         <Stack direction="row" spacing={2} justifyContent="flex-end" flexWrap="wrap" useFlexGap>
-          <Button variant="outlined" onClick={() => navigate('/herramientas-examenes')}>
+          <Button variant="outlined" onClick={() => navigate(volverPath)}>
             Volver
           </Button>
           {!preview && intentoId ? (
