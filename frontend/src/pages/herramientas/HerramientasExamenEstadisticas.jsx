@@ -1,7 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
-import { Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Stack, Typography } from '@mui/material';
+import {
+  Box,
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  Paper,
+  Stack,
+  Typography
+} from '@mui/material';
+import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
 import RateReviewOutlinedIcon from '@mui/icons-material/RateReviewOutlined';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
@@ -10,6 +24,7 @@ import '../../pages/admin/AdminUsuarios.css';
 import './HerramientasExamenes.css';
 import HexExamenesRevisionLineas from './HexExamenesRevisionLineas';
 import { fmtPts } from './hexExamenesFormat';
+import { generarPdfEstadisticasExamenHerramientas } from './hexExamenEstadisticasPdf';
 
 export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
   const { id } = useParams();
@@ -23,6 +38,7 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
   const [lineEdits, setLineEdits] = useState({});
   const [recalculando, setRecalculando] = useState(false);
   const [eliminandoId, setEliminandoId] = useState(null);
+  const [modalGraficos, setModalGraficos] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,6 +122,18 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
     }
   };
 
+  const exportarPdf = () => {
+    if (!data) return;
+    generarPdfEstadisticasExamenHerramientas({
+      examen: data.examen,
+      puntaje_max_examen: data.puntaje_max_examen,
+      totalIntentos: data.totalIntentos,
+      pendientesRevision: data.pendientesRevision,
+      estadisticas_agregadas: data.estadisticas_agregadas,
+      intentos: data.intentos || []
+    });
+  };
+
   const guardarRevision = async () => {
     if (!dlg) return;
     const lineas = Object.entries(lineEdits).map(([linea_id, v]) => ({
@@ -140,6 +168,11 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
     );
   }
 
+  const agg = data.estadisticas_agregadas;
+  const distLabels = agg?.distribucion_rangos?.labels || [];
+  const distCounts = agg?.distribucion_rangos?.counts || [];
+  const maxDist = Math.max(...distCounts, 1);
+
   return (
     <DashboardLayout>
       <div className="hex-exam-wrap">
@@ -155,6 +188,24 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
             title="Actualiza puntos de alternativas y V/F según puntos por respuesta del examen (modo GENERAL)"
           >
             {recalculando ? 'Recalculando…' : 'Recalcular puntajes'}
+          </button>
+          <button
+            type="button"
+            className="admin-usu-btn admin-usu-btn-secondary"
+            onClick={() => setModalGraficos(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <BarChartOutlinedIcon sx={{ fontSize: 18 }} />
+            Gráficos
+          </button>
+          <button
+            type="button"
+            className="admin-usu-btn admin-usu-btn-primary"
+            onClick={exportarPdf}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          >
+            <PictureAsPdfOutlinedIcon sx={{ fontSize: 18 }} />
+            Exportar PDF
           </button>
         </div>
 
@@ -276,6 +327,154 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
           <Button onClick={() => setDlg(null)}>Cerrar</Button>
           <Button variant="contained" onClick={guardarRevision}>
             Guardar calificación
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={modalGraficos} onClose={() => setModalGraficos(false)} maxWidth="md" fullWidth scroll="paper">
+        <DialogTitle>Estadísticas del examen</DialogTitle>
+        <DialogContent dividers>
+          {!agg ? (
+            <Typography color="text.secondary">No hay estadísticas agregadas disponibles.</Typography>
+          ) : (
+            <Stack spacing={2}>
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+                  Indicadores globales
+                </Typography>
+                <Typography variant="body2">
+                  Promedio de puntaje:{' '}
+                  <strong>{agg.promedio_puntaje != null ? fmtPts(agg.promedio_puntaje) : '—'}</strong>
+                  {' · '}
+                  Mediana: <strong>{agg.mediana_puntaje != null ? fmtPts(agg.mediana_puntaje) : '—'}</strong>
+                  {' · '}
+                  Intentos con puntaje: <strong>{agg.n_con_puntaje ?? 0}</strong>
+                </Typography>
+                {agg.distribucion_rangos?.descripcion && (
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                    {agg.distribucion_rangos.descripcion}
+                  </Typography>
+                )}
+              </Paper>
+
+              <Box>
+                <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+                  Distribución de resultados (barras)
+                </Typography>
+                {distLabels.map((lab, i) => {
+                  const c = distCounts[i] ?? 0;
+                  const pctBar = maxDist > 0 ? Math.round((100 * c) / maxDist) : 0;
+                  return (
+                    <Box key={lab} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                      <Typography variant="caption" sx={{ width: 72, flexShrink: 0 }}>
+                        {lab}
+                      </Typography>
+                      <Box sx={{ flex: 1, bgcolor: 'action.hover', borderRadius: 1, height: 12, overflow: 'hidden' }}>
+                        <Box
+                          sx={{
+                            width: `${pctBar}%`,
+                            bgcolor: 'primary.main',
+                            height: 12,
+                            borderRadius: 1,
+                            transition: 'width 0.2s'
+                          }}
+                        />
+                      </Box>
+                      <Typography variant="caption" sx={{ width: 48, textAlign: 'right' }}>
+                        {c}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+
+              <Divider />
+
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="flex-start">
+                <Paper variant="outlined" sx={{ p: 2, flex: 1, width: '100%' }}>
+                  <Typography variant="subtitle2" fontWeight={700} gutterBottom color="error.main">
+                    Más equivocadas (autoevaluables)
+                  </Typography>
+                  <Stack component="ol" sx={{ m: 0, pl: 2.5 }} spacing={0.5}>
+                    {(agg.mas_equivocadas || []).map((p) => (
+                      <Typography key={p.pregunta_id} component="li" variant="body2">
+                        <strong>{p.porcentaje_acierto != null ? `${p.porcentaje_acierto}%` : '—'}</strong>{' '}
+                        — {p.texto_preview}
+                      </Typography>
+                    ))}
+                  </Stack>
+                  {!(agg.mas_equivocadas || []).length && (
+                    <Typography variant="body2" color="text.secondary">
+                      Sin datos de alternativas/V.F. con respuestas.
+                    </Typography>
+                  )}
+                </Paper>
+                <Paper variant="outlined" sx={{ p: 2, flex: 1, width: '100%' }}>
+                  <Typography variant="subtitle2" fontWeight={700} gutterBottom color="success.main">
+                    Mejor respondidas (autoevaluables)
+                  </Typography>
+                  <Stack component="ol" sx={{ m: 0, pl: 2.5 }} spacing={0.5}>
+                    {(agg.mejor_respondidas || []).map((p) => (
+                      <Typography key={p.pregunta_id} component="li" variant="body2">
+                        <strong>
+                          {p.porcentaje_acierto != null ? `${p.porcentaje_acierto}%` : '—'}
+                        </strong>{' '}
+                        — {p.texto_preview}
+                      </Typography>
+                    ))}
+                  </Stack>
+                  {!(agg.mejor_respondidas || []).length && (
+                    <Typography variant="body2" color="text.secondary">
+                      Sin datos de alternativas/V.F. con respuestas.
+                    </Typography>
+                  )}
+                </Paper>
+              </Stack>
+
+              <Divider />
+
+              <Box>
+                <Typography variant="subtitle2" fontWeight={700} gutterBottom>
+                  Todas las preguntas (resumen)
+                </Typography>
+                <Box sx={{ overflowX: 'auto' }}>
+                  <table className="admin-usu-table" style={{ fontSize: '0.8rem' }}>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Tipo</th>
+                        <th>Texto</th>
+                        <th>% acierto</th>
+                        <th>Resp. corta (prom. pts)</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(agg.preguntas_resumen || []).map((p) => (
+                        <tr key={p.pregunta_id}>
+                          <td>{p.orden != null ? p.orden + 1 : '—'}</td>
+                          <td>{p.tipo}</td>
+                          <td>{p.texto_preview}</td>
+                          <td>{p.porcentaje_acierto != null ? `${p.porcentaje_acierto}%` : '—'}</td>
+                          <td>
+                            {p.texto_calificadas > 0 && p.promedio_puntos_texto != null
+                              ? fmtPts(p.promedio_puntos_texto)
+                              : p.pendientes_revision > 0
+                                ? `${p.pendientes_revision} pend.`
+                                : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Box>
+              </Box>
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setModalGraficos(false)}>Cerrar</Button>
+          <Button variant="contained" startIcon={<PictureAsPdfOutlinedIcon />} onClick={exportarPdf}>
+            Exportar PDF
           </Button>
         </DialogActions>
       </Dialog>

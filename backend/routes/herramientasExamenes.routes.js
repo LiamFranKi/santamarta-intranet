@@ -975,6 +975,140 @@ router.delete('/docente/:id', authenticateToken, requireDocente, (req, res) => {
   });
 });
 
+function hexTextoPlanoPreview(html, maxLen = 100) {
+  const t = String(html || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!t) return '(sin texto)';
+  return t.length > maxLen ? `${t.slice(0, maxLen)}…` : t;
+}
+
+/** @returns {true|false|null} null = respuesta corta u otro caso no autoevaluable aquí */
+function hexEvaluarCorrectitud(tipo, opciones_json, respuesta_json) {
+  const tipoU = String(tipo || '').toUpperCase();
+  const o = parseJsonSafe(opciones_json) || {};
+  let r = respuesta_json;
+  if (typeof r === 'string') r = parseJsonSafe(r) || {};
+  if (tipoU === 'ALTERNATIVAS') {
+    if (r == null || r.indice == null || typeof o.correcta !== 'number') return null;
+    return Number(r.indice) === Number(o.correcta);
+  }
+  if (tipoU === 'VERDADERO_FALSO') {
+    const correcta = o.correcta === false ? false : true;
+    if (r == null || (r.valor !== true && r.valor !== false)) return null;
+    return r.valor === correcta;
+  }
+  return null;
+}
+
+function hexConstruirEstadisticasAgregadas(preguntasRows, lineasRows, intentosRows, puntajeMaxExamen) {
+  const pregMap = new Map((preguntasRows || []).map((p) => [p.id, p]));
+  const byPreg = new Map();
+  for (const p of preguntasRows || []) {
+    byPreg.set(p.id, {
+      pregunta_id: p.id,
+      orden: p.orden,
+      tipo: String(p.tipo || '').toUpperCase(),
+      texto_preview: hexTextoPlanoPreview(p.texto, 90),
+      n: 0,
+      correctas: 0,
+      incorrectas: 0,
+      pendientes_revision: 0,
+      texto_calificadas: 0,
+      suma_puntos_texto: 0
+    });
+  }
+
+  for (const L of lineasRows || []) {
+    const pid = L.pregunta_id;
+    const st = byPreg.get(pid);
+    if (!st) continue;
+    st.n += 1;
+    const tipo = String(L.pregunta_tipo || L.tipo || '').toUpperCase();
+    const opc = L.pregunta_opciones != null ? L.pregunta_opciones : L.opciones_json;
+    const ok = hexEvaluarCorrectitud(tipo, opc, L.respuesta_json);
+    if (ok === true) st.correctas += 1;
+    else if (ok === false) st.incorrectas += 1;
+    else if (tipo === 'RESPUESTA_CORTA') {
+      const req = L.requiere_revision === 1 || L.requiere_revision === true;
+      if (req) st.pendientes_revision += 1;
+      else {
+        st.texto_calificadas += 1;
+        st.suma_puntos_texto += Number(L.puntos_otorgados) || 0;
+      }
+    }
+  }
+
+  const preguntasResumen = [];
+  for (const st of byPreg.values()) {
+    const autoTotal = st.correctas + st.incorrectas;
+    let porcentaje_acierto = null;
+    if (autoTotal > 0) {
+      porcentaje_acierto = Math.round((100 * st.correctas) / autoTotal);
+    }
+    const promedio_texto =
+      st.texto_calificadas > 0
+        ? Math.round((100 * st.suma_puntos_texto) / st.texto_calificadas) / 100
+        : null;
+    preguntasResumen.push({
+      ...st,
+      porcentaje_acierto,
+      promedio_puntos_texto: promedio_texto
+    });
+  }
+  preguntasResumen.sort((a, b) => (a.orden || 0) - (b.orden || 0));
+
+  const masEquivocadas = [...preguntasResumen]
+    .filter((p) => p.porcentaje_acierto != null && p.correctas + p.incorrectas > 0)
+    .sort((a, b) => (a.porcentaje_acierto ?? 100) - (b.porcentaje_acierto ?? 100))
+    .slice(0, 8);
+  const mejorRespondidas = [...preguntasResumen]
+    .filter((p) => p.porcentaje_acierto != null && p.correctas + p.incorrectas > 0)
+    .sort((a, b) => (b.porcentaje_acierto ?? 0) - (a.porcentaje_acierto ?? 0))
+    .slice(0, 8);
+
+  const buckets = [0, 0, 0, 0];
+  const puntajes = [];
+  for (const row of intentosRows || []) {
+    if (row.puntaje_obtenido == null) continue;
+    const max = Number(row.puntaje_max_snapshot) || puntajeMaxExamen || 1;
+    const obt = Number(row.puntaje_obtenido);
+    if (Number.isNaN(obt)) continue;
+    puntajes.push(obt);
+    const ratio = max > 0 ? Math.max(0, Math.min(1, obt / max)) : 0;
+    const idx = ratio < 0.25 ? 0 : ratio < 0.5 ? 1 : ratio < 0.75 ? 2 : 3;
+    buckets[idx] += 1;
+  }
+  puntajes.sort((a, b) => a - b);
+  const nP = puntajes.length;
+  const promedio =
+    nP > 0 ? Math.round((100 * puntajes.reduce((s, x) => s + x, 0)) / nP) / 100 : null;
+  let mediana = null;
+  if (nP > 0) {
+    mediana =
+      nP % 2 === 1
+        ? puntajes[(nP - 1) / 2]
+        : (puntajes[nP / 2 - 1] + puntajes[nP / 2]) / 2;
+    mediana = Math.round(mediana * 100) / 100;
+  }
+
+  return {
+    distribucion_rangos: {
+      labels: ['0–25%', '25–50%', '50–75%', '75–100%'],
+      counts: buckets,
+      descripcion: 'Respecto al puntaje máximo de cada intento'
+    },
+    promedio_puntaje: promedio,
+    mediana_puntaje: mediana,
+    n_con_puntaje: nP,
+    preguntas_resumen: preguntasResumen,
+    mas_equivocadas: masEquivocadas,
+    mejor_respondidas: mejorRespondidas
+  };
+}
+
 // ---------- Estadísticas (admin / promotoría) ----------
 
 async function puedeGestionarEstadisticas(req, examenId) {
@@ -1014,7 +1148,7 @@ router.get('/gestion/:id/estadisticas', authenticateToken, async (req, res) => {
        LEFT JOIN personal p ON p.id = u.personal_id
        LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
        WHERE i.examen_id = ? AND i.estado IN ('ENVIADO','CALIFICADO')
-       ORDER BY i.fecha_envio DESC, i.id DESC
+       ORDER BY i.puntaje_obtenido IS NULL, i.puntaje_obtenido DESC, i.fecha_envio DESC, i.id DESC
        LIMIT 500`,
       [id]
     );
@@ -1024,6 +1158,23 @@ router.get('/gestion/:id/estadisticas', authenticateToken, async (req, res) => {
       [id]
     );
     const puntajeMaxCfg = puntajeMaximoExamen(ex, preguntas || []);
+
+    const lineasAgg = await query(
+      `SELECT d.pregunta_id, d.respuesta_json, d.puntos_otorgados, d.requiere_revision,
+              p.tipo AS pregunta_tipo, p.opciones_json AS pregunta_opciones, p.orden, p.texto
+       FROM herramientas_examenes_respuestas_linea d
+       INNER JOIN herramientas_examenes_intentos i ON i.id = d.intento_id
+       INNER JOIN herramientas_examenes_preguntas p ON p.id = d.pregunta_id
+       WHERE i.examen_id = ? AND i.estado IN ('ENVIADO','CALIFICADO')`,
+      [id]
+    );
+
+    const estadisticas_agregadas = hexConstruirEstadisticasAgregadas(
+      preguntas || [],
+      lineasAgg || [],
+      intentos || [],
+      puntajeMaxCfg
+    );
 
     res.json({
       success: true,
@@ -1038,7 +1189,8 @@ router.get('/gestion/:id/estadisticas', authenticateToken, async (req, res) => {
       totalIntentos: total[0]?.c || 0,
       pendientesRevision: pendientes[0]?.c || 0,
       intentos: intentos || [],
-      preguntas: preguntas || []
+      preguntas: preguntas || [],
+      estadisticas_agregadas
     });
   } catch (err) {
     console.error('[hex] estadisticas', err);
