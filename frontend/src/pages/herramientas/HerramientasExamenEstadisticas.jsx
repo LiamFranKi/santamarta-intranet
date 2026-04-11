@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -46,7 +46,7 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const esAdmin = variant === 'admin';
-  const base = esAdmin ? '/admin/herramientas/examenes' : '/docente/herramientas/examenes';
+  const base = '/admin/herramientas/examenes';
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -152,6 +152,10 @@ export default function HerramientasExamenEstadisticas({ variant = 'admin' }) {
       Swal.fire('Error', e.response?.data?.error || 'No se pudo guardar', 'error');
     }
   };
+
+  if (!esAdmin) {
+    return <Navigate to="/herramientas-examenes" replace />;
+  }
 
   if (loading || !data) {
     return (

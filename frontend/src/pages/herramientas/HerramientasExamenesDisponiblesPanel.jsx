@@ -18,6 +18,27 @@ import './HerramientasExamenes.css';
 
 const MODO = { PRACTICA: 'Práctica', CALIFICADO: 'Calificatorio', MIXTO: 'Mixto' };
 
+function chipResultadoExamen(e) {
+  const u = e.ultimo_intento;
+  if (!u) return null;
+  const mn = e.mostrar_nota || 'AL_ENVIAR';
+  if (mn === 'NO') {
+    return { label: 'Completado', color: 'default' };
+  }
+  if (u.estado === 'ENVIADO') {
+    return { label: 'Pendiente de revisión', color: 'warning' };
+  }
+  if (u.estado === 'CALIFICADO' && u.puntaje_obtenido != null && u.puntaje_max_snapshot != null) {
+    const a = Number(u.puntaje_obtenido);
+    const b = Number(u.puntaje_max_snapshot);
+    return {
+      label: `Nota: ${a.toFixed(2)} / ${b.toFixed(2)}`,
+      color: 'success'
+    };
+  }
+  return null;
+}
+
 /**
  * Listado de exámenes de herramientas disponibles para el usuario (mis-disponibles).
  * Sin DashboardLayout: para incrustar en la página admin de gestión o en MisHerramientasExamenes.
@@ -95,10 +116,16 @@ export default function HerramientasExamenesDisponiblesPanel({ compact = false }
             >
               <CardContent>
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={2} flexWrap="wrap">
-                  <Box>
-                    <Stack direction="row" alignItems="center" gap={1} sx={{ mb: 0.5 }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Stack direction="row" alignItems="center" gap={1} flexWrap="wrap" sx={{ mb: 0.5 }}>
                       <AssignmentIcon color="primary" />
                       <Typography fontWeight={800}>{e.titulo}</Typography>
+                      {(() => {
+                        const ch = chipResultadoExamen(e);
+                        return ch ? (
+                          <Chip size="small" label={ch.label} color={ch.color} sx={{ fontWeight: 700 }} />
+                        ) : null;
+                      })()}
                     </Stack>
                     {e.descripcion ? (
                       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>

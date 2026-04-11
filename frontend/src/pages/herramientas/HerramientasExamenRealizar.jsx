@@ -127,17 +127,32 @@ export default function HerramientasExamenRealizar() {
     setEnviando(true);
     try {
       const { data } = await api.post(`/herramientas-examenes/intento/${intentoId}/enviar`, { respuestas: lista });
+      const mn = data.mostrar_nota || 'AL_ENVIAR';
       const lines = [];
       if (data.requiere_revision_docente) {
-        lines.push('Hay preguntas de texto pendientes de revisión por el docente.');
+        lines.push(
+          '<p>Quedan preguntas de texto <strong>pendientes de revisión</strong>. Te avisaremos cuando tengas la nota final.</p>'
+        );
       }
-      if (data.puntaje_max != null) {
-        lines.push(`Puntaje automático: ${data.puntaje_obtenido} / ${data.puntaje_max}`);
+      if (mn !== 'NO' && data.puntaje_max != null && data.estado === 'CALIFICADO') {
+        lines.push(
+          `<p><strong>Nota: ${data.puntaje_obtenido} / ${data.puntaje_max}</strong></p>`
+        );
+      } else if (mn !== 'NO' && data.puntaje_max != null && data.estado === 'ENVIADO' && data.requiere_revision_docente) {
+        if (mn === 'AL_ENVIAR') {
+          lines.push(
+            `<p>Puntaje parcial (autoevaluable): <strong>${data.puntaje_obtenido} / ${data.puntaje_max}</strong></p>`
+          );
+        } else if (mn === 'TRAS_REVISION') {
+          lines.push('<p>La nota se mostrará cuando termine la revisión.</p>');
+        }
+      } else if (mn !== 'NO' && data.puntaje_max != null && !data.requiere_revision_docente) {
+        lines.push(`<p><strong>Nota: ${data.puntaje_obtenido} / ${data.puntaje_max}</strong></p>`);
       }
       Swal.fire({
         icon: 'success',
         title: 'Enviado',
-        html: `<p>${data.mensaje || 'Gracias.'}</p>${lines.map((l) => `<p>${l}</p>`).join('')}`,
+        html: `<p>${data.mensaje || 'Gracias.'}</p>${lines.join('')}`,
         confirmButtonText: 'OK'
       }).then(() => navigate('/herramientas-examenes'));
     } catch (err) {

@@ -20,6 +20,7 @@ const {
   notificarAdminsExamenActivado,
   notificarUsuarioExamenEnviado,
   notificarAdminsExamenCompletado,
+  notificarUsuarioExamenRevisadoCalificado,
   obtenerNombreMostrarUsuario
 } = require('../services/herramientasExamenesNotificacionService');
 
@@ -459,26 +460,12 @@ router.post(
   }
 );
 
-router.post(
-  '/docente/subir-imagen',
-  authenticateToken,
-  requireDocente,
-  (req, res, next) => {
-    uploadHexEditorImagen.single('imagen')(req, res, (err) => {
-      if (err) return res.status(400).json({ error: err.message || 'Archivo no válido' });
-      next();
-    });
-  },
-  (req, res) => {
-    try {
-      if (!req.file) return res.status(400).json({ error: 'No se envió imagen' });
-      res.json({ url: urlArchivoMensajeStatic(req.file.filename) });
-    } catch (e) {
-      console.error('[hex] docente subir-imagen', e);
-      res.status(500).json({ error: 'Error al subir' });
-    }
-  }
-);
+/** Docente ya no gestiona exámenes institucionales (solo administración). */
+router.post('/docente/subir-imagen', authenticateToken, requireDocente, (req, res) => {
+  res.status(403).json({
+    error: 'La creación y edición de exámenes de herramientas es solo para administración.'
+  });
+});
 
 // ---------- Admin ----------
 
@@ -580,10 +567,7 @@ router.get('/preview/:id', authenticateToken, async (req, res) => {
     const { colegio_id } = req.user;
     const ex = await assertExamenColegio(id, colegio_id);
     if (!ex) return res.status(404).json({ error: 'No encontrado' });
-    const okAdmin = ADMIN_TYPES.has(req.user.tipo);
-    const okDocente =
-      String(req.user.tipo).toUpperCase() === 'DOCENTE' && Number(ex.creador_usuario_id) === Number(uid(req));
-    if (!okAdmin && !okDocente) return res.status(403).json({ error: 'No autorizado' });
+    if (!ADMIN_TYPES.has(req.user.tipo)) return res.status(403).json({ error: 'No autorizado' });
     const preg = await query(
       `SELECT * FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC, id ASC`,
       [id]
@@ -861,210 +845,45 @@ router.delete('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (
   }
 });
 
-// ---------- Docente (solo propios) ----------
+// ---------- Docente: deshabilitado (gestión solo administración) ----------
 
-router.get('/docente/lista', authenticateToken, requireDocente, async (req, res) => {
-  try {
-    const { colegio_id } = req.user;
-    const u = uid(req);
-    const rows = await query(
-      `SELECT e.*,
-        (SELECT COUNT(*) FROM herramientas_examenes_intentos i WHERE i.examen_id = e.id AND i.estado IN ('ENVIADO','CALIFICADO')) AS total_intentos
-       FROM herramientas_examenes e
-       WHERE e.colegio_id = ? AND e.creador_usuario_id = ?
-       ORDER BY e.id DESC`,
-      [colegio_id, u]
-    );
-    const out = [];
-    for (const e of rows || []) {
-      const aud = await cargarAudiencias(e.id);
-      const gids = await cargarGruposIds(e.id);
-      out.push({ ...e, audiencias: aud.map((a) => a.tipo), grupos_count: gids.length });
-    }
-    res.json({ success: true, examenes: out });
-  } catch (err) {
-    console.error('[hex] docente lista', err);
-    res.status(500).json({ error: 'Error al listar' });
-  }
+router.get('/docente/lista', authenticateToken, requireDocente, (req, res) => {
+  res.status(403).json({
+    error: 'La creación y gestión de exámenes de herramientas es solo para administración.'
+  });
 });
 
-router.get('/docente/:id', authenticateToken, requireDocente, async (req, res) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    const { colegio_id } = req.user;
-    const u = uid(req);
-    const ex = await assertExamenColegio(id, colegio_id);
-    if (!ex || Number(ex.creador_usuario_id) !== Number(u)) return res.status(404).json({ error: 'No encontrado' });
-    const aud = await cargarAudiencias(id);
-    const gids = await cargarGruposIds(id);
-    const preg = await query(
-      `SELECT * FROM herramientas_examenes_preguntas WHERE examen_id = ? ORDER BY orden ASC, id ASC`,
-      [id]
-    );
-    const cntI = await query(
-      `SELECT COUNT(*) AS c FROM herramientas_examenes_intentos WHERE examen_id = ? AND estado IN ('ENVIADO','CALIFICADO')`,
-      [id]
-    );
-    res.json({
-      success: true,
-      examen: ex,
-      audiencias: aud.map((a) => a.tipo),
-      grupo_ids: gids,
-      preguntas: (preg || []).map(preguntaEditor),
-      tiene_intentos_finalizados: (cntI[0]?.c || 0) > 0
-    });
-  } catch (err) {
-    console.error('[hex] docente get', err);
-    res.status(500).json({ error: 'Error al cargar' });
-  }
+router.get('/docente/:id', authenticateToken, requireDocente, (req, res) => {
+  res.status(403).json({
+    error: 'La creación y gestión de exámenes de herramientas es solo para administración.'
+  });
 });
 
-router.post('/docente', authenticateToken, requireDocente, async (req, res) => {
-  try {
-    const { colegio_id } = req.user;
-    const usuarioId = uid(req);
-    const body = req.body || {};
-    if (!body.titulo || !String(body.titulo).trim()) {
-      return res.status(400).json({ error: 'El título es obligatorio' });
-    }
-    const audLimpias = Array.isArray(body.audiencias) ? [...new Set(body.audiencias.map((a) => String(a).toUpperCase()))] : [];
-    if (audLimpias.length === 0) return res.status(400).json({ error: 'Selecciona al menos una audiencia' });
-
-    const ext = examenParamsExtendidos(body);
-    const params = {
-      titulo: String(body.titulo).trim(),
-      descripcion: body.descripcion || null,
-      estado: body.estado === 'ACTIVO' || body.estado === 'CERRADO' ? body.estado : 'BORRADOR',
-      modo: ['PRACTICA', 'CALIFICADO', 'MIXTO'].includes(body.modo) ? body.modo : 'MIXTO',
-      fecha_inicio: body.fecha_inicio || null,
-      fecha_fin: body.fecha_fin || null,
-      mensaje_agradecimiento: body.mensaje_agradecimiento || null,
-      intentos_max: Math.min(20, Math.max(1, parseInt(body.intentos_max, 10) || 1)),
-      mostrar_nota: ['NO', 'AL_ENVIAR', 'TRAS_REVISION'].includes(body.mostrar_nota) ? body.mostrar_nota : 'AL_ENVIAR',
-      escala_max: body.escala_max != null ? Number(body.escala_max) : 100,
-      ...ext
-    };
-
-    const ins = await execute(
-      `INSERT INTO herramientas_examenes
-       (colegio_id, creador_usuario_id, titulo, descripcion, estado, modo, fecha_inicio, fecha_fin, mensaje_agradecimiento, intentos_max, mostrar_nota, escala_max,
-        tiempo_minutos, tipo_puntaje, puntos_correcta, penalizar_incorrecta, penalizacion_incorrecta, orden_preguntas, preguntas_max, bloque_contenido, bloque_imagen_url)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        colegio_id,
-        usuarioId,
-        params.titulo,
-        params.descripcion,
-        params.estado,
-        params.modo,
-        params.fecha_inicio,
-        params.fecha_fin,
-        params.mensaje_agradecimiento,
-        params.intentos_max,
-        params.mostrar_nota,
-        params.escala_max,
-        params.tiempo_minutos,
-        params.tipo_puntaje,
-        params.puntos_correcta,
-        params.penalizar_incorrecta,
-        params.penalizacion_incorrecta,
-        params.orden_preguntas,
-        params.preguntas_max,
-        params.bloque_contenido,
-        params.bloque_imagen_url
-      ]
-    );
-    const examenId = ins.insertId;
-    for (const t of audLimpias) {
-      await execute(`INSERT INTO herramientas_examenes_audiencias (examen_id, tipo) VALUES (?, ?)`, [examenId, t]);
-    }
-    const gRaw = Array.isArray(body.grupo_ids) ? body.grupo_ids : [];
-    for (const gid of gRaw) {
-      const g = parseInt(gid, 10);
-      if (g) await execute(`INSERT INTO herramientas_examenes_grupos (examen_id, grupo_id) VALUES (?, ?)`, [examenId, g]);
-    }
-    const plist = Array.isArray(body.preguntas) ? body.preguntas : [];
-    let ord = 1;
-    for (const p of plist) {
-      const texto = String(p.texto || '');
-      const tipo = String(p.tipo || 'ALTERNATIVAS').toUpperCase();
-      if (!textoPreguntaNoVacio(texto)) continue;
-      if (!['ALTERNATIVAS', 'VERDADERO_FALSO', 'RESPUESTA_CORTA'].includes(tipo)) continue;
-      const puntos = Math.max(0, Number(p.puntos) || 0);
-      const soloInf = p.solo_informativo ? 1 : 0;
-      const oblig = p.obligatoria !== false ? 1 : 0;
-      let opciones_json = '{}';
-      if (tipo === 'ALTERNATIVAS') {
-        const op = p.opciones || {};
-        const opts = Array.isArray(op.opciones) ? op.opciones : ['A', 'B', 'C', 'D'];
-        const correcta = typeof op.correcta === 'number' ? op.correcta : 0;
-        opciones_json = JSON.stringify({ opciones: opts, correcta });
-      } else if (tipo === 'VERDADERO_FALSO') {
-        const op = p.opciones || {};
-        opciones_json = JSON.stringify({ correcta: op.correcta === false ? false : true });
-      } else {
-        opciones_json = JSON.stringify({});
-      }
-      await execute(
-        `INSERT INTO herramientas_examenes_preguntas (examen_id, orden, texto, tipo, opciones_json, puntos, solo_informativo, obligatoria)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [examenId, ord, texto, tipo, opciones_json, puntos, soloInf, oblig]
-      );
-      ord += 1;
-    }
-    if (params.estado === 'ACTIVO') {
-      scheduleHexActivacionNotifs({ colegio_id, examenId, titulo: params.titulo, usuarioId });
-    }
-    res.json({ success: true, id: examenId });
-  } catch (err) {
-    console.error('[hex] docente create', err);
-    res.status(500).json({ error: 'Error al crear' });
-  }
+router.post('/docente', authenticateToken, requireDocente, (req, res) => {
+  res.status(403).json({
+    error: 'La creación y gestión de exámenes de herramientas es solo para administración.'
+  });
 });
 
-router.put('/docente/:id', authenticateToken, requireDocente, async (req, res) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    const { colegio_id } = req.user;
-    const u = uid(req);
-    const ex = await assertExamenColegio(id, colegio_id);
-    if (!ex || Number(ex.creador_usuario_id) !== Number(u)) return res.status(404).json({ error: 'No encontrado' });
-    req.user._hexDocenteId = id;
-    await guardarExamenCompleto(req, res, { insert: false, examenId: id });
-  } catch (err) {
-    console.error('[hex] docente put', err);
-    res.status(500).json({ error: 'Error al guardar' });
-  }
+router.put('/docente/:id', authenticateToken, requireDocente, (req, res) => {
+  res.status(403).json({
+    error: 'La creación y gestión de exámenes de herramientas es solo para administración.'
+  });
 });
 
-router.delete('/docente/:id', authenticateToken, requireDocente, async (req, res) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    const { colegio_id } = req.user;
-    const u = uid(req);
-    const ex = await assertExamenColegio(id, colegio_id);
-    if (!ex || Number(ex.creador_usuario_id) !== Number(u)) return res.status(404).json({ error: 'No encontrado' });
-    try {
-      await execute(`DELETE FROM herramientas_examenes_modal_visto WHERE examen_id = ?`, [id]);
-    } catch (e) {
-      if (e && String(e.code) !== 'ER_NO_SUCH_TABLE') console.warn('[hex] docente delete modal_visto', e.message);
-    }
-    await execute(`DELETE FROM herramientas_examenes WHERE id = ? AND colegio_id = ?`, [id, colegio_id]);
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[hex] docente delete', err);
-    res.status(500).json({ error: 'Error al eliminar' });
-  }
+router.delete('/docente/:id', authenticateToken, requireDocente, (req, res) => {
+  res.status(403).json({
+    error: 'La creación y gestión de exámenes de herramientas es solo para administración.'
+  });
 });
 
-// ---------- Estadísticas (admin o docente dueño) ----------
+// ---------- Estadísticas (admin / promotoría) ----------
 
 async function puedeGestionarEstadisticas(req, examenId) {
   const { colegio_id } = req.user;
   const ex = await assertExamenColegio(examenId, colegio_id);
   if (!ex) return null;
   if (ADMIN_TYPES.has(req.user.tipo)) return ex;
-  if (String(req.user.tipo).toUpperCase() === 'DOCENTE' && Number(ex.creador_usuario_id) === Number(uid(req))) return ex;
   return null;
 }
 
@@ -1197,6 +1016,13 @@ router.put('/gestion/:id/intento/:intentoId/revision', authenticateToken, async 
     const ex = await puedeGestionarEstadisticas(req, examenId);
     if (!ex) return res.status(403).json({ error: 'No autorizado' });
 
+    const antesRows = await query(
+      `SELECT estado, usuario_id FROM herramientas_examenes_intentos WHERE id = ? AND examen_id = ? LIMIT 1`,
+      [intentoId, examenId]
+    );
+    const estadoAntes = antesRows && antesRows[0] ? String(antesRows[0].estado) : null;
+    const usuarioParticipante = antesRows && antesRows[0] ? antesRows[0].usuario_id : null;
+
     const { lineas } = req.body || {};
     if (!Array.isArray(lineas)) return res.status(400).json({ error: 'lineas inválido' });
 
@@ -1229,7 +1055,28 @@ router.put('/gestion/:id/intento/:intentoId/revision', authenticateToken, async 
       [sum[0]?.s ?? 0, nuevoEstado, maxSnap, intentoId]
     );
 
-    res.json({ success: true, puntaje_obtenido: sum[0]?.s ?? 0, estado: nuevoEstado });
+    const puntajeFinal = sum[0]?.s ?? 0;
+    if (
+      estadoAntes === 'ENVIADO' &&
+      nuevoEstado === 'CALIFICADO' &&
+      usuarioParticipante &&
+      Number(usuarioParticipante) > 0
+    ) {
+      const { colegio_id } = req.user;
+      setImmediate(() => {
+        notificarUsuarioExamenRevisadoCalificado({
+          colegio_id,
+          usuario_id_dest: Number(usuarioParticipante),
+          examen_id: examenId,
+          titulo: ex.titulo,
+          puntaje_obtenido: puntajeFinal,
+          puntaje_max: maxSnap,
+          mostrar_nota: ex.mostrar_nota
+        }).catch((e) => console.error('[hex] notif revisado', e));
+      });
+    }
+
+    res.json({ success: true, puntaje_obtenido: puntajeFinal, estado: nuevoEstado });
   } catch (err) {
     console.error('[hex] revision', err);
     res.status(500).json({ error: 'Error al guardar revisión' });
@@ -1323,6 +1170,15 @@ router.get('/mis-disponibles', authenticateToken, async (req, res) => {
       );
       const maxI = e.intentos_max || 1;
       const puedeOtro = (intentosHechos[0]?.c || 0) < maxI;
+      const ult = await query(
+        `SELECT id, estado, puntaje_obtenido, puntaje_max_snapshot, fecha_envio
+         FROM herramientas_examenes_intentos
+         WHERE examen_id = ? AND usuario_id = ? AND estado IN ('ENVIADO','CALIFICADO')
+         ORDER BY fecha_envio DESC, id DESC
+         LIMIT 1`,
+        [e.id, uid(req)]
+      );
+      const urow = ult && ult[0] ? ult[0] : null;
       out.push({
         id: e.id,
         titulo: e.titulo,
@@ -1331,7 +1187,18 @@ router.get('/mis-disponibles', authenticateToken, async (req, res) => {
         intentos_max: maxI,
         intentos_usados: intentosHechos[0]?.c || 0,
         puede_intentar: puedeOtro,
-        audiencias: aud.map((a) => a.tipo)
+        audiencias: aud.map((a) => a.tipo),
+        mostrar_nota: e.mostrar_nota || 'AL_ENVIAR',
+        escala_max: e.escala_max,
+        ultimo_intento: urow
+          ? {
+              id: urow.id,
+              estado: urow.estado,
+              puntaje_obtenido: urow.puntaje_obtenido,
+              puntaje_max_snapshot: urow.puntaje_max_snapshot,
+              fecha_envio: urow.fecha_envio
+            }
+          : null
       });
     }
     res.json({ success: true, examenes: out, anio_activo: anio });
@@ -1589,6 +1456,7 @@ router.post('/intento/:intentoId/enviar', authenticateToken, async (req, res) =>
       estado: estadoFinal,
       puntaje_obtenido: puntajeParcial,
       puntaje_max: puntajeMax,
+      mostrar_nota: ex.mostrar_nota || 'AL_ENVIAR',
       requiere_revision_docente: necesitaRevision,
       mensaje: ex.mensaje_agradecimiento || 'Gracias por tu participación.'
     });

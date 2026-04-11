@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -953,8 +953,8 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
   const navigate = useNavigate();
   const esNueva = !id || id === 'nueva';
   const esAdmin = variant === 'admin';
-  const base = esAdmin ? '/admin/herramientas/examenes' : '/docente/herramientas/examenes';
-  const apiBase = esAdmin ? '/herramientas-examenes/admin' : '/herramientas-examenes/docente';
+  const base = '/admin/herramientas/examenes';
+  const apiBase = '/herramientas-examenes/admin';
 
   const [loading, setLoading] = useState(!esNueva);
   const [gruposOpts, setGruposOpts] = useState([]);
@@ -1096,7 +1096,7 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
     try {
       const payload = buildPayload();
       if (esNueva) {
-        const { data } = await api.post(esAdmin ? '/herramientas-examenes/admin' : '/herramientas-examenes/docente', payload);
+        const { data } = await api.post(apiBase, payload);
         const newId = data.id;
         Swal.fire({ icon: 'success', title: 'Examen creado', timer: 1400, showConfirmButton: false });
         if (newId) navigate(`${base}/${newId}/editar`, { replace: true });
@@ -1117,6 +1117,10 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
     }
   };
 
+  if (!esAdmin) {
+    return <Navigate to="/herramientas-examenes" replace />;
+  }
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -1128,7 +1132,7 @@ export default function HerramientasExamenEditor({ variant = 'admin' }) {
   }
 
   const bloqueado = tieneIntentos;
-  const uploadImagenUrl = esAdmin ? '/herramientas-examenes/admin/subir-imagen' : '/herramientas-examenes/docente/subir-imagen';
+  const uploadImagenUrl = '/herramientas-examenes/admin/subir-imagen';
 
   return (
     <DashboardLayout>

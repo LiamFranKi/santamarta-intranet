@@ -455,38 +455,7 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
-      <Route
-        path="/docente/herramientas/examenes"
-        element={
-          <PrivateRoute requiredType="DOCENTE">
-            <HerramientasExamenesLista variant="docente" />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/docente/herramientas/examenes/nueva"
-        element={
-          <PrivateRoute requiredType="DOCENTE">
-            <HerramientasExamenEditor variant="docente" />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/docente/herramientas/examenes/:id/editar"
-        element={
-          <PrivateRoute requiredType="DOCENTE">
-            <HerramientasExamenEditor variant="docente" />
-          </PrivateRoute>
-        }
-      />
-      <Route
-        path="/docente/herramientas/examenes/:id/estadisticas"
-        element={
-          <PrivateRoute requiredType="DOCENTE">
-            <HerramientasExamenEstadisticas variant="docente" />
-          </PrivateRoute>
-        }
-      />
+      <Route path="/docente/herramientas/examenes/*" element={<Navigate to="/herramientas-examenes" replace />} />
       <Route
         path="/docente/herramientas/encuestas"
         element={

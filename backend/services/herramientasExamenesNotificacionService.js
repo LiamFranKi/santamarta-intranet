@@ -362,11 +362,77 @@ async function notificarAdminsExamenCompletado({
   );
 }
 
+/** Cuando el revisor termina las respuestas manuales y el intento pasa a CALIFICADO. */
+async function notificarUsuarioExamenRevisadoCalificado({
+  colegio_id,
+  usuario_id_dest,
+  examen_id,
+  titulo,
+  puntaje_obtenido,
+  puntaje_max,
+  mostrar_nota
+}) {
+  const tituloSafe = String(titulo || 'Examen').trim() || 'Examen';
+  const urlDestino = `/herramientas-examenes`;
+  let contenido = `Tu examen «${tituloSafe}» ya fue evaluado.`;
+  if (mostrar_nota !== 'NO' && puntaje_obtenido != null && puntaje_max != null) {
+    contenido = `Tu nota en «${tituloSafe}»: ${puntaje_obtenido} / ${puntaje_max}.`;
+  }
+
+  try {
+    await insertNotificacionUsuario(execute, {
+      usuario_id: usuario_id_dest,
+      destinatario_id: usuario_id_dest,
+      asunto: 'Examen evaluado',
+      contenido,
+      estado: 'ENVIADO',
+      accion_tipo: 'herramientas_examen_revisado',
+      accion_payload: { examen_id, puntaje_obtenido, puntaje_max },
+      url_destino: urlDestino
+    });
+  } catch (e) {
+    console.warn('[hexNotif] usuario revisado', e.message);
+  }
+
+  const subsData = await query(
+    `SELECT usuario_id, endpoint, p256dh, auth FROM push_subscriptions
+     WHERE usuario_id = ? AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+    [usuario_id_dest, colegio_id]
+  );
+  if (!subsData || !subsData.length) return;
+
+  const body =
+    mostrar_nota !== 'NO' && puntaje_obtenido != null && puntaje_max != null
+      ? `${tituloSafe}: ${puntaje_obtenido} / ${puntaje_max}`.substring(0, 110)
+      : `«${tituloSafe}» — revisión lista`.substring(0, 110);
+
+  const pushItems = subsData.map((sub) => ({
+    subscription: {
+      endpoint: sub.endpoint,
+      keys: { p256dh: sub.p256dh, auth: sub.auth }
+    },
+    payload: {
+      title: 'Examen evaluado',
+      body,
+      icon: '/icons/icon-192x192.png',
+      badge: '/icons/icon-192x192.png',
+      vibrate: [150, 80, 150],
+      tag: `hex-revisado-${examen_id}-${usuario_id_dest}`,
+      data: { url: urlDestino, tipo: 'herramientas_examen_revisado', examen_id }
+    }
+  }));
+
+  enviarPushNotificacionesIndividuales(pushItems).catch((err) =>
+    console.error('[hexNotif] push revisado', err.message)
+  );
+}
+
 module.exports = {
   obtenerDestinatariosHerramientasExamen,
   notificarExamenHerramientasActivado,
   notificarAdminsExamenActivado,
   notificarUsuarioExamenEnviado,
   notificarAdminsExamenCompletado,
+  notificarUsuarioExamenRevisadoCalificado,
   obtenerNombreMostrarUsuario
 };

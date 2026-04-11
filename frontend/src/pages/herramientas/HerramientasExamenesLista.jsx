@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   CircularProgress,
   ListItemIcon,
@@ -30,7 +30,7 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const esAdmin = variant === 'admin';
-  const adminTab = esAdmin && searchParams.get('tab') === 'responder' ? 'responder' : 'gestionar';
+  const adminTab = searchParams.get('tab') === 'responder' ? 'responder' : 'gestionar';
 
   const setAdminTab = (t) => {
     if (t === 'gestionar') {
@@ -39,10 +39,9 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
       setSearchParams({ tab: 'responder' }, { replace: true });
     }
   };
-  const base = esAdmin ? '/admin/herramientas/examenes' : '/docente/herramientas/examenes';
-  const apiLista = esAdmin ? '/herramientas-examenes/admin/lista' : '/herramientas-examenes/docente/lista';
-  const apiDel = (id) =>
-    esAdmin ? `/herramientas-examenes/admin/${id}` : `/herramientas-examenes/docente/${id}`;
+  const base = '/admin/herramientas/examenes';
+  const apiLista = '/herramientas-examenes/admin/lista';
+  const apiDel = (id) => `/herramientas-examenes/admin/${id}`;
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
@@ -66,8 +65,12 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
   }, [load]);
 
   useEffect(() => {
-    if (esAdmin) setMenuCtx(null);
-  }, [adminTab, esAdmin]);
+    setMenuCtx(null);
+  }, [adminTab]);
+
+  if (!esAdmin) {
+    return <Navigate to="/herramientas-examenes" replace />;
+  }
 
   const fmt = (d) => (d ? String(d).slice(0, 10) : '—');
 
@@ -102,53 +105,39 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
             <strong>práctica, calificatorio o mixto</strong>, preguntas con puntaje y revisión manual en texto
             corto.
           </p>
-          {!esAdmin ? (
-            <div className="hex-exam-badge-modo">Vista docente — solo ves los exámenes que tú creaste</div>
-          ) : null}
         </div>
 
-        {esAdmin ? (
-          <div className="hex-exam-admin-tabs" role="tablist" aria-label="Vista de exámenes">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={adminTab === 'gestionar'}
-              className={`hex-exam-admin-tab ${adminTab === 'gestionar' ? 'active' : ''}`}
-              onClick={() => setAdminTab('gestionar')}
-            >
-              Gestionar exámenes
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={adminTab === 'responder'}
-              className={`hex-exam-admin-tab ${adminTab === 'responder' ? 'active' : ''}`}
-              onClick={() => setAdminTab('responder')}
-            >
-              Exámenes para responder
-            </button>
-          </div>
-        ) : null}
+        <div className="hex-exam-admin-tabs" role="tablist" aria-label="Vista de exámenes">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminTab === 'gestionar'}
+            className={`hex-exam-admin-tab ${adminTab === 'gestionar' ? 'active' : ''}`}
+            onClick={() => setAdminTab('gestionar')}
+          >
+            Gestionar exámenes
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={adminTab === 'responder'}
+            className={`hex-exam-admin-tab ${adminTab === 'responder' ? 'active' : ''}`}
+            onClick={() => setAdminTab('responder')}
+          >
+            Exámenes para responder
+          </button>
+        </div>
 
-        {(!esAdmin || adminTab === 'gestionar') && (
+        {adminTab === 'gestionar' && (
           <>
             <div
               className="admin-usu-toolbar"
               style={{
-                justifyContent: esAdmin ? 'flex-end' : 'space-between',
+                justifyContent: 'flex-end',
                 flexWrap: 'wrap',
                 gap: 12
               }}
             >
-              {!esAdmin ? (
-                <button
-                  type="button"
-                  className="admin-usu-btn admin-usu-btn-secondary"
-                  onClick={() => navigate('/herramientas-examenes')}
-                >
-                  Ver exámenes disponibles para responder
-                </button>
-              ) : null}
               <button
                 type="button"
                 className="admin-usu-btn admin-usu-btn-new"
@@ -237,7 +226,7 @@ export default function HerramientasExamenesLista({ variant = 'admin' }) {
           </>
         )}
 
-        {esAdmin && adminTab === 'responder' ? (
+        {adminTab === 'responder' ? (
           <div className="hex-exam-panel-embedded-wrap" style={{ marginTop: 16 }}>
             <HerramientasExamenesDisponiblesPanel compact />
           </div>
