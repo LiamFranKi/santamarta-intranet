@@ -273,12 +273,14 @@ router.get('/equipo', async (req, res) => {
     const countRows = await query(`SELECT COUNT(*) AS total FROM personal p WHERE ${whereSql}`, params);
     const total = countRows[0]?.total ?? 0;
 
-    const listParams = [...params];
+    /** Orden de `?` en el SELECT: primero el subquery del JOIN (uu.tipo), luego los de WHERE (params), al final LIMIT/OFFSET. */
     const filtroPerfilRepresentativo =
       perfil && TIPOS_PERSONAL_SET.has(perfil) ? 'AND uu.tipo = ?' : '';
+    const listParams = [];
     if (filtroPerfilRepresentativo) {
       listParams.push(perfil);
     }
+    listParams.push(...params);
     listParams.push(limit, offset);
     const rows = await query(
       `SELECT p.id, p.nombres, p.apellidos, p.nro_documento, p.email, p.telefono_celular, p.cargo,

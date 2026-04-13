@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
+import AdminUsuariosFotoLightbox from '../../components/admin/AdminUsuariosFotoLightbox';
 import './AdminUsuarios.css';
 import './AdminUsuariosEquipoCards.css';
 
@@ -69,6 +70,7 @@ export default function AdminUsuariosAlumnos() {
   const [mensajeContenido, setMensajeContenido] = useState('');
   const [mensajeAdjuntos, setMensajeAdjuntos] = useState([]);
   const [enviandoMensaje, setEnviandoMensaje] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
   const [form, setForm] = useState({});
   const [fotoCreateFile, setFotoCreateFile] = useState(null);
   const [fotoCreatePreview, setFotoCreatePreview] = useState('');
@@ -535,7 +537,25 @@ export default function AdminUsuariosAlumnos() {
                   key={row.id}
                   className={`admin-usu-person-card admin-usu-person-card--${colorIdx}`}
                 >
-                  <div className="admin-usu-person-photo-wrap">
+                  <div
+                    className={`admin-usu-person-photo-wrap${url ? ' admin-usu-person-photo-wrap--clickable' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (url) setLightboxUrl(url);
+                    }}
+                    role={url ? 'button' : undefined}
+                    tabIndex={url ? 0 : undefined}
+                    onKeyDown={
+                      url
+                        ? (ev) => {
+                            if (ev.key === 'Enter' || ev.key === ' ') {
+                              ev.preventDefault();
+                              setLightboxUrl(url);
+                            }
+                          }
+                        : undefined
+                    }
+                  >
                     {url ? (
                       <img className="admin-usu-person-photo" src={url} alt="" />
                     ) : (
@@ -1087,6 +1107,8 @@ export default function AdminUsuariosAlumnos() {
         </div>,
         document.body
       )}
+
+      <AdminUsuariosFotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
   );
 }

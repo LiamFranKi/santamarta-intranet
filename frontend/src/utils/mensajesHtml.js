@@ -31,6 +31,13 @@ export function procesarHTMLMensaje(html) {
   return out.replace(/<img([^>]*)\ssrc=["']([^"']+)["']([^>]*)>/gi, (match, before, src, after) => {
     let fixed = String(src || '').trim();
     if (!fixed) return match;
+    // Imágenes pegadas en el editor (Quill) suelen guardarse como data URL; no reescribir.
+    if (/^data:image\//i.test(fixed)) {
+      return `<img${before} src="${fixed}"${after}>`;
+    }
+    if (fixed.startsWith('blob:')) {
+      return `<img${before} src="${fixed}"${after}>`;
+    }
     fixed = fixed
       .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpBase)
       .replace(/https?:\/\/(www\.)?vanguardschools\.com\/?static/gi, `${phpBase}/Static`);

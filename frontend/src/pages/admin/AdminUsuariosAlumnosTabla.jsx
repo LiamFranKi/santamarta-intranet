@@ -4,6 +4,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
+import AdminUsuariosFotoLightbox from '../../components/admin/AdminUsuariosFotoLightbox';
 import './AdminUsuarios.css';
 
 /**
@@ -72,6 +73,7 @@ export default function AdminUsuariosAlumnosTabla() {
   const [mensajeContenido, setMensajeContenido] = useState('');
   const [mensajeAdjuntos, setMensajeAdjuntos] = useState([]);
   const [enviandoMensaje, setEnviandoMensaje] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
   const [form, setForm] = useState({});
   const [fotoCreateFile, setFotoCreateFile] = useState(null);
   const [fotoCreatePreview, setFotoCreatePreview] = useState('');
@@ -552,7 +554,14 @@ export default function AdminUsuariosAlumnosTabla() {
                   <tr key={row.id}>
                     <td>
                       {url ? (
-                        <img className="admin-usu-avatar" src={url} alt="" />
+                        <button
+                          type="button"
+                          className="admin-usu-avatar-btn"
+                          onClick={() => setLightboxUrl(url)}
+                          title="Ver foto"
+                        >
+                          <img className="admin-usu-avatar" src={url} alt="" />
+                        </button>
                       ) : (
                         <div className="admin-usu-avatar-ph">{letraAvatar}</div>
                       )}
@@ -1106,6 +1115,8 @@ export default function AdminUsuariosAlumnosTabla() {
         </div>,
         document.body
       )}
+
+      <AdminUsuariosFotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </div>
   );
 }

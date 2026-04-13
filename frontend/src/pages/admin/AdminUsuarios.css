@@ -169,6 +169,25 @@
   background: #e5e7eb;
 }
 
+.admin-usu-avatar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 50%;
+  vertical-align: middle;
+  line-height: 0;
+}
+
+.admin-usu-avatar-btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
 .admin-usu-avatar-ph {
   width: 40px;
   height: 40px;
@@ -822,4 +841,53 @@
 
 .admin-usu-info-grid--compact .admin-usu-info-item {
   padding: 0.45rem 0.55rem;
+}
+
+/* Lightbox foto tarjetas (Personal / Alumnos / Apoderados) */
+.admin-usu-person-photo-wrap--clickable {
+  cursor: pointer;
+}
+
+.admin-usu-foto-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10060;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  cursor: zoom-out;
+}
+
+.admin-usu-foto-lightbox-img {
+  max-width: min(100%, 96vw);
+  max-height: 92vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  cursor: default;
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+.admin-usu-foto-lightbox-close {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 10061;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  color: #1f2937;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+
+.admin-usu-foto-lightbox-close:hover {
+  background: #fff;
 }

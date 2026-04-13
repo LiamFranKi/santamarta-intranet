@@ -5,6 +5,7 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { jsPDF } from 'jspdf';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
+import AdminUsuariosFotoLightbox from '../../components/admin/AdminUsuariosFotoLightbox';
 import './AdminUsuarios.css';
 
 /**
@@ -55,6 +56,12 @@ export default function AdminUsuariosEquipoTabla() {
   const [modalInfo, setModalInfo] = useState(null);
   const [modalAcceso, setModalAcceso] = useState(null);
   const [modalHorario, setModalHorario] = useState(null);
+  const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [modalMensaje, setModalMensaje] = useState(null);
+  const [mensajeAsunto, setMensajeAsunto] = useState('');
+  const [mensajeContenido, setMensajeContenido] = useState('');
+  const [mensajeAdjuntos, setMensajeAdjuntos] = useState([]);
+  const [enviandoMensaje, setEnviandoMensaje] = useState(false);
   const [accesoForm, setAccesoForm] = useState({ tipo: 'DOCENTE', estado: 'ACTIVO', password: '' });
   const [form, setForm] = useState({});
   const [fotoCreateFile, setFotoCreateFile] = useState(null);
@@ -304,6 +311,65 @@ export default function AdminUsuariosEquipoTabla() {
     }
   };
 
+  const abrirModalMensaje = (row) => {
+    if (!row.usuario_id) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Sin usuario',
+        text: 'Este personal no tiene usuario en el sistema; no se puede enviar mensaje intranet.',
+      });
+      return;
+    }
+    setModalMensaje(row);
+    setMensajeAsunto('');
+    setMensajeContenido('');
+    setMensajeAdjuntos([]);
+  };
+
+  const cerrarModalMensaje = () => {
+    setModalMensaje(null);
+    setMensajeAsunto('');
+    setMensajeContenido('');
+    setMensajeAdjuntos([]);
+    setEnviandoMensaje(false);
+  };
+
+  const quitarAdjuntoMensaje = (idx) => {
+    setMensajeAdjuntos((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const enviarMensajeDesdeModal = async () => {
+    if (!modalMensaje?.usuario_id) return;
+    const asunto = String(mensajeAsunto || '').trim();
+    const contenido = String(mensajeContenido || '').trim();
+    if (!asunto) {
+      Swal.fire({ icon: 'error', title: 'Asunto requerido', text: 'Ingrese el asunto del mensaje.' });
+      return;
+    }
+    if (!contenido) {
+      Swal.fire({ icon: 'error', title: 'Mensaje requerido', text: 'Ingrese el contenido del mensaje.' });
+      return;
+    }
+    try {
+      setEnviandoMensaje(true);
+      const fd = new FormData();
+      fd.append('destinatarios', JSON.stringify([Number(modalMensaje.usuario_id)]));
+      fd.append('grupos', JSON.stringify([]));
+      fd.append('asunto', asunto);
+      fd.append('mensaje', contenido);
+      mensajeAdjuntos.forEach((file) => fd.append('archivos', file));
+      await api.post('/docente/mensajes/enviar', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      Swal.fire({ icon: 'success', title: 'Mensaje enviado', text: 'El mensaje se envió correctamente al personal.' });
+      cerrarModalMensaje();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo enviar el mensaje' });
+    } finally {
+      setEnviandoMensaje(false);
+    }
+  };
+
   const eliminarPersonal = async (row) => {
     const ok = await Swal.fire({
       icon: 'warning',
@@ -545,8 +611,10 @@ export default function AdminUsuariosEquipoTabla() {
           onChange={(e) => {
             const v = (e.target.value || '').toUpperCase();
             setPage(1);
-            if (v) setSearchParams({ perfil: v });
-            else setSearchParams({});
+            const next = new URLSearchParams(searchParams);
+            if (v) next.set('perfil', v);
+            else next.delete('perfil');
+            setSearchParams(next);
           }}
           aria-label="Filtrar por perfil"
         >
@@ -598,7 +666,14 @@ export default function AdminUsuariosEquipoTabla() {
                   <tr key={row.id}>
                     <td>
                       {url ? (
-                        <img className="admin-usu-avatar" src={url} alt="" />
+                        <button
+                          type="button"
+                          className="admin-usu-avatar-btn"
+                          onClick={() => setLightboxUrl(url)}
+                          title="Ver foto"
+                        >
+                          <img className="admin-usu-avatar" src={url} alt="" />
+                        </button>
                       ) : (
                         <div className="admin-usu-avatar-ph">{ini}</div>
                       )}
@@ -647,6 +722,9 @@ export default function AdminUsuariosEquipoTabla() {
           </button>
           <button type="button" onClick={() => { verHorario(menuRow); cerrarMenus(); }}>
             🗓️ Ver horario
+          </button>
+          <button type="button" onClick={() => { abrirModalMensaje(menuRow); cerrarMenus(); }}>
+            ✉️ Enviar mensaje
           </button>
           <hr />
           <button type="button" onClick={() => { abrirEditar(menuRow); cerrarMenus(); }}>
@@ -1193,6 +1271,84 @@ export default function AdminUsuariosEquipoTabla() {
               </div>
               <div className="admin-usu-modal-actions">
                 <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalHorario(null)}>Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      <AdminUsuariosFotoLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
+
+      {modalMensaje && createPortal(
+        <div className="admin-usu-modal-overlay" onClick={cerrarModalMensaje}>
+          <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-usu-modal-header">
+              <h2>Enviar mensaje</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={cerrarModalMensaje}>
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              <div className="admin-usu-profile-section">
+                <h3>{nombreCompletoEquipo(modalMensaje)}</h3>
+                <p className="admin-usu-hint">Mensaje intranet al usuario de personal (mismo envío que en Alumnos / Apoderados).</p>
+                <div className="admin-usu-field">
+                  <label>Asunto</label>
+                  <input
+                    type="text"
+                    value={mensajeAsunto}
+                    onChange={(e) => setMensajeAsunto(e.target.value)}
+                    placeholder="Escriba el asunto"
+                  />
+                </div>
+                <div className="admin-usu-field">
+                  <label>Mensaje</label>
+                  <textarea
+                    className="admin-usu-msg-textarea"
+                    value={mensajeContenido}
+                    onChange={(e) => setMensajeContenido(e.target.value)}
+                    placeholder="Escriba su mensaje..."
+                  />
+                </div>
+                <div className="admin-usu-field">
+                  <label>Adjuntar imagen / archivo</label>
+                  <input
+                    type="file"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (!files.length) return;
+                      setMensajeAdjuntos((prev) => [...prev, ...files]);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+                {!!mensajeAdjuntos.length && (
+                  <div className="admin-usu-files-list">
+                    {mensajeAdjuntos.map((f, idx) => (
+                      <div key={`${f.name}-${idx}`} className="admin-usu-file-chip">
+                        <span>{f.name}</span>
+                        <button type="button" onClick={() => quitarAdjuntoMensaje(idx)}>
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={cerrarModalMensaje}>
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="admin-usu-btn admin-usu-btn-primary"
+                  onClick={enviarMensajeDesdeModal}
+                  disabled={enviandoMensaje}
+                >
+                  {enviandoMensaje ? 'Enviando...' : 'Enviar mensaje'}
+                </button>
               </div>
             </div>
           </div>
