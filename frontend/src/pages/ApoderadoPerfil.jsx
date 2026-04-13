@@ -15,9 +15,25 @@ function getInitials(nombre) {
   return parts.map((p) => p[0]?.toUpperCase()).join('') || 'A';
 }
 
+/** Misma lógica que AlumnoPerfil / navbar: URL usable en `user.foto` para DashboardLayout */
+function buildFotoUrlForContext(fotoRaw) {
+  if (fotoRaw == null || String(fotoRaw).trim() === '') return null;
+  const foto = String(fotoRaw).trim();
+  if (foto.startsWith('http')) return foto;
+  if (foto.startsWith('/Static/')) {
+    return `https://nuevo.vanguardschools.edu.pe${foto}`;
+  }
+  if (foto.startsWith('/uploads/')) {
+    const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    const currentHost = window.location.hostname;
+    return `${currentProtocol}//${currentHost}${foto}`;
+  }
+  return fotoUsuarioAdmin(foto);
+}
+
 function ApoderadoPerfil() {
   const navigate = useNavigate();
-  const { user, setUser } = useAuth();
+  const { setUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [perfil, setPerfil] = useState(null);
@@ -118,6 +134,28 @@ function ApoderadoPerfil() {
         setFotoPreview(null);
       }
       setFotoFile(null);
+
+      setUser((prev) => {
+        if (!prev || prev.tipo !== 'APODERADO') return prev;
+        const fotoUrl = buildFotoUrlForContext(data.foto);
+        const next = {
+          ...prev,
+          foto: fotoUrl || prev.foto,
+          foto_nombre:
+            data.foto && !String(data.foto).startsWith('http') ? data.foto : prev.foto_nombre,
+          nombres: data.nombres ?? prev.nombres,
+          apellido_paterno: data.apellido_paterno ?? prev.apellido_paterno,
+          apellido_materno: data.apellido_materno ?? prev.apellido_materno,
+          email: data.email ?? prev.email,
+        };
+        try {
+          localStorage.setItem('user', JSON.stringify(next));
+        } catch (_) {
+          /* ignore */
+        }
+        return next;
+      });
+      return data;
     } catch (error) {
       console.error('Error cargando perfil:', error);
       Swal.fire({
@@ -129,6 +167,7 @@ function ApoderadoPerfil() {
         showConfirmButton: false,
         timer: 3000
       });
+      return null;
     } finally {
       setLoading(false);
     }
@@ -175,7 +214,7 @@ function ApoderadoPerfil() {
         setFotoFile(null);
       }
 
-      const response = await api.put('/apoderado/perfil', {
+      await api.put('/apoderado/perfil', {
         nombres: formData.nombres,
         apellido_paterno: formData.apellido_paterno,
         apellido_materno: formData.apellido_materno,
@@ -189,7 +228,9 @@ function ApoderadoPerfil() {
       Swal.fire({
         icon: 'success',
         title: '¡Perfil actualizado!',
-        text: 'Tu perfil se ha actualizado correctamente',
+        text: habiaFotoNueva
+          ? 'Perfil actualizado. Si cambiaste la foto, también se actualizó en la barra superior.'
+          : 'Tu perfil se ha actualizado correctamente',
         toast: true,
         position: 'top-end',
         showConfirmButton: false,
@@ -201,24 +242,6 @@ function ApoderadoPerfil() {
 
       if (habiaFotoNueva) {
         setTimeout(() => setUploadingPhoto(false), 800);
-      }
-      
-      if (response.data && user) {
-        const perfilActualizado = response.data;
-        const fotoUrl =
-          perfilActualizado.foto && String(perfilActualizado.foto).trim() !== ''
-            ? fotoUsuarioAdmin(perfilActualizado.foto)
-            : user.foto;
-        const updatedUser = {
-          ...user,
-          foto: fotoUrl || user.foto,
-          nombres: perfilActualizado.nombres || user.nombres,
-          apellido_paterno: perfilActualizado.apellido_paterno || user.apellido_paterno,
-          apellido_materno: perfilActualizado.apellido_materno || user.apellido_materno,
-          email: perfilActualizado.email || user.email
-        };
-        setUser(updatedUser);
-        localStorage.setItem('user', JSON.stringify(updatedUser));
       }
     } catch (error) {
       console.error('Error actualizando perfil:', error);

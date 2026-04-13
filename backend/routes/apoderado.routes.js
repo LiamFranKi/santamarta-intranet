@@ -787,21 +787,17 @@ router.put('/perfil', async (req, res) => {
       updateValues.push(email);
     }
 
-    if (updateFields.length === 0) {
-      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    if (updateFields.length > 0) {
+      updateValues.push(apoderadoId);
+      updateValues.push(colegio_id);
+      await execute(
+        `UPDATE apoderados 
+         SET ${updateFields.join(', ')}
+         WHERE id = ? AND colegio_id = ?`,
+        updateValues
+      );
     }
 
-    updateValues.push(apoderadoId);
-    updateValues.push(colegio_id);
-
-    await execute(
-      `UPDATE apoderados 
-       SET ${updateFields.join(', ')}
-       WHERE id = ? AND colegio_id = ?`,
-      updateValues
-    );
-
-    // Obtener apoderado actualizado
     const apoderadoActualizado = await query(
       `SELECT ap.*, u.usuario as dni, ap.nro_documento
        FROM apoderados ap
