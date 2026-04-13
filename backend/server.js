@@ -355,4 +355,23 @@ app.listen(PORT, () => {
     }
   };
   iniciarCumpleanosPush();
+
+  // Documentos institucionales: avisos por fecha de vencimiento (solo administradores; campanita + push)
+  const iniciarInstitucionalVencimiento = () => {
+    try {
+      const { ejecutarNotificacionesInstitucionalVencimiento } = require('./services/institucionalVencimientoNotificacionService');
+      setTimeout(async () => {
+        console.log('📋 [INSTITUCIONAL-VENC] Primera verificación de vencimientos...');
+        await ejecutarNotificacionesInstitucionalVencimiento();
+      }, 100000);
+      setInterval(async () => {
+        console.log('📋 [INSTITUCIONAL-VENC] Verificación periódica (cada 24 h)...');
+        await ejecutarNotificacionesInstitucionalVencimiento();
+      }, 24 * 60 * 60 * 1000);
+      console.log('📋 [INSTITUCIONAL-VENC] Programado: primera ejecución ~100 s, luego cada 24 h (zona Lima).');
+    } catch (error) {
+      console.error('❌ [INSTITUCIONAL-VENC] Error configurando:', error);
+    }
+  };
+  iniciarInstitucionalVencimiento();
 });

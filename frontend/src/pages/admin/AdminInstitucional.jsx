@@ -288,8 +288,9 @@ export default function AdminInstitucional() {
         <header className="inst-page-header">
           <h1>Institucional</h1>
           <p>
-            Documentación institucional en PDF, organizada por categorías. Fechas de publicación y vencimiento
-            (las notificaciones automáticas por vencimiento irán dirigidas solo a administradores).
+            Documentación institucional en PDF, organizada por categorías. Si indica fecha de vencimiento, los
+            administradores recibirán avisos en la campanita (y push, si está activo) a los 10, 5 y 1 día antes, el día
+            del vencimiento y el día siguiente, una vez por cada aviso.
           </p>
         </header>
 
@@ -404,15 +405,17 @@ export default function AdminInstitucional() {
                             </span>
                             <button
                               type="button"
-                              className="inst-link-doc"
+                              className="dg-btn-ghost inst-btn-nuevo-doc"
                               onClick={() => abrirModalDoc(null, c.id)}
                               disabled={!categorias.length}
                             >
-                              + Añadir documento aquí
+                              + Nuevo
                             </button>
                           </div>
                           {lista.length === 0 ? (
-                            <p className="inst-empty">Sin documentos. Use el enlace de arriba o &quot;Subir documento&quot; en la barra.</p>
+                            <p className="inst-empty">
+                              Sin documentos. Use &quot;+ Nuevo&quot; aquí o &quot;Subir documento&quot; en la barra superior.
+                            </p>
                           ) : (
                             <div className="inst-table-wrap">
                               <table className="inst-table">

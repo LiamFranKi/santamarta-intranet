@@ -245,24 +245,16 @@
   margin-bottom: 0.65rem;
 }
 
-.inst-link-doc {
-  background: none;
-  border: none;
-  padding: 0;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #2563eb;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+/* Botón compacto alineado con dg-btn-ghost (Documentos Vanguard) */
+.inst-btn-nuevo-doc {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  line-height: 1.2;
 }
 
-.inst-link-doc:hover {
-  color: #1d4ed8;
-}
-
-.inst-link-doc:disabled {
-  opacity: 0.5;
+.inst-btn-nuevo-doc:disabled {
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
