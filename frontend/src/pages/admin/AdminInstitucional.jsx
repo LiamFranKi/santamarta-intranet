@@ -7,7 +7,9 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import './AdminDocumentosGestion.css';
+import './AdminInstitucional.css';
 
 function baseArchivoUrl(rutaRelativa) {
   if (!rutaRelativa) return '';
@@ -52,6 +54,17 @@ export default function AdminInstitucional() {
     fecha_vencimiento: ''
   });
   const [archivoDoc, setArchivoDoc] = useState(null);
+  /** IDs de categorías con el panel de documentos expandido */
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
+
+  const toggleAccordion = (categoriaId) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(categoriaId)) next.delete(categoriaId);
+      else next.add(categoriaId);
+      return next;
+    });
+  };
 
   const cargarCategorias = useCallback(async () => {
     const res = await api.get('/admin/institucional/categorias');
@@ -157,9 +170,15 @@ export default function AdminInstitucional() {
     }
   };
 
-  const abrirModalDoc = (doc = null) => {
+  const abrirModalDoc = (doc = null, categoriaIdPref = null) => {
     setDocEdit(doc);
     setArchivoDoc(null);
+    const defaultCat =
+      categoriaIdPref != null
+        ? String(categoriaIdPref)
+        : categorias[0]?.id
+          ? String(categorias[0].id)
+          : '';
     setFormDoc(
       doc
         ? {
@@ -170,7 +189,7 @@ export default function AdminInstitucional() {
           }
         : {
             titulo: '',
-            categoria_id: categorias[0]?.id ? String(categorias[0].id) : '',
+            categoria_id: defaultCat,
             fecha_publicacion: '',
             fecha_vencimiento: ''
           }
@@ -256,7 +275,7 @@ export default function AdminInstitucional() {
   if (loading) {
     return (
       <DashboardLayout>
-        <div className="dg-page">
+        <div className="inst-page">
           <div className="dg-loading">Cargando Institucional…</div>
         </div>
       </DashboardLayout>
@@ -265,8 +284,8 @@ export default function AdminInstitucional() {
 
   return (
     <DashboardLayout>
-      <div className="dg-page">
-        <header className="dg-page-header">
+      <div className="inst-page">
+        <header className="inst-page-header">
           <h1>Institucional</h1>
           <p>
             Documentación institucional en PDF, organizada por categorías. Fechas de publicación y vencimiento
@@ -274,58 +293,28 @@ export default function AdminInstitucional() {
           </p>
         </header>
 
-        <section className="dg-section" aria-labelledby="inst-cat-heading">
-          <div className="dg-section-title" id="inst-cat-heading">
-            <span>Categorías</span>
-            <button type="button" className="dg-btn-primary" onClick={() => abrirModalCat(null)}>
-              + Nueva categoría
-            </button>
-          </div>
-          {categorias.length === 0 ? (
-            <p className="dg-empty">No hay categorías. Cree la primera para poder subir documentos.</p>
-          ) : (
-            <div className="dg-categorias-grid">
-              {categorias.map((c) => (
-                <div key={c.id} className="dg-cat-card">
-                  <h4>{c.nombre}</h4>
-                  {c.descripcion ? <p className="dg-cat-meta">{c.descripcion}</p> : null}
-                  <span className="dg-cat-meta">Orden: {c.orden}</span>
-                  <div className="dg-cat-actions">
-                    <Tooltip title="Editar categoría">
-                      <IconButton size="small" color="primary" onClick={() => abrirModalCat(c)} aria-label="Editar">
-                        <EditOutlinedIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="Eliminar categoría">
-                      <IconButton size="small" color="error" onClick={() => eliminarCategoria(c)} aria-label="Eliminar">
-                        <DeleteOutlineIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </div>
-                </div>
-              ))}
+        <div className="inst-toolbar" aria-label="Acciones de categorías y documentos">
+          <div className="inst-toolbar-row">
+            <span className="inst-toolbar-title">Categorías y documentos</span>
+            <div className="inst-toolbar-actions">
+              <button type="button" className="dg-btn-primary" onClick={() => abrirModalCat(null)}>
+                + Nueva categoría
+              </button>
+              <button
+                type="button"
+                className="dg-btn-primary"
+                onClick={() => abrirModalDoc(null)}
+                disabled={!categorias.length}
+              >
+                + Subir documento
+              </button>
             </div>
-          )}
-        </section>
-
-        <section className="dg-section" aria-labelledby="inst-doc-heading">
-          <div className="dg-section-title" id="inst-doc-heading">
-            <span>Documentos por categoría</span>
-            <button
-              type="button"
-              className="dg-btn-primary"
-              onClick={() => abrirModalDoc(null)}
-              disabled={!categorias.length}
-            >
-              + Subir documento
-            </button>
           </div>
-
-          <div className="dg-filters">
+          <div className="inst-toolbar-row inst-filter">
             <label>
-              Ver categoría
+              Mostrar
               <select value={filtroCategoria} onChange={(e) => setFiltroCategoria(e.target.value)}>
-                <option value="">Todas</option>
+                <option value="">Todas las categorías</option>
                 {categorias.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.nombre}
@@ -334,110 +323,176 @@ export default function AdminInstitucional() {
               </select>
             </label>
           </div>
+        </div>
 
-          {categoriasMostrar.length === 0 ? (
-            <p className="dg-empty">No hay categorías para mostrar.</p>
-          ) : (
-            categoriasMostrar.map((c) => {
+        {categorias.length === 0 ? (
+          <p className="dg-empty">No hay categorías. Cree la primera para poder subir documentos.</p>
+        ) : categoriasMostrar.length === 0 ? (
+          <p className="dg-empty">No hay categorías para mostrar con el filtro actual.</p>
+        ) : (
+          <div className="inst-acc-list" role="list">
+            {categoriasMostrar.map((c) => {
               const lista = docsByCatId[c.id] || [];
+              const open = expandedIds.has(c.id);
+              const colorIdx = Math.abs(Number(c.id)) % 8;
               return (
-                <div key={c.id} style={{ marginBottom: '1.25rem' }}>
-                  <h3 className="dg-section-title" style={{ fontSize: '1.05rem', marginBottom: '0.65rem' }}>
-                    <span>{c.nombre}</span>
-                    <span className="dg-cat-meta" style={{ fontWeight: 500 }}>
-                      {lista.length} documento{lista.length === 1 ? '' : 's'}
-                    </span>
-                  </h3>
-                  {lista.length === 0 ? (
-                    <p className="dg-empty" style={{ margin: 0 }}>
-                      Sin documentos en esta categoría.
-                    </p>
-                  ) : (
-                    <div className="dg-table-wrap">
-                      <table className="dg-table">
-                        <thead>
-                          <tr>
-                            <th>Documento</th>
-                            <th>Publicación</th>
-                            <th>Vencimiento</th>
-                            <th style={{ width: 130 }}>Acciones</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {lista.map((d) => {
-                            const ev = estadoVencimiento(d.fecha_vencimiento);
-                            return (
-                              <tr key={d.id}>
-                                <td className="dg-doc-titulo">
-                                  {d.titulo}
-                                  {ev === 'vencido' ? (
-                                    <span
-                                      className="dg-badge-perfil"
-                                      style={{ marginLeft: 8, background: '#fee2e2', color: '#991b1b' }}
-                                    >
-                                      Vencido
-                                    </span>
-                                  ) : null}
-                                  {ev === 'proximo' ? (
-                                    <span
-                                      className="dg-badge-perfil"
-                                      style={{ marginLeft: 8, background: '#fef3c7', color: '#92400e' }}
-                                    >
-                                      Por vencer
-                                    </span>
-                                  ) : null}
-                                </td>
-                                <td>{fmtFecha(d.fecha_publicacion || d.created_at)}</td>
-                                <td>{fmtFecha(d.fecha_vencimiento)}</td>
-                                <td>
-                                  <div className="dg-icon-actions">
-                                    <Tooltip title="Ver PDF">
-                                      <IconButton
-                                        size="small"
-                                        color="primary"
-                                        component="a"
-                                        href={baseArchivoUrl(d.archivo_url)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        aria-label="Ver PDF"
-                                      >
-                                        <VisibilityOutlinedIcon fontSize="small" />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Editar">
-                                      <IconButton
-                                        size="small"
-                                        color="primary"
-                                        onClick={() => abrirModalDoc(d)}
-                                        aria-label="Editar"
-                                      >
-                                        <EditOutlinedIcon fontSize="small" />
-                                      </IconButton>
-                                    </Tooltip>
-                                    <Tooltip title="Eliminar">
-                                      <IconButton
-                                        size="small"
-                                        color="error"
-                                        onClick={() => eliminarDocumento(d)}
-                                        aria-label="Eliminar"
-                                      >
-                                        <DeleteOutlineIcon fontSize="small" />
-                                      </IconButton>
-                                    </Tooltip>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                <article
+                  key={c.id}
+                  className={`inst-acc-card inst-acc-card--${colorIdx}`}
+                  role="listitem"
+                >
+                  <div className="inst-acc-top">
+                    <button
+                      type="button"
+                      className="inst-acc-header"
+                      onClick={() => toggleAccordion(c.id)}
+                      aria-expanded={open}
+                      id={`inst-acc-trigger-${c.id}`}
+                      aria-controls={`inst-acc-panel-${c.id}`}
+                    >
+                      <span
+                        className={`inst-acc-chevron ${open ? 'inst-acc-chevron--open' : ''}`}
+                        aria-hidden
+                      >
+                        <ExpandMoreIcon fontSize="small" />
+                      </span>
+                      <span className="inst-acc-header-main">
+                        <span className="inst-acc-name">{c.nombre}</span>
+                        {c.descripcion ? <p className="inst-acc-desc">{c.descripcion}</p> : null}
+                        <div className="inst-acc-meta">
+                          Orden: {c.orden} · {lista.length} documento{lista.length === 1 ? '' : 's'}
+                        </div>
+                      </span>
+                    </button>
+                    <div className="inst-acc-actions">
+                      <Tooltip title="Editar categoría">
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => abrirModalCat(c)}
+                          aria-label={`Editar categoría ${c.nombre}`}
+                        >
+                          <EditOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      <Tooltip title="Eliminar categoría">
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => eliminarCategoria(c)}
+                          aria-label={`Eliminar categoría ${c.nombre}`}
+                        >
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     </div>
-                  )}
-                </div>
+                  </div>
+
+                  <div
+                    id={`inst-acc-panel-${c.id}`}
+                    role="region"
+                    aria-labelledby={`inst-acc-trigger-${c.id}`}
+                    className={`inst-acc-panel ${open ? 'inst-acc-panel--open' : ''}`}
+                    aria-hidden={!open}
+                  >
+                    <div className="inst-acc-panel-inner">
+                      <div className="inst-acc-body inst-acc-body-pad">
+                        <div className="inst-inner-card">
+                          <div className="inst-doc-actions-row">
+                            <span className="inst-acc-meta" style={{ marginTop: 0 }}>
+                              Documentos en esta categoría
+                            </span>
+                            <button
+                              type="button"
+                              className="inst-link-doc"
+                              onClick={() => abrirModalDoc(null, c.id)}
+                              disabled={!categorias.length}
+                            >
+                              + Añadir documento aquí
+                            </button>
+                          </div>
+                          {lista.length === 0 ? (
+                            <p className="inst-empty">Sin documentos. Use el enlace de arriba o &quot;Subir documento&quot; en la barra.</p>
+                          ) : (
+                            <div className="inst-table-wrap">
+                              <table className="inst-table">
+                                <thead>
+                                  <tr>
+                                    <th>Documento</th>
+                                    <th>Publicación</th>
+                                    <th>Vencimiento</th>
+                                    <th style={{ width: 130 }}>Acciones</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {lista.map((d) => {
+                                    const ev = estadoVencimiento(d.fecha_vencimiento);
+                                    return (
+                                      <tr key={d.id}>
+                                        <td className="inst-doc-titulo">
+                                          {d.titulo}
+                                          {ev === 'vencido' ? (
+                                            <span className="inst-badge inst-badge--vencido">Vencido</span>
+                                          ) : null}
+                                          {ev === 'proximo' ? (
+                                            <span className="inst-badge inst-badge--proximo">Por vencer</span>
+                                          ) : null}
+                                        </td>
+                                        <td>{fmtFecha(d.fecha_publicacion || d.created_at)}</td>
+                                        <td>{fmtFecha(d.fecha_vencimiento)}</td>
+                                        <td>
+                                          <div className="inst-icon-actions">
+                                            <Tooltip title="Ver PDF">
+                                              <IconButton
+                                                size="small"
+                                                color="primary"
+                                                component="a"
+                                                href={baseArchivoUrl(d.archivo_url)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                aria-label="Ver PDF"
+                                              >
+                                                <VisibilityOutlinedIcon fontSize="small" />
+                                              </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="Editar">
+                                              <IconButton
+                                                size="small"
+                                                color="primary"
+                                                onClick={() => abrirModalDoc(d)}
+                                                aria-label="Editar"
+                                              >
+                                                <EditOutlinedIcon fontSize="small" />
+                                              </IconButton>
+                                            </Tooltip>
+                                            <Tooltip title="Eliminar">
+                                              <IconButton
+                                                size="small"
+                                                color="error"
+                                                onClick={() => eliminarDocumento(d)}
+                                                aria-label="Eliminar"
+                                              >
+                                                <DeleteOutlineIcon fontSize="small" />
+                                              </IconButton>
+                                            </Tooltip>
+                                          </div>
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </article>
               );
-            })
-          )}
-        </section>
+            })}
+          </div>
+        )}
       </div>
 
       {modalCat && (
