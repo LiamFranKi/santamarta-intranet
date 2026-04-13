@@ -52,6 +52,13 @@ function labelTipoPago(tipo) {
   return `Tipo ${tipo}`;
 }
 
+const PARENTESCO_VINC_LABEL = {
+  1: 'Padre',
+  2: 'Madre',
+  3: 'Tutor',
+  4: 'Apoderado',
+};
+
 export default function AdminUsuariosAlumnosTabla() {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
@@ -76,6 +83,12 @@ export default function AdminUsuariosAlumnosTabla() {
   const [mensajeAdjuntos, setMensajeAdjuntos] = useState([]);
   const [enviandoMensaje, setEnviandoMensaje] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [modalVincApoderado, setModalVincApoderado] = useState(false);
+  const [vincApDni, setVincApDni] = useState('');
+  const [vincApPreview, setVincApPreview] = useState(null);
+  const [vincApParentesco, setVincApParentesco] = useState(1);
+  const [vincApBuscando, setVincApBuscando] = useState(false);
+  const [vincApGuardando, setVincApGuardando] = useState(false);
   const [form, setForm] = useState({});
   const [fotoCreateFile, setFotoCreateFile] = useState(null);
   const [fotoCreatePreview, setFotoCreatePreview] = useState('');
@@ -252,6 +265,74 @@ export default function AdminUsuariosAlumnosTabla() {
       });
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar información' });
+    }
+  };
+
+  const refrescarApoderadosEnModalInfo = async () => {
+    if (!modalInfo?.id) return;
+    try {
+      const { data } = await api.get(`/admin/usuarios/alumnos/${modalInfo.id}/apoderados`);
+      setModalInfo((prev) => (prev ? { ...prev, apoderados: data.data || [] } : prev));
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo actualizar la lista de apoderados' });
+    }
+  };
+
+  const abrirModalVincApoderado = () => {
+    setVincApDni('');
+    setVincApPreview(null);
+    setVincApParentesco(1);
+    setModalVincApoderado(true);
+  };
+
+  const buscarApoderadoPorDni = async () => {
+    const dni = String(vincApDni || '').trim();
+    if (!dni) {
+      Swal.fire({ icon: 'info', title: 'Ingrese el DNI' });
+      return;
+    }
+    setVincApBuscando(true);
+    setVincApPreview(null);
+    try {
+      const { data } = await api.get('/admin/usuarios/apoderados/por-dni', { params: { dni } });
+      if (!data.encontrado) {
+        Swal.fire({
+          icon: 'info',
+          title: 'No encontrado',
+          text: 'No hay apoderado registrado con ese DNI en este colegio.',
+        });
+        return;
+      }
+      const ya = (modalInfo.apoderados || []).some((a) => String(a.nro_documento || '').trim() === dni);
+      if (ya) {
+        Swal.fire({ icon: 'info', title: 'Ya vinculado', text: 'Ese apoderado ya figura en la lista del alumno.' });
+        return;
+      }
+      setVincApPreview(data.apoderado);
+      const p = Number(data.apoderado?.parentesco);
+      if (p >= 1 && p <= 4) setVincApParentesco(p);
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error al buscar' });
+    } finally {
+      setVincApBuscando(false);
+    }
+  };
+
+  const guardarVinculoApoderado = async () => {
+    if (!modalInfo?.id || !vincApPreview) return;
+    setVincApGuardando(true);
+    try {
+      await api.post(`/admin/usuarios/alumnos/${modalInfo.id}/vincular-apoderado`, {
+        nro_documento: String(vincApPreview.nro_documento || '').trim(),
+        parentesco: vincApParentesco,
+      });
+      Swal.fire({ icon: 'success', title: 'Apoderado vinculado' });
+      setModalVincApoderado(false);
+      await refrescarApoderadosEnModalInfo();
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo guardar el vínculo' });
+    } finally {
+      setVincApGuardando(false);
     }
   };
 
@@ -875,7 +956,19 @@ export default function AdminUsuariosAlumnosTabla() {
                   </div>
                 )}
                 <div className="admin-usu-profile-section">
-                  <h3>Apoderados</h3>
+                  <div className="admin-usu-section-head">
+                    <h3>Apoderados</h3>
+                    <button
+                      type="button"
+                      className="admin-usu-btn admin-usu-btn-secondary admin-usu-btn-compact"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        abrirModalVincApoderado();
+                      }}
+                    >
+                      + Nuevo
+                    </button>
+                  </div>
                   {(modalInfo.apoderados || []).length === 0 ? (
                     <span className="admin-usu-info-value">Sin apoderados vinculados</span>
                   ) : (
@@ -938,6 +1031,102 @@ export default function AdminUsuariosAlumnosTabla() {
               <div className="admin-usu-modal-actions">
                 <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalInfo(null)}>
                   Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {modalVincApoderado && createPortal(
+        <div
+          className="admin-usu-modal-overlay"
+          onClick={() => {
+            if (!vincApGuardando) setModalVincApoderado(false);
+          }}
+        >
+          <div className="admin-usu-modal admin-usu-modal--sub" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-usu-modal-header">
+              <h2>Vincular apoderado</h2>
+              <button
+                type="button"
+                className="admin-usu-modal-close"
+                onClick={() => !vincApGuardando && setModalVincApoderado(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              <p className="admin-usu-hint">Ingrese el DNI de un apoderado ya registrado en el colegio.</p>
+              <div className="admin-usu-field">
+                <label>DNI</label>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={vincApDni}
+                    onChange={(e) => setVincApDni(e.target.value)}
+                    placeholder="Número de documento"
+                    style={{ flex: 1, minWidth: 140 }}
+                  />
+                  <button
+                    type="button"
+                    className="admin-usu-btn admin-usu-btn-search"
+                    onClick={buscarApoderadoPorDni}
+                    disabled={vincApBuscando}
+                  >
+                    {vincApBuscando ? 'Buscando…' : 'Buscar'}
+                  </button>
+                </div>
+              </div>
+              {vincApPreview && (
+                <div className="admin-usu-profile-section" style={{ marginTop: '1rem' }}>
+                  <div className="admin-usu-info-grid">
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Nombre</span>
+                      <span className="admin-usu-info-value">
+                        {[vincApPreview.apellido_paterno, vincApPreview.apellido_materno, vincApPreview.nombres].filter(Boolean).join(' ') || '—'}
+                      </span>
+                    </div>
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">DNI</span>
+                      <span className="admin-usu-info-value">{vincApPreview.nro_documento || '—'}</span>
+                    </div>
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Celular</span>
+                      <span className="admin-usu-info-value">{vincApPreview.telefono_celular || '—'}</span>
+                    </div>
+                  </div>
+                  <div className="admin-usu-field">
+                    <label>Parentesco con el alumno</label>
+                    <select
+                      value={vincApParentesco}
+                      onChange={(e) => setVincApParentesco(Number(e.target.value))}
+                    >
+                      {[1, 2, 3, 4].map((k) => (
+                        <option key={k} value={k}>
+                          {PARENTESCO_VINC_LABEL[k]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+              <div className="admin-usu-modal-actions">
+                <button
+                  type="button"
+                  className="admin-usu-btn admin-usu-btn-secondary"
+                  onClick={() => !vincApGuardando && setModalVincApoderado(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="admin-usu-btn admin-usu-btn-primary"
+                  onClick={guardarVinculoApoderado}
+                  disabled={vincApGuardando || !vincApPreview}
+                >
+                  {vincApGuardando ? 'Guardando…' : 'Guardar vínculo'}
                 </button>
               </div>
             </div>

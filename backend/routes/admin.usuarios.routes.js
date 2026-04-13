@@ -1104,6 +1104,31 @@ router.get('/alumnos', async (req, res) => {
   }
 });
 
+/** Buscar alumno por DNI (mismo colegio). Para vincular desde ficha apoderado. */
+router.get('/alumnos/por-dni', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const dni = String(req.query.dni || '').trim();
+    if (!dni) {
+      return res.status(400).json({ error: 'Indique el DNI' });
+    }
+    const rows = await query(
+      `SELECT a.id, a.nombres, a.apellido_paterno, a.apellido_materno, a.nro_documento, a.fecha_nacimiento, a.email
+       FROM alumnos a
+       WHERE a.colegio_id = ? AND TRIM(a.nro_documento) = ?
+       LIMIT 1`,
+      [colegio_id, dni]
+    );
+    if (!rows.length) {
+      return res.json({ encontrado: false });
+    }
+    res.json({ encontrado: true, alumno: rows[0] });
+  } catch (e) {
+    console.error('GET alumnos/por-dni', e);
+    res.status(500).json({ error: e.message || 'Error al buscar' });
+  }
+});
+
 router.get('/alumnos/:id', async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -1517,6 +1542,48 @@ router.get('/alumnos/:id/apoderados', async (req, res) => {
   }
 });
 
+/**
+ * POST /alumnos/:alumnoId/vincular-apoderado
+ * Vincula un apoderado existente (por DNI) al alumno en `familias`. Actualiza parentesco en la ficha del apoderado.
+ */
+router.post('/alumnos/:alumnoId/vincular-apoderado', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const alumnoId = parseInt(req.params.alumnoId, 10);
+    const dni = String(req.body.nro_documento || '').trim();
+    let parentesco = parseInt(req.body.parentesco, 10);
+    if (Number.isNaN(parentesco) || parentesco < 1 || parentesco > 4) parentesco = 1;
+    if (!alumnoId || !dni) {
+      return res.status(400).json({ error: 'Alumno y DNI son obligatorios' });
+    }
+    const al = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
+    if (!al.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const aprows = await query(
+      'SELECT id FROM apoderados WHERE colegio_id = ? AND TRIM(nro_documento) = ? LIMIT 1',
+      [colegio_id, dni]
+    );
+    if (!aprows.length) {
+      return res.status(404).json({ error: 'No hay apoderado registrado con ese DNI en este colegio' });
+    }
+    const apoderadoId = aprows[0].id;
+    const dup = await query(
+      'SELECT 1 FROM familias WHERE alumno_id = ? AND apoderado_id = ? LIMIT 1',
+      [alumnoId, apoderadoId]
+    );
+    if (dup.length) {
+      return res.status(409).json({ error: 'Ese apoderado ya está vinculado a este alumno' });
+    }
+    await execute('INSERT INTO familias (alumno_id, apoderado_id) VALUES (?, ?)', [alumnoId, apoderadoId]);
+    await execute('UPDATE apoderados SET parentesco = ? WHERE id = ? AND colegio_id = ?', [parentesco, apoderadoId, colegio_id]);
+    res.json({ ok: true, apoderado_id: apoderadoId });
+  } catch (e) {
+    console.error('POST vincular-apoderado', e);
+    res.status(500).json({ error: e.message || 'Error al vincular' });
+  }
+});
+
 router.get('/alumnos/:id/hermanos', async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -1732,6 +1799,35 @@ router.get('/apoderados', async (req, res) => {
   }
 });
 
+/** Buscar apoderado por DNI (mismo colegio). Para vincular desde ficha alumno. */
+router.get('/apoderados/por-dni', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const dni = String(req.query.dni || '').trim();
+    if (!dni) {
+      return res.status(400).json({ error: 'Indique el DNI' });
+    }
+    const rows = await query(
+      `SELECT ap.id, ap.nombres, ap.apellido_paterno, ap.apellido_materno, ap.nro_documento, ap.parentesco,
+              ap.email, ap.telefono_celular, ap.fecha_nacimiento,
+              COALESCE(u_ap.id, u_per.id) AS usuario_id,
+              COALESCE(u_ap.estado, u_per.estado) AS usuario_estado
+       FROM apoderados ap
+       ${SQL_JOIN_USUARIO_APODERADO_OPT}
+       WHERE ap.colegio_id = ? AND TRIM(ap.nro_documento) = ?
+       LIMIT 1`,
+      [colegio_id, dni]
+    );
+    if (!rows.length) {
+      return res.json({ encontrado: false });
+    }
+    res.json({ encontrado: true, apoderado: rows[0] });
+  } catch (e) {
+    console.error('GET apoderados/por-dni', e);
+    res.status(500).json({ error: e.message || 'Error al buscar' });
+  }
+});
+
 router.get('/apoderados/:id', async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -1873,6 +1969,45 @@ router.get('/apoderados/:id/detalle', async (req, res) => {
   } catch (e) {
     console.error('GET apoderado detalle admin', e);
     res.status(500).json({ error: e.message || 'Error al cargar detalle' });
+  }
+});
+
+/**
+ * POST /apoderados/:apoderadoId/vincular-alumno
+ * Vincula un alumno existente (por DNI) al apoderado en `familias`.
+ */
+router.post('/apoderados/:apoderadoId/vincular-alumno', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const apoderadoId = parseInt(req.params.apoderadoId, 10);
+    const dni = String(req.body.nro_documento || '').trim();
+    if (!apoderadoId || !dni) {
+      return res.status(400).json({ error: 'Apoderado y DNI son obligatorios' });
+    }
+    const ap = await query('SELECT id FROM apoderados WHERE id = ? AND colegio_id = ? LIMIT 1', [apoderadoId, colegio_id]);
+    if (!ap.length) {
+      return res.status(404).json({ error: 'Apoderado no encontrado' });
+    }
+    const alrows = await query(
+      'SELECT id FROM alumnos WHERE colegio_id = ? AND TRIM(nro_documento) = ? LIMIT 1',
+      [colegio_id, dni]
+    );
+    if (!alrows.length) {
+      return res.status(404).json({ error: 'No hay alumno registrado con ese DNI en este colegio' });
+    }
+    const alumnoId = alrows[0].id;
+    const dup = await query(
+      'SELECT 1 FROM familias WHERE alumno_id = ? AND apoderado_id = ? LIMIT 1',
+      [alumnoId, apoderadoId]
+    );
+    if (dup.length) {
+      return res.status(409).json({ error: 'Ese alumno ya está vinculado a este apoderado' });
+    }
+    await execute('INSERT INTO familias (alumno_id, apoderado_id) VALUES (?, ?)', [alumnoId, apoderadoId]);
+    res.json({ ok: true, alumno_id: alumnoId });
+  } catch (e) {
+    console.error('POST vincular-alumno', e);
+    res.status(500).json({ error: e.message || 'Error al vincular' });
   }
 });
 

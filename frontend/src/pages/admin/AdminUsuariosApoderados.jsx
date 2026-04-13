@@ -91,6 +91,11 @@ export default function AdminUsuariosApoderados() {
   const [mensajeContenido, setMensajeContenido] = useState('');
   const [mensajeAdjuntos, setMensajeAdjuntos] = useState([]);
   const [enviandoMensaje, setEnviandoMensaje] = useState(false);
+  const [modalVincAlumno, setModalVincAlumno] = useState(false);
+  const [vincAlDni, setVincAlDni] = useState('');
+  const [vincAlPreview, setVincAlPreview] = useState(null);
+  const [vincAlBuscando, setVincAlBuscando] = useState(false);
+  const [vincAlGuardando, setVincAlGuardando] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -467,6 +472,70 @@ export default function AdminUsuariosApoderados() {
     } catch (e) {
       setModalInfo(null);
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar información' });
+    }
+  };
+
+  const refrescarDetalleApoderadoModal = async () => {
+    if (!modalInfo?.id) return;
+    try {
+      const { data } = await api.get(`/admin/usuarios/apoderados/${modalInfo.id}/detalle`);
+      setModalInfo(data);
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo actualizar la información' });
+    }
+  };
+
+  const abrirModalVincAlumno = () => {
+    setVincAlDni('');
+    setVincAlPreview(null);
+    setModalVincAlumno(true);
+  };
+
+  const buscarAlumnoPorDni = async () => {
+    const dni = String(vincAlDni || '').trim();
+    if (!dni) {
+      Swal.fire({ icon: 'info', title: 'Ingrese el DNI' });
+      return;
+    }
+    setVincAlBuscando(true);
+    setVincAlPreview(null);
+    try {
+      const { data } = await api.get('/admin/usuarios/alumnos/por-dni', { params: { dni } });
+      if (!data.encontrado) {
+        Swal.fire({
+          icon: 'info',
+          title: 'No encontrado',
+          text: 'No hay alumno registrado con ese DNI en este colegio.',
+        });
+        return;
+      }
+      const ya = (modalInfo.hijos || []).some((h) => String(h.nro_documento || '').trim() === dni);
+      if (ya) {
+        Swal.fire({ icon: 'info', title: 'Ya vinculado', text: 'Ese alumno ya figura en la lista de hijos a cargo.' });
+        return;
+      }
+      setVincAlPreview(data.alumno);
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error al buscar' });
+    } finally {
+      setVincAlBuscando(false);
+    }
+  };
+
+  const guardarVinculoAlumno = async () => {
+    if (!modalInfo?.id || !vincAlPreview) return;
+    setVincAlGuardando(true);
+    try {
+      await api.post(`/admin/usuarios/apoderados/${modalInfo.id}/vincular-alumno`, {
+        nro_documento: String(vincAlPreview.nro_documento || '').trim(),
+      });
+      Swal.fire({ icon: 'success', title: 'Alumno vinculado' });
+      setModalVincAlumno(false);
+      await refrescarDetalleApoderadoModal();
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo guardar el vínculo' });
+    } finally {
+      setVincAlGuardando(false);
     }
   };
 
@@ -984,7 +1053,19 @@ export default function AdminUsuariosApoderados() {
                     </div>
                   </div>
                   <div className="admin-usu-profile-section">
-                    <h3>Hijos a cargo</h3>
+                    <div className="admin-usu-section-head">
+                      <h3>Hijos a cargo</h3>
+                      <button
+                        type="button"
+                        className="admin-usu-btn admin-usu-btn-secondary admin-usu-btn-compact"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          abrirModalVincAlumno();
+                        }}
+                      >
+                        + Nuevo
+                      </button>
+                    </div>
                     {(modalInfo.hijos || []).length === 0 ? (
                       <span className="admin-usu-info-value">Sin alumnos vinculados en familias</span>
                     ) : (
@@ -1200,6 +1281,89 @@ export default function AdminUsuariosApoderados() {
                   disabled={enviandoMensaje}
                 >
                   {enviandoMensaje ? 'Enviando...' : 'Enviar mensaje'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {modalVincAlumno && createPortal(
+        <div
+          className="admin-usu-modal-overlay"
+          onClick={() => {
+            if (!vincAlGuardando) setModalVincAlumno(false);
+          }}
+        >
+          <div className="admin-usu-modal admin-usu-modal--sub" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-usu-modal-header">
+              <h2>Vincular alumno</h2>
+              <button
+                type="button"
+                className="admin-usu-modal-close"
+                onClick={() => !vincAlGuardando && setModalVincAlumno(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              <p className="admin-usu-hint">Ingrese el DNI de un alumno ya registrado en el colegio.</p>
+              <div className="admin-usu-field">
+                <label>DNI</label>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={vincAlDni}
+                    onChange={(e) => setVincAlDni(e.target.value)}
+                    placeholder="Número de documento"
+                    style={{ flex: 1, minWidth: 140 }}
+                  />
+                  <button
+                    type="button"
+                    className="admin-usu-btn admin-usu-btn-search"
+                    onClick={buscarAlumnoPorDni}
+                    disabled={vincAlBuscando}
+                  >
+                    {vincAlBuscando ? 'Buscando…' : 'Buscar'}
+                  </button>
+                </div>
+              </div>
+              {vincAlPreview && (
+                <div className="admin-usu-profile-section" style={{ marginTop: '1rem' }}>
+                  <div className="admin-usu-info-grid">
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Nombre</span>
+                      <span className="admin-usu-info-value">
+                        {[vincAlPreview.apellido_paterno, vincAlPreview.apellido_materno, vincAlPreview.nombres].filter(Boolean).join(' ') || '—'}
+                      </span>
+                    </div>
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">DNI</span>
+                      <span className="admin-usu-info-value">{vincAlPreview.nro_documento || '—'}</span>
+                    </div>
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Correo</span>
+                      <span className="admin-usu-info-value">{vincAlPreview.email || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="admin-usu-modal-actions">
+                <button
+                  type="button"
+                  className="admin-usu-btn admin-usu-btn-secondary"
+                  onClick={() => !vincAlGuardando && setModalVincAlumno(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="admin-usu-btn admin-usu-btn-primary"
+                  onClick={guardarVinculoAlumno}
+                  disabled={vincAlGuardando || !vincAlPreview}
+                >
+                  {vincAlGuardando ? 'Guardando…' : 'Guardar vínculo'}
                 </button>
               </div>
             </div>
