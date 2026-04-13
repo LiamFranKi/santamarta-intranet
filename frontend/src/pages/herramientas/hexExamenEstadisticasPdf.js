@@ -202,6 +202,9 @@ export function generarPdfEstadisticasExamenHerramientas({
     y += rowH + 1;
   });
 
+  // Margen bajo la última fila: la baseline de doc.text queda ~2–3 mm sobre y; sin esto el pie monta sobre el borde.
+  y += 6;
+
   doc.setFontSize(8);
   doc.setTextColor(...colorDark);
   ensureSpace(10);

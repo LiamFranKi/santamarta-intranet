@@ -97,6 +97,34 @@ const uploadGestionDocumento = multer({
   fileFilter: gestionDocsFileFilter
 });
 
+/** PDFs — módulo Institucional (solo administradores; carpeta dedicada) */
+const institucionalDocsDir = path.join(__dirname, '../uploads/institucional-documentos');
+const institucionalDocsStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    if (!fs.existsSync(institucionalDocsDir)) {
+      fs.mkdirSync(institucionalDocsDir, { recursive: true });
+    }
+    cb(null, institucionalDocsDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = (path.extname(file.originalname) || '').toLowerCase();
+    const safe = ext === '.pdf' ? ext : '.pdf';
+    cb(null, `inst-${Date.now()}-${Math.round(Math.random() * 1e9)}${safe}`);
+  }
+});
+const institucionalDocsFileFilter = (req, file, cb) => {
+  const ext = (path.extname(file.originalname) || '').toLowerCase();
+  if (file.mimetype === 'application/pdf' && ext === '.pdf') {
+    return cb(null, true);
+  }
+  cb(new Error('Solo se permiten archivos PDF'));
+};
+const uploadInstitucionalDocumento = multer({
+  storage: institucionalDocsStorage,
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: institucionalDocsFileFilter
+});
+
 const ETIQUETAS_PERFIL_GESTION = {
   TODOS: 'Todos los perfiles',
   ADMINISTRADOR: 'Administrador',
@@ -146,6 +174,16 @@ router.use((req, res, next) => {
     error: 'No tienes permisos para acceder a este recurso'
   });
 });
+
+/** Rutas que deben ser exclusivas de ADMINISTRADOR (p. ej. Institucional; Promotoría no entra aunque use /api/admin). */
+function requireSoloAdministrador(req, res, next) {
+  if (req.user?.tipo !== 'ADMINISTRADOR') {
+    return res.status(403).json({
+      error: 'Solo el perfil Administrador puede acceder a este módulo.'
+    });
+  }
+  next();
+}
 
 function buildArchivoUrlAdmin(nombreArchivo) {
   const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
@@ -1810,6 +1848,265 @@ router.delete('/gestion-documentos/:id', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('delete gestión documento:', err);
+    res.status(500).json({ error: err.message || 'Error al eliminar documento' });
+  }
+});
+
+// ========== Institucional (PDFs por categoría; solo ADMINISTRADOR) ==========
+// Notificaciones por fecha de vencimiento: definir en otro trabajo; destinatarios solo ADMINISTRADOR.
+
+router.get('/institucional/categorias', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const categorias = await query(
+      `SELECT id, nombre, descripcion, orden, activo, created_at
+       FROM institucional_categorias
+       WHERE colegio_id = ?
+       ORDER BY orden ASC, nombre ASC`,
+      [colegio_id]
+    );
+    res.json({ categorias: categorias || [] });
+  } catch (err) {
+    console.error('list categorías institucional:', err);
+    res.status(500).json({ error: err.message || 'Error al listar categorías' });
+  }
+});
+
+router.post('/institucional/categorias', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const { nombre, descripcion = '', orden = 0 } = req.body || {};
+    if (!nombre || !String(nombre).trim()) {
+      return res.status(400).json({ error: 'El nombre es obligatorio' });
+    }
+    const r = await execute(
+      `INSERT INTO institucional_categorias (colegio_id, nombre, descripcion, orden, activo)
+       VALUES (?, ?, ?, ?, 1)`,
+      [colegio_id, String(nombre).trim(), String(descripcion || '').trim(), parseInt(orden, 10) || 0]
+    );
+    res.status(201).json({ success: true, id: r.insertId });
+  } catch (err) {
+    console.error('create categoría institucional:', err);
+    res.status(500).json({ error: err.message || 'Error al crear categoría' });
+  }
+});
+
+router.put('/institucional/categorias/:id', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const { nombre, descripcion, orden, activo } = req.body || {};
+    const rows = await query(
+      `SELECT * FROM institucional_categorias WHERE id = ? AND colegio_id = ?`,
+      [id, colegio_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Categoría no encontrada' });
+    const cur = rows[0];
+    const nNombre = nombre != null ? String(nombre).trim() : cur.nombre;
+    const nDesc = descripcion !== undefined ? String(descripcion) : cur.descripcion;
+    const nOrden = orden != null ? parseInt(orden, 10) : cur.orden;
+    const nActivo = activo != null ? (activo ? 1 : 0) : cur.activo;
+    await execute(
+      `UPDATE institucional_categorias SET nombre = ?, descripcion = ?, orden = ?, activo = ?
+       WHERE id = ? AND colegio_id = ?`,
+      [nNombre, nDesc, nOrden, nActivo, id, colegio_id]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('update categoría institucional:', err);
+    res.status(500).json({ error: err.message || 'Error al actualizar categoría' });
+  }
+});
+
+router.delete('/institucional/categorias/:id', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const [cnt] = await query(
+      `SELECT COUNT(*) as c FROM institucional_documentos WHERE categoria_id = ? AND colegio_id = ?`,
+      [id, colegio_id]
+    );
+    if ((cnt?.c || 0) > 0) {
+      return res.status(400).json({
+        error: 'Hay documentos en esta categoría. Reasígnelos o elimínelos antes.'
+      });
+    }
+    const r = await execute(
+      `DELETE FROM institucional_categorias WHERE id = ? AND colegio_id = ?`,
+      [id, colegio_id]
+    );
+    if (!r.affectedRows) return res.status(404).json({ error: 'Categoría no encontrada' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('delete categoría institucional:', err);
+    res.status(500).json({ error: err.message || 'Error al eliminar categoría' });
+  }
+});
+
+router.get('/institucional/documentos', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const { categoria_id } = req.query;
+    let sql = `
+      SELECT d.id, d.titulo, d.nombre_archivo_original, d.ruta_almacenamiento,
+             d.fecha_publicacion, d.fecha_vencimiento, d.created_at, d.activo,
+             c.id as categoria_id, c.nombre as categoria_nombre, c.orden as categoria_orden
+      FROM institucional_documentos d
+      INNER JOIN institucional_categorias c ON c.id = d.categoria_id AND c.colegio_id = d.colegio_id
+      WHERE d.colegio_id = ?
+    `;
+    const params = [colegio_id];
+    if (categoria_id) {
+      sql += ' AND d.categoria_id = ?';
+      params.push(parseInt(categoria_id, 10));
+    }
+    sql += ' ORDER BY c.orden ASC, d.created_at DESC';
+    const documentos = await query(sql, params);
+    const list = (documentos || []).map((d) => ({
+      ...d,
+      archivo_url: `/uploads/${d.ruta_almacenamiento}`
+    }));
+    res.json({ documentos: list });
+  } catch (err) {
+    console.error('list institucional documentos:', err);
+    res.status(500).json({ error: err.message || 'Error al listar documentos' });
+  }
+});
+
+router.post(
+  '/institucional/documentos',
+  requireSoloAdministrador,
+  uploadInstitucionalDocumento.single('archivo'),
+  async (req, res) => {
+    try {
+      const { colegio_id, usuario_id } = req.user;
+      if (!req.file) {
+        return res.status(400).json({ error: 'Debe subir un archivo PDF' });
+      }
+      const categoria_id = parseInt(req.body.categoria_id, 10);
+      const titulo = (req.body.titulo || '').trim();
+      const fecha_publicacion = req.body.fecha_publicacion || null;
+      const fecha_vencimiento = req.body.fecha_vencimiento || null;
+      if (!categoria_id || !titulo) {
+        if (req.file.path) fs.unlink(req.file.path, () => {});
+        return res.status(400).json({ error: 'Categoría y título son obligatorios' });
+      }
+      const cat = await query(
+        `SELECT id FROM institucional_categorias WHERE id = ? AND colegio_id = ?`,
+        [categoria_id, colegio_id]
+      );
+      if (!cat.length) {
+        if (req.file.path) fs.unlink(req.file.path, () => {});
+        return res.status(400).json({ error: 'Categoría no válida' });
+      }
+      const relPath = `institucional-documentos/${req.file.filename}`;
+      await execute(
+        `INSERT INTO institucional_documentos
+         (colegio_id, categoria_id, titulo, nombre_archivo_original, ruta_almacenamiento, fecha_publicacion, fecha_vencimiento, subido_por_usuario_id, activo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        [
+          colegio_id,
+          categoria_id,
+          titulo,
+          req.file.originalname,
+          relPath,
+          fecha_publicacion || null,
+          fecha_vencimiento || null,
+          usuario_id
+        ]
+      );
+      res.status(201).json({ success: true });
+    } catch (err) {
+      if (req.file?.path) fs.unlink(req.file.path, () => {});
+      console.error('create institucional documento:', err);
+      res.status(500).json({ error: err.message || 'Error al guardar documento' });
+    }
+  }
+);
+
+router.put(
+  '/institucional/documentos/:id',
+  requireSoloAdministrador,
+  uploadInstitucionalDocumento.single('archivo'),
+  async (req, res) => {
+    try {
+      const { colegio_id } = req.user;
+      const id = parseInt(req.params.id, 10);
+      const rows = await query(
+        `SELECT * FROM institucional_documentos WHERE id = ? AND colegio_id = ?`,
+        [id, colegio_id]
+      );
+      if (!rows.length) {
+        if (req.file?.path) fs.unlink(req.file.path, () => {});
+        return res.status(404).json({ error: 'Documento no encontrado' });
+      }
+      const cur = rows[0];
+      let ruta = cur.ruta_almacenamiento;
+      let nombreOrig = cur.nombre_archivo_original;
+      if (req.file) {
+        const oldAbs = path.join(__dirname, '../uploads', cur.ruta_almacenamiento);
+        if (fs.existsSync(oldAbs)) {
+          try {
+            fs.unlinkSync(oldAbs);
+          } catch (e) {
+            console.warn('No se pudo borrar PDF anterior (institucional):', e.message);
+          }
+        }
+        ruta = `institucional-documentos/${req.file.filename}`;
+        nombreOrig = req.file.originalname;
+      }
+      const titulo = req.body.titulo != null ? String(req.body.titulo).trim() : cur.titulo;
+      const categoria_id =
+        req.body.categoria_id != null ? parseInt(req.body.categoria_id, 10) : cur.categoria_id;
+      const fecha_publicacion =
+        req.body.fecha_publicacion !== undefined ? req.body.fecha_publicacion || null : cur.fecha_publicacion;
+      const fecha_vencimiento =
+        req.body.fecha_vencimiento !== undefined ? req.body.fecha_vencimiento || null : cur.fecha_vencimiento;
+      const cat = await query(
+        `SELECT id FROM institucional_categorias WHERE id = ? AND colegio_id = ?`,
+        [categoria_id, colegio_id]
+      );
+      if (!cat.length) {
+        if (req.file?.path) fs.unlink(req.file.path, () => {});
+        return res.status(400).json({ error: 'Categoría no válida' });
+      }
+      await execute(
+        `UPDATE institucional_documentos SET
+         titulo = ?, categoria_id = ?, nombre_archivo_original = ?, ruta_almacenamiento = ?,
+         fecha_publicacion = ?, fecha_vencimiento = ?
+       WHERE id = ? AND colegio_id = ?`,
+        [titulo, categoria_id, nombreOrig, ruta, fecha_publicacion, fecha_vencimiento, id, colegio_id]
+      );
+      res.json({ success: true });
+    } catch (err) {
+      if (req.file?.path) fs.unlink(req.file.path, () => {});
+      console.error('update institucional documento:', err);
+      res.status(500).json({ error: err.message || 'Error al actualizar documento' });
+    }
+  }
+);
+
+router.delete('/institucional/documentos/:id', requireSoloAdministrador, async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const rows = await query(
+      `SELECT ruta_almacenamiento FROM institucional_documentos WHERE id = ? AND colegio_id = ?`,
+      [id, colegio_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Documento no encontrado' });
+    const abs = path.join(__dirname, '../uploads', rows[0].ruta_almacenamiento);
+    await execute(`DELETE FROM institucional_documentos WHERE id = ? AND colegio_id = ?`, [id, colegio_id]);
+    if (fs.existsSync(abs)) {
+      try {
+        fs.unlinkSync(abs);
+      } catch (e) {
+        console.warn('unlink pdf institucional:', e.message);
+      }
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('delete institucional documento:', err);
     res.status(500).json({ error: err.message || 'Error al eliminar documento' });
   }
 });
