@@ -6,6 +6,8 @@ import Swal from 'sweetalert2';
 import { jsPDF } from 'jspdf';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
 import AdminUsuariosFotoLightbox from '../../components/admin/AdminUsuariosFotoLightbox';
+import AdminMensajeQuillEditor from '../../components/admin/AdminMensajeQuillEditor';
+import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
 import './AdminUsuarios.css';
 import './AdminUsuariosEquipoCards.css';
 
@@ -337,12 +339,11 @@ export default function AdminUsuariosEquipo() {
   const enviarMensajeDesdeModal = async () => {
     if (!modalMensaje?.usuario_id) return;
     const asunto = String(mensajeAsunto || '').trim();
-    const contenido = String(mensajeContenido || '').trim();
     if (!asunto) {
       Swal.fire({ icon: 'error', title: 'Asunto requerido', text: 'Ingrese el asunto del mensaje.' });
       return;
     }
-    if (!contenido) {
+    if (!mensajeHtmlTieneContenido(mensajeContenido)) {
       Swal.fire({ icon: 'error', title: 'Mensaje requerido', text: 'Ingrese el contenido del mensaje.' });
       return;
     }
@@ -352,7 +353,7 @@ export default function AdminUsuariosEquipo() {
       fd.append('destinatarios', JSON.stringify([Number(modalMensaje.usuario_id)]));
       fd.append('grupos', JSON.stringify([]));
       fd.append('asunto', asunto);
-      fd.append('mensaje', contenido);
+      fd.append('mensaje', String(mensajeContenido || ''));
       mensajeAdjuntos.forEach((file) => fd.append('archivos', file));
       await api.post('/docente/mensajes/enviar', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -1294,10 +1295,9 @@ export default function AdminUsuariosEquipo() {
                 </div>
                 <div className="admin-usu-field">
                   <label>Mensaje</label>
-                  <textarea
-                    className="admin-usu-msg-textarea"
+                  <AdminMensajeQuillEditor
                     value={mensajeContenido}
-                    onChange={(e) => setMensajeContenido(e.target.value)}
+                    onChange={setMensajeContenido}
                     placeholder="Escriba su mensaje..."
                   />
                 </div>

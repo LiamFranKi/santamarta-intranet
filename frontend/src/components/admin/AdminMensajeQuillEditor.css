@@ -1,0 +1,22 @@
+.admin-mensaje-quill-wrap {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #d1d5db;
+  background: #fff;
+}
+
+.admin-mensaje-quill-wrap .ql-toolbar.ql-snow {
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.admin-mensaje-quill-wrap .ql-container.ql-snow {
+  border: none;
+  font-size: 0.95rem;
+}
+
+.admin-mensaje-quill-wrap .ql-editor {
+  min-height: 168px;
+  max-height: min(40vh, 320px);
+  overflow-y: auto;
+}

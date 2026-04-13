@@ -18,6 +18,22 @@ export function quitarMarcaCumpleanosHtml(html) {
 /**
  * Prepara HTML de mensaje para mostrar en modal: rutas de imágenes y URLs absolutas coherentes.
  */
+/**
+ * True si el HTML del editor tiene texto visible (ignora solo <p><br></p> vacío).
+ */
+export function mensajeHtmlTieneContenido(html) {
+  if (html == null) return false;
+  const s = String(html);
+  if (!s.trim()) return false;
+  if (typeof document === 'undefined') {
+    return s.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim().length > 0;
+  }
+  const div = document.createElement('div');
+  div.innerHTML = s;
+  const text = (div.textContent || '').replace(/\u00a0/g, ' ').trim();
+  return text.length > 0;
+}
+
 export function procesarHTMLMensaje(html) {
   if (!html) return '';
   const baseURL = (api.defaults.baseURL || '').replace(/\/api\/?$/, '');

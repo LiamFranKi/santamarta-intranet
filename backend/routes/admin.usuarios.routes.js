@@ -917,23 +917,10 @@ router.get('/equipo/:personalId/horario', async (req, res) => {
       return res.status(404).json({ error: 'Personal no encontrado' });
     }
 
-    const aniosDisponibles = await query(
-      `SELECT DISTINCT gh.anio
-       FROM grupos_horarios gh
-       LEFT JOIN asignaturas a ON a.id = gh.asignatura_id
-       LEFT JOIN grupos g ON g.id = a.grupo_id
-       WHERE (a.personal_id = ? OR gh.personal_id = ?)
-       ORDER BY gh.anio DESC`,
-      [personalId, personalId]
-    );
-
-    if (!aniosDisponibles || !aniosDisponibles.length) {
-      return res.json({ horario: [], docente: prow[0] });
-    }
-
     const anioActivoInt = parseInt(anio_activo, 10);
-    const existeAnioActivo = aniosDisponibles.some((row) => parseInt(row.anio, 10) === anioActivoInt);
-    const anioUsar = existeAnioActivo ? anioActivoInt : parseInt(aniosDisponibles[0].anio, 10);
+    if (!Number.isFinite(anioActivoInt)) {
+      return res.json({ docente: prow[0], horario: [], anio: null });
+    }
 
     const horarioCrudo = await query(
       `SELECT 
@@ -957,7 +944,7 @@ router.get('/equipo/:personalId/horario', async (req, res) => {
        ORDER BY gh.dia, 
          TIME(STR_TO_DATE(gh.hora_inicio, '%l:%i %p')),
          COALESCE(TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i:%s')), TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i')))`,
-      [anioUsar, personalId, personalId]
+      [anioActivoInt, personalId, personalId]
     );
 
     const horario = (horarioCrudo || []).map((row) => {
@@ -979,7 +966,7 @@ router.get('/equipo/:personalId/horario', async (req, res) => {
     res.json({
       docente: prow[0],
       horario,
-      anio: anioUsar,
+      anio: anioActivoInt,
     });
   } catch (e) {
     console.error('horario equipo', e);
