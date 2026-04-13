@@ -316,7 +316,7 @@ function Dashboard() {
       Swal.close();
 
       const aulas = (data.aulas || []).slice();
-      const titulo = `Saldo Pendiente por Aula - ${data.concepto || row.concepto} (${data.anio || anio})`;
+      const titulo = `Saldo por aula — ${data.concepto || row.concepto} (${data.anio || anio})`;
 
       if (aulas.length === 0) {
         Swal.fire({
@@ -349,15 +349,19 @@ function Dashboard() {
         }
       ).join('');
 
+      const notaAula =
+        '<p class="admin-estadisticas-modal-hint">Cada fila suma el saldo de los alumnos del aula (tarifa menos monto pagado, sin saldo negativo). El total del pie coincide con el detalle por alumno.</p>';
+
       const tablaHtml = `
+        ${notaAula}
         <div class="admin-modal-deudas-tabla-wrap">
         <table class="admin-modal-deudas-tabla">
           <thead>
             <tr>
               <th>Aula</th>
-              <th>Deuda</th>
+              <th>Tarifa</th>
               <th>Pagado</th>
-              <th>Saldo</th>
+              <th>Saldo pendiente</th>
               <th class="admin-modal-deudas-ver-col">Ver</th>
             </tr>
           </thead>
@@ -387,9 +391,9 @@ function Dashboard() {
             <button type="button" class="admin-modal-ver-detalle-btn" data-grupo-id="${a.grupo_id}" data-aula="${aulaEsc}" data-tipo="${row.tipo}" data-anio="${anioResp}" data-concepto="${(conceptoNombre).replace(/"/g, '&quot;')}" title="Ver Detalle" aria-label="Ver Detalle">👁️</button>
           </div>
           <div class="admin-modal-aula-card-body">
-            <div class="admin-modal-aula-card-row"><span class="admin-modal-aula-card-label">Deuda</span><span class="admin-modal-aula-card-value">${fmtM(a.deuda_total)}</span></div>
+            <div class="admin-modal-aula-card-row"><span class="admin-modal-aula-card-label">Tarifa</span><span class="admin-modal-aula-card-value">${fmtM(a.deuda_total)}</span></div>
             <div class="admin-modal-aula-card-row"><span class="admin-modal-aula-card-label">Pagado</span><span class="admin-modal-aula-card-value admin-modal-aula-card-pagado">${fmtM(a.pagado)}</span></div>
-            <div class="admin-modal-aula-card-row"><span class="admin-modal-aula-card-label">Saldo</span><span class="admin-modal-aula-card-value admin-modal-aula-card-saldo">${fmtM(a.saldo)}</span></div>
+            <div class="admin-modal-aula-card-row"><span class="admin-modal-aula-card-label">Saldo pendiente</span><span class="admin-modal-aula-card-value admin-modal-aula-card-saldo">${fmtM(a.saldo)}</span></div>
           </div>
         </div>`;
       }).join('');
@@ -428,15 +432,21 @@ function Dashboard() {
                 const totalD = alumnos.reduce((s, al) => s + (parseFloat(al.deuda_total) || 0), 0);
                 const totalP = alumnos.reduce((s, al) => s + (parseFloat(al.pagado) || 0), 0);
                 const totalS = alumnos.reduce((s, al) => s + (parseFloat(al.saldo) || 0), 0);
+                const diffNeto = totalD - totalP;
+                const notaPie =
+                  Math.abs(diffNeto - totalS) > 0.009
+                    ? `<p class="admin-estadisticas-modal-hint admin-modal-deudas-nota-pie">La columna <strong>Saldo pendiente</strong> es la suma fila a fila (mínimo 0). Puede diferir de (Tarifa − Pagado) en ${fmtAl(Math.abs(diffNeto - totalS))} si hubo abonos por encima del monto tarifario en el mismo concepto.</p>`
+                    : '';
                 const tablaAl = `
                   <div class="admin-modal-deudas-alumno-desktop-table">
                   <div class="admin-modal-deudas-tabla-wrap">
                   <table class="admin-modal-deudas-tabla admin-modal-deudas-tabla-centrada">
-                    <thead><tr><th>Alumno</th><th>Deuda</th><th>Pagado</th><th>Saldo</th></tr></thead>
+                    <thead><tr><th>Alumno</th><th>Tarifa</th><th>Pagado</th><th>Saldo pendiente</th></tr></thead>
                     <tbody>${filasAl}</tbody>
                     <tfoot><tr style="background:linear-gradient(135deg,#d4c8e8 0%,#c4b0dc 100%);font-weight:700"><td style="text-align:center">Total</td><td style="text-align:center">${fmtAl(totalD)}</td><td style="text-align:center">${fmtAl(totalP)}</td><td class="admin-modal-deudas-saldo-total" style="text-align:center">${fmtAl(totalS)}</td></tr></tfoot>
                   </table>
                   </div>
+                  ${notaPie}
                   </div>`;
                 const cardsAlumnosHtml = alumnos.map((al, i) => {
                   const color = coloresPasteles[i % coloresPasteles.length];
@@ -447,9 +457,9 @@ function Dashboard() {
                         <span class="admin-modal-alumno-card-title">${nombreEsc}</span>
                       </div>
                       <div class="admin-modal-alumno-card-body">
-                        <div class="admin-modal-alumno-card-row"><span class="admin-modal-alumno-card-label">Deuda</span><span class="admin-modal-alumno-card-value">${fmtAl(al.deuda_total)}</span></div>
+                        <div class="admin-modal-alumno-card-row"><span class="admin-modal-alumno-card-label">Tarifa</span><span class="admin-modal-alumno-card-value">${fmtAl(al.deuda_total)}</span></div>
                         <div class="admin-modal-alumno-card-row"><span class="admin-modal-alumno-card-label">Pagado</span><span class="admin-modal-alumno-card-value admin-modal-alumno-card-pagado">${fmtAl(al.pagado)}</span></div>
-                        <div class="admin-modal-alumno-card-row"><span class="admin-modal-alumno-card-label">Saldo</span><span class="admin-modal-alumno-card-value admin-modal-alumno-card-saldo">${fmtAl(al.saldo)}</span></div>
+                        <div class="admin-modal-alumno-card-row"><span class="admin-modal-alumno-card-label">Saldo pendiente</span><span class="admin-modal-alumno-card-value admin-modal-alumno-card-saldo">${fmtAl(al.saldo)}</span></div>
                       </div>
                     </div>`;
                 }).join('');
@@ -492,10 +502,38 @@ function Dashboard() {
     { key: 'trabajadores', title: 'Total Trabajadores', icon: '👥', value: loadingStats ? '—' : fmt(stats?.total_trabajadores), color: coloresPasteles[1] },
     { key: 'alumnos', title: 'Total Alumnos', icon: '👨‍🎓', value: loadingStats ? '—' : fmt(stats?.total_alumnos), color: coloresPasteles[2] },
     { key: 'apoderados', title: 'Total Apoderados', icon: '👨‍👩‍👧‍👦', value: loadingStats ? '—' : fmt(stats?.total_apoderados), color: coloresPasteles[3] },
-    { key: 'presupuesto', title: `Presupuesto Anual (${anio})`, icon: '📋', value: loadingStats ? '—' : (stats?.presupuesto_anual != null ? fmtMonto(stats.presupuesto_anual) : '—'), color: coloresPasteles[4] },
-    { key: 'ingresos', title: `Total Ingresos (${anio})`, icon: '💰', value: loadingStats ? '—' : fmtMonto(stats?.total_ingresos), color: coloresPasteles[5] },
-    { key: 'deuda', title: `Total Deuda (${anio})`, icon: '⚠️', value: loadingStats ? '—' : fmtMonto(stats?.total_deuda), color: coloresPasteles[6] },
-    { key: 'deudas_ant', title: 'Deudas Anteriores', icon: '📜', value: loadingStats ? '—' : fmtMonto(stats?.deudas_anteriores), color: coloresPasteles[7] },
+    {
+      key: 'presupuesto',
+      title: `Presupuesto Anual (${anio})`,
+      subtitle: 'Suma de tarifas (matrícula + pensiones)',
+      icon: '📋',
+      value: loadingStats ? '—' : (stats?.presupuesto_anual != null ? fmtMonto(stats.presupuesto_anual) : '—'),
+      color: coloresPasteles[4],
+    },
+    {
+      key: 'ingresos',
+      title: `Total Ingresos (${anio})`,
+      subtitle: 'Suma de montos tarifarios (sin mora)',
+      icon: '💰',
+      value: loadingStats ? '—' : fmtMonto(stats?.total_ingresos),
+      color: coloresPasteles[5],
+    },
+    {
+      key: 'deuda',
+      title: `Total Deuda (${anio})`,
+      subtitle: 'Presupuesto − ingresos (solo monto)',
+      icon: '⚠️',
+      value: loadingStats ? '—' : fmtMonto(stats?.total_deuda),
+      color: coloresPasteles[6],
+    },
+    {
+      key: 'deudas_ant',
+      title: 'Deudas Anteriores',
+      subtitle: 'Años previos (tarifa vs monto)',
+      icon: '📜',
+      value: loadingStats ? '—' : fmtMonto(stats?.deudas_anteriores),
+      color: coloresPasteles[7],
+    },
   ];
 
   return (
@@ -508,6 +546,7 @@ function Dashboard() {
               <div className="admin-stat-icon">{card.icon}</div>
               <div className="admin-stat-content">
                 <h3 className="admin-stat-title">{card.title}</h3>
+                {card.subtitle && <span className="admin-stat-subtitle">{card.subtitle}</span>}
                 <div className="admin-stat-value">{card.value}</div>
               </div>
             </div>
@@ -528,7 +567,11 @@ function Dashboard() {
               <>
                 {kpis && Array.isArray(kpis.conceptos) && kpis.conceptos.length > 0 ? (
                   <div className="admin-estadisticas-table-wrapper">
-                    <h2 className="admin-estadisticas-subtitle">Estadisticas de Pagos (Matriculas y Pensiones)</h2>
+                    <h2 className="admin-estadisticas-subtitle">Estadísticas de pagos (matrícula y pensiones)</h2>
+                    <p className="admin-estadisticas-lead">
+                      Tarifa: monto esperado del concepto. Pagado: solo monto tarifario (sin mora). Saldo pendiente: suma por alumno
+                      del faltante respecto a la tarifa (mínimo 0 por alumno).
+                    </p>
 
                     {/* Solo móvil: cards por concepto */}
                     <div className="admin-estadisticas-mobile-cards">
@@ -552,7 +595,7 @@ function Dashboard() {
                           </div>
                           <div className="admin-estadisticas-concept-card-body">
                             <div className="admin-estadisticas-concept-card-row">
-                              <span className="admin-estadisticas-concept-card-label">Total a pagar</span>
+                              <span className="admin-estadisticas-concept-card-label">Tarifa total</span>
                               <span className="admin-estadisticas-concept-card-value">{fmtMonto(row.total_pagar, kpis.moneda)}</span>
                             </div>
                             <div className="admin-estadisticas-concept-card-row">
@@ -560,7 +603,7 @@ function Dashboard() {
                               <span className="admin-estadisticas-concept-card-value admin-estadisticas-concept-card-pagado">{fmtMonto(row.pagado, kpis.moneda)}</span>
                             </div>
                             <div className="admin-estadisticas-concept-card-row">
-                              <span className="admin-estadisticas-concept-card-label">Saldo</span>
+                              <span className="admin-estadisticas-concept-card-label">Saldo pendiente</span>
                               <span className="admin-estadisticas-concept-card-value admin-estadisticas-concept-card-saldo">{fmtMonto(row.deuda, kpis.moneda)}</span>
                             </div>
                           </div>
@@ -575,9 +618,9 @@ function Dashboard() {
                         <thead>
                           <tr>
                             <th>Concepto</th>
-                            <th>Total a Pagar</th>
+                            <th>Tarifa total</th>
                             <th>Pagado</th>
-                            <th>Deuda</th>
+                            <th>Saldo pendiente</th>
                             <th className="admin-estadisticas-deudas-col">Ver</th>
                           </tr>
                         </thead>
@@ -614,12 +657,12 @@ function Dashboard() {
                       </table>
                     </div>
 
-                    {/* Gráfico Pagado vs Deuda por concepto */}
+                    {/* Gráfico Pagado vs saldo pendiente por concepto */}
                     <div className="admin-estadisticas-chart-card">
-                      <h3 className="admin-estadisticas-chart-title">Pagado vs Deuda por Mes</h3>
+                      <h3 className="admin-estadisticas-chart-title">Pagado vs saldo pendiente por concepto</h3>
                       <div className="admin-estadisticas-chart-legend">
                         <span className="admin-estadisticas-chart-legend-item admin-estadisticas-legend-pagado">Pagado</span>
-                        <span className="admin-estadisticas-chart-legend-item admin-estadisticas-legend-deuda">Deuda</span>
+                        <span className="admin-estadisticas-chart-legend-item admin-estadisticas-legend-deuda">Saldo pendiente</span>
                       </div>
                       <div className="admin-estadisticas-chart-wrapper">
                         {(() => {
@@ -656,7 +699,7 @@ function Dashboard() {
                                         <div
                                           className="admin-estadisticas-bar admin-estadisticas-bar-deuda"
                                           style={{ height: `${Math.max(pctDeuda, 0.5)}%` }}
-                                          title={`${row.concepto}: Deuda ${deuda.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
+                                          title={`${row.concepto}: Saldo pendiente ${deuda.toLocaleString('es-PE', { minimumFractionDigits: 2 })}`}
                                         />
                                       </div>
                                       <div className="admin-estadisticas-chart-x-label">{row.concepto}</div>

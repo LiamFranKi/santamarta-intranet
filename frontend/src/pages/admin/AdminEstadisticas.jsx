@@ -87,15 +87,18 @@ function AdminEstadisticas() {
 
                 {Array.isArray(kpis.conceptos) && kpis.conceptos.length > 0 && (
                   <div className="admin-estadisticas-table-wrapper">
-                    <h2 className="admin-estadisticas-subtitle">Estadísticas por Matrícula y Meses</h2>
+                    <h2 className="admin-estadisticas-subtitle">Estadísticas por matrícula y meses</h2>
+                    <p className="admin-estadisticas-lead">
+                      Tarifa total y pagado (solo monto tarifario, sin mora). Saldo pendiente: suma por alumno del faltante (mínimo 0).
+                    </p>
                     <div className="admin-estadisticas-table-card">
                       <table className="admin-estadisticas-table">
                         <thead>
                           <tr>
                             <th>Concepto</th>
-                            <th>Total a Pagar</th>
+                            <th>Tarifa total</th>
                             <th>Pagado</th>
-                            <th>Deuda</th>
+                            <th>Saldo pendiente</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -108,6 +111,14 @@ function AdminEstadisticas() {
                             </tr>
                           ))}
                         </tbody>
+                        <tfoot>
+                          <tr>
+                            <td><strong>Total</strong></td>
+                            <td>{fmtMonto(kpis.conceptos.reduce((s, r) => s + (parseFloat(r.total_pagar) || 0), 0), kpis.moneda)}</td>
+                            <td>{fmtMonto(kpis.conceptos.reduce((s, r) => s + (parseFloat(r.pagado) || 0), 0), kpis.moneda)}</td>
+                            <td>{fmtMonto(kpis.conceptos.reduce((s, r) => s + (parseFloat(r.deuda) || 0), 0), kpis.moneda)}</td>
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
                   </div>

@@ -8,9 +8,9 @@ router.use(requireUserType('PROMOTORIA'));
 
 /**
  * GET /api/promotoria/dashboard
- * Estadísticas financieras y académicas para Promotoría (año activo)
- * - Matriculados pagados: solo los que pagaron matrícula
- * - Matriculados sin pagar: inscritos pero aún no pagaron matrícula
+ * Estadísticas financieras y académicas para Promotoría (año activo).
+ * Ingresos y gráfico por mes: solo SUM(monto). total_mora_recaudada aparte (no suma a ingresos).
+ * Matriculados pagados / sin pagar: mismos criterios que antes.
  */
 router.get('/dashboard', async (req, res) => {
   try {
@@ -89,19 +89,22 @@ router.get('/dashboard', async (req, res) => {
       presupuestoAnual += matriculaCosto + pension * totalPensiones;
     }
 
-    // Total Ingresos (pagos CANCELADOS de matriculados que pagaron matrícula)
     let totalIngresos = 0;
+    let totalMoraRecaudada = 0;
     if (matriculasPagadasList.length > 0) {
       const matIdsP = matriculasPagadasList.map(m => m.id);
       const ph = matIdsP.map(() => '?').join(',');
       const [rIngresos] = await query(
-        `SELECT COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as total
+        `SELECT
+           COALESCE(SUM(p.monto), 0) AS total_ingresos,
+           COALESCE(SUM(COALESCE(p.mora, 0)), 0) AS total_mora
          FROM pagos p
          WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
            AND p.matricula_id IN (${ph})`,
         [colegio_id, ...matIdsP]
       );
-      totalIngresos = parseFloat(rIngresos?.total || 0);
+      totalIngresos = parseFloat(rIngresos?.total_ingresos || 0);
+      totalMoraRecaudada = parseFloat(rIngresos?.total_mora || 0);
     }
 
     const totalDeuda = Math.max(0, presupuestoAnual - totalIngresos);
@@ -118,7 +121,7 @@ router.get('/dashboard', async (req, res) => {
     let deudasAnteriores = 0;
     for (const mat of matriculasAnteriores || []) {
       const [rPagos] = await query(
-        `SELECT COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as pagado
+        `SELECT COALESCE(SUM(p.monto), 0) as pagado
          FROM pagos p
          WHERE p.matricula_id = ? AND p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'`,
         [mat.id, colegio_id]
@@ -132,7 +135,7 @@ router.get('/dashboard', async (req, res) => {
 
     // Datos para gráficos: ingresos por mes (últimos 6 meses)
     const ingresosPorMes = await query(
-      `SELECT DATE_FORMAT(p.fecha_hora, '%Y-%m') as mes, COALESCE(SUM(p.monto + COALESCE(p.mora, 0)), 0) as total
+      `SELECT DATE_FORMAT(p.fecha_hora, '%Y-%m') as mes, COALESCE(SUM(p.monto), 0) as total
        FROM pagos p
        INNER JOIN matriculas m ON m.id = p.matricula_id
        INNER JOIN grupos g ON g.id = m.grupo_id
@@ -162,6 +165,7 @@ router.get('/dashboard', async (req, res) => {
       matriculados_sin_pagar: totalMatriculadosSinPagar,
       presupuesto_anual: presupuestoAnual,
       total_ingresos: totalIngresos,
+      total_mora_recaudada: totalMoraRecaudada,
       total_deuda: totalDeuda,
       deudas_anteriores: deudasAnteriores,
       moneda,

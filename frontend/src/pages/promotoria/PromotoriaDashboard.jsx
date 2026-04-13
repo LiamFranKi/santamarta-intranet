@@ -20,9 +20,9 @@ function PromotoriaDashboard() {
   const fmtMonto = (n) => (n == null || n === '' ? '—' : `${moneda} ${parseFloat(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 
   const kpis = [
-    { key: 'ingresos', title: 'Total Ingresos', subtitle: `Año ${anio}`, icon: '💰', value: loading ? '—' : fmtMonto(stats?.total_ingresos), accent: 'ingresos' },
-    { key: 'presupuesto', title: 'Presupuesto Anual', subtitle: `Año ${anio}`, icon: '📋', value: loading ? '—' : fmtMonto(stats?.presupuesto_anual), accent: 'presupuesto' },
-    { key: 'deuda', title: 'Total Deuda', subtitle: `Año ${anio}`, icon: '⚠️', value: loading ? '—' : fmtMonto(stats?.total_deuda), accent: 'deuda' },
+    { key: 'ingresos', title: 'Total Ingresos', subtitle: `Solo monto tarifario · ${anio}`, icon: '💰', value: loading ? '—' : fmtMonto(stats?.total_ingresos), accent: 'ingresos' },
+    { key: 'presupuesto', title: 'Presupuesto Anual', subtitle: `Tarifas (matr. + pensiones) · ${anio}`, icon: '📋', value: loading ? '—' : fmtMonto(stats?.presupuesto_anual), accent: 'presupuesto' },
+    { key: 'deuda', title: 'Total Deuda', subtitle: `Presupuesto − ingresos · ${anio}`, icon: '⚠️', value: loading ? '—' : fmtMonto(stats?.total_deuda), accent: 'deuda' },
     { key: 'alumnos', title: 'Alumnos Matriculados', subtitle: 'Con matrícula pagada', icon: '👨‍🎓', value: loading ? '—' : fmt(stats?.total_alumnos), accent: 'alumnos' },
     { key: 'sin_pagar', title: 'Matriculados Sin Pagar', subtitle: 'Inscritos, matrícula pendiente', icon: '📌', value: loading ? '—' : fmt(stats?.matriculados_sin_pagar), accent: 'sinpagar' },
     { key: 'trabajadores', title: 'Personal', subtitle: 'Total trabajadores', icon: '👥', value: loading ? '—' : fmt(stats?.total_trabajadores), accent: 'trabajadores' },
