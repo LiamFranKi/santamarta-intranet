@@ -1769,6 +1769,124 @@ router.get('/apoderados/:id', async (req, res) => {
   }
 });
 
+/**
+ * GET /apoderados/:id/detalle
+ * Ficha ampliada: hijos vinculados en familias y otros apoderados que comparten esos alumnos.
+ */
+router.get('/apoderados/:id/detalle', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    if (!id) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+
+    const base = await query(
+      `SELECT ap.*,
+              COALESCE(u_ap.id, u_per.id) AS usuario_id,
+              COALESCE(u_ap.usuario, u_per.usuario) AS login_usuario,
+              COALESCE(u_ap.estado, u_per.estado) AS usuario_estado,
+              COALESCE(u_ap.tipo, u_per.tipo) AS usuario_tipo
+       FROM apoderados ap
+       ${SQL_JOIN_USUARIO_APODERADO_OPT}
+       WHERE ap.id = ? AND ap.colegio_id = ?
+       LIMIT 1`,
+      [id, colegio_id]
+    );
+    if (!base.length) {
+      return res.status(404).json({ error: 'No encontrado' });
+    }
+
+    const hijosRows = await query(
+      `SELECT DISTINCT
+          a.id AS alumno_id,
+          a.nombres,
+          a.apellido_paterno,
+          a.apellido_materno,
+          a.nro_documento,
+          g.anio,
+          g.grado,
+          g.seccion,
+          n.nombre AS nivel_nombre,
+          m.estado AS matricula_estado
+       FROM familias f
+       INNER JOIN alumnos a ON a.id = f.alumno_id AND a.colegio_id = ?
+       LEFT JOIN matriculas m ON m.id = (
+         SELECT m2.id
+         FROM matriculas m2
+         INNER JOIN grupos g2 ON g2.id = m2.grupo_id AND g2.colegio_id = m2.colegio_id
+         WHERE m2.alumno_id = a.id AND m2.colegio_id = a.colegio_id
+         ORDER BY (m2.estado = 0 OR m2.estado = 4) DESC, g2.anio DESC, m2.id DESC
+         LIMIT 1
+       )
+       LEFT JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = a.colegio_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       WHERE f.apoderado_id = ?
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
+      [colegio_id, id]
+    );
+
+    const hijos = (hijosRows || []).map((h) => {
+      const grupoTxt = `${h.nivel_nombre || ''} ${h.grado ? `${h.grado}°` : ''} ${h.seccion || ''} - ${h.anio || ''}`
+        .replace(/\s+/g, ' ')
+        .trim();
+      const est = h.matricula_estado;
+      const vigente = est === 0 || est === 4;
+      return {
+        alumno_id: h.alumno_id,
+        nombres: h.nombres || '',
+        apellido_paterno: h.apellido_paterno || '',
+        apellido_materno: h.apellido_materno || '',
+        nro_documento: h.nro_documento != null ? String(h.nro_documento).trim() : '',
+        anio: h.anio,
+        grado: h.grado,
+        seccion: h.seccion,
+        nivel_nombre: h.nivel_nombre || '',
+        matricula_estado: est,
+        matricula_vigente: vigente,
+        grupo_texto: grupoTxt || '—',
+      };
+    });
+
+    const alumnoIds = [...new Set(hijos.map((h) => h.alumno_id).filter(Boolean))];
+    let otros_apoderados = [];
+    if (alumnoIds.length > 0) {
+      const ph = alumnoIds.map(() => '?').join(',');
+      const otrosRows = await query(
+        `SELECT DISTINCT
+            ap.id,
+            ap.nombres,
+            ap.apellido_paterno,
+            ap.apellido_materno,
+            ap.nro_documento,
+            ap.email,
+            ap.telefono_celular,
+            ap.parentesco,
+            u.id AS usuario_id,
+            u.estado AS usuario_estado,
+            u.tipo AS usuario_tipo
+         FROM familias f
+         INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
+         LEFT JOIN usuarios u ON u.apoderado_id = ap.id AND u.colegio_id = ap.colegio_id
+         WHERE f.alumno_id IN (${ph})
+           AND ap.id <> ?
+         ORDER BY ap.apellido_paterno, ap.apellido_materno, ap.nombres`,
+        [colegio_id, ...alumnoIds, id]
+      );
+      otros_apoderados = otrosRows || [];
+    }
+
+    res.json({
+      ...base[0],
+      hijos,
+      otros_apoderados,
+    });
+  } catch (e) {
+    console.error('GET apoderado detalle admin', e);
+    res.status(500).json({ error: e.message || 'Error al cargar detalle' });
+  }
+});
+
 router.post('/apoderados', uploadUsuarioFoto.single('foto'), async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -1791,7 +1909,8 @@ router.post('/apoderados', uploadUsuarioFoto.single('foto'), async (req, res) =>
 
     const email = String(req.body.email || '').trim();
     const tel = String(req.body.telefono_celular || '').trim();
-    const parentesco = parseInt(req.body.parentesco, 10) || 1;
+    let parentesco = parseInt(req.body.parentesco, 10);
+    if (Number.isNaN(parentesco) || parentesco < 1 || parentesco > 4) parentesco = 1;
     const fotoNombre = req.file && req.file.filename ? req.file.filename : null;
 
     await execute(
@@ -1920,7 +2039,16 @@ router.put('/apoderados/:id', async (req, res) => {
     const doc = req.body.nro_documento != null ? String(req.body.nro_documento).trim() : null;
     const email = req.body.email != null ? String(req.body.email).trim() : null;
     const tel = req.body.telefono_celular != null ? String(req.body.telefono_celular) : null;
-    const parentesco = req.body.parentesco != null ? parseInt(req.body.parentesco, 10) : null;
+    let parentesco = null;
+    if (req.body.parentesco !== undefined && req.body.parentesco !== null && req.body.parentesco !== '') {
+      const p = parseInt(req.body.parentesco, 10);
+      if (!Number.isNaN(p) && p >= 1 && p <= 4) parentesco = p;
+    }
+    let fechaNac = null;
+    if (req.body.fecha_nacimiento !== undefined && req.body.fecha_nacimiento !== null && req.body.fecha_nacimiento !== '') {
+      const raw = String(req.body.fecha_nacimiento).trim().slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) fechaNac = raw;
+    }
     const usuario_estado = req.body.usuario_estado != null ? String(req.body.usuario_estado).toUpperCase() : null;
 
     if (doc && doc !== exist[0].nro_documento) {
@@ -1962,9 +2090,13 @@ router.put('/apoderados/:id', async (req, res) => {
       sets.push('telefono_celular = ?');
       params.push(tel);
     }
-    if (parentesco != null && !Number.isNaN(parentesco)) {
+    if (parentesco != null) {
       sets.push('parentesco = ?');
       params.push(parentesco);
+    }
+    if (fechaNac != null) {
+      sets.push('fecha_nacimiento = ?');
+      params.push(fechaNac);
     }
     if (sets.length) {
       params.push(id, colegio_id);
@@ -2049,6 +2181,35 @@ router.post('/apoderados/:id/reset-password', async (req, res) => {
   }
 });
 
+router.post('/apoderados/:id/password', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    const password = String(req.body.password || '').trim();
+    if (!id) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+    if (password.length < 4) {
+      return res.status(400).json({ error: 'La contraseña debe tener al menos 4 caracteres' });
+    }
+    const urow = await resolverUsuarioFilaParaApoderado(colegio_id, id);
+    if (!urow || !urow.id) {
+      return res.status(404).json({ error: 'Usuario no encontrado para este apoderado' });
+    }
+    const pwd = sha1Password(password);
+    await execute('UPDATE usuarios SET password = ?, cambiar_password = ? WHERE id = ? AND colegio_id = ?', [
+      pwd,
+      'NO',
+      urow.id,
+      colegio_id,
+    ]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('POST apoderado password admin', e);
+    res.status(500).json({ error: e.message || 'Error al cambiar contraseña' });
+  }
+});
+
 router.post('/apoderados/:id/acceso', async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -2096,6 +2257,45 @@ router.post('/apoderados/:id/acceso', async (req, res) => {
   } catch (e) {
     console.error('POST apoderado acceso', e);
     res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.delete('/apoderados/:id', async (req, res) => {
+  try {
+    const { colegio_id, usuario_id: adminUsuarioId } = req.user;
+    const id = parseInt(req.params.id, 10);
+    if (!id) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+    const arows = await query('SELECT id FROM apoderados WHERE id = ? AND colegio_id = ? LIMIT 1', [id, colegio_id]);
+    if (!arows.length) {
+      return res.status(404).json({ error: 'No encontrado' });
+    }
+
+    const uRows = await query(
+      'SELECT id, tipo, personal_id, alumno_id FROM usuarios WHERE apoderado_id = ? AND colegio_id = ?',
+      [id, colegio_id]
+    );
+    for (const u of uRows) {
+      if (parseInt(u.id, 10) === parseInt(adminUsuarioId, 10)) {
+        return res.status(400).json({ error: 'No puede eliminar su propio usuario vinculado a este apoderado.' });
+      }
+      const pid = parseInt(u.personal_id, 10) || 0;
+      const aid = parseInt(u.alumno_id, 10) || 0;
+      const tipo = String(u.tipo || '').toUpperCase();
+      if (tipo === 'APODERADO' && pid === 0 && aid === 0) {
+        await execute('DELETE FROM usuarios WHERE id = ? AND colegio_id = ?', [u.id, colegio_id]);
+      } else {
+        await execute('UPDATE usuarios SET apoderado_id = 0 WHERE id = ? AND colegio_id = ?', [u.id, colegio_id]);
+      }
+    }
+
+    await execute('DELETE FROM familias WHERE apoderado_id = ?', [id]);
+    await execute('DELETE FROM apoderados WHERE id = ? AND colegio_id = ?', [id, colegio_id]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('DELETE apoderado admin', e);
+    res.status(500).json({ error: e.message || 'Error al eliminar apoderado' });
   }
 });
 

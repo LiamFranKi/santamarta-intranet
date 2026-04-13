@@ -14,6 +14,26 @@ const PARENTESCO_LABEL = {
   4: 'Apoderado',
 };
 
+function labelParentesco(row) {
+  const p = Number(row?.parentesco);
+  if (p >= 1 && p <= 4) return PARENTESCO_LABEL[p];
+  return 'Sin definir';
+}
+
+function formatearFechaInputApi(val) {
+  if (val == null || val === '') return '';
+  const s = String(val);
+  if (s === '0000-00-00' || s.startsWith('0000-00-00')) return '';
+  if (s.includes('T')) return s.split('T')[0];
+  if (s.includes(' ')) return s.split(' ')[0];
+  return s.slice(0, 10);
+}
+
+function parentescoSelectValue(v) {
+  const p = Number(v);
+  return p >= 1 && p <= 4 ? p : 1;
+}
+
 function nombreApoderado(row) {
   const ap = (row.apellido_paterno || '').trim();
   const am = (row.apellido_materno || '').trim();
@@ -59,6 +79,9 @@ export default function AdminUsuariosApoderados() {
   const [fotoCreatePreview, setFotoCreatePreview] = useState('');
   const [fotoEditFile, setFotoEditFile] = useState(null);
   const [fotoEditPreview, setFotoEditPreview] = useState('');
+  const [modalInfo, setModalInfo] = useState(null);
+  const [modalAcceso, setModalAcceso] = useState(null);
+  const [accesoForm, setAccesoForm] = useState({ estado: 'ACTIVO', password: '' });
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -279,7 +302,8 @@ export default function AdminUsuariosApoderados() {
         nro_documento: data.nro_documento || '',
         email: data.email || '',
         telefono_celular: data.telefono_celular || '',
-        parentesco: data.parentesco ?? 1,
+        parentesco: parentescoSelectValue(data.parentesco),
+        fecha_nacimiento: formatearFechaInputApi(data.fecha_nacimiento),
         usuario_estado: data.usuario_estado || 'ACTIVO',
         foto: data.foto || '',
       });
@@ -308,20 +332,35 @@ export default function AdminUsuariosApoderados() {
     }
   };
 
-  const infoAcceso = (row) => {
-    if (!row.usuario_id) {
-      Swal.fire({ title: 'Acceso', html: '<p>Sin usuario. Use <strong>Crear acceso</strong>.</p>' });
-      return;
-    }
-    const extra =
-      row.usuario_tipo && row.usuario_tipo !== 'APODERADO'
-        ? `<p style="margin-top:0.75rem;color:#5b21b6">Usa la misma cuenta de <strong>${row.usuario_tipo}</strong> (un solo login).</p>`
-        : '';
-    Swal.fire({
-      title: 'Información de acceso',
-      html: `<p><strong>Usuario:</strong> ${row.login_usuario || row.nro_documento}</p>
-        <p><strong>Contraseña por defecto:</strong> DNI</p>${extra}`,
+  const abrirInfoAcceso = (row) => {
+    setAccesoForm({
+      estado: row.usuario_estado || 'ACTIVO',
+      password: '',
     });
+    setModalAcceso(row);
+  };
+
+  const guardarInfoAcceso = async () => {
+    if (!modalAcceso) return;
+    try {
+      if (!modalAcceso.usuario_id) {
+        await api.post(`/admin/usuarios/apoderados/${modalAcceso.id}/acceso`);
+      } else {
+        await api.put(`/admin/usuarios/apoderados/${modalAcceso.id}`, {
+          usuario_estado: accesoForm.estado,
+        });
+      }
+      if ((accesoForm.password || '').trim()) {
+        await api.post(`/admin/usuarios/apoderados/${modalAcceso.id}/password`, {
+          password: accesoForm.password.trim(),
+        });
+      }
+      Swal.fire({ icon: 'success', title: 'Acceso actualizado' });
+      setModalAcceso(null);
+      cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo guardar el acceso' });
+    }
   };
 
   const resetPass = async (row) => {
@@ -353,18 +392,36 @@ export default function AdminUsuariosApoderados() {
     }
   };
 
-  const verInfo = (row) => {
-    const par = PARENTESCO_LABEL[row.parentesco] || `Código ${row.parentesco}`;
-    Swal.fire({
-      title: nombreApoderado(row),
-      html: `<div style="text-align:left">
-        <p><strong>Documento:</strong> ${row.nro_documento}</p>
-        <p><strong>Parentesco:</strong> ${par}</p>
-        <p><strong>Email:</strong> ${row.email || '—'}</p>
-        <p><strong>Celular:</strong> ${row.telefono_celular || '—'}</p>
-      </div>`,
-      width: 440,
+  const verInfo = async (row) => {
+    setModalInfo({ _loading: true, id: row.id });
+    try {
+      const { data } = await api.get(`/admin/usuarios/apoderados/${row.id}/detalle`);
+      setModalInfo(data);
+    } catch (e) {
+      setModalInfo(null);
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar información' });
+    }
+  };
+
+  const eliminarApoderado = async (row) => {
+    const ok = await Swal.fire({
+      title: '¿Eliminar apoderado?',
+      html: `<p>Se eliminará la ficha de <strong>${nombreApoderado(row)}</strong> y su vínculo en familias.</p>
+        <p style="color:#b91c1c;font-size:0.9rem">Si comparte login con personal/docente, solo se quitará el vínculo de apoderado.</p>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
     });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/admin/usuarios/apoderados/${row.id}`);
+      Swal.fire({ icon: 'success', title: 'Apoderado eliminado' });
+      cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo eliminar' });
+    }
   };
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
@@ -372,6 +429,7 @@ export default function AdminUsuariosApoderados() {
   const initialsPreview = (form.nombres || form.apellido_paterno || 'A').trim().charAt(0).toUpperCase();
   const fotoCreateFormPreview = fotoCreatePreview;
   const fotoFormPreview = fotoEditPreview || fotoUsuarioAdmin(form.foto);
+  const infoFoto = fotoUsuarioAdmin(modalInfo && !modalInfo._loading ? modalInfo.foto : '');
 
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
@@ -434,7 +492,7 @@ export default function AdminUsuariosApoderados() {
                       <td>{nombreApoderado(row)}</td>
                       <td>{row.nro_documento}</td>
                       <td>{row.telefono_celular || '—'}</td>
-                      <td>{PARENTESCO_LABEL[row.parentesco] || `Cód. ${row.parentesco}`}</td>
+                      <td>{labelParentesco(row)}</td>
                       <td>
                         <div className="admin-usu-actions-wrap">
                           <button
@@ -480,9 +538,7 @@ export default function AdminUsuariosApoderados() {
                       )}
                     </div>
                     <h3 className="admin-usu-person-name">{nombreApoderado(row)}</h3>
-                    <p className="admin-usu-person-meta">
-                      {PARENTESCO_LABEL[row.parentesco] || `Parentesco ${row.parentesco}`}
-                    </p>
+                    <p className="admin-usu-person-meta">{labelParentesco(row)}</p>
                     <p className="admin-usu-person-dni">DNI: {row.nro_documento || '—'}</p>
                     <p className="admin-usu-person-meta" style={{ fontSize: '0.85rem' }}>
                       Nac.: {formatFechaNacimiento(row.fecha_nacimiento)}
@@ -510,10 +566,10 @@ export default function AdminUsuariosApoderados() {
           onClick={(e) => e.stopPropagation()}
         >
           <button type="button" onClick={() => { verInfo(menuRow); cerrarMenus(); }}>
-            ℹ️ Ver información
+            ℹ️ Ver Información
           </button>
-          <button type="button" onClick={() => { infoAcceso(menuRow); cerrarMenus(); }}>
-            🔐 Información de acceso
+          <button type="button" onClick={() => { abrirInfoAcceso(menuRow); cerrarMenus(); }}>
+            🔐 Información de Acceso
           </button>
           {!menuRow.usuario_id && (
             <button type="button" onClick={() => { crearAcceso(menuRow); cerrarMenus(); }}>
@@ -527,7 +583,10 @@ export default function AdminUsuariosApoderados() {
           )}
           <hr />
           <button type="button" onClick={() => { abrirEditar(menuRow); cerrarMenus(); }}>
-            ✏️ Editar
+            ✏️ Editar apoderado
+          </button>
+          <button type="button" onClick={() => { eliminarApoderado(menuRow); cerrarMenus(); }}>
+            🗑️ Eliminar apoderado
           </button>
         </div>,
         document.body
@@ -602,7 +661,7 @@ export default function AdminUsuariosApoderados() {
                     <div className="admin-usu-field">
                       <label>Parentesco</label>
                       <select
-                        value={form.parentesco || 1}
+                        value={parentescoSelectValue(form.parentesco)}
                         onChange={(e) => setForm({ ...form, parentesco: parseInt(e.target.value, 10) })}
                       >
                         <option value={1}>Padre</option>
@@ -684,28 +743,28 @@ export default function AdminUsuariosApoderados() {
                 <div className="admin-usu-profile-section">
                   <h3>Información Personal</h3>
                   <div className="admin-usu-form-grid">
-                    {['nombres', 'apellido_paterno', 'apellido_materno', 'nro_documento', 'email', 'telefono_celular'].map((k) => (
+                    {['nombres', 'apellido_paterno', 'apellido_materno', 'email', 'telefono_celular'].map((k) => (
                       <div key={k} className="admin-usu-field">
-                        <label>{k === 'nro_documento' ? 'DNI *' : `${k.replace(/_/g, ' ')} *`}</label>
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                          <input
-                            type="text"
-                            style={{ flex: 1, minWidth: '120px' }}
-                            value={form[k] || ''}
-                            onChange={(e) => setForm({ ...form, [k]: e.target.value })}
-                          />
-                          {k === 'nro_documento' && (
-                            <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={buscarDesdePersonal}>
-                              Desde personal
-                            </button>
-                          )}
-                        </div>
+                        <label>{`${k.replace(/_/g, ' ')} *`}</label>
+                        <input
+                          type="text"
+                          value={form[k] || ''}
+                          onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                        />
                       </div>
                     ))}
                     <div className="admin-usu-field">
+                      <label>DNI *</label>
+                      <input
+                        type="text"
+                        value={form.nro_documento || ''}
+                        onChange={(e) => setForm({ ...form, nro_documento: e.target.value })}
+                      />
+                    </div>
+                    <div className="admin-usu-field">
                       <label>Parentesco</label>
                       <select
-                        value={form.parentesco || 1}
+                        value={parentescoSelectValue(form.parentesco)}
                         onChange={(e) => setForm({ ...form, parentesco: parseInt(e.target.value, 10) })}
                       >
                         <option value={1}>Padre</option>
@@ -713,6 +772,14 @@ export default function AdminUsuariosApoderados() {
                         <option value={3}>Tutor</option>
                         <option value={4}>Apoderado</option>
                       </select>
+                    </div>
+                    <div className="admin-usu-field">
+                      <label>Fecha de nacimiento</label>
+                      <input
+                        type="date"
+                        value={form.fecha_nacimiento || ''}
+                        onChange={(e) => setForm({ ...form, fecha_nacimiento: e.target.value })}
+                      />
                     </div>
                   </div>
                 </div>
@@ -746,6 +813,230 @@ export default function AdminUsuariosApoderados() {
                 </button>
                 <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarEdit}>
                   💾 Guardar cambios
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {modalInfo && createPortal(
+        <div className="admin-usu-modal-overlay" onClick={() => setModalInfo(null)}>
+          <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-usu-modal-header">
+              <h2>Información del apoderado</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={() => setModalInfo(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              {modalInfo._loading ? (
+                <p style={{ textAlign: 'center', padding: '2rem' }}>Cargando…</p>
+              ) : (
+                <div className="admin-usu-profile-form">
+                  <div className="admin-usu-profile-section">
+                    <h3>Ficha general</h3>
+                    <div className="admin-usu-info-hero admin-usu-info-hero-split">
+                      <div className="admin-usu-info-hero-main">
+                        <div className="admin-usu-photo-preview">
+                          {infoFoto ? (
+                            <img src={infoFoto} alt="Foto apoderado" />
+                          ) : (
+                            <div className="admin-usu-photo-ph">
+                              {(modalInfo.nombres || 'A').charAt(0)}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <h4>{nombreApoderado(modalInfo)}</h4>
+                          <p>Apoderado</p>
+                          <span className={`admin-usu-badge ${modalInfo.usuario_id ? '' : 'admin-usu-badge-muted'}`}>
+                            {modalInfo.usuario_id ? 'Con acceso' : 'Sin acceso'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="admin-usu-profile-section">
+                    <h3>Datos personales</h3>
+                    <div className="admin-usu-info-grid">
+                      <div className="admin-usu-info-item">
+                        <span className="admin-usu-info-label">Nombres</span>
+                        <span className="admin-usu-info-value">{modalInfo.nombres || '—'}</span>
+                      </div>
+                      <div className="admin-usu-info-item">
+                        <span className="admin-usu-info-label">Apellido paterno</span>
+                        <span className="admin-usu-info-value">{modalInfo.apellido_paterno || '—'}</span>
+                      </div>
+                      <div className="admin-usu-info-item">
+                        <span className="admin-usu-info-label">Apellido materno</span>
+                        <span className="admin-usu-info-value">{modalInfo.apellido_materno || '—'}</span>
+                      </div>
+                      <div className="admin-usu-info-item">
+                        <span className="admin-usu-info-label">DNI</span>
+                        <span className="admin-usu-info-value">{modalInfo.nro_documento || '—'}</span>
+                      </div>
+                      <div className="admin-usu-info-item">
+                        <span className="admin-usu-info-label">Nacimiento</span>
+                        <span className="admin-usu-info-value">{formatFechaNacimiento(modalInfo.fecha_nacimiento)}</span>
+                      </div>
+                      <div className="admin-usu-info-item">
+                        <span className="admin-usu-info-label">Parentesco</span>
+                        <span className="admin-usu-info-value">{labelParentesco(modalInfo)}</span>
+                      </div>
+                      <div className="admin-usu-info-item">
+                        <span className="admin-usu-info-label">Correo</span>
+                        <span className="admin-usu-info-value">{modalInfo.email || '—'}</span>
+                      </div>
+                      <div className="admin-usu-info-item">
+                        <span className="admin-usu-info-label">Celular</span>
+                        <span className="admin-usu-info-value">{modalInfo.telefono_celular || '—'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="admin-usu-profile-section">
+                    <h3>Hijos a cargo</h3>
+                    {(modalInfo.hijos || []).length === 0 ? (
+                      <span className="admin-usu-info-value">Sin alumnos vinculados en familias</span>
+                    ) : (
+                      <div className="admin-usu-related-list">
+                        {(modalInfo.hijos || []).map((h) => (
+                          <div key={h.alumno_id} className="admin-usu-related-card">
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">Alumno</span>
+                              <span className="admin-usu-info-value">
+                                {[h.apellido_paterno, h.apellido_materno, h.nombres].filter(Boolean).join(' ') || '—'}
+                              </span>
+                            </div>
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">DNI</span>
+                              <span className="admin-usu-info-value">{h.nro_documento || '—'}</span>
+                            </div>
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">Grupo / año</span>
+                              <span className="admin-usu-info-value">{h.grupo_texto || '—'}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="admin-usu-profile-section">
+                    <h3>Otros apoderados en los mismos alumnos</h3>
+                    {(modalInfo.otros_apoderados || []).length === 0 ? (
+                      <span className="admin-usu-info-value">No hay otro apoderado vinculado a los mismos hijos</span>
+                    ) : (
+                      <div className="admin-usu-related-list">
+                        {(modalInfo.otros_apoderados || []).map((ap) => (
+                          <div key={ap.id} className="admin-usu-related-card">
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">Nombre</span>
+                              <span className="admin-usu-info-value">
+                                {[ap.apellido_paterno, ap.apellido_materno, ap.nombres].filter(Boolean).join(' ') || '—'}
+                              </span>
+                            </div>
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">DNI</span>
+                              <span className="admin-usu-info-value">{ap.nro_documento || '—'}</span>
+                            </div>
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">Parentesco</span>
+                              <span className="admin-usu-info-value">{labelParentesco(ap)}</span>
+                            </div>
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">Correo / Celular</span>
+                              <span className="admin-usu-info-value">
+                                {[ap.email, ap.telefono_celular].filter(Boolean).join(' · ') || '—'}
+                              </span>
+                            </div>
+                            <div className="admin-usu-info-item">
+                              <span className="admin-usu-info-label">Acceso</span>
+                              <span className="admin-usu-info-value">
+                                {ap.usuario_id ? `${ap.usuario_estado || 'ACTIVO'} (${ap.usuario_tipo || 'APODERADO'})` : 'Sin usuario'}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalInfo(null)}>
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {modalAcceso && createPortal(
+        <div className="admin-usu-modal-overlay" onClick={() => setModalAcceso(null)}>
+          <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-usu-modal-header">
+              <h2>Información de acceso</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={() => setModalAcceso(null)}>
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              <div className="admin-usu-profile-section">
+                <h3>Credenciales y estado</h3>
+                <div className="admin-usu-form-grid">
+                  <div className="admin-usu-field">
+                    <label>Usuario</label>
+                    <input type="text" readOnly value={modalAcceso.login_usuario || modalAcceso.nro_documento || ''} />
+                  </div>
+                  <div className="admin-usu-field">
+                    <label>Nueva contraseña</label>
+                    <input
+                      type="text"
+                      placeholder="Opcional: dejar vacío para no cambiar"
+                      value={accesoForm.password}
+                      onChange={(e) => setAccesoForm({ ...accesoForm, password: e.target.value })}
+                    />
+                  </div>
+                  <div className="admin-usu-field">
+                    <label>Tipo de cuenta</label>
+                    <input
+                      type="text"
+                      readOnly
+                      value={modalAcceso.usuario_tipo && modalAcceso.usuario_tipo !== 'APODERADO' ? modalAcceso.usuario_tipo : 'APODERADO'}
+                    />
+                  </div>
+                  <div className="admin-usu-field">
+                    <label>Estado</label>
+                    <select
+                      value={accesoForm.estado}
+                      disabled={!modalAcceso.usuario_id}
+                      onChange={(e) => setAccesoForm({ ...accesoForm, estado: e.target.value })}
+                    >
+                      <option value="ACTIVO">ACTIVO</option>
+                      <option value="INACTIVO">INACTIVO</option>
+                    </select>
+                  </div>
+                </div>
+                {!modalAcceso.usuario_id && (
+                  <p className="admin-usu-hint">
+                    Este apoderado no tiene usuario propio. Al guardar se vinculará al DNI existente o se creará usuario APODERADO.
+                  </p>
+                )}
+                {modalAcceso.usuario_id && modalAcceso.usuario_tipo && modalAcceso.usuario_tipo !== 'APODERADO' && (
+                  <p className="admin-usu-hint">
+                    Comparte login con <strong>{modalAcceso.usuario_tipo}</strong>; la contraseña es la misma cuenta.
+                  </p>
+                )}
+              </div>
+              <div className="admin-usu-modal-actions">
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalAcceso(null)}>
+                  Cancelar
+                </button>
+                <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarInfoAcceso}>
+                  Guardar datos
                 </button>
               </div>
             </div>
