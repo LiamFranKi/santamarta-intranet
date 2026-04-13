@@ -1724,7 +1724,7 @@ router.get('/apoderados', async (req, res) => {
     const total = countRows[0]?.total ?? 0;
 
     const rows = await query(
-      `SELECT ap.id, ap.nombres, ap.apellido_paterno, ap.apellido_materno, ap.nro_documento, ap.parentesco, ap.email, ap.telefono_celular,
+      `SELECT ap.id, ap.nombres, ap.apellido_paterno, ap.apellido_materno, ap.nro_documento, ap.parentesco, ap.email, ap.foto, ap.fecha_nacimiento, ap.telefono_celular,
               COALESCE(u_ap.id, u_per.id) AS usuario_id,
               COALESCE(u_ap.usuario, u_per.usuario) AS login_usuario,
               COALESCE(u_ap.estado, u_per.estado) AS usuario_estado,
@@ -1769,7 +1769,7 @@ router.get('/apoderados/:id', async (req, res) => {
   }
 });
 
-router.post('/apoderados', async (req, res) => {
+router.post('/apoderados', uploadUsuarioFoto.single('foto'), async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const nom = String(req.body.nombres || '').trim();
@@ -1792,13 +1792,14 @@ router.post('/apoderados', async (req, res) => {
     const email = String(req.body.email || '').trim();
     const tel = String(req.body.telefono_celular || '').trim();
     const parentesco = parseInt(req.body.parentesco, 10) || 1;
+    const fotoNombre = req.file && req.file.filename ? req.file.filename : null;
 
     await execute(
       `INSERT INTO apoderados (
         colegio_id, nombres, apellido_paterno, apellido_materno, vive, tipo_documento, nro_documento, estado_civil,
         telefono_fijo, telefono_celular, direccion, centro_trabajo_direccion, grado_instruccion, ocupacion, parentesco,
-        vive_con_estudiante, fecha_nacimiento, pais_nacimiento_id, email, firma_digital
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        vive_con_estudiante, fecha_nacimiento, pais_nacimiento_id, email, foto, firma_digital
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         colegio_id,
         nom,
@@ -1819,6 +1820,7 @@ router.post('/apoderados', async (req, res) => {
         fn.slice(0, 10),
         0,
         email,
+        fotoNombre,
         '',
       ]
     );
@@ -1990,6 +1992,30 @@ router.put('/apoderados/:id', async (req, res) => {
   } catch (e) {
     console.error('PUT apoderado admin', e);
     res.status(500).json({ error: e.message || 'Error al actualizar' });
+  }
+});
+
+router.put('/apoderados/:id/foto', uploadUsuarioFoto.single('foto'), async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    if (!id) {
+      return res.status(400).json({ error: 'ID inválido' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Debe adjuntar una imagen' });
+    }
+
+    const exist = await query('SELECT id FROM apoderados WHERE id = ? AND colegio_id = ? LIMIT 1', [id, colegio_id]);
+    if (!exist.length) {
+      return res.status(404).json({ error: 'No encontrado' });
+    }
+
+    await execute('UPDATE apoderados SET foto = ? WHERE id = ? AND colegio_id = ?', [req.file.filename, id, colegio_id]);
+    res.json({ ok: true, foto: req.file.filename });
+  } catch (e) {
+    console.error('PUT /admin/usuarios/apoderados/:id/foto', e);
+    res.status(500).json({ error: e.message || 'Error al actualizar foto' });
   }
 });
 

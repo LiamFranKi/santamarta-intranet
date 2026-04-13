@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { fotoUsuarioAdmin } from '../utils/adminUsuariosFoto';
 import { suscribirNotificacionesPush, desuscribirNotificacionesPush, verificarEstadoNotificaciones, tieneSuscripcionPushActiva } from '../services/pushNotificationService';
 import Swal from 'sweetalert2';
 import './AlumnoPerfil.css';
@@ -42,6 +43,9 @@ function ApoderadoPerfil() {
   const [activandoNotificaciones, setActivandoNotificaciones] = useState(false);
   const [desuscribiendoNotificaciones, setDesuscribiendoNotificaciones] = useState(false);
   const [tieneSuscripcionPush, setTieneSuscripcionPush] = useState(null);
+  const [fotoPreview, setFotoPreview] = useState(null);
+  const [fotoFile, setFotoFile] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     cargarPerfil();
@@ -107,6 +111,13 @@ function ApoderadoPerfil() {
         fecha_nacimiento: formatearFechaParaInput(data.fecha_nacimiento),
         email: data.email || ''
       });
+
+      if (data.foto && String(data.foto).trim() !== '') {
+        setFotoPreview(fotoUsuarioAdmin(data.foto));
+      } else {
+        setFotoPreview(null);
+      }
+      setFotoFile(null);
     } catch (error) {
       console.error('Error cargando perfil:', error);
       Swal.fire({
@@ -131,13 +142,39 @@ function ApoderadoPerfil() {
     }));
   };
 
+  const handleFotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setFotoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (reader.result) setFotoPreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setFotoFile(null);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
     try {
       setSaving(true);
-      
+      const habiaFotoNueva = Boolean(fotoFile);
+      if (habiaFotoNueva) {
+        setUploadingPhoto(true);
+      }
+
+      if (fotoFile) {
+        const fd = new FormData();
+        fd.append('foto', fotoFile);
+        await api.put('/apoderado/perfil/foto', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        setFotoFile(null);
+      }
+
       const response = await api.put('/apoderado/perfil', {
         nombres: formData.nombres,
         apellido_paterno: formData.apellido_paterno,
@@ -161,11 +198,20 @@ function ApoderadoPerfil() {
       });
 
       await cargarPerfil();
+
+      if (habiaFotoNueva) {
+        setTimeout(() => setUploadingPhoto(false), 800);
+      }
       
       if (response.data && user) {
         const perfilActualizado = response.data;
+        const fotoUrl =
+          perfilActualizado.foto && String(perfilActualizado.foto).trim() !== ''
+            ? fotoUsuarioAdmin(perfilActualizado.foto)
+            : user.foto;
         const updatedUser = {
           ...user,
+          foto: fotoUrl || user.foto,
           nombres: perfilActualizado.nombres || user.nombres,
           apellido_paterno: perfilActualizado.apellido_paterno || user.apellido_paterno,
           apellido_materno: perfilActualizado.apellido_materno || user.apellido_materno,
@@ -176,6 +222,7 @@ function ApoderadoPerfil() {
       }
     } catch (error) {
       console.error('Error actualizando perfil:', error);
+      setUploadingPhoto(false);
       Swal.fire({
         icon: 'error',
         title: 'Error',
@@ -377,6 +424,54 @@ function ApoderadoPerfil() {
         </div>
 
         <form className="perfil-form" onSubmit={handleSubmit}>
+          <div className="perfil-section mundo-card">
+            <h2 className="section-title">Foto de perfil</h2>
+            <div className="foto-upload-container">
+              <div className="foto-preview-wrapper">
+                <div className="foto-preview">
+                  {fotoPreview ? (
+                    <img
+                      src={fotoPreview}
+                      alt="Foto de perfil"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        const placeholder = e.target.parentElement.querySelector('.foto-placeholder');
+                        if (placeholder) placeholder.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div className="foto-placeholder" style={{ display: fotoPreview ? 'none' : 'flex' }}>
+                    {getInitials(nombreCompleto || 'Apoderado')}
+                  </div>
+                </div>
+                {uploadingPhoto && (
+                  <div className="photo-upload-overlay">
+                    <div className="upload-spinner">
+                      <div className="spinner-ring"></div>
+                      <div className="spinner-ring"></div>
+                      <div className="spinner-ring"></div>
+                    </div>
+                    <p className="upload-text">Subiendo foto...</p>
+                  </div>
+                )}
+              </div>
+              <label
+                className="foto-upload-btn"
+                style={{ opacity: uploadingPhoto ? 0.6 : 1, pointerEvents: uploadingPhoto ? 'none' : 'auto' }}
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFotoChange}
+                  style={{ display: 'none' }}
+                  disabled={uploadingPhoto}
+                />
+                📷 Cambiar foto
+              </label>
+              <p className="foto-hint">Formatos: JPG, PNG, GIF, WEBP (máx. 5MB)</p>
+            </div>
+          </div>
+
           {/* Información Personal */}
           <div className="perfil-section mundo-card">
             <h2 className="section-title">Información Personal</h2>

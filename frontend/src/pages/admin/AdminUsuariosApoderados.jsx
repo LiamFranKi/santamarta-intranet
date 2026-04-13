@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
+import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
 import './AdminUsuarios.css';
+import './AdminUsuariosEquipoCards.css';
 
 const PARENTESCO_LABEL = {
   1: 'Padre',
@@ -20,7 +23,23 @@ function nombreApoderado(row) {
   return `${full} ${nom}`.trim() || '—';
 }
 
+function formatFechaNacimiento(val) {
+  if (val == null || val === '') return '—';
+  const s = String(val).trim();
+  const ymd = s.slice(0, 10);
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return '—';
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = d.getUTCFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
 export default function AdminUsuariosApoderados() {
+  const [searchParams] = useSearchParams();
+  const vistaTabla = searchParams.get('vista') === 'tabla';
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -36,6 +55,10 @@ export default function AdminUsuariosApoderados() {
   const [modalCreate, setModalCreate] = useState(false);
   const [modalEdit, setModalEdit] = useState(null);
   const [form, setForm] = useState({});
+  const [fotoCreateFile, setFotoCreateFile] = useState(null);
+  const [fotoCreatePreview, setFotoCreatePreview] = useState('');
+  const [fotoEditFile, setFotoEditFile] = useState(null);
+  const [fotoEditPreview, setFotoEditPreview] = useState('');
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -59,6 +82,17 @@ export default function AdminUsuariosApoderados() {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  useEffect(() => {
+    return () => {
+      if (fotoCreatePreview && fotoCreatePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(fotoCreatePreview);
+      }
+      if (fotoEditPreview && fotoEditPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(fotoEditPreview);
+      }
+    };
+  }, [fotoCreatePreview, fotoEditPreview]);
 
   useEffect(() => {
     if (!openMenu) return undefined;
@@ -110,6 +144,11 @@ export default function AdminUsuariosApoderados() {
   }, [openMenu, menuAnchorRect]);
 
   const abrirCrear = () => {
+    if (fotoCreatePreview && fotoCreatePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(fotoCreatePreview);
+    }
+    setFotoCreateFile(null);
+    setFotoCreatePreview('');
     setForm({
       nombres: '',
       apellido_paterno: '',
@@ -121,6 +160,42 @@ export default function AdminUsuariosApoderados() {
       fecha_nacimiento: '1985-01-01',
     });
     setModalCreate(true);
+  };
+
+  const handleFotoCreateChange = (event) => {
+    const file = event.target.files?.[0];
+    if (fotoCreatePreview && fotoCreatePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(fotoCreatePreview);
+    }
+    setFotoCreateFile(file || null);
+    setFotoCreatePreview(file ? URL.createObjectURL(file) : '');
+  };
+
+  const handleFotoEditChange = (event) => {
+    const file = event.target.files?.[0];
+    if (fotoEditPreview && fotoEditPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(fotoEditPreview);
+    }
+    setFotoEditFile(file || null);
+    setFotoEditPreview(file ? URL.createObjectURL(file) : '');
+  };
+
+  const cerrarModalCrear = () => {
+    if (fotoCreatePreview && fotoCreatePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(fotoCreatePreview);
+    }
+    setFotoCreateFile(null);
+    setFotoCreatePreview('');
+    setModalCreate(false);
+  };
+
+  const cerrarModalEditar = () => {
+    if (fotoEditPreview && fotoEditPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(fotoEditPreview);
+    }
+    setFotoEditFile(null);
+    setFotoEditPreview('');
+    setModalEdit(null);
   };
 
   const payloadApoderado = (f) => ({
@@ -164,7 +239,15 @@ export default function AdminUsuariosApoderados() {
 
   const guardarNuevo = async () => {
     try {
-      const { data } = await api.post('/admin/usuarios/apoderados', payloadApoderado(form));
+      const fd = new FormData();
+      const p = payloadApoderado(form);
+      Object.entries(p).forEach(([k, v]) => {
+        fd.append(k, v == null ? '' : String(v));
+      });
+      if (fotoCreateFile) {
+        fd.append('foto', fotoCreateFile);
+      }
+      const { data } = await api.post('/admin/usuarios/apoderados', fd);
       if (data.usuario_compartido) {
         Swal.fire({
           icon: 'info',
@@ -174,7 +257,7 @@ export default function AdminUsuariosApoderados() {
       } else {
         Swal.fire({ icon: 'success', title: 'Apoderado registrado', text: 'Usuario y clave = DNI' });
       }
-      setModalCreate(false);
+      cerrarModalCrear();
       cargar();
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo guardar' });
@@ -183,6 +266,11 @@ export default function AdminUsuariosApoderados() {
 
   const abrirEditar = async (row) => {
     try {
+      if (fotoEditPreview && fotoEditPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(fotoEditPreview);
+      }
+      setFotoEditFile(null);
+      setFotoEditPreview('');
       const { data } = await api.get(`/admin/usuarios/apoderados/${row.id}`);
       setForm({
         nombres: data.nombres || '',
@@ -193,6 +281,7 @@ export default function AdminUsuariosApoderados() {
         telefono_celular: data.telefono_celular || '',
         parentesco: data.parentesco ?? 1,
         usuario_estado: data.usuario_estado || 'ACTIVO',
+        foto: data.foto || '',
       });
       setModalEdit(row.id);
     } catch (e) {
@@ -206,8 +295,13 @@ export default function AdminUsuariosApoderados() {
         ...payloadApoderado(form),
         usuario_estado: form.usuario_estado,
       });
+      if (fotoEditFile) {
+        const fd = new FormData();
+        fd.append('foto', fotoEditFile);
+        await api.put(`/admin/usuarios/apoderados/${modalEdit}/foto`, fd);
+      }
       Swal.fire({ icon: 'success', title: 'Actualizado' });
-      setModalEdit(null);
+      cerrarModalEditar();
       cargar();
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo guardar' });
@@ -275,12 +369,20 @@ export default function AdminUsuariosApoderados() {
 
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const credencialDni = (form.nro_documento || '').trim();
+  const initialsPreview = (form.nombres || form.apellido_paterno || 'A').trim().charAt(0).toUpperCase();
+  const fotoCreateFormPreview = fotoCreatePreview;
+  const fotoFormPreview = fotoEditPreview || fotoUsuarioAdmin(form.foto);
 
   return (
     <div className="admin-usu-wrap" onClick={cerrarMenus}>
       <div className="admin-usu-header">
         <h1>Apoderados</h1>
         <p>Padres de familia del colegio. Usuario y contraseña por defecto: DNI.</p>
+        {!vistaTabla && (
+          <p className="admin-usu-view-hint">
+            Vista en tarjetas. Para la tabla clásica, use la misma ruta con <code>?vista=tabla</code> en el navegador.
+          </p>
+        )}
       </div>
 
       <div className="admin-usu-toolbar" onClick={(e) => e.stopPropagation()}>
@@ -300,56 +402,105 @@ export default function AdminUsuariosApoderados() {
         </button>
       </div>
 
-      <div className="admin-usu-table-card">
-        <div className="admin-usu-table-scroll">
-          <table className="admin-usu-table">
-          <thead>
-            <tr>
-              <th>Apellidos y nombres</th>
-              <th>Documento</th>
-              <th>Celular</th>
-              <th>Parentesco</th>
-              <th style={{ width: 120 }}>Opciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>
-                  Cargando…
-                </td>
-              </tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-                  Sin datos.
-                </td>
-              </tr>
-            ) : (
-              items.map((row) => (
-                <tr key={row.id}>
-                  <td>{nombreApoderado(row)}</td>
-                  <td>{row.nro_documento}</td>
-                  <td>{row.telefono_celular || '—'}</td>
-                  <td>{PARENTESCO_LABEL[row.parentesco] || `Cód. ${row.parentesco}`}</td>
-                  <td>
-                    <div className="admin-usu-actions-wrap">
-                      <button
-                        type="button"
-                        className="admin-usu-actions-btn"
-                        onClick={(e) => abrirMenuOpciones(e, row)}
-                      >
-                        Opciones ▾
-                      </button>
-                    </div>
-                  </td>
+      {vistaTabla ? (
+        <div className="admin-usu-table-card">
+          <div className="admin-usu-table-scroll">
+            <table className="admin-usu-table">
+              <thead>
+                <tr>
+                  <th>Apellidos y nombres</th>
+                  <th>Documento</th>
+                  <th>Celular</th>
+                  <th>Parentesco</th>
+                  <th style={{ width: 120 }}>Opciones</th>
                 </tr>
-              ))
-            )}
-          </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>
+                      Cargando…
+                    </td>
+                  </tr>
+                ) : items.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
+                      Sin datos.
+                    </td>
+                  </tr>
+                ) : (
+                  items.map((row) => (
+                    <tr key={row.id}>
+                      <td>{nombreApoderado(row)}</td>
+                      <td>{row.nro_documento}</td>
+                      <td>{row.telefono_celular || '—'}</td>
+                      <td>{PARENTESCO_LABEL[row.parentesco] || `Cód. ${row.parentesco}`}</td>
+                      <td>
+                        <div className="admin-usu-actions-wrap">
+                          <button
+                            type="button"
+                            className="admin-usu-actions-btn"
+                            onClick={(e) => abrirMenuOpciones(e, row)}
+                          >
+                            Opciones ▾
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="admin-usu-cards-wrap">
+          <div className="admin-usu-cards-grid">
+            {loading ? (
+              <p className="admin-usu-cards-empty">Cargando…</p>
+            ) : items.length === 0 ? (
+              <p className="admin-usu-cards-empty">Sin datos.</p>
+            ) : (
+              items.map((row, idx) => {
+                const url = fotoUsuarioAdmin(row.foto);
+                const apPat = (row.apellido_paterno || '').trim();
+                const nom = (row.nombres || '').trim();
+                const letraAvatar = (apPat[0] || nom[0] || '?').toUpperCase();
+                const colorIdx = idx % 8;
+                return (
+                  <article
+                    key={row.id}
+                    className={`admin-usu-person-card admin-usu-person-card--${colorIdx}`}
+                  >
+                    <div className="admin-usu-person-photo-wrap">
+                      {url ? (
+                        <img className="admin-usu-person-photo" src={url} alt="" />
+                      ) : (
+                        <div className="admin-usu-person-photo-ph">{letraAvatar}</div>
+                      )}
+                    </div>
+                    <h3 className="admin-usu-person-name">{nombreApoderado(row)}</h3>
+                    <p className="admin-usu-person-meta">
+                      {PARENTESCO_LABEL[row.parentesco] || `Parentesco ${row.parentesco}`}
+                    </p>
+                    <p className="admin-usu-person-dni">DNI: {row.nro_documento || '—'}</p>
+                    <p className="admin-usu-person-meta" style={{ fontSize: '0.85rem' }}>
+                      Nac.: {formatFechaNacimiento(row.fecha_nacimiento)}
+                    </p>
+                    <button
+                      type="button"
+                      className="admin-usu-actions-btn"
+                      onClick={(e) => abrirMenuOpciones(e, row)}
+                    >
+                      Opciones ▾
+                    </button>
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
 
       {openMenu && menuRow && createPortal(
         <div
@@ -400,16 +551,33 @@ export default function AdminUsuariosApoderados() {
       </div>
 
       {modalCreate && createPortal(
-        <div className="admin-usu-modal-overlay" onClick={() => setModalCreate(false)}>
+        <div className="admin-usu-modal-overlay" onClick={cerrarModalCrear}>
           <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
             <div className="admin-usu-modal-header">
               <h2>Nuevo apoderado</h2>
-              <button type="button" className="admin-usu-modal-close" onClick={() => setModalCreate(false)}>
+              <button type="button" className="admin-usu-modal-close" onClick={cerrarModalCrear}>
                 ✕
               </button>
             </div>
             <div className="admin-usu-modal-body">
               <div className="admin-usu-profile-form">
+                <div className="admin-usu-profile-section">
+                  <h3>Foto de perfil</h3>
+                  <div className="admin-usu-photo-wrap">
+                    <div className="admin-usu-photo-preview">
+                      {fotoCreateFormPreview ? (
+                        <img src={fotoCreateFormPreview} alt="Foto apoderado" />
+                      ) : (
+                        <div className="admin-usu-photo-ph">{initialsPreview}</div>
+                      )}
+                    </div>
+                    <label className="admin-usu-upload-btn">
+                      📷 Subir foto
+                      <input type="file" accept="image/*" onChange={handleFotoCreateChange} />
+                    </label>
+                    <p className="admin-usu-hint">Formatos: JPG, PNG, GIF, WEBP (máx. 5MB)</p>
+                  </div>
+                </div>
                 <div className="admin-usu-profile-section">
                   <h3>Información Personal</h3>
                   <div className="admin-usu-form-grid">
@@ -472,7 +640,7 @@ export default function AdminUsuariosApoderados() {
                 </div>
               </div>
               <div className="admin-usu-modal-actions">
-                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalCreate(false)}>
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={cerrarModalCrear}>
                   ❌ Cancelar
                 </button>
                 <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarNuevo}>
@@ -486,16 +654,33 @@ export default function AdminUsuariosApoderados() {
       )}
 
       {modalEdit && createPortal(
-        <div className="admin-usu-modal-overlay" onClick={() => setModalEdit(null)}>
+        <div className="admin-usu-modal-overlay" onClick={cerrarModalEditar}>
           <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()}>
             <div className="admin-usu-modal-header">
               <h2>Editar apoderado</h2>
-              <button type="button" className="admin-usu-modal-close" onClick={() => setModalEdit(null)}>
+              <button type="button" className="admin-usu-modal-close" onClick={cerrarModalEditar}>
                 ✕
               </button>
             </div>
             <div className="admin-usu-modal-body">
               <div className="admin-usu-profile-form">
+                <div className="admin-usu-profile-section">
+                  <h3>Foto de perfil</h3>
+                  <div className="admin-usu-photo-wrap">
+                    <div className="admin-usu-photo-preview">
+                      {fotoFormPreview ? (
+                        <img src={fotoFormPreview} alt="Foto apoderado" />
+                      ) : (
+                        <div className="admin-usu-photo-ph">{initialsPreview}</div>
+                      )}
+                    </div>
+                    <label className="admin-usu-upload-btn">
+                      📷 Cambiar foto
+                      <input type="file" accept="image/*" onChange={handleFotoEditChange} />
+                    </label>
+                    <p className="admin-usu-hint">Formatos: JPG, PNG, GIF, WEBP (máx. 5MB)</p>
+                  </div>
+                </div>
                 <div className="admin-usu-profile-section">
                   <h3>Información Personal</h3>
                   <div className="admin-usu-form-grid">
@@ -556,7 +741,7 @@ export default function AdminUsuariosApoderados() {
                 </div>
               </div>
               <div className="admin-usu-modal-actions">
-                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalEdit(null)}>
+                <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={cerrarModalEditar}>
                   ❌ Cancelar
                 </button>
                 <button type="button" className="admin-usu-btn admin-usu-btn-primary" onClick={guardarEdit}>

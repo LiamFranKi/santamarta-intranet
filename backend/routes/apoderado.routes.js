@@ -821,6 +821,65 @@ router.put('/perfil', async (req, res) => {
 });
 
 /**
+ * PUT /api/apoderado/perfil/foto
+ * Subir o cambiar foto de perfil (mismo directorio Static/Image/Fotos que alumnos/personal)
+ */
+router.put('/perfil/foto', uploadPersonal.single('foto'), async (req, res) => {
+  try {
+    const { usuario_id, colegio_id } = req.user;
+    if (!req.file) {
+      return res.status(400).json({ error: 'Debe adjuntar una imagen' });
+    }
+
+    const apoderado = await query(
+      `SELECT ap.id, ap.foto
+       FROM apoderados ap
+       INNER JOIN usuarios u ON u.apoderado_id = ap.id
+       WHERE u.id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO'`,
+      [usuario_id, colegio_id]
+    );
+
+    if (apoderado.length === 0) {
+      return res.status(404).json({ error: 'Apoderado no encontrado' });
+    }
+
+    const apoderadoId = apoderado[0].id;
+    const oldFoto = apoderado[0].foto;
+    if (oldFoto && String(oldFoto).trim() !== '') {
+      const oldFotoPath = path.join(
+        '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos',
+        path.basename(String(oldFoto))
+      );
+      if (fs.existsSync(oldFotoPath)) {
+        fs.unlinkSync(oldFotoPath);
+      }
+    }
+
+    await execute('UPDATE apoderados SET foto = ? WHERE id = ? AND colegio_id = ?', [
+      req.file.filename,
+      apoderadoId,
+      colegio_id,
+    ]);
+
+    const apoderadoActualizado = await query(
+      `SELECT ap.*, u.usuario as dni, ap.nro_documento
+       FROM apoderados ap
+       INNER JOIN usuarios u ON u.apoderado_id = ap.id
+       WHERE ap.id = ? AND ap.colegio_id = ?`,
+      [apoderadoId, colegio_id]
+    );
+
+    res.json({
+      ...apoderadoActualizado[0],
+      nro_documento: apoderadoActualizado[0].nro_documento || apoderadoActualizado[0].dni,
+    });
+  } catch (error) {
+    console.error('Error actualizando foto de perfil apoderado:', error);
+    res.status(500).json({ error: 'Error al actualizar la foto' });
+  }
+});
+
+/**
  * PUT /api/apoderado/perfil/password
  * Cambiar contraseña del apoderado (SHA1 como login y resto de perfiles / PHP legacy)
  */
