@@ -10,6 +10,7 @@ import './AdminEstadisticas.css';
 import AdminUsuariosEquipo from './AdminUsuariosEquipo';
 import AdminUsuariosEquipoTabla from './AdminUsuariosEquipoTabla';
 import AdminUsuariosAlumnos from './AdminUsuariosAlumnos';
+import AdminUsuariosAlumnosTabla from './AdminUsuariosAlumnosTabla';
 import AdminUsuariosApoderados from './AdminUsuariosApoderados';
 import AdminConfiguracion from './AdminConfiguracion';
 import AdminConfigCumpleanos from './AdminConfigCumpleanos';
@@ -217,10 +218,12 @@ function Dashboard() {
       );
     }
     if (location.pathname === '/admin/usuarios/alumnos') {
+      const VistaAlumnos =
+        searchParams.get('vista') === 'tabla' ? AdminUsuariosAlumnosTabla : AdminUsuariosAlumnos;
       return (
         <DashboardLayout>
           <div className="dashboard-container">
-            <AdminUsuariosAlumnos />
+            <VistaAlumnos />
           </div>
         </DashboardLayout>
       );

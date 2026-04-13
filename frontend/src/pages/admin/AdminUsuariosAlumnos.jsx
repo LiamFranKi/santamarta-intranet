@@ -5,6 +5,7 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
 import './AdminUsuarios.css';
+import './AdminUsuariosEquipoCards.css';
 
 function nombreAlumno(row) {
   const ap = (row.apellido_paterno || '').trim();
@@ -494,6 +495,9 @@ export default function AdminUsuariosAlumnos() {
       <div className="admin-usu-header">
         <h1>Alumnos</h1>
         <p>Listado del colegio con acceso al aula. Usuario y contraseña por defecto: DNI.</p>
+        <p className="admin-usu-view-hint">
+          Vista en tarjetas. Para la grilla clásica, use la misma ruta con <code>?vista=tabla</code> en el navegador.
+        </p>
       </div>
 
       <div className="admin-usu-toolbar" onClick={(e) => e.stopPropagation()}>
@@ -513,66 +517,47 @@ export default function AdminUsuariosAlumnos() {
         </button>
       </div>
 
-      <div className="admin-usu-table-card">
-        <div className="admin-usu-table-scroll">
-          <table className="admin-usu-table">
-          <thead>
-            <tr>
-              <th style={{ width: 72 }} />
-              <th>Apellidos y nombres</th>
-              <th>Fecha de nacimiento</th>
-              <th>DNI</th>
-              <th style={{ width: 148 }}>Opciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>
-                  Cargando…
-                </td>
-              </tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-                  Sin datos.
-                </td>
-              </tr>
-            ) : (
-              items.map((row) => {
-                const url = fotoUsuarioAdmin(row.foto);
-                const apPat = (row.apellido_paterno || '').trim();
-                const nom = (row.nombres || '').trim();
-                const letraAvatar = (apPat[0] || nom[0] || '?').toUpperCase();
-                return (
-                  <tr key={row.id}>
-                    <td>
-                      {url ? (
-                        <img className="admin-usu-avatar" src={url} alt="" />
-                      ) : (
-                        <div className="admin-usu-avatar-ph">{letraAvatar}</div>
-                      )}
-                    </td>
-                    <td>{nombreAlumno(row)}</td>
-                    <td>{formatFechaNacimiento(row.fecha_nacimiento)}</td>
-                    <td>{row.nro_documento}</td>
-                    <td>
-                      <div className="admin-usu-actions-wrap">
-                        <button
-                          type="button"
-                          className="admin-usu-actions-btn"
-                          onClick={(e) => abrirMenuOpciones(e, row)}
-                        >
-                          Opciones ▾
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-          </table>
+      <div className="admin-usu-cards-wrap">
+        <div className="admin-usu-cards-grid">
+          {loading ? (
+            <p className="admin-usu-cards-empty">Cargando…</p>
+          ) : items.length === 0 ? (
+            <p className="admin-usu-cards-empty">Sin datos.</p>
+          ) : (
+            items.map((row, idx) => {
+              const url = fotoUsuarioAdmin(row.foto);
+              const apPat = (row.apellido_paterno || '').trim();
+              const nom = (row.nombres || '').trim();
+              const letraAvatar = (apPat[0] || nom[0] || '?').toUpperCase();
+              const colorIdx = idx % 8;
+              return (
+                <article
+                  key={row.id}
+                  className={`admin-usu-person-card admin-usu-person-card--${colorIdx}`}
+                >
+                  <div className="admin-usu-person-photo-wrap">
+                    {url ? (
+                      <img className="admin-usu-person-photo" src={url} alt="" />
+                    ) : (
+                      <div className="admin-usu-person-photo-ph">{letraAvatar}</div>
+                    )}
+                  </div>
+                  <h3 className="admin-usu-person-name">{nombreAlumno(row)}</h3>
+                  <p className="admin-usu-person-meta">
+                    Nac.: {formatFechaNacimiento(row.fecha_nacimiento)}
+                  </p>
+                  <p className="admin-usu-person-dni">DNI: {row.nro_documento || '—'}</p>
+                  <button
+                    type="button"
+                    className="admin-usu-actions-btn"
+                    onClick={(e) => abrirMenuOpciones(e, row)}
+                  >
+                    Opciones ▾
+                  </button>
+                </article>
+              );
+            })
+          )}
         </div>
       </div>
 

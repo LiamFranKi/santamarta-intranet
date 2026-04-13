@@ -109,6 +109,14 @@
   word-break: break-word;
 }
 
+.admin-usu-person-meta {
+  margin: 0 0 0.25rem;
+  font-size: 0.85rem;
+  color: #64748b;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
 .admin-usu-person-dni {
   margin: 0 0 0.65rem;
   font-size: 0.9rem;
