@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import BirthdayWidget from '../../components/BirthdayWidget';
@@ -8,6 +8,7 @@ import Swal from 'sweetalert2';
 import './Dashboard.css';
 import './AdminEstadisticas.css';
 import AdminUsuariosEquipo from './AdminUsuariosEquipo';
+import AdminUsuariosEquipoTabla from './AdminUsuariosEquipoTabla';
 import AdminUsuariosAlumnos from './AdminUsuariosAlumnos';
 import AdminUsuariosApoderados from './AdminUsuariosApoderados';
 import AdminConfiguracion from './AdminConfiguracion';
@@ -48,6 +49,7 @@ function Dashboard() {
 
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   // Mapeo de rutas a títulos y descripciones
   const routeInfo = {
@@ -204,10 +206,12 @@ function Dashboard() {
   
   if (isAdminRoute) {
     if (location.pathname === '/admin/usuarios/equipo') {
+      const VistaEquipo =
+        searchParams.get('vista') === 'tabla' ? AdminUsuariosEquipoTabla : AdminUsuariosEquipo;
       return (
         <DashboardLayout>
           <div className="dashboard-container">
-            <AdminUsuariosEquipo />
+            <VistaEquipo />
           </div>
         </DashboardLayout>
       );

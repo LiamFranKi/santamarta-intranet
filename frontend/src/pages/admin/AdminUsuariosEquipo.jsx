@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import { jsPDF } from 'jspdf';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
 import './AdminUsuarios.css';
+import './AdminUsuariosEquipoCards.css';
 
 function nombreCompletoEquipo(row) {
   const ap = (row.apellidos || '').trim();
@@ -524,6 +525,10 @@ export default function AdminUsuariosEquipo() {
           Docentes, administración y demás perfiles del colegio. El acceso se diferencia por el tipo de usuario;
           usuario y contraseña inicial son el DNI.
         </p>
+        <p className="admin-usu-view-hint">
+          Vista en tarjetas. Para recuperar la grilla clásica, use la misma ruta con{' '}
+          <code>?vista=tabla</code> en el navegador.
+        </p>
       </div>
 
       <div className="admin-usu-toolbar" onClick={(e) => e.stopPropagation()}>
@@ -560,70 +565,49 @@ export default function AdminUsuariosEquipo() {
         </button>
       </div>
 
-      <div className="admin-usu-table-card">
-        <div className="admin-usu-table-scroll">
-          <table className="admin-usu-table">
-          <thead>
-            <tr>
-              <th style={{ width: 56 }} />
-              <th>Apellidos y nombres</th>
-              <th>DNI</th>
-              <th>Perfil</th>
-              <th style={{ width: 120 }}>Opciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-                  Cargando…
-                </td>
-              </tr>
-            ) : items.length === 0 ? (
-              <tr>
-                <td colSpan={5} style={{ textAlign: 'center', padding: '2rem', color: '#6b7280' }}>
-                  No hay registros.
-                </td>
-              </tr>
-            ) : (
-              items.map((row) => {
-                const url = fotoUsuarioAdmin(row.foto);
-                const ini = (row.nombres || 'U')[0]?.toUpperCase();
-                return (
-                  <tr key={row.id}>
-                    <td>
-                      {url ? (
-                        <img className="admin-usu-avatar" src={url} alt="" />
-                      ) : (
-                        <div className="admin-usu-avatar-ph">{ini}</div>
-                      )}
-                    </td>
-                    <td>{nombreCompletoEquipo(row)}</td>
-                    <td>{row.nro_documento}</td>
-                    <td>
-                      {row.usuario_tipo ? (
-                        <span className="admin-usu-badge">{row.usuario_tipo}</span>
-                      ) : (
-                        <span className="admin-usu-badge-muted">Sin usuario</span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="admin-usu-actions-wrap">
-                        <button
-                          type="button"
-                          className="admin-usu-actions-btn"
-                          onClick={(e) => abrirMenuOpciones(e, row)}
-                        >
-                          Opciones ▾
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-          </table>
+      <div className="admin-usu-cards-wrap">
+        <div className="admin-usu-cards-grid">
+          {loading ? (
+            <p className="admin-usu-cards-empty">Cargando…</p>
+          ) : items.length === 0 ? (
+            <p className="admin-usu-cards-empty">No hay registros.</p>
+          ) : (
+            items.map((row, idx) => {
+              const url = fotoUsuarioAdmin(row.foto);
+              const ini = (row.nombres || 'U')[0]?.toUpperCase();
+              const colorIdx = idx % 8;
+              return (
+                <article
+                  key={row.id}
+                  className={`admin-usu-person-card admin-usu-person-card--${colorIdx}`}
+                >
+                  <div className="admin-usu-person-photo-wrap">
+                    {url ? (
+                      <img className="admin-usu-person-photo" src={url} alt="" />
+                    ) : (
+                      <div className="admin-usu-person-photo-ph">{ini}</div>
+                    )}
+                  </div>
+                  <h3 className="admin-usu-person-name">{nombreCompletoEquipo(row)}</h3>
+                  <p className="admin-usu-person-dni">DNI: {row.nro_documento || '—'}</p>
+                  <div className="admin-usu-person-badge-wrap">
+                    {row.usuario_tipo ? (
+                      <span className="admin-usu-badge">{row.usuario_tipo}</span>
+                    ) : (
+                      <span className="admin-usu-badge-muted">Sin usuario</span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="admin-usu-actions-btn"
+                    onClick={(e) => abrirMenuOpciones(e, row)}
+                  >
+                    Opciones ▾
+                  </button>
+                </article>
+              );
+            })
+          )}
         </div>
       </div>
 
