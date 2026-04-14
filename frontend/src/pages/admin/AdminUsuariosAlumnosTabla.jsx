@@ -7,7 +7,7 @@ import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
 import AdminUsuariosFotoLightbox from '../../components/admin/AdminUsuariosFotoLightbox';
 import AdminMensajeQuillEditor from '../../components/admin/AdminMensajeQuillEditor';
 import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
-import { showHistorialPagosSwal, showHistorialPagosUnaMatriculaSwal } from '../../utils/adminAlumnoPagosSwal';
+import { showHistorialPagosSwal, showListaPagosMatriculaSwal } from '../../utils/adminAlumnoPagosSwal';
 import './AdminUsuarios.css';
 
 /**
@@ -514,7 +514,7 @@ export default function AdminUsuariosAlumnosTabla() {
         Swal.fire({ icon: 'info', title: 'Pagos', text: 'No hay datos para esta matrícula.' });
         return;
       }
-      showHistorialPagosUnaMatriculaSwal(nombreAlumno(alumno), m);
+      showListaPagosMatriculaSwal(nombreAlumno(alumno), m);
     } catch (e) {
       Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo cargar pagos' });
     }

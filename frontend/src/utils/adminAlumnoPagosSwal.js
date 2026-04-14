@@ -29,8 +29,15 @@ function fmtFecha(val) {
 }
 
 function buildPanelHtml(m, opts = {}) {
-  const { panelId, display = 'block' } = opts;
+  const { panelId, display = 'block', mode = 'historial' } = opts;
   const idAttr = panelId != null && panelId !== '' ? ` id="${String(panelId)}"` : '';
+  const esLista = mode === 'lista';
+  const bannerTexto = esLista
+    ? 'La información es referencial según el costo tarifario registrado para esta matrícula (lista de pagos de la matrícula actual).'
+    : 'La información es referencial y corresponde al historial registrado para esta matrícula.';
+  const bannerStyle = esLista
+    ? 'background:#ecfdf5;border:1px solid #6ee7b7;color:#065f46;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:10px'
+    : 'background:#e0f2fe;border:1px solid #7dd3fc;color:#0c4a6e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:10px';
   const pagos = Array.isArray(m.pagos) ? m.pagos : [];
   const filas = pagos.map((p) => {
     const nroOperacion = [p.nro_movimiento_banco, p.nro_movimiento_importado].filter(Boolean).join(' | ') || '—';
@@ -50,9 +57,9 @@ function buildPanelHtml(m, opts = {}) {
     </tr>`;
   }).join('');
 
-  return `<section${idAttr} class="admin-pagos-panel" style="display:${display};margin-top:12px">
-    <div style="background:#e0f2fe;border:1px solid #7dd3fc;color:#0c4a6e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:10px">
-      La información es referencial y corresponde al historial registrado para esta matrícula.
+  return `<section${idAttr} class="admin-pagos-panel${esLista ? ' admin-pagos-panel--lista' : ''}" style="display:${display};margin-top:12px">
+    <div style="${bannerStyle}">
+      ${esc(bannerTexto)}
     </div>
     <div style="
       display:grid;
@@ -137,6 +144,7 @@ export function showHistorialPagosSwal(nombreAlumno, matriculas) {
       buildPanelHtml(m, {
         panelId: `tab-${m.matricula_id}`,
         display: i === 0 ? 'block' : 'none',
+        mode: 'historial',
       })
     )
     .join('');
@@ -177,19 +185,25 @@ export function showHistorialPagosSwal(nombreAlumno, matriculas) {
 }
 
 /**
- * Misma grilla de pagos pero para una sola matrícula (sin pestañas).
+ * Lista de pagos de una sola matrícula (menú Opciones → Ver pagos). No es el historial global por alumno.
  */
-export function showHistorialPagosUnaMatriculaSwal(nombreAlumno, m) {
+export function showListaPagosMatriculaSwal(nombreAlumno, m) {
   const sub = m.grupo_texto || `${m.anio || '—'} · ${m.grado || '—'}° ${m.seccion || ''}`;
   Swal.fire({
-    title: `Lista de pagos — ${nombreAlumno}`,
+    title: 'Lista de pagos',
     width: 1200,
     showCloseButton: true,
     showConfirmButton: false,
     html: `<div style="text-align:left">
-      <p style="margin:0 0 12px;color:#374151;font-size:13px;font-weight:600">${esc(sub)}</p>
-      ${buildPanelHtml(m, {})}
+      <p style="margin:0 0 4px;color:#111827;font-size:15px;font-weight:700">${esc(nombreAlumno)}</p>
+      <p style="margin:0 0 14px;color:#6b7280;font-size:13px;font-weight:500">${esc(sub)}</p>
+      ${buildPanelHtml(m, { mode: 'lista' })}
     </div>`,
     didOpen: () => bindBoletaButtons(),
   });
+}
+
+/** @deprecated Usar showListaPagosMatriculaSwal; nombre antiguo confundía con historial global */
+export function showHistorialPagosUnaMatriculaSwal(nombreAlumno, m) {
+  return showListaPagosMatriculaSwal(nombreAlumno, m);
 }
