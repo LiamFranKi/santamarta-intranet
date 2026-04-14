@@ -31,15 +31,19 @@ function parseDatetimeLocalToApi(fechaHoraLocal) {
 }
 
 /** Opciones `<option>` para mes de pensión (nro_pago + etiqueta desde API). */
-function buildPensionMesOptionsHtml(opciones) {
+function buildPensionMesOptionsHtml(opciones, selectedNro) {
   if (!Array.isArray(opciones) || opciones.length === 0) {
     return '<option value="">Sin meses configurados</option>';
   }
   return opciones
-    .map(
-      (o) =>
-        `<option value="${esc(String(o.nro_pago))}">${esc(o.mes_label != null ? String(o.mes_label) : `Cuota ${o.nro_pago}`)}</option>`
-    )
+    .map((o) => {
+      const nro = o.nro_pago;
+      const sel =
+        selectedNro != null && String(selectedNro) === String(nro) ? ' selected' : '';
+      return `<option value="${esc(String(nro))}"${sel}>${esc(
+        o.mes_label != null ? String(o.mes_label) : `Cuota ${nro}`
+      )}</option>`;
+    })
     .join('');
 }
 
@@ -312,12 +316,47 @@ function buildPanelHtml(m, opts = {}) {
 }
 
 /**
- * Modal «Registrar pago» con fecha/hora y fecha cancelado en hoy por defecto (registro nuevo).
+ * Modal «Registrar» / «Editar» pago (mismo formulario que el legado).
  * @param {object} [pagosMatricula] Respuesta de GET …/pagos (incluye `pension_meses_opciones`).
+ * @param {number} [editPagoId] Si se indica, carga el pago y guarda con PUT.
  */
-async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId, pagosMatricula }) {
+async function openPagoFormSwal({ nombreAlumno, alumnoId, matriculaId, pagosMatricula, editPagoId }) {
   let pm = pagosMatricula;
-  if (!pm?.pension_meses_opciones?.length && alumnoId && matriculaId) {
+  let pagoEdit = null;
+
+  if (editPagoId) {
+    try {
+      Swal.fire({ title: 'Cargando pago...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const { data } = await api.get(
+        `/admin/usuarios/alumnos/${alumnoId}/matriculas/${matriculaId}/pagos/${editPagoId}`
+      );
+      Swal.close();
+      pagoEdit = data?.data?.pago;
+      const opc = data?.data?.pension_meses_opciones;
+      if (Array.isArray(opc) && opc.length) {
+        pm = { ...(pm || {}), pension_meses_opciones: opc };
+      }
+      if (!pagoEdit) {
+        await Swal.fire({ icon: 'error', text: 'No se encontró el pago.' });
+        return false;
+      }
+      if (String(pagoEdit.pago_registro_estado || '').toUpperCase() !== 'ACTIVO') {
+        await Swal.fire({
+          icon: 'warning',
+          title: 'No se puede editar',
+          text: 'Este pago está anulado. Use las acciones correspondientes en el menú.',
+        });
+        return false;
+      }
+    } catch (e) {
+      Swal.close();
+      await Swal.fire({
+        icon: 'error',
+        text: e.response?.data?.error || e.message || 'Error al cargar el pago',
+      });
+      return false;
+    }
+  } else if (!pm?.pension_meses_opciones?.length && alumnoId && matriculaId) {
     try {
       const { data } = await api.get(`/admin/usuarios/alumnos/${alumnoId}/matriculas/${matriculaId}/pagos`);
       if (data?.data) pm = data.data;
@@ -325,8 +364,50 @@ async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId, 
       /* sin opciones de mes */
     }
   }
+
   const defs = getDefaultsRegistroPagoNuevo();
-  const mesOpts = buildPensionMesOptionsHtml(pm?.pension_meses_opciones);
+  const mesSelectedNro =
+    pagoEdit && Number(pagoEdit.tipo) === 1 ? pagoEdit.nro_pago : undefined;
+  const mesOpts = buildPensionMesOptionsHtml(pm?.pension_meses_opciones, mesSelectedNro);
+
+  const formaVal = pagoEdit ? String(pagoEdit.forma_pago || 'EFECTIVO').toUpperCase() : 'EFECTIVO';
+  const FORMAS = ['EFECTIVO', 'TARJETA', 'TRANSFERENCIA', 'YAPE'];
+  const formaOpts = FORMAS.map(
+    (f) => `<option value="${f}"${f === formaVal ? ' selected' : ''}>${f}</option>`
+  ).join('');
+
+  const tipoVal = pagoEdit != null ? String(Number(pagoEdit.tipo)) : '0';
+  const tipoOpts = [
+    ['0', 'Matrícula'],
+    ['1', 'Pensión'],
+    ['2', 'Otro / varios'],
+  ]
+    .map(([v, l]) => `<option value="${v}"${v === tipoVal ? ' selected' : ''}>${l}</option>`)
+    .join('');
+
+  const estadoVal =
+    pagoEdit != null ? String(pagoEdit.estado_pago || 'CANCELADO').toUpperCase() : 'CANCELADO';
+  const estadoCancelSel = estadoVal === 'CANCELADO' ? ' selected' : '';
+  const estadoPendSel = estadoVal === 'PENDIENTE' ? ' selected' : '';
+
+  const fechaHoraVal = pagoEdit?.fecha_hora_local || defs.fechaHoraDatetimeLocal;
+  const fechaCancelVal = pagoEdit?.fecha_cancelado_date || defs.fechaCanceladoDate;
+
+  const montoInputAttrs =
+    pagoEdit != null && pagoEdit.monto != null && pagoEdit.monto !== ''
+      ? ` value="${esc(String(pagoEdit.monto))}"`
+      : '';
+  const moraInputAttrs =
+    pagoEdit != null
+      ? ` value="${esc(String(pagoEdit.mora ?? 0))}"`
+      : ' value="0"';
+  const descInputAttrs =
+    pagoEdit != null ? ` value="${esc(String(pagoEdit.descripcion ?? ''))}"` : '';
+  const obsInputAttrs =
+    pagoEdit != null ? ` value="${esc(String(pagoEdit.observaciones ?? ''))}"` : '';
+
+  const title = editPagoId ? 'Editar pago' : 'Registrar pago';
+
   const html = `
     <div class="admin-pagos-reg-form">
       <p class="admin-pagos-reg-alumno">${esc(nombreAlumno)}</p>
@@ -334,19 +415,15 @@ async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId, 
         <div class="admin-pagos-reg-grid">
           <div class="admin-pagos-reg-field">
             <label class="admin-pagos-reg-label" for="admin-pago-monto">Monto (S/) <span class="admin-pagos-reg-req">*</span></label>
-            <input type="number" id="admin-pago-monto" class="admin-pagos-reg-input" step="0.01" min="0" placeholder="0.00" />
+            <input type="number" id="admin-pago-monto" class="admin-pagos-reg-input" step="0.01" min="0" placeholder="0.00"${montoInputAttrs} />
           </div>
           <div class="admin-pagos-reg-field">
             <label class="admin-pagos-reg-label" for="admin-pago-mora">Mora (S/)</label>
-            <input type="number" id="admin-pago-mora" class="admin-pagos-reg-input" step="0.01" min="0" value="0" />
+            <input type="number" id="admin-pago-mora" class="admin-pagos-reg-input" step="0.01" min="0"${moraInputAttrs} />
           </div>
           <div class="admin-pagos-reg-field">
             <label class="admin-pagos-reg-label" for="admin-pago-tipo">Tipo de pago <span class="admin-pagos-reg-req">*</span></label>
-            <select id="admin-pago-tipo" class="admin-pagos-reg-input admin-pagos-reg-select">
-              <option value="0">Matrícula</option>
-              <option value="1">Pensión</option>
-              <option value="2">Otro / varios</option>
-            </select>
+            <select id="admin-pago-tipo" class="admin-pagos-reg-input admin-pagos-reg-select">${tipoOpts}</select>
           </div>
           <div class="admin-pagos-reg-field" id="admin-pago-col-mes">
             <div id="admin-pago-mes-active" class="admin-pago-mes-active" style="display:none">
@@ -357,36 +434,31 @@ async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId, 
           </div>
           <div class="admin-pagos-reg-field">
             <label class="admin-pagos-reg-label" for="admin-pago-forma">Forma de pago</label>
-            <select id="admin-pago-forma" class="admin-pagos-reg-input admin-pagos-reg-select">
-              <option value="EFECTIVO">EFECTIVO</option>
-              <option value="TARJETA">TARJETA</option>
-              <option value="TRANSFERENCIA">TRANSFERENCIA</option>
-              <option value="YAPE">YAPE</option>
-            </select>
+            <select id="admin-pago-forma" class="admin-pagos-reg-input admin-pagos-reg-select">${formaOpts}</select>
           </div>
           <div class="admin-pagos-reg-field">
             <label class="admin-pagos-reg-label" for="admin-pago-fecha-hora">Fecha y hora <span class="admin-pagos-reg-req">*</span></label>
-            <input type="datetime-local" id="admin-pago-fecha-hora" class="admin-pagos-reg-input" value="${esc(defs.fechaHoraDatetimeLocal)}" />
+            <input type="datetime-local" id="admin-pago-fecha-hora" class="admin-pagos-reg-input" value="${esc(fechaHoraVal)}" />
           </div>
           <div class="admin-pagos-reg-field admin-pagos-reg-field--full">
             <label class="admin-pagos-reg-label" for="admin-pago-desc">Descripción</label>
-            <input type="text" id="admin-pago-desc" class="admin-pagos-reg-input" placeholder="Opcional" />
+            <input type="text" id="admin-pago-desc" class="admin-pagos-reg-input" placeholder="Opcional"${descInputAttrs} />
           </div>
           <div class="admin-pagos-reg-field admin-pagos-reg-field--full">
             <label class="admin-pagos-reg-label" for="admin-pago-obs">Observaciones</label>
-            <input type="text" id="admin-pago-obs" class="admin-pagos-reg-input" placeholder="Opcional" />
+            <input type="text" id="admin-pago-obs" class="admin-pagos-reg-input" placeholder="Opcional"${obsInputAttrs} />
           </div>
           <div class="admin-pagos-reg-estado-wrap admin-pagos-reg-field--full" id="admin-pago-estado-wrap">
             <div class="admin-pagos-reg-field admin-pagos-reg-field--grow">
               <label class="admin-pagos-reg-label" for="admin-pago-estado">Estado pago <span class="admin-pagos-reg-req">*</span></label>
               <select id="admin-pago-estado" class="admin-pagos-reg-input admin-pagos-reg-select">
-                <option value="CANCELADO" selected>Pagado (CANCELADO)</option>
-                <option value="PENDIENTE">Pendiente</option>
+                <option value="CANCELADO"${estadoCancelSel}>Pagado (CANCELADO)</option>
+                <option value="PENDIENTE"${estadoPendSel}>Pendiente</option>
               </select>
             </div>
             <div class="admin-pagos-reg-field admin-pagos-reg-field--grow" id="admin-pago-row-fecha-cancel">
               <label class="admin-pagos-reg-label" for="admin-pago-fecha-cancel">Fecha cancelado <span class="admin-pagos-reg-req">*</span></label>
-              <input type="date" id="admin-pago-fecha-cancel" class="admin-pagos-reg-input" value="${esc(defs.fechaCanceladoDate)}" />
+              <input type="date" id="admin-pago-fecha-cancel" class="admin-pagos-reg-input" value="${esc(fechaCancelVal)}" />
             </div>
           </div>
         </div>
@@ -394,7 +466,7 @@ async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId, 
     </div>`;
 
   const result = await Swal.fire({
-    title: 'Registrar pago',
+    title,
     html,
     width: 560,
     showCancelButton: true,
@@ -477,10 +549,10 @@ async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId, 
           fecha_cancelado: estadoVal === 'CANCELADO' ? fechaCancel : '',
           forma_pago: popup.querySelector('#admin-pago-forma')?.value || 'EFECTIVO',
         };
-        const { data } = await api.post(
-          `/admin/usuarios/alumnos/${alumnoId}/matriculas/${matriculaId}/pagos`,
-          payload
-        );
+        const base = `/admin/usuarios/alumnos/${alumnoId}/matriculas/${matriculaId}/pagos`;
+        const { data } = editPagoId
+          ? await api.put(`${base}/${editPagoId}`, payload)
+          : await api.post(base, payload);
         return data;
       } catch (e) {
         Swal.showValidationMessage(e.response?.data?.error || e.message || 'Error al guardar');
@@ -490,6 +562,10 @@ async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId, 
   });
 
   return result.isConfirmed && result.value;
+}
+
+async function openRegistroPagoNuevoSwal(opts) {
+  return openPagoFormSwal({ ...opts, editPagoId: undefined });
 }
 
 function bindBoletaButtons() {
@@ -574,11 +650,52 @@ function bindListaPagosUi() {
   });
 
   popup.querySelectorAll('.admin-pagos-opcion-item').forEach((item) => {
-    item.addEventListener('click', (e) => {
+    item.addEventListener('click', async (e) => {
       e.stopPropagation();
       const action = item.getAttribute('data-action');
       const pagoId = item.getAttribute('data-pago-id');
       closeAllOpcionesMenus(popup);
+
+      if (action === 'editar' && pagoId) {
+        const root = popup.querySelector('.admin-pagos-lista-root');
+        const alumnoIdRaw = root?.getAttribute('data-alumno-id');
+        const matriculaIdRaw = root?.getAttribute('data-matricula-id');
+        const nombre = popup.querySelector('.admin-pagos-lista-alumno')?.textContent?.trim() || '';
+        const aid = parseInt(alumnoIdRaw, 10);
+        const mid = parseInt(matriculaIdRaw, 10);
+        const pid = parseInt(pagoId, 10);
+        if (!alumnoIdRaw || !matriculaIdRaw || !Number.isFinite(aid) || !Number.isFinite(mid) || !Number.isFinite(pid)) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'No se puede editar',
+            text: 'Falta identificar el pago o la matrícula. Actualice la página e intente de nuevo.',
+          });
+          return;
+        }
+        const ctxMat = listaPagosMatriculaContext.get(`${aid}-${mid}`);
+        Swal.close();
+        await openPagoFormSwal({
+          nombreAlumno: nombre,
+          alumnoId: aid,
+          matriculaId: mid,
+          pagosMatricula: ctxMat,
+          editPagoId: pid,
+        });
+        try {
+          const { data } = await api.get(`/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos`);
+          const fresh = data.data;
+          if (fresh) {
+            showListaPagosMatriculaSwal(nombre, fresh, { alumnoId: aid });
+          }
+        } catch (err) {
+          Swal.fire({
+            icon: 'error',
+            text: err.response?.data?.error || 'No se pudo recargar la lista de pagos.',
+          });
+        }
+        return;
+      }
+
       const labels = {
         impresiones: 'Impresiones',
         boleta_externa: 'Imprimir Boleta Externa',

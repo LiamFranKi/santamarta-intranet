@@ -289,6 +289,114 @@ function isSqlUnknownColumnError(e) {
   return code === 'ER_BAD_FIELD_ERROR' || errno === 1054 || msg.includes('Unknown column');
 }
 
+/**
+ * Parsea y valida el cuerpo de alta/edición de pago (admin), alineado al legado PHP.
+ * @returns {Promise<{ ok: true, …campos } | { ok: false, status?: number, error: string }>}
+ */
+async function parseAdminPagoRegistroBody(body, reqUser, colegio_id) {
+  const b = body || {};
+  const monto = parseFloat(b.monto);
+  const mora = parseFloat(b.mora != null && b.mora !== '' ? b.mora : 0);
+  if (!Number.isFinite(monto) || monto < 0) {
+    return { ok: false, error: 'Monto inválido' };
+  }
+  if (!Number.isFinite(mora) || mora < 0) {
+    return { ok: false, error: 'Mora inválida' };
+  }
+
+  const tipo = parseInt(b.tipo, 10);
+  if (!Number.isFinite(tipo) || tipo < 0) {
+    return { ok: false, error: 'Tipo de pago inválido' };
+  }
+
+  let nro_pago = parseInt(b.nro_pago != null && b.nro_pago !== '' ? b.nro_pago : 0, 10);
+  if (!Number.isFinite(nro_pago) || nro_pago < 0) nro_pago = 0;
+  if (tipo === 0) nro_pago = 0;
+  if (tipo === 1 && nro_pago < 1) {
+    return { ok: false, error: 'Indique el número de pensión (mes)' };
+  }
+
+  const estado_pago = String(b.estado_pago || '').toUpperCase();
+  if (estado_pago !== 'CANCELADO' && estado_pago !== 'PENDIENTE') {
+    return { ok: false, error: 'Estado de pago inválido' };
+  }
+
+  let fecha_hora = String(b.fecha_hora || '').trim();
+  if (!fecha_hora) {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    fecha_hora = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+  } else {
+    fecha_hora = fecha_hora.replace('T', ' ');
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(fecha_hora)) {
+      fecha_hora = `${fecha_hora}:00`;
+    }
+  }
+
+  let fecha_cancelado = null;
+  if (estado_pago === 'CANCELADO') {
+    let fc = String(b.fecha_cancelado || '').trim();
+    if (!fc) {
+      fc = new Date().toISOString().slice(0, 10);
+    } else {
+      fc = fc.slice(0, 10);
+    }
+    fecha_cancelado = fc;
+  }
+
+  const descripcion = String(b.descripcion || '').trim();
+  const observaciones = String(b.observaciones || '').trim();
+  const forma_pago = String(b.forma_pago || 'EFECTIVO').toUpperCase();
+  const tipo_tarjeta = String(b.tipo_tarjeta || '').trim();
+
+  let personal_id = reqUser.personal_id && Number(reqUser.personal_id) > 0 ? Number(reqUser.personal_id) : null;
+  if (personal_id) {
+    const pr = await query('SELECT id FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1', [personal_id, colegio_id]);
+    if (!pr.length) personal_id = null;
+  }
+  if (!personal_id) {
+    const pr2 = await query(
+      'SELECT id FROM personal WHERE colegio_id = ? ORDER BY id ASC LIMIT 1',
+      [colegio_id]
+    );
+    personal_id = pr2[0]?.id || null;
+  }
+  if (!personal_id) {
+    return {
+      ok: false,
+      status: 400,
+      error:
+        'No hay personal en el colegio para asociar el pago. Registre al menos un trabajador o asocie su usuario a personal.',
+    };
+  }
+
+  const colegioTarifa = await query(
+    'SELECT comision_tarjeta_debito, comision_tarjeta_credito FROM colegios WHERE id = ? LIMIT 1',
+    [colegio_id]
+  );
+  const comDeb = parseFloat(colegioTarifa[0]?.comision_tarjeta_debito) || 0;
+  const comCred = parseFloat(colegioTarifa[0]?.comision_tarjeta_credito) || 0;
+  const comision_tarjeta =
+    forma_pago === 'TARJETA' ? (tipo_tarjeta === 'DEBITO' ? comDeb : comCred) : 0;
+
+  return {
+    ok: true,
+    monto,
+    mora,
+    nro_pago,
+    tipo,
+    estado_pago,
+    fecha_hora,
+    fecha_cancelado,
+    descripcion,
+    observaciones,
+    forma_pago,
+    tipo_tarjeta,
+    comision_tarjeta,
+    personal_id,
+  };
+}
+
 /** Título por palabras (PRESENCIAL VIRTUAL → Presencial Virtual). */
 function formatoTextoLegible(val) {
   const s = String(val || '').trim();
@@ -1968,6 +2076,223 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos', async (req, res) => {
 });
 
 /**
+ * Un pago concreto (precarga del formulario «Editar», misma data de meses que la lista).
+ */
+router.get('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const alumnoId = parseInt(req.params.id, 10);
+    const matriculaId = parseInt(req.params.matriculaId, 10);
+    const pagoId = parseInt(req.params.pagoId, 10);
+    if (![alumnoId, matriculaId, pagoId].every((n) => Number.isFinite(n) && n > 0)) {
+      return res.status(400).json({ error: 'Parámetros inválidos' });
+    }
+    const okAl = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
+    if (!okAl.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+
+    let pagoRows;
+    try {
+      pagoRows = await query(
+        `SELECT p.id, p.matricula_id, p.nro_pago, p.monto, p.mora, p.fecha_hora, p.tipo, p.descripcion, p.observaciones,
+                p.estado_pago, p.fecha_cancelado, p.forma_pago, p.tipo_tarjeta, p.lugar_pago, p.estado AS pago_registro_estado, p.personal_id
+         FROM pagos p
+         INNER JOIN matriculas m ON m.id = p.matricula_id AND m.alumno_id = ? AND m.colegio_id = ?
+         WHERE p.id = ? AND p.colegio_id = ? AND p.matricula_id = ?
+         LIMIT 1`,
+        [alumnoId, colegio_id, pagoId, colegio_id, matriculaId]
+      );
+    } catch (e) {
+      if (!isSqlUnknownColumnError(e)) throw e;
+      pagoRows = await query(
+        `SELECT p.id, p.matricula_id, p.nro_pago, p.monto, p.mora, p.fecha_hora, p.tipo, p.descripcion,
+                p.estado_pago, p.fecha_cancelado, p.forma_pago, p.tipo_tarjeta, p.lugar_pago, p.estado AS pago_registro_estado, p.personal_id
+         FROM pagos p
+         INNER JOIN matriculas m ON m.id = p.matricula_id AND m.alumno_id = ? AND m.colegio_id = ?
+         WHERE p.id = ? AND p.colegio_id = ? AND p.matricula_id = ?
+         LIMIT 1`,
+        [alumnoId, colegio_id, pagoId, colegio_id, matriculaId]
+      );
+      pagoRows = (pagoRows || []).map((r) => ({ ...r, observaciones: '' }));
+    }
+    if (!pagoRows.length) {
+      return res.status(404).json({ error: 'Pago no encontrado' });
+    }
+
+    const matriculas = await query(
+      `SELECT m.id AS matricula_id,
+              g.anio,
+              g.grado,
+              g.seccion,
+              n.nombre AS nivel_nombre,
+              c.pension,
+              c.matricula
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN costos c ON c.id = m.costo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND m.id = ?
+       LIMIT 1`,
+      [alumnoId, colegio_id, matriculaId]
+    );
+    if (!matriculas.length) {
+      return res.status(404).json({ error: 'Matrícula no encontrada' });
+    }
+    const listaData = await buildAlumnoPagosData(colegio_id, matriculas);
+    const pension_meses_opciones = listaData[0]?.pension_meses_opciones || [];
+
+    const pr = pagoRows[0];
+    const fh = pr.fecha_hora;
+    let fecha_hora_local = '';
+    if (fh) {
+      const s = String(fh).replace(' ', 'T');
+      fecha_hora_local = s.slice(0, 16);
+    }
+    const fecha_cancelado_date = pr.fecha_cancelado ? String(pr.fecha_cancelado).slice(0, 10) : '';
+
+    res.json({
+      data: {
+        pago: {
+          ...pr,
+          observaciones: pr.observaciones ?? '',
+          fecha_hora_local,
+          fecha_cancelado_date,
+        },
+        pension_meses_opciones,
+      },
+    });
+  } catch (e) {
+    console.error('GET alumno matricula pago admin', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/**
+ * Actualizar un pago activo (no permite editar filas anuladas en `pagos.estado`).
+ */
+router.put('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const alumnoId = parseInt(req.params.id, 10);
+    const matriculaId = parseInt(req.params.matriculaId, 10);
+    const pagoId = parseInt(req.params.pagoId, 10);
+    if (![alumnoId, matriculaId, pagoId].every((n) => Number.isFinite(n) && n > 0)) {
+      return res.status(400).json({ error: 'Parámetros inválidos' });
+    }
+    const okAl = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
+    if (!okAl.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const okMat = await query(
+      'SELECT id FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
+      [matriculaId, alumnoId, colegio_id]
+    );
+    if (!okMat.length) {
+      return res.status(404).json({ error: 'Matrícula no encontrada' });
+    }
+
+    const exist = await query(
+      `SELECT id, estado FROM pagos WHERE id = ? AND colegio_id = ? AND matricula_id = ? LIMIT 1`,
+      [pagoId, colegio_id, matriculaId]
+    );
+    if (!exist.length) {
+      return res.status(404).json({ error: 'Pago no encontrado' });
+    }
+    if (String(exist[0].estado || '').toUpperCase() !== 'ACTIVO') {
+      return res.status(400).json({ error: 'No se puede editar un pago anulado.' });
+    }
+
+    const parsed = await parseAdminPagoRegistroBody(req.body, req.user, colegio_id);
+    if (!parsed.ok) {
+      return res.status(parsed.status || 400).json({ error: parsed.error });
+    }
+    const {
+      monto,
+      mora,
+      nro_pago,
+      tipo,
+      estado_pago,
+      fecha_hora,
+      fecha_cancelado,
+      descripcion,
+      observaciones,
+      forma_pago,
+      tipo_tarjeta,
+      comision_tarjeta,
+      personal_id,
+    } = parsed;
+
+    const tryUpdate = async (withObservaciones) => {
+      if (withObservaciones) {
+        return execute(
+          `UPDATE pagos SET nro_pago=?, monto=?, mora=?, fecha_hora=?, tipo=?, descripcion=?, observaciones=?,
+             estado_pago=?, fecha_cancelado=?, forma_pago=?, tipo_tarjeta=?, lugar_pago=?, comision_tarjeta=?, personal_id=?
+           WHERE id=? AND colegio_id=? AND matricula_id=? AND estado='ACTIVO'`,
+          [
+            nro_pago,
+            monto,
+            mora,
+            fecha_hora,
+            tipo,
+            descripcion,
+            observaciones,
+            estado_pago,
+            fecha_cancelado,
+            forma_pago,
+            tipo_tarjeta || '',
+            'CAJA',
+            comision_tarjeta,
+            personal_id,
+            pagoId,
+            colegio_id,
+            matriculaId,
+          ]
+        );
+      }
+      return execute(
+        `UPDATE pagos SET nro_pago=?, monto=?, mora=?, fecha_hora=?, tipo=?, descripcion=?,
+           estado_pago=?, fecha_cancelado=?, forma_pago=?, tipo_tarjeta=?, lugar_pago=?, comision_tarjeta=?, personal_id=?
+         WHERE id=? AND colegio_id=? AND matricula_id=? AND estado='ACTIVO'`,
+        [
+          nro_pago,
+          monto,
+          mora,
+          fecha_hora,
+          tipo,
+          descripcion,
+          estado_pago,
+          fecha_cancelado,
+          forma_pago,
+          tipo_tarjeta || '',
+          'CAJA',
+          comision_tarjeta,
+          personal_id,
+          pagoId,
+          colegio_id,
+          matriculaId,
+        ]
+      );
+    };
+
+    try {
+      await tryUpdate(true);
+    } catch (e) {
+      if (isSqlUnknownColumnError(e)) {
+        await tryUpdate(false);
+      } else {
+        throw e;
+      }
+    }
+
+    res.json({ ok: true, id: pagoId });
+  } catch (e) {
+    console.error('PUT alumno matricula pago admin', e);
+    res.status(500).json({ error: e.message || 'Error al actualizar el pago' });
+  }
+});
+
+/**
  * Registro manual de un pago (alineado al legado PHP: /pagos/save).
  * fecha_hora y fecha_cancelado (si aplica) pueden omitirse: el servidor usa la fecha actual.
  */
@@ -1991,87 +2316,25 @@ router.post('/alumnos/:id/matriculas/:matriculaId/pagos', async (req, res) => {
       return res.status(404).json({ error: 'Matrícula no encontrada' });
     }
 
-    const body = req.body || {};
-    const monto = parseFloat(body.monto);
-    const mora = parseFloat(body.mora != null && body.mora !== '' ? body.mora : 0);
-    if (!Number.isFinite(monto) || monto < 0) {
-      return res.status(400).json({ error: 'Monto inválido' });
+    const parsed = await parseAdminPagoRegistroBody(req.body, req.user, colegio_id);
+    if (!parsed.ok) {
+      return res.status(parsed.status || 400).json({ error: parsed.error });
     }
-    if (!Number.isFinite(mora) || mora < 0) {
-      return res.status(400).json({ error: 'Mora inválida' });
-    }
-
-    const tipo = parseInt(body.tipo, 10);
-    if (!Number.isFinite(tipo) || tipo < 0) {
-      return res.status(400).json({ error: 'Tipo de pago inválido' });
-    }
-
-    let nro_pago = parseInt(body.nro_pago != null && body.nro_pago !== '' ? body.nro_pago : 0, 10);
-    if (!Number.isFinite(nro_pago) || nro_pago < 0) nro_pago = 0;
-    if (tipo === 0) nro_pago = 0;
-    if (tipo === 1 && nro_pago < 1) {
-      return res.status(400).json({ error: 'Indique el número de pensión (mes)' });
-    }
-
-    const estado_pago = String(body.estado_pago || '').toUpperCase();
-    if (estado_pago !== 'CANCELADO' && estado_pago !== 'PENDIENTE') {
-      return res.status(400).json({ error: 'Estado de pago inválido' });
-    }
-
-    let fecha_hora = String(body.fecha_hora || '').trim();
-    if (!fecha_hora) {
-      const d = new Date();
-      const pad = (n) => String(n).padStart(2, '0');
-      fecha_hora = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
-    } else {
-      fecha_hora = fecha_hora.replace('T', ' ');
-      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(fecha_hora)) {
-        fecha_hora = `${fecha_hora}:00`;
-      }
-    }
-
-    let fecha_cancelado = null;
-    if (estado_pago === 'CANCELADO') {
-      let fc = String(body.fecha_cancelado || '').trim();
-      if (!fc) {
-        fc = new Date().toISOString().slice(0, 10);
-      } else {
-        fc = fc.slice(0, 10);
-      }
-      fecha_cancelado = fc;
-    }
-
-    const descripcion = String(body.descripcion || '').trim();
-    const observaciones = String(body.observaciones || '').trim();
-    const forma_pago = String(body.forma_pago || 'EFECTIVO').toUpperCase();
-    const tipo_tarjeta = String(body.tipo_tarjeta || '').trim();
-
-    let personal_id = req.user.personal_id && Number(req.user.personal_id) > 0 ? Number(req.user.personal_id) : null;
-    if (personal_id) {
-      const pr = await query('SELECT id FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1', [personal_id, colegio_id]);
-      if (!pr.length) personal_id = null;
-    }
-    if (!personal_id) {
-      const pr2 = await query(
-        'SELECT id FROM personal WHERE colegio_id = ? ORDER BY id ASC LIMIT 1',
-        [colegio_id]
-      );
-      personal_id = pr2[0]?.id || null;
-    }
-    if (!personal_id) {
-      return res.status(400).json({
-        error: 'No hay personal en el colegio para asociar el pago. Registre al menos un trabajador o asocie su usuario a personal.',
-      });
-    }
-
-    const colegioTarifa = await query(
-      'SELECT comision_tarjeta_debito, comision_tarjeta_credito FROM colegios WHERE id = ? LIMIT 1',
-      [colegio_id]
-    );
-    const comDeb = parseFloat(colegioTarifa[0]?.comision_tarjeta_debito) || 0;
-    const comCred = parseFloat(colegioTarifa[0]?.comision_tarjeta_credito) || 0;
-    const comision_tarjeta =
-      forma_pago === 'TARJETA' ? (tipo_tarjeta === 'DEBITO' ? comDeb : comCred) : 0;
+    const {
+      monto,
+      mora,
+      nro_pago,
+      tipo,
+      estado_pago,
+      fecha_hora,
+      fecha_cancelado,
+      descripcion,
+      observaciones,
+      forma_pago,
+      tipo_tarjeta,
+      comision_tarjeta,
+      personal_id,
+    } = parsed;
 
     const tryInsert = async (withObservaciones) => {
       const cols = [
