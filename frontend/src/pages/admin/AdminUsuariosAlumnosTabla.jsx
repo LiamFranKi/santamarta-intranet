@@ -47,7 +47,7 @@ function formatFechaRegistroMatricula(val) {
 
 function labelMatriculaEstado(estado) {
   const e = Number(estado);
-  if (e === 0 || e === 4) return 'Activa / vigente';
+  if (e === 0 || e === 4) return 'Regular';
   if (e === 1) return 'Retirado';
   if (e === 2) return 'Trasladado';
   if (e === 3) return 'Cancelado';
@@ -1278,7 +1278,30 @@ export default function AdminUsuariosAlumnosTabla() {
               {modalMatriculas.loading ? (
                 <p style={{ color: '#6b7280' }}>Cargando…</p>
               ) : (
-                <div className="admin-usu-table-card">
+                <>
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'flex-end',
+                      alignItems: 'center',
+                      marginBottom: '10px',
+                    }}
+                  >
+                    <button
+                      type="button"
+                      className="admin-usu-btn admin-usu-btn-new"
+                      onClick={() =>
+                        Swal.fire({
+                          icon: 'info',
+                          title: 'Registrar nuevo',
+                          text: 'Esta acción estará disponible próximamente.',
+                        })
+                      }
+                    >
+                      + Registrar nuevo
+                    </button>
+                  </div>
+                  <div className="admin-usu-table-card">
                   <div className="admin-usu-table-scroll">
                     <table className="admin-usu-table">
                       <thead>
@@ -1302,8 +1325,8 @@ export default function AdminUsuariosAlumnosTabla() {
                             <tr key={m.matricula_id}>
                               <td>{m.grupo_texto || '—'}</td>
                               <td>{formatFechaRegistroMatricula(m.fecha_registro)}</td>
-                              <td>{labelMatriculaEstado(m.estado)}</td>
-                              <td>{(m.turno_nombre || '').trim() || '—'}</td>
+                              <td>{m.estado_display || labelMatriculaEstado(m.estado)}</td>
+                              <td>{(m.modalidad_texto && String(m.modalidad_texto).trim()) || '—'}</td>
                               <td>
                                 <button
                                   type="button"
@@ -1321,6 +1344,7 @@ export default function AdminUsuariosAlumnosTabla() {
                     </table>
                   </div>
                 </div>
+                </>
               )}
             </div>
           </div>
@@ -1379,8 +1403,8 @@ export default function AdminUsuariosAlumnosTabla() {
                             )
                           }
                         >
-                          <option value="0">Activa / vigente</option>
-                          <option value="4">Vigente (código 4)</option>
+                          <option value="0">Regular</option>
+                          <option value="4">Regular (código 4)</option>
                           <option value="1">Retirado</option>
                           <option value="2">Trasladado</option>
                           <option value="3">Cancelado</option>
@@ -1454,7 +1478,7 @@ export default function AdminUsuariosAlumnosTabla() {
 
       {menuMatricula && createPortal(
         <div
-          className="admin-usu-dropdown admin-usu-dropdown-portal"
+          className="admin-usu-dropdown admin-usu-dropdown-portal admin-usu-dropdown-portal--over-modal"
           style={{ top: menuMatricula.top, left: menuMatricula.left }}
           onClick={(e) => e.stopPropagation()}
         >

@@ -232,6 +232,89 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
   });
 }
 
+function isSqlUnknownColumnError(e) {
+  const code = e && e.code;
+  const errno = e && e.errno;
+  const msg = String((e && e.message) || '');
+  return code === 'ER_BAD_FIELD_ERROR' || errno === 1054 || msg.includes('Unknown column');
+}
+
+/** Título por palabras (PRESENCIAL VIRTUAL → Presencial Virtual). */
+function formatoTextoLegible(val) {
+  const s = String(val || '').trim();
+  if (!s) return '';
+  return s
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ''))
+    .join(' ');
+}
+
+/** Etiqueta por código numérico `matriculas.estado` (intranet histórico). */
+function estadoMatriculaDesdeCodigo(estado) {
+  const e = Number(estado);
+  if (e === 0 || e === 4) return 'Regular';
+  if (e === 1) return 'Retirado';
+  if (e === 2) return 'Trasladado';
+  if (e === 3) return 'Cancelado';
+  return `Cód. ${estado}`;
+}
+
+/**
+ * Lista matrículas admin: intenta leer `modalidad` / `estado_matricula` si existen en BD.
+ */
+async function queryAlumnoMatriculasListRows(colegio_id, alumnoId) {
+  const from = `
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN turnos t ON t.id = g.turno_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ?
+       ORDER BY g.anio DESC, g.grado ASC, g.seccion ASC`;
+
+  const bases = [
+    `SELECT m.id AS matricula_id, m.estado, m.costo_id, m.fecha_registro, m.grupo_id,
+            g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre,
+            t.nombre AS turno_nombre,
+            NULLIF(TRIM(COALESCE(m.modalidad, g.modalidad)), '') AS modalidad_texto,
+            NULLIF(TRIM(m.estado_matricula), '') AS estado_matricula_texto`,
+    `SELECT m.id AS matricula_id, m.estado, m.costo_id, m.fecha_registro, m.grupo_id,
+            g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre,
+            t.nombre AS turno_nombre,
+            NULLIF(TRIM(COALESCE(m.modalidad, g.modalidad)), '') AS modalidad_texto`,
+    `SELECT m.id AS matricula_id, m.estado, m.costo_id, m.fecha_registro, m.grupo_id,
+            g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre,
+            t.nombre AS turno_nombre`,
+  ];
+
+  for (const sel of bases) {
+    try {
+      return await query(sel + from, [alumnoId, colegio_id]);
+    } catch (e) {
+      if (!isSqlUnknownColumnError(e)) throw e;
+    }
+  }
+  throw new Error('No se pudo cargar el listado de matrículas');
+}
+
+function mapMatriculaListAdminRows(rows) {
+  return (rows || []).map((r) => {
+    const dbEstado = r.estado_matricula_texto != null && String(r.estado_matricula_texto).trim() !== ''
+      ? formatoTextoLegible(r.estado_matricula_texto)
+      : estadoMatriculaDesdeCodigo(r.estado);
+    const modRaw = r.modalidad_texto != null && String(r.modalidad_texto).trim() !== ''
+      ? formatoTextoLegible(r.modalidad_texto)
+      : '';
+    return {
+      ...r,
+      grupo_texto: `${String(r.nivel_nombre || '').toUpperCase()} - ${r.grado || '—'}° ${r.seccion || ''} - ${r.anio || '—'}`
+        .replace(/\s+/g, ' ')
+        .trim(),
+      estado_display: dbEstado,
+      modalidad_texto: modRaw || null,
+    };
+  });
+}
+
 const personalFotoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos';
@@ -1995,24 +2078,8 @@ router.get('/alumnos/:id/matriculas', async (req, res) => {
     if (!ok.length) {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
-    const rows = await query(
-      `SELECT m.id AS matricula_id, m.estado, m.costo_id, m.fecha_registro, m.grupo_id,
-              g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre,
-              t.nombre AS turno_nombre
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
-       LEFT JOIN niveles n ON n.id = g.nivel_id
-       LEFT JOIN turnos t ON t.id = g.turno_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ?
-       ORDER BY g.anio DESC, g.grado ASC, g.seccion ASC`,
-      [id, colegio_id]
-    );
-    const data = (rows || []).map((r) => ({
-      ...r,
-      grupo_texto: `${String(r.nivel_nombre || '').toUpperCase()} - ${r.grado || '—'}° ${r.seccion || ''} - ${r.anio || '—'}`
-        .replace(/\s+/g, ' ')
-        .trim(),
-    }));
+    const rows = await queryAlumnoMatriculasListRows(colegio_id, id);
+    const data = mapMatriculaListAdminRows(rows);
     res.json({ data });
   } catch (e) {
     console.error('GET alumno matriculas admin', e);

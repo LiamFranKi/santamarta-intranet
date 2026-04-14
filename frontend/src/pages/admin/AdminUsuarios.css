@@ -286,6 +286,11 @@
   box-sizing: border-box;
 }
 
+/* Submenú encima del overlay del modal (z-index del modal: 2147483646) */
+.admin-usu-dropdown-portal--over-modal {
+  z-index: 2147483647;
+}
+
 .admin-usu-dropdown button {
   display: block;
   width: 100%;
