@@ -1,0 +1,51 @@
+---
+description: Contexto del sistema anterior (PHP legacy) — solo referencia; carpeta y reglas de negocio alineadas con BD.
+globs:
+alwaysApply: false
+---
+
+# Sistema anterior (legacy PHP) — contexto para el intranet React/Node
+
+## Dónde está la carpeta
+
+- En este repo **`react-aula-virtual` no se versiona** la carpeta `sistema-anterior` (no aparece en el árbol del proyecto).
+- Suele ser una copia local del colegio (PHP) en otra ruta del disco; el usuario o el equipo la mantienen aparte.
+- **Uso:** documentación y paridad de negocio con la **misma base MySQL** que consume Node. **No** hay integración en runtime: no se llama PHP desde el intranet nuevo.
+
+## Principio
+
+- El intranet **no depende** del sistema anterior para ejecutarse.
+- Se usa el legado para **interpretar** códigos, ENUMs y pantallas (pagos, matrículas, contabilidad futura) sin inventar otro significado para los mismos datos.
+
+## Matrículas (alineado a legacy)
+
+- Archivo de referencia típico: `Main/Models/TraitConstants.php` → `$ESTADOS_MATRICULA`.
+- Valores por **índice** en `matriculas.estado` (entero **0–4**):
+  - 0 Regular · 1 Irregular · 2 Retirado · 3 Traslado · 4 Temporal  
+- `matriculas.modalidad` en BD: ENUM habitual **PRESENCIAL**, **VIRTUAL**, **SEMIPRESENCIAL** (columna `modalidad`).
+
+## Pagos — tabla `pagos` (MySQL)
+
+Campos usados en admin lista / API (entre otros):
+
+- `descripcion` (text): línea principal en UI “DESCRIPCIÓN” cuando viene informado; si no, se puede mostrar el estado.
+- `observaciones` (text): segunda línea con prefijo “Observaciones:” en la lista de pagos.
+- `estado_pago`: ENUM **CANCELADO** / **PENDIENTE** (y etiquetas tipo “PAGO CANCELADO” en pantalla).
+- `fecha_cancelado`, `fecha_hora`, `monto`, `mora`, `tipo`, `nro_pago`, `matricula_id`, etc.
+
+Si falta la columna `observaciones` en una BD antigua, el backend hace **fallback** (consulta sin columna y valores vacíos).
+
+## Vistas de negocio (legacy vs nuevo)
+
+- **Historial de pagos** (por alumno, varias matrículas / pestañas) ≠ **Lista de pagos** de una matrícula (totales + grilla tipo legado + Opciones por fila).
+- No mezclar copy ni layout entre ambas.
+
+## Implementación en este proyecto (recordatorio)
+
+- API admin pagos: `backend/routes/admin.usuarios.routes.js` → `buildAlumnoPagosData`, rutas `/alumnos/:id/pagos` y `/alumnos/:id/matriculas/:matriculaId/pagos`.
+- UI lista/historial SweetAlert: `frontend/src/utils/adminAlumnoPagosSwal.js`.
+- Estilos lista: `frontend/src/pages/admin/AdminUsuarios.css` (clases `admin-pagos-lista-*`).
+
+## Futuro (sin detallar aquí)
+
+- Pagos avanzados del legado: impresiones, boleta externa, anular/borrar pago, banco/contabilidad — tomar flujos del PHP solo como **especificación**, implementar en Node/API propia.
