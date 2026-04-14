@@ -30,6 +30,23 @@ function parseDatetimeLocalToApi(fechaHoraLocal) {
   return normalized.replace('T', ' ');
 }
 
+/** Respaldo si `fecha_hora` llega como ISO en JSON y `fecha_hora_local` no vino en el DTO. */
+function normalizeFechaHoraForDatetimeLocal(raw) {
+  if (raw == null || raw === '') return '';
+  const s = String(raw).trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
+  if (m) return `${m[1]}T${m[2]}:${m[3]}`;
+  return '';
+}
+
+function normalizeFechaForDateInput(raw) {
+  if (raw == null || raw === '') return '';
+  const s = String(raw).trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  return '';
+}
+
 /** Opciones `<option>` para mes de pensión (nro_pago + etiqueta desde API). */
 function buildPensionMesOptionsHtml(opciones, selectedNro) {
   if (!Array.isArray(opciones) || opciones.length === 0) {
@@ -390,8 +407,17 @@ async function openPagoFormSwal({ nombreAlumno, alumnoId, matriculaId, pagosMatr
   const estadoCancelSel = estadoVal === 'CANCELADO' ? ' selected' : '';
   const estadoPendSel = estadoVal === 'PENDIENTE' ? ' selected' : '';
 
-  const fechaHoraVal = pagoEdit?.fecha_hora_local || defs.fechaHoraDatetimeLocal;
-  const fechaCancelVal = pagoEdit?.fecha_cancelado_date || defs.fechaCanceladoDate;
+  let fechaHoraVal = defs.fechaHoraDatetimeLocal;
+  let fechaCancelVal = defs.fechaCanceladoDate;
+  if (pagoEdit) {
+    const fh =
+      pagoEdit.fecha_hora_local ||
+      normalizeFechaHoraForDatetimeLocal(pagoEdit.fecha_hora);
+    const fc =
+      pagoEdit.fecha_cancelado_date || normalizeFechaForDateInput(pagoEdit.fecha_cancelado);
+    fechaHoraVal = fh || defs.fechaHoraDatetimeLocal;
+    fechaCancelVal = fc || defs.fechaCanceladoDate;
+  }
 
   const montoInputAttrs =
     pagoEdit != null && pagoEdit.monto != null && pagoEdit.monto !== ''
@@ -437,7 +463,7 @@ async function openPagoFormSwal({ nombreAlumno, alumnoId, matriculaId, pagosMatr
             <select id="admin-pago-forma" class="admin-pagos-reg-input admin-pagos-reg-select">${formaOpts}</select>
           </div>
           <div class="admin-pagos-reg-field">
-            <label class="admin-pagos-reg-label" for="admin-pago-fecha-hora">Fecha y hora <span class="admin-pagos-reg-req">*</span></label>
+            <label class="admin-pagos-reg-label" for="admin-pago-fecha-hora">Fecha y hora <span id="admin-pago-fecha-hora-req" class="admin-pagos-reg-req">*</span></label>
             <input type="datetime-local" id="admin-pago-fecha-hora" class="admin-pagos-reg-input" value="${esc(fechaHoraVal)}" />
           </div>
           <div class="admin-pagos-reg-field admin-pagos-reg-field--full">
@@ -457,7 +483,7 @@ async function openPagoFormSwal({ nombreAlumno, alumnoId, matriculaId, pagosMatr
               </select>
             </div>
             <div class="admin-pagos-reg-field admin-pagos-reg-field--grow" id="admin-pago-row-fecha-cancel">
-              <label class="admin-pagos-reg-label" for="admin-pago-fecha-cancel">Fecha cancelado <span class="admin-pagos-reg-req">*</span></label>
+              <label class="admin-pagos-reg-label" for="admin-pago-fecha-cancel">Fecha cancelado <span id="admin-pago-fecha-cancel-req" class="admin-pagos-reg-req">*</span></label>
               <input type="date" id="admin-pago-fecha-cancel" class="admin-pagos-reg-input" value="${esc(fechaCancelVal)}" />
             </div>
           </div>
@@ -496,12 +522,17 @@ async function openPagoFormSwal({ nombreAlumno, alumnoId, matriculaId, pagosMatr
         if (mesSpacer) mesSpacer.style.display = showMes ? 'none' : '';
       };
       const estadoWrap = popup.querySelector('#admin-pago-estado-wrap');
+      const reqFh = popup.querySelector('#admin-pago-fecha-hora-req');
+      const reqFc = popup.querySelector('#admin-pago-fecha-cancel-req');
+      const inpFh = popup.querySelector('#admin-pago-fecha-hora');
       const syncEstadoFecha = () => {
         const pend = estado?.value === 'PENDIENTE';
         if (rowCancel) rowCancel.style.display = pend ? 'none' : '';
         if (estadoWrap) estadoWrap.classList.toggle('admin-pagos-reg-estado-wrap--solo', Boolean(pend));
+        if (reqFh) reqFh.style.display = pend ? 'none' : '';
+        if (reqFc) reqFc.style.display = pend ? 'none' : '';
         if (pend && inpCancel) inpCancel.value = '';
-        if (!pend && inpCancel && !inpCancel.value) {
+        if (!pend && inpCancel && !String(inpCancel.value || '').trim()) {
           inpCancel.value = getDefaultsRegistroPagoNuevo().fechaCanceladoDate;
         }
       };
@@ -509,6 +540,9 @@ async function openPagoFormSwal({ nombreAlumno, alumnoId, matriculaId, pagosMatr
       estado?.addEventListener('change', syncEstadoFecha);
       syncTipoNro();
       syncEstadoFecha();
+      if (estado?.value === 'CANCELADO' && inpCancel && !String(inpCancel.value || '').trim()) {
+        inpCancel.value = getDefaultsRegistroPagoNuevo().fechaCanceladoDate;
+      }
       popup.querySelector('#admin-pago-monto')?.focus();
     },
     preConfirm: async () => {
@@ -517,14 +551,15 @@ async function openPagoFormSwal({ nombreAlumno, alumnoId, matriculaId, pagosMatr
       const mora = parseFloat(popup.querySelector('#admin-pago-mora')?.value || '0');
       const tipoVal = popup.querySelector('#admin-pago-tipo')?.value;
       const nroVal = popup.querySelector('#admin-pago-mes-nro')?.value;
-      const fechaHora = popup.querySelector('#admin-pago-fecha-hora')?.value;
+      const fechaHoraRaw = popup.querySelector('#admin-pago-fecha-hora')?.value;
+      const fechaHora = String(fechaHoraRaw || '').trim();
       const estadoVal = popup.querySelector('#admin-pago-estado')?.value;
       const fechaCancel = popup.querySelector('#admin-pago-fecha-cancel')?.value;
       if (!Number.isFinite(monto) || monto < 0) {
         Swal.showValidationMessage('Indique un monto válido');
         return false;
       }
-      if (!fechaHora) {
+      if (estadoVal !== 'PENDIENTE' && !fechaHora) {
         Swal.showValidationMessage('Indique fecha y hora');
         return false;
       }
@@ -542,7 +577,10 @@ async function openPagoFormSwal({ nombreAlumno, alumnoId, matriculaId, pagosMatr
           mora: Number.isFinite(mora) && mora >= 0 ? mora : 0,
           tipo: parseInt(tipoVal, 10),
           nro_pago: tipoVal === '1' ? parseInt(nroVal, 10) : 0,
-          fecha_hora: parseDatetimeLocalToApi(fechaHora),
+          fecha_hora:
+            estadoVal === 'PENDIENTE' && !fechaHora
+              ? ''
+              : parseDatetimeLocalToApi(fechaHoraRaw),
           descripcion: popup.querySelector('#admin-pago-desc')?.value || '',
           observaciones: popup.querySelector('#admin-pago-obs')?.value || '',
           estado_pago: estadoVal,

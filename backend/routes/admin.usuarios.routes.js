@@ -290,6 +290,40 @@ function isSqlUnknownColumnError(e) {
 }
 
 /**
+ * Valor para input HTML `datetime-local` desde MySQL o ISO.
+ * mysql2 devuelve DATETIME como `Date` en JS: `String(date)` es locale ("Mon Apr 14...") y no matchea ISO.
+ */
+function fechaHoraToDatetimeLocalInput(fh) {
+  if (fh == null || fh === '') return '';
+  if (Object.prototype.toString.call(fh) === '[object Date]' && !Number.isNaN(fh.getTime())) {
+    const pad = (n) => String(n).padStart(2, '0');
+    const y = fh.getFullYear();
+    const mo = pad(fh.getMonth() + 1);
+    const d = pad(fh.getDate());
+    const h = pad(fh.getHours());
+    const mi = pad(fh.getMinutes());
+    return `${y}-${mo}-${d}T${h}:${mi}`;
+  }
+  const s = String(fh).trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
+  if (m) return `${m[1]}T${m[2]}:${m[3]}`;
+  return '';
+}
+
+/** Valor para input `type="date"` desde MySQL DATE/DATETIME o `Date` (evita String(Date).slice(0,10) === "Mon Apr 14"). */
+function fechaSqlOrDateToDateInput(fc) {
+  if (fc == null || fc === '') return '';
+  if (Object.prototype.toString.call(fc) === '[object Date]' && !Number.isNaN(fc.getTime())) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${fc.getFullYear()}-${pad(fc.getMonth() + 1)}-${pad(fc.getDate())}`;
+  }
+  const s = String(fc).trim();
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  return '';
+}
+
+/**
  * Parsea y valida el cuerpo de alta/edición de pago (admin), alineado al legado PHP.
  * @returns {Promise<{ ok: true, …campos } | { ok: false, status?: number, error: string }>}
  */
@@ -2143,13 +2177,8 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId', async (req, res
     const pension_meses_opciones = listaData[0]?.pension_meses_opciones || [];
 
     const pr = pagoRows[0];
-    const fh = pr.fecha_hora;
-    let fecha_hora_local = '';
-    if (fh) {
-      const s = String(fh).replace(' ', 'T');
-      fecha_hora_local = s.slice(0, 16);
-    }
-    const fecha_cancelado_date = pr.fecha_cancelado ? String(pr.fecha_cancelado).slice(0, 10) : '';
+    const fecha_hora_local = fechaHoraToDatetimeLocalInput(pr.fecha_hora);
+    const fecha_cancelado_date = fechaSqlOrDateToDateInput(pr.fecha_cancelado);
 
     res.json({
       data: {
