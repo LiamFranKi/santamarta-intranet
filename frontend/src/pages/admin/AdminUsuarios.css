@@ -286,9 +286,9 @@
   box-sizing: border-box;
 }
 
-/* Submenú encima del overlay del modal (z-index del modal: 2147483646) */
+/* Por encima del overlay de modal (10050), por debajo de SweetAlert (10090) */
 .admin-usu-dropdown-portal--over-modal {
-  z-index: 2147483647;
+  z-index: 10070;
 }
 
 .admin-usu-dropdown button {
@@ -301,6 +301,21 @@
   cursor: pointer;
   font-size: 0.88rem;
   color: #374151;
+}
+
+.admin-usu-dropdown button.admin-usu-dropdown-btn-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.admin-usu-dropdown-btn-row .admin-usu-dropdown-icon {
+  flex-shrink: 0;
+  width: 1.35rem;
+  text-align: center;
+  font-size: 1rem;
+  line-height: 1;
 }
 
 .admin-usu-dropdown button:hover {
@@ -358,13 +373,19 @@
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.6);
-  z-index: 2147483646;
+  /* Stack por debajo de SweetAlert2; evita 2147483646 que dejaba Swal detrás */
+  z-index: 10050;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 2rem;
   overflow-y: auto;
   backdrop-filter: blur(4px);
+}
+
+/* Modal abierto encima de otro (p. ej. Editar matrícula sobre Historial) */
+.admin-usu-modal-overlay--nested {
+  z-index: 10060;
 }
 
 .admin-usu-modal {
@@ -427,6 +448,31 @@
 
 .admin-usu-modal-body {
   padding: 1.5rem;
+}
+
+/* Barra nombre + acción (historial matrículas) */
+.admin-usu-matriculas-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin: 0 0 1rem;
+}
+
+.admin-usu-matriculas-toolbar .admin-usu-matriculas-nombre {
+  margin: 0;
+  color: #374151;
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.3;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+/* SweetAlert2 por encima de modales admin usuarios (confirmar borrar, ver pagos, etc.) */
+.swal2-container {
+  z-index: 10090 !important;
 }
 
 .admin-usu-profile-form {

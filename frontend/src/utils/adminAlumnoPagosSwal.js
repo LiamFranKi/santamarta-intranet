@@ -182,7 +182,7 @@ export function showHistorialPagosSwal(nombreAlumno, matriculas) {
 export function showHistorialPagosUnaMatriculaSwal(nombreAlumno, m) {
   const sub = m.grupo_texto || `${m.anio || '—'} · ${m.grado || '—'}° ${m.seccion || ''}`;
   Swal.fire({
-    title: `Pagos — ${nombreAlumno}`,
+    title: `Lista de pagos — ${nombreAlumno}`,
     width: 1200,
     showCloseButton: true,
     showConfirmButton: false,

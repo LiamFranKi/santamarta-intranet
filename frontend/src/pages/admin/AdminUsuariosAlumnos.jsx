@@ -1264,35 +1264,27 @@ export default function AdminUsuariosAlumnos() {
               </button>
             </div>
             <div className="admin-usu-modal-body">
-              <p style={{ margin: '0 0 1rem', color: '#374151', fontWeight: 600 }}>
-                {nombreAlumno(modalMatriculas.alumno)}
-              </p>
+              <div className="admin-usu-matriculas-toolbar">
+                <p className="admin-usu-matriculas-nombre">{nombreAlumno(modalMatriculas.alumno)}</p>
+                <button
+                  type="button"
+                  className="admin-usu-btn admin-usu-btn-new"
+                  disabled={modalMatriculas.loading}
+                  onClick={() =>
+                    Swal.fire({
+                      icon: 'info',
+                      title: 'Registrar nuevo',
+                      text: 'Esta acción estará disponible próximamente.',
+                    })
+                  }
+                >
+                  + Registrar nuevo
+                </button>
+              </div>
               {modalMatriculas.loading ? (
                 <p style={{ color: '#6b7280' }}>Cargando…</p>
               ) : (
                 <>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'flex-end',
-                      alignItems: 'center',
-                      marginBottom: '10px',
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="admin-usu-btn admin-usu-btn-new"
-                      onClick={() =>
-                        Swal.fire({
-                          icon: 'info',
-                          title: 'Registrar nuevo',
-                          text: 'Esta acción estará disponible próximamente.',
-                        })
-                      }
-                    >
-                      + Registrar nuevo
-                    </button>
-                  </div>
                   <div className="admin-usu-table-card">
                   <div className="admin-usu-table-scroll">
                     <table className="admin-usu-table">
@@ -1345,7 +1337,10 @@ export default function AdminUsuariosAlumnos() {
       )}
 
       {modalEditMatricula && createPortal(
-        <div className="admin-usu-modal-overlay" onClick={() => !modalEditMatricula.saving && setModalEditMatricula(null)}>
+        <div
+          className="admin-usu-modal-overlay admin-usu-modal-overlay--nested"
+          onClick={() => !modalEditMatricula.saving && setModalEditMatricula(null)}
+        >
           <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
             <div className="admin-usu-modal-header">
               <h2>Editar matrícula</h2>
@@ -1476,27 +1471,39 @@ export default function AdminUsuariosAlumnos() {
         >
           <button
             type="button"
+            className="admin-usu-dropdown-btn-row"
             onClick={() => {
               verPagosMatricula(menuMatricula.alumno, menuMatricula.mat);
             }}
           >
-            Ver pagos
+            <span className="admin-usu-dropdown-icon" aria-hidden>
+              💰
+            </span>
+            <span>Ver pagos</span>
           </button>
           <button
             type="button"
+            className="admin-usu-dropdown-btn-row"
             onClick={() => {
               abrirEditarMatricula(menuMatricula.alumno, menuMatricula.mat);
             }}
           >
-            Editar matrícula
+            <span className="admin-usu-dropdown-icon" aria-hidden>
+              ✏️
+            </span>
+            <span>Editar matrícula</span>
           </button>
           <button
             type="button"
+            className="admin-usu-dropdown-btn-row admin-usu-dropdown-danger"
             onClick={() => {
               borrarMatricula(menuMatricula.alumno, menuMatricula.mat);
             }}
           >
-            Borrar matrícula
+            <span className="admin-usu-dropdown-icon" aria-hidden>
+              🗑️
+            </span>
+            <span>Borrar matrícula</span>
           </button>
         </div>,
         document.body
