@@ -110,6 +110,7 @@ function labelEstadoPagoDisplay(estado) {
   const s = String(estado || '').toUpperCase();
   if (s === 'CANCELADO') return 'PAGO CANCELADO';
   if (s === 'PENDIENTE') return 'PENDIENTE';
+  if (s === 'ANULADO') return 'ANULADO';
   if (!s) return '—';
   return String(estado);
 }
@@ -123,6 +124,10 @@ function fmtCanceladoLine(val) {
 
 /** Texto principal columna DESCRIPCIÓN: campo `descripcion` (BD); si vacío, estado (PAGO CANCELADO / PENDIENTE). */
 function lineaPrincipalDescripcionPago(p) {
+  if (String(p.pago_registro_estado || '').toUpperCase() === 'ANULADO') {
+    const fa = p.fecha_anulado ? String(p.fecha_anulado).slice(0, 10) : '';
+    return fa ? `ANULADO (${fa})` : 'ANULADO';
+  }
   if (String(p.estado_pago || '').toUpperCase() === 'PENDIENTE') {
     return labelEstadoPagoDisplay('PENDIENTE');
   }
@@ -152,8 +157,14 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
   const filas = pagos.map((p) => {
     const moraFila = parseFloat(p.mora || 0);
     const tieneId = p.id != null;
+    const regEst = String(p.pago_registro_estado || '').toUpperCase();
+    const esAnulado = regEst === 'ANULADO';
     const esPendiente = String(p.estado_pago || '').toUpperCase() === 'PENDIENTE';
-    const trClass = esPendiente ? 'admin-pagos-lista-tr admin-pagos-lista-tr--pendiente' : 'admin-pagos-lista-tr';
+    const trClass = esAnulado
+      ? 'admin-pagos-lista-tr admin-pagos-lista-tr--anulado'
+      : esPendiente
+        ? 'admin-pagos-lista-tr admin-pagos-lista-tr--pendiente'
+        : 'admin-pagos-lista-tr';
     const chk = tieneId
       ? `<input type="checkbox" class="admin-pagos-row-checkbox" value="${esc(String(p.id))}" aria-label="Seleccionar pago" />`
       : '<input type="checkbox" disabled title="Sin registro en base de datos" aria-label="Sin pago" />';
@@ -163,20 +174,27 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
       ? `<div class="admin-pagos-lista-desc-obs">Observaciones: ${esc(obsTxt)}</div>`
       : '';
 
-    const fechaBlock = esPendiente
-      ? '<span class="admin-pagos-lista-fecha-prin">—</span>'
-      : `<span class="admin-pagos-lista-fecha-prin">${esc(fmtFechaHoraLista(p.fecha_hora))}</span>${
-          p.fecha_cancelado
-            ? `<div class="admin-pagos-lista-fecha-cancel">${esc(fmtCanceladoLine(p.fecha_cancelado))}</div>`
-            : ''
-        }`;
+    const fechaBlock =
+      esPendiente && !esAnulado
+        ? '<span class="admin-pagos-lista-fecha-prin">—</span>'
+        : `<span class="admin-pagos-lista-fecha-prin">${esc(fmtFechaHoraLista(p.fecha_hora))}</span>${
+            p.fecha_cancelado
+              ? `<div class="admin-pagos-lista-fecha-cancel">${esc(fmtCanceladoLine(p.fecha_cancelado))}</div>`
+              : ''
+          }`;
 
+    const puedeEditar = tieneId && regEst === 'ACTIVO';
+    const labelToggle = esAnulado ? 'Activar pago' : 'Anular pago';
     const menuItems = tieneId
       ? `<div class="admin-pagos-opciones-menu" role="menu" aria-hidden="true">
           <button type="button" class="admin-pagos-opcion-item" data-action="impresiones" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>🖨</span><span>Impresiones</span></button>
           <button type="button" class="admin-pagos-opcion-item" data-action="boleta_externa" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>🖨</span><span>Imprimir Boleta Externa</span></button>
-          <button type="button" class="admin-pagos-opcion-item" data-action="editar" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>✏️</span><span>Editar Pago</span></button>
-          <button type="button" class="admin-pagos-opcion-item admin-pagos-opcion-item--danger" data-action="anular" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>⛔</span><span>Anular Pago</span></button>
+          ${
+            puedeEditar
+              ? `<button type="button" class="admin-pagos-opcion-item" data-action="editar" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>✏️</span><span>Editar Pago</span></button>`
+              : ''
+          }
+          <button type="button" class="admin-pagos-opcion-item ${esAnulado ? 'admin-pagos-opcion-item--ok' : 'admin-pagos-opcion-item--danger'}" data-action="toggle_anular" data-toggle-to="${esAnulado ? 'ACTIVAR' : 'ANULAR'}" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>${esAnulado ? '✓' : '⛔'}</span><span>${esc(labelToggle)}</span></button>
           <button type="button" class="admin-pagos-opcion-item admin-pagos-opcion-item--danger" data-action="borrar" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>🗑️</span><span>Borrar Pago</span></button>
         </div>`
       : '';
@@ -735,6 +753,83 @@ function bindListaPagosUi() {
           Swal.fire({
             icon: 'error',
             text: err.response?.data?.error || 'No se pudo recargar la lista de pagos.',
+          });
+        }
+        return;
+      }
+
+      if (action === 'toggle_anular' && pagoId) {
+        const root = popup.querySelector('.admin-pagos-lista-root');
+        const alumnoIdRaw = root?.getAttribute('data-alumno-id');
+        const matriculaIdRaw = root?.getAttribute('data-matricula-id');
+        const aid = parseInt(alumnoIdRaw, 10);
+        const mid = parseInt(matriculaIdRaw, 10);
+        const pid = parseInt(pagoId, 10);
+        const toggleTo = item.getAttribute('data-toggle-to') || 'ANULAR';
+        if (!alumnoIdRaw || !matriculaIdRaw || !Number.isFinite(aid) || !Number.isFinite(mid) || !Number.isFinite(pid)) {
+          Swal.fire({ icon: 'warning', text: 'No se pudo identificar el pago.' });
+          return;
+        }
+        const q =
+          toggleTo === 'ACTIVAR'
+            ? '¿Activar este pago? Volverá a estado ACTIVO (como en el sistema anterior).'
+            : '¿Anular este pago? Quedará registrado como ANULADO y podrá crear otro pago para la misma cuota si aplica.';
+        const ok = await Swal.fire({
+          icon: 'question',
+          title: toggleTo === 'ACTIVAR' ? 'Activar pago' : 'Anular pago',
+          text: q,
+          showCancelButton: true,
+          confirmButtonText: 'Sí, continuar',
+          cancelButtonText: 'Cancelar',
+        });
+        if (!ok.isConfirmed) return;
+        try {
+          await api.post(`/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos/${pid}/anular`);
+          const nombre = popup.querySelector('.admin-pagos-lista-alumno')?.textContent?.trim() || '';
+          Swal.close();
+          const { data } = await api.get(`/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos`);
+          const fresh = data.data;
+          if (fresh) showListaPagosMatriculaSwal(nombre, fresh, { alumnoId: aid });
+        } catch (err) {
+          Swal.fire({
+            icon: 'error',
+            text: err.response?.data?.error || err.message || 'No se pudo completar la operación.',
+          });
+        }
+        return;
+      }
+
+      if (action === 'borrar' && pagoId) {
+        const root = popup.querySelector('.admin-pagos-lista-root');
+        const alumnoIdRaw = root?.getAttribute('data-alumno-id');
+        const matriculaIdRaw = root?.getAttribute('data-matricula-id');
+        const aid = parseInt(alumnoIdRaw, 10);
+        const mid = parseInt(matriculaIdRaw, 10);
+        const pid = parseInt(pagoId, 10);
+        if (!alumnoIdRaw || !matriculaIdRaw || !Number.isFinite(aid) || !Number.isFinite(mid) || !Number.isFinite(pid)) {
+          Swal.fire({ icon: 'warning', text: 'No se pudo identificar el pago.' });
+          return;
+        }
+        const ok = await Swal.fire({
+          icon: 'warning',
+          title: 'Borrar pago',
+          text: '¿Eliminar este pago por completo? Esta acción no se puede deshacer. Podrá registrar uno nuevo para la misma cuota.',
+          showCancelButton: true,
+          confirmButtonText: 'Sí, borrar',
+          cancelButtonText: 'Cancelar',
+        });
+        if (!ok.isConfirmed) return;
+        try {
+          await api.delete(`/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos/${pid}`);
+          const nombre = popup.querySelector('.admin-pagos-lista-alumno')?.textContent?.trim() || '';
+          Swal.close();
+          const { data } = await api.get(`/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos`);
+          const fresh = data.data;
+          if (fresh) showListaPagosMatriculaSwal(nombre, fresh, { alumnoId: aid });
+        } catch (err) {
+          Swal.fire({
+            icon: 'error',
+            text: err.response?.data?.error || err.message || 'No se pudo borrar el pago.',
           });
         }
         return;

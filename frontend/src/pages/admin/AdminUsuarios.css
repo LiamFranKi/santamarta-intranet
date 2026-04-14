@@ -1139,6 +1139,24 @@
   background: #fff1f2 !important;
 }
 
+/* Registro anulado (pagos.estado = ANULADO), alineado al legado */
+.admin-pagos-lista-table tr.admin-pagos-lista-tr--anulado td {
+  color: #6b21a8;
+}
+
+.admin-pagos-lista-tr--anulado .admin-pagos-lista-desc-prin,
+.admin-pagos-lista-tr--anulado .admin-pagos-lista-desc-obs,
+.admin-pagos-lista-tr--anulado .admin-pagos-lista-fecha-prin,
+.admin-pagos-lista-tr--anulado .admin-pagos-lista-fecha-cancel {
+  color: #6b21a8;
+}
+
+.admin-pagos-lista-tr--anulado .admin-pagos-opciones-btn {
+  color: #6b21a8 !important;
+  border-color: #e9d5ff !important;
+  background: #faf5ff !important;
+}
+
 .admin-pagos-lista-td {
   padding: 8px;
   border-bottom: 1px solid #e5e7eb;
@@ -1254,6 +1272,14 @@
 
 .admin-pagos-opcion-item--danger:hover {
   background: #fee2e2;
+}
+
+.admin-pagos-opcion-item--ok {
+  color: #047857;
+}
+
+.admin-pagos-opcion-item--ok:hover {
+  background: #d1fae5;
 }
 
 .admin-pagos-opcion-ico {
