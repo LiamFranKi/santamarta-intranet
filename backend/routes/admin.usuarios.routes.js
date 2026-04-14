@@ -355,31 +355,41 @@ async function parseAdminPagoRegistroBody(body, reqUser, colegio_id) {
     return { ok: false, error: 'Estado de pago inválido' };
   }
 
-  let fecha_hora = String(b.fecha_hora || '').trim();
-  if (!fecha_hora) {
-    const d = new Date();
-    const pad = (n) => String(n).padStart(2, '0');
-    fecha_hora = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
-  } else {
-    fecha_hora = fecha_hora.replace('T', ' ');
-    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(fecha_hora)) {
-      fecha_hora = `${fecha_hora}:00`;
-    }
-  }
+  /** `pagos.fecha_hora` es NOT NULL en BD: valor neutro cuando el pago vuelve a pendiente (lista no muestra fecha). */
+  const FECHA_HORA_PENDIENTE_DB = '1970-01-01 00:00:00';
 
+  let fecha_hora;
   let fecha_cancelado = null;
-  if (estado_pago === 'CANCELADO') {
-    let fc = String(b.fecha_cancelado || '').trim();
-    if (!fc) {
-      fc = new Date().toISOString().slice(0, 10);
-    } else {
-      fc = fc.slice(0, 10);
-    }
-    fecha_cancelado = fc;
-  }
+  let descripcion = String(b.descripcion || '').trim();
+  let observaciones = String(b.observaciones || '').trim();
 
-  const descripcion = String(b.descripcion || '').trim();
-  const observaciones = String(b.observaciones || '').trim();
+  if (estado_pago === 'PENDIENTE') {
+    fecha_hora = FECHA_HORA_PENDIENTE_DB;
+    fecha_cancelado = null;
+    descripcion = '';
+    observaciones = '';
+  } else {
+    fecha_hora = String(b.fecha_hora || '').trim();
+    if (!fecha_hora) {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      fecha_hora = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+    } else {
+      fecha_hora = fecha_hora.replace('T', ' ');
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(fecha_hora)) {
+        fecha_hora = `${fecha_hora}:00`;
+      }
+    }
+    if (estado_pago === 'CANCELADO') {
+      let fc = String(b.fecha_cancelado || '').trim();
+      if (!fc) {
+        fc = new Date().toISOString().slice(0, 10);
+      } else {
+        fc = fc.slice(0, 10);
+      }
+      fecha_cancelado = fc;
+    }
+  }
   const forma_pago = String(b.forma_pago || 'EFECTIVO').toUpperCase();
   const tipo_tarjeta = String(b.tipo_tarjeta || '').trim();
 
@@ -2177,14 +2187,16 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId', async (req, res
     const pension_meses_opciones = listaData[0]?.pension_meses_opciones || [];
 
     const pr = pagoRows[0];
-    const fecha_hora_local = fechaHoraToDatetimeLocalInput(pr.fecha_hora);
-    const fecha_cancelado_date = fechaSqlOrDateToDateInput(pr.fecha_cancelado);
+    const esPendientePago = String(pr.estado_pago || '').toUpperCase() === 'PENDIENTE';
+    const fecha_hora_local = esPendientePago ? '' : fechaHoraToDatetimeLocalInput(pr.fecha_hora);
+    const fecha_cancelado_date = esPendientePago ? '' : fechaSqlOrDateToDateInput(pr.fecha_cancelado);
 
     res.json({
       data: {
         pago: {
           ...pr,
-          observaciones: pr.observaciones ?? '',
+          descripcion: esPendientePago ? '' : pr.descripcion,
+          observaciones: esPendientePago ? '' : pr.observaciones ?? '',
           fecha_hora_local,
           fecha_cancelado_date,
         },

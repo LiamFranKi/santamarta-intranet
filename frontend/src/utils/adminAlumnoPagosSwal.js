@@ -123,12 +123,16 @@ function fmtCanceladoLine(val) {
 
 /** Texto principal columna DESCRIPCIÓN: campo `descripcion` (BD); si vacío, estado (PAGO CANCELADO / PENDIENTE). */
 function lineaPrincipalDescripcionPago(p) {
+  if (String(p.estado_pago || '').toUpperCase() === 'PENDIENTE') {
+    return labelEstadoPagoDisplay('PENDIENTE');
+  }
   const raw = p.descripcion != null ? String(p.descripcion).trim() : '';
   if (raw) return raw;
   return labelEstadoPagoDisplay(p.estado_pago);
 }
 
 function lineaObservacionesPago(p) {
+  if (String(p.estado_pago || '').toUpperCase() === 'PENDIENTE') return '';
   const raw = p.observaciones != null ? String(p.observaciones).trim() : '';
   return raw;
 }
@@ -149,6 +153,8 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
     const moraFila = parseFloat(p.mora || 0);
     const tieneId = p.id != null;
     const esPendiente = String(p.estado_pago || '').toUpperCase() === 'PENDIENTE';
+    /** Cobrado: fila con registro y no pendiente — mismo criterio que filas «sintéticas» sin id. */
+    const opcionesHabilitados = tieneId && !esPendiente;
     const trClass = esPendiente ? 'admin-pagos-lista-tr admin-pagos-lista-tr--pendiente' : 'admin-pagos-lista-tr';
     const chk = tieneId
       ? `<input type="checkbox" class="admin-pagos-row-checkbox" value="${esc(String(p.id))}" aria-label="Seleccionar pago" />`
@@ -159,13 +165,15 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
       ? `<div class="admin-pagos-lista-desc-obs">Observaciones: ${esc(obsTxt)}</div>`
       : '';
 
-    const fechaBlock = `<span class="admin-pagos-lista-fecha-prin">${esc(fmtFechaHoraLista(p.fecha_hora))}</span>${
-      p.fecha_cancelado
-        ? `<div class="admin-pagos-lista-fecha-cancel">${esc(fmtCanceladoLine(p.fecha_cancelado))}</div>`
-        : ''
-    }`;
+    const fechaBlock = esPendiente
+      ? '<span class="admin-pagos-lista-fecha-prin">—</span>'
+      : `<span class="admin-pagos-lista-fecha-prin">${esc(fmtFechaHoraLista(p.fecha_hora))}</span>${
+          p.fecha_cancelado
+            ? `<div class="admin-pagos-lista-fecha-cancel">${esc(fmtCanceladoLine(p.fecha_cancelado))}</div>`
+            : ''
+        }`;
 
-    const menuItems = tieneId
+    const menuItems = opcionesHabilitados
       ? `<div class="admin-pagos-opciones-menu" role="menu" aria-hidden="true">
           <button type="button" class="admin-pagos-opcion-item" data-action="impresiones" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>🖨</span><span>Impresiones</span></button>
           <button type="button" class="admin-pagos-opcion-item" data-action="boleta_externa" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>🖨</span><span>Imprimir Boleta Externa</span></button>
@@ -175,7 +183,7 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
         </div>`
       : '';
 
-    const btnOpciones = tieneId
+    const btnOpciones = opcionesHabilitados
       ? `<button type="button" class="admin-pagos-opciones-btn">Opciones ▾</button>`
       : `<button type="button" class="admin-pagos-opciones-btn" disabled style="opacity:0.45;cursor:not-allowed">Opciones ▾</button>`;
 
