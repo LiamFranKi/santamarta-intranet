@@ -1,4 +1,31 @@
 import Swal from 'sweetalert2';
+import api from '../services/api';
+
+/**
+ * Valores iniciales para un registro NUEVO de pago (fecha/hora local y fecha cancelado = hoy).
+ * Usar al abrir el formulario tipo legado (Registrar Nuevo).
+ */
+export function getDefaultsRegistroPagoNuevo(now = new Date()) {
+  const pad = (n) => String(n).padStart(2, '0');
+  const y = now.getFullYear();
+  const mo = pad(now.getMonth() + 1);
+  const day = pad(now.getDate());
+  const h = pad(now.getHours());
+  const mi = pad(now.getMinutes());
+  return {
+    /** Valor para input `datetime-local` */
+    fechaHoraDatetimeLocal: `${y}-${mo}-${day}T${h}:${mi}`,
+    /** Valor para input `date` (fecha cancelado cuando el pago está cobrado) */
+    fechaCanceladoDate: `${y}-${mo}-${day}`,
+  };
+}
+
+function parseDatetimeLocalToApi(fechaHoraLocal) {
+  const s = String(fechaHoraLocal || '').trim();
+  if (!s) return '';
+  const normalized = s.length === 16 ? `${s}:00` : s;
+  return normalized.replace('T', ' ');
+}
 
 function labelTipoPago(tipo) {
   const t = Number(tipo);
@@ -72,7 +99,11 @@ function lineaObservacionesPago(p) {
 /**
  * Vista «Lista de pagos» (una matrícula): columnas alineadas al legado — tipo, monto+mora, descripción, fecha/hora+cancelado, opciones.
  */
-function buildListaPagosPanelHtml(m) {
+function buildListaPagosPanelHtml(m, ctx = {}) {
+  const { alumnoId } = ctx;
+  const dataAlumno = alumnoId != null ? ` data-alumno-id="${esc(String(alumnoId))}"` : '';
+  const dataMatricula =
+    m.matricula_id != null ? ` data-matricula-id="${esc(String(m.matricula_id))}"` : '';
   const totalOtros = Number(m.total_otros);
   const otrosSafe = Number.isFinite(totalOtros) ? totalOtros : 0;
   const pagos = Array.isArray(m.pagos) ? m.pagos : [];
@@ -135,7 +166,7 @@ function buildListaPagosPanelHtml(m) {
       ? `<div class="admin-pagos-lista-total-mora">Mora: ${esc(fmtMonto(moraTotalNum))}</div>`
       : '';
 
-  return `<section class="admin-pagos-lista-root">
+  return `<section class="admin-pagos-lista-root"${dataAlumno}${dataMatricula}>
     <div class="admin-pagos-lista-toolbar">
       <button type="button" class="admin-pagos-btn-registrar">+ Registrar Nuevo</button>
       <button type="button" class="admin-pagos-btn-imprimir">🖨 Imprimir Seleccionados</button>
@@ -262,6 +293,147 @@ function buildPanelHtml(m, opts = {}) {
   </section>`;
 }
 
+/**
+ * Modal «Registrar pago» con fecha/hora y fecha cancelado en hoy por defecto (registro nuevo).
+ */
+async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId }) {
+  const defs = getDefaultsRegistroPagoNuevo();
+  const html = `
+    <div class="admin-pagos-reg-form" style="text-align:left;font-size:13px;color:#1f2937">
+      <p style="margin:0 0 10px;font-weight:600">${esc(nombreAlumno)}</p>
+      <div style="display:grid;gap:8px;max-width:420px;margin:0 auto">
+        <label style="display:flex;flex-direction:column;gap:4px">Monto (S/) <small style="color:#64748b">*</small>
+          <input type="number" id="admin-pago-monto" class="swal2-input" style="margin:0" step="0.01" min="0" placeholder="0.00" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Mora (S/)
+          <input type="number" id="admin-pago-mora" class="swal2-input" style="margin:0" step="0.01" min="0" value="0" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Tipo de pago <small style="color:#64748b">*</small>
+          <select id="admin-pago-tipo" class="swal2-input" style="margin:0">
+            <option value="0">Matrícula</option>
+            <option value="1">Pensión</option>
+            <option value="2">Otro / varios</option>
+          </select>
+        </label>
+        <label id="admin-pago-wrap-nro" style="display:flex;flex-direction:column;gap:4px">N° pensión (mes) <small style="color:#64748b">*</small>
+          <input type="number" id="admin-pago-nro" class="swal2-input" style="margin:0" min="1" max="24" value="1" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Forma de pago
+          <select id="admin-pago-forma" class="swal2-input" style="margin:0">
+            <option value="EFECTIVO">EFECTIVO</option>
+            <option value="TARJETA">TARJETA</option>
+            <option value="TRANSFERENCIA">TRANSFERENCIA</option>
+            <option value="YAPE">YAPE</option>
+          </select>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Fecha y hora <small style="color:#64748b">*</small>
+          <input type="datetime-local" id="admin-pago-fecha-hora" class="swal2-input" style="margin:0" value="${esc(defs.fechaHoraDatetimeLocal)}" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Descripción
+          <input type="text" id="admin-pago-desc" class="swal2-input" style="margin:0" placeholder="Opcional" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Observaciones
+          <input type="text" id="admin-pago-obs" class="swal2-input" style="margin:0" placeholder="Opcional" />
+        </label>
+        <label style="display:flex;flex-direction:column;gap:4px">Estado pago <small style="color:#64748b">*</small>
+          <select id="admin-pago-estado" class="swal2-input" style="margin:0">
+            <option value="CANCELADO" selected>Pagado (CANCELADO)</option>
+            <option value="PENDIENTE">Pendiente</option>
+          </select>
+        </label>
+        <label id="admin-pago-row-fecha-cancel" style="display:flex;flex-direction:column;gap:4px">Fecha cancelado <small style="color:#64748b">*</small>
+          <input type="date" id="admin-pago-fecha-cancel" class="swal2-input" style="margin:0" value="${esc(defs.fechaCanceladoDate)}" />
+        </label>
+      </div>
+    </div>`;
+
+  const result = await Swal.fire({
+    title: 'Registrar pago',
+    html,
+    width: 520,
+    showCancelButton: true,
+    confirmButtonText: 'Guardar',
+    cancelButtonText: 'Volver',
+    focusConfirm: false,
+    didOpen: () => {
+      const popup = Swal.getPopup();
+      if (!popup) return;
+      const tipo = popup.querySelector('#admin-pago-tipo');
+      const wrapNro = popup.querySelector('#admin-pago-wrap-nro');
+      const estado = popup.querySelector('#admin-pago-estado');
+      const rowCancel = popup.querySelector('#admin-pago-row-fecha-cancel');
+      const inpCancel = popup.querySelector('#admin-pago-fecha-cancel');
+      const syncTipoNro = () => {
+        const t = tipo?.value;
+        if (wrapNro) wrapNro.style.display = t === '1' ? '' : 'none';
+      };
+      const syncEstadoFecha = () => {
+        const pend = estado?.value === 'PENDIENTE';
+        if (rowCancel) rowCancel.style.display = pend ? 'none' : '';
+        if (pend && inpCancel) inpCancel.value = '';
+        if (!pend && inpCancel && !inpCancel.value) {
+          inpCancel.value = getDefaultsRegistroPagoNuevo().fechaCanceladoDate;
+        }
+      };
+      tipo?.addEventListener('change', syncTipoNro);
+      estado?.addEventListener('change', syncEstadoFecha);
+      syncTipoNro();
+      syncEstadoFecha();
+      popup.querySelector('#admin-pago-monto')?.focus();
+    },
+    preConfirm: async () => {
+      const popup = Swal.getPopup();
+      const monto = parseFloat(popup.querySelector('#admin-pago-monto')?.value);
+      const mora = parseFloat(popup.querySelector('#admin-pago-mora')?.value || '0');
+      const tipoVal = popup.querySelector('#admin-pago-tipo')?.value;
+      const nroVal = popup.querySelector('#admin-pago-nro')?.value;
+      const fechaHora = popup.querySelector('#admin-pago-fecha-hora')?.value;
+      const estadoVal = popup.querySelector('#admin-pago-estado')?.value;
+      const fechaCancel = popup.querySelector('#admin-pago-fecha-cancel')?.value;
+      if (!Number.isFinite(monto) || monto < 0) {
+        Swal.showValidationMessage('Indique un monto válido');
+        return false;
+      }
+      if (!fechaHora) {
+        Swal.showValidationMessage('Indique fecha y hora');
+        return false;
+      }
+      if (tipoVal === '1' && (!nroVal || parseInt(nroVal, 10) < 1)) {
+        Swal.showValidationMessage('Indique el número de pensión');
+        return false;
+      }
+      if (estadoVal === 'CANCELADO' && !fechaCancel) {
+        Swal.showValidationMessage('Indique fecha cancelado');
+        return false;
+      }
+      try {
+        const payload = {
+          monto,
+          mora: Number.isFinite(mora) && mora >= 0 ? mora : 0,
+          tipo: parseInt(tipoVal, 10),
+          nro_pago: tipoVal === '1' ? parseInt(nroVal, 10) : 0,
+          fecha_hora: parseDatetimeLocalToApi(fechaHora),
+          descripcion: popup.querySelector('#admin-pago-desc')?.value || '',
+          observaciones: popup.querySelector('#admin-pago-obs')?.value || '',
+          estado_pago: estadoVal,
+          fecha_cancelado: estadoVal === 'CANCELADO' ? fechaCancel : '',
+          forma_pago: popup.querySelector('#admin-pago-forma')?.value || 'EFECTIVO',
+        };
+        const { data } = await api.post(
+          `/admin/usuarios/alumnos/${alumnoId}/matriculas/${matriculaId}/pagos`,
+          payload
+        );
+        return data;
+      } catch (e) {
+        Swal.showValidationMessage(e.response?.data?.error || e.message || 'Error al guardar');
+        return false;
+      }
+    },
+  });
+
+  return result.isConfirmed && result.value;
+}
+
 function bindBoletaButtons() {
   const popup = Swal.getPopup();
   if (!popup) return;
@@ -280,8 +452,39 @@ function bindListaPagosUi() {
   const popup = Swal.getPopup();
   if (!popup) return;
 
-  popup.querySelector('.admin-pagos-btn-registrar')?.addEventListener('click', () => {
-    Swal.fire({ icon: 'info', title: 'Registrar nuevo', text: 'Esta acción estará disponible próximamente.' });
+  popup.querySelector('.admin-pagos-btn-registrar')?.addEventListener('click', async () => {
+    const root = popup.querySelector('.admin-pagos-lista-root');
+    const alumnoIdRaw = root?.getAttribute('data-alumno-id');
+    const matriculaIdRaw = root?.getAttribute('data-matricula-id');
+    const nombre = popup.querySelector('.admin-pagos-lista-alumno')?.textContent?.trim() || '';
+    if (!alumnoIdRaw || !matriculaIdRaw) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'No se puede registrar',
+        text: 'Falta identificar alumno o matrícula. Actualice la página e intente de nuevo.',
+      });
+      return;
+    }
+    const aid = parseInt(alumnoIdRaw, 10);
+    const mid = parseInt(matriculaIdRaw, 10);
+    Swal.close();
+    await openRegistroPagoNuevoSwal({
+      nombreAlumno: nombre,
+      alumnoId: aid,
+      matriculaId: mid,
+    });
+    try {
+      const { data } = await api.get(`/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos`);
+      const fresh = data.data;
+      if (fresh) {
+        showListaPagosMatriculaSwal(nombre, fresh, { alumnoId: aid });
+      }
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        text: e.response?.data?.error || 'No se pudo recargar la lista de pagos.',
+      });
+    }
   });
 
   popup.querySelector('.admin-pagos-btn-imprimir')?.addEventListener('click', () => {
@@ -400,7 +603,8 @@ export function showHistorialPagosSwal(nombreAlumno, matriculas) {
 /**
  * Lista de pagos de una sola matrícula (menú Opciones → Ver pagos). No es el historial global por alumno.
  */
-export function showListaPagosMatriculaSwal(nombreAlumno, m) {
+export function showListaPagosMatriculaSwal(nombreAlumno, m, options = {}) {
+  const { alumnoId } = options;
   const sub = m.grupo_texto || `${m.anio || '—'} · ${m.grado || '—'}° ${m.seccion || ''}`;
   Swal.fire({
     title: 'Lista de Pagos',
@@ -410,7 +614,7 @@ export function showListaPagosMatriculaSwal(nombreAlumno, m) {
     html: `<div class="admin-pagos-lista-swalc">
       <p class="admin-pagos-lista-alumno">${esc(nombreAlumno)}</p>
       <p class="admin-pagos-lista-grupo">${esc(sub)}</p>
-      ${buildListaPagosPanelHtml(m)}
+      ${buildListaPagosPanelHtml(m, { alumnoId })}
     </div>`,
     didOpen: () => bindListaPagosUi(),
   });

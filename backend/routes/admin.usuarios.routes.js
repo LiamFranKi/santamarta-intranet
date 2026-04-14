@@ -1948,6 +1948,173 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos', async (req, res) => {
   }
 });
 
+/**
+ * Registro manual de un pago (alineado al legado PHP: /pagos/save).
+ * fecha_hora y fecha_cancelado (si aplica) pueden omitirse: el servidor usa la fecha actual.
+ */
+router.post('/alumnos/:id/matriculas/:matriculaId/pagos', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const alumnoId = parseInt(req.params.id, 10);
+    const matriculaId = parseInt(req.params.matriculaId, 10);
+    if (!Number.isFinite(alumnoId) || !Number.isFinite(matriculaId)) {
+      return res.status(400).json({ error: 'Parámetros inválidos' });
+    }
+    const okAl = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
+    if (!okAl.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const okMat = await query(
+      'SELECT id FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
+      [matriculaId, alumnoId, colegio_id]
+    );
+    if (!okMat.length) {
+      return res.status(404).json({ error: 'Matrícula no encontrada' });
+    }
+
+    const body = req.body || {};
+    const monto = parseFloat(body.monto);
+    const mora = parseFloat(body.mora != null && body.mora !== '' ? body.mora : 0);
+    if (!Number.isFinite(monto) || monto < 0) {
+      return res.status(400).json({ error: 'Monto inválido' });
+    }
+    if (!Number.isFinite(mora) || mora < 0) {
+      return res.status(400).json({ error: 'Mora inválida' });
+    }
+
+    const tipo = parseInt(body.tipo, 10);
+    if (!Number.isFinite(tipo) || tipo < 0) {
+      return res.status(400).json({ error: 'Tipo de pago inválido' });
+    }
+
+    let nro_pago = parseInt(body.nro_pago != null && body.nro_pago !== '' ? body.nro_pago : 0, 10);
+    if (!Number.isFinite(nro_pago) || nro_pago < 0) nro_pago = 0;
+    if (tipo === 0) nro_pago = 0;
+    if (tipo === 1 && nro_pago < 1) {
+      return res.status(400).json({ error: 'Indique el número de pensión (mes)' });
+    }
+
+    const estado_pago = String(body.estado_pago || '').toUpperCase();
+    if (estado_pago !== 'CANCELADO' && estado_pago !== 'PENDIENTE') {
+      return res.status(400).json({ error: 'Estado de pago inválido' });
+    }
+
+    let fecha_hora = String(body.fecha_hora || '').trim();
+    if (!fecha_hora) {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      fecha_hora = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+    } else {
+      fecha_hora = fecha_hora.replace('T', ' ');
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(fecha_hora)) {
+        fecha_hora = `${fecha_hora}:00`;
+      }
+    }
+
+    let fecha_cancelado = null;
+    if (estado_pago === 'CANCELADO') {
+      let fc = String(body.fecha_cancelado || '').trim();
+      if (!fc) {
+        fc = new Date().toISOString().slice(0, 10);
+      } else {
+        fc = fc.slice(0, 10);
+      }
+      fecha_cancelado = fc;
+    }
+
+    const descripcion = String(body.descripcion || '').trim();
+    const observaciones = String(body.observaciones || '').trim();
+    const forma_pago = String(body.forma_pago || 'EFECTIVO').toUpperCase();
+    const tipo_tarjeta = String(body.tipo_tarjeta || '').trim();
+
+    let personal_id = req.user.personal_id && Number(req.user.personal_id) > 0 ? Number(req.user.personal_id) : null;
+    if (personal_id) {
+      const pr = await query('SELECT id FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1', [personal_id, colegio_id]);
+      if (!pr.length) personal_id = null;
+    }
+    if (!personal_id) {
+      const pr2 = await query(
+        'SELECT id FROM personal WHERE colegio_id = ? ORDER BY id ASC LIMIT 1',
+        [colegio_id]
+      );
+      personal_id = pr2[0]?.id || null;
+    }
+    if (!personal_id) {
+      return res.status(400).json({
+        error: 'No hay personal en el colegio para asociar el pago. Registre al menos un trabajador o asocie su usuario a personal.',
+      });
+    }
+
+    const colegioTarifa = await query(
+      'SELECT comision_tarjeta_debito, comision_tarjeta_credito FROM colegios WHERE id = ? LIMIT 1',
+      [colegio_id]
+    );
+    const comDeb = parseFloat(colegioTarifa[0]?.comision_tarjeta_debito) || 0;
+    const comCred = parseFloat(colegioTarifa[0]?.comision_tarjeta_credito) || 0;
+    const comision_tarjeta =
+      forma_pago === 'TARJETA' ? (tipo_tarjeta === 'DEBITO' ? comDeb : comCred) : 0;
+
+    const tryInsert = async (withObservaciones) => {
+      const cols = [
+        'colegio_id',
+        'matricula_id',
+        'nro_pago',
+        'monto',
+        'mora',
+        'fecha_hora',
+        'tipo',
+        'descripcion',
+        ...(withObservaciones ? ['observaciones'] : []),
+        'estado_pago',
+        'fecha_cancelado',
+        'forma_pago',
+        'tipo_tarjeta',
+        'lugar_pago',
+        'comision_tarjeta',
+        'personal_id',
+        'estado',
+      ];
+      const placeholders = cols.map(() => '?').join(', ');
+      const vals = [
+        colegio_id,
+        matriculaId,
+        nro_pago,
+        monto,
+        mora,
+        fecha_hora,
+        tipo,
+        descripcion,
+        ...(withObservaciones ? [observaciones] : []),
+        estado_pago,
+        fecha_cancelado,
+        forma_pago,
+        tipo_tarjeta || null,
+        'CAJA',
+        comision_tarjeta,
+        personal_id,
+        'ACTIVO',
+      ];
+      return execute(`INSERT INTO pagos (${cols.join(', ')}) VALUES (${placeholders})`, vals);
+    };
+
+    let result;
+    try {
+      result = await tryInsert(true);
+    } catch (e) {
+      if (isSqlUnknownColumnError(e)) {
+        result = await tryInsert(false);
+      } else {
+        throw e;
+      }
+    }
+
+    res.status(201).json({ id: result.insertId });
+  } catch (e) {
+    console.error('POST alumno matricula pago admin', e);
+    res.status(500).json({ error: e.message || 'Error al registrar el pago' });
+  }
+});
+
 router.get('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
   try {
     const { colegio_id } = req.user;

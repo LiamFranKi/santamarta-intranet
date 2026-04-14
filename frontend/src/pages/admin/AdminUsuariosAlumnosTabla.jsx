@@ -514,7 +514,7 @@ export default function AdminUsuariosAlumnosTabla() {
         Swal.fire({ icon: 'info', title: 'Pagos', text: 'No hay datos para esta matrícula.' });
         return;
       }
-      showListaPagosMatriculaSwal(nombreAlumno(alumno), m);
+      showListaPagosMatriculaSwal(nombreAlumno(alumno), m, { alumnoId: alumno.id });
     } catch (e) {
       Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo cargar pagos' });
     }

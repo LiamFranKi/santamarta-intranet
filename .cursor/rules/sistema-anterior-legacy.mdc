@@ -8,8 +8,8 @@ alwaysApply: false
 
 ## Dónde está la carpeta
 
-- En este repo **`react-aula-virtual` no se versiona** la carpeta `sistema-anterior` (no aparece en el árbol del proyecto).
-- Suele ser una copia local del colegio (PHP) en otra ruta del disco; el usuario o el equipo la mantienen aparte.
+- Está en la **raíz del proyecto** `react-aula-virtual`, como carpeta **`sistema-anterior/`** (al mismo nivel que `backend/`, `frontend/`, `database/`, etc.).
+- Está en **`.gitignore`**: no se sube al remoto, pero en desarrollo suele existir **en disco** como copia del sistema PHP del colegio (`Main/`, `Core/`, `index.php`, etc.).
 - **Uso:** documentación y paridad de negocio con la **misma base MySQL** que consume Node. **No** hay integración en runtime: no se llama PHP desde el intranet nuevo.
 
 ## Principio
