@@ -971,3 +971,247 @@
 .admin-usu-foto-lightbox-close:hover {
   background: #fff;
 }
+
+/* —— Lista de pagos (SweetAlert «Ver pagos» — admin alumnos) —— */
+.admin-pagos-lista-swalc {
+  text-align: left;
+}
+
+.admin-pagos-lista-alumno {
+  margin: 0 0 4px;
+  color: #111827;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.admin-pagos-lista-grupo {
+  margin: 0 0 14px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.admin-pagos-lista-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.admin-pagos-btn-registrar {
+  border: none;
+  background: #16a34a;
+  color: #fff;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.admin-pagos-btn-registrar:hover {
+  filter: brightness(1.05);
+}
+
+.admin-pagos-btn-imprimir {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.admin-pagos-btn-imprimir:hover {
+  background: #f9fafb;
+}
+
+.admin-pagos-lista-banner {
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  color: #fff;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  line-height: 1.45;
+}
+
+.admin-pagos-lista-totales {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(100px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+@media (max-width: 720px) {
+  .admin-pagos-lista-totales {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.admin-pagos-lista-total-card {
+  border: 1px solid #e5e7eb;
+  background: #f0fdf4;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+
+.admin-pagos-lista-total-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+
+.admin-pagos-lista-total-val {
+  font-size: 16px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.admin-pagos-lista-total-mora {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #6d28d9;
+  font-weight: 600;
+}
+
+.admin-pagos-lista-total-card--ok .admin-pagos-lista-total-val {
+  color: #047857;
+}
+
+.admin-pagos-lista-total-card--warn {
+  background: #fffbeb;
+}
+
+.admin-pagos-lista-table-wrap {
+  max-height: 380px;
+  overflow: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.admin-pagos-lista-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  background: #fff;
+}
+
+.admin-pagos-lista-table thead tr {
+  background: #d1fae5;
+  color: #111827;
+}
+
+.admin-pagos-lista-table th {
+  padding: 10px 8px;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid #a7f3d0;
+}
+
+.admin-pagos-lista-boleta-foot {
+  margin-top: 12px;
+  background: #22b8f0;
+  border: 1px solid #7dd3fc;
+  border-radius: 8px;
+  padding: 14px 12px;
+  text-align: center;
+}
+
+.admin-pagos-lista-boleta-text {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.admin-pagos-boleta-btn--inline {
+  border: 0;
+  background: #1d4ed8;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-pagos-opciones-wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.admin-pagos-opciones-btn {
+  border: none;
+  background: #4a83c1;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.78rem;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.admin-pagos-opciones-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.admin-pagos-opciones-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  min-width: 230px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  padding: 0.35rem 0;
+  text-align: left;
+}
+
+.admin-pagos-opciones-menu.is-open {
+  display: block;
+}
+
+.admin-pagos-opcion-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.85rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.84rem;
+  color: #374151;
+  text-align: left;
+}
+
+.admin-pagos-opcion-item:hover {
+  background: #f1f5f9;
+}
+
+.admin-pagos-opcion-item--danger {
+  color: #b91c1c;
+}
+
+.admin-pagos-opcion-item--danger:hover {
+  background: #fee2e2;
+}
+
+.admin-pagos-opcion-ico {
+  flex-shrink: 0;
+  width: 1.35rem;
+  text-align: center;
+}

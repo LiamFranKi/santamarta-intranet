@@ -191,7 +191,8 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
       }
     }
 
-    const pagos = pagosCompletos.map((p) => {
+    const otrosRows = existentes.filter((p) => Number(p.tipo) >= 2);
+    const pagosBase = pagosCompletos.map((p) => {
       const tipo = Number(p.tipo);
       let tipoDescripcion = '';
       if (tipo === 0) {
@@ -207,6 +208,15 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
         tipo_descripcion: tipoDescripcion,
       };
     });
+    const otrosMapped = otrosRows.map((p) => {
+      const tipo = Number(p.tipo);
+      const tipoDescripcion = (p.descripcion && String(p.descripcion).trim()) || `Tipo ${tipo}`;
+      return {
+        ...p,
+        tipo_descripcion: tipoDescripcion,
+      };
+    });
+    const pagos = [...pagosBase, ...otrosMapped];
 
     const totalPagar = matriculaMonto + (pensionMonto * totalPensiones);
     const totalPagado = pagos
@@ -215,6 +225,9 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
     const totalMoraPagada = pagos
       .filter((p) => p.estado_pago === 'CANCELADO' && (Number(p.tipo) === 0 || Number(p.tipo) === 1))
       .reduce((sum, p) => sum + parseFloat(p.mora || 0), 0);
+    const totalOtros = otrosMapped
+      .filter((p) => p.estado_pago === 'CANCELADO')
+      .reduce((sum, p) => sum + parseFloat(p.monto || 0), 0);
 
     return {
       matricula_id: matriculaId,
@@ -227,6 +240,7 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
       total_pagado: totalPagado,
       total_mora_pagada: totalMoraPagada,
       total_pendiente: totalPagar - totalPagado,
+      total_otros: totalOtros,
       pagos,
     };
   });
