@@ -153,8 +153,6 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
     const moraFila = parseFloat(p.mora || 0);
     const tieneId = p.id != null;
     const esPendiente = String(p.estado_pago || '').toUpperCase() === 'PENDIENTE';
-    /** Cobrado: fila con registro y no pendiente — mismo criterio que filas «sintéticas» sin id. */
-    const opcionesHabilitados = tieneId && !esPendiente;
     const trClass = esPendiente ? 'admin-pagos-lista-tr admin-pagos-lista-tr--pendiente' : 'admin-pagos-lista-tr';
     const chk = tieneId
       ? `<input type="checkbox" class="admin-pagos-row-checkbox" value="${esc(String(p.id))}" aria-label="Seleccionar pago" />`
@@ -173,7 +171,7 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
             : ''
         }`;
 
-    const menuItems = opcionesHabilitados
+    const menuItems = tieneId
       ? `<div class="admin-pagos-opciones-menu" role="menu" aria-hidden="true">
           <button type="button" class="admin-pagos-opcion-item" data-action="impresiones" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>🖨</span><span>Impresiones</span></button>
           <button type="button" class="admin-pagos-opcion-item" data-action="boleta_externa" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>🖨</span><span>Imprimir Boleta Externa</span></button>
@@ -183,7 +181,7 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
         </div>`
       : '';
 
-    const btnOpciones = opcionesHabilitados
+    const btnOpciones = tieneId
       ? `<button type="button" class="admin-pagos-opciones-btn">Opciones ▾</button>`
       : `<button type="button" class="admin-pagos-opciones-btn" disabled style="opacity:0.45;cursor:not-allowed">Opciones ▾</button>`;
 
