@@ -521,13 +521,11 @@ export default function AdminUsuariosAlumnosTabla() {
         return Number.isFinite(x) ? `S/ ${x.toFixed(2)}` : '—';
       };
 
-      const fmtFecha = (val, withTime = false) => {
+      const fmtFecha = (val) => {
         if (!val) return '—';
         const d = new Date(val);
         if (Number.isNaN(d.getTime())) return '—';
-        return withTime
-          ? d.toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })
-          : d.toLocaleDateString('es-PE', { dateStyle: 'short' });
+        return d.toLocaleDateString('es-PE', { dateStyle: 'short' });
       };
 
       const tabsHtml = matriculas.map((m, i) => {
@@ -555,9 +553,9 @@ export default function AdminUsuariosAlumnosTabla() {
             <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(p.tipo_descripcion || labelTipoPago(p.tipo || ''))}</td>
             <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">
               <div>${esc(fmtMonto(p.monto))}</div>
-              ${moraFila > 0 ? `<div style="font-size:12px;color:#6d28d9;font-weight:600">Mora: ${esc(fmtMonto(moraFila))}</div>` : ''}
+              ${moraFila > 0 ? `<div style="font-size:11px;color:#6d28d9;font-weight:600">Mora: ${esc(fmtMonto(moraFila))}</div>` : ''}
             </td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(fmtFecha(p.fecha_hora, true))}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(fmtFecha(p.fecha_hora))}</td>
             <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(nroOperacion)}</td>
             <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(serieNumero)}</td>
             <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(fmtFecha(p.boleta?.fecha_impresion))}</td>
@@ -621,6 +619,8 @@ export default function AdminUsuariosAlumnosTabla() {
       Swal.fire({
         title: `Historial de pagos — ${nombreAlumno(row)}`,
         width: 1200,
+        showCloseButton: true,
+        showConfirmButton: false,
         html: `<div style="text-align:left">
           <div style="display:flex;gap:8px;overflow:auto;padding-bottom:4px">${tabsHtml}</div>
           ${panelsHtml}

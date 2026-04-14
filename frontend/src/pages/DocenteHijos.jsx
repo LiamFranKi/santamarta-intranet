@@ -5235,8 +5235,9 @@ function DocenteHijos() {
                         border: '1px solid #dee2e6',
                         borderTop: 'none',
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                        gap: '15px'
+                        gridTemplateColumns: 'repeat(2, minmax(220px, 1fr))',
+                        gap: '12px 18px',
+                        alignItems: 'center'
                       }}>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '5px' }}>Monto a Pagar</div>
@@ -5249,29 +5250,30 @@ function DocenteHijos() {
                           <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#28a745' }}>
                             {formatearMonto(matricula.resumen.total_pagado)}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => window.open('https://sfe.bizlinks.com.pe/sfeperu/public/loginAnonimo.jsf', '_blank', 'noopener,noreferrer')}
-                            style={{
-                              marginTop: '8px',
-                              backgroundColor: '#1d4ed8',
-                              color: '#fff',
-                              border: 'none',
-                              borderRadius: '6px',
-                              fontSize: '11px',
-                              fontWeight: 'bold',
-                              padding: '6px 10px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Boleta Electrónica
-                          </button>
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '5px' }}>Monto que Adeuda</div>
                           <div style={{ fontSize: '16px', fontWeight: 'bold', color: matricula.resumen.total_adeuda > 0 ? '#dc3545' : '#28a745' }}>
                             {formatearMonto(matricula.resumen.total_adeuda)}
                           </div>
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            onClick={() => window.open('https://sfe.bizlinks.com.pe/sfeperu/public/loginAnonimo.jsf', '_blank', 'noopener,noreferrer')}
+                            style={{
+                              backgroundColor: '#1d4ed8',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: 'bold',
+                              padding: '7px 12px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Boleta Electrónica
+                          </button>
                         </div>
                       </div>
 
