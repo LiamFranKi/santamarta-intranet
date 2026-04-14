@@ -12,6 +12,7 @@ const multer = require('multer');
 const phpSerialize = require('php-serialize');
 const router = express.Router();
 const { query, execute, mysqlReadPool } = require('../utils/mysql');
+const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
 const { authenticateToken } = require('../middleware/auth');
 
 /** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
@@ -2285,6 +2286,45 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos', async (req, res) => {
   } catch (e) {
     console.error('GET alumno matricula pagos admin', e);
     res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/**
+ * GET …/pagos/:pagoId/boleta — mismos datos que apoderado para generar el PDF de boleta.
+ */
+router.get('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/boleta', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const alumnoId = parseInt(req.params.id, 10);
+    const matriculaId = parseInt(req.params.matriculaId, 10);
+    const pagoId = parseInt(req.params.pagoId, 10);
+    if (![alumnoId, matriculaId, pagoId].every((n) => Number.isFinite(n) && n > 0)) {
+      return res.status(400).json({ error: 'Parámetros inválidos' });
+    }
+    const okAl = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
+    if (!okAl.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const okMat = await query(
+      'SELECT id FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
+      [matriculaId, alumnoId, colegio_id]
+    );
+    if (!okMat.length) {
+      return res.status(404).json({ error: 'Matrícula no encontrada' });
+    }
+
+    const result = await getBoletaPdfJsonForPago(query, colegio_id, pagoId, {
+      type: 'admin',
+      alumno_id: alumnoId,
+      matricula_id: matriculaId,
+    });
+    if (!result.ok) {
+      return res.status(result.status).json({ error: result.error });
+    }
+    res.json(result.data);
+  } catch (e) {
+    console.error('GET admin boleta pago', e);
+    res.status(500).json({ error: e.message || 'Error al obtener datos de boleta' });
   }
 });
 

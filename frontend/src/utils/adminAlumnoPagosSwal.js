@@ -1,5 +1,6 @@
 import Swal from 'sweetalert2';
 import api from '../services/api';
+import { generarPDFBoletaDesdeDatos, MSG_NO_IMPRESION_BOLETA } from './generarPDFBoletaPago';
 
 /** Último payload de lista de pagos por matrícula (para combo de meses al registrar). */
 const listaPagosMatriculaContext = new Map();
@@ -201,7 +202,7 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
     const menuItems = tieneId
       ? `<div class="admin-pagos-opciones-menu" role="menu" aria-hidden="true">
           <button type="button" class="admin-pagos-opcion-item" data-action="impresiones" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>🖨</span><span>Impresiones</span></button>
-          <button type="button" class="admin-pagos-opcion-item" data-action="boleta_externa" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>🖨</span><span>Imprimir Boleta Externa</span></button>
+          <button type="button" class="admin-pagos-opcion-item" data-action="boleta_externa" data-pago-id="${esc(String(p.id))}" data-has-boleta="${p.boleta ? '1' : '0'}" data-estado-pago="${esc(String(p.estado_pago || ''))}"><span class="admin-pagos-opcion-ico" aria-hidden>🖨</span><span>Imprimir Boleta Externa</span></button>
           ${
             puedeEditar
               ? `<button type="button" class="admin-pagos-opcion-item" data-action="editar" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>✏️</span><span>Editar Pago</span></button>`
@@ -732,6 +733,64 @@ function bindListaPagosUi() {
       const pagoId = item.getAttribute('data-pago-id');
       closeAllOpcionesMenus(popup);
 
+      if (action === 'boleta_externa' && pagoId) {
+        const root = popup.querySelector('.admin-pagos-lista-root');
+        const alumnoIdRaw = root?.getAttribute('data-alumno-id');
+        const matriculaIdRaw = root?.getAttribute('data-matricula-id');
+        const aid = parseInt(alumnoIdRaw, 10);
+        const mid = parseInt(matriculaIdRaw, 10);
+        const pid = parseInt(pagoId, 10);
+        const hasBoleta = item.getAttribute('data-has-boleta') === '1';
+        const estadoPago = String(item.getAttribute('data-estado-pago') || '').toUpperCase();
+        if (!alumnoIdRaw || !matriculaIdRaw || !Number.isFinite(aid) || !Number.isFinite(mid) || !Number.isFinite(pid)) {
+          Swal.fire({ icon: 'warning', text: 'No se pudo identificar el pago o la matrícula.' });
+          return;
+        }
+        if (!hasBoleta) {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Sin impresión',
+            text: MSG_NO_IMPRESION_BOLETA,
+            confirmButtonText: 'Entendido',
+          });
+          return;
+        }
+        if (estadoPago !== 'CANCELADO') {
+          Swal.fire({
+            icon: 'warning',
+            title: 'Pago no cancelado',
+            text: 'Solo se puede imprimir la boleta de pagos cancelados. Este pago aún no está cancelado.',
+            confirmButtonText: 'Entendido',
+          });
+          return;
+        }
+        try {
+          Swal.fire({ title: 'Generando boleta…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+          const { data } = await api.get(
+            `/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos/${pid}/boleta`
+          );
+          Swal.close();
+          await generarPDFBoletaDesdeDatos(data);
+          Swal.fire({
+            icon: 'success',
+            title: 'Boleta generada',
+            text: 'La boleta se ha descargado correctamente.',
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        } catch (err) {
+          Swal.close();
+          const apiErr = err.response?.data?.error;
+          Swal.fire({
+            icon: 'error',
+            title: 'No se pudo generar la boleta',
+            text: apiErr || err.message || 'Intente nuevamente.',
+            confirmButtonText: 'Entendido',
+          });
+        }
+        return;
+      }
+
       if (action === 'editar' && pagoId) {
         const root = popup.querySelector('.admin-pagos-lista-root');
         const alumnoIdRaw = root?.getAttribute('data-alumno-id');
@@ -851,7 +910,6 @@ function bindListaPagosUi() {
 
       const labels = {
         impresiones: 'Impresiones',
-        boleta_externa: 'Imprimir Boleta Externa',
         editar: 'Editar Pago',
         anular: 'Anular Pago',
         borrar: 'Borrar Pago',
