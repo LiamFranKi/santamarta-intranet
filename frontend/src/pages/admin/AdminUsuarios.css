@@ -1243,3 +1243,126 @@
   width: 1.35rem;
   text-align: center;
 }
+
+/* SweetAlert2 — Registrar pago (compacto, pastel, coherente con secciones admin) */
+.admin-pagos-reg-swal-popup {
+  padding: 1.1rem 1.15rem 1rem !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(59, 130, 246, 0.22) !important;
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.12) !important;
+  background: linear-gradient(180deg, #fbfdff 0%, #f0f6ff 100%) !important;
+}
+
+.admin-pagos-reg-swal-title {
+  font-size: 1.12rem !important;
+  font-weight: 700 !important;
+  color: #1e3a5f !important;
+  padding: 0 0 0.25rem !important;
+  margin: 0 !important;
+}
+
+.admin-pagos-reg-swal-html {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.admin-pagos-reg-form {
+  text-align: left;
+  font-size: 0.8125rem;
+  color: #334155;
+  margin: 0;
+}
+
+.admin-pagos-reg-alumno {
+  margin: 0 0 0.6rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1e293b;
+  line-height: 1.35;
+}
+
+.admin-pagos-reg-card {
+  background: linear-gradient(155deg, #e8f0fe 0%, #eef4ff 45%, #fafcff 100%);
+  border: 1px solid rgba(74, 131, 193, 0.24);
+  border-radius: 12px;
+  padding: 0.72rem 0.82rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.admin-pagos-reg-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 0.72rem;
+  align-items: end;
+}
+
+.admin-pagos-reg-field--full {
+  grid-column: 1 / -1;
+}
+
+.admin-pagos-reg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.admin-pagos-reg-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+  letter-spacing: 0.01em;
+}
+
+.admin-pagos-reg-req {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.admin-pagos-reg-input,
+.admin-pagos-reg-select {
+  font-size: 0.8125rem !important;
+  line-height: 1.25;
+  padding: 0.3rem 0.42rem !important;
+  min-height: 1.95rem;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  background: #fff !important;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+}
+
+.admin-pagos-reg-input:focus,
+.admin-pagos-reg-select:focus {
+  outline: none;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.22);
+}
+
+.admin-pagos-reg-select {
+  cursor: pointer;
+}
+
+.admin-pagos-reg-estado-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 0.72rem;
+  align-items: end;
+}
+
+.admin-pagos-reg-estado-wrap--solo {
+  grid-template-columns: 1fr;
+}
+
+.admin-pagos-reg-swal-confirm {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+  padding: 0.42rem 1rem !important;
+}
+
+.admin-pagos-reg-swal-cancel {
+  border-radius: 8px !important;
+  font-weight: 600 !important;
+}
