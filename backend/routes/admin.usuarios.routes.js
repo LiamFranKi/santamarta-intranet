@@ -58,6 +58,180 @@ function requireAdmin(req, res, next) {
 router.use(authenticateToken);
 router.use(requireAdmin);
 
+/**
+ * Arma el listado de pagos por matrícula (mismos totales y filas que el historial admin).
+ * @param {number} colegio_id
+ * @param {Array<object>} matriculas Filas con matricula_id, anio, grado, seccion, nivel_nombre, pension, matricula (costo)
+ */
+async function buildAlumnoPagosData(colegio_id, matriculas) {
+  if (!matriculas?.length) return [];
+
+  const colegioConfig = await query(
+    `SELECT ciclo_pensiones, inicio_pensiones, total_pensiones
+     FROM colegios
+     WHERE id = ?
+     LIMIT 1`,
+    [colegio_id]
+  );
+  const cicloPensiones = colegioConfig.length ? colegioConfig[0].ciclo_pensiones : null;
+  const inicioPensiones = colegioConfig.length ? parseInt(colegioConfig[0].inicio_pensiones || 1, 10) : 1;
+  const totalPensiones = colegioConfig.length ? parseInt(colegioConfig[0].total_pensiones || 10, 10) : 10;
+  const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+  const getMesPension = (nroPago) => {
+    if (cicloPensiones === 0 || cicloPensiones === '0') {
+      const idx = Number(nroPago) + inicioPensiones - 1;
+      return idx >= 0 && idx < MESES.length ? MESES[idx] : null;
+    }
+    return null;
+  };
+
+  const matriculaIds = matriculas.map((m) => Number(m.matricula_id)).filter((n) => Number.isFinite(n) && n > 0);
+  const inMatriculas = matriculaIds.map(() => '?').join(', ');
+
+  const pagosRows = await query(
+    `SELECT p.id, p.matricula_id, p.nro_pago, p.monto, p.mora, p.fecha_hora, p.tipo, p.descripcion,
+            p.estado_pago, p.fecha_cancelado, p.nro_movimiento_banco, p.nro_movimiento_importado,
+            p.forma_pago, p.lugar_pago, p.estado AS pago_registro_estado
+     FROM pagos p
+     WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.matricula_id IN (${inMatriculas})
+     ORDER BY p.matricula_id ASC, p.tipo ASC, p.nro_pago ASC, p.id ASC`,
+    [colegio_id, ...matriculaIds]
+  );
+
+  const pagoIds = pagosRows.map((p) => Number(p.id)).filter((n) => Number.isFinite(n) && n > 0);
+  const boletasByPagoId = new Map();
+  if (pagoIds.length) {
+    const inPagos = pagoIds.map(() => '?').join(', ');
+    const boletas = await query(
+      `SELECT i.pago_id, i.numero, i.serie, i.fecha_impresion, i.impreso
+       FROM impresiones i
+       INNER JOIN (
+          SELECT pago_id, MAX(id) AS max_id
+          FROM impresiones
+          WHERE tipo = 'PAGO' AND tipo_documento = 'BOLETA' AND estado = 'ACTIVO' AND pago_id IN (${inPagos})
+          GROUP BY pago_id
+       ) ult ON ult.max_id = i.id`,
+      [...pagoIds]
+    );
+    boletas.forEach((b) => {
+      boletasByPagoId.set(Number(b.pago_id), {
+        numero: b.numero,
+        serie: b.serie,
+        serie_numero: `${String(b.serie).padStart(3, '0')}-${String(b.numero).padStart(7, '0')}`,
+        fecha_impresion: b.fecha_impresion,
+        impreso: b.impreso,
+      });
+    });
+  }
+
+  const pagosByMatricula = new Map();
+  pagosRows.forEach((p) => {
+    const key = Number(p.matricula_id);
+    if (!pagosByMatricula.has(key)) pagosByMatricula.set(key, []);
+    pagosByMatricula.get(key).push({
+      ...p,
+      boleta: boletasByPagoId.get(Number(p.id)) || null,
+    });
+  });
+
+  return matriculas.map((m) => {
+    const matriculaId = Number(m.matricula_id);
+    const pensionMonto = parseFloat(m.pension || 0);
+    const matriculaMonto = parseFloat(m.matricula || 0);
+    const existentes = pagosByMatricula.get(matriculaId) || [];
+    const pagosCompletos = [];
+
+    const pagoMatricula = existentes.find((p) => Number(p.tipo) === 0);
+    if (pagoMatricula) {
+      pagosCompletos.push(pagoMatricula);
+    } else {
+      pagosCompletos.push({
+        id: null,
+        matricula_id: matriculaId,
+        nro_pago: 0,
+        monto: matriculaMonto,
+        mora: 0,
+        fecha_hora: null,
+        tipo: 0,
+        descripcion: '',
+        estado_pago: 'PENDIENTE',
+        fecha_cancelado: null,
+        nro_movimiento_banco: null,
+        nro_movimiento_importado: null,
+        forma_pago: null,
+        lugar_pago: null,
+        pago_registro_estado: 'ACTIVO',
+        boleta: null,
+      });
+    }
+
+    for (let i = 1; i <= totalPensiones; i += 1) {
+      const pension = existentes.find((p) => Number(p.tipo) === 1 && Number(p.nro_pago) === i);
+      if (pension) {
+        pagosCompletos.push(pension);
+      } else {
+        pagosCompletos.push({
+          id: null,
+          matricula_id: matriculaId,
+          nro_pago: i,
+          monto: pensionMonto,
+          mora: 0,
+          fecha_hora: null,
+          tipo: 1,
+          descripcion: '',
+          estado_pago: 'PENDIENTE',
+          fecha_cancelado: null,
+          nro_movimiento_banco: null,
+          nro_movimiento_importado: null,
+          forma_pago: null,
+          lugar_pago: null,
+          pago_registro_estado: 'ACTIVO',
+          boleta: null,
+        });
+      }
+    }
+
+    const pagos = pagosCompletos.map((p) => {
+      const tipo = Number(p.tipo);
+      let tipoDescripcion = '';
+      if (tipo === 0) {
+        tipoDescripcion = 'Matrícula';
+      } else if (tipo === 1) {
+        const mes = getMesPension(Number(p.nro_pago));
+        tipoDescripcion = mes ? `Pensión - ${mes}` : `Pensión - ${p.nro_pago}`;
+      } else {
+        tipoDescripcion = p.descripcion || `Tipo ${p.tipo}`;
+      }
+      return {
+        ...p,
+        tipo_descripcion: tipoDescripcion,
+      };
+    });
+
+    const totalPagar = matriculaMonto + (pensionMonto * totalPensiones);
+    const totalPagado = pagos
+      .filter((p) => p.estado_pago === 'CANCELADO' && (Number(p.tipo) === 0 || Number(p.tipo) === 1))
+      .reduce((sum, p) => sum + parseFloat(p.monto || 0), 0);
+    const totalMoraPagada = pagos
+      .filter((p) => p.estado_pago === 'CANCELADO' && (Number(p.tipo) === 0 || Number(p.tipo) === 1))
+      .reduce((sum, p) => sum + parseFloat(p.mora || 0), 0);
+
+    return {
+      matricula_id: matriculaId,
+      anio: m.anio,
+      grado: m.grado,
+      seccion: m.seccion,
+      nivel_nombre: m.nivel_nombre,
+      grupo_texto: `${String(m.nivel_nombre || '').toUpperCase()} - ${m.grado || '—'}° ${m.seccion || ''} - ${m.anio || '—'}`.replace(/\s+/g, ' ').trim(),
+      total_pagar: totalPagar,
+      total_pagado: totalPagado,
+      total_mora_pagada: totalMoraPagada,
+      total_pendiente: totalPagar - totalPagado,
+      pagos,
+    };
+  });
+}
+
 const personalFotoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     const uploadPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos';
@@ -1627,6 +1801,192 @@ router.get('/alumnos/:id/hermanos', async (req, res) => {
   }
 });
 
+router.get('/alumnos/:id/matriculas/:matriculaId/pagos', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const alumnoId = parseInt(req.params.id, 10);
+    const matriculaId = parseInt(req.params.matriculaId, 10);
+    if (!Number.isFinite(alumnoId) || !Number.isFinite(matriculaId)) {
+      return res.status(400).json({ error: 'Parámetros inválidos' });
+    }
+    const ok = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
+    if (!ok.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const matriculas = await query(
+      `SELECT m.id AS matricula_id,
+              g.anio,
+              g.grado,
+              g.seccion,
+              n.nombre AS nivel_nombre,
+              c.pension,
+              c.matricula
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN costos c ON c.id = m.costo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND m.id = ?
+       LIMIT 1`,
+      [alumnoId, colegio_id, matriculaId]
+    );
+    if (!matriculas.length) {
+      return res.status(404).json({ error: 'Matrícula no encontrada' });
+    }
+    const data = await buildAlumnoPagosData(colegio_id, matriculas);
+    res.json({ data: data[0] });
+  } catch (e) {
+    console.error('GET alumno matricula pagos admin', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.get('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const alumnoId = parseInt(req.params.id, 10);
+    const matriculaId = parseInt(req.params.matriculaId, 10);
+    if (!Number.isFinite(alumnoId) || !Number.isFinite(matriculaId)) {
+      return res.status(400).json({ error: 'Parámetros inválidos' });
+    }
+    const ok = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
+    if (!ok.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const rows = await query(
+      `SELECT m.id AS matricula_id, m.alumno_id, m.grupo_id, m.costo_id, m.fecha_registro, m.estado,
+              g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre,
+              t.nombre AS turno_nombre
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN turnos t ON t.id = g.turno_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND m.id = ?
+       LIMIT 1`,
+      [alumnoId, colegio_id, matriculaId]
+    );
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Matrícula no encontrada' });
+    }
+    const mat = rows[0];
+    const costos = await query(
+      'SELECT id, matricula, pension FROM costos WHERE colegio_id = ? ORDER BY id DESC',
+      [colegio_id]
+    );
+    const grupos = await query(
+      `SELECT g.id, g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre
+       FROM grupos g
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.colegio_id = ?
+       ORDER BY g.anio DESC, g.grado ASC, g.seccion ASC
+       LIMIT 1000`,
+      [colegio_id]
+    );
+    res.json({
+      data: {
+        matricula: mat,
+        costos: costos || [],
+        grupos: grupos || [],
+      },
+    });
+  } catch (e) {
+    console.error('GET alumno matricula detalle admin', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const alumnoId = parseInt(req.params.id, 10);
+    const matriculaId = parseInt(req.params.matriculaId, 10);
+    if (!Number.isFinite(alumnoId) || !Number.isFinite(matriculaId)) {
+      return res.status(400).json({ error: 'Parámetros inválidos' });
+    }
+    const { estado, fecha_registro, grupo_id, costo_id } = req.body || {};
+    const est = parseInt(estado, 10);
+    if (![0, 1, 2, 3, 4].includes(est)) {
+      return res.status(400).json({ error: 'Estado de matrícula no válido' });
+    }
+    const gid = parseInt(grupo_id, 10);
+    const cid = parseInt(costo_id, 10);
+    if (!Number.isFinite(gid) || !Number.isFinite(cid)) {
+      return res.status(400).json({ error: 'Grupo y costo son obligatorios' });
+    }
+    const fr = fecha_registro != null && String(fecha_registro).trim() !== ''
+      ? String(fecha_registro).trim().slice(0, 10)
+      : null;
+    if (!fr || !/^\d{4}-\d{2}-\d{2}$/.test(fr)) {
+      return res.status(400).json({ error: 'Fecha de registro inválida (use AAAA-MM-DD)' });
+    }
+    const mrows = await query(
+      'SELECT id FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
+      [matriculaId, alumnoId, colegio_id]
+    );
+    if (!mrows.length) {
+      return res.status(404).json({ error: 'Matrícula no encontrada' });
+    }
+    const gOk = await query(
+      'SELECT id FROM grupos WHERE id = ? AND colegio_id = ? LIMIT 1',
+      [gid, colegio_id]
+    );
+    if (!gOk.length) {
+      return res.status(400).json({ error: 'El grupo seleccionado no pertenece al colegio' });
+    }
+    const cOk = await query(
+      'SELECT id FROM costos WHERE id = ? AND colegio_id = ? LIMIT 1',
+      [cid, colegio_id]
+    );
+    if (!cOk.length) {
+      return res.status(400).json({ error: 'El costo seleccionado no pertenece al colegio' });
+    }
+    await execute(
+      `UPDATE matriculas SET estado = ?, fecha_registro = ?, grupo_id = ?, costo_id = ?
+       WHERE id = ? AND alumno_id = ? AND colegio_id = ?`,
+      [est, fr, gid, cid, matriculaId, alumnoId, colegio_id]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('PUT alumno matricula admin', e);
+    res.status(500).json({ error: e.message || 'Error al actualizar matrícula' });
+  }
+});
+
+router.delete('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const alumnoId = parseInt(req.params.id, 10);
+    const matriculaId = parseInt(req.params.matriculaId, 10);
+    if (!Number.isFinite(alumnoId) || !Number.isFinite(matriculaId)) {
+      return res.status(400).json({ error: 'Parámetros inválidos' });
+    }
+    const mrows = await query(
+      'SELECT id FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
+      [matriculaId, alumnoId, colegio_id]
+    );
+    if (!mrows.length) {
+      return res.status(404).json({ error: 'Matrícula no encontrada' });
+    }
+    const [pc] = await query(
+      'SELECT COUNT(*) AS n FROM pagos WHERE matricula_id = ? AND colegio_id = ?',
+      [matriculaId, colegio_id]
+    );
+    if ((pc?.n || 0) > 0) {
+      return res.status(409).json({
+        error: 'No se puede eliminar: existen pagos asociados a esta matrícula.',
+      });
+    }
+    await execute('DELETE FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ?', [
+      matriculaId,
+      alumnoId,
+      colegio_id,
+    ]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('DELETE alumno matricula admin', e);
+    res.status(500).json({ error: e.message || 'Error al eliminar matrícula' });
+  }
+});
+
 router.get('/alumnos/:id/matriculas', async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -1636,16 +1996,24 @@ router.get('/alumnos/:id/matriculas', async (req, res) => {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
     const rows = await query(
-      `SELECT m.id AS matricula_id, m.estado, m.costo_id,
-              g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre
+      `SELECT m.id AS matricula_id, m.estado, m.costo_id, m.fecha_registro, m.grupo_id,
+              g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre,
+              t.nombre AS turno_nombre
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
        LEFT JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN turnos t ON t.id = g.turno_id
        WHERE m.alumno_id = ? AND m.colegio_id = ?
        ORDER BY g.anio DESC, g.grado ASC, g.seccion ASC`,
       [id, colegio_id]
     );
-    res.json({ data: rows });
+    const data = (rows || []).map((r) => ({
+      ...r,
+      grupo_texto: `${String(r.nivel_nombre || '').toUpperCase()} - ${r.grado || '—'}° ${r.seccion || ''} - ${r.anio || '—'}`
+        .replace(/\s+/g, ' ')
+        .trim(),
+    }));
+    res.json({ data });
   } catch (e) {
     console.error('GET alumno matriculas admin', e);
     res.status(500).json({ error: e.message || 'Error' });
@@ -1682,171 +2050,7 @@ router.get('/alumnos/:id/pagos', async (req, res) => {
       return res.json({ data: [] });
     }
 
-    const colegioConfig = await query(
-      `SELECT ciclo_pensiones, inicio_pensiones, total_pensiones
-       FROM colegios
-       WHERE id = ?
-       LIMIT 1`,
-      [colegio_id]
-    );
-    const cicloPensiones = colegioConfig.length ? colegioConfig[0].ciclo_pensiones : null;
-    const inicioPensiones = colegioConfig.length ? parseInt(colegioConfig[0].inicio_pensiones || 1, 10) : 1;
-    const totalPensiones = colegioConfig.length ? parseInt(colegioConfig[0].total_pensiones || 10, 10) : 10;
-    const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Setiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-    const getMesPension = (nroPago) => {
-      if (cicloPensiones === 0 || cicloPensiones === '0') {
-        const idx = Number(nroPago) + inicioPensiones - 1;
-        return idx >= 0 && idx < MESES.length ? MESES[idx] : null;
-      }
-      return null;
-    };
-
-    const matriculaIds = matriculas.map((m) => Number(m.matricula_id)).filter((n) => Number.isFinite(n) && n > 0);
-    const inMatriculas = matriculaIds.map(() => '?').join(', ');
-
-    const pagosRows = await query(
-      `SELECT p.id, p.matricula_id, p.nro_pago, p.monto, p.mora, p.fecha_hora, p.tipo, p.descripcion,
-              p.estado_pago, p.fecha_cancelado, p.nro_movimiento_banco, p.nro_movimiento_importado,
-              p.forma_pago, p.lugar_pago, p.estado AS pago_registro_estado
-       FROM pagos p
-       WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.matricula_id IN (${inMatriculas})
-       ORDER BY p.matricula_id ASC, p.tipo ASC, p.nro_pago ASC, p.id ASC`,
-      [colegio_id, ...matriculaIds]
-    );
-
-    const pagoIds = pagosRows.map((p) => Number(p.id)).filter((n) => Number.isFinite(n) && n > 0);
-    const boletasByPagoId = new Map();
-    if (pagoIds.length) {
-      const inPagos = pagoIds.map(() => '?').join(', ');
-      const boletas = await query(
-        `SELECT i.pago_id, i.numero, i.serie, i.fecha_impresion, i.impreso
-         FROM impresiones i
-         INNER JOIN (
-            SELECT pago_id, MAX(id) AS max_id
-            FROM impresiones
-            WHERE tipo = 'PAGO' AND tipo_documento = 'BOLETA' AND estado = 'ACTIVO' AND pago_id IN (${inPagos})
-            GROUP BY pago_id
-         ) ult ON ult.max_id = i.id`,
-        [...pagoIds]
-      );
-      boletas.forEach((b) => {
-        boletasByPagoId.set(Number(b.pago_id), {
-          numero: b.numero,
-          serie: b.serie,
-          serie_numero: `${String(b.serie).padStart(3, '0')}-${String(b.numero).padStart(7, '0')}`,
-          fecha_impresion: b.fecha_impresion,
-          impreso: b.impreso,
-        });
-      });
-    }
-
-    const pagosByMatricula = new Map();
-    pagosRows.forEach((p) => {
-      const key = Number(p.matricula_id);
-      if (!pagosByMatricula.has(key)) pagosByMatricula.set(key, []);
-      pagosByMatricula.get(key).push({
-        ...p,
-        boleta: boletasByPagoId.get(Number(p.id)) || null,
-      });
-    });
-
-    const data = matriculas.map((m) => {
-      const matriculaId = Number(m.matricula_id);
-      const pensionMonto = parseFloat(m.pension || 0);
-      const matriculaMonto = parseFloat(m.matricula || 0);
-      const existentes = pagosByMatricula.get(matriculaId) || [];
-      const pagosCompletos = [];
-
-      const pagoMatricula = existentes.find((p) => Number(p.tipo) === 0);
-      if (pagoMatricula) {
-        pagosCompletos.push(pagoMatricula);
-      } else {
-        pagosCompletos.push({
-          id: null,
-          matricula_id: matriculaId,
-          nro_pago: 0,
-          monto: matriculaMonto,
-          mora: 0,
-          fecha_hora: null,
-          tipo: 0,
-          descripcion: '',
-          estado_pago: 'PENDIENTE',
-          fecha_cancelado: null,
-          nro_movimiento_banco: null,
-          nro_movimiento_importado: null,
-          forma_pago: null,
-          lugar_pago: null,
-          pago_registro_estado: 'ACTIVO',
-          boleta: null,
-        });
-      }
-
-      for (let i = 1; i <= totalPensiones; i += 1) {
-        const pension = existentes.find((p) => Number(p.tipo) === 1 && Number(p.nro_pago) === i);
-        if (pension) {
-          pagosCompletos.push(pension);
-        } else {
-          pagosCompletos.push({
-            id: null,
-            matricula_id: matriculaId,
-            nro_pago: i,
-            monto: pensionMonto,
-            mora: 0,
-            fecha_hora: null,
-            tipo: 1,
-            descripcion: '',
-            estado_pago: 'PENDIENTE',
-            fecha_cancelado: null,
-            nro_movimiento_banco: null,
-            nro_movimiento_importado: null,
-            forma_pago: null,
-            lugar_pago: null,
-            pago_registro_estado: 'ACTIVO',
-            boleta: null,
-          });
-        }
-      }
-
-      const pagos = pagosCompletos.map((p) => {
-        const tipo = Number(p.tipo);
-        let tipoDescripcion = '';
-        if (tipo === 0) {
-          tipoDescripcion = 'Matrícula';
-        } else if (tipo === 1) {
-          const mes = getMesPension(Number(p.nro_pago));
-          tipoDescripcion = mes ? `Pensión - ${mes}` : `Pensión - ${p.nro_pago}`;
-        } else {
-          tipoDescripcion = p.descripcion || `Tipo ${p.tipo}`;
-        }
-        return {
-          ...p,
-          tipo_descripcion: tipoDescripcion,
-        };
-      });
-
-      const totalPagar = matriculaMonto + (pensionMonto * totalPensiones);
-      const totalPagado = pagos
-        .filter((p) => p.estado_pago === 'CANCELADO' && (Number(p.tipo) === 0 || Number(p.tipo) === 1))
-        .reduce((sum, p) => sum + parseFloat(p.monto || 0), 0);
-      const totalMoraPagada = pagos
-        .filter((p) => p.estado_pago === 'CANCELADO' && (Number(p.tipo) === 0 || Number(p.tipo) === 1))
-        .reduce((sum, p) => sum + parseFloat(p.mora || 0), 0);
-
-      return {
-        matricula_id: matriculaId,
-        anio: m.anio,
-        grado: m.grado,
-        seccion: m.seccion,
-        nivel_nombre: m.nivel_nombre,
-        grupo_texto: `${String(m.nivel_nombre || '').toUpperCase()} - ${m.grado || '—'}° ${m.seccion || ''} - ${m.anio || '—'}`.replace(/\s+/g, ' ').trim(),
-        total_pagar: totalPagar,
-        total_pagado: totalPagado,
-        total_mora_pagada: totalMoraPagada,
-        total_pendiente: totalPagar - totalPagado,
-        pagos,
-      };
-    });
-
+    const data = await buildAlumnoPagosData(colegio_id, matriculas);
     res.json({ data });
   } catch (e) {
     console.error('GET alumno pagos admin', e);

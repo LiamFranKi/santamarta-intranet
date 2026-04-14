@@ -7,6 +7,7 @@ import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
 import AdminUsuariosFotoLightbox from '../../components/admin/AdminUsuariosFotoLightbox';
 import AdminMensajeQuillEditor from '../../components/admin/AdminMensajeQuillEditor';
 import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
+import { showHistorialPagosSwal, showHistorialPagosUnaMatriculaSwal } from '../../utils/adminAlumnoPagosSwal';
 import './AdminUsuarios.css';
 import './AdminUsuariosEquipoCards.css';
 
@@ -33,6 +34,15 @@ function formatFechaNacimiento(val) {
   return `${dd}/${mm}/${yyyy}`;
 }
 
+/** Solo fecha de registro de matrícula (sin hora). */
+function formatFechaRegistroMatricula(val) {
+  if (val == null || val === '') return '—';
+  const s = String(val).trim().slice(0, 10);
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return formatFechaNacimiento(val);
+}
+
 function labelMatriculaEstado(estado) {
   const e = Number(estado);
   if (e === 0 || e === 4) return 'Activa / vigente';
@@ -40,13 +50,6 @@ function labelMatriculaEstado(estado) {
   if (e === 2) return 'Trasladado';
   if (e === 3) return 'Cancelado';
   return `Cód. ${estado}`;
-}
-
-function labelTipoPago(tipo) {
-  const t = Number(tipo);
-  if (t === 0) return 'Matrícula';
-  if (t === 1) return 'Pensión';
-  return `Tipo ${tipo}`;
 }
 
 const PARENTESCO_VINC_LABEL = {
@@ -86,6 +89,9 @@ export default function AdminUsuariosAlumnos() {
   const [vincApParentesco, setVincApParentesco] = useState(1);
   const [vincApBuscando, setVincApBuscando] = useState(false);
   const [vincApGuardando, setVincApGuardando] = useState(false);
+  const [modalMatriculas, setModalMatriculas] = useState(null);
+  const [modalEditMatricula, setModalEditMatricula] = useState(null);
+  const [menuMatricula, setMenuMatricula] = useState(null);
   const [form, setForm] = useState({});
   const [fotoCreateFile, setFotoCreateFile] = useState(null);
   const [fotoCreatePreview, setFotoCreatePreview] = useState('');
@@ -125,7 +131,7 @@ export default function AdminUsuariosAlumnos() {
   }, [fotoCreatePreview, fotoEditPreview]);
 
   useEffect(() => {
-    if (!openMenu) return undefined;
+    if (!openMenu && !menuMatricula) return undefined;
     const close = () => cerrarMenus();
     window.addEventListener('scroll', close, true);
     window.addEventListener('resize', close);
@@ -133,7 +139,7 @@ export default function AdminUsuariosAlumnos() {
       window.removeEventListener('scroll', close, true);
       window.removeEventListener('resize', close);
     };
-  }, [openMenu]);
+  }, [openMenu, menuMatricula]);
 
   const abrirCrear = () => {
     setForm({
@@ -336,6 +342,7 @@ export default function AdminUsuariosAlumnos() {
   const cerrarMenus = () => {
     setOpenMenu(null);
     setMenuRow(null);
+    setMenuMatricula(null);
   };
 
   const abrirMenuOpciones = (event, row) => {
@@ -462,38 +469,127 @@ export default function AdminUsuariosAlumnos() {
     }
   };
 
+  const recargarMatriculasModal = async (alumnoId) => {
+    try {
+      const { data } = await api.get(`/admin/usuarios/alumnos/${alumnoId}/matriculas`);
+      const list = data.data || [];
+      setModalMatriculas((prev) => (prev && prev.alumno?.id === alumnoId ? { ...prev, rows: list, loading: false } : prev));
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo actualizar el listado' });
+    }
+  };
+
   const historialMatriculas = async (row) => {
+    setMenuMatricula(null);
+    setModalMatriculas({ alumno: row, loading: true, rows: [] });
     try {
       const { data } = await api.get(`/admin/usuarios/alumnos/${row.id}/matriculas`);
       const list = data.data || [];
-      if (!list.length) {
-        Swal.fire({ title: 'Historial de matrículas', text: 'No hay matrículas registradas.', icon: 'info' });
+      setModalMatriculas({ alumno: row, loading: false, rows: list });
+    } catch (e) {
+      setModalMatriculas(null);
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo cargar el historial' });
+    }
+  };
+
+  const abrirMenuMatricula = (e, alumno, mat) => {
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const w = 240;
+    setMenuMatricula({
+      top: Math.min(rect.bottom + 4, window.innerHeight - 200),
+      left: Math.min(rect.left, window.innerWidth - w - 12),
+      alumno,
+      mat,
+    });
+  };
+
+  const verPagosMatricula = async (alumno, mat) => {
+    cerrarMenus();
+    try {
+      const { data } = await api.get(`/admin/usuarios/alumnos/${alumno.id}/matriculas/${mat.matricula_id}/pagos`);
+      const m = data.data;
+      if (!m) {
+        Swal.fire({ icon: 'info', title: 'Pagos', text: 'No hay datos para esta matrícula.' });
         return;
       }
-      const filas = list
-        .map((m) => {
-          const curso = `${m.grado || '—'}° ${m.seccion || ''} · ${m.nivel_nombre || ''}`.trim();
-          return `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">${m.anio ?? '—'}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #eee">${curso}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #eee">${labelMatriculaEstado(m.estado)}</td></tr>`;
-        })
-        .join('');
-      Swal.fire({
-        title: `Historial de matrículas — ${nombreAlumno(row)}`,
-        width: 640,
-        html: `<div style="max-height:400px;overflow:auto;text-align:left">
-          <table style="width:100%;border-collapse:collapse;font-size:0.9rem">
-            <thead><tr style="background:#f3f4f6">
-              <th style="text-align:left;padding:8px">Año</th>
-              <th style="text-align:left;padding:8px">Curso</th>
-              <th style="text-align:left;padding:8px">Estado</th>
-            </tr></thead>
-            <tbody>${filas}</tbody>
-          </table>
-        </div>`,
+      showHistorialPagosUnaMatriculaSwal(nombreAlumno(alumno), m);
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo cargar pagos' });
+    }
+  };
+
+  const abrirEditarMatricula = async (alumno, mat) => {
+    cerrarMenus();
+    setModalEditMatricula({ loading: true, alumno, matriculaId: mat.matricula_id });
+    try {
+      const { data } = await api.get(`/admin/usuarios/alumnos/${alumno.id}/matriculas/${mat.matricula_id}`);
+      const payload = data.data || {};
+      const m = payload.matricula;
+      setModalEditMatricula({
+        loading: false,
+        saving: false,
+        alumno,
+        matriculaId: mat.matricula_id,
+        costos: payload.costos || [],
+        grupos: payload.grupos || [],
+        form: {
+          estado: String(m.estado ?? '0'),
+          fecha_registro: (m.fecha_registro || '').toString().slice(0, 10),
+          grupo_id: String(m.grupo_id ?? ''),
+          costo_id: String(m.costo_id ?? ''),
+        },
       });
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo cargar el historial' });
+      setModalEditMatricula(null);
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo cargar la matrícula' });
+    }
+  };
+
+  const guardarEditMatricula = async () => {
+    if (!modalEditMatricula || modalEditMatricula.loading) return;
+    const { alumno, matriculaId, form } = modalEditMatricula;
+    setModalEditMatricula((prev) => (prev ? { ...prev, saving: true } : prev));
+    try {
+      await api.put(`/admin/usuarios/alumnos/${alumno.id}/matriculas/${matriculaId}`, {
+        estado: parseInt(form.estado, 10),
+        fecha_registro: form.fecha_registro,
+        grupo_id: parseInt(form.grupo_id, 10),
+        costo_id: parseInt(form.costo_id, 10),
+      });
+      Swal.fire({ icon: 'success', title: 'Matrícula actualizada' });
+      setModalEditMatricula(null);
+      if (modalMatriculas?.alumno?.id === alumno.id) {
+        await recargarMatriculasModal(alumno.id);
+      }
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo guardar' });
+    } finally {
+      setModalEditMatricula((prev) => (prev ? { ...prev, saving: false } : prev));
+    }
+  };
+
+  const borrarMatricula = async (alumno, mat) => {
+    cerrarMenus();
+    const ok = await Swal.fire({
+      title: '¿Eliminar matrícula?',
+      html: `<p>Se eliminará el registro de matrícula del grupo <strong>${(mat.grupo_texto || '').replace(/</g, '')}</strong>.</p>
+        <p style="color:#b91c1c;font-size:0.9rem">Solo es posible si no hay pagos asociados a esa matrícula.</p>`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/admin/usuarios/alumnos/${alumno.id}/matriculas/${mat.matricula_id}`);
+      Swal.fire({ icon: 'success', title: 'Matrícula eliminada' });
+      if (modalMatriculas?.alumno?.id === alumno.id) {
+        await recargarMatriculasModal(alumno.id);
+      }
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo eliminar' });
     }
   };
 
@@ -505,152 +601,7 @@ export default function AdminUsuariosAlumnos() {
         Swal.fire({ title: 'Historial de pagos', text: 'No hay pagos registrados.', icon: 'info' });
         return;
       }
-
-      const esc = (v) => String(v ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-
-      const fmtMonto = (n) => {
-        const x = parseFloat(n);
-        return Number.isFinite(x) ? `S/ ${x.toFixed(2)}` : '—';
-      };
-
-      const fmtFecha = (val) => {
-        if (!val) return '—';
-        const d = new Date(val);
-        if (Number.isNaN(d.getTime())) return '—';
-        return d.toLocaleDateString('es-PE', { dateStyle: 'short' });
-      };
-
-      const tabsHtml = matriculas.map((m, i) => {
-        const label = m.grupo_texto || `${m.anio || '—'} · ${m.grado || '—'}° ${m.seccion || ''}`;
-        return `<button type="button" class="admin-pagos-tab-btn ${i === 0 ? 'active' : ''}" data-target="tab-${m.matricula_id}" style="
-          border:1px solid #d1d5db;
-          background:${i === 0 ? '#2563eb' : '#f3f4f6'};
-          color:${i === 0 ? '#fff' : '#1f2937'};
-          border-radius:8px;
-          padding:8px 12px;
-          font-size:12px;
-          font-weight:600;
-          cursor:pointer;
-          white-space:nowrap;
-        ">${esc(label)}</button>`;
-      }).join('');
-
-      const panelsHtml = matriculas.map((m, i) => {
-        const pagos = Array.isArray(m.pagos) ? m.pagos : [];
-        const filas = pagos.map((p) => {
-          const nroOperacion = [p.nro_movimiento_banco, p.nro_movimiento_importado].filter(Boolean).join(' | ') || '—';
-          const serieNumero = p.boleta?.serie_numero || '—';
-          const moraFila = parseFloat(p.mora || 0);
-          return `<tr>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(p.tipo_descripcion || labelTipoPago(p.tipo || ''))}</td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">
-              <div>${esc(fmtMonto(p.monto))}</div>
-              ${moraFila > 0 ? `<div style="font-size:11px;color:#6d28d9;font-weight:600">Mora: ${esc(fmtMonto(moraFila))}</div>` : ''}
-            </td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(fmtFecha(p.fecha_hora))}</td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(nroOperacion)}</td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(serieNumero)}</td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(fmtFecha(p.boleta?.fecha_impresion))}</td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(fmtFecha(p.fecha_cancelado))}</td>
-          </tr>`;
-        }).join('');
-
-        return `<section id="tab-${m.matricula_id}" class="admin-pagos-panel" style="display:${i === 0 ? 'block' : 'none'};margin-top:12px">
-          <div style="background:#e0f2fe;border:1px solid #7dd3fc;color:#0c4a6e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:10px">
-            La información es referencial y corresponde al historial registrado para esta matrícula.
-          </div>
-          <div style="
-            display:grid;
-            grid-template-columns:repeat(3,minmax(170px,1fr));
-            gap:10px;
-            margin-bottom:12px;
-          ">
-            <div style="border:1px solid #e5e7eb;background:#f9fafb;border-radius:8px;padding:10px;text-align:center">
-              <div style="font-size:11px;color:#6b7280">Monto a pagar</div>
-              <div style="font-size:16px;font-weight:700;color:#111827">${esc(fmtMonto(m.total_pagar))}</div>
-            </div>
-            <div style="border:1px solid #e5e7eb;background:#ecfdf5;border-radius:8px;padding:10px;text-align:center">
-              <div style="font-size:11px;color:#6b7280">Monto pagado</div>
-              <div style="font-size:16px;font-weight:700;color:#047857">${esc(fmtMonto(m.total_pagado))}</div>
-              <div style="margin-top:2px;font-size:12px;color:#6d28d9;font-weight:600">Mora: ${esc(fmtMonto(m.total_mora_pagada || 0))}</div>
-            </div>
-            <div style="border:1px solid #e5e7eb;background:#fffbeb;border-radius:8px;padding:10px;text-align:center">
-              <div style="font-size:11px;color:#6b7280">Monto que adeuda</div>
-              <div style="font-size:16px;font-weight:700;color:${Number(m.total_pendiente || 0) > 0 ? '#b45309' : '#047857'}">${esc(fmtMonto(m.total_pendiente))}</div>
-            </div>
-          </div>
-          <div style="max-height:330px;overflow:auto;border:1px solid #e5e7eb;border-radius:8px">
-            <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff">
-              <thead>
-                <tr style="background:#f8fafc">
-                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Tipo de pago</th>
-                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Monto</th>
-                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Fecha registro</th>
-                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">N° operación</th>
-                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Serie/Número</th>
-                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Fecha emisión</th>
-                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Fecha cancelado</th>
-                </tr>
-              </thead>
-              <tbody>${filas || '<tr><td colspan="7" style="padding:16px;text-align:center;color:#6b7280;vertical-align:middle">Sin pagos registrados</td></tr>'}</tbody>
-            </table>
-          </div>
-          <div style="margin-top:10px;background:#22b8f0;border:1px solid #7dd3fc;border-radius:8px;padding:14px 12px;text-align:center">
-            <div style="color:#ffffff;font-size:13px;font-weight:700;margin-bottom:10px">Puede consultar sus Boletas haciendo clic en el siguiente botón</div>
-            <button
-              type="button"
-              class="admin-pagos-boleta-btn"
-              style="border:0;background:#1d4ed8;color:#fff;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer"
-            >
-              Consultar Boletas
-            </button>
-          </div>
-        </section>`;
-      }).join('');
-
-      Swal.fire({
-        title: `Historial de pagos — ${nombreAlumno(row)}`,
-        width: 1200,
-        showCloseButton: true,
-        showConfirmButton: false,
-        html: `<div style="text-align:left">
-          <div style="display:flex;gap:8px;overflow:auto;padding-bottom:4px">${tabsHtml}</div>
-          ${panelsHtml}
-        </div>`,
-        didOpen: () => {
-          const popup = Swal.getPopup();
-          if (!popup) return;
-          const buttons = popup.querySelectorAll('.admin-pagos-tab-btn');
-          const panels = popup.querySelectorAll('.admin-pagos-panel');
-          buttons.forEach((btn) => {
-            btn.addEventListener('click', () => {
-              const target = btn.getAttribute('data-target');
-              buttons.forEach((b) => {
-                b.classList.remove('active');
-                b.style.background = '#f3f4f6';
-                b.style.color = '#1f2937';
-              });
-              btn.classList.add('active');
-              btn.style.background = '#2563eb';
-              btn.style.color = '#fff';
-              panels.forEach((p) => {
-                p.style.display = p.id === target ? 'block' : 'none';
-              });
-            });
-          });
-          const boletaButtons = popup.querySelectorAll('.admin-pagos-boleta-btn');
-          boletaButtons.forEach((btn) => {
-            btn.addEventListener('click', () => {
-              window.open('https://sfe.bizlinks.com.pe/sfeperu/public/loginAnonimo.jsf', '_blank', 'noopener,noreferrer');
-            });
-          });
-        },
-      });
+      showHistorialPagosSwal(nombreAlumno(row), matriculas);
     } catch (e) {
       Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo cargar pagos' });
     }
@@ -1294,6 +1245,236 @@ export default function AdminUsuariosAlumnos() {
               </div>
             </div>
           </div>
+        </div>,
+        document.body
+      )}
+
+      {modalMatriculas && createPortal(
+        <div className="admin-usu-modal-overlay" onClick={() => setModalMatriculas(null)}>
+          <div
+            className="admin-usu-modal admin-usu-modal-wide"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="admin-matriculas-titulo"
+          >
+            <div className="admin-usu-modal-header">
+              <h2 id="admin-matriculas-titulo">Historial de matrículas</h2>
+              <button type="button" className="admin-usu-modal-close" onClick={() => setModalMatriculas(null)} aria-label="Cerrar">
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              <p style={{ margin: '0 0 1rem', color: '#374151', fontWeight: 600 }}>
+                {nombreAlumno(modalMatriculas.alumno)}
+              </p>
+              {modalMatriculas.loading ? (
+                <p style={{ color: '#6b7280' }}>Cargando…</p>
+              ) : (
+                <div className="admin-usu-table-card">
+                  <div className="admin-usu-table-scroll">
+                    <table className="admin-usu-table">
+                      <thead>
+                        <tr>
+                          <th>Grupo</th>
+                          <th>Fecha</th>
+                          <th>Estado</th>
+                          <th>Modalidad</th>
+                          <th style={{ width: 140 }}>Opciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(modalMatriculas.rows || []).length === 0 ? (
+                          <tr>
+                            <td colSpan={5} style={{ textAlign: 'center', color: '#6b7280', padding: '1.5rem' }}>
+                              No hay matrículas registradas.
+                            </td>
+                          </tr>
+                        ) : (
+                          (modalMatriculas.rows || []).map((m) => (
+                            <tr key={m.matricula_id}>
+                              <td>{m.grupo_texto || '—'}</td>
+                              <td>{formatFechaRegistroMatricula(m.fecha_registro)}</td>
+                              <td>{labelMatriculaEstado(m.estado)}</td>
+                              <td>{(m.turno_nombre || '').trim() || '—'}</td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="admin-usu-actions-btn"
+                                  style={{ fontSize: '0.8rem', padding: '6px 10px' }}
+                                  onClick={(e) => abrirMenuMatricula(e, modalMatriculas.alumno, m)}
+                                >
+                                  Opciones ▾
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {modalEditMatricula && createPortal(
+        <div className="admin-usu-modal-overlay" onClick={() => !modalEditMatricula.saving && setModalEditMatricula(null)}>
+          <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="admin-usu-modal-header">
+              <h2>Editar matrícula</h2>
+              <button
+                type="button"
+                className="admin-usu-modal-close"
+                disabled={modalEditMatricula.saving}
+                onClick={() => setModalEditMatricula(null)}
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              {modalEditMatricula.loading ? (
+                <p style={{ color: '#6b7280' }}>Cargando…</p>
+              ) : (
+                <>
+                  <p style={{ margin: '0 0 1rem', color: '#374151', fontWeight: 600 }}>
+                    {nombreAlumno(modalEditMatricula.alumno)}
+                  </p>
+                  <div className="admin-usu-profile-section">
+                    <div className="admin-usu-form-grid">
+                      <div className="admin-usu-field">
+                        <label>Fecha de registro</label>
+                        <input
+                          type="date"
+                          value={modalEditMatricula.form.fecha_registro || ''}
+                          onChange={(e) =>
+                            setModalEditMatricula((prev) =>
+                              prev && !prev.loading
+                                ? { ...prev, form: { ...prev.form, fecha_registro: e.target.value } }
+                                : prev
+                            )
+                          }
+                        />
+                      </div>
+                      <div className="admin-usu-field">
+                        <label>Estado</label>
+                        <select
+                          value={modalEditMatricula.form.estado}
+                          onChange={(e) =>
+                            setModalEditMatricula((prev) =>
+                              prev && !prev.loading
+                                ? { ...prev, form: { ...prev.form, estado: e.target.value } }
+                                : prev
+                            )
+                          }
+                        >
+                          <option value="0">Activa / vigente</option>
+                          <option value="4">Vigente (código 4)</option>
+                          <option value="1">Retirado</option>
+                          <option value="2">Trasladado</option>
+                          <option value="3">Cancelado</option>
+                        </select>
+                      </div>
+                      <div className="admin-usu-field" style={{ gridColumn: '1 / -1' }}>
+                        <label>Grupo (aula)</label>
+                        <select
+                          value={modalEditMatricula.form.grupo_id}
+                          onChange={(e) =>
+                            setModalEditMatricula((prev) =>
+                              prev && !prev.loading
+                                ? { ...prev, form: { ...prev.form, grupo_id: e.target.value } }
+                                : prev
+                            )
+                          }
+                        >
+                          {(modalEditMatricula.grupos || []).map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.anio || '—'} · {(g.nivel_nombre || '').toUpperCase()} {g.grado || '—'}° {g.seccion || ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="admin-usu-field" style={{ gridColumn: '1 / -1' }}>
+                        <label>Costo (tarifario)</label>
+                        <select
+                          value={modalEditMatricula.form.costo_id}
+                          onChange={(e) =>
+                            setModalEditMatricula((prev) =>
+                              prev && !prev.loading
+                                ? { ...prev, form: { ...prev.form, costo_id: e.target.value } }
+                                : prev
+                            )
+                          }
+                        >
+                          {(modalEditMatricula.costos || []).map((c) => (
+                            <option key={c.id} value={c.id}>
+                              Mat. {c.matricula ?? '—'} / Pens. {c.pension ?? '—'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="admin-usu-modal-actions">
+                    <button
+                      type="button"
+                      className="admin-usu-btn admin-usu-btn-secondary"
+                      disabled={modalEditMatricula.saving}
+                      onClick={() => setModalEditMatricula(null)}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-usu-btn admin-usu-btn-primary"
+                      disabled={modalEditMatricula.saving}
+                      onClick={guardarEditMatricula}
+                    >
+                      {modalEditMatricula.saving ? 'Guardando…' : 'Guardar'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {menuMatricula && createPortal(
+        <div
+          className="admin-usu-dropdown admin-usu-dropdown-portal"
+          style={{ top: menuMatricula.top, left: menuMatricula.left }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              verPagosMatricula(menuMatricula.alumno, menuMatricula.mat);
+            }}
+          >
+            Ver pagos
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              abrirEditarMatricula(menuMatricula.alumno, menuMatricula.mat);
+            }}
+          >
+            Editar matrícula
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              borrarMatricula(menuMatricula.alumno, menuMatricula.mat);
+            }}
+          >
+            Borrar matrícula
+          </button>
         </div>,
         document.body
       )}
