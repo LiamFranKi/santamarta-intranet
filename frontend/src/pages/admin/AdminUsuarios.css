@@ -1356,6 +1356,22 @@
   grid-template-columns: 1fr;
 }
 
+/* Columna al lado de «Tipo»: combo mes (pensión) o hueco alineado */
+.admin-pago-mes-active {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.admin-pagos-reg-mes-spacer {
+  min-height: 2.55rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.35);
+  border: 1px dashed rgba(100, 116, 139, 0.28);
+  box-sizing: border-box;
+}
+
 .admin-pagos-reg-swal-confirm {
   border-radius: 8px !important;
   font-weight: 600 !important;

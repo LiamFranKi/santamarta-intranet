@@ -1,6 +1,9 @@
 import Swal from 'sweetalert2';
 import api from '../services/api';
 
+/** Último payload de lista de pagos por matrícula (para combo de meses al registrar). */
+const listaPagosMatriculaContext = new Map();
+
 /**
  * Valores iniciales para un registro NUEVO de pago (fecha/hora local y fecha cancelado = hoy).
  * Usar al abrir el formulario tipo legado (Registrar Nuevo).
@@ -25,6 +28,19 @@ function parseDatetimeLocalToApi(fechaHoraLocal) {
   if (!s) return '';
   const normalized = s.length === 16 ? `${s}:00` : s;
   return normalized.replace('T', ' ');
+}
+
+/** Opciones `<option>` para mes de pensión (nro_pago + etiqueta desde API). */
+function buildPensionMesOptionsHtml(opciones) {
+  if (!Array.isArray(opciones) || opciones.length === 0) {
+    return '<option value="">Sin meses configurados</option>';
+  }
+  return opciones
+    .map(
+      (o) =>
+        `<option value="${esc(String(o.nro_pago))}">${esc(o.mes_label != null ? String(o.mes_label) : `Cuota ${o.nro_pago}`)}</option>`
+    )
+    .join('');
 }
 
 function labelTipoPago(tipo) {
@@ -295,9 +311,20 @@ function buildPanelHtml(m, opts = {}) {
 
 /**
  * Modal «Registrar pago» con fecha/hora y fecha cancelado en hoy por defecto (registro nuevo).
+ * @param {object} [pagosMatricula] Respuesta de GET …/pagos (incluye `pension_meses_opciones`).
  */
-async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId }) {
+async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId, pagosMatricula }) {
+  let pm = pagosMatricula;
+  if (!pm?.pension_meses_opciones?.length && alumnoId && matriculaId) {
+    try {
+      const { data } = await api.get(`/admin/usuarios/alumnos/${alumnoId}/matriculas/${matriculaId}/pagos`);
+      if (data?.data) pm = data.data;
+    } catch (e) {
+      /* sin opciones de mes */
+    }
+  }
   const defs = getDefaultsRegistroPagoNuevo();
+  const mesOpts = buildPensionMesOptionsHtml(pm?.pension_meses_opciones);
   const html = `
     <div class="admin-pagos-reg-form">
       <p class="admin-pagos-reg-alumno">${esc(nombreAlumno)}</p>
@@ -319,6 +346,13 @@ async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId }
               <option value="2">Otro / varios</option>
             </select>
           </div>
+          <div class="admin-pagos-reg-field" id="admin-pago-col-mes">
+            <div id="admin-pago-mes-active" class="admin-pago-mes-active" style="display:none">
+              <label class="admin-pagos-reg-label" for="admin-pago-mes-nro">Mes de pensión <span class="admin-pagos-reg-req">*</span></label>
+              <select id="admin-pago-mes-nro" class="admin-pagos-reg-input admin-pagos-reg-select">${mesOpts}</select>
+            </div>
+            <div id="admin-pago-mes-spacer" class="admin-pagos-reg-mes-spacer" aria-hidden="true"></div>
+          </div>
           <div class="admin-pagos-reg-field">
             <label class="admin-pagos-reg-label" for="admin-pago-forma">Forma de pago</label>
             <select id="admin-pago-forma" class="admin-pagos-reg-input admin-pagos-reg-select">
@@ -328,11 +362,7 @@ async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId }
               <option value="YAPE">YAPE</option>
             </select>
           </div>
-          <div class="admin-pagos-reg-field admin-pagos-reg-field--full" id="admin-pago-wrap-nro">
-            <label class="admin-pagos-reg-label" for="admin-pago-nro">N° pensión (mes) <span class="admin-pagos-reg-req">*</span></label>
-            <input type="number" id="admin-pago-nro" class="admin-pagos-reg-input" min="1" max="24" value="1" />
-          </div>
-          <div class="admin-pagos-reg-field admin-pagos-reg-field--full">
+          <div class="admin-pagos-reg-field">
             <label class="admin-pagos-reg-label" for="admin-pago-fecha-hora">Fecha y hora <span class="admin-pagos-reg-req">*</span></label>
             <input type="datetime-local" id="admin-pago-fecha-hora" class="admin-pagos-reg-input" value="${esc(defs.fechaHoraDatetimeLocal)}" />
           </div>
@@ -380,13 +410,16 @@ async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId }
       const popup = Swal.getPopup();
       if (!popup) return;
       const tipo = popup.querySelector('#admin-pago-tipo');
-      const wrapNro = popup.querySelector('#admin-pago-wrap-nro');
+      const mesActive = popup.querySelector('#admin-pago-mes-active');
+      const mesSpacer = popup.querySelector('#admin-pago-mes-spacer');
       const estado = popup.querySelector('#admin-pago-estado');
       const rowCancel = popup.querySelector('#admin-pago-row-fecha-cancel');
       const inpCancel = popup.querySelector('#admin-pago-fecha-cancel');
       const syncTipoNro = () => {
         const t = tipo?.value;
-        if (wrapNro) wrapNro.style.display = t === '1' ? '' : 'none';
+        const showMes = t === '1';
+        if (mesActive) mesActive.style.display = showMes ? '' : 'none';
+        if (mesSpacer) mesSpacer.style.display = showMes ? 'none' : '';
       };
       const estadoWrap = popup.querySelector('#admin-pago-estado-wrap');
       const syncEstadoFecha = () => {
@@ -409,7 +442,7 @@ async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId }
       const monto = parseFloat(popup.querySelector('#admin-pago-monto')?.value);
       const mora = parseFloat(popup.querySelector('#admin-pago-mora')?.value || '0');
       const tipoVal = popup.querySelector('#admin-pago-tipo')?.value;
-      const nroVal = popup.querySelector('#admin-pago-nro')?.value;
+      const nroVal = popup.querySelector('#admin-pago-mes-nro')?.value;
       const fechaHora = popup.querySelector('#admin-pago-fecha-hora')?.value;
       const estadoVal = popup.querySelector('#admin-pago-estado')?.value;
       const fechaCancel = popup.querySelector('#admin-pago-fecha-cancel')?.value;
@@ -422,7 +455,7 @@ async function openRegistroPagoNuevoSwal({ nombreAlumno, alumnoId, matriculaId }
         return false;
       }
       if (tipoVal === '1' && (!nroVal || parseInt(nroVal, 10) < 1)) {
-        Swal.showValidationMessage('Indique el número de pensión');
+        Swal.showValidationMessage('Indique el mes de pensión');
         return false;
       }
       if (estadoVal === 'CANCELADO' && !fechaCancel) {
@@ -490,11 +523,13 @@ function bindListaPagosUi() {
     }
     const aid = parseInt(alumnoIdRaw, 10);
     const mid = parseInt(matriculaIdRaw, 10);
+    const ctxMat = listaPagosMatriculaContext.get(`${aid}-${mid}`);
     Swal.close();
     await openRegistroPagoNuevoSwal({
       nombreAlumno: nombre,
       alumnoId: aid,
       matriculaId: mid,
+      pagosMatricula: ctxMat,
     });
     try {
       const { data } = await api.get(`/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos`);
@@ -628,6 +663,9 @@ export function showHistorialPagosSwal(nombreAlumno, matriculas) {
  */
 export function showListaPagosMatriculaSwal(nombreAlumno, m, options = {}) {
   const { alumnoId } = options;
+  if (alumnoId != null && m?.matricula_id != null) {
+    listaPagosMatriculaContext.set(`${alumnoId}-${m.matricula_id}`, m);
+  }
   const sub = m.grupo_texto || `${m.anio || '—'} · ${m.grado || '—'}° ${m.seccion || ''}`;
   Swal.fire({
     title: 'Lista de Pagos',

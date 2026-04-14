@@ -246,6 +246,19 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
       .filter((p) => p.estado_pago === 'CANCELADO')
       .reduce((sum, p) => sum + parseFloat(p.monto || 0), 0);
 
+    /** Opciones para combo «mes» al registrar pensión (nro_pago + etiqueta), alineado a getMesPension */
+    const pension_meses_opciones = [];
+    for (let nro = 1; nro <= totalPensiones; nro++) {
+      let mes_label;
+      if (cicloPensiones === 0 || cicloPensiones === '0') {
+        const idx = nro + inicioPensiones - 1;
+        mes_label = idx >= 0 && idx < MESES.length ? MESES[idx] : `Cuota ${nro}`;
+      } else {
+        mes_label = `Pensión ${nro}`;
+      }
+      pension_meses_opciones.push({ nro_pago: nro, mes_label });
+    }
+
     return {
       matricula_id: matriculaId,
       anio: m.anio,
@@ -258,6 +271,12 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
       total_mora_pagada: totalMoraPagada,
       total_pendiente: totalPagar - totalPagado,
       total_otros: totalOtros,
+      pension_meses_opciones,
+      pension_config: {
+        ciclo_pensiones: cicloPensiones,
+        inicio_pensiones: inicioPensiones,
+        total_pensiones: totalPensiones,
+      },
       pagos,
     };
   });
