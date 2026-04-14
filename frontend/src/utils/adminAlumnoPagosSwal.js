@@ -142,6 +142,15 @@ function lineaObservacionesPago(p) {
   return raw;
 }
 
+/** Texto secundario si hay última boleta (impresión) ligada al pago. */
+function lineaBoletaImpresionPago(p) {
+  const sn = p.boleta?.serie_numero;
+  if (!sn) return '';
+  const st = String(p.boleta.impresion_estado || '').toUpperCase();
+  const suf = st === 'ANULADO' ? ' — anulada' : st === 'ACTIVO' ? ' — activa' : '';
+  return `Boleta ${sn}${suf}`;
+}
+
 /**
  * Vista «Lista de pagos» (una matrícula): columnas alineadas al legado — tipo, monto+mora, descripción, fecha/hora+cancelado, opciones.
  */
@@ -172,6 +181,10 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
     const obsTxt = lineaObservacionesPago(p);
     const descObs = obsTxt
       ? `<div class="admin-pagos-lista-desc-obs">Observaciones: ${esc(obsTxt)}</div>`
+      : '';
+    const lineaBoleta = lineaBoletaImpresionPago(p);
+    const descBoleta = lineaBoleta
+      ? `<div class="admin-pagos-lista-desc-boleta" style="font-size:11px;color:#64748b;margin-top:2px">${esc(lineaBoleta)}</div>`
       : '';
 
     const fechaBlock =
@@ -213,6 +226,7 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
       <td class="admin-pagos-lista-td">
         <div class="admin-pagos-lista-desc-stack">
           <div class="admin-pagos-lista-desc-prin">${esc(lineaPrincipalDescripcionPago(p))}</div>
+          ${descBoleta}
           ${descObs}
         </div>
       </td>

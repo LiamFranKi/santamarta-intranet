@@ -11,7 +11,7 @@ const path = require('path');
 const multer = require('multer');
 const phpSerialize = require('php-serialize');
 const router = express.Router();
-const { query, execute } = require('../utils/mysql');
+const { query, execute, mysqlReadPool } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 
 /** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
@@ -131,17 +131,33 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
   const boletasByPagoId = new Map();
   if (pagoIds.length) {
     const inPagos = pagoIds.map(() => '?').join(', ');
-    const boletas = await query(
-      `SELECT i.pago_id, i.numero, i.serie, i.fecha_impresion, i.impreso
-       FROM impresiones i
-       INNER JOIN (
-          SELECT pago_id, MAX(id) AS max_id
-          FROM impresiones
-          WHERE tipo = 'PAGO' AND tipo_documento = 'BOLETA' AND estado = 'ACTIVO' AND pago_id IN (${inPagos})
-          GROUP BY pago_id
-       ) ult ON ult.max_id = i.id`,
-      [...pagoIds]
-    );
+    let boletas;
+    try {
+      boletas = await query(
+        `SELECT i.pago_id, i.numero, i.serie, i.fecha_impresion, i.impreso, i.estado AS impresion_estado
+         FROM impresiones i
+         INNER JOIN (
+            SELECT pago_id, MAX(id) AS max_id
+            FROM impresiones
+            WHERE tipo = 'PAGO' AND tipo_documento = 'BOLETA' AND pago_id IN (${inPagos})
+            GROUP BY pago_id
+         ) ult ON ult.max_id = i.id`,
+        [...pagoIds]
+      );
+    } catch (e) {
+      if (!isSqlUnknownColumnError(e)) throw e;
+      boletas = await query(
+        `SELECT i.pago_id, i.numero, i.serie, i.fecha_impresion, i.impreso
+         FROM impresiones i
+         INNER JOIN (
+            SELECT pago_id, MAX(id) AS max_id
+            FROM impresiones
+            WHERE tipo = 'PAGO' AND tipo_documento = 'BOLETA' AND pago_id IN (${inPagos})
+            GROUP BY pago_id
+         ) ult ON ult.max_id = i.id`,
+        [...pagoIds]
+      );
+    }
     boletas.forEach((b) => {
       boletasByPagoId.set(Number(b.pago_id), {
         numero: b.numero,
@@ -149,6 +165,7 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
         serie_numero: `${String(b.serie).padStart(3, '0')}-${String(b.numero).padStart(7, '0')}`,
         fecha_impresion: b.fecha_impresion,
         impreso: b.impreso,
+        impresion_estado: b.impresion_estado != null ? String(b.impresion_estado).toUpperCase() : null,
       });
     });
   }
@@ -233,6 +250,41 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
     }
 
     const otrosRows = existentes.filter((p) => Number(p.tipo) >= 2);
+
+    /** Id de filas ya mostradas en el cupo principal (un ACTIVO gana el hueco; el ANULADO del mismo mes queda fuera). */
+    const idsEnCupos = new Set(
+      pagosCompletos.filter((p) => p.id != null).map((p) => Number(p.id))
+    );
+    const anuladosExtra = existentes
+      .filter((p) => p.id != null && regEstRow(p) === 'ANULADO' && !idsEnCupos.has(Number(p.id)))
+      .sort((a, b) => {
+        const ta = Number(a.tipo);
+        const tb = Number(b.tipo);
+        if (ta !== tb) return ta - tb;
+        if (Number(a.nro_pago) !== Number(b.nro_pago)) return Number(a.nro_pago) - Number(b.nro_pago);
+        return Number(a.id) - Number(b.id);
+      });
+    const anuladosExtraMapped = anuladosExtra.map((p) => {
+      const tipo = Number(p.tipo);
+      let tipoDescripcion = '';
+      if (tipo === 0) {
+        tipoDescripcion = 'Matrícula (registro anulado)';
+      } else if (tipo === 1) {
+        const mes = getMesPension(Number(p.nro_pago));
+        tipoDescripcion = mes
+          ? `Pensión - ${mes} (registro anulado)`
+          : `Pensión - ${p.nro_pago} (registro anulado)`;
+      } else {
+        tipoDescripcion =
+          (p.descripcion && String(p.descripcion).trim()) || `Tipo ${tipo} (registro anulado)`;
+      }
+      return {
+        ...p,
+        tipo_descripcion: tipoDescripcion,
+        es_anulado_historial: true,
+      };
+    });
+
     const pagosBase = pagosCompletos.map((p) => {
       const tipo = Number(p.tipo);
       let tipoDescripcion = '';
@@ -257,7 +309,32 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
         tipo_descripcion: tipoDescripcion,
       };
     });
-    const pagos = [...pagosBase, ...otrosMapped];
+
+    /** Intercala filas anuladas (mismo mes/cupo) justo debajo del ACTIVO correspondiente. */
+    const anulaMat = anuladosExtraMapped.filter((p) => Number(p.tipo) === 0);
+    const anulaByNroMes = new Map();
+    for (const p of anuladosExtraMapped) {
+      if (Number(p.tipo) !== 1) continue;
+      const n = Number(p.nro_pago);
+      if (!anulaByNroMes.has(n)) anulaByNroMes.set(n, []);
+      anulaByNroMes.get(n).push(p);
+    }
+    const anulaTipo2Plus = anuladosExtraMapped.filter((p) => Number(p.tipo) >= 2);
+    const anulaTipo2Ids = new Set(anulaTipo2Plus.map((p) => Number(p.id)));
+    const otrosMappedDedup = otrosMapped.filter((p) => !anulaTipo2Ids.has(Number(p.id)));
+
+    const pagosIntercalados = [];
+    if (pagosBase.length > 0) {
+      pagosIntercalados.push(pagosBase[0]);
+      anulaMat.forEach((row) => pagosIntercalados.push(row));
+    }
+    for (let mesIdx = 1; mesIdx <= totalPensiones; mesIdx += 1) {
+      if (mesIdx < pagosBase.length) {
+        pagosIntercalados.push(pagosBase[mesIdx]);
+        (anulaByNroMes.get(mesIdx) || []).forEach((row) => pagosIntercalados.push(row));
+      }
+    }
+    const pagos = [...pagosIntercalados, ...anulaTipo2Plus, ...otrosMappedDedup];
 
     const esActivoReg = (p) => String(p.pago_registro_estado || '').toUpperCase() === 'ACTIVO';
     const totalPagar = matriculaMonto + (pensionMonto * totalPensiones);
@@ -322,6 +399,63 @@ function isSqlUnknownColumnError(e) {
   const errno = e && e.errno;
   const msg = String((e && e.message) || '');
   return code === 'ER_BAD_FIELD_ERROR' || errno === 1054 || msg.includes('Unknown column');
+}
+
+/**
+ * Al anular el pago: todas las impresiones ACTIVO de ese pago → ANULADO.
+ * @param {import('mysql2/promise').PoolConnection} [conn] Si se pasa, usa la misma conexión (transacción).
+ */
+async function syncImpresionesAlAnularPago(pagoId, conn = null) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  const run = conn
+    ? (sql, params) => conn.execute(sql, params)
+    : (sql, params) => execute(sql, params);
+  try {
+    await run(
+      `UPDATE impresiones SET estado = 'ANULADO', fecha_anulado = ? WHERE pago_id = ? AND estado = 'ACTIVO'`,
+      [hoy, pagoId]
+    );
+  } catch (e) {
+    if (!isSqlUnknownColumnError(e)) throw e;
+    await run(`UPDATE impresiones SET estado = 'ANULADO' WHERE pago_id = ? AND estado = 'ACTIVO'`, [pagoId]);
+  }
+}
+
+/**
+ * Al reactivar el pago: la impresión ANULADO más reciente (MAX id) vuelve a ACTIVO
+ * (varias filas ANULADO históricas pueden existir; no reactivar todas).
+ * @param {import('mysql2/promise').PoolConnection} [conn]
+ */
+async function syncImpresionesAlReactivarPago(pagoId, conn = null) {
+  const run = conn
+    ? (sql, params) => conn.execute(sql, params)
+    : (sql, params) => execute(sql, params);
+  const trySets = [
+    `SET i.estado = 'ACTIVO', i.fecha_anulado = NULL, i.numero_anulado = 0`,
+    `SET i.estado = 'ACTIVO', i.fecha_anulado = NULL`,
+    `SET i.estado = 'ACTIVO'`,
+  ];
+  const sqlBase = `UPDATE impresiones i
+      INNER JOIN (
+        SELECT MAX(id) AS mid FROM impresiones WHERE pago_id = ? AND estado = 'ANULADO'
+      ) t ON i.id = t.mid`;
+  for (const setClause of trySets) {
+    try {
+      await run(`${sqlBase} ${setClause}`, [pagoId]);
+      return;
+    } catch (e) {
+      if (!isSqlUnknownColumnError(e)) throw e;
+    }
+  }
+}
+
+/** Elimina todas las impresiones ligadas al pago (antes de borrar `pagos`). */
+async function deleteImpresionesByPagoId(pagoId, conn = null) {
+  if (conn) {
+    await conn.execute(`DELETE FROM impresiones WHERE pago_id = ?`, [pagoId]);
+  } else {
+    await execute(`DELETE FROM impresiones WHERE pago_id = ?`, [pagoId]);
+  }
 }
 
 /**
@@ -2370,7 +2504,8 @@ router.put('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId', async (req, res
 
 /**
  * Alterna `pagos.estado` entre ACTIVO y ANULADO (legado PHP: PagosApplication::anular).
- * La boleta / impresiones no se modifica aquí (pendiente de reglas de negocio).
+ * Además sincroniza `impresiones` del mismo pago: al anular, ACTIVO→ANULADO;
+ * al reactivar, la impresión ANULADO más reciente (MAX id) vuelve a ACTIVO.
  */
 router.post('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/anular', async (req, res) => {
   try {
@@ -2404,35 +2539,57 @@ router.post('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/anular', async (
     const nextEst = est === 'ACTIVO' ? 'ANULADO' : 'ACTIVO';
     const hoy = new Date().toISOString().slice(0, 10);
 
-    const tryToggle = async (withFechaAnul) => {
-      if (withFechaAnul) {
-        if (nextEst === 'ANULADO') {
-          return execute(
-            `UPDATE pagos SET estado = ?, fecha_anulado = ? WHERE id = ? AND colegio_id = ? AND matricula_id = ?`,
-            [nextEst, hoy, pagoId, colegio_id, matriculaId]
+    const conn = await mysqlReadPool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      const tryToggleConn = async (withFechaAnul) => {
+        if (withFechaAnul) {
+          if (nextEst === 'ANULADO') {
+            return conn.execute(
+              `UPDATE pagos SET estado = ?, fecha_anulado = ? WHERE id = ? AND colegio_id = ? AND matricula_id = ?`,
+              [nextEst, hoy, pagoId, colegio_id, matriculaId]
+            );
+          }
+          return conn.execute(
+            `UPDATE pagos SET estado = ?, fecha_anulado = NULL WHERE id = ? AND colegio_id = ? AND matricula_id = ?`,
+            [nextEst, pagoId, colegio_id, matriculaId]
           );
         }
-        return execute(
-          `UPDATE pagos SET estado = ?, fecha_anulado = NULL WHERE id = ? AND colegio_id = ? AND matricula_id = ?`,
-          [nextEst, pagoId, colegio_id, matriculaId]
-        );
-      }
-      return execute(`UPDATE pagos SET estado = ? WHERE id = ? AND colegio_id = ? AND matricula_id = ?`, [
-        nextEst,
-        pagoId,
-        colegio_id,
-        matriculaId,
-      ]);
-    };
+        return conn.execute(`UPDATE pagos SET estado = ? WHERE id = ? AND colegio_id = ? AND matricula_id = ?`, [
+          nextEst,
+          pagoId,
+          colegio_id,
+          matriculaId,
+        ]);
+      };
 
-    try {
-      await tryToggle(true);
-    } catch (e) {
-      if (isSqlUnknownColumnError(e)) {
-        await tryToggle(false);
-      } else {
-        throw e;
+      try {
+        await tryToggleConn(true);
+      } catch (e) {
+        if (isSqlUnknownColumnError(e)) {
+          await tryToggleConn(false);
+        } else {
+          throw e;
+        }
       }
+
+      if (nextEst === 'ANULADO') {
+        await syncImpresionesAlAnularPago(pagoId, conn);
+      } else {
+        await syncImpresionesAlReactivarPago(pagoId, conn);
+      }
+
+      await conn.commit();
+    } catch (e) {
+      try {
+        await conn.rollback();
+      } catch (rb) {
+        /* ignore */
+      }
+      throw e;
+    } finally {
+      conn.release();
     }
 
     res.json({ ok: true, id: pagoId, estado: nextEst });
@@ -2466,12 +2623,36 @@ router.delete('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId', async (req, 
       return res.status(404).json({ error: 'Matrícula no encontrada' });
     }
 
-    const result = await execute(
-      `DELETE FROM pagos WHERE id = ? AND colegio_id = ? AND matricula_id = ?`,
+    const pagoRow = await query(
+      `SELECT id FROM pagos WHERE id = ? AND colegio_id = ? AND matricula_id = ? LIMIT 1`,
       [pagoId, colegio_id, matriculaId]
     );
-    if (!result.affectedRows) {
+    if (!pagoRow.length) {
       return res.status(404).json({ error: 'Pago no encontrado' });
+    }
+
+    const conn = await mysqlReadPool.getConnection();
+    try {
+      await conn.beginTransaction();
+      await deleteImpresionesByPagoId(pagoId, conn);
+      const [delPago] = await conn.execute(
+        `DELETE FROM pagos WHERE id = ? AND colegio_id = ? AND matricula_id = ?`,
+        [pagoId, colegio_id, matriculaId]
+      );
+      if (!delPago.affectedRows) {
+        await conn.rollback();
+        return res.status(404).json({ error: 'Pago no encontrado' });
+      }
+      await conn.commit();
+    } catch (e) {
+      try {
+        await conn.rollback();
+      } catch (rb) {
+        /* ignore */
+      }
+      throw e;
+    } finally {
+      conn.release();
     }
     res.json({ ok: true });
   } catch (e) {
