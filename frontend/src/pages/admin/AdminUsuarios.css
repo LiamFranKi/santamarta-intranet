@@ -985,7 +985,7 @@
 }
 
 .admin-pagos-lista-grupo {
-  margin: 0 0 14px;
+  margin: 0 0 8px;
   color: #6b7280;
   font-size: 13px;
   font-weight: 500;
@@ -995,7 +995,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .admin-pagos-btn-registrar {
@@ -1035,7 +1035,7 @@
   padding: 10px 14px;
   font-size: 12px;
   font-weight: 600;
-  margin-bottom: 12px;
+  margin-bottom: 6px;
   line-height: 1.45;
 }
 
@@ -1043,7 +1043,8 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(100px, 1fr));
   gap: 10px;
-  margin-bottom: 12px;
+  margin-top: 0;
+  margin-bottom: 10px;
 }
 
 @media (max-width: 720px) {
@@ -1116,38 +1117,65 @@
   text-transform: uppercase;
   letter-spacing: 0.02em;
   border-bottom: 1px solid #a7f3d0;
-}
-
-.admin-pagos-lista-boleta-foot {
-  margin-top: 12px;
-  background: #22b8f0;
-  border: 1px solid #7dd3fc;
-  border-radius: 8px;
-  padding: 14px 12px;
   text-align: center;
+  vertical-align: middle;
 }
 
-.admin-pagos-lista-boleta-text {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  margin-bottom: 10px;
+.admin-pagos-lista-td {
+  padding: 8px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: center;
+  vertical-align: middle;
 }
 
-.admin-pagos-boleta-btn--inline {
-  border: 0;
-  background: #1d4ed8;
-  color: #fff;
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-size: 13px;
+.admin-pagos-lista-td--tipo {
+  white-space: nowrap;
+}
+
+.admin-pagos-lista-td--fecha {
+  white-space: nowrap;
+}
+
+.admin-pagos-lista-desc-stack {
+  text-align: center;
+  max-width: 280px;
+  margin: 0 auto;
+}
+
+.admin-pagos-lista-desc-prin {
   font-weight: 700;
-  cursor: pointer;
+  color: #1e3a8a;
+}
+
+.admin-pagos-lista-desc-obs {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.admin-pagos-lista-mora-fila {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 3px;
+}
+
+.admin-pagos-lista-fecha-cancel {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 4px;
+}
+
+.admin-pagos-lista-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #d1fae5;
 }
 
 .admin-pagos-opciones-wrap {
   position: relative;
   display: inline-block;
+  margin: 0 auto;
 }
 
 .admin-pagos-opciones-btn {

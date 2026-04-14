@@ -88,15 +88,30 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
   const matriculaIds = matriculas.map((m) => Number(m.matricula_id)).filter((n) => Number.isFinite(n) && n > 0);
   const inMatriculas = matriculaIds.map(() => '?').join(', ');
 
-  const pagosRows = await query(
-    `SELECT p.id, p.matricula_id, p.nro_pago, p.monto, p.mora, p.fecha_hora, p.tipo, p.descripcion,
+  const sqlPagosBase = `SELECT p.id, p.matricula_id, p.nro_pago, p.monto, p.mora, p.fecha_hora, p.tipo, p.descripcion,
+            p.estado_pago, p.fecha_cancelado, p.nro_movimiento_banco, p.nro_movimiento_importado,
+            p.forma_pago, p.lugar_pago, p.estado AS pago_registro_estado
+     FROM pagos p
+     WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.matricula_id IN (${inMatriculas})
+     ORDER BY p.matricula_id ASC, p.tipo ASC, p.nro_pago ASC, p.id ASC`;
+  const paramsPagos = [colegio_id, ...matriculaIds];
+
+  let pagosRows;
+  try {
+    pagosRows = await query(
+      `SELECT p.id, p.matricula_id, p.nro_pago, p.monto, p.mora, p.fecha_hora, p.tipo, p.descripcion, p.observaciones,
             p.estado_pago, p.fecha_cancelado, p.nro_movimiento_banco, p.nro_movimiento_importado,
             p.forma_pago, p.lugar_pago, p.estado AS pago_registro_estado
      FROM pagos p
      WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.matricula_id IN (${inMatriculas})
      ORDER BY p.matricula_id ASC, p.tipo ASC, p.nro_pago ASC, p.id ASC`,
-    [colegio_id, ...matriculaIds]
-  );
+      paramsPagos
+    );
+  } catch (e) {
+    if (!isSqlUnknownColumnError(e)) throw e;
+    pagosRows = await query(sqlPagosBase, paramsPagos);
+    pagosRows = pagosRows.map((row) => ({ ...row, observaciones: row.observaciones ?? '' }));
+  }
 
   const pagoIds = pagosRows.map((p) => Number(p.id)).filter((n) => Number.isFinite(n) && n > 0);
   const boletasByPagoId = new Map();
@@ -154,6 +169,7 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
         fecha_hora: null,
         tipo: 0,
         descripcion: '',
+        observaciones: '',
         estado_pago: 'PENDIENTE',
         fecha_cancelado: null,
         nro_movimiento_banco: null,
@@ -179,6 +195,7 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
           fecha_hora: null,
           tipo: 1,
           descripcion: '',
+          observaciones: '',
           estado_pago: 'PENDIENTE',
           fecha_cancelado: null,
           nro_movimiento_banco: null,

@@ -57,6 +57,18 @@ function fmtCanceladoLine(val) {
   return `Cancelado: ${d}`;
 }
 
+/** Texto principal columna DESCRIPCIÓN: campo `descripcion` (BD); si vacío, estado (PAGO CANCELADO / PENDIENTE). */
+function lineaPrincipalDescripcionPago(p) {
+  const raw = p.descripcion != null ? String(p.descripcion).trim() : '';
+  if (raw) return raw;
+  return labelEstadoPagoDisplay(p.estado_pago);
+}
+
+function lineaObservacionesPago(p) {
+  const raw = p.observaciones != null ? String(p.observaciones).trim() : '';
+  return raw;
+}
+
 /**
  * Vista «Lista de pagos» (una matrícula): columnas alineadas al legado — tipo, monto+mora, descripción, fecha/hora+cancelado, opciones.
  */
@@ -72,14 +84,14 @@ function buildListaPagosPanelHtml(m) {
       ? `<input type="checkbox" class="admin-pagos-row-checkbox" value="${esc(String(p.id))}" aria-label="Seleccionar pago" />`
       : '<input type="checkbox" disabled title="Sin registro en base de datos" aria-label="Sin pago" />';
 
-    const descObs =
-      p.descripcion && String(p.descripcion).trim()
-        ? `<div style="font-size:11px;color:#6b7280;margin-top:4px">Observaciones: ${esc(String(p.descripcion).trim())}</div>`
-        : '';
+    const obsTxt = lineaObservacionesPago(p);
+    const descObs = obsTxt
+      ? `<div class="admin-pagos-lista-desc-obs">Observaciones: ${esc(obsTxt)}</div>`
+      : '';
 
-    const fechaBlock = `${esc(fmtFechaHoraLista(p.fecha_hora))}${
+    const fechaBlock = `<span class="admin-pagos-lista-fecha-prin">${esc(fmtFechaHoraLista(p.fecha_hora))}</span>${
       p.fecha_cancelado
-        ? `<div style="font-size:11px;color:#6b7280;margin-top:4px">${esc(fmtCanceladoLine(p.fecha_cancelado))}</div>`
+        ? `<div class="admin-pagos-lista-fecha-cancel">${esc(fmtCanceladoLine(p.fecha_cancelado))}</div>`
         : ''
     }`;
 
@@ -98,22 +110,30 @@ function buildListaPagosPanelHtml(m) {
       : `<button type="button" class="admin-pagos-opciones-btn" disabled style="opacity:0.45;cursor:not-allowed">Opciones ▾</button>`;
 
     return `<tr>
-      <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;vertical-align:middle">${chk}</td>
-      <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:middle;white-space:nowrap">${esc(p.tipo_descripcion || labelTipoPago(p.tipo || ''))}</td>
-      <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;vertical-align:middle">
+      <td class="admin-pagos-lista-td">${chk}</td>
+      <td class="admin-pagos-lista-td admin-pagos-lista-td--tipo">${esc(p.tipo_descripcion || labelTipoPago(p.tipo || ''))}</td>
+      <td class="admin-pagos-lista-td">
         <div>${esc(fmtMonto(p.monto))}</div>
-        ${moraFila > 0 ? `<div style="font-size:11px;color:#6b7280;margin-top:3px">Mora: ${esc(fmtMonto(moraFila))}</div>` : ''}
+        ${moraFila > 0 ? `<div class="admin-pagos-lista-mora-fila">Mora: ${esc(fmtMonto(moraFila))}</div>` : ''}
       </td>
-      <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:left;vertical-align:middle;max-width:220px">
-        <div style="font-weight:600;color:#111827">${esc(labelEstadoPagoDisplay(p.estado_pago))}</div>
-        ${descObs}
+      <td class="admin-pagos-lista-td">
+        <div class="admin-pagos-lista-desc-stack">
+          <div class="admin-pagos-lista-desc-prin">${esc(lineaPrincipalDescripcionPago(p))}</div>
+          ${descObs}
+        </div>
       </td>
-      <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;vertical-align:middle;white-space:nowrap">${fechaBlock}</td>
-      <td style="padding:8px;border-bottom:1px solid #e5e7eb;text-align:center;vertical-align:middle">
+      <td class="admin-pagos-lista-td admin-pagos-lista-td--fecha">${fechaBlock}</td>
+      <td class="admin-pagos-lista-td">
         <div class="admin-pagos-opciones-wrap">${btnOpciones}${menuItems}</div>
       </td>
     </tr>`;
   }).join('');
+
+  const moraTotalNum = parseFloat(m.total_mora_pagada || 0);
+  const moraTotalLinea =
+    Number.isFinite(moraTotalNum) && moraTotalNum > 0
+      ? `<div class="admin-pagos-lista-total-mora">Mora: ${esc(fmtMonto(moraTotalNum))}</div>`
+      : '';
 
   return `<section class="admin-pagos-lista-root">
     <div class="admin-pagos-lista-toolbar">
@@ -131,7 +151,7 @@ function buildListaPagosPanelHtml(m) {
       <div class="admin-pagos-lista-total-card admin-pagos-lista-total-card--ok">
         <div class="admin-pagos-lista-total-label">MONTO PAGADO S/.</div>
         <div class="admin-pagos-lista-total-val">${esc(fmtMonto(m.total_pagado))}</div>
-        <div class="admin-pagos-lista-total-mora">Mora: ${esc(fmtMonto(m.total_mora_pagada || 0))}</div>
+        ${moraTotalLinea}
       </div>
       <div class="admin-pagos-lista-total-card admin-pagos-lista-total-card--warn">
         <div class="admin-pagos-lista-total-label">MONTO QUE ADEUDA S/.</div>
@@ -159,16 +179,17 @@ function buildListaPagosPanelHtml(m) {
         </tbody>
       </table>
     </div>
-    <div class="admin-pagos-lista-boleta-foot">
-      <div class="admin-pagos-lista-boleta-text">Puede consultar sus Boletas haciendo clic en el siguiente botón</div>
-      <button type="button" class="admin-pagos-boleta-btn admin-pagos-boleta-btn--inline">Consultar Boletas</button>
-    </div>
   </section>`;
 }
 
 function buildPanelHtml(m, opts = {}) {
   const { panelId, display = 'block' } = opts;
   const idAttr = panelId != null && panelId !== '' ? ` id="${String(panelId)}"` : '';
+  const moraHist = parseFloat(m.total_mora_pagada || 0);
+  const moraHistorialLinea =
+    Number.isFinite(moraHist) && moraHist > 0
+      ? `<div style="margin-top:2px;font-size:12px;color:#6d28d9;font-weight:600">Mora: ${esc(fmtMonto(moraHist))}</div>`
+      : '';
   const pagos = Array.isArray(m.pagos) ? m.pagos : [];
   const filas = pagos.map((p) => {
     const nroOperacion = [p.nro_movimiento_banco, p.nro_movimiento_importado].filter(Boolean).join(' | ') || '—';
@@ -205,7 +226,7 @@ function buildPanelHtml(m, opts = {}) {
       <div style="border:1px solid #e5e7eb;background:#ecfdf5;border-radius:8px;padding:10px;text-align:center">
         <div style="font-size:11px;color:#6b7280">Monto pagado</div>
         <div style="font-size:16px;font-weight:700;color:#047857">${esc(fmtMonto(m.total_pagado))}</div>
-        <div style="margin-top:2px;font-size:12px;color:#6d28d9;font-weight:600">Mora: ${esc(fmtMonto(m.total_mora_pagada || 0))}</div>
+        ${moraHistorialLinea}
       </div>
       <div style="border:1px solid #e5e7eb;background:#fffbeb;border-radius:8px;padding:10px;text-align:center">
         <div style="font-size:11px;color:#6b7280">Monto que adeuda</div>
@@ -258,7 +279,6 @@ function closeAllOpcionesMenus(popup) {
 function bindListaPagosUi() {
   const popup = Swal.getPopup();
   if (!popup) return;
-  bindBoletaButtons();
 
   popup.querySelector('.admin-pagos-btn-registrar')?.addEventListener('click', () => {
     Swal.fire({ icon: 'info', title: 'Registrar nuevo', text: 'Esta acción estará disponible próximamente.' });
