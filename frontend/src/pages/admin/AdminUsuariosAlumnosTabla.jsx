@@ -45,12 +45,11 @@ function formatFechaRegistroMatricula(val) {
   return formatFechaNacimiento(val);
 }
 
+/** Índices alineados a sistema-anterior TraitConstants::$ESTADOS_MATRICULA */
 function labelMatriculaEstado(estado) {
+  const labels = ['Regular', 'Irregular', 'Retirado', 'Traslado', 'Temporal'];
   const e = Number(estado);
-  if (e === 0 || e === 4) return 'Regular';
-  if (e === 1) return 'Retirado';
-  if (e === 2) return 'Trasladado';
-  if (e === 3) return 'Cancelado';
+  if (Number.isFinite(e) && e >= 0 && e < labels.length) return labels[e];
   return `Cód. ${estado}`;
 }
 
@@ -1404,10 +1403,10 @@ export default function AdminUsuariosAlumnosTabla() {
                           }
                         >
                           <option value="0">Regular</option>
-                          <option value="4">Regular (código 4)</option>
-                          <option value="1">Retirado</option>
-                          <option value="2">Trasladado</option>
-                          <option value="3">Cancelado</option>
+                          <option value="1">Irregular</option>
+                          <option value="2">Retirado</option>
+                          <option value="3">Traslado</option>
+                          <option value="4">Temporal</option>
                         </select>
                       </div>
                       <div className="admin-usu-field" style={{ gridColumn: '1 / -1' }}>

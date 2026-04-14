@@ -249,18 +249,24 @@ function formatoTextoLegible(val) {
     .join(' ');
 }
 
-/** Etiqueta por código numérico `matriculas.estado` (intranet histórico). */
+/**
+ * Etiqueta por índice `matriculas.estado` — alineado a sistema-anterior:
+ * Main/Models/TraitConstants.php → $ESTADOS_MATRICULA =
+ *   ['REGULAR','IRREGULAR','RETIRADO','TRASLADO','TEMPORAL'] (índices 0..4)
+ */
+const ESTADOS_MATRICULA_LABELS = ['Regular', 'Irregular', 'Retirado', 'Traslado', 'Temporal'];
+
 function estadoMatriculaDesdeCodigo(estado) {
   const e = Number(estado);
-  if (e === 0 || e === 4) return 'Regular';
-  if (e === 1) return 'Retirado';
-  if (e === 2) return 'Trasladado';
-  if (e === 3) return 'Cancelado';
+  if (Number.isFinite(e) && e >= 0 && e < ESTADOS_MATRICULA_LABELS.length) {
+    return ESTADOS_MATRICULA_LABELS[e];
+  }
   return `Cód. ${estado}`;
 }
 
 /**
- * Lista matrículas admin: intenta leer `modalidad` / `estado_matricula` si existen en BD.
+ * Lista matrículas admin: `m.modalidad` (ENUM en BD, ver matriculas.modalidad).
+ * Sin depender de columnas opcionales inexistentes.
  */
 async function queryAlumnoMatriculasListRows(colegio_id, alumnoId) {
   const from = `
@@ -271,46 +277,34 @@ async function queryAlumnoMatriculasListRows(colegio_id, alumnoId) {
        WHERE m.alumno_id = ? AND m.colegio_id = ?
        ORDER BY g.anio DESC, g.grado ASC, g.seccion ASC`;
 
-  const bases = [
-    `SELECT m.id AS matricula_id, m.estado, m.costo_id, m.fecha_registro, m.grupo_id,
+  const withModalidad = `SELECT m.id AS matricula_id, m.estado, m.costo_id, m.fecha_registro, m.grupo_id,
+            m.modalidad AS modalidad_raw,
             g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre,
-            t.nombre AS turno_nombre,
-            NULLIF(TRIM(COALESCE(m.modalidad, g.modalidad)), '') AS modalidad_texto,
-            NULLIF(TRIM(m.estado_matricula), '') AS estado_matricula_texto`,
-    `SELECT m.id AS matricula_id, m.estado, m.costo_id, m.fecha_registro, m.grupo_id,
+            t.nombre AS turno_nombre`;
+  const baseOnly = `SELECT m.id AS matricula_id, m.estado, m.costo_id, m.fecha_registro, m.grupo_id,
             g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre,
-            t.nombre AS turno_nombre,
-            NULLIF(TRIM(COALESCE(m.modalidad, g.modalidad)), '') AS modalidad_texto`,
-    `SELECT m.id AS matricula_id, m.estado, m.costo_id, m.fecha_registro, m.grupo_id,
-            g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre,
-            t.nombre AS turno_nombre`,
-  ];
+            t.nombre AS turno_nombre`;
 
-  for (const sel of bases) {
-    try {
-      return await query(sel + from, [alumnoId, colegio_id]);
-    } catch (e) {
-      if (!isSqlUnknownColumnError(e)) throw e;
-    }
+  try {
+    return await query(withModalidad + from, [alumnoId, colegio_id]);
+  } catch (e) {
+    if (!isSqlUnknownColumnError(e)) throw e;
+    return await query(baseOnly + from, [alumnoId, colegio_id]);
   }
-  throw new Error('No se pudo cargar el listado de matrículas');
 }
 
 function mapMatriculaListAdminRows(rows) {
   return (rows || []).map((r) => {
-    const dbEstado = r.estado_matricula_texto != null && String(r.estado_matricula_texto).trim() !== ''
-      ? formatoTextoLegible(r.estado_matricula_texto)
-      : estadoMatriculaDesdeCodigo(r.estado);
-    const modRaw = r.modalidad_texto != null && String(r.modalidad_texto).trim() !== ''
-      ? formatoTextoLegible(r.modalidad_texto)
+    const rawMod = r.modalidad_raw != null && String(r.modalidad_raw).trim() !== ''
+      ? formatoTextoLegible(String(r.modalidad_raw).replace(/_/g, ' '))
       : '';
     return {
       ...r,
       grupo_texto: `${String(r.nivel_nombre || '').toUpperCase()} - ${r.grado || '—'}° ${r.seccion || ''} - ${r.anio || '—'}`
         .replace(/\s+/g, ' ')
         .trim(),
-      estado_display: dbEstado,
-      modalidad_texto: modRaw || null,
+      estado_display: estadoMatriculaDesdeCodigo(r.estado),
+      modalidad_texto: rawMod || null,
     };
   });
 }
