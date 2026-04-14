@@ -550,14 +550,18 @@ export default function AdminUsuariosAlumnosTabla() {
         const filas = pagos.map((p) => {
           const nroOperacion = [p.nro_movimiento_banco, p.nro_movimiento_importado].filter(Boolean).join(' | ') || '—';
           const serieNumero = p.boleta?.serie_numero || '—';
+          const moraFila = parseFloat(p.mora || 0);
           return `<tr>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap">${esc(p.tipo_descripcion || labelTipoPago(p.tipo || ''))}</td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;text-align:right;white-space:nowrap">${esc(fmtMonto(p.monto))}</td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap">${esc(fmtFecha(p.fecha_hora, true))}</td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap">${esc(nroOperacion)}</td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap">${esc(serieNumero)}</td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap">${esc(fmtFecha(p.boleta?.fecha_impresion))}</td>
-            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap">${esc(fmtFecha(p.fecha_cancelado))}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(p.tipo_descripcion || labelTipoPago(p.tipo || ''))}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">
+              <div>${esc(fmtMonto(p.monto))}</div>
+              ${moraFila > 0 ? `<div style="font-size:12px;color:#6d28d9;font-weight:600">Mora: ${esc(fmtMonto(moraFila))}</div>` : ''}
+            </td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(fmtFecha(p.fecha_hora, true))}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(nroOperacion)}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(serieNumero)}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(fmtFecha(p.boleta?.fecha_impresion))}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(fmtFecha(p.fecha_cancelado))}</td>
           </tr>`;
         }).join('');
 
@@ -589,17 +593,27 @@ export default function AdminUsuariosAlumnosTabla() {
             <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff">
               <thead>
                 <tr style="background:#f8fafc">
-                  <th style="text-align:left;padding:8px;position:sticky;top:0;background:#f8fafc">Tipo de pago</th>
-                  <th style="text-align:right;padding:8px;position:sticky;top:0;background:#f8fafc">Monto</th>
-                  <th style="text-align:left;padding:8px;position:sticky;top:0;background:#f8fafc">Fecha registro</th>
-                  <th style="text-align:left;padding:8px;position:sticky;top:0;background:#f8fafc">N° operación</th>
-                  <th style="text-align:left;padding:8px;position:sticky;top:0;background:#f8fafc">Serie/Número</th>
-                  <th style="text-align:left;padding:8px;position:sticky;top:0;background:#f8fafc">Fecha emisión</th>
-                  <th style="text-align:left;padding:8px;position:sticky;top:0;background:#f8fafc">Fecha cancelado</th>
+                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Tipo de pago</th>
+                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Monto</th>
+                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Fecha registro</th>
+                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">N° operación</th>
+                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Serie/Número</th>
+                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Fecha emisión</th>
+                  <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Fecha cancelado</th>
                 </tr>
               </thead>
-              <tbody>${filas || '<tr><td colspan="7" style="padding:16px;text-align:center;color:#6b7280">Sin pagos registrados</td></tr>'}</tbody>
+              <tbody>${filas || '<tr><td colspan="7" style="padding:16px;text-align:center;color:#6b7280;vertical-align:middle">Sin pagos registrados</td></tr>'}</tbody>
             </table>
+          </div>
+          <div style="margin-top:10px;background:#22b8f0;border:1px solid #7dd3fc;border-radius:8px;padding:14px 12px;text-align:center">
+            <div style="color:#ffffff;font-size:13px;font-weight:700;margin-bottom:10px">Puede consultar sus Boletas haciendo clic en el siguiente botón</div>
+            <button
+              type="button"
+              class="admin-pagos-boleta-btn"
+              style="border:0;background:#1d4ed8;color:#fff;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer"
+            >
+              Consultar Boletas
+            </button>
           </div>
         </section>`;
       }).join('');
@@ -630,6 +644,12 @@ export default function AdminUsuariosAlumnosTabla() {
               panels.forEach((p) => {
                 p.style.display = p.id === target ? 'block' : 'none';
               });
+            });
+          });
+          const boletaButtons = popup.querySelectorAll('.admin-pagos-boleta-btn');
+          boletaButtons.forEach((btn) => {
+            btn.addEventListener('click', () => {
+              window.open('https://sfe.bizlinks.com.pe/sfeperu/public/loginAnonimo.jsf', '_blank', 'noopener,noreferrer');
             });
           });
         },

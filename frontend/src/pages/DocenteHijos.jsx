@@ -5249,6 +5249,23 @@ function DocenteHijos() {
                           <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#28a745' }}>
                             {formatearMonto(matricula.resumen.total_pagado)}
                           </div>
+                          <button
+                            type="button"
+                            onClick={() => window.open('https://sfe.bizlinks.com.pe/sfeperu/public/loginAnonimo.jsf', '_blank', 'noopener,noreferrer')}
+                            style={{
+                              marginTop: '8px',
+                              backgroundColor: '#1d4ed8',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              padding: '6px 10px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Boleta Electrónica
+                          </button>
                         </div>
                         <div style={{ textAlign: 'center' }}>
                           <div style={{ fontSize: '12px', color: '#6c757d', marginBottom: '5px' }}>Monto que Adeuda</div>
@@ -5319,14 +5336,6 @@ function DocenteHijos() {
                                       {formatearMonto(pago.total)}
                                     </span>
                                   </div>
-                                  {pago.fecha_vencimiento_formateada && (
-                                    <div style={{ marginBottom: '8px' }}>
-                                      <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Fecha Vencimiento: </span>
-                                      <span style={{ fontSize: '12px', color: colorCard.text }}>
-                                        {pago.fecha_vencimiento_formateada}
-                                      </span>
-                                    </div>
-                                  )}
                                   {pago.hubo_mora && (
                                     <div style={{ marginBottom: '8px', padding: '6px 10px', backgroundColor: '#ffebee', borderRadius: '4px', border: '1px solid #f44336' }}>
                                       <span style={{ fontSize: '12px', color: '#c62828', fontWeight: 'bold' }}>⚠️ MORA: </span>
@@ -5348,20 +5357,32 @@ function DocenteHijos() {
                                       </span>
                                     </div>
                                   )}
-                                  {esCancelado && pago.boleta && (
-                                    <div style={{ marginBottom: '8px' }}>
-                                      <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Serie/Número: </span>
-                                      <span style={{ fontSize: '12px', color: colorCard.text }}>
-                                        {pago.boleta.serie_numero}
-                                      </span>
-                                    </div>
-                                  )}
-                                  {esCancelado && pago.fecha_cancelado && (
-                                    <div style={{ marginBottom: '8px' }}>
-                                      <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Fecha Cancelado: </span>
-                                      <span style={{ fontSize: '12px', color: colorCard.text }}>
-                                        {formatearFechaPago(pago.fecha_cancelado)}
-                                      </span>
+                                  {esCancelado && (
+                                    <div style={{ marginBottom: '8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
+                                      <div>
+                                        <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Fecha Vencimiento: </span>
+                                        <span style={{ fontSize: '12px', color: colorCard.text }}>
+                                          {pago.fecha_vencimiento_formateada || '—'}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Fecha Emisión: </span>
+                                        <span style={{ fontSize: '12px', color: colorCard.text }}>
+                                          {pago.boleta?.fecha_impresion ? formatearFechaPago(pago.boleta.fecha_impresion) : '—'}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Serie/Número: </span>
+                                        <span style={{ fontSize: '12px', color: colorCard.text }}>
+                                          {pago.boleta?.serie_numero || '—'}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span style={{ fontSize: '12px', color: colorCard.text, fontWeight: 'bold' }}>Fecha Cancelado: </span>
+                                        <span style={{ fontSize: '12px', color: colorCard.text }}>
+                                          {pago.fecha_cancelado ? formatearFechaPago(pago.fecha_cancelado) : '—'}
+                                        </span>
+                                      </div>
                                     </div>
                                   )}
                                 </div>
