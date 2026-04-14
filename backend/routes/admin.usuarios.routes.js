@@ -2107,7 +2107,7 @@ router.post('/alumnos/:id/matriculas/:matriculaId/pagos', async (req, res) => {
         estado_pago,
         fecha_cancelado,
         forma_pago,
-        tipo_tarjeta || null,
+        tipo_tarjeta || '',
         'CAJA',
         comision_tarjeta,
         personal_id,

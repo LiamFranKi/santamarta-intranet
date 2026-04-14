@@ -127,6 +127,8 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
   const filas = pagos.map((p) => {
     const moraFila = parseFloat(p.mora || 0);
     const tieneId = p.id != null;
+    const esPendiente = String(p.estado_pago || '').toUpperCase() === 'PENDIENTE';
+    const trClass = esPendiente ? 'admin-pagos-lista-tr admin-pagos-lista-tr--pendiente' : 'admin-pagos-lista-tr';
     const chk = tieneId
       ? `<input type="checkbox" class="admin-pagos-row-checkbox" value="${esc(String(p.id))}" aria-label="Seleccionar pago" />`
       : '<input type="checkbox" disabled title="Sin registro en base de datos" aria-label="Sin pago" />';
@@ -156,7 +158,7 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
       ? `<button type="button" class="admin-pagos-opciones-btn">Opciones ▾</button>`
       : `<button type="button" class="admin-pagos-opciones-btn" disabled style="opacity:0.45;cursor:not-allowed">Opciones ▾</button>`;
 
-    return `<tr>
+    return `<tr class="${trClass}">
       <td class="admin-pagos-lista-td">${chk}</td>
       <td class="admin-pagos-lista-td admin-pagos-lista-td--tipo">${esc(p.tipo_descripcion || labelTipoPago(p.tipo || ''))}</td>
       <td class="admin-pagos-lista-td">
