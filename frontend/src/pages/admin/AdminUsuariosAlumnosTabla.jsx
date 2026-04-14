@@ -503,45 +503,136 @@ export default function AdminUsuariosAlumnosTabla() {
   const historialPagos = async (row) => {
     try {
       const { data } = await api.get(`/admin/usuarios/alumnos/${row.id}/pagos`);
-      const list = data.data || [];
-      if (!list.length) {
+      const matriculas = data.data || [];
+      if (!matriculas.length) {
         Swal.fire({ title: 'Historial de pagos', text: 'No hay pagos registrados.', icon: 'info' });
         return;
       }
+
+      const esc = (v) => String(v ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+
       const fmtMonto = (n) => {
         const x = parseFloat(n);
-        return Number.isFinite(x) ? x.toFixed(2) : '—';
+        return Number.isFinite(x) ? `S/ ${x.toFixed(2)}` : '—';
       };
-      const filas = list
-        .map((p) => {
-          const fh = p.fecha_hora
-            ? new Date(p.fecha_hora).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })
-            : '—';
-          const periodo = `${p.anio ?? '—'} · ${p.grado || '—'}° ${p.seccion || ''}`;
+
+      const fmtFecha = (val, withTime = false) => {
+        if (!val) return '—';
+        const d = new Date(val);
+        if (Number.isNaN(d.getTime())) return '—';
+        return withTime
+          ? d.toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })
+          : d.toLocaleDateString('es-PE', { dateStyle: 'short' });
+      };
+
+      const tabsHtml = matriculas.map((m, i) => {
+        const label = m.grupo_texto || `${m.anio || '—'} · ${m.grado || '—'}° ${m.seccion || ''}`;
+        return `<button type="button" class="admin-pagos-tab-btn ${i === 0 ? 'active' : ''}" data-target="tab-${m.matricula_id}" style="
+          border:1px solid #d1d5db;
+          background:${i === 0 ? '#2563eb' : '#f3f4f6'};
+          color:${i === 0 ? '#fff' : '#1f2937'};
+          border-radius:8px;
+          padding:8px 12px;
+          font-size:12px;
+          font-weight:600;
+          cursor:pointer;
+          white-space:nowrap;
+        ">${esc(label)}</button>`;
+      }).join('');
+
+      const panelsHtml = matriculas.map((m, i) => {
+        const pagos = Array.isArray(m.pagos) ? m.pagos : [];
+        const filas = pagos.map((p) => {
+          const nroOperacion = [p.nro_movimiento_banco, p.nro_movimiento_importado].filter(Boolean).join(' | ') || '—';
+          const serieNumero = p.boleta?.serie_numero || '—';
           return `<tr>
-            <td style="padding:6px 8px;border-bottom:1px solid #eee;white-space:nowrap">${periodo}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #eee">${labelTipoPago(p.tipo)}${p.nro_pago != null ? ` #${p.nro_pago}` : ''}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right">${fmtMonto(p.monto)}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #eee">${p.estado_pago || '—'}</td>
-            <td style="padding:6px 8px;border-bottom:1px solid #eee;font-size:0.82rem">${fh}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap">${esc(p.tipo_descripcion || labelTipoPago(p.tipo || ''))}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;text-align:right;white-space:nowrap">${esc(fmtMonto(p.monto))}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap">${esc(fmtFecha(p.fecha_hora, true))}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap">${esc(nroOperacion)}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap">${esc(serieNumero)}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap">${esc(fmtFecha(p.boleta?.fecha_impresion))}</td>
+            <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap">${esc(fmtFecha(p.fecha_cancelado))}</td>
           </tr>`;
-        })
-        .join('');
+        }).join('');
+
+        return `<section id="tab-${m.matricula_id}" class="admin-pagos-panel" style="display:${i === 0 ? 'block' : 'none'};margin-top:12px">
+          <div style="background:#e0f2fe;border:1px solid #7dd3fc;color:#0c4a6e;border-radius:8px;padding:8px 12px;font-size:12px;font-weight:600;margin-bottom:10px">
+            La información es referencial y corresponde al historial registrado para esta matrícula.
+          </div>
+          <div style="
+            display:grid;
+            grid-template-columns:repeat(3,minmax(170px,1fr));
+            gap:10px;
+            margin-bottom:12px;
+          ">
+            <div style="border:1px solid #e5e7eb;background:#f9fafb;border-radius:8px;padding:10px;text-align:center">
+              <div style="font-size:11px;color:#6b7280">Monto a pagar</div>
+              <div style="font-size:16px;font-weight:700;color:#111827">${esc(fmtMonto(m.total_pagar))}</div>
+            </div>
+            <div style="border:1px solid #e5e7eb;background:#ecfdf5;border-radius:8px;padding:10px;text-align:center">
+              <div style="font-size:11px;color:#6b7280">Monto pagado</div>
+              <div style="font-size:16px;font-weight:700;color:#047857">${esc(fmtMonto(m.total_pagado))}</div>
+              <div style="margin-top:2px;font-size:12px;color:#6d28d9;font-weight:600">Mora: ${esc(fmtMonto(m.total_mora_pagada || 0))}</div>
+            </div>
+            <div style="border:1px solid #e5e7eb;background:#fffbeb;border-radius:8px;padding:10px;text-align:center">
+              <div style="font-size:11px;color:#6b7280">Monto que adeuda</div>
+              <div style="font-size:16px;font-weight:700;color:${Number(m.total_pendiente || 0) > 0 ? '#b45309' : '#047857'}">${esc(fmtMonto(m.total_pendiente))}</div>
+            </div>
+          </div>
+          <div style="max-height:330px;overflow:auto;border:1px solid #e5e7eb;border-radius:8px">
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff">
+              <thead>
+                <tr style="background:#f8fafc">
+                  <th style="text-align:left;padding:8px;position:sticky;top:0;background:#f8fafc">Tipo de pago</th>
+                  <th style="text-align:right;padding:8px;position:sticky;top:0;background:#f8fafc">Monto</th>
+                  <th style="text-align:left;padding:8px;position:sticky;top:0;background:#f8fafc">Fecha registro</th>
+                  <th style="text-align:left;padding:8px;position:sticky;top:0;background:#f8fafc">N° operación</th>
+                  <th style="text-align:left;padding:8px;position:sticky;top:0;background:#f8fafc">Serie/Número</th>
+                  <th style="text-align:left;padding:8px;position:sticky;top:0;background:#f8fafc">Fecha emisión</th>
+                  <th style="text-align:left;padding:8px;position:sticky;top:0;background:#f8fafc">Fecha cancelado</th>
+                </tr>
+              </thead>
+              <tbody>${filas || '<tr><td colspan="7" style="padding:16px;text-align:center;color:#6b7280">Sin pagos registrados</td></tr>'}</tbody>
+            </table>
+          </div>
+        </section>`;
+      }).join('');
+
       Swal.fire({
         title: `Historial de pagos — ${nombreAlumno(row)}`,
-        width: 900,
-        html: `<div style="max-height:420px;overflow:auto;text-align:left">
-          <table style="width:100%;border-collapse:collapse;font-size:0.88rem">
-            <thead><tr style="background:#f3f4f6">
-              <th style="text-align:left;padding:8px">Periodo</th>
-              <th style="text-align:left;padding:8px">Concepto</th>
-              <th style="text-align:right;padding:8px">Monto</th>
-              <th style="text-align:left;padding:8px">Estado pago</th>
-              <th style="text-align:left;padding:8px">Fecha</th>
-            </tr></thead>
-            <tbody>${filas}</tbody>
-          </table>
+        width: 1200,
+        html: `<div style="text-align:left">
+          <div style="display:flex;gap:8px;overflow:auto;padding-bottom:4px">${tabsHtml}</div>
+          ${panelsHtml}
         </div>`,
+        didOpen: () => {
+          const popup = Swal.getPopup();
+          if (!popup) return;
+          const buttons = popup.querySelectorAll('.admin-pagos-tab-btn');
+          const panels = popup.querySelectorAll('.admin-pagos-panel');
+          buttons.forEach((btn) => {
+            btn.addEventListener('click', () => {
+              const target = btn.getAttribute('data-target');
+              buttons.forEach((b) => {
+                b.classList.remove('active');
+                b.style.background = '#f3f4f6';
+                b.style.color = '#1f2937';
+              });
+              btn.classList.add('active');
+              btn.style.background = '#2563eb';
+              btn.style.color = '#fff';
+              panels.forEach((p) => {
+                p.style.display = p.id === target ? 'block' : 'none';
+              });
+            });
+          });
+        },
       });
     } catch (e) {
       Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo cargar pagos' });
