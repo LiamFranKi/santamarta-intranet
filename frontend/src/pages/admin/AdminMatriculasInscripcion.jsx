@@ -20,7 +20,7 @@ const ESTADOS_MAT = [
 const MODALIDADES = ['PRESENCIAL', 'VIRTUAL', 'SEMIPRESENCIAL'];
 
 /** Sección / letra de grupo (misma fila que nivel y grado). */
-const SECCIONES_OPCIONES = ['A', 'B', 'C', 'D', 'E', 'F'];
+const SECCIONES_OPCIONES = ['Unica', 'A', 'B', 'C', 'D', 'E', 'F'];
 
 /** Grados según nombre de nivel (misma lógica que negocio escolar). */
 function gradosParaNivel(nivelNombre) {
@@ -73,7 +73,7 @@ export default function AdminMatriculasInscripcion() {
 
   const [nivelId, setNivelId] = useState('');
   const [grado, setGrado] = useState('');
-  const [seccion, setSeccion] = useState('A');
+  const [seccion, setSeccion] = useState('Unica');
   const [turnoId, setTurnoId] = useState('');
 
   const [costoModo, setCostoModo] = useState('personalizado');
@@ -123,7 +123,11 @@ export default function AdminMatriculasInscripcion() {
       } else {
         setTurnoId('');
       }
-      setSeccion((s) => (s === '' || !SECCIONES_OPCIONES.includes(String(s).toUpperCase()) ? 'A' : String(s).toUpperCase()));
+      setSeccion((s) => {
+        const v = String(s || '').trim();
+        if (!v || !SECCIONES_OPCIONES.includes(v)) return 'Unica';
+        return v;
+      });
       const genList = (data.costos || []).filter((c) => String(c.tipo || '').toUpperCase().trim() === 'GENERAL');
       if (genList.length) {
         const gen = genList.find((c) => String(c.tipo || '').toUpperCase() === 'GENERAL') || genList[0];
@@ -626,7 +630,7 @@ export default function AdminMatriculasInscripcion() {
               </div>
             </div>
           </div>
-          <div className="admin-mat-row-3 admin-mat-row-3--tight">
+          <div className="admin-mat-row-3 admin-mat-row-3--matricula-superior">
             <div className="admin-mat-field">
               <label>Nivel</label>
               <select
@@ -657,9 +661,9 @@ export default function AdminMatriculasInscripcion() {
             <div className="admin-mat-field">
               <label>Sección</label>
               <select className="admin-mat-input" value={seccion} onChange={(e) => setSeccion(e.target.value)} disabled={camposBloqueados} required>
-                {SECCIONES_OPCIONES.map((letra) => (
-                  <option key={letra} value={letra}>
-                    {letra}
+                {SECCIONES_OPCIONES.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
                   </option>
                 ))}
               </select>

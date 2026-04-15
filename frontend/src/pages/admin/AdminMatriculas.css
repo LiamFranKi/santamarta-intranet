@@ -664,6 +664,12 @@
   margin-top: 0.35rem;
 }
 
+/** Primera fila de matrícula académica: más aire antes de Turno / Estado / Modalidad. */
+.admin-mat-row-3--matricula-superior {
+  margin-bottom: 1.35rem;
+  margin-top: 0;
+}
+
 .admin-mat-row-4 {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
