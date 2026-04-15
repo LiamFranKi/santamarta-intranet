@@ -531,6 +531,149 @@ function normalizeHoraImpresionBody(raw) {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }
 
+const tableColumnsCache = new Map();
+
+async function getTableColumns(tableName, conn = null) {
+  if (tableColumnsCache.has(tableName)) return tableColumnsCache.get(tableName);
+  const sql = `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`;
+  const run = conn ? (q, p) => conn.execute(q, p) : (q, p) => mysqlReadPool.execute(q, p);
+  const [rows] = await run(sql, [tableName]);
+  const cols = new Set((rows || []).map((r) => String(r.COLUMN_NAME || '')));
+  tableColumnsCache.set(tableName, cols);
+  return cols;
+}
+
+async function ensureAdminPagoImpresionActiva({
+  colegioId,
+  pagoId,
+  tipo,
+  tipoDocumento,
+}) {
+  const conn = await mysqlReadPool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [activeRows] = await conn.execute(
+      `SELECT id, serie, numero, estado
+       FROM impresiones
+       WHERE pago_id = ? AND estado = 'ACTIVO' AND tipo = ? AND tipo_documento = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [pagoId, tipo, tipoDocumento]
+    );
+    if (activeRows?.length) {
+      await conn.commit();
+      return { ok: true, created: false, impresion: activeRows[0] };
+    }
+
+    const [pagoRows] = await conn.execute(
+      `SELECT p.id, p.colegio_id, p.monto, p.mora, m.grupo_id, g.sede_id
+       FROM pagos p
+       INNER JOIN matriculas m ON m.id = p.matricula_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE p.id = ? AND p.colegio_id = ?
+       LIMIT 1`,
+      [pagoId, colegioId]
+    );
+    if (!pagoRows?.length) {
+      await conn.rollback();
+      return { ok: false, status: 404, error: 'Pago no encontrado para generar impresión' };
+    }
+    const pago = pagoRows[0];
+
+    if (tipo === 'PAGO' && Number(pago.monto || 0) <= 0) {
+      await conn.rollback();
+      return { ok: false, status: 400, error: 'El pago no tiene monto para generar boleta' };
+    }
+    if (tipo === 'MORA' && Number(pago.mora || 0) <= 0) {
+      await conn.rollback();
+      return { ok: false, status: 400, error: 'El pago no tiene mora para generar nota de débito' };
+    }
+
+    const [cfgRows] = await conn.execute(
+      `SELECT id, serie, numero, serie_mora, numero_mora
+       FROM boletas_configuracion
+       WHERE sede_id = ?
+       LIMIT 1`,
+      [pago.sede_id]
+    );
+    if (!cfgRows?.length) {
+      await conn.rollback();
+      return { ok: false, status: 400, error: 'No existe configuración de boletas para la sede del alumno' };
+    }
+    const cfg = cfgRows[0];
+
+    const useMora = tipo === 'MORA' && tipoDocumento === 'NOTA';
+    const serieNum = useMora ? Number(cfg.serie_mora || 0) : Number(cfg.serie || 0);
+    const numeroNum = useMora ? Number(cfg.numero_mora || 0) : Number(cfg.numero || 0);
+    const nextField = useMora ? 'numero_mora' : 'numero';
+
+    const cols = await getTableColumns('impresiones', conn);
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mi = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    const today = `${yyyy}-${mm}-${dd}`;
+    const nowTime = `${hh}:${mi}:${ss}`;
+
+    const payload = {
+      colegio_id: colegioId,
+      tipo,
+      tipo_documento: tipoDocumento,
+      numero: String(numeroNum),
+      serie: String(serieNum),
+      estado: 'ACTIVO',
+      impreso: 'NO',
+      fecha_impresion: today,
+      hora_impresion: nowTime,
+      pago_id: pagoId,
+      boleta_id: 0,
+      enviado: 'NO',
+      verificado: 'NO',
+      fecha_anulado: '0000-00-00',
+      numero_anulado: 0,
+      json_generado: 'NO',
+    };
+
+    const insertCols = Object.keys(payload).filter((c) => cols.has(c));
+    const insertVals = insertCols.map((c) => payload[c]);
+    const placeholders = insertCols.map(() => '?').join(', ');
+    await conn.execute(
+      `INSERT INTO impresiones (${insertCols.join(', ')}) VALUES (${placeholders})`,
+      insertVals
+    );
+
+    await conn.execute(
+      `UPDATE boletas_configuracion SET ${nextField} = ${nextField} + 1 WHERE id = ?`,
+      [cfg.id]
+    );
+
+    const [newRows] = await conn.execute(
+      `SELECT id, serie, numero, estado
+       FROM impresiones
+       WHERE pago_id = ? AND estado = 'ACTIVO' AND tipo = ? AND tipo_documento = ?
+       ORDER BY id DESC
+       LIMIT 1`,
+      [pagoId, tipo, tipoDocumento]
+    );
+
+    await conn.commit();
+    return { ok: true, created: true, impresion: newRows?.[0] || null };
+  } catch (e) {
+    try {
+      await conn.rollback();
+    } catch {
+      // ignore rollback error
+    }
+    return { ok: false, status: 500, error: e.message || 'No se pudo generar impresión' };
+  } finally {
+    conn.release();
+  }
+}
+
 /**
  * Valor para input HTML `datetime-local` desde MySQL o ISO.
  * mysql2 devuelve DATETIME como `Date` en JS: `String(date)` es locale ("Mon Apr 14...") y no matchea ISO.
@@ -2366,23 +2509,18 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos', async (req, res) => {
  */
 router.get('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/boleta', async (req, res) => {
   try {
-    const { colegio_id } = req.user;
-    const alumnoId = parseInt(req.params.id, 10);
-    const matriculaId = parseInt(req.params.matriculaId, 10);
-    const pagoId = parseInt(req.params.pagoId, 10);
-    if (![alumnoId, matriculaId, pagoId].every((n) => Number.isFinite(n) && n > 0)) {
-      return res.status(400).json({ error: 'Parámetros inválidos' });
-    }
-    const okAl = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
-    if (!okAl.length) {
-      return res.status(404).json({ error: 'Alumno no encontrado' });
-    }
-    const okMat = await query(
-      'SELECT id FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
-      [matriculaId, alumnoId, colegio_id]
-    );
-    if (!okMat.length) {
-      return res.status(404).json({ error: 'Matrícula no encontrada' });
+    const v = await verifyAdminAlumnoMatriculaPago(req);
+    if (!v.ok) return res.status(v.status).json({ error: v.error });
+    const { colegio_id, alumnoId, matriculaId, pagoId } = v;
+
+    const ensured = await ensureAdminPagoImpresionActiva({
+      colegioId: colegio_id,
+      pagoId,
+      tipo: 'PAGO',
+      tipoDocumento: 'BOLETA',
+    });
+    if (!ensured.ok) {
+      return res.status(ensured.status || 500).json({ error: ensured.error || 'No se pudo preparar la boleta' });
     }
 
     const result = await getBoletaPdfJsonForPago(query, colegio_id, pagoId, {
@@ -2397,6 +2535,34 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/boleta', async (r
   } catch (e) {
     console.error('GET admin boleta pago', e);
     res.status(500).json({ error: e.message || 'Error al obtener datos de boleta' });
+  }
+});
+
+/**
+ * POST …/pagos/:pagoId/impresiones/mora/ensure — asegura impresión activa de mora (NOTA), alineado al legacy.
+ */
+router.post('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/impresiones/mora/ensure', async (req, res) => {
+  try {
+    const v = await verifyAdminAlumnoMatriculaPago(req);
+    if (!v.ok) return res.status(v.status).json({ error: v.error });
+    const { colegio_id, pagoId } = v;
+    const ensured = await ensureAdminPagoImpresionActiva({
+      colegioId: colegio_id,
+      pagoId,
+      tipo: 'MORA',
+      tipoDocumento: 'NOTA',
+    });
+    if (!ensured.ok) {
+      return res.status(ensured.status || 500).json({ error: ensured.error || 'No se pudo generar la impresión de mora' });
+    }
+    return res.json({
+      ok: true,
+      created: !!ensured.created,
+      impresion: ensured.impresion || null,
+    });
+  } catch (e) {
+    console.error('POST admin impresion mora ensure', e);
+    return res.status(500).json({ error: e.message || 'Error al preparar impresión de mora' });
   }
 });
 
@@ -2568,7 +2734,7 @@ router.patch('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/impresiones/:im
     params.push(impresionId, pagoId);
     const sql = `UPDATE impresiones SET ${sets.join(', ')} WHERE id = ? AND pago_id = ?`;
     try {
-      await query(sql, params);
+      await execute(sql, params);
     } catch (e) {
       if (!isSqlUnknownColumnError(e)) throw e;
       const hadFecha = fechaRaw != null && String(fechaRaw).trim() !== '';
@@ -2578,7 +2744,7 @@ router.patch('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/impresiones/:im
             'No se pudo guardar la hora: falta la columna hora_impresion o indique también fecha_impresion para actualizar solo la fecha.',
         });
       }
-      await query(`UPDATE impresiones SET fecha_impresion = ? WHERE id = ? AND pago_id = ?`, [
+      await execute(`UPDATE impresiones SET fecha_impresion = ? WHERE id = ? AND pago_id = ?`, [
         String(fechaRaw).trim().slice(0, 10),
         impresionId,
         pagoId,
@@ -2616,7 +2782,7 @@ router.post(
       }
       const cur = String(rows[0].estado || '').toUpperCase();
       const next = cur === 'ANULADO' ? 'ACTIVO' : 'ANULADO';
-      await query(`UPDATE impresiones SET estado = ? WHERE id = ? AND pago_id = ?`, [next, impresionId, pagoId]);
+      await execute(`UPDATE impresiones SET estado = ? WHERE id = ? AND pago_id = ?`, [next, impresionId, pagoId]);
 
       res.json({ ok: true, estado: next });
     } catch (e) {

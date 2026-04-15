@@ -111,8 +111,7 @@ function buildImpresionesHtml(payload) {
   const p = payload.pago || {};
   const rows = Array.isArray(payload.impresiones) ? payload.impresiones : [];
   const ep = String(p.estado_pago || '').toUpperCase();
-  const tieneBoleta = !!p.tiene_boleta_pago;
-  const puedeImprimirPago = tieneBoleta && ep === 'CANCELADO';
+  const puedeImprimirPago = ep === 'CANCELADO';
   const moraNd = !!p.mostrar_boton_mora_nd;
   const notaComision = !!p.mostrar_nota_comision;
 
@@ -256,10 +255,6 @@ export async function openAdminImpresionesSwal({ nombreAlumno, alumnoId, matricu
             e.stopPropagation();
             const p = store.payload?.pago || {};
             const ep = String(p.estado_pago || '').toUpperCase();
-            if (!p.tiene_boleta_pago) {
-              showImpresionesBanner(root, `Sin impresión: ${MSG_NO_IMPRESION_BOLETA}`, 'warn');
-              return;
-            }
             if (ep !== 'CANCELADO') {
               showImpresionesBanner(
                 root,
@@ -278,9 +273,15 @@ export async function openAdminImpresionesSwal({ nombreAlumno, alumnoId, matricu
               const { data } = await api.get(`${basePath}/boleta`);
               closeLoading();
               await generarPDFBoletaDesdeDatos(data);
+              await refresh();
               showImpresionesBanner(root, 'La boleta se ha descargado correctamente.', 'ok');
             } catch (err) {
               closeLoading();
+              const msg = String(err?.response?.data?.error || err?.message || '').toUpperCase();
+              if (msg.includes('NO TIENE IMPRESION DE BOLETA')) {
+                showImpresionesBanner(root, `Sin impresión: ${MSG_NO_IMPRESION_BOLETA}`, 'warn');
+                return;
+              }
               showImpresionesBanner(
                 root,
                 err.response?.data?.error || err.message || 'No se pudo generar la boleta. Intente nuevamente.',
@@ -292,11 +293,25 @@ export async function openAdminImpresionesSwal({ nombreAlumno, alumnoId, matricu
 
           if (target.closest('.admin-impresiones-btn-mora')) {
             e.stopPropagation();
-            showImpresionesBanner(
+            const { close: closeLoading } = mountImpresionesOverlay(
               root,
-              'El PDF de nota de débito por mora se genera en el sistema PHP anterior (módulo Pagos / Impresiones).',
-              'info'
+              `<div class="admin-impresiones-inline-panel admin-impresiones-inline-panel--loading" role="status">
+                <p class="admin-impresiones-inline-loading">Preparando impresión de mora…</p>
+              </div>`
             );
+            try {
+              await api.post(`${basePath}/impresiones/mora/ensure`);
+              await refresh();
+              showImpresionesBanner(root, 'Se preparó la impresión de Nota de Débito por mora.', 'ok');
+            } catch (err) {
+              showImpresionesBanner(
+                root,
+                err.response?.data?.error || err.message || 'No se pudo preparar la impresión de mora.',
+                'error'
+              );
+            } finally {
+              closeLoading();
+            }
             return;
           }
 
