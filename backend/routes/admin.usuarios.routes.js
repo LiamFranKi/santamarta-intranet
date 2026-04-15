@@ -402,6 +402,20 @@ function isSqlUnknownColumnError(e) {
   return code === 'ER_BAD_FIELD_ERROR' || errno === 1054 || msg.includes('Unknown column');
 }
 
+/** Columna o tabla ausente en esquemas antiguos (p. ej. sin `sedes` o sin `tipo_documento` en alumnos). */
+function isSqlSchemaMismatchError(e) {
+  if (isSqlUnknownColumnError(e)) return true;
+  const code = e && e.code;
+  const errno = e && e.errno;
+  const msg = String((e && e.message) || '');
+  return (
+    code === 'ER_NO_SUCH_TABLE' ||
+    errno === 1146 ||
+    msg.includes("doesn't exist") ||
+    msg.includes("Unknown table")
+  );
+}
+
 /**
  * Al anular el pago: todas las impresiones ACTIVO de ese pago → ANULADO.
  * @param {import('mysql2/promise').PoolConnection} [conn] Si se pasa, usa la misma conexión (transacción).
@@ -548,27 +562,53 @@ async function markImpresionJsonGenerado(impresionId) {
 }
 
 async function getAdminImpresionPayload({ colegio_id, pagoId, impresionId }) {
-  const rows = await query(
-    `SELECT i.id, i.pago_id, i.tipo, i.tipo_documento, i.serie, i.numero, i.estado, i.fecha_impresion, i.hora_impresion,
-            i.fecha_anulado, i.numero_anulado,
-            p.monto, p.mora, p.fecha_cancelado, p.estado_pago, p.nro_pago, p.tipo AS pago_tipo, p.descripcion,
-            a.id AS alumno_id, a.nombres, a.apellido_paterno, a.apellido_materno, a.nro_documento, a.tipo_documento AS alumno_tipo_documento,
-            c.ruc, c.razon_social, c.nombre_empresa, c.inicio_pensiones,
-            s.prefijo_boleta, s.direccion AS sede_direccion, s.codigo_sunat,
-            g.grado, g.seccion, n.nombre AS nivel_nombre
+  const params = [impresionId, pagoId, colegio_id];
+  const baseFrom = `
      FROM impresiones i
      INNER JOIN pagos p ON p.id = i.pago_id
      INNER JOIN matriculas m ON m.id = p.matricula_id
      INNER JOIN alumnos a ON a.id = m.alumno_id
      LEFT JOIN grupos g ON g.id = m.grupo_id
-     LEFT JOIN niveles n ON n.id = g.nivel_id
-     LEFT JOIN sedes s ON s.id = g.sede_id
+     LEFT JOIN niveles n ON n.id = g.nivel_id`;
+  const variants = [
+    { joinSede: true, alumnoTipo: true, inicioPensiones: true },
+    { joinSede: false, alumnoTipo: true, inicioPensiones: true },
+    { joinSede: false, alumnoTipo: false, inicioPensiones: true },
+    { joinSede: false, alumnoTipo: false, inicioPensiones: false },
+  ];
+  let lastSchemaErr = null;
+  for (const v of variants) {
+    const alumnoDoc = v.alumnoTipo
+      ? `a.tipo_documento AS alumno_tipo_documento`
+      : `CAST(0 AS SIGNED) AS alumno_tipo_documento`;
+    const inicioPen = v.inicioPensiones ? `c.inicio_pensiones,` : `NULL AS inicio_pensiones,`;
+    const sedeSelect = v.joinSede
+      ? `s.prefijo_boleta, s.direccion AS sede_direccion, s.codigo_sunat,`
+      : `NULL AS prefijo_boleta, NULL AS sede_direccion, NULL AS codigo_sunat,`;
+    const sedeJoin = v.joinSede ? `LEFT JOIN sedes s ON s.id = g.sede_id` : '';
+    const sql = `SELECT i.id, i.pago_id, i.tipo, i.tipo_documento, i.serie, i.numero, i.estado, i.fecha_impresion, i.hora_impresion,
+            i.fecha_anulado, i.numero_anulado,
+            p.monto, p.mora, p.fecha_cancelado, p.estado_pago, p.nro_pago, p.tipo AS pago_tipo, p.descripcion,
+            a.id AS alumno_id, a.nombres, a.apellido_paterno, a.apellido_materno, a.nro_documento, ${alumnoDoc},
+            c.ruc, c.razon_social, c.nombre_empresa,
+            ${inicioPen}
+            ${sedeSelect}
+            g.grado, g.seccion, n.nombre AS nivel_nombre
+     ${baseFrom}
+     ${sedeJoin}
      LEFT JOIN colegios c ON c.id = p.colegio_id
      WHERE i.id = ? AND i.pago_id = ? AND p.colegio_id = ?
-     LIMIT 1`,
-    [impresionId, pagoId, colegio_id]
-  );
-  return rows?.[0] || null;
+     LIMIT 1`;
+    try {
+      const rows = await query(sql, params);
+      return rows?.[0] || null;
+    } catch (e) {
+      if (!isSqlSchemaMismatchError(e)) throw e;
+      lastSchemaErr = e;
+    }
+  }
+  if (lastSchemaErr) throw lastSchemaErr;
+  return null;
 }
 
 function toFixed2(v) {
