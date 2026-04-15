@@ -13,6 +13,7 @@ const phpSerialize = require('php-serialize');
 const router = express.Router();
 const { query, execute, mysqlReadPool } = require('../utils/mysql');
 const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
+const { formatDateYyyyMmDd, resolveFechaVencimientoBoletaJson } = require('../utils/fechaFacturacionJson');
 const { authenticateToken } = require('../middleware/auth');
 
 /** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
@@ -570,11 +571,12 @@ async function getAdminImpresionPayload({ colegio_id, pagoId, impresionId }) {
      INNER JOIN alumnos a ON a.id = m.alumno_id
      LEFT JOIN grupos g ON g.id = m.grupo_id
      LEFT JOIN niveles n ON n.id = g.nivel_id`;
-  /** Esquema legacy: a veces no existe `nombre_empresa`, sí `nombre`. */
+  /** Esquema legacy: a veces no existe `nombre_empresa`, sí `nombre`. `pensiones_vencimiento` opcional (fallback NULL). */
   const colegioSelects = [
-    `c.ruc, c.razon_social, c.nombre_empresa`,
-    `c.ruc, c.razon_social, c.nombre AS nombre_empresa`,
-    `c.ruc, c.razon_social, CAST(NULL AS CHAR) AS nombre_empresa`,
+    `c.ruc, c.razon_social, c.nombre_empresa, c.pensiones_vencimiento`,
+    `c.ruc, c.razon_social, c.nombre AS nombre_empresa, c.pensiones_vencimiento`,
+    `c.ruc, c.razon_social, CAST(NULL AS CHAR) AS nombre_empresa, c.pensiones_vencimiento`,
+    `c.ruc, c.razon_social, c.nombre AS nombre_empresa, CAST(NULL AS CHAR) AS pensiones_vencimiento`,
   ];
   const variants = [
     { joinSede: true, alumnoTipo: true, inicioPensiones: true },
@@ -600,6 +602,7 @@ async function getAdminImpresionPayload({ colegio_id, pagoId, impresionId }) {
             ${colegioSel},
             ${inicioPen}
             ${sedeSelect}
+            g.anio AS grupo_anio,
             g.grado, g.seccion, n.nombre AS nivel_nombre
      ${baseFrom}
      ${sedeJoin}
@@ -676,8 +679,8 @@ function buildLegacyJsonBoletaFromImpresion(imp) {
     .replace(/\s+/g, ' ')
     .trim()
     .toUpperCase();
-  const fechaEmision = imp.fecha_impresion ? String(imp.fecha_impresion).slice(0, 10) : '';
-  const fechaVenc = imp.fecha_cancelado ? String(imp.fecha_cancelado).slice(0, 10) : fechaEmision;
+  const fechaEmision = formatDateYyyyMmDd(imp.fecha_impresion);
+  const fechaVenc = resolveFechaVencimientoBoletaJson(imp) || fechaEmision;
   const monto = toFixed2(imp.monto);
   const descripcion = legacyPagoDescripcion(imp);
   const json = {
@@ -749,7 +752,7 @@ function buildLegacyJsonNotaDebitoFromImpresion(imp, boletaActiva) {
   const nroBoleta = legacyNumeroImpresion(boletaActiva?.numero || 0);
   const serieNd = `BND${parseInt(String(imp.serie || '0'), 10)}`;
   const nroNd = legacyNumeroImpresion(imp.numero);
-  const fechaEmision = imp.fecha_cancelado ? String(imp.fecha_cancelado).slice(0, 10) : '';
+  const fechaEmision = formatDateYyyyMmDd(imp.fecha_cancelado);
   const json = {
     notaDebito: {
       IDE: {
@@ -826,9 +829,9 @@ async function ensureRcDataForImpresion(impresionId) {
   const imp = rows[0];
   const estado = String(imp.estado || '').toUpperCase();
   if (estado !== 'ANULADO') return null;
-  let fecha = imp.fecha_anulado ? String(imp.fecha_anulado).slice(0, 10) : '';
+  let fecha = formatDateYyyyMmDd(imp.fecha_anulado);
   if (!fecha || fecha === '0000-00-00') {
-    fecha = new Date().toISOString().slice(0, 10);
+    fecha = formatDateYyyyMmDd(new Date()) || new Date().toISOString().slice(0, 10);
     await execute(`UPDATE impresiones SET fecha_anulado = ? WHERE id = ?`, [fecha, impresionId]);
   }
   let numeroAnulado = Number(imp.numero_anulado || 0);
@@ -848,7 +851,7 @@ async function ensureRcDataForImpresion(impresionId) {
 function buildLegacyJsonRcInafecta(imp) {
   const serie = legacySerieConPrefijo(imp.serie, imp.prefijo_boleta);
   const numero = legacyNumeroImpresion(imp.numero);
-  const fechaAnulado = imp.fecha_anulado ? String(imp.fecha_anulado).slice(0, 10) : '';
+  const fechaAnulado = formatDateYyyyMmDd(imp.fecha_anulado);
   const nroAnulado = Number(imp.numero_anulado || 0);
   const monto = toFixed2(imp.monto);
   const json = {
@@ -856,7 +859,7 @@ function buildLegacyJsonRcInafecta(imp) {
       IDE: {
         numeracion: `RC-${fechaAnulado.replace(/-/g, '')}-${nroAnulado}`,
         fechaEmision: fechaAnulado,
-        fechaReferencia: imp.fecha_impresion ? String(imp.fecha_impresion).slice(0, 10) : '',
+        fechaReferencia: formatDateYyyyMmDd(imp.fecha_impresion),
       },
       EMI: {
         tipoDocId: '6',
@@ -889,7 +892,7 @@ function buildLegacyJsonRcInafecta(imp) {
 function buildLegacyJsonRcNota(imp) {
   const nroNd = legacyNumeroImpresion(imp.numero);
   const serieNd = `BND${parseInt(String(imp.serie || '0'), 10)}`;
-  const fechaAnulado = imp.fecha_anulado ? String(imp.fecha_anulado).slice(0, 10) : '';
+  const fechaAnulado = formatDateYyyyMmDd(imp.fecha_anulado);
   const nroAnulado = Number(imp.numero_anulado || 0);
   const mora = toFixed2(imp.mora);
   const json = {
@@ -897,7 +900,7 @@ function buildLegacyJsonRcNota(imp) {
       IDE: {
         numeracion: `RC-${fechaAnulado.replace(/-/g, '')}-${nroAnulado}`,
         fechaEmision: fechaAnulado,
-        fechaReferencia: imp.fecha_impresion ? String(imp.fecha_impresion).slice(0, 10) : '',
+        fechaReferencia: formatDateYyyyMmDd(imp.fecha_impresion),
       },
       EMI: {
         tipoDocId: '6',
