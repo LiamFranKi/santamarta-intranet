@@ -1188,6 +1188,11 @@ async function parseAdminPagoRegistroBody(body, reqUser, colegio_id) {
 
   /** `pagos.fecha_hora` es NOT NULL en BD: valor neutro cuando el pago vuelve a pendiente (lista no muestra fecha). */
   const FECHA_HORA_PENDIENTE_DB = '1970-01-01 00:00:00';
+  /**
+   * Muchas BD del legado tienen `fecha_cancelado` NOT NULL; `NULL` en INSERT/UPDATE falla con 500.
+   * Valor neutro si no hay cancelación aún (la UI de pendiente no muestra esta fecha).
+   */
+  const FECHA_CANCELADO_PENDIENTE_DB = '1970-01-01';
 
   let fecha_hora;
   let fecha_cancelado = null;
@@ -1196,7 +1201,7 @@ async function parseAdminPagoRegistroBody(body, reqUser, colegio_id) {
 
   if (estado_pago === 'PENDIENTE') {
     fecha_hora = FECHA_HORA_PENDIENTE_DB;
-    fecha_cancelado = null;
+    fecha_cancelado = FECHA_CANCELADO_PENDIENTE_DB;
     descripcion = '';
     observaciones = '';
   } else {
