@@ -1282,6 +1282,18 @@
   background: #d1fae5;
 }
 
+.admin-pagos-opcion-item--disabled,
+.admin-pagos-opcion-item:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+  color: #9ca3af;
+}
+
+.admin-pagos-opcion-item--disabled:hover,
+.admin-pagos-opcion-item:disabled:hover {
+  background: transparent;
+}
+
 .admin-pagos-opcion-ico {
   flex-shrink: 0;
   width: 1.35rem;
@@ -1425,4 +1437,9 @@
 .admin-pagos-reg-swal-cancel {
   border-radius: 8px !important;
   font-weight: 600 !important;
+}
+
+/* Modal admin «Impresiones» (lista de filas por pago) */
+.swal2-popup.admin-impresiones-swal {
+  max-width: min(960px, 96vw);
 }

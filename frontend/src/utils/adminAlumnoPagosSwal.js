@@ -1,6 +1,7 @@
 import Swal from 'sweetalert2';
 import api from '../services/api';
 import { generarPDFBoletaDesdeDatos, MSG_NO_IMPRESION_BOLETA } from './generarPDFBoletaPago';
+import { openAdminImpresionesSwal } from './adminImpresionesSwal';
 
 /** Último payload de lista de pagos por matrícula (para combo de meses al registrar). */
 const listaPagosMatriculaContext = new Map();
@@ -209,7 +210,7 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
               : ''
           }
           <button type="button" class="admin-pagos-opcion-item ${esAnulado ? 'admin-pagos-opcion-item--ok' : 'admin-pagos-opcion-item--danger'}" data-action="toggle_anular" data-toggle-to="${esAnulado ? 'ACTIVAR' : 'ANULAR'}" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>${esAnulado ? '✓' : '⛔'}</span><span>${esc(labelToggle)}</span></button>
-          <button type="button" class="admin-pagos-opcion-item admin-pagos-opcion-item--danger" data-action="borrar" data-pago-id="${esc(String(p.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>🗑️</span><span>Borrar Pago</span></button>
+          <button type="button" class="admin-pagos-opcion-item admin-pagos-opcion-item--danger${p.boleta ? ' admin-pagos-opcion-item--disabled' : ''}" data-action="borrar" data-pago-id="${esc(String(p.id))}"${p.boleta ? ' disabled title="Tiene boleta registrada: use «Anular pago» en lugar de borrar."' : ''}><span class="admin-pagos-opcion-ico" aria-hidden>🗑️</span><span>Borrar Pago</span></button>
         </div>`
       : '';
 
@@ -883,6 +884,15 @@ function bindListaPagosUi() {
           Swal.fire({ icon: 'warning', text: 'No se pudo identificar el pago.' });
           return;
         }
+        if (item.hasAttribute('disabled')) {
+          Swal.fire({
+            icon: 'info',
+            title: 'No se puede borrar',
+            text: 'Este pago tiene boleta registrada. Use «Anular pago» para dejar constancia sin eliminar el registro ni la numeración.',
+            confirmButtonText: 'Entendido',
+          });
+          return;
+        }
         const ok = await Swal.fire({
           icon: 'warning',
           title: 'Borrar pago',
@@ -900,16 +910,55 @@ function bindListaPagosUi() {
           const fresh = data.data;
           if (fresh) showListaPagosMatriculaSwal(nombre, fresh, { alumnoId: aid });
         } catch (err) {
+          const st = err.response?.status;
+          const msg = err.response?.data?.error;
+          Swal.fire({
+            icon: st === 409 ? 'info' : 'error',
+            title: st === 409 ? 'No se puede borrar' : undefined,
+            text:
+              msg ||
+              err.message ||
+              (st === 409
+                ? 'Este pago tiene boleta registrada. Use «Anular pago».'
+                : 'No se pudo borrar el pago.'),
+          });
+        }
+        return;
+      }
+
+      if (action === 'impresiones' && pagoId) {
+        const root = popup.querySelector('.admin-pagos-lista-root');
+        const alumnoIdRaw = root?.getAttribute('data-alumno-id');
+        const matriculaIdRaw = root?.getAttribute('data-matricula-id');
+        const nombre = popup.querySelector('.admin-pagos-lista-alumno')?.textContent?.trim() || '';
+        const aid = parseInt(alumnoIdRaw, 10);
+        const mid = parseInt(matriculaIdRaw, 10);
+        const pid = parseInt(pagoId, 10);
+        if (!alumnoIdRaw || !matriculaIdRaw || !Number.isFinite(aid) || !Number.isFinite(mid) || !Number.isFinite(pid)) {
+          Swal.fire({ icon: 'warning', text: 'No se pudo identificar el pago o la matrícula.' });
+          return;
+        }
+        Swal.close();
+        await openAdminImpresionesSwal({
+          nombreAlumno: nombre,
+          alumnoId: aid,
+          matriculaId: mid,
+          pagoId: pid,
+        });
+        try {
+          const { data } = await api.get(`/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos`);
+          const fresh = data.data;
+          if (fresh) showListaPagosMatriculaSwal(nombre, fresh, { alumnoId: aid });
+        } catch (err) {
           Swal.fire({
             icon: 'error',
-            text: err.response?.data?.error || err.message || 'No se pudo borrar el pago.',
+            text: err.response?.data?.error || 'No se pudo recargar la lista de pagos.',
           });
         }
         return;
       }
 
       const labels = {
-        impresiones: 'Impresiones',
         editar: 'Editar Pago',
         anular: 'Anular Pago',
         borrar: 'Borrar Pago',

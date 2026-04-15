@@ -459,6 +459,63 @@ async function deleteImpresionesByPagoId(pagoId, conn = null) {
   }
 }
 
+/** Admin API: alumno → matrícula → pago pertenecen al colegio del usuario. */
+async function verifyAdminAlumnoMatriculaPago(req) {
+  const { colegio_id } = req.user;
+  const alumnoId = parseInt(req.params.id, 10);
+  const matriculaId = parseInt(req.params.matriculaId, 10);
+  const pagoId = parseInt(req.params.pagoId, 10);
+  if (![alumnoId, matriculaId, pagoId].every((n) => Number.isFinite(n) && n > 0)) {
+    return { ok: false, status: 400, error: 'Parámetros inválidos' };
+  }
+  const okAl = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
+  if (!okAl.length) return { ok: false, status: 404, error: 'Alumno no encontrado' };
+  const okMat = await query(
+    'SELECT id FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
+    [matriculaId, alumnoId, colegio_id]
+  );
+  if (!okMat.length) return { ok: false, status: 404, error: 'Matrícula no encontrada' };
+  const prow = await query(
+    `SELECT p.id FROM pagos p
+     INNER JOIN matriculas m ON m.id = p.matricula_id AND m.alumno_id = ? AND m.colegio_id = ?
+     WHERE p.id = ? AND p.colegio_id = ? AND p.matricula_id = ?
+     LIMIT 1`,
+    [alumnoId, colegio_id, pagoId, colegio_id, matriculaId]
+  );
+  if (!prow.length) return { ok: false, status: 404, error: 'Pago no encontrado' };
+  return { ok: true, colegio_id, alumnoId, matriculaId, pagoId };
+}
+
+function mapImpresionTipoLabel(tipo) {
+  const t = String(tipo || '').toUpperCase();
+  if (t === 'PAGO') return 'Pago';
+  if (t === 'MORA') return 'Mora';
+  if (t === 'COMISION' || t === 'COMISIÓN') return 'Comisión';
+  if (!tipo) return '—';
+  return tipo.charAt(0).toUpperCase() + tipo.slice(1).toLowerCase();
+}
+
+function mapImpresionDocumentoLabel(td) {
+  const t = String(td || '').toUpperCase();
+  if (t === 'BOLETA') return 'Boleta de Venta';
+  if (t === 'NOTA' || t === 'NOTA_DEBITO') return 'Nota de Débito';
+  return td ? String(td) : '—';
+}
+
+function formatSerieNumeroImpresion(serie, numero) {
+  const s = serie != null && serie !== '' ? String(serie) : '0';
+  const n = numero != null && numero !== '' ? String(numero) : '0';
+  return `${s.padStart(3, '0')}-${n.padStart(7, '0')}`;
+}
+
+function normalizeHoraImpresionBody(raw) {
+  const t = String(raw ?? '').trim();
+  if (!t) return null;
+  if (/^\d{2}:\d{2}$/.test(t)) return `${t}:00`;
+  if (/^\d{2}:\d{2}:\d{2}$/.test(t)) return t;
+  return t.length >= 8 ? t.slice(0, 8) : t;
+}
+
 /**
  * Valor para input HTML `datetime-local` desde MySQL o ISO.
  * mysql2 devuelve DATETIME como `Date` en JS: `String(date)` es locale ("Mon Apr 14...") y no matchea ISO.
@@ -2329,6 +2386,229 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/boleta', async (r
 });
 
 /**
+ * GET …/pagos/:pagoId/impresiones — listado de impresiones del pago + resumen (mora, forma de pago, etc.).
+ */
+router.get('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/impresiones', async (req, res) => {
+  try {
+    const v = await verifyAdminAlumnoMatriculaPago(req);
+    if (!v.ok) return res.status(v.status).json({ error: v.error });
+    const { alumnoId, matriculaId, pagoId, colegio_id } = v;
+
+    let pagoRows;
+    try {
+      pagoRows = await query(
+        `SELECT p.mora, p.forma_pago, p.estado_pago, p.comision_tarjeta
+         FROM pagos p
+         INNER JOIN matriculas m ON m.id = p.matricula_id AND m.alumno_id = ? AND m.colegio_id = ?
+         WHERE p.id = ? AND p.colegio_id = ? AND p.matricula_id = ?
+         LIMIT 1`,
+        [alumnoId, colegio_id, pagoId, colegio_id, matriculaId]
+      );
+    } catch (e) {
+      if (!isSqlUnknownColumnError(e)) throw e;
+      pagoRows = await query(
+        `SELECT p.mora, p.forma_pago, p.estado_pago
+         FROM pagos p
+         INNER JOIN matriculas m ON m.id = p.matricula_id AND m.alumno_id = ? AND m.colegio_id = ?
+         WHERE p.id = ? AND p.colegio_id = ? AND p.matricula_id = ?
+         LIMIT 1`,
+        [alumnoId, colegio_id, pagoId, colegio_id, matriculaId]
+      );
+      pagoRows = (pagoRows || []).map((r) => ({ ...r, comision_tarjeta: null }));
+    }
+    if (!pagoRows.length) {
+      return res.status(404).json({ error: 'Pago no encontrado' });
+    }
+    const pago = pagoRows[0];
+    const moraNum = parseFloat(pago.mora) || 0;
+    const comisionNum = parseFloat(pago.comision_tarjeta) || 0;
+    const forma = String(pago.forma_pago || '').toUpperCase();
+
+    let impRows;
+    try {
+      impRows = await query(
+        `SELECT id, pago_id, tipo, tipo_documento, serie, numero, estado, fecha_impresion, hora_impresion, impreso,
+                fecha_anulado, numero_anulado, json_generado
+         FROM impresiones WHERE pago_id = ? ORDER BY id ASC`,
+        [pagoId]
+      );
+    } catch (e) {
+      if (!isSqlUnknownColumnError(e)) throw e;
+      try {
+        impRows = await query(
+          `SELECT id, pago_id, tipo, tipo_documento, serie, numero, estado, fecha_impresion, hora_impresion, impreso, fecha_anulado
+           FROM impresiones WHERE pago_id = ? ORDER BY id ASC`,
+          [pagoId]
+        );
+      } catch (e2) {
+        if (!isSqlUnknownColumnError(e2)) throw e2;
+        impRows = await query(
+          `SELECT id, pago_id, tipo, tipo_documento, serie, numero, estado, fecha_impresion, impreso
+           FROM impresiones WHERE pago_id = ? ORDER BY id ASC`,
+          [pagoId]
+        );
+      }
+    }
+
+    const tieneBoletaPago = (impRows || []).some(
+      (r) =>
+        String(r.tipo || '').toUpperCase() === 'PAGO' && String(r.tipo_documento || '').toUpperCase() === 'BOLETA'
+    );
+
+    const impresiones = (impRows || []).map((r) => {
+      const fechaStr =
+        r.fecha_impresion instanceof Date && !Number.isNaN(r.fecha_impresion.getTime())
+          ? r.fecha_impresion.toISOString().slice(0, 10)
+          : r.fecha_impresion != null
+            ? String(r.fecha_impresion).slice(0, 10)
+            : '';
+      const horaRaw = r.hora_impresion != null ? String(r.hora_impresion).trim() : '';
+      let fecha_impresion_display = '—';
+      if (fechaStr && horaRaw) fecha_impresion_display = `${fechaStr} ${horaRaw.slice(0, 8)}`;
+      else if (fechaStr) fecha_impresion_display = fechaStr;
+      else if (horaRaw) fecha_impresion_display = horaRaw;
+
+      return {
+        id: r.id,
+        pago_id: r.pago_id,
+        tipo: r.tipo,
+        tipo_documento: r.tipo_documento,
+        serie: r.serie,
+        numero: r.numero,
+        serie_numero: formatSerieNumeroImpresion(r.serie, r.numero),
+        tipo_label: mapImpresionTipoLabel(r.tipo),
+        documento_label: mapImpresionDocumentoLabel(r.tipo_documento),
+        estado: r.estado != null ? String(r.estado).toUpperCase() : '',
+        fecha_impresion: fechaStr || null,
+        hora_impresion: horaRaw || null,
+        fecha_impresion_display,
+        impreso: r.impreso,
+        json_generado: r.json_generado != null ? String(r.json_generado) : null,
+      };
+    });
+
+    res.json({
+      pago: {
+        mora: moraNum,
+        forma_pago: pago.forma_pago,
+        estado_pago: pago.estado_pago,
+        comision_tarjeta: comisionNum,
+        tiene_boleta_pago: tieneBoletaPago,
+        mostrar_boton_mora_nd: moraNum > 0,
+        mostrar_nota_comision:
+          forma === 'TARJETA' && comisionNum > 0 && tieneBoletaPago,
+      },
+      impresiones,
+    });
+  } catch (e) {
+    console.error('GET admin impresiones pago', e);
+    res.status(500).json({ error: e.message || 'Error al listar impresiones' });
+  }
+});
+
+/**
+ * PATCH …/pagos/:pagoId/impresiones/:impresionId — fecha / hora de impresión (alineado a edición legado).
+ */
+router.patch('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/impresiones/:impresionId', async (req, res) => {
+  try {
+    const v = await verifyAdminAlumnoMatriculaPago(req);
+    if (!v.ok) return res.status(v.status).json({ error: v.error });
+    const { pagoId } = v;
+    const impresionId = parseInt(req.params.impresionId, 10);
+    if (!Number.isFinite(impresionId) || impresionId <= 0) {
+      return res.status(400).json({ error: 'ID de impresión inválido' });
+    }
+
+    const belongs = await query(`SELECT id FROM impresiones WHERE id = ? AND pago_id = ? LIMIT 1`, [
+      impresionId,
+      pagoId,
+    ]);
+    if (!belongs.length) {
+      return res.status(404).json({ error: 'Impresión no encontrada' });
+    }
+
+    const body = req.body || {};
+    const fechaRaw = body.fecha_impresion;
+    const horaRaw = body.hora_impresion;
+    const sets = [];
+    const params = [];
+
+    if (fechaRaw != null && String(fechaRaw).trim() !== '') {
+      sets.push('fecha_impresion = ?');
+      params.push(String(fechaRaw).trim().slice(0, 10));
+    }
+    const horaNorm = normalizeHoraImpresionBody(horaRaw);
+    if (horaNorm) {
+      sets.push('hora_impresion = ?');
+      params.push(horaNorm);
+    }
+
+    if (!sets.length) {
+      return res.status(400).json({ error: 'Indique fecha_impresion y/o hora_impresion' });
+    }
+
+    params.push(impresionId, pagoId);
+    const sql = `UPDATE impresiones SET ${sets.join(', ')} WHERE id = ? AND pago_id = ?`;
+    try {
+      await query(sql, params);
+    } catch (e) {
+      if (!isSqlUnknownColumnError(e)) throw e;
+      const hadFecha = fechaRaw != null && String(fechaRaw).trim() !== '';
+      if (!hadFecha) {
+        return res.status(400).json({
+          error:
+            'No se pudo guardar la hora: falta la columna hora_impresion o indique también fecha_impresion para actualizar solo la fecha.',
+        });
+      }
+      await query(`UPDATE impresiones SET fecha_impresion = ? WHERE id = ? AND pago_id = ?`, [
+        String(fechaRaw).trim().slice(0, 10),
+        impresionId,
+        pagoId,
+      ]);
+    }
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('PATCH admin impresion', e);
+    res.status(500).json({ error: e.message || 'Error al actualizar impresión' });
+  }
+});
+
+/**
+ * POST …/impresiones/:impresionId/toggle-estado — ACTIVO ↔ ANULADO (fila concreta).
+ */
+router.post(
+  '/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/impresiones/:impresionId/toggle-estado',
+  async (req, res) => {
+    try {
+      const v = await verifyAdminAlumnoMatriculaPago(req);
+      if (!v.ok) return res.status(v.status).json({ error: v.error });
+      const { pagoId } = v;
+      const impresionId = parseInt(req.params.impresionId, 10);
+      if (!Number.isFinite(impresionId) || impresionId <= 0) {
+        return res.status(400).json({ error: 'ID de impresión inválido' });
+      }
+
+      const rows = await query(`SELECT id, estado FROM impresiones WHERE id = ? AND pago_id = ? LIMIT 1`, [
+        impresionId,
+        pagoId,
+      ]);
+      if (!rows.length) {
+        return res.status(404).json({ error: 'Impresión no encontrada' });
+      }
+      const cur = String(rows[0].estado || '').toUpperCase();
+      const next = cur === 'ANULADO' ? 'ACTIVO' : 'ANULADO';
+      await query(`UPDATE impresiones SET estado = ? WHERE id = ? AND pago_id = ?`, [next, impresionId, pagoId]);
+
+      res.json({ ok: true, estado: next });
+    } catch (e) {
+      console.error('POST admin toggle impresion estado', e);
+      res.status(500).json({ error: e.message || 'Error al cambiar estado' });
+    }
+  }
+);
+
+/**
  * Un pago concreto (precarga del formulario «Editar», misma data de meses que la lista).
  */
 router.get('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId', async (req, res) => {
@@ -2669,6 +2949,18 @@ router.delete('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId', async (req, 
     );
     if (!pagoRow.length) {
       return res.status(404).json({ error: 'Pago no encontrado' });
+    }
+
+    const tieneBoleta = await query(
+      `SELECT id FROM impresiones WHERE pago_id = ? AND tipo = 'PAGO' AND tipo_documento = 'BOLETA' LIMIT 1`,
+      [pagoId]
+    );
+    if (tieneBoleta.length) {
+      return res.status(409).json({
+        error:
+          'Este pago tiene boleta registrada y no puede eliminarse. Use «Anular pago» para dejar constancia sin borrar la numeración.',
+        code: 'TIENE_BOLETA',
+      });
     }
 
     const conn = await mysqlReadPool.getConnection();
