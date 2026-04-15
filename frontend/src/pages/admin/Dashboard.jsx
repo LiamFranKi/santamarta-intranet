@@ -14,6 +14,7 @@ import AdminUsuariosAlumnosTabla from './AdminUsuariosAlumnosTabla';
 import AdminUsuariosApoderados from './AdminUsuariosApoderados';
 import AdminConfiguracion from './AdminConfiguracion';
 import AdminConfigCumpleanos from './AdminConfigCumpleanos';
+import AdminMatriculasInscripcion from './AdminMatriculasInscripcion';
 
 const coloresPasteles = [
   'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',   // Verde menta
@@ -251,6 +252,15 @@ function Dashboard() {
         <DashboardLayout>
           <div className="dashboard-container">
             <AdminConfigCumpleanos />
+          </div>
+        </DashboardLayout>
+      );
+    }
+    if (location.pathname === '/admin/matriculas') {
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <AdminMatriculasInscripcion />
           </div>
         </DashboardLayout>
       );

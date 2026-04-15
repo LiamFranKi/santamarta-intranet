@@ -4015,12 +4015,13 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
       return res.status(400).json({ error: 'Fecha de registro inválida (use AAAA-MM-DD)' });
     }
     const mrows = await query(
-      'SELECT id FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
+      'SELECT id, estado AS estado_prev FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
       [matriculaId, alumnoId, colegio_id]
     );
     if (!mrows.length) {
       return res.status(404).json({ error: 'Matrícula no encontrada' });
     }
+    const estadoPrev = parseInt(mrows[0].estado_prev, 10);
     const gOk = await query(
       'SELECT id FROM grupos WHERE id = ? AND colegio_id = ? LIMIT 1',
       [gid, colegio_id]
@@ -4040,6 +4041,16 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
        WHERE id = ? AND alumno_id = ? AND colegio_id = ?`,
       [est, fr, gid, cid, matriculaId, alumnoId, colegio_id]
     );
+    /** RETIRADO (2): eliminar cargos aún no cobrados (pendientes) para no dejar deudas futuras en la matrícula. */
+    if (est === 2 && estadoPrev !== 2) {
+      await execute(
+        `DELETE FROM pagos
+         WHERE matricula_id = ? AND colegio_id = ?
+           AND UPPER(TRIM(estado)) = 'ACTIVO'
+           AND UPPER(TRIM(estado_pago)) = 'PENDIENTE'`,
+        [matriculaId, colegio_id]
+      );
+    }
     res.json({ ok: true });
   } catch (e) {
     console.error('PUT alumno matricula admin', e);

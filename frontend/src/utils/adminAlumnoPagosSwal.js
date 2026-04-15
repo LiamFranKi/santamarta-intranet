@@ -396,6 +396,46 @@ function confirmImprimirSeleccionadosEnLista(popup, nSel) {
   });
 }
 
+/**
+ * Aviso dentro del Swal «Lista de Pagos» sin abrir otro Swal (evita cerrar el modal y dejar visible el Historial de Matrículas debajo).
+ * @param {HTMLElement} popup
+ * @param {{ variant?: 'success'|'warning'|'error'|'info', text: string, autoDismissMs?: number }} opts
+ */
+function showListaPagosInlineNotice(popup, { variant = 'success', text = '', autoDismissMs = 0 }) {
+  const wrap = popup.querySelector('.admin-pagos-lista-swalc');
+  if (!wrap || !String(text || '').trim()) return;
+  wrap.querySelector('.admin-pagos-lista-inline-notice')?.remove();
+
+  const bar = document.createElement('div');
+  bar.className = `admin-pagos-lista-inline-notice admin-pagos-lista-inline-notice--${variant}`;
+  bar.setAttribute('role', 'status');
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'admin-pagos-lista-inline-notice-close';
+  closeBtn.setAttribute('aria-label', 'Cerrar aviso');
+  closeBtn.textContent = '×';
+
+  const textEl = document.createElement('div');
+  textEl.className = 'admin-pagos-lista-inline-notice-text';
+  textEl.textContent = text;
+
+  bar.appendChild(closeBtn);
+  bar.appendChild(textEl);
+  wrap.insertBefore(bar, wrap.firstChild);
+
+  let timer = null;
+  const remove = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    bar.remove();
+  };
+  closeBtn.addEventListener('click', remove);
+  if (autoDismissMs > 0) {
+    timer = setTimeout(remove, autoDismissMs);
+  }
+}
+
 function buildPanelHtml(m, opts = {}) {
   const { panelId, display = 'block' } = opts;
   const idAttr = panelId != null && panelId !== '' ? ` id="${String(panelId)}"` : '';
@@ -814,19 +854,18 @@ function bindListaPagosUi() {
       .map((el) => parseInt(el.value, 10))
       .filter((n) => Number.isFinite(n) && n > 0);
     if (!checked.length) {
-      Swal.fire({
-        icon: 'info',
-        title: 'Asignar boletas',
+      showListaPagosInlineNotice(popup, {
+        variant: 'info',
         text: 'Seleccione al menos un pago con el checkbox.',
+        autoDismissMs: 6000,
       });
       return;
     }
     const aid = parseInt(alumnoIdRaw, 10);
     const mid = parseInt(matriculaIdRaw, 10);
     if (!Number.isFinite(aid) || !Number.isFinite(mid)) {
-      Swal.fire({
-        icon: 'warning',
-        title: 'No se puede continuar',
+      showListaPagosInlineNotice(popup, {
+        variant: 'warning',
         text: 'Falta identificar alumno o matrícula. Actualice la página e intente de nuevo.',
       });
       return;
@@ -867,22 +906,26 @@ function bindListaPagosUi() {
         .filter(Boolean)
         .join(' ');
 
-      await Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: errores > 0 && procesados === 0 ? 'warning' : 'success',
-        title: msg || 'Operación completada.',
-        showConfirmButton: true,
-        timer: errores === 0 && omitidos === 0 && procesados > 0 ? 5000 : undefined,
-      });
+      const p = Swal.getPopup();
+      if (p) {
+        const perfect = errores === 0 && omitidos === 0 && procesados > 0;
+        const variant =
+          errores > 0 && procesados === 0 ? 'warning' : errores > 0 || omitidos > 0 ? 'warning' : 'success';
+        showListaPagosInlineNotice(p, {
+          variant,
+          text: msg || 'Operación completada.',
+          autoDismissMs: perfect ? 6000 : 0,
+        });
+      }
     } catch (e) {
       Swal.hideLoading();
-      await Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'error',
-        title: e.response?.data?.error || e.message || 'No se pudo completar',
-      });
+      const p = Swal.getPopup();
+      if (p) {
+        showListaPagosInlineNotice(p, {
+          variant: 'error',
+          text: e.response?.data?.error || e.message || 'No se pudo completar',
+        });
+      }
     }
   });
 

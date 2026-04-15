@@ -272,6 +272,8 @@ app.use('/api/alumno', alumnoRoutes);
 app.use('/api/asistencia', asistenciaRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/admin/usuarios', adminUsuariosRoutes);
+const adminInscripcionMatriculaRoutes = require('./routes/admin.inscripcion-matricula.routes');
+app.use('/api/admin/usuarios', adminInscripcionMatriculaRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/apoderado', apoderadoRoutes);
 app.use('/api/promotoria', promotoriaRoutes);

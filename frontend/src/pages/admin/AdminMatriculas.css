@@ -1,0 +1,364 @@
+/* Nueva inscripción / matrícula — secciones con fondos diferenciados */
+
+.admin-mat-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 0 2.5rem;
+}
+
+.admin-mat-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-mat-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.65rem;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+}
+
+.admin-mat-sub {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #64748b;
+  line-height: 1.5;
+  max-width: 640px;
+}
+
+.admin-mat-hero-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.admin-mat-inline-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.admin-mat-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.admin-mat-card {
+  border-radius: 14px;
+  padding: 1.25rem 1.35rem 1.4rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06);
+}
+
+.admin-mat-card--alumno {
+  background: linear-gradient(145deg, #eff6ff 0%, #f8fafc 48%, #ffffff 100%);
+  border-color: rgba(59, 130, 246, 0.22);
+}
+
+.admin-mat-card--apoderados {
+  background: linear-gradient(145deg, #f5f3ff 0%, #faf5ff 40%, #ffffff 100%);
+  border-color: rgba(139, 92, 246, 0.22);
+}
+
+.admin-mat-card--academico {
+  background: linear-gradient(145deg, #ecfdf5 0%, #f0fdf4 42%, #ffffff 100%);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.admin-mat-card--costos {
+  background: linear-gradient(145deg, #f0f9ff 0%, #e0f2fe 38%, #ffffff 100%);
+  border-color: rgba(14, 165, 233, 0.28);
+}
+
+.admin-mat-card--pagos {
+  background: linear-gradient(145deg, #fffbeb 0%, #fffbf0 45%, #ffffff 100%);
+  border-color: rgba(245, 158, 11, 0.28);
+}
+
+.admin-mat-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.admin-mat-badge {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.95rem;
+  color: #fff;
+}
+
+.admin-mat-badge--alumno {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+}
+
+.admin-mat-badge--apoderados {
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+}
+
+.admin-mat-badge--academico {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.admin-mat-badge--costos {
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+}
+
+.admin-mat-badge--pagos {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.admin-mat-costo-modo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.admin-mat-costo-modo-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  border: 2px solid #bae6fd;
+  background: #fff;
+  color: #0369a1;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.admin-mat-costo-modo-btn:hover {
+  background: #f0f9ff;
+}
+
+.admin-mat-costo-modo-btn.is-active {
+  background: linear-gradient(135deg, #0284c7, #0ea5e9);
+  border-color: #0284c7;
+  color: #fff;
+}
+
+.admin-mat-card-title {
+  margin: 0 0 0.2rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.admin-mat-card-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.admin-mat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1rem;
+}
+
+@media (max-width: 720px) {
+  .admin-mat-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-mat-field--span2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 720px) {
+  .admin-mat-field--span2 {
+    grid-column: span 1;
+  }
+}
+
+.admin-mat-field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.3rem;
+}
+
+.admin-mat-input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: #fff;
+  color: #1e293b;
+  box-sizing: border-box;
+}
+
+.admin-mat-input:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+}
+
+.admin-mat-input--sm {
+  max-width: 120px;
+}
+
+.admin-mat-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-mat-row .admin-mat-input {
+  flex: 1;
+  min-width: 160px;
+}
+
+.admin-mat-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.admin-mat-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-mat-btn--primary {
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.35);
+}
+
+.admin-mat-btn--primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.admin-mat-btn--secondary {
+  background: #fff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+}
+
+.admin-mat-btn--ghost {
+  background: transparent;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-mat-btn--ghost:hover:not(:disabled) {
+  background: #f8fafc;
+}
+
+.admin-mat-btn--danger-text {
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.admin-mat-btn--lg {
+  padding: 0.65rem 1.5rem;
+  font-size: 1rem;
+}
+
+.admin-mat-btn--ml {
+  margin-left: auto;
+}
+
+.admin-mat-banner {
+  grid-column: span 2;
+  padding: 0.65rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.88rem;
+}
+
+.admin-mat-banner--ok {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #065f46;
+}
+
+.admin-mat-apoderado-block {
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+.admin-mat-apoderado-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  color: #5b21b6;
+}
+
+.admin-mat-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: #475569;
+  cursor: pointer;
+}
+
+.admin-mat-checkbox input {
+  margin-top: 0.15rem;
+}
+
+.admin-mat-checkbox--lg {
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.admin-mat-mini {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: #92400e;
+}
+
+.admin-mat-field--check {
+  display: flex;
+  align-items: center;
+}
+
+.admin-mat-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding-top: 0.5rem;
+}
+
+.swal2-small {
+  font-size: 0.9rem;
+  color: #64748b;
+}

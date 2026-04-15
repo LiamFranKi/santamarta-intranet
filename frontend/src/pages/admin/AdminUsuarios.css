@@ -582,6 +582,73 @@
   background: #5b52c4;
 }
 
+/* Aviso embebido en Lista de Pagos (sustituye toast Swal para no cerrar el modal) */
+.admin-pagos-lista-inline-notice {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 12px;
+  padding: 10px 36px 10px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.admin-pagos-lista-inline-notice-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-line;
+}
+
+.admin-pagos-lista-inline-notice-close {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.75;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0;
+}
+
+.admin-pagos-lista-inline-notice-close:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.admin-pagos-lista-inline-notice--success {
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+}
+
+.admin-pagos-lista-inline-notice--warning {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}
+
+.admin-pagos-lista-inline-notice--error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
+.admin-pagos-lista-inline-notice--info {
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  color: #1e40af;
+}
+
 .admin-usu-profile-form {
   display: flex;
   flex-direction: column;
