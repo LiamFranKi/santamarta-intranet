@@ -570,6 +570,12 @@ async function getAdminImpresionPayload({ colegio_id, pagoId, impresionId }) {
      INNER JOIN alumnos a ON a.id = m.alumno_id
      LEFT JOIN grupos g ON g.id = m.grupo_id
      LEFT JOIN niveles n ON n.id = g.nivel_id`;
+  /** Esquema legacy: a veces no existe `nombre_empresa`, sí `nombre`. */
+  const colegioSelects = [
+    `c.ruc, c.razon_social, c.nombre_empresa`,
+    `c.ruc, c.razon_social, c.nombre AS nombre_empresa`,
+    `c.ruc, c.razon_social, CAST(NULL AS CHAR) AS nombre_empresa`,
+  ];
   const variants = [
     { joinSede: true, alumnoTipo: true, inicioPensiones: true },
     { joinSede: false, alumnoTipo: true, inicioPensiones: true },
@@ -577,20 +583,21 @@ async function getAdminImpresionPayload({ colegio_id, pagoId, impresionId }) {
     { joinSede: false, alumnoTipo: false, inicioPensiones: false },
   ];
   let lastSchemaErr = null;
-  for (const v of variants) {
-    const alumnoDoc = v.alumnoTipo
-      ? `a.tipo_documento AS alumno_tipo_documento`
-      : `CAST(0 AS SIGNED) AS alumno_tipo_documento`;
-    const inicioPen = v.inicioPensiones ? `c.inicio_pensiones,` : `NULL AS inicio_pensiones,`;
-    const sedeSelect = v.joinSede
-      ? `s.prefijo_boleta, s.direccion AS sede_direccion, s.codigo_sunat,`
-      : `NULL AS prefijo_boleta, NULL AS sede_direccion, NULL AS codigo_sunat,`;
-    const sedeJoin = v.joinSede ? `LEFT JOIN sedes s ON s.id = g.sede_id` : '';
-    const sql = `SELECT i.id, i.pago_id, i.tipo, i.tipo_documento, i.serie, i.numero, i.estado, i.fecha_impresion, i.hora_impresion,
+  for (const colegioSel of colegioSelects) {
+    for (const v of variants) {
+      const alumnoDoc = v.alumnoTipo
+        ? `a.tipo_documento AS alumno_tipo_documento`
+        : `CAST(0 AS SIGNED) AS alumno_tipo_documento`;
+      const inicioPen = v.inicioPensiones ? `c.inicio_pensiones,` : `NULL AS inicio_pensiones,`;
+      const sedeSelect = v.joinSede
+        ? `s.prefijo_boleta, s.direccion AS sede_direccion, s.codigo_sunat,`
+        : `NULL AS prefijo_boleta, NULL AS sede_direccion, NULL AS codigo_sunat,`;
+      const sedeJoin = v.joinSede ? `LEFT JOIN sedes s ON s.id = g.sede_id` : '';
+      const sql = `SELECT i.id, i.pago_id, i.tipo, i.tipo_documento, i.serie, i.numero, i.estado, i.fecha_impresion, i.hora_impresion,
             i.fecha_anulado, i.numero_anulado,
             p.monto, p.mora, p.fecha_cancelado, p.estado_pago, p.nro_pago, p.tipo AS pago_tipo, p.descripcion,
             a.id AS alumno_id, a.nombres, a.apellido_paterno, a.apellido_materno, a.nro_documento, ${alumnoDoc},
-            c.ruc, c.razon_social, c.nombre_empresa,
+            ${colegioSel},
             ${inicioPen}
             ${sedeSelect}
             g.grado, g.seccion, n.nombre AS nivel_nombre
@@ -599,12 +606,13 @@ async function getAdminImpresionPayload({ colegio_id, pagoId, impresionId }) {
      LEFT JOIN colegios c ON c.id = p.colegio_id
      WHERE i.id = ? AND i.pago_id = ? AND p.colegio_id = ?
      LIMIT 1`;
-    try {
-      const rows = await query(sql, params);
-      return rows?.[0] || null;
-    } catch (e) {
-      if (!isSqlSchemaMismatchError(e)) throw e;
-      lastSchemaErr = e;
+      try {
+        const rows = await query(sql, params);
+        return rows?.[0] || null;
+      } catch (e) {
+        if (!isSqlSchemaMismatchError(e)) throw e;
+        lastSchemaErr = e;
+      }
     }
   }
   if (lastSchemaErr) throw lastSchemaErr;
