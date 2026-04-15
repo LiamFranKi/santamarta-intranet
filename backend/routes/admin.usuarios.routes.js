@@ -511,9 +511,23 @@ function formatSerieNumeroImpresion(serie, numero) {
 function normalizeHoraImpresionBody(raw) {
   const t = String(raw ?? '').trim();
   if (!t) return null;
-  if (/^\d{2}:\d{2}$/.test(t)) return `${t}:00`;
-  if (/^\d{2}:\d{2}:\d{2}$/.test(t)) return t;
-  return t.length >= 8 ? t.slice(0, 8) : t;
+  const match = t.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return null;
+  const hh = Number(match[1]);
+  const mm = Number(match[2]);
+  const ss = Number(match[3] ?? '00');
+  const isValidRange =
+    Number.isInteger(hh) &&
+    Number.isInteger(mm) &&
+    Number.isInteger(ss) &&
+    hh >= 0 &&
+    hh <= 23 &&
+    mm >= 0 &&
+    mm <= 59 &&
+    ss >= 0 &&
+    ss <= 59;
+  if (!isValidRange) return '__INVALID_TIME__';
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }
 
 /**
@@ -2538,6 +2552,9 @@ router.patch('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/impresiones/:im
       params.push(String(fechaRaw).trim().slice(0, 10));
     }
     const horaNorm = normalizeHoraImpresionBody(horaRaw);
+    if (horaNorm === '__INVALID_TIME__') {
+      return res.status(400).json({ error: 'Hora inválida. Use formato HH:mm o HH:mm:ss con rango válido.' });
+    }
     if (horaNorm) {
       sets.push('hora_impresion = ?');
       params.push(horaNorm);
