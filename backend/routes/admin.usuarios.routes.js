@@ -511,8 +511,9 @@ function formatSerieNumeroImpresion(serie, numero) {
 function normalizeHoraImpresionBody(raw) {
   const t = String(raw ?? '').trim();
   if (!t) return null;
-  const match = t.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
-  if (!match) return null;
+  const compact = t.replace(/\s+/g, '');
+  const match = compact.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return '__INVALID_TIME__';
   const hh = Number(match[1]);
   const mm = Number(match[2]);
   const ss = Number(match[3] ?? '00');

@@ -1577,7 +1577,10 @@
 }
 
 .admin-impresiones-inline-btn--primary:hover {
-  filter: brightness(1.05);
+  background: #1d4ed8;
+  color: #fff;
+  border-color: #1d4ed8;
+  filter: none;
 }
 
 .admin-impresiones-global-backdrop {

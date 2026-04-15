@@ -173,9 +173,12 @@ api.interceptors.response.use(
     const isNotificacionesRoute = error.config?.url?.includes('/notificaciones');
     const isActividadesRoute = error.config?.url?.includes('/actividades');
     const isGruposRoute = error.config?.url?.includes('/grupos');
+    const isAdminImpresionesRoute =
+      reqUrl.includes('/admin/usuarios/alumnos/') && reqUrl.includes('/impresiones');
     // Bandeja de mensajes: no desloguear solo por 403/500 (p. ej. rol equivocado o error puntual); el 401 sigue cerrando sesión
     const isMensajesIntranetRoute = /\/(alumno|apoderado|docente)\/mensajes/.test(reqUrl);
     const skipLogoutMensajesApi = isMensajesIntranetRoute && (status === 403 || status === 500);
+    const skipLogoutAdminImpresiones = isAdminImpresionesRoute && status === 500;
 
     if (
       status &&
@@ -190,7 +193,8 @@ api.interceptors.response.use(
       !isNotificacionesRoute &&
       !isActividadesRoute &&
       !isGruposRoute &&
-      !skipLogoutMensajesApi
+      !skipLogoutMensajesApi &&
+      !skipLogoutAdminImpresiones
     ) {
       const errorInfo = criticalErrors[status];
       console.warn(`⚠️ Error crítico detectado (${status}):`, errorInfo.reason);
