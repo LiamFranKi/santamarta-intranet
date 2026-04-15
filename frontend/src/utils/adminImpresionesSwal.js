@@ -21,8 +21,73 @@ function timeInputFromHora(raw) {
   return `${h}:${mi}`;
 }
 
+/** Cierra submenús y quita `position:fixed` (evita menús huérfanos al recortar por overflow). */
 function closeImpresionesMenus(popup) {
-  popup.querySelectorAll('.admin-impresiones-menu.is-open').forEach((m) => m.classList.remove('is-open'));
+  if (!popup) return;
+  popup.querySelectorAll('.admin-impresiones-menu').forEach((m) => {
+    m.classList.remove('is-open');
+    m.style.position = '';
+    m.style.top = '';
+    m.style.left = '';
+    m.style.right = '';
+    m.style.zIndex = '';
+  });
+}
+
+/** Despliega el menú «Opciones» con coordenadas fijas para que no lo recorte el scroll del contenedor tabla. */
+/** Aviso dentro del modal Impresiones (no usa otro Swal → no cierra el padre). */
+function showImpresionesBanner(root, message, variant = 'info') {
+  const prev = root.querySelector('.admin-impresiones-banner');
+  if (prev) prev.remove();
+  const el = document.createElement('div');
+  el.className = `admin-impresiones-banner admin-impresiones-banner--${variant}`;
+  el.setAttribute('role', 'status');
+  el.textContent = message;
+  root.insertBefore(el, root.firstChild);
+  window.setTimeout(() => el.remove(), variant === 'error' ? 8000 : 5000);
+}
+
+function mountImpresionesOverlay(root, innerHtml) {
+  const existing = root.querySelector('.admin-impresiones-inline-backdrop');
+  if (existing) existing.remove();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'admin-impresiones-inline-backdrop';
+  backdrop.innerHTML = innerHtml;
+  root.appendChild(backdrop);
+  const close = () => {
+    backdrop.remove();
+  };
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) close();
+  });
+  return { backdrop, close };
+}
+
+function placeImpresionesOpcionesMenu(btn, menu) {
+  const run = () => {
+    const rect = btn.getBoundingClientRect();
+    const mw = Math.max(menu.offsetWidth, 230);
+    const mh = menu.offsetHeight || 200;
+    const pad = 8;
+    let left = rect.right - mw;
+    if (left < pad) left = pad;
+    const maxLeft = window.innerWidth - mw - pad;
+    if (left > maxLeft) left = Math.max(pad, maxLeft);
+    let top = rect.bottom + 4;
+    const spaceBelow = window.innerHeight - rect.bottom - 4;
+    if (mh > spaceBelow && rect.top > mh + pad) {
+      top = rect.top - mh - 4;
+    }
+    if (top < pad) top = pad;
+    menu.style.position = 'fixed';
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+    menu.style.right = 'auto';
+    menu.style.zIndex = '20050';
+  };
+  requestAnimationFrame(() => {
+    requestAnimationFrame(run);
+  });
 }
 
 function buildImpresionesHtml(payload) {
@@ -131,7 +196,8 @@ export async function openAdminImpresionesSwal({ nombreAlumno, alumnoId, matricu
     await Swal.fire({
       title,
       width: 960,
-      html: '<div id="admin-impresiones-root"><p style="color:#64748b">Cargando…</p></div>',
+      html:
+        '<div id="admin-impresiones-root" class="admin-impresiones-root" style="position:relative;min-height:120px"><p style="color:#64748b">Cargando…</p></div>',
       showConfirmButton: false,
       showCloseButton: true,
       customClass: { popup: 'admin-impresiones-swal' },
@@ -162,7 +228,10 @@ export async function openAdminImpresionesSwal({ nombreAlumno, alumnoId, matricu
             if (!menu) return;
             const willOpen = !menu.classList.contains('is-open');
             closeImpresionesMenus(popup);
-            if (willOpen) menu.classList.add('is-open');
+            if (willOpen) {
+              menu.classList.add('is-open');
+              placeImpresionesOpcionesMenu(btn, menu);
+            }
             return;
           }
 
@@ -171,55 +240,46 @@ export async function openAdminImpresionesSwal({ nombreAlumno, alumnoId, matricu
             const p = store.payload?.pago || {};
             const ep = String(p.estado_pago || '').toUpperCase();
             if (!p.tiene_boleta_pago) {
-              Swal.fire({
-                icon: 'warning',
-                title: 'Sin impresión',
-                text: MSG_NO_IMPRESION_BOLETA,
-                confirmButtonText: 'Entendido',
-              });
+              showImpresionesBanner(root, `Sin impresión: ${MSG_NO_IMPRESION_BOLETA}`, 'warn');
               return;
             }
             if (ep !== 'CANCELADO') {
-              Swal.fire({
-                icon: 'warning',
-                title: 'Pago no cancelado',
-                text: 'Solo se puede imprimir la boleta de pagos cancelados. Este pago aún no está cancelado.',
-                confirmButtonText: 'Entendido',
-              });
+              showImpresionesBanner(
+                root,
+                'Solo se puede imprimir la boleta de pagos cancelados. Este pago aún no está cancelado.',
+                'warn'
+              );
               return;
             }
+            const { close: closeLoading } = mountImpresionesOverlay(
+              root,
+              `<div class="admin-impresiones-inline-panel admin-impresiones-inline-panel--loading" role="status">
+                <p class="admin-impresiones-inline-loading">Generando boleta…</p>
+              </div>`
+            );
             try {
-              Swal.fire({ title: 'Generando boleta…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
               const { data } = await api.get(`${basePath}/boleta`);
-              Swal.close();
+              closeLoading();
               await generarPDFBoletaDesdeDatos(data);
-              Swal.fire({
-                icon: 'success',
-                title: 'Boleta generada',
-                text: 'La boleta se ha descargado correctamente.',
-                timer: 2000,
-                showConfirmButton: false,
-              });
+              showImpresionesBanner(root, 'La boleta se ha descargado correctamente.', 'ok');
             } catch (err) {
-              Swal.close();
-              Swal.fire({
-                icon: 'error',
-                title: 'No se pudo generar la boleta',
-                text: err.response?.data?.error || err.message || 'Intente nuevamente.',
-                confirmButtonText: 'Entendido',
-              });
+              closeLoading();
+              showImpresionesBanner(
+                root,
+                err.response?.data?.error || err.message || 'No se pudo generar la boleta. Intente nuevamente.',
+                'error'
+              );
             }
             return;
           }
 
           if (target.closest('.admin-impresiones-btn-mora')) {
             e.stopPropagation();
-            Swal.fire({
-              icon: 'info',
-              title: 'No disponible en esta versión',
-              text: 'El PDF de nota de débito por mora se genera en el sistema PHP anterior (módulo Pagos / Impresiones).',
-              confirmButtonText: 'Entendido',
-            });
+            showImpresionesBanner(
+              root,
+              'El PDF de nota de débito por mora se genera en el sistema PHP anterior (módulo Pagos / Impresiones).',
+              'info'
+            );
             return;
           }
 
@@ -232,41 +292,44 @@ export async function openAdminImpresionesSwal({ nombreAlumno, alumnoId, matricu
             const hora0 = editEl.getAttribute('data-imp-hora') || '';
             const fid = `admin-imp-fecha-${id}`;
             const hid = `admin-imp-hora-${id}`;
-            const result = await Swal.fire({
-              title: 'Editar fechas de impresión',
-              html: `
-            <div style="text-align:left;display:flex;flex-direction:column;gap:10px;margin-top:8px">
-              <label style="font-size:13px">Fecha impresión
-                <input type="date" id="${esc(fid)}" class="swal2-input" style="display:block;width:100%;margin-top:4px" value="${esc(fecha0)}" />
-              </label>
-              <label style="font-size:13px">Hora
-                <input type="time" id="${esc(hid)}" class="swal2-input" style="display:block;width:100%;margin-top:4px" value="${esc(timeInputFromHora(hora0))}" step="1" />
-              </label>
-            </div>`,
-              showCancelButton: true,
-              confirmButtonText: 'Guardar',
-              cancelButtonText: 'Cancelar',
-              focusConfirm: false,
-              preConfirm: () => {
-                const fecha = document.getElementById(fid)?.value?.trim() || '';
-                const hora = document.getElementById(hid)?.value?.trim() || '';
-                if (!fecha && !hora) {
-                  Swal.showValidationMessage('Indique al menos la fecha o la hora.');
-                  return false;
-                }
-                return { fecha_impresion: fecha || undefined, hora_impresion: hora || undefined };
-              },
+            const { backdrop, close } = mountImpresionesOverlay(
+              root,
+              `<div class="admin-impresiones-inline-panel" role="dialog" aria-modal="true">
+                <h3 class="admin-impresiones-inline-title">Editar fechas de impresión</h3>
+                <div class="admin-impresiones-inline-fields">
+                  <label class="admin-impresiones-inline-label">Fecha impresión
+                    <input type="date" id="${esc(fid)}" class="admin-impresiones-inline-input" value="${esc(fecha0)}" />
+                  </label>
+                  <label class="admin-impresiones-inline-label">Hora
+                    <input type="time" id="${esc(hid)}" class="admin-impresiones-inline-input" value="${esc(timeInputFromHora(hora0))}" step="1" />
+                  </label>
+                </div>
+                <div class="admin-impresiones-inline-actions">
+                  <button type="button" class="admin-impresiones-inline-btn" data-act="cancel">Cancelar</button>
+                  <button type="button" class="admin-impresiones-inline-btn admin-impresiones-inline-btn--primary" data-act="save">Guardar</button>
+                </div>
+              </div>`
+            );
+            const onDone = () => close();
+            backdrop.querySelector('[data-act="cancel"]')?.addEventListener('click', onDone);
+            backdrop.querySelector('[data-act="save"]')?.addEventListener('click', async () => {
+              const fecha = document.getElementById(fid)?.value?.trim() || '';
+              const hora = document.getElementById(hid)?.value?.trim() || '';
+              if (!fecha && !hora) {
+                showImpresionesBanner(root, 'Indique al menos la fecha o la hora.', 'warn');
+                return;
+              }
+              onDone();
+              try {
+                await api.patch(`${basePath}/impresiones/${id}`, {
+                  fecha_impresion: fecha || undefined,
+                  hora_impresion: hora || undefined,
+                });
+                await refresh();
+              } catch (err) {
+                showImpresionesBanner(root, err.response?.data?.error || err.message || 'No se pudo guardar.', 'error');
+              }
             });
-            if (!result.isConfirmed || !result.value) return;
-            try {
-              await api.patch(`${basePath}/impresiones/${id}`, result.value);
-              await refresh();
-            } catch (err) {
-              Swal.fire({
-                icon: 'error',
-                text: err.response?.data?.error || err.message || 'No se pudo guardar.',
-              });
-            }
             return;
           }
 
@@ -275,48 +338,49 @@ export async function openAdminImpresionesSwal({ nombreAlumno, alumnoId, matricu
             e.stopPropagation();
             closeImpresionesMenus(popup);
             const id = toggleEl.getAttribute('data-imp-id');
-            const ok = await Swal.fire({
-              icon: 'question',
-              title: '¿Cambiar estado?',
-              text: 'Se alternará entre ACTIVO y ANULADO para esta línea de impresión.',
-              showCancelButton: true,
-              confirmButtonText: 'Sí',
-              cancelButtonText: 'No',
+            const { backdrop, close } = mountImpresionesOverlay(
+              root,
+              `<div class="admin-impresiones-inline-panel" role="dialog" aria-modal="true">
+                <h3 class="admin-impresiones-inline-title">¿Cambiar estado?</h3>
+                <p class="admin-impresiones-inline-text">Se alternará entre ACTIVO y ANULADO para esta línea de impresión.</p>
+                <div class="admin-impresiones-inline-actions">
+                  <button type="button" class="admin-impresiones-inline-btn" data-act="no">No</button>
+                  <button type="button" class="admin-impresiones-inline-btn admin-impresiones-inline-btn--primary" data-act="yes">Sí</button>
+                </div>
+              </div>`
+            );
+            backdrop.querySelector('[data-act="no"]')?.addEventListener('click', close);
+            backdrop.querySelector('[data-act="yes"]')?.addEventListener('click', async () => {
+              close();
+              try {
+                await api.post(`${basePath}/impresiones/${id}/toggle-estado`);
+                await refresh();
+              } catch (err) {
+                showImpresionesBanner(root, err.response?.data?.error || err.message || 'No se pudo cambiar el estado.', 'error');
+              }
             });
-            if (!ok.isConfirmed) return;
-            try {
-              await api.post(`${basePath}/impresiones/${id}/toggle-estado`);
-              await refresh();
-            } catch (err) {
-              Swal.fire({
-                icon: 'error',
-                text: err.response?.data?.error || err.message || 'No se pudo cambiar el estado.',
-              });
-            }
             return;
           }
 
           if (target.closest('.admin-impresiones-json-sunat')) {
             e.stopPropagation();
             closeImpresionesMenus(popup);
-            Swal.fire({
-              icon: 'info',
-              title: 'Generar JSON (SUNAT)',
-              text: 'La generación de archivos JSON para SUNAT se realiza desde el sistema PHP anterior (módulo Impresiones) o mediante las herramientas que su colegio tenga configuradas.',
-              confirmButtonText: 'Entendido',
-            });
+            showImpresionesBanner(
+              root,
+              'JSON SUNAT: la generación de archivos se realiza desde el sistema PHP anterior (módulo Impresiones) o las herramientas que su colegio tenga configuradas.',
+              'info'
+            );
             return;
           }
 
           if (target.closest('.admin-impresiones-json-rc')) {
             e.stopPropagation();
             closeImpresionesMenus(popup);
-            Swal.fire({
-              icon: 'info',
-              title: 'JSON RC (resumen de baja)',
-              text: 'Este archivo se genera en el sistema PHP anterior cuando corresponda al comprobante anulado.',
-              confirmButtonText: 'Entendido',
-            });
+            showImpresionesBanner(
+              root,
+              'JSON RC: este archivo se genera en el sistema PHP anterior cuando corresponda al comprobante anulado.',
+              'info'
+            );
           }
         };
 

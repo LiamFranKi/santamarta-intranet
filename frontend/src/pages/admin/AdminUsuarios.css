@@ -1443,3 +1443,139 @@
 .swal2-popup.admin-impresiones-swal {
   max-width: min(960px, 96vw);
 }
+
+/* Avisos y diálogos inline (sin anidar otro Swal, que cerraría el modal padre) */
+.admin-impresiones-root {
+  position: relative;
+}
+
+.admin-impresiones-banner {
+  font-size: 13px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.admin-impresiones-banner--info {
+  background: #eff6ff;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.admin-impresiones-banner--warn {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.admin-impresiones-banner--ok {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+
+.admin-impresiones-banner--error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.admin-impresiones-inline-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 30000;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.admin-impresiones-inline-panel {
+  background: #fff;
+  border-radius: 12px;
+  padding: 1rem 1.15rem;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+}
+
+.admin-impresiones-inline-panel--loading {
+  text-align: center;
+}
+
+.admin-impresiones-inline-loading {
+  margin: 0;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.admin-impresiones-inline-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.admin-impresiones-inline-text {
+  margin: 0 0 1rem 0;
+  font-size: 0.9rem;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.admin-impresiones-inline-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 1rem;
+}
+
+.admin-impresiones-inline-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.admin-impresiones-inline-input {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.admin-impresiones-inline-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.admin-impresiones-inline-btn {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.admin-impresiones-inline-btn:hover {
+  background: #f1f5f9;
+}
+
+.admin-impresiones-inline-btn--primary {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.admin-impresiones-inline-btn--primary:hover {
+  filter: brightness(1.05);
+}
