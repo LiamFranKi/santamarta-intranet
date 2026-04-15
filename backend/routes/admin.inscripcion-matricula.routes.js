@@ -105,9 +105,24 @@ router.get('/inscripcion-matricula/catalogo', async (req, res) => {
       [colegio_id, anioActivo]
     );
     const costos = await query(
-      'SELECT id, matricula, pension, descripcion, tipo FROM costos WHERE colegio_id = ? ORDER BY tipo DESC, id DESC',
+      `SELECT id, matricula, pension, descripcion, tipo FROM costos
+       WHERE colegio_id = ? AND UPPER(TRIM(COALESCE(tipo, ''))) = 'GENERAL'
+       ORDER BY id DESC`,
       [colegio_id]
     );
+
+    const niveles = await query('SELECT id, nombre FROM niveles WHERE colegio_id = ? ORDER BY id ASC', [colegio_id]);
+
+    let turnos = [];
+    try {
+      turnos = await query('SELECT id, nombre FROM turnos WHERE colegio_id = ? ORDER BY nombre ASC', [colegio_id]);
+    } catch (e1) {
+      try {
+        turnos = await query('SELECT id, nombre FROM turnos ORDER BY nombre ASC');
+      } catch (e2) {
+        turnos = [];
+      }
+    }
 
     res.json({
       anio_sugerido: anioActivo,
@@ -117,7 +132,10 @@ router.get('/inscripcion-matricula/catalogo', async (req, res) => {
         total_pensiones: parseInt(colegioRow?.total_pensiones || 10, 10),
       },
       grupos: grupos || [],
+      /** Solo tipo GENERAL (tarifa predeterminada del colegio). */
       costos: costos || [],
+      niveles: niveles || [],
+      turnos: turnos || [],
     });
   } catch (e) {
     console.error('GET inscripcion-matricula/catalogo', e);
@@ -180,6 +198,75 @@ async function insertPagoPendienteConn(conn, {
 /**
  * Crea fila en `costos` tipo PERSONAL (legado PHP: costo_id = -1). Devuelve el id insertado.
  */
+/**
+ * Busca grupo por año + nivel + grado + sección + turno; si no existe lo crea (sin tutor; se asigna después en grupos).
+ */
+async function ensureGrupoConn(conn, { colegio_id, anio, nivel_id, grado, seccion, turno_id }) {
+  const sec = String(seccion || '').trim().toUpperCase();
+  if (!sec) {
+    const err = new Error('Indique la sección (letra del grupo)');
+    err.status = 400;
+    throw err;
+  }
+  const an = parseInt(anio, 10);
+  const nid = parseInt(nivel_id, 10);
+  const gr = parseInt(grado, 10);
+  const tid = parseInt(turno_id, 10);
+  if (!Number.isFinite(an) || !Number.isFinite(nid) || !Number.isFinite(gr) || !Number.isFinite(tid)) {
+    const err = new Error('Nivel, grado, año y turno son obligatorios');
+    err.status = 400;
+    throw err;
+  }
+
+  const [ex] = await conn.execute(
+    `SELECT id FROM grupos WHERE colegio_id = ? AND anio = ? AND nivel_id = ? AND grado = ? AND UPPER(TRIM(seccion)) = ? AND turno_id = ? LIMIT 1`,
+    [colegio_id, an, nid, gr, sec, tid]
+  );
+  if (ex.length) return ex[0].id;
+
+  const [nv] = await conn.execute('SELECT id FROM niveles WHERE id = ? AND colegio_id = ? LIMIT 1', [nid, colegio_id]);
+  if (!nv.length) {
+    const err = new Error('El nivel seleccionado no es válido para este colegio');
+    err.status = 400;
+    throw err;
+  }
+  const [tn] = await conn.execute('SELECT id FROM turnos WHERE id = ? LIMIT 1', [tid]);
+  if (!tn.length) {
+    const err = new Error('El turno seleccionado no es válido');
+    err.status = 400;
+    throw err;
+  }
+
+  const vals = [colegio_id, an, nid, gr, sec, tid];
+  try {
+    const [ins] = await conn.execute(
+      `INSERT INTO grupos (colegio_id, anio, nivel_id, grado, seccion, turno_id, tutor_id) VALUES (?, ?, ?, ?, ?, ?, NULL)`,
+      vals
+    );
+    return ins.insertId;
+  } catch (e1) {
+    try {
+      const [ins2] = await conn.execute(
+        `INSERT INTO grupos (colegio_id, anio, nivel_id, grado, seccion, turno_id, tutor_id) VALUES (?, ?, ?, ?, ?, ?, 0)`,
+        vals
+      );
+      return ins2.insertId;
+    } catch (e2) {
+      const [ex2] = await conn.execute(
+        `SELECT id FROM grupos WHERE colegio_id = ? AND anio = ? AND nivel_id = ? AND grado = ? AND UPPER(TRIM(seccion)) = ? AND turno_id = ? LIMIT 1`,
+        [colegio_id, an, nid, gr, sec, tid]
+      );
+      if (ex2.length) return ex2[0].id;
+      console.error('ensureGrupoConn INSERT', e1, e2);
+      const err = new Error(
+        e2.message || e1.message || 'No se pudo crear el grupo. Verifique los datos o cree el aula desde administración de grupos.'
+      );
+      err.status = 400;
+      throw err;
+    }
+  }
+}
+
 async function insertCostoPersonalizado(conn, { colegio_id, descripcion, matricula, pension, agenda }) {
   const desc = String(descripcion || 'Costo Personalizado').slice(0, 255);
   const mat = Number(matricula);
@@ -201,8 +288,8 @@ async function insertCostoPersonalizado(conn, { colegio_id, descripcion, matricu
 }
 
 /**
- * Alta atómica: alumno (nuevo o existente), apoderados vinculados, matrícula, líneas de pago pensión (PENDIENTE)
- * y opcionalmente pago de matrícula (PENDIENTE).
+ * Alta atómica: solo alumno nuevo, apoderados (crear o vincular), matrícula, pagos.
+ * Grupo: por nivel/grado/sección/turno/año; si no existe se crea (sin tutor).
  */
 router.post('/inscripcion-matricula', async (req, res) => {
   const conn = await mysqlReadPool.getConnection();
@@ -211,8 +298,7 @@ router.post('/inscripcion-matricula', async (req, res) => {
     const b = req.body || {};
 
     const alumnoIn = b.alumno || {};
-    const esAlumnoNuevo = !!alumnoIn.es_nuevo;
-    let alumnoId = parseInt(alumnoIn.id, 10);
+    let alumnoId;
     const dniAl = String(alumnoIn.nro_documento || '').trim();
     const ap = String(alumnoIn.apellido_paterno || '').trim();
     const am = String(alumnoIn.apellido_materno || '').trim();
@@ -226,7 +312,13 @@ router.post('/inscripcion-matricula', async (req, res) => {
     const hoy = new Date().toISOString().slice(0, 10);
     const fechaIns = /^\d{4}-\d{2}-\d{2}$/.test(fechaInscripcion) ? fechaInscripcion : hoy;
 
-    const grupoId = parseInt(b.grupo_id, 10);
+    const ub = b.ubicacion_grupo || b.ubicacion || {};
+    const nivelIdUb = parseInt(ub.nivel_id, 10);
+    const gradoUb = parseInt(ub.grado, 10);
+    const seccionUb = String(ub.seccion || '').trim();
+    const turnoIdUb = parseInt(ub.turno_id, 10);
+    const anioUb = parseInt(ub.anio, 10);
+
     const costoModo = String(b.costo_modo || 'personalizado').toLowerCase() === 'tarifario' ? 'tarifario' : 'personalizado';
     const estadoMat = parseInt(b.estado_matricula, 10);
     const fr = String(b.fecha_registro || hoy).slice(0, 10);
@@ -235,16 +327,11 @@ router.post('/inscripcion-matricula', async (req, res) => {
 
     let montoMatricula;
     let montoPension;
-    /** Id de costo: tarifario existente o fila PERSONAL recién creada en la transacción. */
     let costoIdParaMatricula;
-    /** Agenda opcional solo en modo personalizado (columna `costos.agenda` en BD). */
     let agendaParaCosto = 0;
 
     if (!dniAl || !ap || !nom) {
       return res.status(400).json({ error: 'DNI, apellido paterno y nombres del alumno son obligatorios' });
-    }
-    if (!Number.isFinite(grupoId)) {
-      return res.status(400).json({ error: 'Seleccione un grupo' });
     }
     if (![0, 1, 2, 3, 4].includes(estadoMat)) {
       return res.status(400).json({ error: 'Estado de matrícula no válido' });
@@ -252,20 +339,35 @@ router.post('/inscripcion-matricula', async (req, res) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fr)) {
       return res.status(400).json({ error: 'Fecha de registro inválida' });
     }
+    if (!Number.isFinite(nivelIdUb) || !Number.isFinite(gradoUb) || !Number.isFinite(turnoIdUb) || !Number.isFinite(anioUb)) {
+      return res.status(400).json({ error: 'Complete nivel, grado, sección, turno y año académico' });
+    }
+    if (!String(seccionUb || '').trim()) {
+      return res.status(400).json({ error: 'Indique la sección (letra del grupo)' });
+    }
 
-    const gOk = await query('SELECT id FROM grupos WHERE id = ? AND colegio_id = ? LIMIT 1', [grupoId, colegio_id]);
-    if (!gOk.length) return res.status(400).json({ error: 'Grupo no válido' });
+    const exAlPorDni = await query(
+      'SELECT id FROM alumnos WHERE colegio_id = ? AND TRIM(nro_documento) = ? LIMIT 1',
+      [colegio_id, dniAl]
+    );
+    if (exAlPorDni.length) {
+      return res.status(409).json({
+        error:
+          'Este código de alumno (DNI) ya existe en el sistema. Búsquelo en Alumnos y use «Registrar nueva matrícula» desde el historial.',
+        codigo: 'ALUMNO_YA_EXISTE',
+      });
+    }
 
     if (costoModo === 'tarifario') {
       const costoId = parseInt(b.costo_id, 10);
       if (!Number.isFinite(costoId)) {
-        return res.status(400).json({ error: 'Seleccione una tarifa del colegio o use montos personalizados' });
+        return res.status(400).json({ error: 'Seleccione una tarifa GENERAL del colegio o use montos personalizados' });
       }
-      const cOk = await query('SELECT id, matricula, pension FROM costos WHERE id = ? AND colegio_id = ? LIMIT 1', [
-        costoId,
-        colegio_id,
-      ]);
-      if (!cOk.length) return res.status(400).json({ error: 'El costo seleccionado no es válido' });
+      const cOk = await query(
+        `SELECT id, matricula, pension FROM costos WHERE id = ? AND colegio_id = ? AND UPPER(TRIM(COALESCE(tipo, ''))) = 'GENERAL' LIMIT 1`,
+        [costoId, colegio_id]
+      );
+      if (!cOk.length) return res.status(400).json({ error: 'El costo seleccionado no es una tarifa GENERAL válida' });
       montoMatricula = parseFloat(cOk[0].matricula) || 0;
       montoPension = parseFloat(cOk[0].pension) || 0;
       costoIdParaMatricula = costoId;
@@ -313,101 +415,101 @@ router.post('/inscripcion-matricula', async (req, res) => {
 
     await conn.beginTransaction();
 
-    if (esAlumnoNuevo) {
-      const dup = await query(
-        'SELECT id FROM alumnos WHERE colegio_id = ? AND TRIM(nro_documento) = ? LIMIT 1',
-        [colegio_id, dniAl]
-      );
-      if (dup.length) {
-        await conn.rollback();
-        return res.status(409).json({ error: 'Ya existe un alumno con ese DNI. Use buscar y cargar datos.' });
-      }
-      if (!(await usuarioLibre(colegio_id, dniAl))) {
-        await conn.rollback();
-        return res.status(409).json({ error: 'El DNI ya está en uso como usuario' });
-      }
+    const dup = await query('SELECT id FROM alumnos WHERE colegio_id = ? AND TRIM(nro_documento) = ? LIMIT 1', [colegio_id, dniAl]);
+    if (dup.length) {
+      await conn.rollback();
+      return res.status(409).json({
+        error:
+          'Este código de alumno (DNI) ya existe en el sistema. Búsquelo en Alumnos y use «Registrar nueva matrícula» desde el historial.',
+        codigo: 'ALUMNO_YA_EXISTE',
+      });
+    }
+    if (!(await usuarioLibre(colegio_id, dniAl))) {
+      await conn.rollback();
+      return res.status(409).json({ error: 'El DNI ya está en uso como usuario' });
+    }
 
-      await conn.execute(
-        `INSERT INTO alumnos (
+    await conn.execute(
+      `INSERT INTO alumnos (
         colegio_id, apellido_paterno, apellido_materno, nombres, estado_civil, tipo_documento, nro_documento, fecha_nacimiento,
         pais_nacimiento_id, departamento_nacimiento_id, provincia_nacimiento_id, distrito_nacimiento_id,
         sexo, email, foto, fecha_inscripcion, observaciones, nro_hermanos, lugar_hermanos, religion, lengua_materna, segunda_lengua,
         codigo, discapacidad, domicilio, estado_nacimiento, observaciones_nacimiento, actividades_nacimiento, controles_peso_talla,
         otros_controles, alergias, experiencias_traumaticas, tipo_sangre, enfermedades_sufridas, vacunas, trabajos, foto_dni, registro_desde, seguro_id
       ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [
-          colegio_id,
-          ap,
-          am,
-          nom,
-          ALUMNO_DEFAULTS.estado_civil,
-          ALUMNO_DEFAULTS.tipo_documento,
-          dniAl,
-          fn,
-          ALUMNO_DEFAULTS.pais_nacimiento_id,
-          ALUMNO_DEFAULTS.departamento_nacimiento_id,
-          ALUMNO_DEFAULTS.provincia_nacimiento_id,
-          ALUMNO_DEFAULTS.distrito_nacimiento_id,
-          sexoAl,
-          emailAl,
-          ALUMNO_DEFAULTS.foto,
-          fechaIns,
-          ALUMNO_DEFAULTS.observaciones,
-          ALUMNO_DEFAULTS.nro_hermanos,
-          ALUMNO_DEFAULTS.lugar_hermanos,
-          ALUMNO_DEFAULTS.religion,
-          ALUMNO_DEFAULTS.lengua_materna,
-          ALUMNO_DEFAULTS.segunda_lengua,
-          dniAl,
-          ALUMNO_DEFAULTS.discapacidad,
-          domicilioAl || ALUMNO_DEFAULTS.domicilio,
-          ALUMNO_DEFAULTS.estado_nacimiento,
-          ALUMNO_DEFAULTS.observaciones_nacimiento,
-          ALUMNO_DEFAULTS.actividades_nacimiento,
-          ALUMNO_DEFAULTS.controles_peso_talla,
-          ALUMNO_DEFAULTS.otros_controles,
-          ALUMNO_DEFAULTS.alergias,
-          ALUMNO_DEFAULTS.experiencias_traumaticas,
-          ALUMNO_DEFAULTS.tipo_sangre,
-          ALUMNO_DEFAULTS.enfermedades_sufridas,
-          ALUMNO_DEFAULTS.vacunas,
-          ALUMNO_DEFAULTS.trabajos,
-          ALUMNO_DEFAULTS.foto_dni,
-          ALUMNO_DEFAULTS.registro_desde,
-          ALUMNO_DEFAULTS.seguro_id,
-        ]
-      );
-      const [rLast] = await conn.execute(
-        'SELECT id FROM alumnos WHERE colegio_id = ? AND TRIM(nro_documento) = ? ORDER BY id DESC LIMIT 1',
-        [colegio_id, dniAl]
-      );
-      alumnoId = rLast[0]?.id;
-      if (!alumnoId) throw new Error('No se pudo obtener el alumno creado');
+      [
+        colegio_id,
+        ap,
+        am,
+        nom,
+        ALUMNO_DEFAULTS.estado_civil,
+        ALUMNO_DEFAULTS.tipo_documento,
+        dniAl,
+        fn,
+        ALUMNO_DEFAULTS.pais_nacimiento_id,
+        ALUMNO_DEFAULTS.departamento_nacimiento_id,
+        ALUMNO_DEFAULTS.provincia_nacimiento_id,
+        ALUMNO_DEFAULTS.distrito_nacimiento_id,
+        sexoAl,
+        emailAl,
+        ALUMNO_DEFAULTS.foto,
+        fechaIns,
+        ALUMNO_DEFAULTS.observaciones,
+        ALUMNO_DEFAULTS.nro_hermanos,
+        ALUMNO_DEFAULTS.lugar_hermanos,
+        ALUMNO_DEFAULTS.religion,
+        ALUMNO_DEFAULTS.lengua_materna,
+        ALUMNO_DEFAULTS.segunda_lengua,
+        dniAl,
+        ALUMNO_DEFAULTS.discapacidad,
+        domicilioAl || ALUMNO_DEFAULTS.domicilio,
+        ALUMNO_DEFAULTS.estado_nacimiento,
+        ALUMNO_DEFAULTS.observaciones_nacimiento,
+        ALUMNO_DEFAULTS.actividades_nacimiento,
+        ALUMNO_DEFAULTS.controles_peso_talla,
+        ALUMNO_DEFAULTS.otros_controles,
+        ALUMNO_DEFAULTS.alergias,
+        ALUMNO_DEFAULTS.experiencias_traumaticas,
+        ALUMNO_DEFAULTS.tipo_sangre,
+        ALUMNO_DEFAULTS.enfermedades_sufridas,
+        ALUMNO_DEFAULTS.vacunas,
+        ALUMNO_DEFAULTS.trabajos,
+        ALUMNO_DEFAULTS.foto_dni,
+        ALUMNO_DEFAULTS.registro_desde,
+        ALUMNO_DEFAULTS.seguro_id,
+      ]
+    );
+    const [rLast] = await conn.execute(
+      'SELECT id FROM alumnos WHERE colegio_id = ? AND TRIM(nro_documento) = ? ORDER BY id DESC LIMIT 1',
+      [colegio_id, dniAl]
+    );
+    alumnoId = rLast[0]?.id;
+    if (!alumnoId) throw new Error('No se pudo obtener el alumno creado');
 
-      const pwd = sha1Password(dniAl);
-      await conn.execute(
-        `INSERT INTO usuarios (
+    const pwd = sha1Password(dniAl);
+    await conn.execute(
+      `INSERT INTO usuarios (
          colegio_id, alumno_id, personal_id, apoderado_id, usuario, password, tipo, estado,
          ms_email, ms_access_token, ms_refresh_token, ms_id_token, auth_token, permisos,
          cambiar_password, app_terminos_aceptados, cambiar_datos
        ) VALUES (?, ?, 0, 0, ?, ?, 'ALUMNO', 'ACTIVO', '', '', '', '', '', '', 'NO', 'NO', 'SI')`,
-        [colegio_id, alumnoId, dniAl, pwd]
-      );
-    } else {
-      if (!Number.isFinite(alumnoId)) {
-        await conn.rollback();
-        return res.status(400).json({ error: 'Indique el alumno existente o cree uno nuevo' });
-      }
-      const ex = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
-      if (!ex.length) {
-        await conn.rollback();
-        return res.status(404).json({ error: 'Alumno no encontrado' });
-      }
-      await conn.execute(
-        `UPDATE alumnos SET apellido_paterno = ?, apellido_materno = ?, nombres = ?, email = ?, fecha_nacimiento = ?, sexo = ?, domicilio = COALESCE(NULLIF(?, ''), domicilio), fecha_inscripcion = ?
-         WHERE id = ? AND colegio_id = ?`,
-        [ap, am, nom, emailAl, fn, sexoAl, domicilioAl, fechaIns, alumnoId, colegio_id]
-      );
+      [colegio_id, alumnoId, dniAl, pwd]
+    );
+
+    let grupoId;
+    try {
+      grupoId = await ensureGrupoConn(conn, {
+        colegio_id,
+        anio: anioUb,
+        nivel_id: nivelIdUb,
+        grado: gradoUb,
+        seccion: seccionUb,
+        turno_id: turnoIdUb,
+      });
+    } catch (eg) {
+      await conn.rollback();
+      const st = eg.status && Number(eg.status) >= 400 && Number(eg.status) < 500 ? Number(eg.status) : 400;
+      return res.status(st).json({ error: eg.message || 'No se pudo definir el grupo' });
     }
 
     if (costoModo === 'personalizado') {
@@ -441,10 +543,6 @@ router.post('/inscripcion-matricula', async (req, res) => {
       let apoderadoId = apRows[0]?.id;
 
       if (!apoderadoId) {
-        if (!apItem.crear_si_no_existe) {
-          await conn.rollback();
-          return res.status(400).json({ error: `No existe apoderado con DNI ${dniAp}. Marque crear nuevo o registre antes.` });
-        }
         const nNom = String(apItem.nombres || '').trim();
         const nAp = String(apItem.apellido_paterno || '').trim();
         const nAm = String(apItem.apellido_materno || '').trim();
@@ -625,7 +723,8 @@ router.post('/inscripcion-matricula', async (req, res) => {
       /* ignore */
     }
     console.error('POST inscripcion-matricula', e);
-    res.status(500).json({ error: e.message || 'Error al registrar inscripción' });
+    const st = Number(e.status) >= 400 && Number(e.status) < 600 ? Number(e.status) : 500;
+    res.status(st).json({ error: e.message || 'Error al registrar inscripción' });
   } finally {
     conn.release();
   }

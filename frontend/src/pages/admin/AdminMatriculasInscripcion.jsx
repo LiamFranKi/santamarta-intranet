@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
@@ -19,17 +19,31 @@ const ESTADOS_MAT = [
 
 const MODALIDADES = ['PRESENCIAL', 'VIRTUAL', 'SEMIPRESENCIAL'];
 
+/** Grados según nombre de nivel (misma lógica que negocio escolar). */
+function gradosParaNivel(nivelNombre) {
+  const n = String(nivelNombre || '').toUpperCase();
+  if (n.includes('INICIAL')) {
+    return [
+      { v: 3, label: '3 años' },
+      { v: 4, label: '4 años' },
+      { v: 5, label: '5 años' },
+    ];
+  }
+  if (n.includes('SECUND')) {
+    return [1, 2, 3, 4, 5].map((g) => ({ v: g, label: `${g}°` }));
+  }
+  return [1, 2, 3, 4, 5, 6].map((g) => ({ v: g, label: `${g}°` }));
+}
+
 const emptyApoderado = () => ({
   nro_documento: '',
   parentesco: 1,
-  crear_si_no_existe: true,
   nombres: '',
   apellido_paterno: '',
   apellido_materno: '',
   fecha_nacimiento: '1980-01-01',
   email: '',
   telefono_celular: '',
-  _cargado: false,
 });
 
 export default function AdminMatriculasInscripcion() {
@@ -39,9 +53,7 @@ export default function AdminMatriculasInscripcion() {
   const [catalogo, setCatalogo] = useState(null);
   const [loadingCat, setLoadingCat] = useState(true);
 
-  const [buscarDni, setBuscarDni] = useState('');
-  const [alumnoExistente, setAlumnoExistente] = useState(null);
-  const [esNuevo, setEsNuevo] = useState(true);
+  const [alumnoYaExiste, setAlumnoYaExiste] = useState(false);
 
   const [alumno, setAlumno] = useState({
     nro_documento: '',
@@ -57,8 +69,11 @@ export default function AdminMatriculasInscripcion() {
 
   const [apoderados, setApoderados] = useState([emptyApoderado()]);
 
-  const [grupoId, setGrupoId] = useState('');
-  /** personalizado (por defecto) | tarifario */
+  const [nivelId, setNivelId] = useState('');
+  const [grado, setGrado] = useState('');
+  const [seccion, setSeccion] = useState('');
+  const [turnoId, setTurnoId] = useState('');
+
   const [costoModo, setCostoModo] = useState('personalizado');
   const [costoId, setCostoId] = useState('');
   const [persMatricula, setPersMatricula] = useState('');
@@ -66,9 +81,25 @@ export default function AdminMatriculasInscripcion() {
   const [persAgenda, setPersAgenda] = useState('');
   const [estadoMat, setEstadoMat] = useState(0);
   const [modalidad, setModalidad] = useState('PRESENCIAL');
-  const [fechaRegistro, setFechaRegistro] = useState(new Date().toISOString().slice(0, 10));
+  const [fechaRegistro, setFechaRegistro] = useState(() => new Date().toISOString().slice(0, 10));
   const [registrarPagoMat, setRegistrarPagoMat] = useState(true);
   const [sending, setSending] = useState(false);
+
+  const niveles = catalogo?.niveles || [];
+  const turnos = catalogo?.turnos || [];
+  const costosGeneral = useMemo(() => {
+    const list = catalogo?.costos || [];
+    return list.filter((c) => String(c.tipo || '').toUpperCase().trim() === 'GENERAL');
+  }, [catalogo?.costos]);
+
+  const nivelSeleccionado = useMemo(() => niveles.find((n) => String(n.id) === String(nivelId)), [niveles, nivelId]);
+  const opcionesGrado = useMemo(() => gradosParaNivel(nivelSeleccionado?.nombre), [nivelSeleccionado]);
+
+  useEffect(() => {
+    if (!opcionesGrado.length) return;
+    const valid = opcionesGrado.some((o) => String(o.v) === String(grado));
+    if (!valid) setGrado(String(opcionesGrado[0].v));
+  }, [nivelId, opcionesGrado, grado]);
 
   const loadCatalogo = useCallback(async () => {
     setLoadingCat(true);
@@ -77,13 +108,24 @@ export default function AdminMatriculasInscripcion() {
         params: { anio: anioFiltro },
       });
       setCatalogo(data);
-      if (data.grupos?.length) {
-        setGrupoId(String(data.grupos[0].id));
+      if (data.niveles?.length) {
+        const first = data.niveles[0];
+        setNivelId(String(first.id));
+        const g0 = gradosParaNivel(first.nombre)[0];
+        setGrado(g0 ? String(g0.v) : '1');
       } else {
-        setGrupoId('');
+        setNivelId('');
+        setGrado('');
       }
-      if (data.costos?.length) {
-        const gen = data.costos.find((c) => String(c.tipo || '').toUpperCase() === 'GENERAL') || data.costos[0];
+      if (data.turnos?.length) {
+        setTurnoId(String(data.turnos[0].id));
+      } else {
+        setTurnoId('');
+      }
+      setSeccion((s) => (s === '' ? 'A' : s));
+      const genList = (data.costos || []).filter((c) => String(c.tipo || '').toUpperCase().trim() === 'GENERAL');
+      if (genList.length) {
+        const gen = genList.find((c) => String(c.tipo || '').toUpperCase() === 'GENERAL') || genList[0];
         setCostoId(String(gen.id));
         setPersMatricula((prev) => (prev === '' ? String(gen.matricula ?? '') : prev));
         setPersPension((prev) => (prev === '' ? String(gen.pension ?? '') : prev));
@@ -101,46 +143,30 @@ export default function AdminMatriculasInscripcion() {
     loadCatalogo();
   }, [loadCatalogo]);
 
-  const buscarAlumnoPorDni = async () => {
-    const dni = String(buscarDni || alumno.nro_documento || '').trim();
+  const verificarDniAlumnoBlur = async () => {
+    const dni = String(alumno.nro_documento || '').trim();
     if (!dni || dni.length < 4) {
-      Swal.fire({ icon: 'info', text: 'Ingrese el DNI del alumno (código igual al DNI).' });
+      setAlumnoYaExiste(false);
       return;
     }
     try {
       const { data } = await api.get('/admin/usuarios/alumnos/por-dni', { params: { dni } });
       if (data.encontrado && data.alumno) {
-        setAlumnoExistente(data.alumno);
-        setEsNuevo(false);
-        setAlumno((prev) => ({
-          ...prev,
-          nro_documento: data.alumno.nro_documento || dni,
-          apellido_paterno: data.alumno.apellido_paterno || '',
-          apellido_materno: data.alumno.apellido_materno || '',
-          nombres: data.alumno.nombres || '',
-          fecha_nacimiento: (data.alumno.fecha_nacimiento || '2015-01-01').toString().slice(0, 10),
-          email: data.alumno.email || '',
-        }));
-        Swal.fire({ icon: 'success', title: 'Alumno encontrado', text: 'Revise los datos y continúe con apoderados.', timer: 2200, showConfirmButton: false });
-      } else {
-        setAlumnoExistente(null);
-        setEsNuevo(true);
-        setAlumno((prev) => ({
-          ...prev,
-          nro_documento: dni,
-        }));
+        setAlumnoYaExiste(true);
         Swal.fire({
-          icon: 'info',
-          title: 'No registrado',
-          text: 'No hay alumno con ese DNI. Complete los datos como alumno nuevo.',
+          icon: 'warning',
+          title: 'DNI ya registrado',
+          text: 'Este código de alumno ya existe. Búsquelo en Alumnos y use «Registrar nueva matrícula» desde el historial de matrículas.',
         });
+      } else {
+        setAlumnoYaExiste(false);
       }
     } catch (e) {
       Swal.fire({ icon: 'error', text: e.response?.data?.error || e.message });
     }
   };
 
-  const buscarApoderadoIdx = async (idx) => {
+  const buscarApoderadoBlur = async (idx) => {
     const row = apoderados[idx];
     const dni = String(row.nro_documento || '').trim();
     if (!dni || dni.length < 4) return;
@@ -158,12 +184,9 @@ export default function AdminMatriculasInscripcion() {
           email: ap.email || '',
           telefono_celular: ap.telefono_celular || '',
           fecha_nacimiento: (ap.fecha_nacimiento || '1980-01-01').toString().slice(0, 10),
-          parentesco: parseInt(ap.parentesco, 10) >= 1 && parseInt(ap.parentesco, 10) <= 4 ? parseInt(ap.parentesco, 10) : next[idx].parentesco,
-          crear_si_no_existe: false,
-          _cargado: true,
+          parentesco:
+            parseInt(ap.parentesco, 10) >= 1 && parseInt(ap.parentesco, 10) <= 4 ? parseInt(ap.parentesco, 10) : next[idx].parentesco,
         };
-      } else {
-        next[idx] = { ...next[idx], crear_si_no_existe: true, _cargado: true };
       }
       setApoderados(next);
     } catch (e) {
@@ -187,13 +210,10 @@ export default function AdminMatriculasInscripcion() {
   };
 
   const copiarTarifaAlModoPersonalizado = () => {
-    const list = catalogo?.costos || [];
     const c =
-      list.find((x) => String(x.id) === String(costoId)) ||
-      list.find((x) => String(x.tipo || '').toUpperCase() === 'GENERAL') ||
-      list[0];
+      costosGeneral.find((x) => String(x.id) === String(costoId)) || costosGeneral.find((x) => String(x.tipo || '').toUpperCase() === 'GENERAL') || costosGeneral[0];
     if (!c) {
-      Swal.fire({ icon: 'info', text: 'No hay tarifas en el catálogo para copiar.' });
+      Swal.fire({ icon: 'info', text: 'No hay tarifas GENERAL en el catálogo para copiar.' });
       return;
     }
     setPersMatricula(String(c.matricula ?? ''));
@@ -201,20 +221,26 @@ export default function AdminMatriculasInscripcion() {
     setCostoModo('personalizado');
   };
 
+  const camposBloqueados = alumnoYaExiste || loadingCat;
+
   const enviar = async (e) => {
     e.preventDefault();
+    if (alumnoYaExiste) {
+      Swal.fire({ icon: 'warning', text: 'No puede inscribir un DNI que ya existe como alumno.' });
+      return;
+    }
     const dni = String(alumno.nro_documento || '').trim();
     if (!dni || !alumno.apellido_paterno.trim() || !alumno.nombres.trim()) {
       Swal.fire({ icon: 'warning', text: 'Complete DNI, apellido paterno y nombres del alumno.' });
       return;
     }
-    if (!grupoId) {
-      Swal.fire({ icon: 'warning', text: 'Seleccione el grupo.' });
+    if (!nivelId || !String(seccion || '').trim() || !turnoId) {
+      Swal.fire({ icon: 'warning', text: 'Complete nivel, grado, sección y turno.' });
       return;
     }
     if (costoModo === 'tarifario') {
       if (!costoId) {
-        Swal.fire({ icon: 'warning', text: 'Seleccione una tarifa del colegio o cambie a montos personalizados.' });
+        Swal.fire({ icon: 'warning', text: 'Seleccione una tarifa GENERAL del colegio o use montos personalizados.' });
         return;
       }
     } else {
@@ -239,8 +265,6 @@ export default function AdminMatriculasInscripcion() {
     try {
       const body = {
         alumno: {
-          es_nuevo: esNuevo,
-          id: esNuevo ? undefined : alumnoExistente?.id,
           nro_documento: dni,
           apellido_paterno: alumno.apellido_paterno.trim(),
           apellido_materno: alumno.apellido_materno.trim(),
@@ -251,10 +275,16 @@ export default function AdminMatriculasInscripcion() {
           domicilio: alumno.domicilio.trim(),
           fecha_inscripcion: alumno.fecha_inscripcion,
         },
+        ubicacion_grupo: {
+          nivel_id: parseInt(nivelId, 10),
+          grado: parseInt(grado, 10),
+          seccion: String(seccion || '').trim(),
+          turno_id: parseInt(turnoId, 10),
+          anio: anioFiltro,
+        },
         apoderados: aps.map((r) => ({
           nro_documento: String(r.nro_documento).trim(),
           parentesco: parseInt(r.parentesco, 10) || 1,
-          crear_si_no_existe: !!r.crear_si_no_existe,
           nombres: r.nombres,
           apellido_paterno: r.apellido_paterno,
           apellido_materno: r.apellido_materno,
@@ -262,7 +292,6 @@ export default function AdminMatriculasInscripcion() {
           email: r.email,
           telefono_celular: r.telefono_celular,
         })),
-        grupo_id: parseInt(grupoId, 10),
         costo_modo: costoModo,
         ...(costoModo === 'tarifario'
           ? { costo_id: parseInt(costoId, 10) }
@@ -288,7 +317,20 @@ export default function AdminMatriculasInscripcion() {
       });
       navigate('/admin/usuarios/alumnos');
     } catch (err) {
-      Swal.fire({ icon: 'error', title: 'No se pudo completar', text: err.response?.data?.error || err.message });
+      const data = err.response?.data;
+      const codigo = data?.codigo;
+      if (codigo === 'ALUMNO_YA_EXISTE') {
+        Swal.fire({ icon: 'info', title: 'No se puede continuar aquí', text: data?.error || 'El DNI ya está registrado.' });
+        setAlumnoYaExiste(true);
+      } else if (err.response?.status === 409 && codigo === 'MATRICULA_DUPLICADA_ANIO') {
+        Swal.fire({
+          icon: 'info',
+          title: 'Matrícula no registrada',
+          text: data?.error || 'Este alumno ya tiene matrícula en ese año académico.',
+        });
+      } else {
+        Swal.fire({ icon: 'error', title: 'No se pudo completar', text: data?.error || err.message });
+      }
     } finally {
       setSending(false);
     }
@@ -297,59 +339,81 @@ export default function AdminMatriculasInscripcion() {
   return (
     <div className="admin-mat-page">
       <header className="admin-mat-hero">
-        <div>
-          <h1 className="admin-mat-title">Nueva inscripción / matrícula</h1>
+        <div className="admin-mat-hero-intro">
+          <p className="admin-mat-kicker">Administración · Inscripciones</p>
+          <h1 className="admin-mat-title">Inscripción de alumno nuevo</h1>
           <p className="admin-mat-sub">
-            Busque por DNI o registre alumno nuevo. Vincule apoderados, grupo y costos (prioridad a montos personalizados;
-            opcionalmente tarifa del colegio). Se generan las pensiones del año en pendiente y, si marca, la línea de matrícula.
+            Solo para estudiantes que aún no existen en el sistema. Si el DNI ya está registrado, use Alumnos → historial → «Registrar nueva matrícula». Se generan pensiones
+            pendientes y, si lo indica, la línea de matrícula.
           </p>
         </div>
-        <div className="admin-mat-hero-tools">
-          <label className="admin-mat-inline-label">
-            Año académico
-            <input
-              type="number"
-              className="admin-mat-input admin-mat-input--sm"
-              value={anioFiltro}
-              onChange={(e) => setAnioFiltro(parseInt(e.target.value, 10) || anioActual)}
-              min={2000}
-              max={2100}
-            />
-          </label>
-          <button type="button" className="admin-mat-btn admin-mat-btn--ghost" onClick={loadCatalogo} disabled={loadingCat}>
-            {loadingCat ? 'Cargando…' : 'Actualizar grupos'}
-          </button>
-        </div>
+        <aside className="admin-mat-context-card" aria-label="Año académico">
+          <div className="admin-mat-context-card__head">
+            <span className="admin-mat-context-icon" aria-hidden="true" />
+            <div>
+              <strong className="admin-mat-context-title">Año lectivo</strong>
+              <p className="admin-mat-context-desc">Nivel, grado, sección y turno aplican a este año.</p>
+            </div>
+          </div>
+          <div className="admin-mat-context-card__row">
+            <label className="admin-mat-field-compact">
+              <span>Año académico</span>
+              <input
+                type="number"
+                className="admin-mat-input admin-mat-input--year"
+                value={anioFiltro}
+                onChange={(e) => setAnioFiltro(parseInt(e.target.value, 10) || anioActual)}
+                min={2000}
+                max={2100}
+              />
+            </label>
+            <button type="button" className="admin-mat-btn admin-mat-btn--context" onClick={loadCatalogo} disabled={loadingCat}>
+              {loadingCat ? (
+                <>
+                  <span className="admin-mat-spinner" aria-hidden="true" />
+                  Cargando…
+                </>
+              ) : (
+                'Actualizar catálogo'
+              )}
+            </button>
+          </div>
+        </aside>
       </header>
 
       <form onSubmit={enviar} className="admin-mat-form">
+        {alumnoYaExiste && (
+          <div className="admin-mat-alert admin-mat-alert--danger">
+            Este DNI ya corresponde a un alumno del colegio. No puede usar este formulario: vaya a <strong>Alumnos</strong>, busque al estudiante y use{' '}
+            <strong>Registrar nueva matrícula</strong> desde el historial.
+          </div>
+        )}
+
         <section className="admin-mat-card admin-mat-card--alumno">
           <div className="admin-mat-card-head">
-            <span className="admin-mat-badge admin-mat-badge--alumno">1</span>
-            <div>
-              <h2 className="admin-mat-card-title">Datos del alumno</h2>
-              <p className="admin-mat-card-hint">El código de acceso coincide con el DNI. Busque antes de duplicar.</p>
+            <div className="admin-mat-card-head-main">
+              <span className="admin-mat-badge admin-mat-badge--alumno">1</span>
+              <div>
+                <h2 className="admin-mat-card-title">Datos del alumno</h2>
+                <p className="admin-mat-card-hint">Escriba el DNI; al salir del campo se verifica si ya existe. El acceso al aula usará el DNI como código inicial.</p>
+              </div>
             </div>
           </div>
           <div className="admin-mat-grid">
-            <div className="admin-mat-field admin-mat-field--span2">
-              <label>DNI (código)</label>
-              <div className="admin-mat-row">
-                <input
-                  className="admin-mat-input"
-                  value={buscarDni || alumno.nro_documento}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setBuscarDni(v);
-                    setAlumno((p) => ({ ...p, nro_documento: v }));
-                  }}
-                  placeholder="Número de documento"
-                  disabled={!esNuevo && !!alumnoExistente}
-                />
-                <button type="button" className="admin-mat-btn admin-mat-btn--primary" onClick={buscarAlumnoPorDni}>
-                  Buscar
-                </button>
-              </div>
+            <div className="admin-mat-field">
+              <label>DNI (código) *</label>
+              <input
+                className="admin-mat-input"
+                value={alumno.nro_documento}
+                onChange={(e) => {
+                  setAlumnoYaExiste(false);
+                  setAlumno((p) => ({ ...p, nro_documento: e.target.value }));
+                }}
+                onBlur={verificarDniAlumnoBlur}
+                placeholder="Número de documento"
+                disabled={loadingCat}
+                autoComplete="off"
+              />
             </div>
             <div className="admin-mat-field">
               <label>Apellido paterno *</label>
@@ -358,6 +422,7 @@ export default function AdminMatriculasInscripcion() {
                 required
                 value={alumno.apellido_paterno}
                 onChange={(e) => setAlumno((p) => ({ ...p, apellido_paterno: e.target.value }))}
+                disabled={camposBloqueados}
               />
             </div>
             <div className="admin-mat-field">
@@ -366,6 +431,7 @@ export default function AdminMatriculasInscripcion() {
                 className="admin-mat-input"
                 value={alumno.apellido_materno}
                 onChange={(e) => setAlumno((p) => ({ ...p, apellido_materno: e.target.value }))}
+                disabled={camposBloqueados}
               />
             </div>
             <div className="admin-mat-field">
@@ -375,11 +441,17 @@ export default function AdminMatriculasInscripcion() {
                 required
                 value={alumno.nombres}
                 onChange={(e) => setAlumno((p) => ({ ...p, nombres: e.target.value }))}
+                disabled={camposBloqueados}
               />
             </div>
             <div className="admin-mat-field">
               <label>Sexo</label>
-              <select className="admin-mat-input" value={alumno.sexo} onChange={(e) => setAlumno((p) => ({ ...p, sexo: parseInt(e.target.value, 10) }))}>
+              <select
+                className="admin-mat-input"
+                value={alumno.sexo}
+                onChange={(e) => setAlumno((p) => ({ ...p, sexo: parseInt(e.target.value, 10) }))}
+                disabled={camposBloqueados}
+              >
                 <option value={0}>—</option>
                 <option value={1}>Femenino</option>
                 <option value={2}>Masculino</option>
@@ -392,6 +464,7 @@ export default function AdminMatriculasInscripcion() {
                 className="admin-mat-input"
                 value={alumno.fecha_nacimiento}
                 onChange={(e) => setAlumno((p) => ({ ...p, fecha_nacimiento: e.target.value }))}
+                disabled={camposBloqueados}
               />
             </div>
             <div className="admin-mat-field">
@@ -401,6 +474,7 @@ export default function AdminMatriculasInscripcion() {
                 className="admin-mat-input"
                 value={alumno.email}
                 onChange={(e) => setAlumno((p) => ({ ...p, email: e.target.value }))}
+                disabled={camposBloqueados}
               />
             </div>
             <div className="admin-mat-field admin-mat-field--span2">
@@ -409,6 +483,7 @@ export default function AdminMatriculasInscripcion() {
                 className="admin-mat-input"
                 value={alumno.domicilio}
                 onChange={(e) => setAlumno((p) => ({ ...p, domicilio: e.target.value }))}
+                disabled={camposBloqueados}
               />
             </div>
             <div className="admin-mat-field">
@@ -418,24 +493,22 @@ export default function AdminMatriculasInscripcion() {
                 className="admin-mat-input"
                 value={alumno.fecha_inscripcion}
                 onChange={(e) => setAlumno((p) => ({ ...p, fecha_inscripcion: e.target.value }))}
+                disabled={camposBloqueados}
               />
             </div>
-            {alumnoExistente && (
-              <div className="admin-mat-banner admin-mat-banner--ok">
-                Alumno existente #{alumnoExistente.id}: los datos se actualizarán al guardar.
-              </div>
-            )}
           </div>
         </section>
 
         <section className="admin-mat-card admin-mat-card--apoderados">
-          <div className="admin-mat-card-head">
-            <span className="admin-mat-badge admin-mat-badge--apoderados">2</span>
-            <div>
-              <h2 className="admin-mat-card-title">Apoderados</h2>
-              <p className="admin-mat-card-hint">Busque por DNI para cargar datos o marque «crear nuevo» si no existe.</p>
+          <div className="admin-mat-card-head admin-mat-card-head--with-action">
+            <div className="admin-mat-card-head-main">
+              <span className="admin-mat-badge admin-mat-badge--apoderados">2</span>
+              <div>
+                <h2 className="admin-mat-card-title">Apoderados</h2>
+                <p className="admin-mat-card-hint">Al salir del DNI se cargan los datos si el apoderado ya existe; si no, complételos para crear la ficha.</p>
+              </div>
             </div>
-            <button type="button" className="admin-mat-btn admin-mat-btn--secondary admin-mat-btn--ml" onClick={addApoderado}>
+            <button type="button" className="admin-mat-btn admin-mat-btn--secondary" onClick={addApoderado} disabled={camposBloqueados}>
               + Agregar apoderado
             </button>
           </div>
@@ -445,32 +518,35 @@ export default function AdminMatriculasInscripcion() {
               <div className="admin-mat-apoderado-head">
                 <strong>Apoderado {idx + 1}</strong>
                 {apoderados.length > 1 && (
-                  <button type="button" className="admin-mat-btn admin-mat-btn--ghost admin-mat-btn--danger-text" onClick={() => removeApoderado(idx)}>
+                  <button
+                    type="button"
+                    className="admin-mat-btn admin-mat-btn--ghost admin-mat-btn--danger-text"
+                    onClick={() => removeApoderado(idx)}
+                    disabled={camposBloqueados}
+                  >
                     Quitar
                   </button>
                 )}
               </div>
-              <div className="admin-mat-grid">
-                <div className="admin-mat-field admin-mat-field--span2">
+              <div className="admin-mat-row-2">
+                <div className="admin-mat-field admin-mat-field--grow">
                   <label>DNI</label>
-                  <div className="admin-mat-row">
-                    <input
-                      className="admin-mat-input"
-                      value={row.nro_documento}
-                      onChange={(e) => updateApoderado(idx, 'nro_documento', e.target.value)}
-                      placeholder="DNI del apoderado"
-                    />
-                    <button type="button" className="admin-mat-btn admin-mat-btn--secondary" onClick={() => buscarApoderadoIdx(idx)}>
-                      Buscar
-                    </button>
-                  </div>
+                  <input
+                    className="admin-mat-input"
+                    value={row.nro_documento}
+                    onChange={(e) => updateApoderado(idx, 'nro_documento', e.target.value)}
+                    onBlur={() => buscarApoderadoBlur(idx)}
+                    placeholder="DNI"
+                    disabled={camposBloqueados}
+                  />
                 </div>
-                <div className="admin-mat-field">
+                <div className="admin-mat-field admin-mat-field--narrow">
                   <label>Parentesco</label>
                   <select
                     className="admin-mat-input"
                     value={row.parentesco}
                     onChange={(e) => updateApoderado(idx, 'parentesco', parseInt(e.target.value, 10))}
+                    disabled={camposBloqueados}
                   >
                     {PARENTESCO.map((p) => (
                       <option key={p.v} value={p.v}>
@@ -479,19 +555,16 @@ export default function AdminMatriculasInscripcion() {
                     ))}
                   </select>
                 </div>
-                <div className="admin-mat-field admin-mat-check">
-                  <label className="admin-mat-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={row.crear_si_no_existe}
-                      onChange={(e) => updateApoderado(idx, 'crear_si_no_existe', e.target.checked)}
-                    />
-                    Crear ficha nueva si no existe en el colegio
-                  </label>
-                </div>
+              </div>
+              <div className="admin-mat-row-3">
                 <div className="admin-mat-field">
                   <label>Nombres</label>
-                  <input className="admin-mat-input" value={row.nombres} onChange={(e) => updateApoderado(idx, 'nombres', e.target.value)} />
+                  <input
+                    className="admin-mat-input"
+                    value={row.nombres}
+                    onChange={(e) => updateApoderado(idx, 'nombres', e.target.value)}
+                    disabled={camposBloqueados}
+                  />
                 </div>
                 <div className="admin-mat-field">
                   <label>Apellido paterno</label>
@@ -499,6 +572,7 @@ export default function AdminMatriculasInscripcion() {
                     className="admin-mat-input"
                     value={row.apellido_paterno}
                     onChange={(e) => updateApoderado(idx, 'apellido_paterno', e.target.value)}
+                    disabled={camposBloqueados}
                   />
                 </div>
                 <div className="admin-mat-field">
@@ -507,8 +581,11 @@ export default function AdminMatriculasInscripcion() {
                     className="admin-mat-input"
                     value={row.apellido_materno}
                     onChange={(e) => updateApoderado(idx, 'apellido_materno', e.target.value)}
+                    disabled={camposBloqueados}
                   />
                 </div>
+              </div>
+              <div className="admin-mat-row-3">
                 <div className="admin-mat-field">
                   <label>Fecha nac.</label>
                   <input
@@ -516,6 +593,7 @@ export default function AdminMatriculasInscripcion() {
                     className="admin-mat-input"
                     value={row.fecha_nacimiento?.slice(0, 10) || '1980-01-01'}
                     onChange={(e) => updateApoderado(idx, 'fecha_nacimiento', e.target.value)}
+                    disabled={camposBloqueados}
                   />
                 </div>
                 <div className="admin-mat-field">
@@ -525,6 +603,7 @@ export default function AdminMatriculasInscripcion() {
                     className="admin-mat-input"
                     value={row.email}
                     onChange={(e) => updateApoderado(idx, 'email', e.target.value)}
+                    disabled={camposBloqueados}
                   />
                 </div>
                 <div className="admin-mat-field">
@@ -533,6 +612,7 @@ export default function AdminMatriculasInscripcion() {
                     className="admin-mat-input"
                     value={row.telefono_celular}
                     onChange={(e) => updateApoderado(idx, 'telefono_celular', e.target.value)}
+                    disabled={camposBloqueados}
                   />
                 </div>
               </div>
@@ -542,27 +622,78 @@ export default function AdminMatriculasInscripcion() {
 
         <section className="admin-mat-card admin-mat-card--academico">
           <div className="admin-mat-card-head">
-            <span className="admin-mat-badge admin-mat-badge--academico">3</span>
-            <div>
-              <h2 className="admin-mat-card-title">Matrícula académica</h2>
-              <p className="admin-mat-card-hint">Grupo según año {anioFiltro}, estado y modalidad.</p>
+            <div className="admin-mat-card-head-main">
+              <span className="admin-mat-badge admin-mat-badge--academico">3</span>
+              <div>
+                <h2 className="admin-mat-card-title">Matrícula académica</h2>
+                <p className="admin-mat-card-hint">
+                  Año {anioFiltro}. Si el aula no existía, se crea el grupo sin tutor (asigne tutor después en administración de grupos).
+                </p>
+              </div>
             </div>
           </div>
-          <div className="admin-mat-grid">
-            <div className="admin-mat-field admin-mat-field--span2">
-              <label>Grupo (nivel · grado · sección · turno)</label>
-              <select className="admin-mat-input" required value={grupoId} onChange={(e) => setGrupoId(e.target.value)} disabled={loadingCat || !catalogo?.grupos?.length}>
-                <option value="">— Seleccione —</option>
-                {(catalogo?.grupos || []).map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {(g.nivel_nombre || '—').toUpperCase()} · {g.grado}° {g.seccion} · {g.turno_nombre || '—'} · {g.anio}
+          <div className="admin-mat-row-4">
+            <div className="admin-mat-field">
+              <label>Nivel</label>
+              <select
+                className="admin-mat-input"
+                value={nivelId}
+                onChange={(e) => setNivelId(e.target.value)}
+                disabled={loadingCat || !niveles.length || camposBloqueados}
+                required
+              >
+                <option value="">—</option>
+                {niveles.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.nombre}
                   </option>
                 ))}
               </select>
             </div>
             <div className="admin-mat-field">
+              <label>Grado</label>
+              <select className="admin-mat-input" value={grado} onChange={(e) => setGrado(e.target.value)} disabled={camposBloqueados} required>
+                {opcionesGrado.map((o) => (
+                  <option key={o.v} value={o.v}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="admin-mat-field">
+              <label>Sección</label>
+              <input
+                className="admin-mat-input"
+                value={seccion}
+                onChange={(e) => setSeccion(e.target.value.toUpperCase())}
+                placeholder="A, B, C…"
+                maxLength={8}
+                disabled={camposBloqueados}
+                required
+              />
+            </div>
+            <div className="admin-mat-field">
+              <label>Turno</label>
+              <select
+                className="admin-mat-input"
+                value={turnoId}
+                onChange={(e) => setTurnoId(e.target.value)}
+                disabled={loadingCat || !turnos.length || camposBloqueados}
+                required
+              >
+                <option value="">—</option>
+                {turnos.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="admin-mat-row-3 admin-mat-row-3--tight">
+            <div className="admin-mat-field">
               <label>Estado</label>
-              <select className="admin-mat-input" value={estadoMat} onChange={(e) => setEstadoMat(parseInt(e.target.value, 10))}>
+              <select className="admin-mat-input" value={estadoMat} onChange={(e) => setEstadoMat(parseInt(e.target.value, 10))} disabled={camposBloqueados}>
                 {ESTADOS_MAT.map((s) => (
                   <option key={s.v} value={s.v}>
                     {s.label}
@@ -572,7 +703,7 @@ export default function AdminMatriculasInscripcion() {
             </div>
             <div className="admin-mat-field">
               <label>Modalidad</label>
-              <select className="admin-mat-input" value={modalidad} onChange={(e) => setModalidad(e.target.value)}>
+              <select className="admin-mat-input" value={modalidad} onChange={(e) => setModalidad(e.target.value)} disabled={camposBloqueados}>
                 {MODALIDADES.map((m) => (
                   <option key={m} value={m}>
                     {m.replace(/_/g, ' ')}
@@ -581,21 +712,22 @@ export default function AdminMatriculasInscripcion() {
               </select>
             </div>
             <div className="admin-mat-field">
-              <label>Fecha de registro matrícula</label>
-              <input type="date" className="admin-mat-input" value={fechaRegistro} onChange={(e) => setFechaRegistro(e.target.value)} />
+              <label>Fecha registro matrícula</label>
+              <input type="date" className="admin-mat-input" value={fechaRegistro} onChange={(e) => setFechaRegistro(e.target.value)} disabled={camposBloqueados} />
             </div>
           </div>
         </section>
 
         <section className="admin-mat-card admin-mat-card--costos">
           <div className="admin-mat-card-head">
-            <span className="admin-mat-badge admin-mat-badge--costos">4</span>
-            <div>
-              <h2 className="admin-mat-card-title">Costos y tarifas</h2>
-              <p className="admin-mat-card-hint">
-                Por defecto use <strong>montos personalizados</strong> (se guarda un costo tipo PERSONAL en el colegio, como el sistema anterior). Si prefiere una tarifa ya
-                cargada, elija «Tarifa del colegio».
-              </p>
+            <div className="admin-mat-card-head-main">
+              <span className="admin-mat-badge admin-mat-badge--costos">4</span>
+              <div>
+                <h2 className="admin-mat-card-title">Costos y tarifas</h2>
+                <p className="admin-mat-card-hint">
+                  Tarifa del colegio: solo costos tipo <strong>GENERAL</strong>. Montos personalizados crean un costo PERSONAL para este alumno.
+                </p>
+              </div>
             </div>
           </div>
 
@@ -604,6 +736,7 @@ export default function AdminMatriculasInscripcion() {
               type="button"
               className={`admin-mat-costo-modo-btn ${costoModo === 'personalizado' ? 'is-active' : ''}`}
               onClick={() => setCostoModo('personalizado')}
+              disabled={camposBloqueados}
             >
               Montos personalizados
             </button>
@@ -611,68 +744,71 @@ export default function AdminMatriculasInscripcion() {
               type="button"
               className={`admin-mat-costo-modo-btn ${costoModo === 'tarifario' ? 'is-active' : ''}`}
               onClick={() => setCostoModo('tarifario')}
+              disabled={camposBloqueados}
             >
-              Tarifa del colegio (predeterminada)
+              Tarifa del colegio (GENERAL)
             </button>
           </div>
 
           {costoModo === 'personalizado' ? (
-            <div className="admin-mat-grid">
-              <div className="admin-mat-field">
-                <label>Matrícula (S/)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="admin-mat-input"
-                  value={persMatricula}
-                  onChange={(e) => setPersMatricula(e.target.value)}
-                  placeholder="0.00"
-                />
+            <div className="admin-mat-costos-personal">
+              <div className="admin-mat-row-3">
+                <div className="admin-mat-field">
+                  <label>Matrícula (S/)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="admin-mat-input"
+                    value={persMatricula}
+                    onChange={(e) => setPersMatricula(e.target.value)}
+                    placeholder="0.00"
+                    disabled={camposBloqueados}
+                  />
+                </div>
+                <div className="admin-mat-field">
+                  <label>Pensión mensual (S/) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="admin-mat-input"
+                    value={persPension}
+                    onChange={(e) => setPersPension(e.target.value)}
+                    disabled={camposBloqueados}
+                  />
+                </div>
+                <div className="admin-mat-field">
+                  <label>Agenda u otros (S/) — opcional</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="admin-mat-input"
+                    value={persAgenda}
+                    onChange={(e) => setPersAgenda(e.target.value)}
+                    placeholder="0"
+                    disabled={camposBloqueados}
+                  />
+                </div>
               </div>
-              <div className="admin-mat-field">
-                <label>Pensión mensual (S/) *</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="admin-mat-input"
-                  value={persPension}
-                  onChange={(e) => setPersPension(e.target.value)}
-                  placeholder="Monto por mes"
-                />
-              </div>
-              <div className="admin-mat-field">
-                <label>Agenda u otros (S/) — opcional</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="admin-mat-input"
-                  value={persAgenda}
-                  onChange={(e) => setPersAgenda(e.target.value)}
-                  placeholder="Opcional"
-                />
-              </div>
-              <div className="admin-mat-field admin-mat-field--span2">
-                <button type="button" className="admin-mat-btn admin-mat-btn--ghost" onClick={copiarTarifaAlModoPersonalizado}>
-                  Rellenar desde tarifa general del colegio (referencia; puede editar después)
-                </button>
-              </div>
+              <button type="button" className="admin-mat-btn admin-mat-btn--ghost" onClick={copiarTarifaAlModoPersonalizado} disabled={camposBloqueados}>
+                Rellenar montos desde una tarifa GENERAL (referencia)
+              </button>
             </div>
           ) : (
             <div className="admin-mat-grid">
               <div className="admin-mat-field admin-mat-field--span2">
-                <label>Tarifa del colegio</label>
+                <label>Tarifa GENERAL del colegio</label>
                 <select
                   className="admin-mat-input"
                   required={costoModo === 'tarifario'}
                   value={costoId}
                   onChange={(e) => setCostoId(e.target.value)}
-                  disabled={!catalogo?.costos?.length}
+                  disabled={!costosGeneral.length || camposBloqueados}
                 >
                   <option value="">— Seleccione —</option>
-                  {(catalogo?.costos || []).map((c) => (
+                  {costosGeneral.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.descripcion || `Costo #${c.id}`} — Mat. S/ {Number(c.matricula).toFixed(2)} · Pens. S/ {Number(c.pension).toFixed(2)}
                     </option>
@@ -685,16 +821,18 @@ export default function AdminMatriculasInscripcion() {
 
         <section className="admin-mat-card admin-mat-card--pagos">
           <div className="admin-mat-card-head">
-            <span className="admin-mat-badge admin-mat-badge--pagos">5</span>
-            <div>
-              <h2 className="admin-mat-card-title">Pagos generados</h2>
-              <p className="admin-mat-card-hint">
-                Se crearán todas las pensiones del año en <strong>PENDIENTE</strong>. Opcional: línea de pago de matrícula (también pendiente de cobro).
-              </p>
+            <div className="admin-mat-card-head-main">
+              <span className="admin-mat-badge admin-mat-badge--pagos">5</span>
+              <div>
+                <h2 className="admin-mat-card-title">Pagos generados</h2>
+                <p className="admin-mat-card-hint">
+                  Se crearán todas las pensiones del año en <strong>PENDIENTE</strong>. Opcional: línea de pago de matrícula (también pendiente de cobro).
+                </p>
+              </div>
             </div>
           </div>
           <label className="admin-mat-checkbox admin-mat-checkbox--lg">
-            <input type="checkbox" checked={registrarPagoMat} onChange={(e) => setRegistrarPagoMat(e.target.checked)} />
+            <input type="checkbox" checked={registrarPagoMat} onChange={(e) => setRegistrarPagoMat(e.target.checked)} disabled={camposBloqueados} />
             Registrar línea de pago de matrícula (monto según costo; aparece en «Ver pagos» como pendiente)
           </label>
           {catalogo?.colegio_pensiones && (
@@ -704,13 +842,16 @@ export default function AdminMatriculasInscripcion() {
           )}
         </section>
 
-        <div className="admin-mat-actions">
-          <button type="button" className="admin-mat-btn admin-mat-btn--ghost" onClick={() => navigate('/admin/dashboard')}>
-            Cancelar
-          </button>
-          <button type="submit" className="admin-mat-btn admin-mat-btn--primary admin-mat-btn--lg" disabled={sending || loadingCat}>
-            {sending ? 'Guardando…' : 'Registrar inscripción'}
-          </button>
+        <div className="admin-mat-actions-bar">
+          <p className="admin-mat-actions-hint">Revise los datos antes de confirmar; la matrícula y los pagos pendientes se crean en un solo paso.</p>
+          <div className="admin-mat-actions">
+            <button type="button" className="admin-mat-btn admin-mat-btn--ghost" onClick={() => navigate('/admin/dashboard')}>
+              Cancelar
+            </button>
+            <button type="submit" className="admin-mat-btn admin-mat-btn--primary admin-mat-btn--lg" disabled={sending || loadingCat || alumnoYaExiste}>
+              {sending ? 'Guardando…' : 'Registrar inscripción'}
+            </button>
+          </div>
         </div>
       </form>
     </div>
