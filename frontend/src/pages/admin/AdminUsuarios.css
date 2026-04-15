@@ -1579,3 +1579,30 @@
 .admin-impresiones-inline-btn--primary:hover {
   filter: brightness(1.05);
 }
+
+.admin-impresiones-global-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40000;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.admin-impresiones-global-panel {
+  width: min(460px, 96vw);
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 22px 48px rgba(2, 6, 23, 0.26);
+}
+
+.admin-impresiones-global-title {
+  margin: 0 0 0.65rem 0;
+  color: #1e293b;
+  font-size: 1.05rem;
+  font-weight: 700;
+}

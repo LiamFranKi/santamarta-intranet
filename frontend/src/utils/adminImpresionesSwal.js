@@ -63,6 +63,23 @@ function mountImpresionesOverlay(root, innerHtml) {
   return { backdrop, close };
 }
 
+/** Modal global (fuera del popup padre), para que «Editar» se perciba como ventana aparte. */
+function mountGlobalImpresionesModal(innerHtml) {
+  const prev = document.querySelector('.admin-impresiones-global-backdrop');
+  if (prev) prev.remove();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'admin-impresiones-global-backdrop';
+  backdrop.innerHTML = innerHtml;
+  document.body.appendChild(backdrop);
+  const close = () => {
+    backdrop.remove();
+  };
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) close();
+  });
+  return { backdrop, close };
+}
+
 function placeImpresionesOpcionesMenu(btn, menu) {
   const run = () => {
     const rect = btn.getBoundingClientRect();
@@ -292,10 +309,9 @@ export async function openAdminImpresionesSwal({ nombreAlumno, alumnoId, matricu
             const hora0 = editEl.getAttribute('data-imp-hora') || '';
             const fid = `admin-imp-fecha-${id}`;
             const hid = `admin-imp-hora-${id}`;
-            const { backdrop, close } = mountImpresionesOverlay(
-              root,
-              `<div class="admin-impresiones-inline-panel" role="dialog" aria-modal="true">
-                <h3 class="admin-impresiones-inline-title">Editar fechas de impresión</h3>
+            const global = mountGlobalImpresionesModal(
+              `<div class="admin-impresiones-global-panel" role="dialog" aria-modal="true">
+                <h3 class="admin-impresiones-global-title">Editar fecha y hora de impresión</h3>
                 <div class="admin-impresiones-inline-fields">
                   <label class="admin-impresiones-inline-label">Fecha impresión
                     <input type="date" id="${esc(fid)}" class="admin-impresiones-inline-input" value="${esc(fecha0)}" />
@@ -305,14 +321,14 @@ export async function openAdminImpresionesSwal({ nombreAlumno, alumnoId, matricu
                   </label>
                 </div>
                 <div class="admin-impresiones-inline-actions">
-                  <button type="button" class="admin-impresiones-inline-btn" data-act="cancel">Cancelar</button>
+                  <button type="button" class="admin-impresiones-inline-btn" data-act="cancel">Cerrar</button>
                   <button type="button" class="admin-impresiones-inline-btn admin-impresiones-inline-btn--primary" data-act="save">Guardar</button>
                 </div>
               </div>`
             );
-            const onDone = () => close();
-            backdrop.querySelector('[data-act="cancel"]')?.addEventListener('click', onDone);
-            backdrop.querySelector('[data-act="save"]')?.addEventListener('click', async () => {
+            const onDone = () => global.close();
+            global.backdrop.querySelector('[data-act="cancel"]')?.addEventListener('click', onDone);
+            global.backdrop.querySelector('[data-act="save"]')?.addEventListener('click', async () => {
               const fecha = document.getElementById(fid)?.value?.trim() || '';
               const hora = document.getElementById(hid)?.value?.trim() || '';
               if (!fecha && !hora) {
