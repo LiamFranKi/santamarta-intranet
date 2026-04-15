@@ -474,6 +474,24 @@ async function deleteImpresionesByPagoId(pagoId, conn = null) {
   }
 }
 
+/** Admin API: alumno y matrícula pertenecen al colegio (sin validar un pago concreto). */
+async function verifyAdminAlumnoMatricula(req) {
+  const { colegio_id } = req.user;
+  const alumnoId = parseInt(req.params.id, 10);
+  const matriculaId = parseInt(req.params.matriculaId, 10);
+  if (![alumnoId, matriculaId].every((n) => Number.isFinite(n) && n > 0)) {
+    return { ok: false, status: 400, error: 'Parámetros inválidos' };
+  }
+  const okAl = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
+  if (!okAl.length) return { ok: false, status: 404, error: 'Alumno no encontrado' };
+  const okMat = await query(
+    'SELECT id FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
+    [matriculaId, alumnoId, colegio_id]
+  );
+  if (!okMat.length) return { ok: false, status: 404, error: 'Matrícula no encontrada' };
+  return { ok: true, colegio_id, alumnoId, matriculaId };
+}
+
 /** Admin API: alumno → matrícula → pago pertenecen al colegio del usuario. */
 async function verifyAdminAlumnoMatriculaPago(req) {
   const { colegio_id } = req.user;
@@ -1070,6 +1088,35 @@ async function ensureAdminPagoImpresionActiva({
     return { ok: false, status: 500, error: e.message || 'No se pudo generar impresión' };
   } finally {
     conn.release();
+  }
+}
+
+/** Tras imprimir (lote o individual): marca boleta como impresa, como en PHP `imprimir()` al abrir la vista. */
+async function markBoletaPagoComoImpresa(pagoId) {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mi = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+  const today = `${yyyy}-${mm}-${dd}`;
+  const nowTime = `${hh}:${mi}:${ss}`;
+  try {
+    await execute(
+      `UPDATE impresiones SET impreso = 'SI', fecha_impresion = ?, hora_impresion = ?
+       WHERE pago_id = ? AND estado = 'ACTIVO' AND tipo = 'PAGO' AND tipo_documento = 'BOLETA'
+         AND (impreso IS NULL OR impreso = '' OR impreso = 'NO')`,
+      [today, nowTime, pagoId]
+    );
+  } catch (e) {
+    if (!isSqlUnknownColumnError(e)) throw e;
+    await execute(
+      `UPDATE impresiones SET impreso = 'SI', fecha_impresion = ?
+       WHERE pago_id = ? AND estado = 'ACTIVO' AND tipo = 'PAGO' AND tipo_documento = 'BOLETA'
+         AND (impreso IS NULL OR impreso = '' OR impreso = 'NO')`,
+      [today, pagoId]
+    );
   }
 }
 
@@ -2900,6 +2947,118 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos', async (req, res) => {
   } catch (e) {
     console.error('GET alumno matricula pagos admin', e);
     res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/**
+ * POST …/pagos/imprimir-seleccionados — asigna correlativo de boleta a pagos cancelados sin impresión (legado `printSelected` + `getActiveImpresion`).
+ * Body: `{ pago_ids: number[] }`
+ */
+router.post('/alumnos/:id/matriculas/:matriculaId/pagos/imprimir-seleccionados', async (req, res) => {
+  try {
+    const v = await verifyAdminAlumnoMatricula(req);
+    if (!v.ok) return res.status(v.status).json({ error: v.error });
+    const { colegio_id, matriculaId } = v;
+
+    const raw = req.body?.pago_ids ?? req.body?.pagoIds;
+    const ids = Array.isArray(raw) ? raw : [];
+    const pagoIds = [...new Set(ids.map((x) => parseInt(x, 10)).filter((n) => Number.isFinite(n) && n > 0))];
+    if (!pagoIds.length) {
+      return res.status(400).json({ error: 'Indique al menos un pago_id válido.' });
+    }
+
+    const placeholders = pagoIds.map(() => '?').join(', ');
+    const rows = await query(
+      `SELECT p.id, p.estado_pago, p.estado AS pago_estado, p.monto,
+        (SELECT COUNT(*) FROM impresiones i
+         WHERE i.pago_id = p.id AND i.estado = 'ACTIVO' AND i.tipo = 'PAGO' AND i.tipo_documento = 'BOLETA') AS n_boletas
+       FROM pagos p
+       WHERE p.id IN (${placeholders}) AND p.colegio_id = ? AND p.matricula_id = ?`,
+      [...pagoIds, colegio_id, matriculaId]
+    );
+    const byId = new Map((rows || []).map((r) => [Number(r.id), r]));
+
+    const results = [];
+    for (const pid of pagoIds) {
+      const row = byId.get(pid);
+      if (!row) {
+        results.push({
+          pago_id: pid,
+          ok: false,
+          skipped: true,
+          reason: 'Pago no pertenece a esta matrícula o no existe',
+        });
+        continue;
+      }
+      const regEst = String(row.pago_estado || '').toUpperCase();
+      if (regEst === 'ANULADO') {
+        results.push({ pago_id: pid, ok: false, skipped: true, reason: 'Pago anulado' });
+        continue;
+      }
+      if (String(row.estado_pago || '').toUpperCase() !== 'CANCELADO') {
+        results.push({
+          pago_id: pid,
+          ok: false,
+          skipped: true,
+          reason: 'Solo pagos cancelados pueden recibir boleta',
+        });
+        continue;
+      }
+      if (Number(row.monto || 0) <= 0) {
+        results.push({ pago_id: pid, ok: false, skipped: true, reason: 'El pago no tiene monto' });
+        continue;
+      }
+      if (Number(row.n_boletas || 0) > 0) {
+        results.push({
+          pago_id: pid,
+          ok: false,
+          skipped: true,
+          reason: 'Este pago ya tiene boleta asignada',
+        });
+        continue;
+      }
+
+      const ensured = await ensureAdminPagoImpresionActiva({
+        colegioId: colegio_id,
+        pagoId: pid,
+        tipo: 'PAGO',
+        tipoDocumento: 'BOLETA',
+      });
+      if (!ensured.ok) {
+        results.push({
+          pago_id: pid,
+          ok: false,
+          error: ensured.error || 'No se pudo generar boleta',
+        });
+        continue;
+      }
+      try {
+        await markBoletaPagoComoImpresa(pid);
+      } catch (e) {
+        console.error('markBoletaPagoComoImpresa', pid, e);
+      }
+      results.push({
+        pago_id: pid,
+        ok: true,
+        impresion: ensured.impresion || null,
+        created: !!ensured.created,
+      });
+    }
+
+    const okCount = results.filter((r) => r.ok).length;
+    return res.json({
+      ok: true,
+      results,
+      summary: {
+        total_solicitados: pagoIds.length,
+        procesados_ok: okCount,
+        omitidos: results.filter((r) => r.skipped).length,
+        errores: results.filter((r) => !r.ok && !r.skipped).length,
+      },
+    });
+  } catch (e) {
+    console.error('POST imprimir-seleccionados admin', e);
+    return res.status(500).json({ error: e.message || 'Error al procesar impresión masiva' });
   }
 });
 

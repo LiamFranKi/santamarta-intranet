@@ -701,13 +701,87 @@ function bindListaPagosUi() {
     }
   });
 
-  popup.querySelector('.admin-pagos-btn-imprimir')?.addEventListener('click', () => {
-    const n = popup.querySelectorAll('.admin-pagos-row-checkbox:checked').length;
-    if (!n) {
-      Swal.fire({ icon: 'info', title: 'Imprimir seleccionados', text: 'Seleccione al menos un pago con el checkbox.' });
+  popup.querySelector('.admin-pagos-btn-imprimir')?.addEventListener('click', async () => {
+    const root = popup.querySelector('.admin-pagos-lista-root');
+    const alumnoIdRaw = root?.getAttribute('data-alumno-id');
+    const matriculaIdRaw = root?.getAttribute('data-matricula-id');
+    const nombre = popup.querySelector('.admin-pagos-lista-alumno')?.textContent?.trim() || '';
+    const checked = Array.from(popup.querySelectorAll('.admin-pagos-row-checkbox:checked'))
+      .map((el) => parseInt(el.value, 10))
+      .filter((n) => Number.isFinite(n) && n > 0);
+    if (!checked.length) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Imprimir seleccionados',
+        text: 'Seleccione al menos un pago con el checkbox.',
+      });
       return;
     }
-    Swal.fire({ icon: 'info', title: 'Próximamente', text: `Se imprimirían ${n} pago(s) seleccionado(s).` });
+    const aid = parseInt(alumnoIdRaw, 10);
+    const mid = parseInt(matriculaIdRaw, 10);
+    if (!Number.isFinite(aid) || !Number.isFinite(mid)) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'No se puede continuar',
+        text: 'Falta identificar alumno o matrícula. Actualice la página e intente de nuevo.',
+      });
+      return;
+    }
+    try {
+      Swal.fire({ title: 'Asignando boletas…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      const { data: batch } = await api.post(
+        `/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos/imprimir-seleccionados`,
+        { pago_ids: checked }
+      );
+      Swal.close();
+      const results = Array.isArray(batch?.results) ? batch.results : [];
+      const okIds = results.filter((r) => r.ok).map((r) => r.pago_id);
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      for (const pid of okIds) {
+        try {
+          const { data: datosBoleta } = await api.get(
+            `/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos/${pid}/boleta`
+          );
+          await generarPDFBoletaDesdeDatos(datosBoleta);
+        } catch (pdfErr) {
+          console.error('PDF boleta pago', pid, pdfErr);
+        }
+        await sleep(350);
+      }
+      const { data: freshResp } = await api.get(`/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos`);
+      const fresh = freshResp?.data;
+      if (fresh) {
+        showListaPagosMatriculaSwal(nombre, fresh, { alumnoId: aid });
+      }
+      const summary = batch?.summary || {};
+      const procesados = Number(summary.procesados_ok || 0);
+      const omitidos = Number(summary.omitidos || 0);
+      const errores = Number(summary.errores || 0);
+      const detalleOmitidos = results
+        .filter((r) => r.skipped && r.reason)
+        .map((r) => `Pago #${r.pago_id}: ${r.reason}`)
+        .slice(0, 6);
+      const msg = [
+        procesados > 0 ? `Se generaron ${procesados} boleta(s) y se descargó el PDF de cada una.` : null,
+        omitidos > 0 ? `${omitidos} fila(s) no aplicaron (revisar selección).` : null,
+        errores > 0 ? `${errores} error(es) al crear boleta.` : null,
+        detalleOmitidos.length ? `\n${detalleOmitidos.join('\n')}` : '',
+      ]
+        .filter(Boolean)
+        .join(' ');
+      await Swal.fire({
+        icon: errores > 0 && procesados === 0 ? 'warning' : 'success',
+        title: 'Imprimir seleccionados',
+        text: msg || 'Listo.',
+      });
+    } catch (e) {
+      Swal.close();
+      await Swal.fire({
+        icon: 'error',
+        title: 'No se pudo completar',
+        text: e.response?.data?.error || e.message || 'Intente nuevamente.',
+      });
+    }
   });
 
   popup.querySelectorAll('.admin-pagos-opciones-menu').forEach((menu) => {
