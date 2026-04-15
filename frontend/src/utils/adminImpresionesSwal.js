@@ -127,7 +127,8 @@ export async function openAdminImpresionesSwal({ nombreAlumno, alumnoId, matricu
   const title = `Impresiones — ${nombreAlumno || 'Alumno'} · Pago #${pagoId}`;
 
   try {
-    Swal.fire({
+    /** Hay que await: si no, el caller reabre la lista de pagos y sustituye este modal al instante. */
+    await Swal.fire({
       title,
       width: 960,
       html: '<div id="admin-impresiones-root"><p style="color:#64748b">Cargando…</p></div>',
