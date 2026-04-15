@@ -292,6 +292,35 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
   </section>`;
 }
 
+/**
+ * Recarga datos y sustituye solo la sección de la grilla dentro del Swal «Lista de Pagos» (sin cerrar el modal).
+ */
+function refreshListaPagosMatriculaInPlace({ nombreAlumno, alumnoId, matriculaId }) {
+  const popup = Swal.getPopup();
+  if (!popup) return Promise.resolve();
+  return api
+    .get(`/admin/usuarios/alumnos/${alumnoId}/matriculas/${matriculaId}/pagos`)
+    .then(({ data }) => {
+      const fresh = data?.data;
+      if (!fresh) return;
+      listaPagosMatriculaContext.set(`${alumnoId}-${matriculaId}`, fresh);
+      const sub =
+        fresh.grupo_texto || `${fresh.anio || '—'} · ${fresh.grado || '—'}° ${fresh.seccion || ''}`;
+      const alumnoEl = popup.querySelector('.admin-pagos-lista-alumno');
+      const grupoEl = popup.querySelector('.admin-pagos-lista-grupo');
+      if (alumnoEl && nombreAlumno) alumnoEl.textContent = nombreAlumno;
+      if (grupoEl) grupoEl.textContent = sub;
+      const oldRoot = popup.querySelector('.admin-pagos-lista-root');
+      if (oldRoot?.parentElement) {
+        const temp = document.createElement('div');
+        temp.innerHTML = buildListaPagosPanelHtml(fresh, { alumnoId });
+        const newRoot = temp.firstElementChild;
+        if (newRoot) oldRoot.replaceWith(newRoot);
+      }
+      bindListaPagosUi();
+    });
+}
+
 function buildPanelHtml(m, opts = {}) {
   const { panelId, display = 'block' } = opts;
   const idAttr = panelId != null && panelId !== '' ? ` id="${String(panelId)}"` : '';
@@ -712,7 +741,7 @@ function bindListaPagosUi() {
     if (!checked.length) {
       Swal.fire({
         icon: 'info',
-        title: 'Imprimir seleccionados',
+        title: 'Asignar boletas',
         text: 'Seleccione al menos un pago con el checkbox.',
       });
       return;
@@ -727,32 +756,30 @@ function bindListaPagosUi() {
       });
       return;
     }
+    const nSel = checked.length;
+    const okConfirm = window.confirm(
+      `¿Asignar número de boleta a ${nSel} pago(s) seleccionado(s)?\n\n` +
+        `Solo aplica a pagos CANCELADOS que aún no tienen boleta.\n` +
+        `No se descargará ningún PDF.\n\n` +
+        `Pulse Aceptar para continuar o Cancelar para volver.`
+    );
+    if (!okConfirm) return;
+
     try {
-      Swal.fire({ title: 'Asignando boletas…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      Swal.showLoading();
       const { data: batch } = await api.post(
         `/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos/imprimir-seleccionados`,
         { pago_ids: checked }
       );
-      Swal.close();
+      Swal.hideLoading();
+
+      await refreshListaPagosMatriculaInPlace({
+        nombreAlumno: nombre,
+        alumnoId: aid,
+        matriculaId: mid,
+      });
+
       const results = Array.isArray(batch?.results) ? batch.results : [];
-      const okIds = results.filter((r) => r.ok).map((r) => r.pago_id);
-      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-      for (const pid of okIds) {
-        try {
-          const { data: datosBoleta } = await api.get(
-            `/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos/${pid}/boleta`
-          );
-          await generarPDFBoletaDesdeDatos(datosBoleta);
-        } catch (pdfErr) {
-          console.error('PDF boleta pago', pid, pdfErr);
-        }
-        await sleep(350);
-      }
-      const { data: freshResp } = await api.get(`/admin/usuarios/alumnos/${aid}/matriculas/${mid}/pagos`);
-      const fresh = freshResp?.data;
-      if (fresh) {
-        showListaPagosMatriculaSwal(nombre, fresh, { alumnoId: aid });
-      }
       const summary = batch?.summary || {};
       const procesados = Number(summary.procesados_ok || 0);
       const omitidos = Number(summary.omitidos || 0);
@@ -762,24 +789,29 @@ function bindListaPagosUi() {
         .map((r) => `Pago #${r.pago_id}: ${r.reason}`)
         .slice(0, 6);
       const msg = [
-        procesados > 0 ? `Se generaron ${procesados} boleta(s) y se descargó el PDF de cada una.` : null,
-        omitidos > 0 ? `${omitidos} fila(s) no aplicaron (revisar selección).` : null,
+        procesados > 0 ? `Se asignaron ${procesados} número(s) de boleta.` : null,
+        omitidos > 0 ? `${omitidos} fila(s) no aplicaron (ya tenían boleta o no estaban cancelados).` : null,
         errores > 0 ? `${errores} error(es) al crear boleta.` : null,
         detalleOmitidos.length ? `\n${detalleOmitidos.join('\n')}` : '',
       ]
         .filter(Boolean)
         .join(' ');
+
       await Swal.fire({
+        toast: true,
+        position: 'top-end',
         icon: errores > 0 && procesados === 0 ? 'warning' : 'success',
-        title: 'Imprimir seleccionados',
-        text: msg || 'Listo.',
+        title: msg || 'Operación completada.',
+        showConfirmButton: true,
+        timer: errores === 0 && omitidos === 0 && procesados > 0 ? 5000 : undefined,
       });
     } catch (e) {
-      Swal.close();
+      Swal.hideLoading();
       await Swal.fire({
+        toast: true,
+        position: 'top-end',
         icon: 'error',
-        title: 'No se pudo completar',
-        text: e.response?.data?.error || e.message || 'Intente nuevamente.',
+        title: e.response?.data?.error || e.message || 'No se pudo completar',
       });
     }
   });
@@ -1045,7 +1077,10 @@ function bindListaPagosUi() {
     });
   });
 
-  popup.addEventListener('click', () => closeAllOpcionesMenus(popup));
+  if (!popup.dataset.adminPagosListaCloseMenusBound) {
+    popup.dataset.adminPagosListaCloseMenusBound = '1';
+    popup.addEventListener('click', () => closeAllOpcionesMenus(popup));
+  }
 }
 
 /**
