@@ -531,6 +531,354 @@ function normalizeHoraImpresionBody(raw) {
   return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
 }
 
+function safeJsonFilename(v, fallback = 'documento') {
+  const s = String(v || fallback)
+    .trim()
+    .replace(/[^\w.-]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return s || fallback;
+}
+
+async function markImpresionJsonGenerado(impresionId) {
+  try {
+    await execute(`UPDATE impresiones SET json_generado = 'SI' WHERE id = ?`, [impresionId]);
+  } catch (e) {
+    if (!isSqlUnknownColumnError(e)) throw e;
+  }
+}
+
+async function getAdminImpresionPayload({ colegio_id, pagoId, impresionId }) {
+  const rows = await query(
+    `SELECT i.id, i.pago_id, i.tipo, i.tipo_documento, i.serie, i.numero, i.estado, i.fecha_impresion, i.hora_impresion,
+            i.fecha_anulado, i.numero_anulado,
+            p.monto, p.mora, p.fecha_cancelado, p.estado_pago, p.nro_pago, p.tipo AS pago_tipo, p.descripcion,
+            a.id AS alumno_id, a.nombres, a.apellido_paterno, a.apellido_materno, a.nro_documento, a.tipo_documento AS alumno_tipo_documento,
+            c.ruc, c.razon_social, c.nombre_empresa, c.inicio_pensiones,
+            s.prefijo_boleta, s.direccion AS sede_direccion, s.codigo_sunat,
+            g.grado, g.seccion, n.nombre AS nivel_nombre
+     FROM impresiones i
+     INNER JOIN pagos p ON p.id = i.pago_id
+     INNER JOIN matriculas m ON m.id = p.matricula_id
+     INNER JOIN alumnos a ON a.id = m.alumno_id
+     LEFT JOIN grupos g ON g.id = m.grupo_id
+     LEFT JOIN niveles n ON n.id = g.nivel_id
+     LEFT JOIN sedes s ON s.id = g.sede_id
+     LEFT JOIN colegios c ON c.id = p.colegio_id
+     WHERE i.id = ? AND i.pago_id = ? AND p.colegio_id = ?
+     LIMIT 1`,
+    [impresionId, pagoId, colegio_id]
+  );
+  return rows?.[0] || null;
+}
+
+function toFixed2(v) {
+  return Number(parseFloat(v || 0)).toFixed(2);
+}
+
+function legacyTipoDocumentoFacturacion(alumnoTipoDocumento, nroDocumento) {
+  const idx = Number(alumnoTipoDocumento);
+  if (idx === 0) return '1';
+  if (idx === 1) return '7';
+  if (idx === 5) return '4';
+  const dniLike = String(nroDocumento || '').trim().length === 8;
+  return dniLike ? '1' : '0';
+}
+
+function legacySerieConPrefijo(impSerie, prefijoBoleta) {
+  const pref = String(prefijoBoleta || '').trim();
+  const serie3 = String(impSerie || '0').padStart(3, '0');
+  if (!pref) return serie3;
+  if (pref === 'B') return `${pref}${serie3}`;
+  const serie2 = String(impSerie || '0').padStart(2, '0');
+  return `${pref}${serie2}`;
+}
+
+function legacyNumeroImpresion(impNumero) {
+  return String(impNumero || '0').padStart(8, '0');
+}
+
+function legacyPagoDescripcion(imp) {
+  const tipo = Number(imp.pago_tipo);
+  const nivel = String(imp.nivel_nombre || '').toUpperCase();
+  const grado = imp.grado != null ? `${imp.grado}°` : '';
+  const seccion = String(imp.seccion || '').trim();
+  const grupoShort = [nivel, grado, seccion].filter(Boolean).join(' ').trim();
+  if (tipo === 0) return `MATRÍCULA${grupoShort ? ` - ${grupoShort}` : ''}`;
+  if (tipo === 1) return `MENSUALIDAD ${Number(imp.nro_pago || 0)}${grupoShort ? ` - ${grupoShort}` : ''}`;
+  return String(imp.descripcion || 'OTRO');
+}
+
+async function getActivePagoBoletaImpresion(pagoId) {
+  const rows = await query(
+    `SELECT id, serie, numero
+     FROM impresiones
+     WHERE pago_id = ? AND estado = 'ACTIVO' AND tipo = 'PAGO' AND tipo_documento = 'BOLETA'
+     ORDER BY id DESC
+     LIMIT 1`,
+    [pagoId]
+  );
+  return rows?.[0] || null;
+}
+
+function buildLegacyJsonBoletaFromImpresion(imp) {
+  const serie = legacySerieConPrefijo(imp.serie, imp.prefijo_boleta);
+  const numero = legacyNumeroImpresion(imp.numero);
+  const numeroDocAdq = String(imp.nro_documento || '').trim();
+  const razonAlumno = `${imp.apellido_paterno || ''} ${imp.apellido_materno || ''} ${imp.nombres || ''}`
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+  const fechaEmision = imp.fecha_impresion ? String(imp.fecha_impresion).slice(0, 10) : '';
+  const fechaVenc = imp.fecha_cancelado ? String(imp.fecha_cancelado).slice(0, 10) : fechaEmision;
+  const monto = toFixed2(imp.monto);
+  const descripcion = legacyPagoDescripcion(imp);
+  const json = {
+    boleta: {
+      IDE: {
+        numeracion: `${serie}-${numero}`,
+        fechaEmision,
+        codTipoDocumento: '03',
+        tipoMoneda: 'PEN',
+        fechaVencimiento: fechaVenc,
+      },
+      EMI: {
+        tipoDocId: '6',
+        numeroDocId: String(imp.ruc || ''),
+        razonSocial: String(imp.razon_social || imp.nombre_empresa || ''),
+        direccion: String(imp.sede_direccion || ''),
+        codigoAsigSUNAT: String(imp.codigo_sunat || ''),
+      },
+      REC: {
+        tipoDocId: legacyTipoDocumentoFacturacion(imp.alumno_tipo_documento, numeroDocAdq),
+        numeroDocId: numeroDocAdq,
+        razonSocial: razonAlumno,
+      },
+      CAB: {
+        inafectas: { codigo: '1002', totalVentas: monto },
+        totalImpuestos: [{ idImpuesto: '9998', montoImpuesto: '0.00' }],
+        importeTotal: monto,
+        tipoOperacion: '0101',
+        leyenda: [{ codigo: '1000', descripcion: `SON ${monto} SOLES` }],
+        montoTotalImpuestos: '0.00',
+      },
+      DET: [
+        {
+          numeroItem: '001',
+          descripcionProducto: descripcion,
+          cantidadItems: '1.00',
+          unidad: 'NIU',
+          valorUnitario: monto,
+          precioVentaUnitario: monto,
+          totalImpuestos: [
+            {
+              idImpuesto: '9998',
+              montoImpuesto: '0.00',
+              tipoAfectacion: '30',
+              montoBase: monto,
+              porcentaje: '0.00',
+            },
+          ],
+          valorVenta: monto,
+          montoTotalImpuestos: '0.00',
+        },
+      ],
+    },
+  };
+  return {
+    nombre: `${imp.ruc}-03-${serie}-${numero}.json`,
+    contenido: json,
+  };
+}
+
+function buildLegacyJsonNotaDebitoFromImpresion(imp, boletaActiva) {
+  const numeroDocAdq = String(imp.nro_documento || '').trim();
+  const razonAlumno = `${imp.apellido_paterno || ''} ${imp.apellido_materno || ''} ${imp.nombres || ''}`
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+  const mora = toFixed2(imp.mora);
+  const serieBoleta = legacySerieConPrefijo(boletaActiva?.serie || 0, imp.prefijo_boleta);
+  const nroBoleta = legacyNumeroImpresion(boletaActiva?.numero || 0);
+  const serieNd = `BND${parseInt(String(imp.serie || '0'), 10)}`;
+  const nroNd = legacyNumeroImpresion(imp.numero);
+  const fechaEmision = imp.fecha_cancelado ? String(imp.fecha_cancelado).slice(0, 10) : '';
+  const json = {
+    notaDebito: {
+      IDE: {
+        numeracion: `${serieNd}-${nroNd}`,
+        fechaEmision,
+        tipoMoneda: 'PEN',
+      },
+      EMI: {
+        tipoDocId: '6',
+        numeroDocId: String(imp.ruc || ''),
+        razonSocial: String(imp.razon_social || imp.nombre_empresa || ''),
+        direccion: String(imp.sede_direccion || ''),
+        codigoAsigSUNAT: String(imp.codigo_sunat || ''),
+      },
+      REC: {
+        tipoDocId: legacyTipoDocumentoFacturacion(imp.alumno_tipo_documento, numeroDocAdq),
+        numeroDocId: numeroDocAdq,
+        razonSocial: razonAlumno,
+      },
+      DRF: [
+        {
+          tipoDocRelacionado: '03',
+          numeroDocRelacionado: `${serieBoleta}-${nroBoleta}`,
+          codigoMotivo: '03',
+          descripcionMotivo: 'PENALIDAD POR ATRASO DE PAGO',
+        },
+      ],
+      CAB: {
+        inafectas: { codigo: '1002', totalVentas: mora },
+        totalImpuestos: [{ idImpuesto: '9998', montoImpuesto: '0.00' }],
+        importeTotal: mora,
+        tipoOperacion: '0101',
+        leyenda: [{ codigo: '1000', descripcion: `SON ${mora} SOLES` }],
+        montoTotalImpuestos: '0.00',
+      },
+      DET: [
+        {
+          numeroItem: '001',
+          descripcionProducto: `PENALIDAD - ${legacyPagoDescripcion(imp)}`,
+          cantidadItems: '1.00',
+          unidad: 'NIU',
+          valorUnitario: mora,
+          precioVentaUnitario: mora,
+          totalImpuestos: [
+            {
+              idImpuesto: '9998',
+              montoImpuesto: '0.00',
+              tipoAfectacion: '30',
+              montoBase: mora,
+              porcentaje: '0.00',
+            },
+          ],
+          valorVenta: mora,
+          montoTotalImpuestos: '0.00',
+        },
+      ],
+    },
+  };
+  return {
+    nombre: `${imp.ruc}-08-${serieNd}-${nroNd}.json`,
+    contenido: json,
+  };
+}
+
+async function ensureRcDataForImpresion(impresionId) {
+  const rows = await query(
+    `SELECT id, fecha_anulado, numero_anulado, estado
+     FROM impresiones
+     WHERE id = ?
+     LIMIT 1`,
+    [impresionId]
+  );
+  if (!rows?.length) return null;
+  const imp = rows[0];
+  const estado = String(imp.estado || '').toUpperCase();
+  if (estado !== 'ANULADO') return null;
+  let fecha = imp.fecha_anulado ? String(imp.fecha_anulado).slice(0, 10) : '';
+  if (!fecha || fecha === '0000-00-00') {
+    fecha = new Date().toISOString().slice(0, 10);
+    await execute(`UPDATE impresiones SET fecha_anulado = ? WHERE id = ?`, [fecha, impresionId]);
+  }
+  let numeroAnulado = Number(imp.numero_anulado || 0);
+  if (!numeroAnulado) {
+    const cnt = await query(
+      `SELECT COUNT(*) AS c
+       FROM impresiones
+       WHERE fecha_anulado = ? AND estado = 'ANULADO'`,
+      [fecha]
+    );
+    numeroAnulado = Number(cnt?.[0]?.c || 0) + 1;
+    await execute(`UPDATE impresiones SET numero_anulado = ? WHERE id = ?`, [numeroAnulado, impresionId]);
+  }
+  return { fecha_anulado: fecha, numero_anulado: numeroAnulado };
+}
+
+function buildLegacyJsonRcInafecta(imp) {
+  const serie = legacySerieConPrefijo(imp.serie, imp.prefijo_boleta);
+  const numero = legacyNumeroImpresion(imp.numero);
+  const fechaAnulado = imp.fecha_anulado ? String(imp.fecha_anulado).slice(0, 10) : '';
+  const nroAnulado = Number(imp.numero_anulado || 0);
+  const monto = toFixed2(imp.monto);
+  const json = {
+    resumenComprobantes: {
+      IDE: {
+        numeracion: `RC-${fechaAnulado.replace(/-/g, '')}-${nroAnulado}`,
+        fechaEmision: fechaAnulado,
+        fechaReferencia: imp.fecha_impresion ? String(imp.fecha_impresion).slice(0, 10) : '',
+      },
+      EMI: {
+        tipoDocId: '6',
+        numeroDocId: String(imp.ruc || ''),
+        razonSocial: String(imp.razon_social || imp.nombre_empresa || ''),
+        direccion: String(imp.sede_direccion || ''),
+      },
+      DET: [
+        {
+          numeroItem: '1',
+          monedaItem: 'PEN',
+          numeracionItem: `${serie}-${numero}`,
+          tipoComprobanteItem: '03',
+          numeroDocIdAdq: String(imp.nro_documento || ''),
+          tipoDocIdAdq: '1',
+          estadoItem: '3',
+          importeTotal: monto,
+          inafectas: { codigo: '03', totalVentas: monto },
+          totalImpuestos: [{ idImpuesto: '1000', montoImpuesto: '0.00' }],
+        },
+      ],
+    },
+  };
+  return {
+    nombre: `${imp.ruc}-RC-${fechaAnulado.replace(/-/g, '')}-${nroAnulado}.json`,
+    contenido: json,
+  };
+}
+
+function buildLegacyJsonRcNota(imp) {
+  const nroNd = legacyNumeroImpresion(imp.numero);
+  const serieNd = `BND${parseInt(String(imp.serie || '0'), 10)}`;
+  const fechaAnulado = imp.fecha_anulado ? String(imp.fecha_anulado).slice(0, 10) : '';
+  const nroAnulado = Number(imp.numero_anulado || 0);
+  const mora = toFixed2(imp.mora);
+  const json = {
+    resumenComprobantes: {
+      IDE: {
+        numeracion: `RC-${fechaAnulado.replace(/-/g, '')}-${nroAnulado}`,
+        fechaEmision: fechaAnulado,
+        fechaReferencia: imp.fecha_impresion ? String(imp.fecha_impresion).slice(0, 10) : '',
+      },
+      EMI: {
+        tipoDocId: '6',
+        numeroDocId: String(imp.ruc || ''),
+        razonSocial: String(imp.razon_social || imp.nombre_empresa || ''),
+        direccion: String(imp.sede_direccion || ''),
+      },
+      DET: [
+        {
+          numeroItem: '1',
+          monedaItem: 'PEN',
+          numeracionItem: `${serieNd}-${nroNd}`,
+          tipoComprobanteItem: '08',
+          numeroDocIdAdq: String(imp.nro_documento || ''),
+          tipoDocIdAdq: '1',
+          estadoItem: '3',
+          importeTotal: mora,
+          inafectas: { codigo: '03', totalVentas: mora },
+          totalImpuestos: [{ idImpuesto: '1000', montoImpuesto: '0.00' }],
+        },
+      ],
+    },
+  };
+  return {
+    nombre: `${imp.ruc}-RC-${fechaAnulado.replace(/-/g, '')}-${nroAnulado}.json`,
+    contenido: json,
+  };
+}
+
 const tableColumnsCache = new Map();
 
 async function getTableColumns(tableName, conn = null) {
@@ -2565,6 +2913,86 @@ router.post('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/impresiones/mora
     return res.status(500).json({ error: e.message || 'Error al preparar impresión de mora' });
   }
 });
+
+/**
+ * GET …/impresiones/:impresionId/json — genera JSON del comprobante activo (boleta/nota).
+ */
+router.get(
+  '/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/impresiones/:impresionId/json',
+  async (req, res) => {
+    try {
+      const v = await verifyAdminAlumnoMatriculaPago(req);
+      if (!v.ok) return res.status(v.status).json({ error: v.error });
+      const { colegio_id, pagoId } = v;
+      const impresionId = parseInt(req.params.impresionId, 10);
+      if (!Number.isFinite(impresionId) || impresionId <= 0) {
+        return res.status(400).json({ error: 'ID de impresión inválido' });
+      }
+
+      const imp = await getAdminImpresionPayload({ colegio_id, pagoId, impresionId });
+      if (!imp) return res.status(404).json({ error: 'Impresión no encontrada' });
+      if (String(imp.estado || '').toUpperCase() === 'ANULADO') {
+        return res.status(400).json({ error: 'La impresión está anulada. Use «JSON RC» para este comprobante.' });
+      }
+      let payloadObj;
+      const tipoDoc = String(imp.tipo_documento || '').toUpperCase();
+      if (tipoDoc === 'NOTA') {
+        const boletaActiva = await getActivePagoBoletaImpresion(pagoId);
+        if (!boletaActiva) {
+          return res.status(400).json({ error: 'No hay boleta activa relacionada para generar la Nota de Débito.' });
+        }
+        payloadObj = buildLegacyJsonNotaDebitoFromImpresion(imp, boletaActiva);
+      } else {
+        payloadObj = buildLegacyJsonBoletaFromImpresion(imp);
+      }
+      await markImpresionJsonGenerado(impresionId);
+      const filename = safeJsonFilename(payloadObj.nombre, `impresion_${impresionId}.json`);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(JSON.stringify(payloadObj.contenido, null, 2));
+    } catch (e) {
+      console.error('GET admin impresion json', e);
+      return res.status(500).json({ error: e.message || 'Error al generar JSON' });
+    }
+  }
+);
+
+/**
+ * GET …/impresiones/:impresionId/json-rc — genera JSON RC para comprobante anulado.
+ */
+router.get(
+  '/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/impresiones/:impresionId/json-rc',
+  async (req, res) => {
+    try {
+      const v = await verifyAdminAlumnoMatriculaPago(req);
+      if (!v.ok) return res.status(v.status).json({ error: v.error });
+      const { colegio_id, pagoId } = v;
+      const impresionId = parseInt(req.params.impresionId, 10);
+      if (!Number.isFinite(impresionId) || impresionId <= 0) {
+        return res.status(400).json({ error: 'ID de impresión inválido' });
+      }
+
+      const imp = await getAdminImpresionPayload({ colegio_id, pagoId, impresionId });
+      if (!imp) return res.status(404).json({ error: 'Impresión no encontrada' });
+      if (String(imp.estado || '').toUpperCase() !== 'ANULADO') {
+        return res.status(400).json({ error: 'Solo se puede generar JSON RC para comprobantes anulados.' });
+      }
+      await ensureRcDataForImpresion(impresionId);
+      const impFresh = await getAdminImpresionPayload({ colegio_id, pagoId, impresionId });
+      if (!impFresh) return res.status(404).json({ error: 'Impresión no encontrada' });
+      const tipoDoc = String(impFresh.tipo_documento || '').toUpperCase();
+      const payloadObj = tipoDoc === 'NOTA' ? buildLegacyJsonRcNota(impFresh) : buildLegacyJsonRcInafecta(impFresh);
+      await markImpresionJsonGenerado(impresionId);
+      const filename = safeJsonFilename(payloadObj.nombre, `impresion_rc_${impresionId}.json`);
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(JSON.stringify(payloadObj.contenido, null, 2));
+    } catch (e) {
+      console.error('GET admin impresion json rc', e);
+      return res.status(500).json({ error: e.message || 'Error al generar JSON RC' });
+    }
+  }
+);
 
 /**
  * GET …/pagos/:pagoId/impresiones — listado de impresiones del pago + resumen (mora, forma de pago, etc.).

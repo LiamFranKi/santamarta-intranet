@@ -11,6 +11,30 @@ function esc(v) {
     .replace(/'/g, '&#39;');
 }
 
+function parseFilenameFromDisposition(v) {
+  const raw = String(v || '');
+  const utf = raw.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf && utf[1]) return decodeURIComponent(utf[1]);
+  const basic = raw.match(/filename="?([^"]+)"?/i);
+  if (basic && basic[1]) return basic[1];
+  return null;
+}
+
+async function downloadJsonFromApi(url, fallbackName = 'archivo.json') {
+  const resp = await api.get(url, { responseType: 'blob' });
+  const disp = resp?.headers?.['content-disposition'] || '';
+  const filename = parseFilenameFromDisposition(disp) || fallbackName;
+  const blob = new Blob([resp.data], { type: 'application/json;charset=utf-8' });
+  const href = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = href;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(href);
+}
+
 function timeInputFromHora(raw) {
   if (raw == null || raw === '') return '';
   const s = String(raw).trim();
@@ -141,11 +165,12 @@ function buildImpresionesHtml(payload) {
     .map((r) => {
       const est = String(r.estado || '').toUpperCase();
       const esAnulado = est === 'ANULADO';
+      const trClass = esAnulado ? 'admin-pagos-lista-tr admin-pagos-lista-tr--anulado' : 'admin-pagos-lista-tr';
       const toggleLabel = esAnulado ? 'Restaurar' : 'Anular';
       const doc = String(r.tipo_documento || '').toUpperCase();
       const showJsonBoleta = doc === 'BOLETA';
       return `
-      <tr>
+      <tr class="${trClass}">
         <td class="admin-pagos-lista-td">${esc(r.tipo_label)}</td>
         <td class="admin-pagos-lista-td">${esc(r.documento_label)}</td>
         <td class="admin-pagos-lista-td" style="white-space:nowrap">${esc(r.serie_numero)}</td>
@@ -162,12 +187,12 @@ function buildImpresionesHtml(payload) {
               ><span class="admin-pagos-opcion-ico" aria-hidden>✎</span><span>Editar</span></button>
               ${
                 showJsonBoleta
-                  ? `<button type="button" class="admin-pagos-opcion-item admin-impresiones-json-sunat" role="menuitem"><span class="admin-pagos-opcion-ico" aria-hidden>📄</span><span>Generar JSON</span></button>`
+                  ? `<button type="button" class="admin-pagos-opcion-item admin-impresiones-json-sunat" role="menuitem" data-imp-id="${esc(String(r.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>📄</span><span>Generar JSON</span></button>`
                   : ''
               }
               ${
                 esAnulado
-                  ? `<button type="button" class="admin-pagos-opcion-item admin-impresiones-json-rc" role="menuitem"><span class="admin-pagos-opcion-ico" aria-hidden>📄</span><span>JSON RC</span></button>`
+                  ? `<button type="button" class="admin-pagos-opcion-item admin-impresiones-json-rc" role="menuitem" data-imp-id="${esc(String(r.id))}"><span class="admin-pagos-opcion-ico" aria-hidden>📄</span><span>JSON RC</span></button>`
                   : ''
               }
               <button type="button" class="admin-pagos-opcion-item admin-impresiones-opcion-toggle" role="menuitem"
@@ -396,22 +421,46 @@ export async function openAdminImpresionesSwal({ nombreAlumno, alumnoId, matricu
           if (target.closest('.admin-impresiones-json-sunat')) {
             e.stopPropagation();
             closeImpresionesMenus(popup);
-            showImpresionesBanner(
-              root,
-              'JSON SUNAT: la generación de archivos se realiza desde el sistema PHP anterior (módulo Impresiones) o las herramientas que su colegio tenga configuradas.',
-              'info'
-            );
+            const btn = target.closest('.admin-impresiones-json-sunat');
+            const impId = btn?.getAttribute('data-imp-id');
+            if (!impId) {
+              showImpresionesBanner(root, 'No se encontró la impresión para generar JSON.', 'warn');
+              return;
+            }
+            try {
+              await downloadJsonFromApi(`${basePath}/impresiones/${impId}/json`, `impresion_${impId}.json`);
+              await refresh();
+              showImpresionesBanner(root, 'JSON generado y descargado correctamente.', 'ok');
+            } catch (err) {
+              showImpresionesBanner(
+                root,
+                err.response?.data?.error || err.message || 'No se pudo generar el JSON.',
+                'error'
+              );
+            }
             return;
           }
 
           if (target.closest('.admin-impresiones-json-rc')) {
             e.stopPropagation();
             closeImpresionesMenus(popup);
-            showImpresionesBanner(
-              root,
-              'JSON RC: este archivo se genera en el sistema PHP anterior cuando corresponda al comprobante anulado.',
-              'info'
-            );
+            const btn = target.closest('.admin-impresiones-json-rc');
+            const impId = btn?.getAttribute('data-imp-id');
+            if (!impId) {
+              showImpresionesBanner(root, 'No se encontró la impresión para generar JSON RC.', 'warn');
+              return;
+            }
+            try {
+              await downloadJsonFromApi(`${basePath}/impresiones/${impId}/json-rc`, `impresion_rc_${impId}.json`);
+              await refresh();
+              showImpresionesBanner(root, 'JSON RC generado y descargado correctamente.', 'ok');
+            } catch (err) {
+              showImpresionesBanner(
+                root,
+                err.response?.data?.error || err.message || 'No se pudo generar el JSON RC.',
+                'error'
+              );
+            }
           }
         };
 
