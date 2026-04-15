@@ -643,6 +643,15 @@
   margin-bottom: 1rem;
 }
 
+/** Dos columnas iguales (DNI + parentesco; correo + domicilio). */
+.admin-mat-row-2--equal {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-mat-grid > .admin-mat-row-2--equal {
+  grid-column: 1 / -1;
+}
+
 .admin-mat-row-3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

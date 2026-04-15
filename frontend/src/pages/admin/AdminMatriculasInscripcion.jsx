@@ -19,6 +19,9 @@ const ESTADOS_MAT = [
 
 const MODALIDADES = ['PRESENCIAL', 'VIRTUAL', 'SEMIPRESENCIAL'];
 
+/** Sección / letra de grupo (misma fila que nivel y grado). */
+const SECCIONES_OPCIONES = ['A', 'B', 'C', 'D', 'E', 'F'];
+
 /** Grados según nombre de nivel (misma lógica que negocio escolar). */
 function gradosParaNivel(nivelNombre) {
   const n = String(nivelNombre || '').toUpperCase();
@@ -64,14 +67,13 @@ export default function AdminMatriculasInscripcion() {
     fecha_nacimiento: '2015-01-01',
     email: '',
     domicilio: '',
-    fecha_inscripcion: new Date().toISOString().slice(0, 10),
   });
 
   const [apoderados, setApoderados] = useState([emptyApoderado()]);
 
   const [nivelId, setNivelId] = useState('');
   const [grado, setGrado] = useState('');
-  const [seccion, setSeccion] = useState('');
+  const [seccion, setSeccion] = useState('A');
   const [turnoId, setTurnoId] = useState('');
 
   const [costoModo, setCostoModo] = useState('personalizado');
@@ -81,7 +83,6 @@ export default function AdminMatriculasInscripcion() {
   const [persAgenda, setPersAgenda] = useState('');
   const [estadoMat, setEstadoMat] = useState(0);
   const [modalidad, setModalidad] = useState('PRESENCIAL');
-  const [fechaRegistro, setFechaRegistro] = useState(() => new Date().toISOString().slice(0, 10));
   const [registrarPagoMat, setRegistrarPagoMat] = useState(true);
   const [sending, setSending] = useState(false);
 
@@ -122,7 +123,7 @@ export default function AdminMatriculasInscripcion() {
       } else {
         setTurnoId('');
       }
-      setSeccion((s) => (s === '' ? 'A' : s));
+      setSeccion((s) => (s === '' || !SECCIONES_OPCIONES.includes(String(s).toUpperCase()) ? 'A' : String(s).toUpperCase()));
       const genList = (data.costos || []).filter((c) => String(c.tipo || '').toUpperCase().trim() === 'GENERAL');
       if (genList.length) {
         const gen = genList.find((c) => String(c.tipo || '').toUpperCase() === 'GENERAL') || genList[0];
@@ -263,6 +264,7 @@ export default function AdminMatriculasInscripcion() {
 
     setSending(true);
     try {
+      const fechaHoy = new Date().toISOString().slice(0, 10);
       const body = {
         alumno: {
           nro_documento: dni,
@@ -273,7 +275,7 @@ export default function AdminMatriculasInscripcion() {
           fecha_nacimiento: alumno.fecha_nacimiento,
           email: alumno.email.trim(),
           domicilio: alumno.domicilio.trim(),
-          fecha_inscripcion: alumno.fecha_inscripcion,
+          fecha_inscripcion: fechaHoy,
         },
         ubicacion_grupo: {
           nivel_id: parseInt(nivelId, 10),
@@ -303,7 +305,7 @@ export default function AdminMatriculasInscripcion() {
               },
             }),
         estado_matricula: estadoMat,
-        fecha_registro: fechaRegistro,
+        fecha_registro: fechaHoy,
         modalidad,
         registrar_linea_pago_matricula: registrarPagoMat,
       };
@@ -467,34 +469,26 @@ export default function AdminMatriculasInscripcion() {
                 disabled={camposBloqueados}
               />
             </div>
-            <div className="admin-mat-field">
-              <label>Correo</label>
-              <input
-                type="email"
-                className="admin-mat-input"
-                value={alumno.email}
-                onChange={(e) => setAlumno((p) => ({ ...p, email: e.target.value }))}
-                disabled={camposBloqueados}
-              />
-            </div>
-            <div className="admin-mat-field admin-mat-field--span2">
-              <label>Domicilio</label>
-              <input
-                className="admin-mat-input"
-                value={alumno.domicilio}
-                onChange={(e) => setAlumno((p) => ({ ...p, domicilio: e.target.value }))}
-                disabled={camposBloqueados}
-              />
-            </div>
-            <div className="admin-mat-field">
-              <label>Fecha de inscripción</label>
-              <input
-                type="date"
-                className="admin-mat-input"
-                value={alumno.fecha_inscripcion}
-                onChange={(e) => setAlumno((p) => ({ ...p, fecha_inscripcion: e.target.value }))}
-                disabled={camposBloqueados}
-              />
+            <div className="admin-mat-row-2 admin-mat-row-2--equal">
+              <div className="admin-mat-field">
+                <label>Correo</label>
+                <input
+                  type="email"
+                  className="admin-mat-input"
+                  value={alumno.email}
+                  onChange={(e) => setAlumno((p) => ({ ...p, email: e.target.value }))}
+                  disabled={camposBloqueados}
+                />
+              </div>
+              <div className="admin-mat-field">
+                <label>Domicilio</label>
+                <input
+                  className="admin-mat-input"
+                  value={alumno.domicilio}
+                  onChange={(e) => setAlumno((p) => ({ ...p, domicilio: e.target.value }))}
+                  disabled={camposBloqueados}
+                />
+              </div>
             </div>
           </div>
         </section>
@@ -528,8 +522,8 @@ export default function AdminMatriculasInscripcion() {
                   </button>
                 )}
               </div>
-              <div className="admin-mat-row-2">
-                <div className="admin-mat-field admin-mat-field--grow">
+              <div className="admin-mat-row-2 admin-mat-row-2--equal">
+                <div className="admin-mat-field">
                   <label>DNI</label>
                   <input
                     className="admin-mat-input"
@@ -540,7 +534,7 @@ export default function AdminMatriculasInscripcion() {
                     disabled={camposBloqueados}
                   />
                 </div>
-                <div className="admin-mat-field admin-mat-field--narrow">
+                <div className="admin-mat-field">
                   <label>Parentesco</label>
                   <select
                     className="admin-mat-input"
@@ -632,7 +626,7 @@ export default function AdminMatriculasInscripcion() {
               </div>
             </div>
           </div>
-          <div className="admin-mat-row-4">
+          <div className="admin-mat-row-3 admin-mat-row-3--tight">
             <div className="admin-mat-field">
               <label>Nivel</label>
               <select
@@ -662,16 +656,16 @@ export default function AdminMatriculasInscripcion() {
             </div>
             <div className="admin-mat-field">
               <label>Sección</label>
-              <input
-                className="admin-mat-input"
-                value={seccion}
-                onChange={(e) => setSeccion(e.target.value.toUpperCase())}
-                placeholder="A, B, C…"
-                maxLength={8}
-                disabled={camposBloqueados}
-                required
-              />
+              <select className="admin-mat-input" value={seccion} onChange={(e) => setSeccion(e.target.value)} disabled={camposBloqueados} required>
+                {SECCIONES_OPCIONES.map((letra) => (
+                  <option key={letra} value={letra}>
+                    {letra}
+                  </option>
+                ))}
+              </select>
             </div>
+          </div>
+          <div className="admin-mat-row-3">
             <div className="admin-mat-field">
               <label>Turno</label>
               <select
@@ -689,8 +683,6 @@ export default function AdminMatriculasInscripcion() {
                 ))}
               </select>
             </div>
-          </div>
-          <div className="admin-mat-row-3 admin-mat-row-3--tight">
             <div className="admin-mat-field">
               <label>Estado</label>
               <select className="admin-mat-input" value={estadoMat} onChange={(e) => setEstadoMat(parseInt(e.target.value, 10))} disabled={camposBloqueados}>
@@ -710,10 +702,6 @@ export default function AdminMatriculasInscripcion() {
                   </option>
                 ))}
               </select>
-            </div>
-            <div className="admin-mat-field">
-              <label>Fecha registro matrícula</label>
-              <input type="date" className="admin-mat-input" value={fechaRegistro} onChange={(e) => setFechaRegistro(e.target.value)} disabled={camposBloqueados} />
             </div>
           </div>
         </section>
