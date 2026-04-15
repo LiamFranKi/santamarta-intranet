@@ -321,6 +321,81 @@ function refreshListaPagosMatriculaInPlace({ nombreAlumno, alumnoId, matriculaId
     });
 }
 
+/**
+ * Confirmación estilo SweetAlert2 dentro del modal «Lista de Pagos» (no usa window.confirm ni un segundo Swal).
+ * @returns {Promise<boolean>}
+ */
+function confirmImprimirSeleccionadosEnLista(popup, nSel) {
+  return new Promise((resolve) => {
+    const wrap = popup.querySelector('.admin-pagos-lista-swalc');
+    if (!wrap) {
+      resolve(false);
+      return;
+    }
+    wrap.querySelector('.admin-pagos-imprimir-confirm-overlay')?.remove();
+
+    const computed = window.getComputedStyle(wrap);
+    let addedRelative = false;
+    if (computed.position === 'static') {
+      wrap.style.position = 'relative';
+      addedRelative = true;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'admin-pagos-imprimir-confirm-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-labelledby', 'admin-pagos-imprimir-confirm-title');
+
+    const n = Math.max(0, Math.floor(Number(nSel) || 0));
+
+    overlay.innerHTML = `
+      <div class="admin-pagos-imprimir-confirm-card">
+        <div class="admin-pagos-imprimir-confirm-inner">
+          <div class="admin-pagos-imprimir-confirm-icon" aria-hidden="true">?</div>
+          <h2 id="admin-pagos-imprimir-confirm-title" class="admin-pagos-imprimir-confirm-title">¿Asignar número de boleta?</h2>
+          <div class="admin-pagos-imprimir-confirm-text">
+            <p>Va a procesar <strong>${n}</strong> pago(s) seleccionado(s).</p>
+            <p>Solo aplica a pagos <strong>CANCELADOS</strong> que aún no tienen boleta.</p>
+            <p>No se descargará ningún PDF.</p>
+            <p class="admin-pagos-imprimir-confirm-hint">Pulse <strong>Sí, asignar</strong> para continuar o <strong>Cancelar</strong> para volver.</p>
+          </div>
+        </div>
+        <div class="admin-pagos-imprimir-confirm-actions">
+          <button type="button" class="admin-pagos-imprimir-confirm-btn admin-pagos-imprimir-confirm-btn--cancel">Cancelar</button>
+          <button type="button" class="admin-pagos-imprimir-confirm-btn admin-pagos-imprimir-confirm-btn--ok">Sí, asignar</button>
+        </div>
+      </div>`;
+
+    const finish = (v) => {
+      document.removeEventListener('keydown', onKey);
+      overlay.remove();
+      if (addedRelative) wrap.style.removeProperty('position');
+      resolve(v);
+    };
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        e.stopPropagation();
+        finish(false);
+      }
+    };
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) finish(false);
+    });
+    const btnCancel = overlay.querySelector('.admin-pagos-imprimir-confirm-btn--cancel');
+    const btnOk = overlay.querySelector('.admin-pagos-imprimir-confirm-btn--ok');
+    btnCancel?.addEventListener('click', () => finish(false));
+    btnOk?.addEventListener('click', () => finish(true));
+
+    document.addEventListener('keydown', onKey, true);
+    wrap.appendChild(overlay);
+    btnOk?.focus();
+  });
+}
+
 function buildPanelHtml(m, opts = {}) {
   const { panelId, display = 'block' } = opts;
   const idAttr = panelId != null && panelId !== '' ? ` id="${String(panelId)}"` : '';
@@ -757,12 +832,7 @@ function bindListaPagosUi() {
       return;
     }
     const nSel = checked.length;
-    const okConfirm = window.confirm(
-      `¿Asignar número de boleta a ${nSel} pago(s) seleccionado(s)?\n\n` +
-        `Solo aplica a pagos CANCELADOS que aún no tienen boleta.\n` +
-        `No se descargará ningún PDF.\n\n` +
-        `Pulse Aceptar para continuar o Cancelar para volver.`
-    );
+    const okConfirm = await confirmImprimirSeleccionadosEnLista(popup, nSel);
     if (!okConfirm) return;
 
     try {

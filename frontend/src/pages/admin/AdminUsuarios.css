@@ -475,6 +475,113 @@
   z-index: 10090 !important;
 }
 
+/* Confirmación «Imprimir seleccionados» embebida en Lista de Pagos (mismo lenguaje visual que SweetAlert2) */
+.admin-pagos-imprimir-confirm-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.admin-pagos-imprimir-confirm-card {
+  background: #fff;
+  border-radius: 5px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.18);
+  max-width: 32em;
+  width: 100%;
+  text-align: center;
+  overflow: hidden;
+}
+
+.admin-pagos-imprimir-confirm-inner {
+  padding: 1.5rem 1.5rem 0.5rem;
+}
+
+.admin-pagos-imprimir-confirm-icon {
+  width: 4em;
+  height: 4em;
+  margin: 0 auto 1rem;
+  border: 3px solid #87adbd;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #87adbd;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.admin-pagos-imprimir-confirm-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #595959;
+}
+
+.admin-pagos-imprimir-confirm-text {
+  margin: 0;
+  color: #545454;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  text-align: left;
+}
+
+.admin-pagos-imprimir-confirm-text p {
+  margin: 0 0 0.65rem;
+}
+
+.admin-pagos-imprimir-confirm-hint {
+  margin-top: 0.35rem !important;
+  font-size: 0.88rem;
+  color: #6b7280;
+}
+
+.admin-pagos-imprimir-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem 1.25rem;
+  margin-top: 0.25rem;
+}
+
+.admin-pagos-imprimir-confirm-btn {
+  border: 0;
+  border-radius: 0.25em;
+  padding: 0.55em 1.2em;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.admin-pagos-imprimir-confirm-btn--cancel {
+  background: #6e7881;
+  color: #fff;
+}
+
+.admin-pagos-imprimir-confirm-btn--cancel:hover {
+  background: #5a626c;
+}
+
+.admin-pagos-imprimir-confirm-btn--ok {
+  background: #7066e0;
+  color: #fff;
+}
+
+.admin-pagos-imprimir-confirm-btn--ok:hover {
+  background: #5b52c4;
+}
+
 .admin-usu-profile-form {
   display: flex;
   flex-direction: column;
