@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const router = express.Router();
 const { query, execute, mysqlReadPool } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
+const { resolveColegioIdAdmin } = require('../utils/resolveColegioAdmin');
 
 function sha1Password(plain) {
   return crypto.createHash('sha1').update(String(plain), 'utf8').digest('hex');
@@ -86,9 +87,28 @@ async function resolverPersonalIdPago(colegio_id, reqUser) {
  */
 router.get('/inscripcion-matricula/catalogo', async (req, res) => {
   try {
-    const { colegio_id } = req.user;
+    const sedes = await query('SELECT id, nombre FROM colegios ORDER BY id ASC');
     const anioQ = req.query.anio != null && String(req.query.anio).trim() !== '' ? parseInt(req.query.anio, 10) : null;
     const anioActivo = Number.isFinite(anioQ) ? anioQ : new Date().getFullYear();
+
+    const colegio_id = await resolveColegioIdAdmin(req, req.query.colegio_id);
+    if (!colegio_id) {
+      return res.json({
+        needs_colegio: true,
+        colegio_catalogo_id: null,
+        sedes: sedes || [],
+        anio_sugerido: anioActivo,
+        grupos: [],
+        costos: [],
+        niveles: [],
+        turnos: [],
+        colegio_pensiones: {
+          ciclo_pensiones: null,
+          inicio_pensiones: 1,
+          total_pensiones: 10,
+        },
+      });
+    }
 
     const [colegioRow] = await query(
       `SELECT ciclo_pensiones, inicio_pensiones, total_pensiones, anio_activo
@@ -125,6 +145,8 @@ router.get('/inscripcion-matricula/catalogo', async (req, res) => {
     }
 
     res.json({
+      needs_colegio: false,
+      colegio_catalogo_id: colegio_id,
       anio_sugerido: anioActivo,
       colegio_pensiones: {
         ciclo_pensiones: colegioRow?.ciclo_pensiones ?? null,
@@ -136,6 +158,7 @@ router.get('/inscripcion-matricula/catalogo', async (req, res) => {
       costos: costos || [],
       niveles: niveles || [],
       turnos: turnos || [],
+      sedes: sedes || [],
     });
   } catch (e) {
     console.error('GET inscripcion-matricula/catalogo', e);
@@ -292,11 +315,14 @@ async function insertCostoPersonalizado(conn, { colegio_id, descripcion, matricu
  * Grupo: por nivel/grado/sección/turno/año; si no existe se crea (sin tutor).
  */
 router.post('/inscripcion-matricula', async (req, res) => {
+  const b = req.body || {};
+  const colegio_id = await resolveColegioIdAdmin(req, b.colegio_id);
+  if (!colegio_id) {
+    return res.status(400).json({ error: 'Indique la sede (colegio) válida' });
+  }
+
   const conn = await mysqlReadPool.getConnection();
   try {
-    const { colegio_id } = req.user;
-    const b = req.body || {};
-
     const alumnoIn = b.alumno || {};
     let alumnoId;
     const dniAl = String(alumnoIn.nro_documento || '').trim();

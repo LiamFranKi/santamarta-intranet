@@ -15,6 +15,7 @@ const { query, execute, mysqlReadPool } = require('../utils/mysql');
 const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
 const { formatDateYyyyMmDd, resolveFechaVencimientoBoletaJson } = require('../utils/fechaFacturacionJson');
 const { authenticateToken } = require('../middleware/auth');
+const { resolveColegioIdAdmin } = require('../utils/resolveColegioAdmin');
 
 /** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
 const TIPOS_ENUM_USUARIO = [
@@ -2396,7 +2397,10 @@ router.get('/alumnos', async (req, res) => {
 /** Buscar alumno por DNI (mismo colegio). Para vincular desde ficha apoderado. */
 router.get('/alumnos/por-dni', async (req, res) => {
   try {
-    const { colegio_id } = req.user;
+    const colegio_id = await resolveColegioIdAdmin(req, req.query.colegio_id);
+    if (!colegio_id) {
+      return res.status(400).json({ error: 'Indique la sede (colegio)' });
+    }
     const dni = String(req.query.dni || '').trim();
     if (!dni) {
       return res.status(400).json({ error: 'Indique el DNI' });
@@ -4272,7 +4276,10 @@ router.get('/apoderados', async (req, res) => {
 /** Buscar apoderado por DNI (mismo colegio). Para vincular desde ficha alumno. */
 router.get('/apoderados/por-dni', async (req, res) => {
   try {
-    const { colegio_id } = req.user;
+    const colegio_id = await resolveColegioIdAdmin(req, req.query.colegio_id);
+    if (!colegio_id) {
+      return res.status(400).json({ error: 'Indique la sede (colegio)' });
+    }
     const dni = String(req.query.dni || '').trim();
     if (!dni) {
       return res.status(400).json({ error: 'Indique el DNI' });

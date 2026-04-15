@@ -2,7 +2,19 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
+import { useAuth } from '../../context/AuthContext';
 import './AdminMatriculas.css';
+
+function readSedeIdFromStorage() {
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return '';
+    const u = JSON.parse(raw);
+    return u?.colegio_id != null && String(u.colegio_id).trim() !== '' ? String(u.colegio_id) : '';
+  } catch {
+    return '';
+  }
+}
 
 const PARENTESCO = [
   { v: 1, label: 'Padre / tutor' },
@@ -51,10 +63,13 @@ const emptyApoderado = () => ({
 
 export default function AdminMatriculasInscripcion() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const anioActual = new Date().getFullYear();
   const [anioFiltro, setAnioFiltro] = useState(anioActual);
   const [catalogo, setCatalogo] = useState(null);
   const [loadingCat, setLoadingCat] = useState(true);
+  /** Vacío = usar colegio del token en el servidor; si el usuario elige sede, se fuerza ese id. */
+  const [sedeId, setSedeId] = useState(readSedeIdFromStorage);
 
   const [alumnoYaExiste, setAlumnoYaExiste] = useState(false);
 
@@ -96,6 +111,13 @@ export default function AdminMatriculasInscripcion() {
   const nivelSeleccionado = useMemo(() => niveles.find((n) => String(n.id) === String(nivelId)), [niveles, nivelId]);
   const opcionesGrado = useMemo(() => gradosParaNivel(nivelSeleccionado?.nombre), [nivelSeleccionado]);
 
+  const colegioEfectivo = useMemo(() => {
+    if (sedeId) return sedeId;
+    if (catalogo?.colegio_catalogo_id != null) return String(catalogo.colegio_catalogo_id);
+    if (user?.colegio_id != null) return String(user.colegio_id);
+    return '';
+  }, [sedeId, catalogo?.colegio_catalogo_id, user?.colegio_id]);
+
   useEffect(() => {
     if (!opcionesGrado.length) return;
     const valid = opcionesGrado.some((o) => String(o.v) === String(grado));
@@ -106,7 +128,7 @@ export default function AdminMatriculasInscripcion() {
     setLoadingCat(true);
     try {
       const { data } = await api.get('/admin/usuarios/inscripcion-matricula/catalogo', {
-        params: { anio: anioFiltro },
+        params: { anio: anioFiltro, ...(sedeId ? { colegio_id: sedeId } : {}) },
       });
       setCatalogo(data);
       if (data.niveles?.length) {
@@ -142,7 +164,7 @@ export default function AdminMatriculasInscripcion() {
     } finally {
       setLoadingCat(false);
     }
-  }, [anioFiltro]);
+  }, [anioFiltro, sedeId]);
 
   useEffect(() => {
     loadCatalogo();
@@ -154,8 +176,11 @@ export default function AdminMatriculasInscripcion() {
       setAlumnoYaExiste(false);
       return;
     }
+    if (!colegioEfectivo) return;
     try {
-      const { data } = await api.get('/admin/usuarios/alumnos/por-dni', { params: { dni } });
+      const { data } = await api.get('/admin/usuarios/alumnos/por-dni', {
+        params: { dni, ...(colegioEfectivo ? { colegio_id: colegioEfectivo } : {}) },
+      });
       if (data.encontrado && data.alumno) {
         setAlumnoYaExiste(true);
         Swal.fire({
@@ -175,8 +200,11 @@ export default function AdminMatriculasInscripcion() {
     const row = apoderados[idx];
     const dni = String(row.nro_documento || '').trim();
     if (!dni || dni.length < 4) return;
+    if (!colegioEfectivo) return;
     try {
-      const { data } = await api.get('/admin/usuarios/apoderados/por-dni', { params: { dni } });
+      const { data } = await api.get('/admin/usuarios/apoderados/por-dni', {
+        params: { dni, ...(colegioEfectivo ? { colegio_id: colegioEfectivo } : {}) },
+      });
       const next = [...apoderados];
       if (data.encontrado && data.apoderado) {
         const ap = data.apoderado;
@@ -226,12 +254,17 @@ export default function AdminMatriculasInscripcion() {
     setCostoModo('personalizado');
   };
 
-  const camposBloqueados = alumnoYaExiste || loadingCat;
+  const camposBloqueados = alumnoYaExiste || loadingCat || !!catalogo?.needs_colegio;
 
   const enviar = async (e) => {
     e.preventDefault();
     if (alumnoYaExiste) {
       Swal.fire({ icon: 'warning', text: 'No puede inscribir un DNI que ya existe como alumno.' });
+      return;
+    }
+    const cid = parseInt(colegioEfectivo, 10);
+    if (!Number.isFinite(cid) || cid <= 0) {
+      Swal.fire({ icon: 'warning', text: 'Seleccione la sede (colegio) antes de continuar.' });
       return;
     }
     const dni = String(alumno.nro_documento || '').trim();
@@ -270,6 +303,7 @@ export default function AdminMatriculasInscripcion() {
     try {
       const fechaHoy = new Date().toISOString().slice(0, 10);
       const body = {
+        colegio_id: cid,
         alumno: {
           nro_documento: dni,
           apellido_paterno: alumno.apellido_paterno.trim(),
@@ -619,7 +653,7 @@ export default function AdminMatriculasInscripcion() {
         </section>
 
         <section className="admin-mat-card admin-mat-card--academico">
-          <div className="admin-mat-card-head">
+          <div className="admin-mat-card-head admin-mat-card-head--academico">
             <div className="admin-mat-card-head-main">
               <span className="admin-mat-badge admin-mat-badge--academico">3</span>
               <div>
@@ -628,6 +662,24 @@ export default function AdminMatriculasInscripcion() {
                   Año {anioFiltro}. Si el aula no existía, se crea el grupo sin tutor (asigne tutor después en administración de grupos).
                 </p>
               </div>
+            </div>
+            <div className="admin-mat-sede-en-cabecera">
+              <label htmlFor="admin-mat-sede">Sede</label>
+              <select
+                id="admin-mat-sede"
+                className="admin-mat-input"
+                value={sedeId || String(catalogo?.colegio_catalogo_id ?? '')}
+                onChange={(e) => setSedeId(e.target.value)}
+                disabled={loadingCat}
+                aria-label="Sede o colegio"
+              >
+                <option value="">— Seleccione sede —</option>
+                {(catalogo?.sedes || []).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
           <div className="admin-mat-row-3 admin-mat-row-3--matricula-superior">

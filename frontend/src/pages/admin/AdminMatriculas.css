@@ -282,6 +282,47 @@
   min-width: 0;
 }
 
+/** Matrícula académica: título a la izquierda (2 columnas), Sede alineada con la columna «Sección». */
+.admin-mat-card-head--academico {
+  display: grid;
+  grid-template-columns: 1fr 1fr minmax(0, 1fr);
+  gap: 1rem 1.15rem;
+  align-items: start;
+}
+
+.admin-mat-card-head--academico .admin-mat-card-head-main {
+  grid-column: 1 / 3;
+}
+
+.admin-mat-sede-en-cabecera {
+  grid-column: 3;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-mat-sede-en-cabecera label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 640px) {
+  .admin-mat-card-head--academico {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-mat-card-head--academico .admin-mat-card-head-main {
+    grid-column: 1;
+  }
+
+  .admin-mat-sede-en-cabecera {
+    grid-column: 1;
+  }
+}
+
 .admin-mat-badge {
   flex-shrink: 0;
   width: 2.25rem;
