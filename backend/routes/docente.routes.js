@@ -1965,11 +1965,13 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
       const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       for (const mg of mensajes) {
+        // Comparar asunto en utf8mb4 explícito: evita ER_CANT_AGGREGATE_2COLLATIONS si `mensajes` es utf8mb3 y el asunto trae emoji (utf8mb4).
         const archivosRows = await query(
           `SELECT DISTINCT ma.nombre_archivo, ma.archivo
            FROM mensajes_archivos ma
            INNER JOIN mensajes m ON m.id = ma.mensaje_id
-           WHERE m.remitente_id = ? AND m.asunto = ? 
+           WHERE m.remitente_id = ?
+             AND CONVERT(m.asunto USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci
              AND DATE_FORMAT(m.fecha_hora, '%Y-%m-%d %H:%i:%s') = DATE_FORMAT(?, '%Y-%m-%d %H:%i:%s')`,
           [usuario_id, mg.asunto, mg.fecha_hora]
         );
