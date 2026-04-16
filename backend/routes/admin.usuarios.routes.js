@@ -16,6 +16,8 @@ const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
 const { formatDateYyyyMmDd, resolveFechaVencimientoBoletaJson } = require('../utils/fechaFacturacionJson');
 const { authenticateToken } = require('../middleware/auth');
 const { resolveColegioIdAdmin } = require('../utils/resolveColegioAdmin');
+const { ensureGrupoConn, insertCostoPersonalizado } = require('../utils/matriculaGrupoCosto');
+const { DEFAULT_SEDE_ID } = require('../utils/defaultColegio');
 
 /** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
 const TIPOS_ENUM_USUARIO = [
@@ -3982,13 +3984,16 @@ router.get('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
     const rows = await query(
-      `SELECT m.id AS matricula_id, m.alumno_id, m.grupo_id, m.costo_id, m.fecha_registro, m.estado,
-              g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre,
-              t.nombre AS turno_nombre
+      `SELECT m.id AS matricula_id, m.alumno_id, m.grupo_id, m.costo_id, m.fecha_registro, m.estado, m.modalidad,
+              g.anio AS g_anio, g.grado, g.seccion, g.nivel_id, g.turno_id, g.sede_id,
+              n.nombre AS nivel_nombre, t.nombre AS turno_nombre,
+              c.matricula AS costo_matricula, c.pension AS costo_pension, c.agenda AS costo_agenda,
+              c.tipo AS costo_tipo, c.descripcion AS costo_descripcion
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
        LEFT JOIN niveles n ON n.id = g.nivel_id
        LEFT JOIN turnos t ON t.id = g.turno_id
+       LEFT JOIN costos c ON c.id = m.costo_id AND c.colegio_id = m.colegio_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND m.id = ?
        LIMIT 1`,
       [alumnoId, colegio_id, matriculaId]
@@ -3996,25 +4001,35 @@ router.get('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
     if (!rows.length) {
       return res.status(404).json({ error: 'Matrícula no encontrada' });
     }
-    const mat = rows[0];
-    const costos = await query(
-      'SELECT id, matricula, pension FROM costos WHERE colegio_id = ? ORDER BY id DESC',
-      [colegio_id]
-    );
-    const grupos = await query(
-      `SELECT g.id, g.anio, g.grado, g.seccion, n.nombre AS nivel_nombre
-       FROM grupos g
-       LEFT JOIN niveles n ON n.id = g.nivel_id
-       WHERE g.colegio_id = ?
-       ORDER BY g.anio DESC, g.grado ASC, g.seccion ASC
-       LIMIT 1000`,
-      [colegio_id]
-    );
+    const r = rows[0];
     res.json({
       data: {
-        matricula: mat,
-        costos: costos || [],
-        grupos: grupos || [],
+        matricula: {
+          id: r.matricula_id,
+          alumno_id: r.alumno_id,
+          grupo_id: r.grupo_id,
+          costo_id: r.costo_id,
+          fecha_registro: r.fecha_registro,
+          estado: r.estado,
+          modalidad: r.modalidad,
+          grupo: {
+            anio: r.g_anio,
+            grado: r.grado,
+            seccion: r.seccion,
+            nivel_id: r.nivel_id,
+            turno_id: r.turno_id,
+            sede_id: r.sede_id,
+            nivel_nombre: r.nivel_nombre,
+            turno_nombre: r.turno_nombre,
+          },
+          costo: {
+            matricula: r.costo_matricula,
+            pension: r.costo_pension,
+            agenda: r.costo_agenda,
+            tipo: r.costo_tipo,
+            descripcion: r.costo_descripcion,
+          },
+        },
       },
     });
   } catch (e) {
@@ -4031,22 +4046,75 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
     if (!Number.isFinite(alumnoId) || !Number.isFinite(matriculaId)) {
       return res.status(400).json({ error: 'Parámetros inválidos' });
     }
-    const { estado, fecha_registro, grupo_id, costo_id } = req.body || {};
-    const est = parseInt(estado, 10);
+
+    const b = req.body || {};
+    const ub = b.ubicacion_grupo || b.ubicacion || {};
+    const nivelIdUb = parseInt(ub.nivel_id, 10);
+    const gradoUb = parseInt(ub.grado, 10);
+    const seccionUb = String(ub.seccion || '').trim();
+    const turnoIdUb = parseInt(ub.turno_id, 10);
+    const anioUb = parseInt(ub.anio, 10);
+    let sedeIdUb = DEFAULT_SEDE_ID;
+    const rawSede = [ub.sede_id, b.sede_id].find((v) => v != null && v !== '');
+    if (rawSede != null && rawSede !== '') {
+      const p = parseInt(String(rawSede), 10);
+      if (Number.isFinite(p) && p > 0) sedeIdUb = p;
+    }
+
+    const costoModo = String(b.costo_modo || 'personalizado').toLowerCase() === 'tarifario' ? 'tarifario' : 'personalizado';
+    const est = parseInt(b.estado_matricula != null ? b.estado_matricula : b.estado, 10);
+    const fr = String(b.fecha_registro || '').slice(0, 10);
+    const modalidad = String(b.modalidad || 'PRESENCIAL').trim().slice(0, 80) || 'PRESENCIAL';
+
     if (![0, 1, 2, 3, 4].includes(est)) {
       return res.status(400).json({ error: 'Estado de matrícula no válido' });
     }
-    const gid = parseInt(grupo_id, 10);
-    const cid = parseInt(costo_id, 10);
-    if (!Number.isFinite(gid) || !Number.isFinite(cid)) {
-      return res.status(400).json({ error: 'Grupo y costo son obligatorios' });
-    }
-    const fr = fecha_registro != null && String(fecha_registro).trim() !== ''
-      ? String(fecha_registro).trim().slice(0, 10)
-      : null;
-    if (!fr || !/^\d{4}-\d{2}-\d{2}$/.test(fr)) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fr)) {
       return res.status(400).json({ error: 'Fecha de registro inválida (use AAAA-MM-DD)' });
     }
+    if (!Number.isFinite(nivelIdUb) || !Number.isFinite(gradoUb) || !Number.isFinite(turnoIdUb) || !Number.isFinite(anioUb)) {
+      return res.status(400).json({ error: 'Complete nivel, grado, sección, turno y año académico' });
+    }
+    if (!String(seccionUb || '').trim()) {
+      return res.status(400).json({ error: 'Indique la sección (letra del grupo)' });
+    }
+
+    let montoMatricula;
+    let montoPension;
+    let costoIdParaMatricula;
+    let agendaParaCosto = 0;
+
+    if (costoModo === 'tarifario') {
+      const costoId = parseInt(b.costo_id, 10);
+      if (!Number.isFinite(costoId)) {
+        return res.status(400).json({ error: 'Seleccione una tarifa GENERAL del colegio o use montos personalizados' });
+      }
+      const cOk = await query(
+        `SELECT id, matricula, pension FROM costos WHERE id = ? AND colegio_id = ? AND UPPER(TRIM(COALESCE(tipo, ''))) = 'GENERAL' LIMIT 1`,
+        [costoId, colegio_id]
+      );
+      if (!cOk.length) return res.status(400).json({ error: 'El costo seleccionado no es una tarifa GENERAL válida' });
+      montoMatricula = parseFloat(cOk[0].matricula) || 0;
+      montoPension = parseFloat(cOk[0].pension) || 0;
+      costoIdParaMatricula = costoId;
+      if (montoPension <= 0) {
+        return res.status(400).json({ error: 'La pensión del costo elegido debe ser mayor a 0' });
+      }
+    } else {
+      const cp = b.costo_personalizado || {};
+      montoMatricula = parseFloat(cp.matricula);
+      montoPension = parseFloat(cp.pension);
+      const ag = cp.agenda != null && cp.agenda !== '' ? parseFloat(cp.agenda) : 0;
+      agendaParaCosto = Number.isFinite(ag) && ag >= 0 ? ag : 0;
+      if (!Number.isFinite(montoMatricula) || montoMatricula < 0) {
+        return res.status(400).json({ error: 'Indique un monto de matrícula válido (≥ 0)' });
+      }
+      if (!Number.isFinite(montoPension) || montoPension <= 0) {
+        return res.status(400).json({ error: 'Indique un monto de pensión mensual válido (> 0)' });
+      }
+      costoIdParaMatricula = null;
+    }
+
     const mrows = await query(
       'SELECT id, estado AS estado_prev FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
       [matriculaId, alumnoId, colegio_id]
@@ -4055,35 +4123,101 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
       return res.status(404).json({ error: 'Matrícula no encontrada' });
     }
     const estadoPrev = parseInt(mrows[0].estado_prev, 10);
-    const gOk = await query(
-      'SELECT id FROM grupos WHERE id = ? AND colegio_id = ? LIMIT 1',
-      [gid, colegio_id]
-    );
-    if (!gOk.length) {
-      return res.status(400).json({ error: 'El grupo seleccionado no pertenece al colegio' });
-    }
-    const cOk = await query(
-      'SELECT id FROM costos WHERE id = ? AND colegio_id = ? LIMIT 1',
-      [cid, colegio_id]
-    );
-    if (!cOk.length) {
-      return res.status(400).json({ error: 'El costo seleccionado no pertenece al colegio' });
-    }
-    await execute(
-      `UPDATE matriculas SET estado = ?, fecha_registro = ?, grupo_id = ?, costo_id = ?
-       WHERE id = ? AND alumno_id = ? AND colegio_id = ?`,
-      [est, fr, gid, cid, matriculaId, alumnoId, colegio_id]
-    );
-    /** RETIRADO (2): eliminar cargos aún no cobrados (pendientes) para no dejar deudas futuras en la matrícula. */
-    if (est === 2 && estadoPrev !== 2) {
-      await execute(
-        `DELETE FROM pagos
-         WHERE matricula_id = ? AND colegio_id = ?
-           AND UPPER(TRIM(estado)) = 'ACTIVO'
-           AND UPPER(TRIM(estado_pago)) = 'PENDIENTE'`,
-        [matriculaId, colegio_id]
+
+    const conn = await mysqlReadPool.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      let grupoId;
+      try {
+        grupoId = await ensureGrupoConn(conn, {
+          colegio_id,
+          anio: anioUb,
+          nivel_id: nivelIdUb,
+          grado: gradoUb,
+          seccion: seccionUb,
+          turno_id: turnoIdUb,
+          sede_id: sedeIdUb,
+        });
+      } catch (eg) {
+        await conn.rollback();
+        const st = eg.status && Number(eg.status) >= 400 && Number(eg.status) < 500 ? Number(eg.status) : 400;
+        return res.status(st).json({ error: eg.message || 'No se pudo definir el grupo' });
+      }
+
+      if (costoModo === 'personalizado') {
+        const [alRows] = await conn.execute(
+          'SELECT apellido_paterno, apellido_materno, nombres FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1',
+          [alumnoId, colegio_id]
+        );
+        const al = alRows[0] || {};
+        const nombreCompleto = `${al.apellido_paterno || ''} ${al.apellido_materno || ''} ${al.nombres || ''}`.replace(/\s+/g, ' ').trim();
+        costoIdParaMatricula = await insertCostoPersonalizado(conn, {
+          colegio_id,
+          descripcion: `Costo Personalizado - ${nombreCompleto || `Alumno #${alumnoId}`}`,
+          matricula: montoMatricula,
+          pension: montoPension,
+          agenda: agendaParaCosto,
+        });
+        if (!costoIdParaMatricula) {
+          await conn.rollback();
+          return res.status(500).json({ error: 'No se pudo crear el costo personalizado' });
+        }
+      }
+
+      await conn.execute(
+        `UPDATE matriculas SET grupo_id = ?, costo_id = ?, estado = ?, fecha_registro = ?, modalidad = ?
+         WHERE id = ? AND alumno_id = ? AND colegio_id = ?`,
+        [grupoId, costoIdParaMatricula, est, fr, modalidad, matriculaId, alumnoId, colegio_id]
       );
+
+      /**
+       * Si el alumno sigue activo en la matrícula, alinear montos de cuotas aún no cobradas con el costo editado.
+       * No modifica filas ya pagadas (estado_pago distinto de PENDIENTE) ni pagos anulados.
+       * Pensión mensual: tipo 1; matrícula: tipo 0 y nro_pago 0 (misma convención que inscripción).
+       */
+      if (est !== 2) {
+        await conn.execute(
+          `UPDATE pagos SET monto = ?
+           WHERE matricula_id = ? AND colegio_id = ?
+             AND UPPER(TRIM(estado)) = 'ACTIVO'
+             AND UPPER(TRIM(estado_pago)) = 'PENDIENTE'
+             AND tipo = 1`,
+          [montoPension, matriculaId, colegio_id]
+        );
+        await conn.execute(
+          `UPDATE pagos SET monto = ?
+           WHERE matricula_id = ? AND colegio_id = ?
+             AND UPPER(TRIM(estado)) = 'ACTIVO'
+             AND UPPER(TRIM(estado_pago)) = 'PENDIENTE'
+             AND tipo = 0 AND nro_pago = 0`,
+          [montoMatricula, matriculaId, colegio_id]
+        );
+      }
+
+      /** RETIRADO (2): eliminar cargos aún no cobrados (pendientes). No se insertan pagos nuevos al editar. */
+      if (est === 2 && estadoPrev !== 2) {
+        await conn.execute(
+          `DELETE FROM pagos
+           WHERE matricula_id = ? AND colegio_id = ?
+             AND UPPER(TRIM(estado)) = 'ACTIVO'
+             AND UPPER(TRIM(estado_pago)) = 'PENDIENTE'`,
+          [matriculaId, colegio_id]
+        );
+      }
+
+      await conn.commit();
+    } catch (e) {
+      try {
+        await conn.rollback();
+      } catch (rb) {
+        /* ignore */
+      }
+      throw e;
+    } finally {
+      conn.release();
     }
+
     res.json({ ok: true });
   } catch (e) {
     console.error('PUT alumno matricula admin', e);

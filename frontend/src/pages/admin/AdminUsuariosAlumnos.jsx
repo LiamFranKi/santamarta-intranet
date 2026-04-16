@@ -91,7 +91,8 @@ export default function AdminUsuariosAlumnos() {
   const [vincApGuardando, setVincApGuardando] = useState(false);
   const [modalMatriculas, setModalMatriculas] = useState(null);
   const [nuevaMatriculaModalOpen, setNuevaMatriculaModalOpen] = useState(false);
-  const [modalEditMatricula, setModalEditMatricula] = useState(null);
+  /** { alumno, matriculaId } — edición con el mismo formulario que «Registrar nuevo» */
+  const [editMatriculaModal, setEditMatriculaModal] = useState(null);
   const [menuMatricula, setMenuMatricula] = useState(null);
   const [form, setForm] = useState({});
   const [fotoCreateFile, setFotoCreateFile] = useState(null);
@@ -123,7 +124,10 @@ export default function AdminUsuariosAlumnos() {
   }, [cargar]);
 
   useEffect(() => {
-    if (!modalMatriculas) setNuevaMatriculaModalOpen(false);
+    if (!modalMatriculas) {
+      setNuevaMatriculaModalOpen(false);
+      setEditMatriculaModal(null);
+    }
   }, [modalMatriculas]);
 
   useEffect(() => () => {
@@ -524,54 +528,10 @@ export default function AdminUsuariosAlumnos() {
     }
   };
 
-  const abrirEditarMatricula = async (alumno, mat) => {
+  const abrirEditarMatricula = (alumno, mat) => {
     cerrarMenus();
-    setModalEditMatricula({ loading: true, alumno, matriculaId: mat.matricula_id });
-    try {
-      const { data } = await api.get(`/admin/usuarios/alumnos/${alumno.id}/matriculas/${mat.matricula_id}`);
-      const payload = data.data || {};
-      const m = payload.matricula;
-      setModalEditMatricula({
-        loading: false,
-        saving: false,
-        alumno,
-        matriculaId: mat.matricula_id,
-        costos: payload.costos || [],
-        grupos: payload.grupos || [],
-        form: {
-          estado: String(m.estado ?? '0'),
-          fecha_registro: (m.fecha_registro || '').toString().slice(0, 10),
-          grupo_id: String(m.grupo_id ?? ''),
-          costo_id: String(m.costo_id ?? ''),
-        },
-      });
-    } catch (e) {
-      setModalEditMatricula(null);
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo cargar la matrícula' });
-    }
-  };
-
-  const guardarEditMatricula = async () => {
-    if (!modalEditMatricula || modalEditMatricula.loading) return;
-    const { alumno, matriculaId, form } = modalEditMatricula;
-    setModalEditMatricula((prev) => (prev ? { ...prev, saving: true } : prev));
-    try {
-      await api.put(`/admin/usuarios/alumnos/${alumno.id}/matriculas/${matriculaId}`, {
-        estado: parseInt(form.estado, 10),
-        fecha_registro: form.fecha_registro,
-        grupo_id: parseInt(form.grupo_id, 10),
-        costo_id: parseInt(form.costo_id, 10),
-      });
-      Swal.fire({ icon: 'success', title: 'Matrícula actualizada' });
-      setModalEditMatricula(null);
-      if (modalMatriculas?.alumno?.id === alumno.id) {
-        await recargarMatriculasModal(alumno.id);
-      }
-    } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo guardar' });
-    } finally {
-      setModalEditMatricula((prev) => (prev ? { ...prev, saving: false } : prev));
-    }
+    setNuevaMatriculaModalOpen(false);
+    setEditMatriculaModal({ alumno, matriculaId: mat.matricula_id });
   };
 
   const borrarMatricula = async (alumno, mat) => {
@@ -1276,7 +1236,10 @@ export default function AdminUsuariosAlumnos() {
                   type="button"
                   className="admin-usu-btn admin-usu-btn-new"
                   disabled={modalMatriculas.loading}
-                  onClick={() => setNuevaMatriculaModalOpen(true)}
+                  onClick={() => {
+                    setEditMatriculaModal(null);
+                    setNuevaMatriculaModalOpen(true);
+                  }}
                 >
                   + Registrar nuevo
                 </button>
@@ -1337,141 +1300,19 @@ export default function AdminUsuariosAlumnos() {
       )}
 
       <NuevaMatriculaAlumnoExistenteModal
-        open={nuevaMatriculaModalOpen && !!modalMatriculas?.alumno}
-        alumno={modalMatriculas?.alumno}
-        onClose={() => setNuevaMatriculaModalOpen(false)}
-        onRegistrado={() => {
-          const id = modalMatriculas?.alumno?.id;
+        open={(nuevaMatriculaModalOpen || !!editMatriculaModal) && !!modalMatriculas?.alumno}
+        mode={editMatriculaModal ? 'edit' : 'create'}
+        matriculaId={editMatriculaModal?.matriculaId ?? null}
+        alumno={editMatriculaModal?.alumno ?? modalMatriculas?.alumno}
+        onClose={() => {
+          setNuevaMatriculaModalOpen(false);
+          setEditMatriculaModal(null);
+        }}
+        onRegistrado={(alumnoId) => {
+          const id = alumnoId ?? editMatriculaModal?.alumno?.id ?? modalMatriculas?.alumno?.id;
           if (id) recargarMatriculasModal(id);
         }}
       />
-
-      {modalEditMatricula && createPortal(
-        <div
-          className="admin-usu-modal-overlay admin-usu-modal-overlay--nested"
-          onClick={() => !modalEditMatricula.saving && setModalEditMatricula(null)}
-        >
-          <div className="admin-usu-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-            <div className="admin-usu-modal-header">
-              <h2>Editar matrícula</h2>
-              <button
-                type="button"
-                className="admin-usu-modal-close"
-                disabled={modalEditMatricula.saving}
-                onClick={() => setModalEditMatricula(null)}
-                aria-label="Cerrar"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="admin-usu-modal-body">
-              {modalEditMatricula.loading ? (
-                <p style={{ color: '#6b7280' }}>Cargando…</p>
-              ) : (
-                <>
-                  <p style={{ margin: '0 0 1rem', color: '#374151', fontWeight: 600 }}>
-                    {nombreAlumno(modalEditMatricula.alumno)}
-                  </p>
-                  <div className="admin-usu-profile-section">
-                    <div className="admin-usu-form-grid">
-                      <div className="admin-usu-field">
-                        <label>Fecha de registro</label>
-                        <input
-                          type="date"
-                          value={modalEditMatricula.form.fecha_registro || ''}
-                          onChange={(e) =>
-                            setModalEditMatricula((prev) =>
-                              prev && !prev.loading
-                                ? { ...prev, form: { ...prev.form, fecha_registro: e.target.value } }
-                                : prev
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="admin-usu-field">
-                        <label>Estado</label>
-                        <select
-                          value={modalEditMatricula.form.estado}
-                          onChange={(e) =>
-                            setModalEditMatricula((prev) =>
-                              prev && !prev.loading
-                                ? { ...prev, form: { ...prev.form, estado: e.target.value } }
-                                : prev
-                            )
-                          }
-                        >
-                          <option value="0">Regular</option>
-                          <option value="1">Irregular</option>
-                          <option value="2">Retirado</option>
-                          <option value="3">Traslado</option>
-                          <option value="4">Temporal</option>
-                        </select>
-                      </div>
-                      <div className="admin-usu-field" style={{ gridColumn: '1 / -1' }}>
-                        <label>Grupo (aula)</label>
-                        <select
-                          value={modalEditMatricula.form.grupo_id}
-                          onChange={(e) =>
-                            setModalEditMatricula((prev) =>
-                              prev && !prev.loading
-                                ? { ...prev, form: { ...prev.form, grupo_id: e.target.value } }
-                                : prev
-                            )
-                          }
-                        >
-                          {(modalEditMatricula.grupos || []).map((g) => (
-                            <option key={g.id} value={g.id}>
-                              {g.anio || '—'} · {(g.nivel_nombre || '').toUpperCase()} {g.grado || '—'}° {g.seccion || ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="admin-usu-field" style={{ gridColumn: '1 / -1' }}>
-                        <label>Costo (tarifario)</label>
-                        <select
-                          value={modalEditMatricula.form.costo_id}
-                          onChange={(e) =>
-                            setModalEditMatricula((prev) =>
-                              prev && !prev.loading
-                                ? { ...prev, form: { ...prev.form, costo_id: e.target.value } }
-                                : prev
-                            )
-                          }
-                        >
-                          {(modalEditMatricula.costos || []).map((c) => (
-                            <option key={c.id} value={c.id}>
-                              Mat. {c.matricula ?? '—'} / Pens. {c.pension ?? '—'}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="admin-usu-modal-actions">
-                    <button
-                      type="button"
-                      className="admin-usu-btn admin-usu-btn-secondary"
-                      disabled={modalEditMatricula.saving}
-                      onClick={() => setModalEditMatricula(null)}
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      className="admin-usu-btn admin-usu-btn-primary"
-                      disabled={modalEditMatricula.saving}
-                      onClick={guardarEditMatricula}
-                    >
-                      {modalEditMatricula.saving ? 'Guardando…' : 'Guardar'}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {menuMatricula && createPortal(
         <div
