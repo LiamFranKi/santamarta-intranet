@@ -7,7 +7,7 @@ const crypto = require('crypto');
 const router = express.Router();
 const { query, execute, mysqlReadPool } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
-const { resolveColegioIdAdmin } = require('../utils/resolveColegioAdmin');
+const { DEFAULT_COLEGIO_ID, DEFAULT_SEDE_ID } = require('../utils/defaultColegio');
 
 function sha1Password(plain) {
   return crypto.createHash('sha1').update(String(plain), 'utf8').digest('hex');
@@ -87,27 +87,25 @@ async function resolverPersonalIdPago(colegio_id, reqUser) {
  */
 router.get('/inscripcion-matricula/catalogo', async (req, res) => {
   try {
-    const sedes = await query('SELECT id, nombre FROM colegios ORDER BY id ASC');
     const anioQ = req.query.anio != null && String(req.query.anio).trim() !== '' ? parseInt(req.query.anio, 10) : null;
     const anioActivo = Number.isFinite(anioQ) ? anioQ : new Date().getFullYear();
 
-    const colegio_id = await resolveColegioIdAdmin(req, req.query.colegio_id);
-    if (!colegio_id) {
-      return res.json({
-        needs_colegio: true,
-        colegio_catalogo_id: null,
-        sedes: sedes || [],
-        anio_sugerido: anioActivo,
-        grupos: [],
-        costos: [],
-        niveles: [],
-        turnos: [],
-        colegio_pensiones: {
-          ciclo_pensiones: null,
-          inicio_pensiones: 1,
-          total_pensiones: 10,
-        },
-      });
+    const colegio_id = DEFAULT_COLEGIO_ID;
+    const sedeQ = req.query.sede_id != null && String(req.query.sede_id).trim() !== '' ? parseInt(req.query.sede_id, 10) : NaN;
+    const sedeFiltro = Number.isFinite(sedeQ) && sedeQ > 0 ? sedeQ : DEFAULT_SEDE_ID;
+
+    let sedesLista = [];
+    try {
+      sedesLista = await query(
+        'SELECT id, nombre FROM sedes WHERE colegio_id = ? ORDER BY id ASC',
+        [colegio_id]
+      );
+    } catch (e) {
+      if (String(e.code || e.message || '').includes('sedes') || e.code === 'ER_NO_SUCH_TABLE') {
+        sedesLista = [];
+      } else {
+        throw e;
+      }
     }
 
     const [colegioRow] = await query(
@@ -115,15 +113,32 @@ router.get('/inscripcion-matricula/catalogo', async (req, res) => {
        FROM colegios WHERE id = ? LIMIT 1`,
       [colegio_id]
     );
-    const grupos = await query(
-      `SELECT g.id, g.anio, g.grado, g.seccion, g.nivel_id, n.nombre AS nivel_nombre, t.nombre AS turno_nombre
-       FROM grupos g
-       LEFT JOIN niveles n ON n.id = g.nivel_id
-       LEFT JOIN turnos t ON t.id = g.turno_id
-       WHERE g.colegio_id = ? AND g.anio = ?
-       ORDER BY g.grado ASC, g.seccion ASC`,
-      [colegio_id, anioActivo]
-    );
+    let grupos = [];
+    try {
+      grupos = await query(
+        `SELECT g.id, g.anio, g.grado, g.seccion, g.nivel_id, g.sede_id, n.nombre AS nivel_nombre, t.nombre AS turno_nombre
+         FROM grupos g
+         LEFT JOIN niveles n ON n.id = g.nivel_id
+         LEFT JOIN turnos t ON t.id = g.turno_id
+         WHERE g.colegio_id = ? AND g.anio = ? AND g.sede_id = ?
+         ORDER BY g.grado ASC, g.seccion ASC`,
+        [colegio_id, anioActivo, sedeFiltro]
+      );
+    } catch (eG) {
+      if (String(eG.message || '').includes('sede_id') || eG.code === 'ER_BAD_FIELD_ERROR') {
+        grupos = await query(
+          `SELECT g.id, g.anio, g.grado, g.seccion, g.nivel_id, n.nombre AS nivel_nombre, t.nombre AS turno_nombre
+           FROM grupos g
+           LEFT JOIN niveles n ON n.id = g.nivel_id
+           LEFT JOIN turnos t ON t.id = g.turno_id
+           WHERE g.colegio_id = ? AND g.anio = ?
+           ORDER BY g.grado ASC, g.seccion ASC`,
+          [colegio_id, anioActivo]
+        );
+      } else {
+        throw eG;
+      }
+    }
     const costos = await query(
       `SELECT id, matricula, pension, descripcion, tipo FROM costos
        WHERE colegio_id = ? AND UPPER(TRIM(COALESCE(tipo, ''))) = 'GENERAL'
@@ -147,6 +162,8 @@ router.get('/inscripcion-matricula/catalogo', async (req, res) => {
     res.json({
       needs_colegio: false,
       colegio_catalogo_id: colegio_id,
+      /** Sede física usada para filtrar grupos del catálogo y para matricular. */
+      sede_catalogo_id: sedeFiltro,
       anio_sugerido: anioActivo,
       colegio_pensiones: {
         ciclo_pensiones: colegioRow?.ciclo_pensiones ?? null,
@@ -158,7 +175,8 @@ router.get('/inscripcion-matricula/catalogo', async (req, res) => {
       costos: costos || [],
       niveles: niveles || [],
       turnos: turnos || [],
-      sedes: sedes || [],
+      /** Sedes reales (tabla `sedes`), no `colegios`. */
+      sedes: sedesLista || [],
     });
   } catch (e) {
     console.error('GET inscripcion-matricula/catalogo', e);
@@ -224,7 +242,7 @@ async function insertPagoPendienteConn(conn, {
 /**
  * Busca grupo por año + nivel + grado + sección + turno; si no existe lo crea (sin tutor; se asigna después en grupos).
  */
-async function ensureGrupoConn(conn, { colegio_id, anio, nivel_id, grado, seccion, turno_id }) {
+async function ensureGrupoConn(conn, { colegio_id, anio, nivel_id, grado, seccion, turno_id, sede_id }) {
   const sec = String(seccion || '').trim().toUpperCase();
   if (!sec) {
     const err = new Error('Indique la sección (letra del grupo)');
@@ -235,15 +253,21 @@ async function ensureGrupoConn(conn, { colegio_id, anio, nivel_id, grado, seccio
   const nid = parseInt(nivel_id, 10);
   const gr = parseInt(grado, 10);
   const tid = parseInt(turno_id, 10);
+  const sid = parseInt(sede_id, 10);
   if (!Number.isFinite(an) || !Number.isFinite(nid) || !Number.isFinite(gr) || !Number.isFinite(tid)) {
     const err = new Error('Nivel, grado, año y turno son obligatorios');
     err.status = 400;
     throw err;
   }
+  if (!Number.isFinite(sid) || sid <= 0) {
+    const err = new Error('Indique la sede (campus) del grupo');
+    err.status = 400;
+    throw err;
+  }
 
   const [ex] = await conn.execute(
-    `SELECT id FROM grupos WHERE colegio_id = ? AND anio = ? AND nivel_id = ? AND grado = ? AND UPPER(TRIM(seccion)) = ? AND turno_id = ? LIMIT 1`,
-    [colegio_id, an, nid, gr, sec, tid]
+    `SELECT id FROM grupos WHERE colegio_id = ? AND anio = ? AND nivel_id = ? AND grado = ? AND UPPER(TRIM(seccion)) = ? AND turno_id = ? AND sede_id = ? LIMIT 1`,
+    [colegio_id, an, nid, gr, sec, tid, sid]
   );
   if (ex.length) return ex[0].id;
 
@@ -259,25 +283,31 @@ async function ensureGrupoConn(conn, { colegio_id, anio, nivel_id, grado, seccio
     err.status = 400;
     throw err;
   }
+  const [sd] = await conn.execute('SELECT id FROM sedes WHERE id = ? AND colegio_id = ? LIMIT 1', [sid, colegio_id]);
+  if (!sd.length) {
+    const err = new Error('La sede seleccionada no es válida para este colegio');
+    err.status = 400;
+    throw err;
+  }
 
-  const vals = [colegio_id, an, nid, gr, sec, tid];
+  const vals = [colegio_id, an, nid, gr, sec, tid, sid];
   try {
     const [ins] = await conn.execute(
-      `INSERT INTO grupos (colegio_id, anio, nivel_id, grado, seccion, turno_id, tutor_id) VALUES (?, ?, ?, ?, ?, ?, NULL)`,
+      `INSERT INTO grupos (colegio_id, anio, nivel_id, grado, seccion, turno_id, tutor_id, sede_id) VALUES (?, ?, ?, ?, ?, ?, NULL, ?)`,
       vals
     );
     return ins.insertId;
   } catch (e1) {
     try {
       const [ins2] = await conn.execute(
-        `INSERT INTO grupos (colegio_id, anio, nivel_id, grado, seccion, turno_id, tutor_id) VALUES (?, ?, ?, ?, ?, ?, 0)`,
+        `INSERT INTO grupos (colegio_id, anio, nivel_id, grado, seccion, turno_id, tutor_id, sede_id) VALUES (?, ?, ?, ?, ?, ?, 0, ?)`,
         vals
       );
       return ins2.insertId;
     } catch (e2) {
       const [ex2] = await conn.execute(
-        `SELECT id FROM grupos WHERE colegio_id = ? AND anio = ? AND nivel_id = ? AND grado = ? AND UPPER(TRIM(seccion)) = ? AND turno_id = ? LIMIT 1`,
-        [colegio_id, an, nid, gr, sec, tid]
+        `SELECT id FROM grupos WHERE colegio_id = ? AND anio = ? AND nivel_id = ? AND grado = ? AND UPPER(TRIM(seccion)) = ? AND turno_id = ? AND sede_id = ? LIMIT 1`,
+        [colegio_id, an, nid, gr, sec, tid, sid]
       );
       if (ex2.length) return ex2[0].id;
       console.error('ensureGrupoConn INSERT', e1, e2);
@@ -316,10 +346,7 @@ async function insertCostoPersonalizado(conn, { colegio_id, descripcion, matricu
  */
 router.post('/inscripcion-matricula', async (req, res) => {
   const b = req.body || {};
-  const colegio_id = await resolveColegioIdAdmin(req, b.colegio_id);
-  if (!colegio_id) {
-    return res.status(400).json({ error: 'Indique la sede (colegio) válida' });
-  }
+  const colegio_id = DEFAULT_COLEGIO_ID;
 
   const conn = await mysqlReadPool.getConnection();
   try {
@@ -344,6 +371,7 @@ router.post('/inscripcion-matricula', async (req, res) => {
     const seccionUb = String(ub.seccion || '').trim();
     const turnoIdUb = parseInt(ub.turno_id, 10);
     const anioUb = parseInt(ub.anio, 10);
+    const sedeIdUb = parseInt(ub.sede_id != null ? ub.sede_id : b.sede_id, 10);
 
     const costoModo = String(b.costo_modo || 'personalizado').toLowerCase() === 'tarifario' ? 'tarifario' : 'personalizado';
     const estadoMat = parseInt(b.estado_matricula, 10);
@@ -367,6 +395,9 @@ router.post('/inscripcion-matricula', async (req, res) => {
     }
     if (!Number.isFinite(nivelIdUb) || !Number.isFinite(gradoUb) || !Number.isFinite(turnoIdUb) || !Number.isFinite(anioUb)) {
       return res.status(400).json({ error: 'Complete nivel, grado, sección, turno y año académico' });
+    }
+    if (!Number.isFinite(sedeIdUb) || sedeIdUb <= 0) {
+      return res.status(400).json({ error: 'Indique la sede (campus) del grupo' });
     }
     if (!String(seccionUb || '').trim()) {
       return res.status(400).json({ error: 'Indique la sección (letra del grupo)' });
@@ -531,6 +562,7 @@ router.post('/inscripcion-matricula', async (req, res) => {
         grado: gradoUb,
         seccion: seccionUb,
         turno_id: turnoIdUb,
+        sede_id: sedeIdUb,
       });
     } catch (eg) {
       await conn.rollback();

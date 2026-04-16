@@ -2,19 +2,12 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
-import { useAuth } from '../../context/AuthContext';
 import './AdminMatriculas.css';
 
-function readSedeIdFromStorage() {
-  try {
-    const raw = localStorage.getItem('user');
-    if (!raw) return '';
-    const u = JSON.parse(raw);
-    return u?.colegio_id != null && String(u.colegio_id).trim() !== '' ? String(u.colegio_id) : '';
-  } catch {
-    return '';
-  }
-}
+/** Institución única (no multi-colegio en este despliegue). El servidor usa el mismo id. */
+const COLEGIO_ID_DEFAULT = 1;
+/** Sede física por defecto (tabla `sedes`, p. ej. San Martín id=1). */
+const SEDE_ID_DEFAULT = '1';
 
 const PARENTESCO = [
   { v: 1, label: 'Padre / tutor' },
@@ -63,13 +56,12 @@ const emptyApoderado = () => ({
 
 export default function AdminMatriculasInscripcion() {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const anioActual = new Date().getFullYear();
   const [anioFiltro, setAnioFiltro] = useState(anioActual);
   const [catalogo, setCatalogo] = useState(null);
   const [loadingCat, setLoadingCat] = useState(true);
-  /** Vacío = usar colegio del token en el servidor; si el usuario elige sede, se fuerza ese id. */
-  const [sedeId, setSedeId] = useState(readSedeIdFromStorage);
+  /** Sede física (campus): San Martín, Los Olivos, etc. Por defecto id 1. */
+  const [sedeId, setSedeId] = useState(SEDE_ID_DEFAULT);
 
   const [alumnoYaExiste, setAlumnoYaExiste] = useState(false);
 
@@ -111,12 +103,7 @@ export default function AdminMatriculasInscripcion() {
   const nivelSeleccionado = useMemo(() => niveles.find((n) => String(n.id) === String(nivelId)), [niveles, nivelId]);
   const opcionesGrado = useMemo(() => gradosParaNivel(nivelSeleccionado?.nombre), [nivelSeleccionado]);
 
-  const colegioEfectivo = useMemo(() => {
-    if (sedeId) return sedeId;
-    if (catalogo?.colegio_catalogo_id != null) return String(catalogo.colegio_catalogo_id);
-    if (user?.colegio_id != null) return String(user.colegio_id);
-    return '';
-  }, [sedeId, catalogo?.colegio_catalogo_id, user?.colegio_id]);
+  const colegioEfectivo = useMemo(() => String(COLEGIO_ID_DEFAULT), []);
 
   useEffect(() => {
     if (!opcionesGrado.length) return;
@@ -128,7 +115,7 @@ export default function AdminMatriculasInscripcion() {
     setLoadingCat(true);
     try {
       const { data } = await api.get('/admin/usuarios/inscripcion-matricula/catalogo', {
-        params: { anio: anioFiltro, ...(sedeId ? { colegio_id: sedeId } : {}) },
+        params: { anio: anioFiltro, sede_id: sedeId || SEDE_ID_DEFAULT },
       });
       setCatalogo(data);
       if (data.niveles?.length) {
@@ -169,6 +156,17 @@ export default function AdminMatriculasInscripcion() {
   useEffect(() => {
     loadCatalogo();
   }, [loadCatalogo]);
+
+  /** Ajustar sede si el catálogo no incluye el id actual (por defecto se prefiere id 1). */
+  useEffect(() => {
+    const list = catalogo?.sedes;
+    if (!list?.length) return;
+    const ids = new Set(list.map((s) => String(s.id)));
+    if (!ids.has(String(sedeId))) {
+      const next = ids.has(SEDE_ID_DEFAULT) ? SEDE_ID_DEFAULT : String(list[0].id);
+      setSedeId(next);
+    }
+  }, [catalogo?.sedes, sedeId]);
 
   const verificarDniAlumnoBlur = async () => {
     const dni = String(alumno.nro_documento || '').trim();
@@ -254,7 +252,7 @@ export default function AdminMatriculasInscripcion() {
     setCostoModo('personalizado');
   };
 
-  const camposBloqueados = alumnoYaExiste || loadingCat || !!catalogo?.needs_colegio;
+  const camposBloqueados = alumnoYaExiste || loadingCat;
 
   const enviar = async (e) => {
     e.preventDefault();
@@ -262,9 +260,10 @@ export default function AdminMatriculasInscripcion() {
       Swal.fire({ icon: 'warning', text: 'No puede inscribir un DNI que ya existe como alumno.' });
       return;
     }
-    const cid = parseInt(colegioEfectivo, 10);
-    if (!Number.isFinite(cid) || cid <= 0) {
-      Swal.fire({ icon: 'warning', text: 'Seleccione la sede (colegio) antes de continuar.' });
+    const cid = COLEGIO_ID_DEFAULT;
+    const sidMat = parseInt(sedeId, 10);
+    if (!Number.isFinite(sidMat) || sidMat <= 0) {
+      Swal.fire({ icon: 'warning', text: 'Seleccione la sede (campus: San Martín, Los Olivos, etc.).' });
       return;
     }
     const dni = String(alumno.nro_documento || '').trim();
@@ -321,6 +320,7 @@ export default function AdminMatriculasInscripcion() {
           seccion: String(seccion || '').trim(),
           turno_id: parseInt(turnoId, 10),
           anio: anioFiltro,
+          sede_id: sidMat,
         },
         apoderados: aps.map((r) => ({
           nro_documento: String(r.nro_documento).trim(),
@@ -659,23 +659,22 @@ export default function AdminMatriculasInscripcion() {
               <div>
                 <h2 className="admin-mat-card-title">Matrícula académica</h2>
                 <p className="admin-mat-card-hint">
-                  Año {anioFiltro}. Si el aula no existía, se crea el grupo sin tutor (asigne tutor después en administración de grupos).
+                  Año {anioFiltro}. Elija la sede (campus); el grupo se crea en esa sede. Si el aula no existía, se crea sin tutor (asigne tutor después en administración de grupos).
                 </p>
               </div>
             </div>
             <div className="admin-mat-sede-en-cabecera">
-              <label htmlFor="admin-mat-sede">Sede</label>
+              <label htmlFor="admin-mat-sede">Sede (campus)</label>
               <select
                 id="admin-mat-sede"
                 className="admin-mat-input"
-                value={sedeId || String(catalogo?.colegio_catalogo_id ?? '')}
+                value={sedeId}
                 onChange={(e) => setSedeId(e.target.value)}
-                disabled={loadingCat}
-                aria-label="Sede o colegio"
+                disabled={loadingCat || !(catalogo?.sedes || []).length}
+                aria-label="Sede o campus físico"
               >
-                <option value="">— Seleccione sede —</option>
                 {(catalogo?.sedes || []).map((s) => (
-                  <option key={s.id} value={s.id}>
+                  <option key={s.id} value={String(s.id)}>
                     {s.nombre}
                   </option>
                 ))}
