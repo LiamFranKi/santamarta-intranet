@@ -4106,20 +4106,55 @@ router.delete('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
     if (!mrows.length) {
       return res.status(404).json({ error: 'Matrícula no encontrada' });
     }
-    const [pc] = await query(
-      'SELECT COUNT(*) AS n FROM pagos WHERE matricula_id = ? AND colegio_id = ?',
+    /** Solo impide borrar si hay cobro registrado (legado: estado_pago = CANCELADO en fila ACTIVA). Pendientes / sin cobrar se eliminan en cascada. */
+    const [cobrados] = await query(
+      `SELECT COUNT(*) AS n FROM pagos
+       WHERE matricula_id = ? AND colegio_id = ?
+         AND UPPER(TRIM(estado)) = 'ACTIVO'
+         AND UPPER(TRIM(estado_pago)) = 'CANCELADO'`,
       [matriculaId, colegio_id]
     );
-    if ((pc?.n || 0) > 0) {
+    if ((cobrados?.n || 0) > 0) {
       return res.status(409).json({
-        error: 'No se puede eliminar: existen pagos asociados a esta matrícula.',
+        error:
+          'No se puede eliminar: hay al menos un pago cobrado registrado en esta matrícula. Revoque cobros o anule pagos antes de eliminar.',
       });
     }
-    await execute('DELETE FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ?', [
-      matriculaId,
-      alumnoId,
-      colegio_id,
-    ]);
+
+    const conn = await mysqlReadPool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [pagoRows] = await conn.execute(
+        'SELECT id FROM pagos WHERE matricula_id = ? AND colegio_id = ?',
+        [matriculaId, colegio_id]
+      );
+      for (const pr of pagoRows) {
+        const pid = pr.id != null ? Number(pr.id) : null;
+        if (pid != null && Number.isFinite(pid)) {
+          await deleteImpresionesByPagoId(pid, conn);
+        }
+      }
+      await conn.execute('DELETE FROM pagos WHERE matricula_id = ? AND colegio_id = ?', [matriculaId, colegio_id]);
+      const [delM] = await conn.execute('DELETE FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ?', [
+        matriculaId,
+        alumnoId,
+        colegio_id,
+      ]);
+      if (!delM.affectedRows) {
+        await conn.rollback();
+        return res.status(404).json({ error: 'Matrícula no encontrada' });
+      }
+      await conn.commit();
+    } catch (e) {
+      try {
+        await conn.rollback();
+      } catch (rb) {
+        /* ignore */
+      }
+      throw e;
+    } finally {
+      conn.release();
+    }
     res.json({ ok: true });
   } catch (e) {
     console.error('DELETE alumno matricula admin', e);
