@@ -470,9 +470,9 @@
   min-width: 0;
 }
 
-/* SweetAlert2 por encima de modales admin usuarios (confirmar borrar, ver pagos, etc.) */
+/* SweetAlert2 por encima de modales admin usuarios (historial, nueva matrícula anidada, confirmar borrar, etc.) */
 .swal2-container {
-  z-index: 10090 !important;
+  z-index: 101000 !important;
 }
 
 /* Confirmación «Imprimir seleccionados» embebida en Lista de Pagos (mismo lenguaje visual que SweetAlert2) */

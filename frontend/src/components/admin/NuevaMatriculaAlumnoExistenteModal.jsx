@@ -248,7 +248,6 @@ export default function NuevaMatriculaAlumnoExistenteModal({ open, alumno, onClo
   return createPortal(
     <div
       className="admin-usu-modal-overlay admin-usu-modal-overlay--nested"
-      style={{ zIndex: 100020 }}
       onClick={() => !sending && onClose()}
       role="presentation"
     >
