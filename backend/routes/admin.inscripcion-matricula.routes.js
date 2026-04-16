@@ -371,7 +371,13 @@ router.post('/inscripcion-matricula', async (req, res) => {
     const seccionUb = String(ub.seccion || '').trim();
     const turnoIdUb = parseInt(ub.turno_id, 10);
     const anioUb = parseInt(ub.anio, 10);
-    const sedeIdUb = parseInt(ub.sede_id != null ? ub.sede_id : b.sede_id, 10);
+    /** JSON.stringify(NaN) → null en el cliente; aceptar raíz y anidar; fallback sede por defecto. */
+    let sedeIdUb = DEFAULT_SEDE_ID;
+    const rawSede = [ub.sede_id, b.sede_id].find((v) => v != null && v !== '');
+    if (rawSede != null && rawSede !== '') {
+      const p = parseInt(String(rawSede), 10);
+      if (Number.isFinite(p) && p > 0) sedeIdUb = p;
+    }
 
     const costoModo = String(b.costo_modo || 'personalizado').toLowerCase() === 'tarifario' ? 'tarifario' : 'personalizado';
     const estadoMat = parseInt(b.estado_matricula, 10);
@@ -395,9 +401,6 @@ router.post('/inscripcion-matricula', async (req, res) => {
     }
     if (!Number.isFinite(nivelIdUb) || !Number.isFinite(gradoUb) || !Number.isFinite(turnoIdUb) || !Number.isFinite(anioUb)) {
       return res.status(400).json({ error: 'Complete nivel, grado, sección, turno y año académico' });
-    }
-    if (!Number.isFinite(sedeIdUb) || sedeIdUb <= 0) {
-      return res.status(400).json({ error: 'Indique la sede (campus) del grupo' });
     }
     if (!String(seccionUb || '').trim()) {
       return res.status(400).json({ error: 'Indique la sección (letra del grupo)' });

@@ -9,6 +9,12 @@ const COLEGIO_ID_DEFAULT = 1;
 /** Sede física por defecto (tabla `sedes`, p. ej. San Martín id=1). */
 const SEDE_ID_DEFAULT = '1';
 
+/** Entero > 0; nunca NaN (JSON convierte NaN en null y el backend pierde la sede). */
+function sedeIdNumericoSeguro(raw) {
+  const n = parseInt(String(raw != null && raw !== '' ? raw : SEDE_ID_DEFAULT).trim(), 10);
+  return Number.isFinite(n) && n > 0 ? n : parseInt(SEDE_ID_DEFAULT, 10);
+}
+
 const PARENTESCO = [
   { v: 1, label: 'Padre / tutor' },
   { v: 2, label: 'Madre' },
@@ -261,9 +267,10 @@ export default function AdminMatriculasInscripcion() {
       return;
     }
     const cid = COLEGIO_ID_DEFAULT;
-    const sidMat = parseInt(sedeId, 10);
-    if (!Number.isFinite(sidMat) || sidMat <= 0) {
-      Swal.fire({ icon: 'warning', text: 'Seleccione la sede (campus: San Martín, Los Olivos, etc.).' });
+    const sidMat = sedeIdNumericoSeguro(sedeId);
+    const listaSedes = catalogo?.sedes || [];
+    if (listaSedes.length > 0 && !listaSedes.some((s) => Number(s.id) === sidMat)) {
+      Swal.fire({ icon: 'warning', text: 'Seleccione una sede válida (campus) en Matrícula académica.' });
       return;
     }
     const dni = String(alumno.nro_documento || '').trim();
@@ -303,6 +310,7 @@ export default function AdminMatriculasInscripcion() {
       const fechaHoy = new Date().toISOString().slice(0, 10);
       const body = {
         colegio_id: cid,
+        sede_id: sidMat,
         alumno: {
           nro_documento: dni,
           apellido_paterno: alumno.apellido_paterno.trim(),
