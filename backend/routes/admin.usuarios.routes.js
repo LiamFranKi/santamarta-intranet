@@ -62,6 +62,24 @@ router.use(authenticateToken);
 router.use(requireAdmin);
 
 /**
+ * Línea de matrícula pendiente legada: `fecha_hora` = 1970-01-01 o null → mostrar fecha de registro de matrícula.
+ */
+function normalizeFechaHoraMatricula(p, matriculaRow) {
+  if (Number(p.tipo) !== 0) return p;
+  const fh = p.fecha_hora;
+  const isPlaceholder =
+    fh == null ||
+    fh === '' ||
+    String(fh).trim().startsWith('1970-01-01');
+  if (!isPlaceholder) return p;
+  const fr = matriculaRow?.fecha_registro;
+  if (fr != null && String(fr).trim() !== '') {
+    return { ...p, fecha_hora: fr };
+  }
+  return p;
+}
+
+/**
  * Arma el listado de pagos por matrícula (mismos totales y filas que el historial admin).
  * @param {number} colegio_id
  * @param {Array<object>} matriculas Filas con matricula_id, anio, grado, seccion, nivel_nombre, pension, matricula (costo)
@@ -210,7 +228,7 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
         nro_pago: 0,
         monto: matriculaMonto,
         mora: 0,
-        fecha_hora: null,
+        fecha_hora: m.fecha_registro || null,
         tipo: 0,
         descripcion: '',
         observaciones: '',
@@ -337,7 +355,9 @@ async function buildAlumnoPagosData(colegio_id, matriculas) {
         (anulaByNroMes.get(mesIdx) || []).forEach((row) => pagosIntercalados.push(row));
       }
     }
-    const pagos = [...pagosIntercalados, ...anulaTipo2Plus, ...otrosMappedDedup];
+    const pagos = [...pagosIntercalados, ...anulaTipo2Plus, ...otrosMappedDedup].map((p) =>
+      normalizeFechaHoraMatricula(p, m)
+    );
 
     const esActivoReg = (p) => String(p.pago_registro_estado || '').toUpperCase() === 'ACTIVO';
     const totalPagar = matriculaMonto + (pensionMonto * totalPensiones);
@@ -1201,7 +1221,14 @@ async function parseAdminPagoRegistroBody(body, reqUser, colegio_id) {
   let observaciones = String(b.observaciones || '').trim();
 
   if (estado_pago === 'PENDIENTE') {
-    fecha_hora = FECHA_HORA_PENDIENTE_DB;
+    /** Matrícula pendiente: fecha/hora real (evita 1970 en lista); pensiones siguen con placeholder legado. */
+    if (tipo === 0) {
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2, '0');
+      fecha_hora = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+    } else {
+      fecha_hora = FECHA_HORA_PENDIENTE_DB;
+    }
     fecha_cancelado = FECHA_CANCELADO_PENDIENTE_DB;
     descripcion = '';
     observaciones = '';
@@ -2934,6 +2961,7 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos', async (req, res) => {
     }
     const matriculas = await query(
       `SELECT m.id AS matricula_id,
+              m.fecha_registro AS fecha_registro,
               g.anio,
               g.grado,
               g.seccion,
@@ -3486,6 +3514,7 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId', async (req, res
 
     const matriculas = await query(
       `SELECT m.id AS matricula_id,
+              m.fecha_registro AS fecha_registro,
               g.anio,
               g.grado,
               g.seccion,
@@ -4126,6 +4155,7 @@ router.get('/alumnos/:id/pagos', async (req, res) => {
 
     const matriculas = await query(
       `SELECT m.id AS matricula_id,
+              m.fecha_registro AS fecha_registro,
               g.anio,
               g.grado,
               g.seccion,

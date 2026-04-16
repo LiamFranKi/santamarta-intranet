@@ -213,14 +213,18 @@ async function insertPagoPendienteConn(conn, {
     'personal_id',
     'estado',
   ];
-  const placeholders = cols.map(() => '?').join(', ');
+  /** Matrícula (tipo 0): fecha/hora real al generar la línea; pensiones siguen con placeholder legado. */
+  const useNowFechaMatricula = Number(tipo) === 0;
+  const placeholders = cols
+    .map((c) => (c === 'fecha_hora' && useNowFechaMatricula ? 'NOW()' : '?'))
+    .join(', ');
   const vals = [
     colegio_id,
     matriculaId,
     nro_pago,
     monto,
     0,
-    FECHA_HORA_PENDIENTE_DB,
+    ...(useNowFechaMatricula ? [] : [FECHA_HORA_PENDIENTE_DB]),
     tipo,
     descripcion,
     ...(withObservaciones ? [''] : []),
