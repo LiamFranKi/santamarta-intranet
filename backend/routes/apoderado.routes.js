@@ -193,7 +193,7 @@ async function apoderadoTieneDeudaParaAnio(apoderado_id, colegio_id, anioConsult
      INNER JOIN grupos g ON g.id = m.grupo_id
      WHERE f.apoderado_id = ?
        AND m.colegio_id = ?
-       AND m.estado = 0
+       AND (m.estado = 0 OR m.estado = 4)
        AND g.anio = ?`,
     [apoderado_id, colegio_id, anioConsulta]
   );
@@ -663,7 +663,7 @@ router.get('/hijos/anios-historico', async (req, res) => {
        WHERE f.apoderado_id = ?
          AND a.colegio_id = ?
          AND m.colegio_id = ?
-         AND m.estado = 0
+         AND (m.estado = 0 OR m.estado = 4)
          AND g.anio < ?
        ORDER BY g.anio DESC`,
       [apoderado_id, colegio_id, colegio_id, anioActual]

@@ -4116,13 +4116,12 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
     }
 
     const mrows = await query(
-      'SELECT id, estado AS estado_prev FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
+      'SELECT id FROM matriculas WHERE id = ? AND alumno_id = ? AND colegio_id = ? LIMIT 1',
       [matriculaId, alumnoId, colegio_id]
     );
     if (!mrows.length) {
       return res.status(404).json({ error: 'Matrícula no encontrada' });
     }
-    const estadoPrev = parseInt(mrows[0].estado_prev, 10);
 
     const conn = await mysqlReadPool.getConnection();
     try {
@@ -4172,11 +4171,10 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
       );
 
       /**
-       * Si el alumno sigue activo en la matrícula, alinear montos de cuotas aún no cobradas con el costo editado.
-       * No modifica filas ya pagadas (estado_pago distinto de PENDIENTE) ni pagos anulados.
-       * Pensión mensual: tipo 1; matrícula: tipo 0 y nro_pago 0 (misma convención que inscripción).
+       * Regular (0) o Temporal (4): alinear montos de cuotas pendientes con el costo editado.
+       * No modifica cobros ya registrados ni pagos anulados.
        */
-      if (est !== 2) {
+      if (est === 0 || est === 4) {
         await conn.execute(
           `UPDATE pagos SET monto = ?
            WHERE matricula_id = ? AND colegio_id = ?
@@ -4195,8 +4193,12 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
         );
       }
 
-      /** RETIRADO (2): eliminar cargos aún no cobrados (pendientes). No se insertan pagos nuevos al editar. */
-      if (est === 2 && estadoPrev !== 2) {
+      /**
+       * Irregular, Retirado, Traslado: sin cuotas pendientes en esta matrícula.
+       * Temporal (4) se trata como activo en aula/listas; conserva deuda pendiente.
+       * Portal ALUMNO: INACTIVO si no queda matrícula Regular ni Temporal.
+       */
+      if (est !== 0 && est !== 4) {
         await conn.execute(
           `DELETE FROM pagos
            WHERE matricula_id = ? AND colegio_id = ?
@@ -4205,6 +4207,16 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
           [matriculaId, colegio_id]
         );
       }
+
+      const [cntRegRows] = await conn.execute(
+        `SELECT COUNT(*) AS n FROM matriculas WHERE alumno_id = ? AND colegio_id = ? AND estado IN (0, 4)`,
+        [alumnoId, colegio_id]
+      );
+      const tieneMatriculaActivaAula = Number(cntRegRows[0]?.n || 0) > 0;
+      await conn.execute(
+        `UPDATE usuarios SET estado = ? WHERE alumno_id = ? AND colegio_id = ? AND tipo = 'ALUMNO'`,
+        [tieneMatriculaActivaAula ? 'ACTIVO' : 'INACTIVO', alumnoId, colegio_id]
+      );
 
       await conn.commit();
     } catch (e) {

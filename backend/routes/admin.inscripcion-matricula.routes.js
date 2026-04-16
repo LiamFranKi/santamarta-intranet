@@ -669,6 +669,25 @@ router.post('/inscripcion-matricula', async (req, res) => {
       }
     }
 
+    if (estadoMat !== 0 && estadoMat !== 4) {
+      await conn.execute(
+        `DELETE FROM pagos
+         WHERE matricula_id = ? AND colegio_id = ?
+           AND UPPER(TRIM(estado)) = 'ACTIVO'
+           AND UPPER(TRIM(estado_pago)) = 'PENDIENTE'`,
+        [matriculaId, colegio_id]
+      );
+    }
+    const [cntRegRowsIns] = await conn.execute(
+      `SELECT COUNT(*) AS n FROM matriculas WHERE alumno_id = ? AND colegio_id = ? AND estado IN (0, 4)`,
+      [alumnoId, colegio_id]
+    );
+    const tieneMatriculaActivaAulaIns = Number(cntRegRowsIns[0]?.n || 0) > 0;
+    await conn.execute(
+      `UPDATE usuarios SET estado = ? WHERE alumno_id = ? AND colegio_id = ? AND tipo = 'ALUMNO'`,
+      [tieneMatriculaActivaAulaIns ? 'ACTIVO' : 'INACTIVO', alumnoId, colegio_id]
+    );
+
     await conn.commit();
     res.status(201).json({
       ok: true,
@@ -939,6 +958,26 @@ router.post('/alumnos/:alumnoId/inscripcion-matricula', async (req, res) => {
         });
       }
     }
+
+    /** Irregular / Retirado / Traslado: sin deuda pendiente en esta matrícula. Temporal conserva pagos pendientes. */
+    if (estadoMat !== 0 && estadoMat !== 4) {
+      await conn.execute(
+        `DELETE FROM pagos
+         WHERE matricula_id = ? AND colegio_id = ?
+           AND UPPER(TRIM(estado)) = 'ACTIVO'
+           AND UPPER(TRIM(estado_pago)) = 'PENDIENTE'`,
+        [matriculaId, colegio_id]
+      );
+    }
+    const [cntRegRows] = await conn.execute(
+      `SELECT COUNT(*) AS n FROM matriculas WHERE alumno_id = ? AND colegio_id = ? AND estado IN (0, 4)`,
+      [alumnoId, colegio_id]
+    );
+    const tieneMatriculaActivaAula = Number(cntRegRows[0]?.n || 0) > 0;
+    await conn.execute(
+      `UPDATE usuarios SET estado = ? WHERE alumno_id = ? AND colegio_id = ? AND tipo = 'ALUMNO'`,
+      [tieneMatriculaActivaAula ? 'ACTIVO' : 'INACTIVO', alumnoId, colegio_id]
+    );
 
     await conn.commit();
     res.status(201).json({

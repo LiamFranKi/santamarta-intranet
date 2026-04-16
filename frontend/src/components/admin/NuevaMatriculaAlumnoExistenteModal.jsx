@@ -522,6 +522,13 @@ export default function NuevaMatriculaAlumnoExistenteModal({
                         </option>
                       ))}
                     </select>
+                    {estadoMat !== 0 && estadoMat !== 4 ? (
+                      <p className="admin-mat-hint admin-mat-hint--warn" style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: '#92400e' }}>
+                        Con Irregular, Retirado o Traslado no figurará en listas de grupo ni en el aula; se eliminan las cuotas pendientes de esta
+                        matrícula y el acceso del alumno al portal queda inactivo salvo que tenga otra matrícula Regular o Temporal. Temporal sigue
+                        visible en aula y conserva deudas pendientes.
+                      </p>
+                    ) : null}
                   </div>
                   <div className="admin-mat-field">
                     <label>Modalidad</label>

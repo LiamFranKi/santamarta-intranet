@@ -906,7 +906,7 @@ router.get('/dashboard', async (req, res) => {
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ? 
-       AND m.estado = 0`,
+       AND (m.estado = 0 OR m.estado = 4)`,
       [docente.id, colegio_id, anio_activo]
     );
 
@@ -7378,7 +7378,7 @@ router.get('/tutoria/grupos/:grupoId/alumnos', async (req, res) => {
               ) as telefono
        FROM alumnos a
        INNER JOIN matriculas m ON m.alumno_id = a.id
-       WHERE m.grupo_id = ? AND m.colegio_id = ? AND m.estado = 0
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
        ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
       [grupo.id, colegio_id]
     );
@@ -13920,7 +13920,7 @@ router.get('/mensajes/buscar-destinatarios', async (req, res) => {
        INNER JOIN niveles n ON n.id = g.nivel_id
        WHERE a.colegio_id = ?
          AND g.anio = ?
-         AND m.estado = 0
+         AND (m.estado = 0 OR m.estado = 4)
          AND (
            a.nombres LIKE ? OR
            a.apellido_paterno LIKE ? OR
@@ -14011,7 +14011,7 @@ router.get('/mensajes/buscar-destinatarios', async (req, res) => {
               '' as foto
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN matriculas m ON m.grupo_id = g.id AND m.estado = 0
+       INNER JOIN matriculas m ON m.grupo_id = g.id AND (m.estado = 0 OR m.estado = 4)
        WHERE g.colegio_id = ?
          AND g.anio = ?
          AND (
@@ -14384,7 +14384,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             const alumnosGrupos = await query(
               `SELECT DISTINCT u.id as usuario_id
                FROM grupos g
-               INNER JOIN matriculas m ON m.grupo_id = g.id AND m.estado = 0
+               INNER JOIN matriculas m ON m.grupo_id = g.id AND (m.estado = 0 OR m.estado = 4)
                INNER JOIN alumnos a ON a.id = m.alumno_id
                INNER JOIN usuarios u ON u.alumno_id = a.id AND u.estado = 'ACTIVO'
                WHERE g.id IN (${gruposArray.map(() => '?').join(',')})

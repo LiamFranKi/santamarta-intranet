@@ -1,7 +1,6 @@
 /**
- * Matrícula "vigente" para portal apoderado/alumno: entre estados 0 y 4,
- * se toma la de mayor año de grupo (desempate m.id DESC).
- * Así el carnet/QR y listados coinciden con la última matrícula aunque el JWT lleve año antiguo.
+ * Matrícula "vigente" para portal apoderado/alumno: Regular (0) o Temporal (4).
+ * Se toma la de mayor año de grupo (desempate m.id DESC).
  */
 
 const SELECT_MATRICULA_QR = `m.*, g.grado, g.seccion, g.anio AS grupo_anio, n.nombre AS nivel_nombre`;
