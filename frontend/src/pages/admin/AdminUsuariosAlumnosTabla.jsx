@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
 import AdminUsuariosFotoLightbox from '../../components/admin/AdminUsuariosFotoLightbox';
 import AdminMensajeQuillEditor from '../../components/admin/AdminMensajeQuillEditor';
+import NuevaMatriculaAlumnoExistenteModal from '../../components/admin/NuevaMatriculaAlumnoExistenteModal';
 import { mensajeHtmlTieneContenido } from '../../utils/mensajesHtml';
 import { showHistorialPagosSwal, showListaPagosMatriculaSwal } from '../../utils/adminAlumnoPagosSwal';
 import './AdminUsuarios.css';
@@ -91,6 +92,7 @@ export default function AdminUsuariosAlumnosTabla() {
   const [vincApBuscando, setVincApBuscando] = useState(false);
   const [vincApGuardando, setVincApGuardando] = useState(false);
   const [modalMatriculas, setModalMatriculas] = useState(null);
+  const [nuevaMatriculaModalOpen, setNuevaMatriculaModalOpen] = useState(false);
   const [modalEditMatricula, setModalEditMatricula] = useState(null);
   const [menuMatricula, setMenuMatricula] = useState(null);
   const [form, setForm] = useState({});
@@ -121,6 +123,10 @@ export default function AdminUsuariosAlumnosTabla() {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  useEffect(() => {
+    if (!modalMatriculas) setNuevaMatriculaModalOpen(false);
+  }, [modalMatriculas]);
 
   useEffect(() => () => {
     if (fotoCreatePreview && fotoCreatePreview.startsWith('blob:')) {
@@ -1277,13 +1283,7 @@ export default function AdminUsuariosAlumnosTabla() {
                   type="button"
                   className="admin-usu-btn admin-usu-btn-new"
                   disabled={modalMatriculas.loading}
-                  onClick={() =>
-                    Swal.fire({
-                      icon: 'info',
-                      title: 'Registrar nuevo',
-                      text: 'Esta acción estará disponible próximamente.',
-                    })
-                  }
+                  onClick={() => setNuevaMatriculaModalOpen(true)}
                 >
                   + Registrar nuevo
                 </button>
@@ -1342,6 +1342,16 @@ export default function AdminUsuariosAlumnosTabla() {
         </div>,
         document.body
       )}
+
+      <NuevaMatriculaAlumnoExistenteModal
+        open={nuevaMatriculaModalOpen && !!modalMatriculas?.alumno}
+        alumno={modalMatriculas?.alumno}
+        onClose={() => setNuevaMatriculaModalOpen(false)}
+        onRegistrado={() => {
+          const id = modalMatriculas?.alumno?.id;
+          if (id) recargarMatriculasModal(id);
+        }}
+      />
 
       {modalEditMatricula && createPortal(
         <div

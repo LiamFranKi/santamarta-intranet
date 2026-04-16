@@ -795,4 +795,275 @@ router.post('/inscripcion-matricula', async (req, res) => {
   }
 });
 
+/**
+ * Nueva matrícula para un alumno que ya existe (sin crear alumno ni apoderados).
+ * POST /api/admin/usuarios/alumnos/:alumnoId/inscripcion-matricula
+ * Body: mismo bloque que inscripción (ubicacion_grupo, costo_modo, costo_id | costo_personalizado, estado_matricula, fecha_registro, modalidad, registrar_linea_pago_matricula, sede_id opcional en raíz).
+ */
+router.post('/alumnos/:alumnoId/inscripcion-matricula', async (req, res) => {
+  const colegio_id = DEFAULT_COLEGIO_ID;
+  const alumnoId = parseInt(req.params.alumnoId, 10);
+  if (!Number.isFinite(alumnoId) || alumnoId <= 0) {
+    return res.status(400).json({ error: 'ID de alumno inválido' });
+  }
+
+  const b = req.body || {};
+  const ub = b.ubicacion_grupo || b.ubicacion || {};
+  const nivelIdUb = parseInt(ub.nivel_id, 10);
+  const gradoUb = parseInt(ub.grado, 10);
+  const seccionUb = String(ub.seccion || '').trim();
+  const turnoIdUb = parseInt(ub.turno_id, 10);
+  const anioUb = parseInt(ub.anio, 10);
+  let sedeIdUb = DEFAULT_SEDE_ID;
+  const rawSede = [ub.sede_id, b.sede_id].find((v) => v != null && v !== '');
+  if (rawSede != null && rawSede !== '') {
+    const p = parseInt(String(rawSede), 10);
+    if (Number.isFinite(p) && p > 0) sedeIdUb = p;
+  }
+
+  const costoModo = String(b.costo_modo || 'personalizado').toLowerCase() === 'tarifario' ? 'tarifario' : 'personalizado';
+  const estadoMat = parseInt(b.estado_matricula, 10);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const fr = String(b.fecha_registro || hoy).slice(0, 10);
+  const modalidad = String(b.modalidad || 'PRESENCIAL').trim().slice(0, 80) || 'PRESENCIAL';
+  const registrarLineaPagoMatricula = !!b.registrar_linea_pago_matricula;
+
+  if (![0, 1, 2, 3, 4].includes(estadoMat)) {
+    return res.status(400).json({ error: 'Estado de matrícula no válido' });
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fr)) {
+    return res.status(400).json({ error: 'Fecha de registro inválida' });
+  }
+  if (!Number.isFinite(nivelIdUb) || !Number.isFinite(gradoUb) || !Number.isFinite(turnoIdUb) || !Number.isFinite(anioUb)) {
+    return res.status(400).json({ error: 'Complete nivel, grado, sección, turno y año académico' });
+  }
+  if (!String(seccionUb || '').trim()) {
+    return res.status(400).json({ error: 'Indique la sección (letra del grupo)' });
+  }
+
+  let montoMatricula;
+  let montoPension;
+  let costoIdParaMatricula;
+  let agendaParaCosto = 0;
+
+  if (costoModo === 'tarifario') {
+    const costoId = parseInt(b.costo_id, 10);
+    if (!Number.isFinite(costoId)) {
+      return res.status(400).json({ error: 'Seleccione una tarifa GENERAL del colegio o use montos personalizados' });
+    }
+    const cOk = await query(
+      `SELECT id, matricula, pension FROM costos WHERE id = ? AND colegio_id = ? AND UPPER(TRIM(COALESCE(tipo, ''))) = 'GENERAL' LIMIT 1`,
+      [costoId, colegio_id]
+    );
+    if (!cOk.length) return res.status(400).json({ error: 'El costo seleccionado no es una tarifa GENERAL válida' });
+    montoMatricula = parseFloat(cOk[0].matricula) || 0;
+    montoPension = parseFloat(cOk[0].pension) || 0;
+    costoIdParaMatricula = costoId;
+    if (montoPension <= 0) {
+      return res.status(400).json({ error: 'La pensión del costo elegido debe ser mayor a 0 para generar las cuotas' });
+    }
+  } else {
+    const cp = b.costo_personalizado || {};
+    montoMatricula = parseFloat(cp.matricula);
+    montoPension = parseFloat(cp.pension);
+    const ag = cp.agenda != null && cp.agenda !== '' ? parseFloat(cp.agenda) : 0;
+    agendaParaCosto = Number.isFinite(ag) && ag >= 0 ? ag : 0;
+    if (!Number.isFinite(montoMatricula) || montoMatricula < 0) {
+      return res.status(400).json({ error: 'Indique un monto de matrícula válido (≥ 0)' });
+    }
+    if (!Number.isFinite(montoPension) || montoPension < 0) {
+      return res.status(400).json({ error: 'Indique un monto de pensión mensual válido (≥ 0)' });
+    }
+    if (montoPension <= 0) {
+      return res.status(400).json({
+        error: 'El monto de pensión mensual debe ser mayor a 0 para generar las cuotas del año.',
+      });
+    }
+    costoIdParaMatricula = null;
+  }
+
+  const [cfg] = await query(
+    `SELECT ciclo_pensiones, inicio_pensiones, total_pensiones FROM colegios WHERE id = ? LIMIT 1`,
+    [colegio_id]
+  );
+  const totalPensiones = cfg ? parseInt(cfg.total_pensiones || 10, 10) : 10;
+
+  const alRows = await query(
+    'SELECT id, apellido_paterno, apellido_materno, nombres FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1',
+    [alumnoId, colegio_id]
+  );
+  if (!alRows.length) {
+    return res.status(404).json({ error: 'Alumno no encontrado' });
+  }
+
+  const dupMat = await query(
+    `SELECT m.id FROM matriculas m
+     INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+     WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+     LIMIT 1`,
+    [alumnoId, colegio_id, anioUb]
+  );
+  if (dupMat.length) {
+    return res.status(409).json({
+      error: 'Este alumno ya tiene una matrícula registrada para ese año académico.',
+      codigo: 'MATRICULA_DUPLICADA_ANIO',
+    });
+  }
+
+  const personal_id = await resolverPersonalIdPago(colegio_id, req.user);
+  if (!personal_id) {
+    return res.status(400).json({
+      error:
+        'No hay personal en el colegio para asociar los pagos. Registre al menos un trabajador en el equipo.',
+    });
+  }
+
+  const conn = await mysqlReadPool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    let grupoId;
+    try {
+      grupoId = await ensureGrupoConn(conn, {
+        colegio_id,
+        anio: anioUb,
+        nivel_id: nivelIdUb,
+        grado: gradoUb,
+        seccion: seccionUb,
+        turno_id: turnoIdUb,
+        sede_id: sedeIdUb,
+      });
+    } catch (eg) {
+      await conn.rollback();
+      const st = eg.status && Number(eg.status) >= 400 && Number(eg.status) < 500 ? Number(eg.status) : 400;
+      return res.status(st).json({ error: eg.message || 'No se pudo definir el grupo' });
+    }
+
+    if (costoModo === 'personalizado') {
+      const al = alRows[0];
+      const nombreCompleto = `${al.apellido_paterno || ''} ${al.apellido_materno || ''} ${al.nombres || ''}`.replace(/\s+/g, ' ').trim();
+      costoIdParaMatricula = await insertCostoPersonalizado(conn, {
+        colegio_id,
+        descripcion: `Costo Personalizado - ${nombreCompleto || `Alumno #${alumnoId}`}`,
+        matricula: montoMatricula,
+        pension: montoPension,
+        agenda: agendaParaCosto,
+      });
+      if (!costoIdParaMatricula) {
+        await conn.rollback();
+        return res.status(500).json({ error: 'No se pudo crear el costo personalizado' });
+      }
+    }
+
+    let matriculaId;
+    try {
+      const [insM] = await conn.execute(
+        `INSERT INTO matriculas (colegio_id, alumno_id, grupo_id, costo_id, fecha_registro, estado, ocultar, descontar, modalidad)
+         VALUES (?, ?, ?, ?, ?, ?, 'NO', 'SI', ?)`,
+        [colegio_id, alumnoId, grupoId, costoIdParaMatricula, fr, estadoMat, modalidad]
+      );
+      matriculaId = insM.insertId;
+    } catch (e1) {
+      try {
+        const [insM2] = await conn.execute(
+          `INSERT INTO matriculas (colegio_id, alumno_id, grupo_id, costo_id, fecha_registro, estado, modalidad)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [colegio_id, alumnoId, grupoId, costoIdParaMatricula, fr, estadoMat, modalidad]
+        );
+        matriculaId = insM2.insertId;
+      } catch (e2) {
+        await conn.rollback();
+        console.error('INSERT matriculas alumno existente', e1, e2);
+        return res.status(500).json({ error: e2.message || 'No se pudo crear la matrícula' });
+      }
+    }
+
+    if (!matriculaId) {
+      await conn.rollback();
+      return res.status(500).json({ error: 'No se pudo crear la matrícula' });
+    }
+
+    let withObs = true;
+    const insertPensionMes = async (mes) => {
+      try {
+        await insertPagoPendienteConn(conn, {
+          colegio_id,
+          matriculaId,
+          nro_pago: mes,
+          tipo: 1,
+          monto: montoPension,
+          descripcion: '',
+          personal_id,
+          withObservaciones: withObs,
+        });
+      } catch (e) {
+        if (withObs) {
+          withObs = false;
+          await insertPagoPendienteConn(conn, {
+            colegio_id,
+            matriculaId,
+            nro_pago: mes,
+            tipo: 1,
+            monto: montoPension,
+            descripcion: '',
+            personal_id,
+            withObservaciones: false,
+          });
+        } else throw e;
+      }
+    };
+
+    for (let mes = 1; mes <= totalPensiones; mes += 1) {
+      await insertPensionMes(mes);
+    }
+
+    if (registrarLineaPagoMatricula && montoMatricula > 0) {
+      try {
+        await insertPagoPendienteConn(conn, {
+          colegio_id,
+          matriculaId,
+          nro_pago: 0,
+          tipo: 0,
+          monto: montoMatricula,
+          descripcion: 'MATRÍCULA',
+          personal_id,
+          withObservaciones: withObs,
+        });
+      } catch (e) {
+        await insertPagoPendienteConn(conn, {
+          colegio_id,
+          matriculaId,
+          nro_pago: 0,
+          tipo: 0,
+          monto: montoMatricula,
+          descripcion: 'MATRÍCULA',
+          personal_id,
+          withObservaciones: false,
+        });
+      }
+    }
+
+    await conn.commit();
+    res.status(201).json({
+      ok: true,
+      alumno_id: alumnoId,
+      matricula_id: matriculaId,
+      mensaje:
+        'Matrícula registrada. Se generaron las pensiones del año en estado pendiente' +
+        (registrarLineaPagoMatricula ? ' y la línea de pago de matrícula.' : '.'),
+    });
+  } catch (e) {
+    try {
+      await conn.rollback();
+    } catch (r) {
+      /* ignore */
+    }
+    console.error('POST alumnos/:alumnoId/inscripcion-matricula', e);
+    const st = Number(e.status) >= 400 && Number(e.status) < 600 ? Number(e.status) : 500;
+    res.status(st).json({ error: e.message || 'Error al registrar matrícula' });
+  } finally {
+    conn.release();
+  }
+});
+
 module.exports = router;
