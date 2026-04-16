@@ -57,8 +57,7 @@ const ALUMNO_DEFAULTS = {
   seguro_id: 0,
 };
 
-const FECHA_HORA_PENDIENTE_DB = '1970-01-01 00:00:00';
-const FECHA_CANCELADO_PENDIENTE_DB = '1970-01-01';
+const { insertPagoPendienteConn, resolverPersonalIdPago } = require('../utils/pagoPendienteInsert');
 
 async function usuarioLibre(colegioId, usuarioLogin, excludeUsuarioId = null) {
   const u = String(usuarioLogin || '').trim();
@@ -68,19 +67,6 @@ async function usuarioLibre(colegioId, usuarioLogin, excludeUsuarioId = null) {
     excludeUsuarioId ? [colegioId, u, excludeUsuarioId] : [colegioId, u]
   );
   return !rows.length;
-}
-
-async function resolverPersonalIdPago(colegio_id, reqUser) {
-  let personal_id = reqUser.personal_id && Number(reqUser.personal_id) > 0 ? Number(reqUser.personal_id) : null;
-  if (personal_id) {
-    const pr = await query('SELECT id FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1', [personal_id, colegio_id]);
-    if (!pr.length) personal_id = null;
-  }
-  if (!personal_id) {
-    const pr2 = await query('SELECT id FROM personal WHERE colegio_id = ? ORDER BY id ASC LIMIT 1', [colegio_id]);
-    personal_id = pr2[0]?.id || null;
-  }
-  return personal_id;
 }
 
 /**
@@ -184,62 +170,6 @@ router.get('/inscripcion-matricula/catalogo', async (req, res) => {
     res.status(500).json({ error: e.message || 'Error' });
   }
 });
-
-async function insertPagoPendienteConn(conn, {
-  colegio_id,
-  matriculaId,
-  nro_pago,
-  tipo,
-  monto,
-  descripcion,
-  personal_id,
-  withObservaciones,
-}) {
-  const cols = [
-    'colegio_id',
-    'matricula_id',
-    'nro_pago',
-    'monto',
-    'mora',
-    'fecha_hora',
-    'tipo',
-    'descripcion',
-    ...(withObservaciones ? ['observaciones'] : []),
-    'estado_pago',
-    'fecha_cancelado',
-    'forma_pago',
-    'tipo_tarjeta',
-    'lugar_pago',
-    'comision_tarjeta',
-    'personal_id',
-    'estado',
-  ];
-  /** Matrícula (tipo 0): fecha/hora real al generar la línea; pensiones siguen con placeholder legado. */
-  const useNowFechaMatricula = Number(tipo) === 0;
-  const placeholders = cols
-    .map((c) => (c === 'fecha_hora' && useNowFechaMatricula ? 'NOW()' : '?'))
-    .join(', ');
-  const vals = [
-    colegio_id,
-    matriculaId,
-    nro_pago,
-    monto,
-    0,
-    ...(useNowFechaMatricula ? [] : [FECHA_HORA_PENDIENTE_DB]),
-    tipo,
-    descripcion,
-    ...(withObservaciones ? [''] : []),
-    'PENDIENTE',
-    FECHA_CANCELADO_PENDIENTE_DB,
-    'EFECTIVO',
-    '',
-    'CAJA',
-    0,
-    personal_id,
-    'ACTIVO',
-  ];
-  await conn.execute(`INSERT INTO pagos (${cols.join(', ')}) VALUES (${placeholders})`, vals);
-}
 
 /**
  * Alta atómica: solo alumno nuevo, apoderados (crear o vincular), matrícula, pagos.

@@ -18,6 +18,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { resolveColegioIdAdmin } = require('../utils/resolveColegioAdmin');
 const { ensureGrupoConn, insertCostoPersonalizado } = require('../utils/matriculaGrupoCosto');
 const { DEFAULT_SEDE_ID } = require('../utils/defaultColegio');
+const { ensurePagosPendientesMatriculaConn, resolverPersonalIdPago } = require('../utils/pagoPendienteInsert');
 
 /** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
 const TIPOS_ENUM_USUARIO = [
@@ -4123,6 +4124,18 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
       return res.status(404).json({ error: 'Matrícula no encontrada' });
     }
 
+    const [colInfo] = await query('SELECT total_pensiones FROM colegios WHERE id = ? LIMIT 1', [colegio_id]);
+    const totalPensionesColegio = parseInt(colInfo[0]?.total_pensiones || 10, 10);
+    const personalIdPago = await resolverPersonalIdPago(colegio_id, req.user);
+    const registrarLineaMat = b.registrar_linea_pago_matricula !== false;
+
+    if ((est === 0 || est === 4) && !personalIdPago) {
+      return res.status(400).json({
+        error:
+          'No hay personal en el colegio para asociar los pagos. Registre al menos un trabajador en el equipo.',
+      });
+    }
+
     const conn = await mysqlReadPool.getConnection();
     try {
       await conn.beginTransaction();
@@ -4171,8 +4184,36 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
       );
 
       /**
+       * Irregular, Retirado, Traslado: sin cuotas pendientes en esta matrícula.
+       * Temporal (4) se trata como activo en aula/listas; conserva deuda pendiente.
+       */
+      if (est !== 0 && est !== 4) {
+        await conn.execute(
+          `DELETE FROM pagos
+           WHERE matricula_id = ? AND colegio_id = ?
+             AND UPPER(TRIM(estado)) = 'ACTIVO'
+             AND UPPER(TRIM(estado_pago)) = 'PENDIENTE'`,
+          [matriculaId, colegio_id]
+        );
+      }
+
+      /**
+       * Regular o Temporal: si no quedaron líneas (p. ej. volvió desde retiro), regenerar pensiones y línea de matrícula.
+       */
+      if ((est === 0 || est === 4) && personalIdPago) {
+        await ensurePagosPendientesMatriculaConn(conn, {
+          colegio_id,
+          matriculaId,
+          totalPensiones: totalPensionesColegio,
+          montoPension,
+          montoMatricula,
+          personal_id: personalIdPago,
+          registrarLineaPagoMatricula: registrarLineaMat,
+        });
+      }
+
+      /**
        * Regular (0) o Temporal (4): alinear montos de cuotas pendientes con el costo editado.
-       * No modifica cobros ya registrados ni pagos anulados.
        */
       if (est === 0 || est === 4) {
         await conn.execute(
@@ -4190,21 +4231,6 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
              AND UPPER(TRIM(estado_pago)) = 'PENDIENTE'
              AND tipo = 0 AND nro_pago = 0`,
           [montoMatricula, matriculaId, colegio_id]
-        );
-      }
-
-      /**
-       * Irregular, Retirado, Traslado: sin cuotas pendientes en esta matrícula.
-       * Temporal (4) se trata como activo en aula/listas; conserva deuda pendiente.
-       * Portal ALUMNO: INACTIVO si no queda matrícula Regular ni Temporal.
-       */
-      if (est !== 0 && est !== 4) {
-        await conn.execute(
-          `DELETE FROM pagos
-           WHERE matricula_id = ? AND colegio_id = ?
-             AND UPPER(TRIM(estado)) = 'ACTIVO'
-             AND UPPER(TRIM(estado_pago)) = 'PENDIENTE'`,
-          [matriculaId, colegio_id]
         );
       }
 

@@ -226,10 +226,9 @@ async function obtenerAdjuntosPorRemitenteFecha(remitenteId, fechaHora) {
 
 /**
  * GET /api/admin/dashboard
- * Estadísticas para el dashboard del administrador (año activo)
- * Total Alumnos/Apoderados: solo los que han pagado matrícula y NO están retirados.
- * Presupuesto: tarifas (matrícula + pensiones). total_ingresos: solo sum(monto), alineado al presupuesto.
- * total_mora_recaudada: aparte (no suma a ingresos ni pagado en grillas). Apoderado/alumno: sin cambios en sus rutas.
+ * Estadísticas para el administrador (año activo).
+ * Matrículas Regular/Temporal: presupuesto = tarifa (matrícula + N pensiones); ingresos = SUM(monto) cobrado.
+ * Si se pasa a Retirado/Traslado/Irregular, la matrícula sale del año y los totales se actualizan.
  */
 router.get('/dashboard', async (req, res) => {
   try {
@@ -243,19 +242,14 @@ router.get('/dashboard', async (req, res) => {
     const totalPensiones = parseInt(colegio?.total_pensiones || 10);
     const moneda = colegio?.moneda || 'S/';
 
-    // Matrículas del año activo: pagaron matrícula, NO retirados (estado 0 o 4)
+    // Matrículas del año activo con estado Regular o Temporal (incluye alumnos aún sin pagar matrícula)
     const matriculasPagadas = await query(
       `SELECT m.id, m.alumno_id, c.pension, c.matricula
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN costos c ON c.id = m.costo_id
-       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)
-         AND EXISTS (
-           SELECT 1 FROM pagos p
-           WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
-             AND p.tipo = 0 AND p.estado_pago = 'CANCELADO'
-         )`,
-      [colegio_id, anioActivo, colegio_id]
+       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+      [colegio_id, anioActivo]
     );
     const matIdsPagadas = (matriculasPagadas || []).map(m => m.id);
     const alumnoIdsPagados = [...new Set((matriculasPagadas || []).map(m => m.alumno_id))];
@@ -272,10 +266,10 @@ router.get('/dashboard', async (req, res) => {
       [colegio_id]
     );
 
-    // Total Alumnos: solo con matrícula pagada y no retirados
+    // Total Alumnos: con matrícula Regular/Temporal en el año activo
     const totalAlumnos = alumnoIdsPagados.length;
 
-    // Total Apoderados: padres de alumnos matriculados y pagados del año actual
+    // Total Apoderados: padres de esos alumnos
     let totalApoderados = 0;
     if (alumnoIdsPagados.length > 0) {
       const ph = alumnoIdsPagados.map(() => '?').join(',');
@@ -288,7 +282,7 @@ router.get('/dashboard', async (req, res) => {
       totalApoderados = rAp?.total ?? 0;
     }
 
-    // Presupuesto Anual (año activo): matrícula + 10 pensiones por cada alumno pagado
+    // Presupuesto Anual (año activo): matrícula + N pensiones por cada matrícula activa
     let presupuestoAnual = 0;
     for (const mat of matriculasPagadas || []) {
       const pension = parseFloat(mat.pension || 0);
@@ -376,19 +370,14 @@ router.get('/estadisticas/kpis', async (req, res) => {
     const totalPensiones = parseInt(colegio?.total_pensiones || 10);
     const moneda = colegio?.moneda || 'S/';
 
-    // Matrículas del año: pagaron matrícula, no retirados
+    // Matrículas del año: Regular o Temporal
     const matriculasPagadas = await query(
       `SELECT m.id, m.alumno_id, c.pension, c.matricula
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN costos c ON c.id = m.costo_id
-       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)
-         AND EXISTS (
-           SELECT 1 FROM pagos p
-           WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
-             AND p.tipo = 0 AND p.estado_pago = 'CANCELADO'
-         )`,
-      [colegio_id, anio, colegio_id]
+       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+      [colegio_id, anio]
     );
     const matIdsPagadas = (matriculasPagadas || []).map(m => m.id);
     const alumnosTotal = [...new Set((matriculasPagadas || []).map(m => m.alumno_id))].length;
