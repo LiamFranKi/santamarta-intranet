@@ -309,6 +309,36 @@
   letter-spacing: 0.02em;
 }
 
+/**
+ * Modal «Registrar nueva matrícula» (alumno existente): título + hint a ancho completo;
+ * fila siguiente en 3 columnas: año | sede | botón actualizar catálogo.
+ */
+.admin-mat-card-head--academico-stack {
+  margin-bottom: 1rem;
+}
+
+.admin-mat-card-head--academico-stack .admin-mat-card-head-main {
+  width: 100%;
+}
+
+.admin-mat-catalogo-fila {
+  align-items: flex-end;
+  margin-bottom: 1.35rem;
+}
+
+.admin-mat-field--catalogo-btn .admin-mat-btn {
+  width: 100%;
+}
+
+.admin-mat-catalogo-btn-label-spacer {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+  min-height: 1.15em;
+  visibility: hidden;
+}
+
 @media (max-width: 640px) {
   .admin-mat-card-head--academico {
     grid-template-columns: 1fr;

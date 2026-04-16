@@ -274,7 +274,7 @@ export default function NuevaMatriculaAlumnoExistenteModal({ open, alumno, onClo
 
           <form onSubmit={enviar} className="admin-mat-form" style={{ paddingBottom: 8 }}>
             <section className="admin-mat-card admin-mat-card--academico">
-              <div className="admin-mat-card-head admin-mat-card-head--academico">
+              <div className="admin-mat-card-head admin-mat-card-head--academico-stack">
                 <div className="admin-mat-card-head-main">
                   <span className="admin-mat-badge admin-mat-badge--academico">3</span>
                   <div>
@@ -284,7 +284,9 @@ export default function NuevaMatriculaAlumnoExistenteModal({ open, alumno, onClo
                     </p>
                   </div>
                 </div>
-                <div className="admin-mat-sede-en-cabecera" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8, minWidth: 200 }}>
+              </div>
+              <div className="admin-mat-row-3 admin-mat-catalogo-fila">
+                <div className="admin-mat-field">
                   <label htmlFor="admin-nueva-mat-anio">Año académico</label>
                   <input
                     id="admin-nueva-mat-anio"
@@ -296,6 +298,8 @@ export default function NuevaMatriculaAlumnoExistenteModal({ open, alumno, onClo
                     max={2100}
                     disabled={loadingCat || sending}
                   />
+                </div>
+                <div className="admin-mat-field">
                   <label htmlFor="admin-nueva-mat-sede">Sede (campus)</label>
                   <select
                     id="admin-nueva-mat-sede"
@@ -311,7 +315,19 @@ export default function NuevaMatriculaAlumnoExistenteModal({ open, alumno, onClo
                       </option>
                     ))}
                   </select>
-                  <button type="button" className="admin-mat-btn admin-mat-btn--secondary" onClick={loadCatalogo} disabled={loadingCat || sending}>
+                </div>
+                <div className="admin-mat-field admin-mat-field--catalogo-btn">
+                  <span className="admin-mat-catalogo-btn-label-spacer" aria-hidden="true">
+                    &nbsp;
+                  </span>
+                  <button
+                    type="button"
+                    id="admin-nueva-mat-refresh-catalogo"
+                    className="admin-mat-btn admin-mat-btn--secondary"
+                    onClick={loadCatalogo}
+                    disabled={loadingCat || sending}
+                    aria-label="Actualizar catálogo de niveles, turnos y tarifas según año y sede"
+                  >
                     {loadingCat ? 'Cargando…' : 'Actualizar catálogo'}
                   </button>
                 </div>
