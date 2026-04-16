@@ -11,6 +11,8 @@ const { envolverMarcoCumpleanosWeb } = require('../utils/cumpleanosMarcoHtml');
 const { enviarPushNotificationMultiple } = require('./pushNotificationService');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
+const moment = require('moment-timezone');
+const { tryInsertPushCronDedup, fechaLimaYmd } = require('../utils/pushCronDedup');
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -199,9 +201,9 @@ async function enviarNotificacionesCumpleanos() {
     const plantillaGuardada = (cfg.cumpleanos_plantilla_push || '').trim();
     const plantillaPush = plantillaGuardada || DEFAULT_PLANTILLA_PUSH;
 
-    const hoy = new Date();
-    const diaHoy = hoy.getDate();
-    const mesHoy = hoy.getMonth() + 1;
+    const mLima = moment.tz('America/Lima');
+    const diaHoy = mLima.date();
+    const mesHoy = mLima.month() + 1;
     const mesNombre = MESES[mesHoy - 1];
 
     const usuarios = await query(
@@ -231,6 +233,12 @@ async function enviarNotificacionesCumpleanos() {
       );
 
       if (cumpleanos.length === 0) continue;
+
+      const fechaLimaStr = fechaLimaYmd();
+      const primeraEjecucionHoy = await tryInsertPushCronDedup('cumpleanos_dia_usuario', String(u.id), fechaLimaStr);
+      if (!primeraEjecucionHoy) {
+        continue;
+      }
 
       const nombresLista = cumpleanos.map((c) => c.nombre).join(', ');
       const nombreColegio = await obtenerNombreColegio(colegio_id);

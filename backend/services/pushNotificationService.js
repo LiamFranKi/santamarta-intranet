@@ -1,4 +1,5 @@
 const webpush = require('web-push');
+const { isPushQuietHoursLima } = require('../utils/pushQuietHours');
 
 // Configurar VAPID keys (si están en .env)
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -31,6 +32,9 @@ function sleep(ms) {
 async function enviarPushNotification(subscription, payload, intento = 1) {
   const maxIntentos = 3;
   try {
+    if (isPushQuietHoursLima()) {
+      return { success: false, skipped: true, reason: 'quiet_hours' };
+    }
     if (!subscription || !subscription.endpoint) {
       console.warn('⚠️ [PUSH] Subscription inválida para push notification');
       return { success: false, error: 'Subscription inválida' };
@@ -69,6 +73,18 @@ const BATCH_SIZE = 4;
  * Envía en lotes para reducir ECONNRESET; cada push tiene retry interno
  */
 async function enviarPushNotificationMultiple(subscriptions, payload) {
+  if (!subscriptions || subscriptions.length === 0) return [];
+  if (isPushQuietHoursLima()) {
+    const qh = process.env.PUSH_QUIET_START_HOUR || '22';
+    const qe = process.env.PUSH_QUIET_END_HOUR || '7';
+    console.log(
+      `🔕 [PUSH] ${subscriptions.length} omitido(s): ventana silenciosa America/Lima (${qh}:00–${qe}:00). Campanita u otros canales no se ven afectados por esta capa.`
+    );
+    return subscriptions.map((subscription) => ({
+      subscription,
+      resultado: { success: false, skipped: true, reason: 'quiet_hours' },
+    }));
+  }
   const resultados = [];
   for (let i = 0; i < subscriptions.length; i += BATCH_SIZE) {
     const lote = subscriptions.slice(i, i + BATCH_SIZE);
@@ -90,6 +106,18 @@ async function enviarPushNotificationMultiple(subscriptions, payload) {
  * @param {Array<{ subscription: object, payload: object }>} items
  */
 async function enviarPushNotificacionesIndividuales(items) {
+  if (!items || items.length === 0) return [];
+  if (isPushQuietHoursLima()) {
+    const qh = process.env.PUSH_QUIET_START_HOUR || '22';
+    const qe = process.env.PUSH_QUIET_END_HOUR || '7';
+    console.log(
+      `🔕 [PUSH] ${items.length} omitido(s): ventana silenciosa America/Lima (${qh}:00–${qe}:00).`
+    );
+    return items.map(({ subscription }) => ({
+      subscription,
+      resultado: { success: false, skipped: true, reason: 'quiet_hours' },
+    }));
+  }
   const resultados = [];
   for (let i = 0; i < items.length; i += BATCH_SIZE) {
     const lote = items.slice(i, i + BATCH_SIZE);
@@ -109,6 +137,7 @@ async function enviarPushNotificacionesIndividuales(items) {
 module.exports = {
   enviarPushNotification,
   enviarPushNotificationMultiple,
-  enviarPushNotificacionesIndividuales
+  enviarPushNotificacionesIndividuales,
+  isPushQuietHoursLima,
 };
 

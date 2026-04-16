@@ -32,6 +32,7 @@ const {
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
+const { tryInsertPushCronDedup, fechaLimaYmd } = require('../utils/pushCronDedup');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { assertDocentePuedeEditarContenidoExamenVirtual, examenBloqueaEdicionContenidoDocente } = require('../utils/examenBloqueoEdicionContenido');
@@ -22430,23 +22431,20 @@ async function verificarTareasPorVencer() {
         if (!tipoNotificacion) {
           continue;
         }
-        
-        // Verificar si ya se envió esta notificación (evitar duplicados)
-        const notificacionExistente = await query(
-          `SELECT id FROM notificaciones 
-           WHERE para = 'USUARIO' 
-             AND asunto LIKE ?
-             AND contenido LIKE ?
-             AND DATE(fecha_hora) = DATE(NOW())
-           LIMIT 1`,
-          [`%${tipoNotificacion}%`, `%${tarea.titulo}%`]
+
+        const fechaLimaStr = fechaLimaYmd();
+        const primeraVezHoy = await tryInsertPushCronDedup(
+          'tarea_por_vencer',
+          `${tarea.id}_${tipoNotificacion}`,
+          fechaLimaStr
         );
-        
-        if (notificacionExistente.length > 0) {
-          console.log(`📅 [TAREAS POR VENCER] Notificación ya enviada hoy para tarea "${tarea.titulo}" (${tipoNotificacion})`);
+        if (!primeraVezHoy) {
+          console.log(
+            `📅 [TAREAS POR VENCER] Ya procesado hoy (Lima) tarea ${tarea.id} (${tipoNotificacion}), omitiendo duplicado por reinicio`
+          );
           continue;
         }
-        
+
         // Obtener alumnos del grupo
         const alumnos = await query(
           `SELECT DISTINCT a.id as alumno_id, u.id as usuario_id
@@ -22801,6 +22799,19 @@ async function verificarTareasVencidasSinEntrega() {
         const apoderadoUsuarioIds = [...apoderadoUsuarioIdsSet];
         if (apoderadoUsuarioIds.length === 0) {
           console.log(`⚠️ [TAREAS VENCIDAS SIN ENTREGA] No hay apoderados para notificar en tarea "${tarea.titulo}"`);
+          continue;
+        }
+
+        const fechaLimaVenc = fechaLimaYmd();
+        const debeEnviarAvisos = await tryInsertPushCronDedup(
+          'tarea_vencida_sin_entrega',
+          String(tarea.id),
+          fechaLimaVenc
+        );
+        if (!debeEnviarAvisos) {
+          console.log(
+            `📅 [TAREAS VENCIDAS SIN ENTREGA] Ya se enviaron avisos hoy (Lima) para tarea ${tarea.id}, omitiendo campanita/push/correo (notas ya aplicadas)`
+          );
           continue;
         }
 
