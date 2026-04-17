@@ -335,10 +335,18 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.get('/:id(\\d+)', async (req, res) => {
+/** Express 5 / path-to-regexp v8: no usar /:id(\\d+); validar en handler */
+function parseEventoIdParam(req) {
+  const id = parseInt(req.params.id, 10);
+  if (!Number.isInteger(id) || id < 1) return null;
+  return id;
+}
+
+router.get('/:id', async (req, res) => {
   try {
     const { colegio_id } = req.user;
-    const id = parseInt(req.params.id, 10);
+    const id = parseEventoIdParam(req);
+    if (id == null) return res.status(400).json({ error: 'ID inválido' });
     const rows = await query(
       `SELECT * FROM eventos_institucionales WHERE id = ? AND colegio_id = ? LIMIT 1`,
       [id, colegio_id]
@@ -403,10 +411,11 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id(\\d+)', async (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const { colegio_id } = req.user;
-    const id = parseInt(req.params.id, 10);
+    const id = parseEventoIdParam(req);
+    if (id == null) return res.status(400).json({ error: 'ID inválido' });
     const b = req.body || {};
 
     const cur = await query(`SELECT id FROM eventos_institucionales WHERE id = ? AND colegio_id = ?`, [id, colegio_id]);
@@ -459,10 +468,11 @@ router.put('/:id(\\d+)', async (req, res) => {
   }
 });
 
-router.delete('/:id(\\d+)', async (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const { colegio_id } = req.user;
-    const id = parseInt(req.params.id, 10);
+    const id = parseEventoIdParam(req);
+    if (id == null) return res.status(400).json({ error: 'ID inválido' });
     const r = await execute(`DELETE FROM eventos_institucionales WHERE id = ? AND colegio_id = ?`, [id, colegio_id]);
     if (!r.affectedRows) return res.status(404).json({ error: 'No encontrado' });
     res.json({ success: true });
