@@ -37,10 +37,9 @@ publicRouter.get('/:token', async (req, res) => {
     }
 
     const grupos = await query(
-      `SELECT g.id, g.grado, g.seccion, g.anio, c.nombre AS curso_nombre, n.nombre AS nivel_nombre
+      `SELECT g.id, g.grado, g.seccion, g.anio, n.nombre AS nivel_nombre, NULL AS curso_nombre
        FROM eventos_institucionales_grupos eg
        INNER JOIN grupos g ON g.id = eg.grupo_id
-       INNER JOIN cursos c ON c.id = g.curso_id
        INNER JOIN niveles n ON n.id = g.nivel_id
        WHERE eg.evento_id = ?
        ORDER BY n.nombre, g.grado, g.seccion`,
@@ -303,9 +302,8 @@ router.get('/grupos-disponibles', async (req, res) => {
     const { colegio_id, anio_activo } = req.user;
     const anio = anio_activo || new Date().getFullYear();
     const grupos = await query(
-      `SELECT g.id, g.grado, g.seccion, g.anio, c.nombre AS curso_nombre, n.nombre AS nivel_nombre
+      `SELECT g.id, g.grado, g.seccion, g.anio, n.nombre AS nivel_nombre, NULL AS curso_nombre
        FROM grupos g
-       INNER JOIN cursos c ON c.id = g.curso_id
        INNER JOIN niveles n ON n.id = g.nivel_id
        WHERE g.colegio_id = ? AND g.anio = ?
        ORDER BY n.nombre, g.grado, g.seccion`,
