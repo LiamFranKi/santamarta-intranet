@@ -579,6 +579,12 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/eventos">
+                  <span className="sidebar-icon">🎪</span>
+                  <span className="sidebar-label">Eventos</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/publicaciones">
                   <span className="sidebar-icon">📰</span>
                   <span className="sidebar-label">Publicaciones</span>
@@ -867,6 +873,10 @@ export default function DashboardLayout({ children }) {
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/comunicados">
                     <span className="sidebar-icon" aria-hidden>📢</span>
                     <span className="sidebar-label">Comunicados</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/eventos">
+                    <span className="sidebar-icon" aria-hidden>🎪</span>
+                    <span className="sidebar-label">Eventos</span>
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/notificaciones">
                     <span className="sidebar-icon" aria-hidden>🔔</span>

@@ -175,6 +175,8 @@ api.interceptors.response.use(
     const isGruposRoute = error.config?.url?.includes('/grupos');
     const isAdminImpresionesRoute =
       reqUrl.includes('/admin/usuarios/alumnos/') && reqUrl.includes('/impresiones');
+    /** Asistencia a eventos por QR (público): 403/500 no deben cerrar la sesión del intranet */
+    const isPublicEventosRoute = reqUrl.includes('/public/eventos');
     // Bandeja de mensajes: no desloguear solo por 403/500 (p. ej. rol equivocado o error puntual); el 401 sigue cerrando sesión
     const isMensajesIntranetRoute = /\/(alumno|apoderado|docente)\/mensajes/.test(reqUrl);
     const skipLogoutMensajesApi = isMensajesIntranetRoute && (status === 403 || status === 500);
@@ -194,7 +196,8 @@ api.interceptors.response.use(
       !isActividadesRoute &&
       !isGruposRoute &&
       !skipLogoutMensajesApi &&
-      !skipLogoutAdminImpresiones
+      !skipLogoutAdminImpresiones &&
+      !isPublicEventosRoute
     ) {
       const errorInfo = criticalErrors[status];
       console.warn(`⚠️ Error crítico detectado (${status}):`, errorInfo.reason);

@@ -282,6 +282,10 @@ app.use('/api/supervision', supervisionRoutes);
 app.use('/api/encuestas', encuestasRoutes);
 app.use('/api/herramientas-examenes', herramientasExamenesRoutes);
 
+const eventosRoutes = require('./routes/eventos.routes');
+app.use('/api/public/eventos', eventosRoutes.publicEventosRouter);
+app.use('/api/admin/eventos', eventosRoutes);
+
 // Rutas de prueba (solo desarrollo)
 if (process.env.NODE_ENV === 'development') {
   const testRoutes = require('./routes/test.routes');

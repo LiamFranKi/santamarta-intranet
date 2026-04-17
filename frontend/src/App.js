@@ -46,6 +46,7 @@ import AdminEncuestas from './pages/admin/AdminEncuestas';
 import AdminEncuestaEditor from './pages/admin/AdminEncuestaEditor';
 import AdminEncuestaEstadisticas from './pages/admin/AdminEncuestaEstadisticas';
 import AdminEncuestaHistorial from './pages/admin/AdminEncuestaHistorial';
+import AdminEventos from './pages/admin/AdminEventos';
 import MisEncuestas from './pages/MisEncuestas';
 import EncuestaResponder from './pages/EncuestaResponder';
 import AdminEnConstruccion from './pages/admin/AdminEnConstruccion';
@@ -67,6 +68,7 @@ import AlumnoHorario from './pages/AlumnoHorario';
 import AlumnoExamen from './pages/AlumnoExamen';
 import AlumnoExamenResultados from './pages/AlumnoExamenResultados';
 import AsistenciaEscaneo from './pages/AsistenciaEscaneo';
+import EventoPublicoAsistencia from './pages/EventoPublicoAsistencia';
 import ApoderadoDashboard from './pages/ApoderadoDashboard';
 import ApoderadoPerfil from './pages/ApoderadoPerfil';
 import ApoderadoHijos from './pages/ApoderadoHijos';
@@ -203,6 +205,7 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
+      <Route path="/evento/:token" element={<EventoPublicoAsistencia />} />
       <Route
         path="/admin/dashboard"
         element={
@@ -266,6 +269,14 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <AdminComunicados />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/comunicaciones/eventos"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <AdminEventos />
           </PrivateRoute>
         }
       />
