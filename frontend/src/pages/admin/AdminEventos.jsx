@@ -4,6 +4,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { QRCodeSVG } from 'qrcode.react';
+import { buildEventoAsistenciasReport, exportEventoAsistenciasPdf } from '../../utils/eventoAsistenciasReport';
 import './AdminEventos.css';
 
 const PASTEL_CARD_BGS = [
@@ -37,8 +38,19 @@ function formatFechaCard(d) {
   }
 }
 
-function nombreDesdePartes(n, ap, am) {
-  return [n, ap, am].filter(Boolean).join(' ').trim() || '—';
+function formatFechaEventoLarga(d) {
+  if (!d) return '';
+  try {
+    const x = typeof d === 'string' ? d.slice(0, 10) : d;
+    return new Date(x).toLocaleDateString('es-PE', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
+    });
+  } catch {
+    return String(d).slice(0, 10);
+  }
 }
 
 export default function AdminEventos() {
@@ -233,6 +245,7 @@ export default function AdminEventos() {
   const abrirAsistencias = async (ev) => {
     setAsisModal({
       titulo: ev.titulo,
+      fecha_evento: ev.fecha_evento ?? null,
       loading: true,
       asistencias: [],
       visitantes: [],
@@ -242,6 +255,7 @@ export default function AdminEventos() {
       const { data } = await api.get(`/admin/eventos/${ev.id}/asistencias`);
       setAsisModal({
         titulo: data.evento?.titulo || ev.titulo,
+        fecha_evento: data.evento?.fecha_evento ?? ev.fecha_evento ?? null,
         loading: false,
         asistencias: data.asistencias || [],
         visitantes: data.visitantes || [],
@@ -250,12 +264,31 @@ export default function AdminEventos() {
     } catch (e) {
       setAsisModal({
         titulo: ev.titulo,
+        fecha_evento: ev.fecha_evento ?? null,
         loading: false,
         asistencias: [],
         visitantes: [],
         error: e.response?.data?.error || e.message || 'Error al cargar'
       });
     }
+  };
+
+  const asistenciasReport = useMemo(() => {
+    if (!asisModal || asisModal.loading || asisModal.error) return null;
+    return buildEventoAsistenciasReport(asisModal.asistencias || [], asisModal.visitantes || []);
+  }, [asisModal]);
+
+  const exportarAsistenciasPdf = () => {
+    if (!asisModal || !asistenciasReport) return;
+    const fechaTxt = asisModal.fecha_evento
+      ? `Fecha del evento: ${formatFechaEventoLarga(asisModal.fecha_evento)}`
+      : null;
+    exportEventoAsistenciasPdf({
+      titulo: asisModal.titulo,
+      fechaEventoTexto: fechaTxt,
+      generadoTexto: `Generado el ${new Date().toLocaleString('es-PE', { dateStyle: 'long', timeStyle: 'short' })}`,
+      report: asistenciasReport
+    });
   };
 
   const modalNode =
@@ -438,84 +471,64 @@ export default function AdminEventos() {
               </p>
             ) : (
               <>
-                <div className="admin-evento-asis-section">
-                  <h4>Apoderados (registro por alumno)</h4>
-                  {(asisModal.asistencias || []).length === 0 ? (
-                    <p className="admin-evento-asis-empty">Aún no hay registros de apoderados.</p>
-                  ) : (
-                    <div className="admin-evento-asis-table-wrap">
-                      <table className="admin-evento-asis-table">
-                        <thead>
-                          <tr>
-                            <th>Fecha y hora</th>
-                            <th>Alumno</th>
-                            <th>Apoderado</th>
-                            <th>Contacto</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(asisModal.asistencias || []).map((row) => (
-                            <tr key={row.id}>
-                              <td>
-                                {row.marcado_en
-                                  ? new Date(String(row.marcado_en).replace(' ', 'T')).toLocaleString('es-PE', {
-                                      dateStyle: 'short',
-                                      timeStyle: 'short'
-                                    })
-                                  : '—'}
-                              </td>
-                              <td>{nombreDesdePartes(row.alumno_nombres, row.alumno_apellido_paterno, row.alumno_apellido_materno)}</td>
-                              <td>
-                                {nombreDesdePartes(row.apoderado_nombres, row.apoderado_apellido_paterno, row.apoderado_apellido_materno)}
-                              </td>
-                              <td>
-                                {[row.apoderado_telefono, row.apoderado_email].filter(Boolean).join(' · ') || '—'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                <div className="admin-evento-asis-toolbar">
+                  <div className="admin-evento-asis-meta">
+                    {asisModal.fecha_evento && (
+                      <p className="admin-evento-asis-meta-line">
+                        <strong>Fecha del evento:</strong> {formatFechaEventoLarga(asisModal.fecha_evento)}
+                      </p>
+                    )}
+                    <p className="admin-evento-asis-meta-line admin-evento-asis-meta-line--muted">
+                      Listado generado el{' '}
+                      {new Date().toLocaleString('es-PE', { dateStyle: 'long', timeStyle: 'short' })}
+                    </p>
+                  </div>
+                  <button type="button" className="admin-evento-asis-btn-pdf" onClick={exportarAsistenciasPdf}>
+                    Exportar PDF
+                  </button>
                 </div>
-                <div className="admin-evento-asis-section">
-                  <h4>Visitantes</h4>
-                  {(asisModal.visitantes || []).length === 0 ? (
-                    <p className="admin-evento-asis-empty">No hay visitantes registrados.</p>
-                  ) : (
-                    <div className="admin-evento-asis-table-wrap">
-                      <table className="admin-evento-asis-table">
-                        <thead>
-                          <tr>
-                            <th>Fecha y hora</th>
-                            <th>Nombre</th>
-                            <th>Teléfono</th>
-                            <th>Correo</th>
-                            <th>Parentesco</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {(asisModal.visitantes || []).map((v) => (
-                            <tr key={v.id}>
-                              <td>
-                                {v.marcado_en
-                                  ? new Date(String(v.marcado_en).replace(' ', 'T')).toLocaleString('es-PE', {
-                                      dateStyle: 'short',
-                                      timeStyle: 'short'
-                                    })
-                                  : '—'}
-                              </td>
-                              <td>{v.nombre_completo || '—'}</td>
-                              <td>{v.telefono || '—'}</td>
-                              <td>{v.correo || '—'}</td>
-                              <td>{v.parentesco || '—'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+
+                {!asistenciasReport || asistenciasReport.total === 0 ? (
+                  <p className="admin-evento-asis-empty">Aún no hay registros de asistencia.</p>
+                ) : (
+                  <>
+                    {asistenciasReport.groups.map((g, gi) => (
+                      <div key={`${g.grupo?.grupo_id ?? 'sin'}-${gi}`} className="admin-evento-asis-group">
+                        <h4 className="admin-evento-asis-group-title">{g.label}</h4>
+                        <div className="admin-evento-asis-table-wrap admin-evento-asis-table-wrap--rounded">
+                          <table className="admin-evento-asis-table admin-evento-asis-table--striped">
+                            <thead>
+                              <tr>
+                                <th>#</th>
+                                <th>Alumno</th>
+                                <th>Apoderado / asistente</th>
+                                <th>Teléfono</th>
+                                <th>Correo</th>
+                                <th>Parentesco</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {g.rows.map((row) => (
+                                <tr key={row.rowKey}>
+                                  <td>{row.num}</td>
+                                  <td>{row.alumno}</td>
+                                  <td>{row.asistente}</td>
+                                  <td>{row.telefono}</td>
+                                  <td className="admin-evento-asis-cell-email">{row.email}</td>
+                                  <td>{row.parentesco}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="admin-evento-asis-total">
+                      <strong>Total de participantes:</strong> {asistenciasReport.total}
                     </div>
-                  )}
-                </div>
+                  </>
+                )}
               </>
             )}
           </div>

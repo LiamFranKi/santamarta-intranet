@@ -351,7 +351,7 @@ router.get('/:id/asistencias', async (req, res) => {
     if (id == null) return res.status(400).json({ error: 'ID inválido' });
 
     const ev = await query(
-      `SELECT id, titulo FROM eventos_institucionales WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      `SELECT id, titulo, fecha_evento FROM eventos_institucionales WHERE id = ? AND colegio_id = ? LIMIT 1`,
       [id, colegio_id]
     );
     if (!ev.length) return res.status(404).json({ error: 'No encontrado' });
@@ -369,31 +369,77 @@ router.get('/:id/asistencias', async (req, res) => {
          ap.apellido_paterno AS apoderado_apellido_paterno,
          ap.apellido_materno AS apoderado_apellido_materno,
          ap.telefono_celular AS apoderado_telefono,
-         ap.email AS apoderado_email
+         ap.email AS apoderado_email,
+         g.id AS grupo_id,
+         g.grado AS grupo_grado,
+         g.seccion AS grupo_seccion,
+         n.nombre AS nivel_nombre,
+         n.id AS nivel_id
        FROM eventos_institucionales_asistencias ea
        INNER JOIN eventos_institucionales e ON e.id = ea.evento_id AND e.colegio_id = ?
        INNER JOIN alumnos al ON al.id = ea.alumno_id AND al.colegio_id = e.colegio_id
        INNER JOIN apoderados ap ON ap.id = ea.apoderado_id AND ap.colegio_id = e.colegio_id
+       LEFT JOIN (
+         SELECT m.alumno_id, eg.evento_id, MIN(m.grupo_id) AS grupo_id
+         FROM matriculas m
+         INNER JOIN eventos_institucionales_grupos eg ON eg.grupo_id = m.grupo_id
+         WHERE m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+         GROUP BY m.alumno_id, eg.evento_id
+       ) pick ON pick.alumno_id = ea.alumno_id AND pick.evento_id = ea.evento_id
+       LEFT JOIN grupos g ON g.id = pick.grupo_id AND g.colegio_id = e.colegio_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
        WHERE ea.evento_id = ?
-       ORDER BY ea.marcado_en DESC`,
-      [colegio_id, id]
+       ORDER BY n.nombre, g.grado, g.seccion,
+         al.apellido_paterno, al.apellido_materno, al.nombres`,
+      [colegio_id, colegio_id, id]
     );
 
     let visitantes = [];
     try {
       visitantes = await query(
-        `SELECT id, alumno_id, nombre_completo, telefono, correo, parentesco, marcado_en
-         FROM eventos_institucionales_visitantes
-         WHERE evento_id = ?
-         ORDER BY marcado_en DESC`,
-        [id]
+        `SELECT
+           v.id,
+           v.alumno_id,
+           v.nombre_completo,
+           v.telefono,
+           v.correo,
+           v.parentesco,
+           v.marcado_en,
+           al.nombres AS alumno_nombres,
+           al.apellido_paterno AS alumno_apellido_paterno,
+           al.apellido_materno AS alumno_apellido_materno,
+           g.id AS grupo_id,
+           g.grado AS grupo_grado,
+           g.seccion AS grupo_seccion,
+           n.nombre AS nivel_nombre,
+           n.id AS nivel_id
+         FROM eventos_institucionales_visitantes v
+         INNER JOIN eventos_institucionales e ON e.id = v.evento_id AND e.colegio_id = ?
+         LEFT JOIN alumnos al ON al.id = v.alumno_id AND al.colegio_id = e.colegio_id
+         LEFT JOIN (
+           SELECT m.alumno_id, eg.evento_id, MIN(m.grupo_id) AS grupo_id
+           FROM matriculas m
+           INNER JOIN eventos_institucionales_grupos eg ON eg.grupo_id = m.grupo_id
+           WHERE m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+           GROUP BY m.alumno_id, eg.evento_id
+         ) pick ON pick.alumno_id = v.alumno_id AND pick.evento_id = v.evento_id
+         LEFT JOIN grupos g ON g.id = pick.grupo_id AND g.colegio_id = e.colegio_id
+         LEFT JOIN niveles n ON n.id = g.nivel_id
+         WHERE v.evento_id = ?
+         ORDER BY n.nombre, g.grado, g.seccion,
+           al.apellido_paterno, al.apellido_materno, al.nombres, v.nombre_completo`,
+        [colegio_id, colegio_id, id]
       );
     } catch (vErr) {
       if (vErr.code !== 'ER_NO_SUCH_TABLE') throw vErr;
     }
 
     res.json({
-      evento: { id: ev[0].id, titulo: ev[0].titulo },
+      evento: {
+        id: ev[0].id,
+        titulo: ev[0].titulo,
+        fecha_evento: ev[0].fecha_evento
+      },
       asistencias: asistencias || [],
       visitantes: visitantes || []
     });

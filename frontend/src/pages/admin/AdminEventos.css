@@ -456,8 +456,74 @@
 
 .admin-evento-asis-body {
   padding: 0 1.5rem 1.25rem;
-  max-height: min(65vh, 560px);
+  max-height: min(72vh, 620px);
   overflow-y: auto;
+}
+
+.admin-evento-asis-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-evento-asis-meta {
+  flex: 1;
+  min-width: 200px;
+}
+
+.admin-evento-asis-meta-line {
+  margin: 0 0 0.35rem;
+  font-size: 0.88rem;
+  color: #1e293b;
+}
+
+.admin-evento-asis-meta-line--muted {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+.admin-evento-asis-btn-pdf {
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #475569, #334155);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.admin-evento-asis-btn-pdf:hover {
+  filter: brightness(1.06);
+}
+
+.admin-evento-asis-group {
+  margin-bottom: 1.35rem;
+}
+
+.admin-evento-asis-group-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+}
+
+.admin-evento-asis-total {
+  margin-top: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  font-size: 0.95rem;
+  color: #1e1b4b;
 }
 
 .admin-evento-asis-section {
@@ -476,6 +542,11 @@
   border: 1px solid #e5e7eb;
 }
 
+.admin-evento-asis-table-wrap--rounded {
+  border: 1px solid #dbeafe;
+  background: #fafbff;
+}
+
 .admin-evento-asis-table {
   width: 100%;
   border-collapse: collapse;
@@ -490,10 +561,27 @@
 }
 
 .admin-evento-asis-table th {
-  background: #f8fafc;
+  background: linear-gradient(180deg, #e8eef5 0%, #dce4ee 100%);
   font-weight: 600;
-  color: #475569;
+  color: #334155;
   white-space: nowrap;
+}
+
+.admin-evento-asis-table--striped tbody tr:nth-child(odd) td {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.admin-evento-asis-table--striped tbody tr:nth-child(even) td {
+  background: rgba(226, 237, 255, 0.55);
+}
+
+.admin-evento-asis-table tbody td {
+  color: #334155;
+}
+
+.admin-evento-asis-cell-email {
+  word-break: break-all;
+  font-size: 0.78rem;
 }
 
 .admin-evento-asis-table tr:last-child td {
