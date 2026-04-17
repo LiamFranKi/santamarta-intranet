@@ -211,11 +211,22 @@ export default function AdminEventos() {
     }
   };
 
+  const swalAboveModals = {
+    customClass: { container: 'swal-z-above-event-modals' }
+  };
+
   const copiarEnlace = (token) => {
     const url = `${publicUrlBase}${token}`;
     navigator.clipboard.writeText(url).then(
-      () => Swal.fire({ icon: 'success', title: 'Enlace copiado', timer: 1600, showConfirmButton: false }),
-      () => Swal.fire('Error', 'No se pudo copiar', 'error')
+      () =>
+        Swal.fire({
+          ...swalAboveModals,
+          icon: 'success',
+          title: 'Enlace copiado',
+          timer: 1600,
+          showConfirmButton: false
+        }),
+      () => Swal.fire({ ...swalAboveModals, title: 'Error', text: 'No se pudo copiar', icon: 'error' })
     );
   };
 
@@ -578,10 +589,18 @@ export default function AdminEventos() {
                     </button>
                   </div>
                   <div className="admin-evento-card__footer">
-                    <button type="button" className="admin-evento-card__link" onClick={() => openEditar(ev.id)}>
+                    <button
+                      type="button"
+                      className="admin-evento-card__btn-foot admin-evento-card__btn-foot--edit"
+                      onClick={() => openEditar(ev.id)}
+                    >
                       Editar
                     </button>
-                    <button type="button" className="admin-evento-card__link admin-evento-card__link--danger" onClick={() => eliminar(ev.id)}>
+                    <button
+                      type="button"
+                      className="admin-evento-card__btn-foot admin-evento-card__btn-foot--delete"
+                      onClick={() => eliminar(ev.id)}
+                    >
                       Eliminar
                     </button>
                   </div>

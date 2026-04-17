@@ -155,17 +155,21 @@
   margin-top: 12px;
   width: 100%;
   padding: 16px 20px;
-  border: 2px solid #0a2f5c;
+  border: 2px solid #051e3a;
   border-radius: 14px;
   font-size: 1.08rem;
   font-weight: 800;
   letter-spacing: 0.03em;
   cursor: pointer;
   color: #fff;
-  background: linear-gradient(180deg, #0d47a1 0%, #1565c0 45%, #1976d2 100%);
+  -webkit-appearance: none;
+  appearance: none;
+  /* Azul fuerte: legible en móvil incluso con gradientes capados por el navegador */
+  background-color: #01579b;
+  background: linear-gradient(180deg, #0277bd 0%, #01579b 55%, #014a7c 100%);
   box-shadow:
-    0 6px 0 #0a2f5c,
-    0 10px 28px rgba(13, 71, 161, 0.55);
+    0 6px 0 #051e3a,
+    0 10px 28px rgba(1, 87, 155, 0.55);
   transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
 }
 
@@ -173,24 +177,27 @@
   transform: translateY(-1px);
   filter: brightness(1.06);
   box-shadow:
-    0 7px 0 #0a2f5c,
-    0 14px 32px rgba(13, 71, 161, 0.6);
+    0 7px 0 #051e3a,
+    0 14px 32px rgba(1, 87, 155, 0.6);
 }
 
 .evento-yo-asisti:active:not(:disabled) {
   transform: translateY(3px);
   box-shadow:
-    0 3px 0 #0a2f5c,
-    0 6px 16px rgba(13, 71, 161, 0.45);
+    0 3px 0 #051e3a,
+    0 6px 16px rgba(1, 87, 155, 0.45);
 }
 
 .evento-yo-asisti:disabled {
-  opacity: 0.5;
+  opacity: 1;
   cursor: not-allowed;
   transform: none;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border-color: #90a4ae;
-  background: linear-gradient(180deg, #78909c 0%, #90a4ae 100%);
+  color: #0d47a1;
+  border-color: #64b5f6;
+  box-shadow: 0 2px 8px rgba(13, 71, 161, 0.2);
+  /* Sin apoderado seleccionado: sigue viéndose como botón, no como gris fantasma */
+  background: #bbdefb;
+  background: linear-gradient(180deg, #e3f2fd 0%, #bbdefb 100%);
 }
 
 .evento-visitante-box {

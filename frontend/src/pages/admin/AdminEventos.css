@@ -369,27 +369,36 @@
 }
 
 .admin-evento-card__footer {
-  display: flex;
-  justify-content: center;
-  gap: 0.75rem;
-  padding-top: 0.35rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  padding-top: 0.45rem;
   border-top: 1px dashed rgba(71, 85, 105, 0.2);
   margin-top: 0.15rem;
 }
 
-.admin-evento-card__link {
-  background: none;
-  border: none;
-  padding: 0;
+.admin-evento-card__btn-foot {
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
   font-size: 0.78rem;
-  color: #4a83c1;
+  font-weight: 700;
   cursor: pointer;
-  text-decoration: underline;
   font-family: inherit;
+  border: 2px solid #4a83c1;
+  background: #fff;
+  color: #3d6fa8;
+  transition: filter 0.15s, transform 0.15s;
 }
 
-.admin-evento-card__link--danger {
-  color: #b91c1c;
+.admin-evento-card__btn-foot:hover {
+  filter: brightness(0.97);
+  transform: scale(1.02);
+}
+
+.admin-evento-card__btn-foot--delete {
+  border-color: #c62828;
+  color: #b71c1c;
+  background: linear-gradient(180deg, #fff 0%, #fff5f5 100%);
 }
 
 /* Modal QR grande */
@@ -502,4 +511,9 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 8px 4px 32px;
+}
+
+/* SweetAlert2 por encima del modal QR (overlay ~100000) */
+.swal2-container.swal-z-above-event-modals {
+  z-index: 200000 !important;
 }
