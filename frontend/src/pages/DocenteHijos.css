@@ -149,7 +149,9 @@
   width: 420px !important;
   max-width: 420px !important;
   max-height: min(75vh, 540px) !important;
-  overflow: hidden !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
   padding: 5mm !important;
   display: grid !important;
   grid-template-columns: 1fr 1fr !important;

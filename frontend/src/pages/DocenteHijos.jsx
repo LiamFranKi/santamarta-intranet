@@ -4280,21 +4280,51 @@ function DocenteHijos() {
         const hijo = hijos.find(h => h.id === openDropdown.hijoId);
         if (!hijo) return null;
         const rect = openDropdown.rect;
-        const maxDropHeight = window.innerHeight - 100;
-        const spaceBelow = window.innerHeight - rect.bottom - 20;
-        const openAbove = window.innerWidth <= 768 && spaceBelow < Math.min(400, maxDropHeight * 0.6);
-        const top = openAbove ? Math.max(20, rect.top - maxDropHeight - 4) : rect.bottom + 4;
+        const pad = 12;
+        const vh = window.innerHeight;
+        const vw = window.innerWidth;
+        const spaceBelow = vh - rect.bottom - pad;
+        const spaceAbove = rect.top - pad;
+        // Si abajo hay poco espacio y arriba hay más, anclar el menú hacia arriba del botón
+        const openUpward = spaceBelow < 220 && spaceAbove > spaceBelow;
+        const maxHBelow = Math.max(140, Math.min(spaceBelow - 6, vh * 0.88));
+        const maxHAbove = Math.max(140, Math.min(spaceAbove - 6, vh * 0.88));
+        const isMobile = vw <= 768;
+        const leftDesktop = Math.max(8, Math.min(rect.left, vw - 420 - 8));
+
+        const portalStyle = isMobile
+          ? {
+              position: 'fixed',
+              zIndex: 10001,
+              left: 16,
+              right: 16,
+              width: 'auto',
+              maxHeight: openUpward ? maxHAbove : maxHBelow,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              ...(openUpward
+                ? { bottom: vh - rect.top + 4, top: 'auto' }
+                : { top: rect.bottom + 4, bottom: 'auto' })
+            }
+          : {
+              position: 'fixed',
+              zIndex: 10001,
+              left: leftDesktop,
+              width: 420,
+              maxWidth: 'min(420px, calc(100vw - 16px))',
+              maxHeight: openUpward ? maxHAbove : maxHBelow,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+              ...(openUpward
+                ? { bottom: vh - rect.top + 4, top: 'auto' }
+                : { top: rect.bottom + 4, bottom: 'auto' })
+            };
+
         return createPortal(
           <div
             ref={dropdownRef}
             className="dropdown-menu dropdown-menu-hijo dropdown-menu-hijo-portal"
-            style={{
-              position: 'fixed',
-              top,
-              left: window.innerWidth <= 768 ? 16 : rect.left,
-              right: window.innerWidth <= 768 ? 16 : undefined,
-              zIndex: 10001
-            }}
+            style={portalStyle}
             onClick={(e) => e.stopPropagation()}
           >
             <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('editar-datos', hijo); }}>
