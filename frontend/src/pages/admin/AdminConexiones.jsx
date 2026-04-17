@@ -93,6 +93,12 @@ export default function AdminConexiones() {
   }, []);
 
   useEffect(() => {
+    if (gruposSeleccionados.length > 0) {
+      setAlcance('grupos');
+    }
+  }, [gruposSeleccionados]);
+
+  useEffect(() => {
     const cargarGrupos = async () => {
       try {
         const response = await api.get('/docente/grupos');
@@ -194,13 +200,14 @@ export default function AdminConexiones() {
     }
     try {
       setEnviando(true);
+      const alcanceEfectivo = gruposSeleccionados.length > 0 ? 'grupos' : alcance;
       const fd = new FormData();
       fd.append('destinatarios', JSON.stringify([]));
-      fd.append('grupos', JSON.stringify(alcance === 'grupos' ? gruposSeleccionados : []));
+      fd.append('grupos', JSON.stringify(alcanceEfectivo === 'grupos' ? gruposSeleccionados : []));
       fd.append('asunto', asunto.trim());
       fd.append('mensaje', mensaje);
       fd.append('enviar_a', perfilDestino);
-      fd.append('alcance', alcance);
+      fd.append('alcance', alcanceEfectivo);
       fd.append('modo_conexiones', 'true');
       archivosAdjuntos.forEach((f) => fd.append('archivos', f));
       await api.post('/docente/mensajes/enviar', fd, {

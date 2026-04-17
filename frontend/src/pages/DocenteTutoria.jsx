@@ -2518,6 +2518,7 @@ function DocenteTutoria() {
       const formData = new FormData();
       formData.append('destinatarios', JSON.stringify([])); // Sin destinatarios directos
       formData.append('grupos', JSON.stringify([grupoParaMensaje.id])); // Enviar al grupo
+      formData.append('alcance', 'grupos');
       formData.append('asunto', asuntoMensajeGrupo.trim());
       formData.append('mensaje', contenidoMensajeGrupo);
       formData.append('enviar_a', enviarAMensajeGrupo);

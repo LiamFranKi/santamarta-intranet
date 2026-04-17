@@ -1685,6 +1685,7 @@ router.get('/equipo/:personalId', async (req, res) => {
     const dniPersonal = String(rows[0].nro_documento || '').trim();
     let hijos_como_alumnos = [];
     let otros_apoderados_hijos = [];
+    let selfApoderadoIds = [];
     try {
       const apoderadoSelfRows = dniPersonal
         ? await query(
@@ -1692,7 +1693,7 @@ router.get('/equipo/:personalId', async (req, res) => {
             [colegio_id, dniPersonal]
           )
         : [];
-      const selfApoderadoIds = (apoderadoSelfRows || []).map((r) => r.id).filter((id) => id > 0);
+      selfApoderadoIds = (apoderadoSelfRows || []).map((r) => r.id).filter((id) => id > 0);
 
       if (dniPersonal && selfApoderadoIds.length > 0) {
         const hijosRows = await query(
@@ -1782,6 +1783,9 @@ router.get('/equipo/:personalId', async (req, res) => {
       console.warn('[GET equipo/:id] hijos/apoderados familias:', famErr.message);
     }
 
+    const apoderadoIdParaFamilias =
+      selfApoderadoIds && selfApoderadoIds.length > 0 ? Math.min(...selfApoderadoIds.map((x) => parseInt(x, 10)).filter((n) => !isNaN(n) && n > 0)) : null;
+
     res.json({
       ...rows[0],
       grupos_cargo: Array.from(gruposMap.values()),
@@ -1793,6 +1797,8 @@ router.get('/equipo/:personalId', async (req, res) => {
         : '',
       hijos_como_alumnos,
       otros_apoderados_hijos,
+      /** Ficha apoderado (mismo DNI que personal) para POST/DELETE familias desde el modal de personal */
+      apoderado_id_para_familias: apoderadoIdParaFamilias,
     });
   } catch (e) {
       console.error('GET /admin/usuarios/equipo/:id', e);
@@ -2904,6 +2910,40 @@ router.post('/alumnos/:alumnoId/vincular-apoderado', async (req, res) => {
   } catch (e) {
     console.error('POST vincular-apoderado', e);
     res.status(500).json({ error: e.message || 'Error al vincular' });
+  }
+});
+
+/**
+ * DELETE /alumnos/:alumnoId/apoderados/:apoderadoId
+ * Quita el vínculo alumno–apoderado en `familias` (no borra fichas).
+ */
+router.delete('/alumnos/:alumnoId/apoderados/:apoderadoId', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const alumnoId = parseInt(req.params.alumnoId, 10);
+    const apoderadoId = parseInt(req.params.apoderadoId, 10);
+    if (!alumnoId || !apoderadoId) {
+      return res.status(400).json({ error: 'IDs inválidos' });
+    }
+    const al = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
+    if (!al.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const ap = await query('SELECT id FROM apoderados WHERE id = ? AND colegio_id = ? LIMIT 1', [apoderadoId, colegio_id]);
+    if (!ap.length) {
+      return res.status(404).json({ error: 'Apoderado no encontrado' });
+    }
+    const result = await execute(
+      'DELETE FROM familias WHERE alumno_id = ? AND apoderado_id = ?',
+      [alumnoId, apoderadoId]
+    );
+    if (!result.affectedRows) {
+      return res.status(404).json({ error: 'No existe vínculo entre este alumno y este apoderado' });
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('DELETE desvincular apoderado-alumno', e);
+    res.status(500).json({ error: e.message || 'Error al desvincular' });
   }
 });
 
@@ -4722,6 +4762,40 @@ router.post('/apoderados/:apoderadoId/vincular-alumno', async (req, res) => {
   } catch (e) {
     console.error('POST vincular-alumno', e);
     res.status(500).json({ error: e.message || 'Error al vincular' });
+  }
+});
+
+/**
+ * DELETE /apoderados/:apoderadoId/alumnos/:alumnoId
+ * Misma operación que DELETE alumnos/.../apoderados (fila en familias).
+ */
+router.delete('/apoderados/:apoderadoId/alumnos/:alumnoId', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const apoderadoId = parseInt(req.params.apoderadoId, 10);
+    const alumnoId = parseInt(req.params.alumnoId, 10);
+    if (!alumnoId || !apoderadoId) {
+      return res.status(400).json({ error: 'IDs inválidos' });
+    }
+    const al = await query('SELECT id FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1', [alumnoId, colegio_id]);
+    if (!al.length) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const ap = await query('SELECT id FROM apoderados WHERE id = ? AND colegio_id = ? LIMIT 1', [apoderadoId, colegio_id]);
+    if (!ap.length) {
+      return res.status(404).json({ error: 'Apoderado no encontrado' });
+    }
+    const result = await execute(
+      'DELETE FROM familias WHERE alumno_id = ? AND apoderado_id = ?',
+      [alumnoId, apoderadoId]
+    );
+    if (!result.affectedRows) {
+      return res.status(404).json({ error: 'No existe vínculo entre este apoderado y este alumno' });
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('DELETE desvincular alumno-apoderado', e);
+    res.status(500).json({ error: e.message || 'Error al desvincular' });
   }
 });
 

@@ -6,7 +6,7 @@ const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
-const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
+const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
 const phpSerialize = require('php-serialize');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
@@ -2815,6 +2815,16 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               if (td === 'APODERADO') urlDest = '/apoderado/mensajes';
               else if (td === 'ALUMNO') urlDest = '/alumno/mensajes';
               try {
+                if (
+                  await notificacionMensajeDuplicadaReciente(query, {
+                    usuario_id,
+                    destinatario_id: row.destinatarioId,
+                    accion_tipo: 'mensaje_nuevo',
+                    contenido: contenidoBell
+                  })
+                ) {
+                  continue;
+                }
                 await insertNotificacionUsuario(execute, {
                   usuario_id,
                   destinatario_id: row.destinatarioId,

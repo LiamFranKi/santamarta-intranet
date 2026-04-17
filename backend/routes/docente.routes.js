@@ -9,7 +9,7 @@ const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { registrarAccion } = require('../utils/auditoria');
 const { uploadToPHPServer } = require('../utils/ftpUpload');
 const { enviarPushNotificationMultiple, enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
-const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
+const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
 const {
   obtenerUrlAulaVirtual,
   obtenerUrlExamenActivado,
@@ -10515,6 +10515,16 @@ router.post('/hijos/:hijoId/mensajes/enviar', uploadMensajes.array('archivos', 1
               if (td === 'APODERADO') urlDest = '/apoderado/mensajes';
               else if (td === 'ALUMNO') urlDest = '/alumno/mensajes';
               try {
+                if (
+                  await notificacionMensajeDuplicadaReciente(query, {
+                    usuario_id: usuarioIdRemitente,
+                    destinatario_id: row.destinatarioId,
+                    accion_tipo: 'mensaje_nuevo',
+                    contenido: contenidoBell
+                  })
+                ) {
+                  continue;
+                }
                 await insertNotificacionUsuario(execute, {
                   usuario_id: usuarioIdRemitente,
                   destinatario_id: row.destinatarioId,
@@ -14220,13 +14230,34 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
     const enviarAValue = String(primerValorMultipart(enviar_a) || 'todos').toLowerCase();
     const enviarATipo = ['apoderados', 'alumnos', 'docentes', 'todos'].includes(enviarAValue) ? enviarAValue : 'todos';
     const alcanceValue = String(primerValorMultipart(alcance) || '').toLowerCase();
-    const alcanceEnvio = alcanceValue === 'todos' ? 'todos' : 'grupos';
     const esConexionManual = primerValorMultipart(modo_conexiones) === 'true' || primerValorMultipart(modo_conexiones) === true;
     const expandApoderadosRoles = expand_apoderados_roles === 'true' || expand_apoderados_roles === true;
 
-    // Parsear destinatarios y grupos si vienen como string JSON
-    const destinatariosArray = typeof destinatarios === 'string' ? JSON.parse(destinatarios) : destinatarios;
-    const gruposArray = typeof grupos === 'string' ? JSON.parse(grupos) : grupos;
+    let destinatariosArray = [];
+    try {
+      const d = typeof destinatarios === 'string' ? JSON.parse(destinatarios || '[]') : destinatarios;
+      destinatariosArray = Array.isArray(d) ? d : [];
+    } catch {
+      destinatariosArray = [];
+    }
+    let gruposArray = [];
+    try {
+      const g = typeof grupos === 'string' ? JSON.parse(grupos || '[]') : grupos;
+      gruposArray = Array.isArray(g) ? g : [];
+    } catch {
+      gruposArray = [];
+    }
+    gruposArray = gruposArray
+      .map((x) => parseInt(x, 10))
+      .filter((n) => !isNaN(n) && n > 0);
+    destinatariosArray = destinatariosArray
+      .map((x) => parseInt(x, 10))
+      .filter((n) => !isNaN(n) && n > 0);
+
+    let alcanceEnvio = alcanceValue === 'todos' ? 'todos' : 'grupos';
+    if (gruposArray.length > 0) {
+      alcanceEnvio = 'grupos';
+    }
 
     const envioGlobalTodos = alcanceEnvio === 'todos';
     if (!envioGlobalTodos && (!destinatariosArray || destinatariosArray.length === 0) && (!gruposArray || gruposArray.length === 0)) {
@@ -14714,6 +14745,16 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                 urlDest = esConexionEnvio ? '/admin/conexiones' : '/admin/mensajes';
               }
               try {
+                if (
+                  await notificacionMensajeDuplicadaReciente(query, {
+                    usuario_id,
+                    destinatario_id: row.destinatarioId,
+                    accion_tipo: accionTipoBell,
+                    contenido: contenidoBell
+                  })
+                ) {
+                  continue;
+                }
                 await insertNotificacionUsuario(execute, {
                   usuario_id,
                   destinatario_id: row.destinatarioId,
@@ -14820,58 +14861,6 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           }
         } catch (emailErr) {
           console.warn('❌ [MENSAJES] Error enviando correos:', emailErr.message);
-        }
-
-        // Si se envió a grupos (Conexiones Familiares): notificar a apoderados (BD + push)
-        if (gruposArray && gruposArray.length > 0) {
-          try {
-            const apoderadosGrupo = await query(
-              `SELECT DISTINCT u.id as usuario_id, ap.email
-               FROM grupos g
-               INNER JOIN matriculas m ON m.grupo_id = g.id AND (m.estado = 0 OR m.estado = 4)
-               INNER JOIN alumnos a ON a.id = m.alumno_id
-               INNER JOIN familias f ON f.alumno_id = a.id
-               INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
-               INNER JOIN usuarios u ON u.apoderado_id = ap.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'
-               WHERE g.id IN (${gruposArray.map(() => '?').join(',')})`,
-              [colegio_id, colegio_id, ...gruposArray]
-            );
-            const apoderadosList = apoderadosGrupo || [];
-            const apoderadosUnicos = [];
-            const vistos = new Set();
-            for (const ap of apoderadosList) {
-              if (vistos.has(ap.usuario_id)) continue;
-              vistos.add(ap.usuario_id);
-              apoderadosUnicos.push(ap);
-            }
-            if (apoderadosUnicos.length > 0) {
-              const apoderadoUsuarioIds = apoderadosUnicos.map(a => a.usuario_id);
-              const subsApod = await query(
-                `SELECT endpoint, p256dh, auth FROM push_subscriptions
-                 WHERE usuario_id IN (${apoderadoUsuarioIds.map(() => '?').join(',')})
-                   AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
-                [...apoderadoUsuarioIds, colegio_id]
-              );
-              const subsApodList = (subsApod || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
-              if (subsApodList.length > 0) {
-                const bodyPush = refGrupoNotif
-                  ? `${refGrupoNotif.substring(0, 55)}${refGrupoNotif.length > 55 ? '…' : ''} — ${(asuntoEnviar || '').substring(0, 50)}`
-                  : (asuntoEnviar || 'Nuevo mensaje al grupo').substring(0, 72);
-                enviarPushNotificationMultiple(subsApodList, {
-                  title: 'Conexiones familiares',
-                  body: bodyPush,
-                  icon: '/icons/icon-192x192.png',
-                  badge: '/icons/icon-192x192.png',
-                  vibrate: [200, 100, 200],
-                  tag: `mensaje-grupo-${Date.now()}`,
-                  data: { url: '/apoderado/mensajes', tipo: 'mensaje' }
-                }).catch(err => console.error('❌ [MENSAJES] Push apoderados:', err));
-              }
-              console.log(`📧 [MENSAJES] Conexiones Familiares: push extra a ${apoderadosUnicos.length} apoderado(s) (campanita unificada arriba; correo en bloque unificado)`);
-            }
-          } catch (errApod) {
-            console.error('❌ [MENSAJES] Error notificando apoderados:', errApod);
-          }
         }
 
         let mensajeRespuesta = `Mensaje enviado a ${destinatariosUnicos.length} destinatario(s)`;

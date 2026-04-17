@@ -145,6 +145,7 @@ function DocenteConexionesFamiliares() {
       const formData = new FormData();
       formData.append('destinatarios', JSON.stringify([]));
       formData.append('grupos', JSON.stringify([grupo.id]));
+      formData.append('alcance', 'grupos');
       formData.append('asunto', asuntoMensaje.trim());
       formData.append('mensaje', contenidoMensaje);
       formData.append('enviar_a', enviarA);

@@ -2175,6 +2175,37 @@ router.put('/notificaciones/:id/marcar-leido', async (req, res) => {
 });
 
 /**
+ * Clave temporal estable para deduplicar historial Conexiones.
+ * mysql2 suele devolver fecha_hora como Date: String(date).slice(0,19) rompe (corta "Wed Apr 16...").
+ */
+function normalizarFechaHoraClaveHistorial(val) {
+  if (val == null || val === '') return '';
+  if (val instanceof Date && !Number.isNaN(val.getTime())) {
+    const y = val.getFullYear();
+    const mo = String(val.getMonth() + 1).padStart(2, '0');
+    const d = String(val.getDate()).padStart(2, '0');
+    const h = String(val.getHours()).padStart(2, '0');
+    const mi = String(val.getMinutes()).padStart(2, '0');
+    const s = String(val.getSeconds()).padStart(2, '0');
+    return `${y}-${mo}-${d} ${h}:${mi}:${s}`;
+  }
+  const str = String(val).trim().replace('T', ' ');
+  const m = str.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/);
+  if (m) return `${m[1]} ${m[2]}`;
+  const parsed = new Date(str);
+  if (!Number.isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const mo = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    const h = String(parsed.getHours()).padStart(2, '0');
+    const mi = String(parsed.getMinutes()).padStart(2, '0');
+    const sec = String(parsed.getSeconds()).padStart(2, '0');
+    return `${y}-${mo}-${d} ${h}:${mi}:${sec}`;
+  }
+  return str.length > 19 ? str.slice(0, 19) : str;
+}
+
+/**
  * GET /api/admin/conexiones
  * Historial de Conexiones (1 fila por envío), con filtros por personal, grupo y fechas.
  */
@@ -2203,7 +2234,7 @@ router.get('/conexiones', async (req, res) => {
       const rows = await query(
         `SELECT
            ce.id,
-           ce.fecha_hora,
+           DATE_FORMAT(ce.fecha_hora, '%Y-%m-%d %H:%i:%s') as fecha_hora,
            ce.asunto,
            ce.mensaje,
            ce.alcance,
@@ -2297,7 +2328,7 @@ router.get('/conexiones', async (req, res) => {
       const rowsLegacy = await query(
         `SELECT
            mg.id,
-           mg.fecha_hora,
+           DATE_FORMAT(mg.fecha_hora, '%Y-%m-%d %H:%i:%s') as fecha_hora,
            mg.asunto,
            mg.mensaje,
            mg.grupo_id,
@@ -2335,7 +2366,99 @@ router.get('/conexiones', async (req, res) => {
       }
     }
 
-    const conexiones = [...conexionesModernas, ...conexionesLegacy].sort((a, b) => {
+    const normAsuntoConexionKey = (a) =>
+      String(a || '')
+        .replace(/<[^>]*>/g, '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+
+    const claveHistorialConexion = (personalId, fechaHora, asunto, grupoId) => {
+      const ts = normalizarFechaHoraClaveHistorial(fechaHora);
+      const subj = normAsuntoConexionKey(asunto);
+      const pid = parseInt(personalId, 10) || 0;
+      const gid = parseInt(grupoId, 10) || 0;
+      return `${pid}|${ts}|${subj}|${gid}`;
+    };
+
+    /**
+     * Clave para una fila de lista: con grupos → remitente + instante + asunto + ids (legacy TODOS vs modern APODERADOS unifica).
+     * Sin grupos (alcance colegio) → se añade alcance y perfil para no fusionar dos envíos globales distintos.
+     */
+    const claveFilaListaConexiones = (row) => {
+      const ts = normalizarFechaHoraClaveHistorial(row.fecha_hora);
+      const sub = normAsuntoConexionKey(row.asunto);
+      const pid = parseInt(row.personal_id, 10) || 0;
+      const gids = (Array.isArray(row.grupos_ids) ? row.grupos_ids : [])
+        .map((x) => parseInt(x, 10))
+        .filter((n) => !isNaN(n) && n > 0)
+        .sort((a, b) => a - b)
+        .join(',');
+      if (gids) {
+        return `${pid}|${ts}|${sub}|${gids}`;
+      }
+      const perf = String(row.perfil_destino || '').toUpperCase();
+      const alc = String(row.alcance || '').toUpperCase();
+      return `${pid}|${ts}|${sub}||${alc}|${perf}`;
+    };
+
+    const clavesCubiertasPorModerno = new Set();
+    for (const m of conexionesModernas) {
+      for (const gid of m.grupos_ids || []) {
+        const n = parseInt(gid, 10);
+        if (!isNaN(n) && n > 0) {
+          clavesCubiertasPorModerno.add(
+            claveHistorialConexion(m.personal_id, m.fecha_hora, m.asunto, n)
+          );
+        }
+      }
+    }
+
+    const conexionesLegacySinDuplicar = (conexionesLegacy || []).filter((L) => {
+      if (!clavesCubiertasPorModerno.size) return true;
+      const gid = Array.isArray(L.grupos_ids) ? L.grupos_ids[0] : null;
+      if (gid == null) return true;
+      const key = claveHistorialConexion(L.personal_id, L.fecha_hora, L.asunto, gid);
+      return !clavesCubiertasPorModerno.has(key);
+    });
+
+    const conexionesOrdenadas = [...conexionesModernas, ...conexionesLegacySinDuplicar].sort((a, b) => {
+      const da = new Date(a.fecha_hora || 0).getTime();
+      const db = new Date(b.fecha_hora || 0).getTime();
+      if (db !== da) return db - da;
+      return (b.id || 0) - (a.id || 0);
+    });
+
+    const perfilMasEspecifico = (a, b) => {
+      const ta = String(a?.perfil_destino || 'TODOS').toUpperCase();
+      const tb = String(b?.perfil_destino || 'TODOS').toUpperCase();
+      if (ta === 'TODOS' && tb !== 'TODOS') return b;
+      if (tb === 'TODOS' && ta !== 'TODOS') return a;
+      return (parseInt(b.id, 10) || 0) > (parseInt(a.id, 10) || 0) ? b : a;
+    };
+
+    const unicosPorClaveLista = new Map();
+    for (const row of conexionesOrdenadas) {
+      const k = claveFilaListaConexiones(row);
+      const prev = unicosPorClaveLista.get(k);
+      if (!prev) {
+        unicosPorClaveLista.set(k, row);
+        continue;
+      }
+      let mejor = prev;
+      if (prev.source === 'mensajes_grupos' && row.source === 'conexiones_envios') {
+        mejor = row;
+      } else if (row.source === 'mensajes_grupos' && prev.source === 'conexiones_envios') {
+        mejor = prev;
+      } else if (prev.source === 'conexiones_envios' && row.source === 'conexiones_envios') {
+        mejor = perfilMasEspecifico(prev, row);
+      } else if (prev.source === 'mensajes_grupos' && row.source === 'mensajes_grupos') {
+        mejor = (parseInt(row.id, 10) || 0) > (parseInt(prev.id, 10) || 0) ? row : prev;
+      }
+      unicosPorClaveLista.set(k, mejor);
+    }
+
+    const conexiones = Array.from(unicosPorClaveLista.values()).sort((a, b) => {
       const da = new Date(a.fecha_hora || 0).getTime();
       const db = new Date(b.fecha_hora || 0).getTime();
       if (db !== da) return db - da;

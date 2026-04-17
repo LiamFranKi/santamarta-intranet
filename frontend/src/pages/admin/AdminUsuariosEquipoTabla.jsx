@@ -70,6 +70,11 @@ export default function AdminUsuariosEquipoTabla() {
   const [fotoCreatePreview, setFotoCreatePreview] = useState('');
   const [fotoEditFile, setFotoEditFile] = useState(null);
   const [fotoEditPreview, setFotoEditPreview] = useState('');
+  const [modalVincAlumnoEquipo, setModalVincAlumnoEquipo] = useState(false);
+  const [vincEqAlDni, setVincEqAlDni] = useState('');
+  const [vincEqAlPreview, setVincEqAlPreview] = useState(null);
+  const [vincEqAlBuscando, setVincEqAlBuscando] = useState(false);
+  const [vincEqAlGuardando, setVincEqAlGuardando] = useState(false);
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -298,6 +303,105 @@ export default function AdminUsuariosEquipoTabla() {
       setModalInfo(data);
     } catch (e) {
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar la información' });
+    }
+  };
+
+  const refrescarInfoEquipoModal = async () => {
+    if (!modalInfo?.id) return;
+    try {
+      const { data } = await api.get(`/admin/usuarios/equipo/${modalInfo.id}`);
+      setModalInfo(data);
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo actualizar la información' });
+    }
+  };
+
+  const abrirModalVincAlumnoEquipo = () => {
+    if (!modalInfo?.apoderado_id_para_familias) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Sin ficha de apoderado',
+        text: 'Registre primero a esta persona con el mismo DNI en el menú Apoderados para poder vincular hijos en familias.',
+      });
+      return;
+    }
+    setVincEqAlDni('');
+    setVincEqAlPreview(null);
+    setModalVincAlumnoEquipo(true);
+  };
+
+  const buscarAlumnoPorDniEquipo = async () => {
+    const dni = String(vincEqAlDni || '').trim();
+    if (!dni) {
+      Swal.fire({ icon: 'info', title: 'Ingrese el DNI' });
+      return;
+    }
+    setVincEqAlBuscando(true);
+    setVincEqAlPreview(null);
+    try {
+      const { data } = await api.get('/admin/usuarios/alumnos/por-dni', { params: { dni } });
+      if (!data.encontrado) {
+        Swal.fire({
+          icon: 'info',
+          title: 'No encontrado',
+          text: 'No hay alumno registrado con ese DNI en este colegio.',
+        });
+        return;
+      }
+      const ya = (modalInfo.hijos_como_alumnos || []).some((h) => String(h.nro_documento || '').trim() === dni);
+      if (ya) {
+        Swal.fire({ icon: 'info', title: 'Ya vinculado', text: 'Ese alumno ya figura como hijo vinculado.' });
+        return;
+      }
+      setVincEqAlPreview(data.alumno);
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error al buscar' });
+    } finally {
+      setVincEqAlBuscando(false);
+    }
+  };
+
+  const guardarVinculoAlumnoEquipo = async () => {
+    if (!modalInfo?.apoderado_id_para_familias || !vincEqAlPreview) return;
+    setVincEqAlGuardando(true);
+    try {
+      await api.post(`/admin/usuarios/apoderados/${modalInfo.apoderado_id_para_familias}/vincular-alumno`, {
+        nro_documento: String(vincEqAlPreview.nro_documento || '').trim(),
+      });
+      Swal.fire({ icon: 'success', title: 'Alumno vinculado' });
+      setModalVincAlumnoEquipo(false);
+      await refrescarInfoEquipoModal();
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo guardar el vínculo' });
+    } finally {
+      setVincEqAlGuardando(false);
+    }
+  };
+
+  const desvincularHijoEquipo = async (h) => {
+    if (!modalInfo?.apoderado_id_para_familias || !h?.alumno_id) return;
+    const n = nombreAlumnoDesdeHijo(h);
+    const ultimo = (modalInfo.hijos_como_alumnos || []).length <= 1;
+    const ok = await Swal.fire({
+      icon: 'warning',
+      title: '¿Quitar vínculo?',
+      html: ultimo
+        ? `<p>Se quitará a <strong>${n}</strong> como hijo vinculado. <strong>No quedará ningún alumno</strong> en familias con la ficha de apoderado de este DNI.</p>`
+        : `<p>Se quitará el vínculo en familias entre la ficha de apoderado (mismo DNI que este personal) y el alumno <strong>${n}</strong>. No se elimina la ficha del alumno.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(
+        `/admin/usuarios/apoderados/${modalInfo.apoderado_id_para_familias}/alumnos/${h.alumno_id}`
+      );
+      Swal.fire({ icon: 'success', title: 'Vínculo quitado' });
+      await refrescarInfoEquipoModal();
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo quitar el vínculo' });
     }
   };
 
@@ -1068,16 +1172,42 @@ export default function AdminUsuariosEquipoTabla() {
                   )}
                 </div>
 
-                {(modalInfo.hijos_como_alumnos || []).length > 0 && (
-                  <div className="admin-usu-profile-section">
+                <div className="admin-usu-profile-section">
+                  <div className="admin-usu-section-head">
                     <h3>Hijos en el colegio</h3>
-                    <p className="admin-usu-hint" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
-                      Alumnos vinculados en familias con la misma ficha de apoderado que el DNI de este personal.
-                    </p>
+                    <button
+                      type="button"
+                      className="admin-usu-btn admin-usu-btn-secondary admin-usu-btn-compact"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        abrirModalVincAlumnoEquipo();
+                      }}
+                    >
+                      + Vincular alumno
+                    </button>
+                  </div>
+                  <p className="admin-usu-hint" style={{ marginTop: 0, marginBottom: '0.75rem' }}>
+                    Misma lógica que en Apoderados: ficha de apoderado con el DNI de este personal en familias.
+                    {!modalInfo.apoderado_id_para_familias && ' Aún no hay ficha de apoderado con ese DNI: créela en el menú Apoderados para habilitar vínculos.'}
+                  </p>
+                  {(modalInfo.hijos_como_alumnos || []).length === 0 ? (
+                    <span className="admin-usu-info-value">Sin alumnos vinculados en familias</span>
+                  ) : (
                     <div className="admin-usu-familia-lista">
                       {(modalInfo.hijos_como_alumnos || []).map((h) => (
                         <div key={h.alumno_id} className="admin-usu-familia-card">
-                          <div className="admin-usu-familia-card-title">{nombreAlumnoDesdeHijo(h)}</div>
+                          <div className="admin-usu-familia-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <span>{nombreAlumnoDesdeHijo(h)}</span>
+                            {modalInfo.apoderado_id_para_familias ? (
+                              <button
+                                type="button"
+                                className="admin-usu-btn admin-usu-btn-danger admin-usu-btn-compact"
+                                onClick={() => desvincularHijoEquipo(h)}
+                              >
+                                Quitar vínculo
+                              </button>
+                            ) : null}
+                          </div>
                           <div className="admin-usu-info-grid admin-usu-info-grid--compact">
                             <div className="admin-usu-info-item">
                               <span className="admin-usu-info-label">DNI</span>
@@ -1101,8 +1231,8 @@ export default function AdminUsuariosEquipoTabla() {
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
 
                 {(modalInfo.otros_apoderados_hijos || []).length > 0 && (
                   <div className="admin-usu-profile-section">
@@ -1150,6 +1280,85 @@ export default function AdminUsuariosEquipoTabla() {
               </div>
               <div className="admin-usu-modal-actions">
                 <button type="button" className="admin-usu-btn admin-usu-btn-secondary" onClick={() => setModalInfo(null)}>Cerrar</button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {modalVincAlumnoEquipo && createPortal(
+        <div
+          className="admin-usu-modal-overlay"
+          onClick={() => {
+            if (!vincEqAlGuardando) setModalVincAlumnoEquipo(false);
+          }}
+        >
+          <div className="admin-usu-modal admin-usu-modal--sub" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-usu-modal-header">
+              <h2>Vincular alumno (familias)</h2>
+              <button
+                type="button"
+                className="admin-usu-modal-close"
+                onClick={() => !vincEqAlGuardando && setModalVincAlumnoEquipo(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <div className="admin-usu-modal-body">
+              <p className="admin-usu-hint">Ingrese el DNI de un alumno ya registrado en el colegio.</p>
+              <div className="admin-usu-field">
+                <label>DNI</label>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    value={vincEqAlDni}
+                    onChange={(e) => setVincEqAlDni(e.target.value)}
+                    placeholder="Número de documento"
+                    style={{ flex: 1, minWidth: 140 }}
+                  />
+                  <button
+                    type="button"
+                    className="admin-usu-btn admin-usu-btn-search"
+                    onClick={buscarAlumnoPorDniEquipo}
+                    disabled={vincEqAlBuscando}
+                  >
+                    {vincEqAlBuscando ? 'Buscando…' : 'Buscar'}
+                  </button>
+                </div>
+              </div>
+              {vincEqAlPreview && (
+                <div className="admin-usu-profile-section" style={{ marginTop: '1rem' }}>
+                  <div className="admin-usu-info-grid">
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">Nombre</span>
+                      <span className="admin-usu-info-value">
+                        {[vincEqAlPreview.apellido_paterno, vincEqAlPreview.apellido_materno, vincEqAlPreview.nombres].filter(Boolean).join(' ') || '—'}
+                      </span>
+                    </div>
+                    <div className="admin-usu-info-item">
+                      <span className="admin-usu-info-label">DNI</span>
+                      <span className="admin-usu-info-value">{vincEqAlPreview.nro_documento || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="admin-usu-modal-actions">
+                <button
+                  type="button"
+                  className="admin-usu-btn admin-usu-btn-secondary"
+                  onClick={() => !vincEqAlGuardando && setModalVincAlumnoEquipo(false)}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="admin-usu-btn admin-usu-btn-primary"
+                  onClick={guardarVinculoAlumnoEquipo}
+                  disabled={vincEqAlGuardando || !vincEqAlPreview}
+                >
+                  {vincEqAlGuardando ? 'Guardando…' : 'Guardar vínculo'}
+                </button>
               </div>
             </div>
           </div>

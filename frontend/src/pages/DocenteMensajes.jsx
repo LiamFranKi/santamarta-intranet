@@ -661,6 +661,9 @@ function DocenteMensajes() {
       const formData = new FormData();
       formData.append('destinatarios', JSON.stringify(usuarios));
       formData.append('grupos', JSON.stringify(grupos));
+      if (grupos.length > 0) {
+        formData.append('alcance', 'grupos');
+      }
       formData.append('asunto', asunto.trim());
       const cuerpo =
         mensajeDesdeCumpleanos ? MARCA_CUMPLEANOS_HTML + (contenido || '') : contenido;

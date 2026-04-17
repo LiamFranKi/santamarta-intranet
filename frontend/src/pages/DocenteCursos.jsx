@@ -3536,6 +3536,7 @@ function DocenteCursos() {
       const formData = new FormData();
       formData.append('destinatarios', JSON.stringify([])); // Sin destinatarios directos
       formData.append('grupos', JSON.stringify([grupoId])); // Enviar al grupo
+      formData.append('alcance', 'grupos');
       formData.append('asunto', asuntoMensaje.trim());
       formData.append('mensaje', contenidoMensaje);
 

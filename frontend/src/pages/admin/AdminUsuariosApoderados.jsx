@@ -539,6 +539,31 @@ export default function AdminUsuariosApoderados() {
     }
   };
 
+  const desvincularAlumnoDeApoderado = async (h) => {
+    if (!modalInfo?.id || !h?.alumno_id) return;
+    const nombre = [h.apellido_paterno, h.apellido_materno, h.nombres].filter(Boolean).join(' ').trim() || 'este alumno';
+    const ultimo = (modalInfo.hijos || []).length <= 1;
+    const ok = await Swal.fire({
+      icon: 'warning',
+      title: '¿Quitar alumno a cargo?',
+      text: ultimo
+        ? `Se quitará el vínculo en familias con ${nombre}. Este apoderado quedará sin hijos vinculados.`
+        : `Se quitará el vínculo en familias con ${nombre}. La ficha del alumno no se elimina.`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, quitar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/admin/usuarios/apoderados/${modalInfo.id}/alumnos/${h.alumno_id}`);
+      Swal.fire({ icon: 'success', title: 'Vínculo quitado' });
+      await refrescarDetalleApoderadoModal();
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo quitar el vínculo' });
+    }
+  };
+
   const eliminarApoderado = async (row) => {
     const ok = await Swal.fire({
       title: '¿Eliminar apoderado?',
@@ -1072,11 +1097,20 @@ export default function AdminUsuariosApoderados() {
                       <div className="admin-usu-related-list">
                         {(modalInfo.hijos || []).map((h) => (
                           <div key={h.alumno_id} className="admin-usu-related-card">
-                            <div className="admin-usu-info-item">
-                              <span className="admin-usu-info-label">Alumno</span>
-                              <span className="admin-usu-info-value">
-                                {[h.apellido_paterno, h.apellido_materno, h.nombres].filter(Boolean).join(' ') || '—'}
-                              </span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.35rem' }}>
+                              <div className="admin-usu-info-item" style={{ flex: 1, minWidth: 0 }}>
+                                <span className="admin-usu-info-label">Alumno</span>
+                                <span className="admin-usu-info-value">
+                                  {[h.apellido_paterno, h.apellido_materno, h.nombres].filter(Boolean).join(' ') || '—'}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                className="admin-usu-btn admin-usu-btn-danger admin-usu-btn-compact"
+                                onClick={() => desvincularAlumnoDeApoderado(h)}
+                              >
+                                Quitar vínculo
+                              </button>
                             </div>
                             <div className="admin-usu-info-item">
                               <span className="admin-usu-info-label">DNI</span>

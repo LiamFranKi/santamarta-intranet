@@ -43,4 +43,34 @@ async function insertNotificacionUsuario(execute, params) {
   );
 }
 
-module.exports = { insertNotificacionUsuario };
+/**
+ * Evita notificaciones duplicadas por doble envío (mismo remitente, destinatario, tipo y texto en ventana corta).
+ */
+async function notificacionMensajeDuplicadaReciente(query, params) {
+  const {
+    usuario_id,
+    destinatario_id,
+    accion_tipo,
+    contenido,
+    ventanaSegundos = 25
+  } = params || {};
+  if (
+    !query ||
+    usuario_id == null ||
+    destinatario_id == null ||
+    !accion_tipo ||
+    contenido == null
+  ) {
+    return false;
+  }
+  const rows = await query(
+    `SELECT id FROM notificaciones
+     WHERE usuario_id = ? AND destinatario_id = ? AND accion_tipo = ? AND contenido = ?
+       AND fecha_hora >= DATE_SUB(NOW(), INTERVAL ? SECOND)
+     LIMIT 1`,
+    [usuario_id, destinatario_id, accion_tipo, String(contenido), ventanaSegundos]
+  );
+  return Array.isArray(rows) && rows.length > 0;
+}
+
+module.exports = { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente };
