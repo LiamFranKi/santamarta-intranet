@@ -96,68 +96,86 @@ export default function DashboardLayout({ children }) {
     console.log('✅ [DASHBOARD LAYOUT] Componente montado, user:', user?.tipo);
   }, [user]);
 
-  // Cargar roles adicionales y asignaciones si es docente
+  // Docente: roles + asignaciones + supervisión. Admin/Promotoría con personal_id: solo roles-adicionales (apoderado/tutor vía DNI).
   useEffect(() => {
-    const cargarDatosDocente = async () => {
-      if (user?.tipo === 'DOCENTE') {
-        try {
-          setCargandoAsignaciones(true);
-          
-          // Cargar roles adicionales
-          const responseRoles = await api.get('/docente/roles-adicionales');
-          setRolesAdicionales({
-            es_apoderado: responseRoles.data.es_apoderado || false,
-            es_tutor: responseRoles.data.es_tutor || false
-          });
+    let cancelled = false;
 
-          // Cargar información de asignaciones (grupos y cursos)
-          const responseAsignaciones = await api.get('/docente/tiene-asignaciones');
-          setTieneAsignaciones({
-            tiene_grupos: responseAsignaciones.data.tiene_grupos || false,
-            tiene_cursos: responseAsignaciones.data.tiene_cursos || false
-          });
-
-          try {
-            const sup = await api.get('/supervision/yo');
-            setEsSupervisorSupervision(
-              !!(sup.data?.is_supervisor || sup.data?.is_admin)
-            );
-          } catch {
-            setEsSupervisorSupervision(false);
-          }
-        } catch (error) {
-          console.error('Error cargando datos del docente:', error);
-          // En caso de error, mantener valores por defecto (ocultar menús)
-          setTieneAsignaciones({
-            tiene_grupos: false,
-            tiene_cursos: false
-          });
-          setEsSupervisorSupervision(false);
-        } finally {
-          setCargandoAsignaciones(false);
-        }
-      } else {
-        // Si no es docente, resetear estados
-        setTieneAsignaciones({
-          tiene_grupos: false,
-          tiene_cursos: false
-        });
-        setEsSupervisorSupervision(false);
-        setCargandoAsignaciones(false);
+    const cargarRolesAdicionalesSolo = async () => {
+      if (!user?.personal_id) {
+        setRolesAdicionales({ es_apoderado: false, es_tutor: false });
+        return;
       }
+      try {
+        const responseRoles = await api.get('/docente/roles-adicionales');
+        if (cancelled) return;
+        setRolesAdicionales({
+          es_apoderado: responseRoles.data.es_apoderado || false,
+          es_tutor: responseRoles.data.es_tutor || false
+        });
+      } catch {
+        if (!cancelled) {
+          setRolesAdicionales({ es_apoderado: false, es_tutor: false });
+        }
+      }
+    };
+
+    const cargarDatosDocente = async () => {
+      if (user?.tipo !== 'DOCENTE') return;
+      try {
+        setCargandoAsignaciones(true);
+
+        const responseRoles = await api.get('/docente/roles-adicionales');
+        if (cancelled) return;
+        setRolesAdicionales({
+          es_apoderado: responseRoles.data.es_apoderado || false,
+          es_tutor: responseRoles.data.es_tutor || false
+        });
+
+        const responseAsignaciones = await api.get('/docente/tiene-asignaciones');
+        if (cancelled) return;
+        setTieneAsignaciones({
+          tiene_grupos: responseAsignaciones.data.tiene_grupos || false,
+          tiene_cursos: responseAsignaciones.data.tiene_cursos || false
+        });
+
+        try {
+          const sup = await api.get('/supervision/yo');
+          if (!cancelled) {
+            setEsSupervisorSupervision(!!(sup.data?.is_supervisor || sup.data?.is_admin));
+          }
+        } catch {
+          if (!cancelled) setEsSupervisorSupervision(false);
+        }
+      } catch (error) {
+        console.error('Error cargando datos del docente:', error);
+        if (!cancelled) {
+          setTieneAsignaciones({ tiene_grupos: false, tiene_cursos: false });
+          setEsSupervisorSupervision(false);
+        }
+      } finally {
+        if (!cancelled) setCargandoAsignaciones(false);
+      }
+    };
+
+    const resetNoDocenteAcademico = () => {
+      setTieneAsignaciones({ tiene_grupos: false, tiene_cursos: false });
+      setEsSupervisorSupervision(false);
+      setCargandoAsignaciones(false);
     };
 
     if (user?.tipo === 'DOCENTE') {
       cargarDatosDocente();
+    } else if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') {
+      resetNoDocenteAcademico();
+      cargarRolesAdicionalesSolo();
     } else {
-      // Resetear si no es docente
-      setTieneAsignaciones({
-        tiene_grupos: false,
-        tiene_cursos: false
-      });
-      setEsSupervisorSupervision(false);
-      setCargandoAsignaciones(false);
+      setRolesAdicionales({ es_apoderado: false, es_tutor: false });
+      resetNoDocenteAcademico();
     }
+
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   // Toggle submenu; en móvil hacer scroll al submenú expandido para que no quede tapado
@@ -641,6 +659,31 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              {rolesAdicionales.es_apoderado && (
+                <>
+                  <div className="sidebar-section-divider"></div>
+                  <div
+                    className="sidebar-section-label"
+                    style={{
+                      fontSize: '0.75rem',
+                      color: '#9ca3af',
+                      fontWeight: '600',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      padding: '1rem 1.5rem 0.5rem 1.5rem',
+                      marginTop: '0.5rem'
+                    }}
+                  >
+                    Como Apoderado
+                  </div>
+                  <div className="sidebar-item">
+                    <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/hijos">
+                      <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
+                      <span className="sidebar-label">Hijos a Cargo</span>
+                    </NavLink>
+                  </div>
+                </>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/mensajes">
                   <span className="sidebar-icon">✉️</span>
@@ -884,6 +927,31 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              {rolesAdicionales.es_apoderado && (
+                <>
+                  <div className="sidebar-section-divider"></div>
+                  <div
+                    className="sidebar-section-label"
+                    style={{
+                      fontSize: '0.75rem',
+                      color: '#9ca3af',
+                      fontWeight: '600',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px',
+                      padding: '1rem 1.5rem 0.5rem 1.5rem',
+                      marginTop: '0.5rem'
+                    }}
+                  >
+                    Como Apoderado
+                  </div>
+                  <div className="sidebar-item">
+                    <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/hijos">
+                      <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
+                      <span className="sidebar-label">Hijos a Cargo</span>
+                    </NavLink>
+                  </div>
+                </>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/vanguarcito">
                   <span className="sidebar-icon">🤖</span>
