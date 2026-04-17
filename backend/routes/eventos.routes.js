@@ -246,7 +246,17 @@ publicRouter.post('/:token/visitante', async (req, res) => {
     const { token } = req.params;
     const { alumno_id, nombre_completo, telefono, correo, parentesco } = req.body || {};
     const nombre = String(nombre_completo || '').trim();
-    if (!token || !nombre) return res.status(400).json({ error: 'Nombre completo es obligatorio' });
+    const tel = String(telefono || '').trim();
+    const mail = String(correo || '').trim();
+    const par = String(parentesco || '').trim();
+    if (!token) return res.status(400).json({ error: 'Token inválido' });
+    if (!nombre) return res.status(400).json({ error: 'El nombre completo es obligatorio' });
+    if (!tel) return res.status(400).json({ error: 'El teléfono es obligatorio' });
+    if (!mail) return res.status(400).json({ error: 'El correo es obligatorio' });
+    if (!par) return res.status(400).json({ error: 'El parentesco es obligatorio' });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+      return res.status(400).json({ error: 'Ingresa un correo electrónico válido' });
+    }
 
     const ev = await query(
       `SELECT e.id, e.estado FROM eventos_institucionales e WHERE e.token_publico = ? LIMIT 1`,
@@ -277,9 +287,9 @@ publicRouter.post('/:token/visitante', async (req, res) => {
         ev[0].id,
         alumnoIdNull,
         nombre,
-        telefono ? String(telefono).trim() : null,
-        correo ? String(correo).trim() : null,
-        parentesco ? String(parentesco).trim() : null,
+        tel,
+        mail,
+        par,
         fechaHoraMySQLLima()
       ]
     );

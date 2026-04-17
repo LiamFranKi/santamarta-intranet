@@ -169,8 +169,15 @@ export default function EventoPublicoAsistencia() {
   const enviarVisitante = async (e) => {
     e.preventDefault();
     const nombre = String(visitante.nombre_completo || '').trim();
-    if (!nombre) {
-      setError('Indica tu nombre completo para visitante.');
+    const tel = String(visitante.telefono || '').trim();
+    const mail = String(visitante.correo || '').trim();
+    const par = String(visitante.parentesco || '').trim();
+    if (!nombre || !tel || !mail || !par) {
+      setError('Completa todos los campos del visitante (nombre, teléfono, correo y parentesco).');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) {
+      setError('Ingresa un correo electrónico válido.');
       return;
     }
     setVisitanteSending(true);
@@ -179,9 +186,9 @@ export default function EventoPublicoAsistencia() {
       await api.post(`/public/eventos/${encodeURIComponent(token)}/visitante`, {
         alumno_id: alumnoSel?.id ?? null,
         nombre_completo: nombre,
-        telefono: visitante.telefono || null,
-        correo: visitante.correo || null,
-        parentesco: visitante.parentesco || null
+        telefono: tel,
+        correo: mail,
+        parentesco: par
       });
       setVisitanteOk(true);
     } catch (err) {
@@ -218,7 +225,13 @@ export default function EventoPublicoAsistencia() {
   if (loading) {
     return (
       <div className="evento-publico-root">
-        <div className="evento-loading">Cargando evento…</div>
+        <div className="evento-publico-brand" aria-hidden>
+          Sistema Vanguard Schools
+        </div>
+        <div className="evento-loading evento-loading--with-spinner">
+          <div className="evento-spinner" aria-hidden />
+          <p>Cargando evento…</p>
+        </div>
       </div>
     );
   }
@@ -226,6 +239,7 @@ export default function EventoPublicoAsistencia() {
   if (error && !evento) {
     return (
       <div className="evento-publico-root">
+        <div className="evento-publico-brand">Sistema Vanguard Schools</div>
         <div className="evento-error" role="alert">
           {error}
         </div>
@@ -235,8 +249,9 @@ export default function EventoPublicoAsistencia() {
 
   return (
     <div className="evento-publico-root">
+      <div className="evento-publico-brand">Sistema Vanguard Schools</div>
       <header className="evento-publico-header">
-        <h1>{evento?.titulo || 'Evento'}</h1>
+        <h1 className="evento-publico-event-title">{evento?.titulo || 'Evento'}</h1>
         {(fechaTexto || evento?.lugar || evento?.hora_inicio) && (
           <p className="evento-publico-meta">
             {fechaTexto && <span>{fechaTexto}</span>}
@@ -310,7 +325,10 @@ export default function EventoPublicoAsistencia() {
         <>
           <h2 className="evento-publico-section-title">Elige al estudiante</h2>
           {loadingAlumnos ? (
-            <p className="evento-loading">Cargando alumnos…</p>
+            <div className="evento-loading evento-loading--with-spinner">
+              <div className="evento-spinner" aria-hidden />
+              <p>Cargando estudiantes…</p>
+            </div>
           ) : (
             <div className="evento-publico-grid">
               {alumnos.map((a, i) => {
@@ -345,7 +363,10 @@ export default function EventoPublicoAsistencia() {
         <>
           <h2 className="evento-publico-section-title">¿Quién asiste?</h2>
           {loadingApoderados ? (
-            <p className="evento-loading">Cargando apoderados…</p>
+            <div className="evento-loading evento-loading--with-spinner">
+              <div className="evento-spinner" aria-hidden />
+              <p>Cargando apoderados…</p>
+            </div>
           ) : (
             <>
               <div className="evento-publico-grid">
@@ -391,37 +412,47 @@ export default function EventoPublicoAsistencia() {
 
               <div className="evento-visitante-box">
                 <h3>¿Eres visitante? (sin vínculo en lista)</h3>
+                <p className="evento-visitante-hint">Todos los campos son obligatorios para registrar tu visita.</p>
                 {visitanteOk ? (
                   <p style={{ margin: 0, color: '#1e5c3a', fontWeight: 600 }}>¡Gracias! Tu visita quedó registrada.</p>
                 ) : (
-                  <form onSubmit={enviarVisitante}>
-                    <label>Nombre completo *</label>
+                  <form onSubmit={enviarVisitante} noValidate>
+                    <label htmlFor="vis-nombre">Nombre completo *</label>
                     <input
+                      id="vis-nombre"
+                      required
                       value={visitante.nombre_completo}
                       onChange={(e) => setVisitante((v) => ({ ...v, nombre_completo: e.target.value }))}
                       placeholder="Nombre y apellidos"
                       autoComplete="name"
                     />
-                    <label>Teléfono</label>
+                    <label htmlFor="vis-tel">Teléfono *</label>
                     <input
+                      id="vis-tel"
+                      required
                       value={visitante.telefono}
                       onChange={(e) => setVisitante((v) => ({ ...v, telefono: e.target.value }))}
-                      placeholder="Opcional"
+                      placeholder="Número de contacto"
                       inputMode="tel"
+                      autoComplete="tel"
                     />
-                    <label>Correo</label>
+                    <label htmlFor="vis-mail">Correo electrónico *</label>
                     <input
+                      id="vis-mail"
                       type="email"
+                      required
                       value={visitante.correo}
                       onChange={(e) => setVisitante((v) => ({ ...v, correo: e.target.value }))}
-                      placeholder="Opcional"
+                      placeholder="correo@ejemplo.com"
                       autoComplete="email"
                     />
-                    <label>Parentesco con el estudiante</label>
+                    <label htmlFor="vis-par">Parentesco con el estudiante *</label>
                     <input
+                      id="vis-par"
+                      required
                       value={visitante.parentesco}
                       onChange={(e) => setVisitante((v) => ({ ...v, parentesco: e.target.value }))}
-                      placeholder="Opcional"
+                      placeholder="Ej. tío, abuela, familiar"
                     />
                     <button type="submit" className="evento-visitante-submit" disabled={visitanteSending}>
                       {visitanteSending ? 'Enviando…' : 'Registrar visita'}

@@ -7,17 +7,40 @@
   color: #2d3142;
 }
 
+/* Marca institucional — cabecera principal */
+.evento-publico-brand {
+  text-align: center;
+  font-size: clamp(0.92rem, 3.8vw, 1.12rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fff;
+  background: linear-gradient(135deg, #0d3d66 0%, #1a5a8c 40%, #2d6a9f 100%);
+  margin: -16px -14px 18px -14px;
+  padding: 14px 16px;
+  box-shadow: 0 4px 18px rgba(13, 61, 102, 0.35);
+  border-bottom: 3px solid #f0b429;
+}
+
 .evento-publico-header {
   text-align: center;
   margin-bottom: 20px;
 }
 
-.evento-publico-header h1 {
-  font-size: 1.35rem;
-  font-weight: 700;
-  margin: 0 0 8px;
-  line-height: 1.25;
-  color: #3d4158;
+.evento-publico-event-title {
+  font-size: clamp(1.2rem, 4.5vw, 1.55rem);
+  font-weight: 800;
+  margin: 0 0 10px;
+  line-height: 1.22;
+  color: #1e293b;
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 640px) {
+  .evento-publico-event-title {
+    font-size: clamp(1.35rem, 5.2vw, 1.65rem);
+    font-weight: 800;
+  }
 }
 
 .evento-publico-meta {
@@ -129,29 +152,45 @@
 }
 
 .evento-yo-asisti {
-  margin-top: 10px;
+  margin-top: 12px;
   width: 100%;
-  padding: 14px 18px;
-  border: none;
+  padding: 16px 20px;
+  border: 2px solid #0a2f5c;
   border-radius: 14px;
-  font-size: 1.05rem;
-  font-weight: 700;
+  font-size: 1.08rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
   cursor: pointer;
-  background: linear-gradient(135deg, #7c8cff 0%, #9b7bff 100%);
   color: #fff;
-  box-shadow: 0 6px 20px rgba(124, 140, 255, 0.45);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  background: linear-gradient(180deg, #0d47a1 0%, #1565c0 45%, #1976d2 100%);
+  box-shadow:
+    0 6px 0 #0a2f5c,
+    0 10px 28px rgba(13, 71, 161, 0.55);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
 }
 
 .evento-yo-asisti:hover:not(:disabled) {
-  transform: scale(1.02);
-  box-shadow: 0 8px 26px rgba(124, 140, 255, 0.5);
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow:
+    0 7px 0 #0a2f5c,
+    0 14px 32px rgba(13, 71, 161, 0.6);
+}
+
+.evento-yo-asisti:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow:
+    0 3px 0 #0a2f5c,
+    0 6px 16px rgba(13, 71, 161, 0.45);
 }
 
 .evento-yo-asisti:disabled {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
   transform: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-color: #90a4ae;
+  background: linear-gradient(180deg, #78909c 0%, #90a4ae 100%);
 }
 
 .evento-visitante-box {
@@ -163,8 +202,15 @@
 }
 
 .evento-visitante-box h3 {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   font-size: 1rem;
+}
+
+.evento-visitante-hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0 0 12px;
+  line-height: 1.35;
 }
 
 .evento-visitante-box label {
@@ -361,4 +407,34 @@
   text-align: center;
   padding: 40px 16px;
   color: #5c6378;
+}
+
+.evento-loading--with-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 28px 16px 36px;
+}
+
+.evento-loading--with-spinner p {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.evento-spinner {
+  width: 44px;
+  height: 44px;
+  border: 4px solid rgba(74, 131, 193, 0.2);
+  border-top-color: #1565c0;
+  border-radius: 50%;
+  animation: evento-spin 0.75s linear infinite;
+}
+
+@keyframes evento-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
