@@ -46,6 +46,19 @@ function labelGrupo(g) {
   return [g.nivel_nombre, g.curso_nombre, g.grado ? `${g.grado}°` : '', sec].filter(Boolean).join(' · ');
 }
 
+/** Orden alfabético por apellidos y nombres (es-PE), útil si la API devuelve otro orden. */
+function sortAlumnosByApellido(list) {
+  return [...list].sort((a, b) => {
+    const cmp = (fa, fb) =>
+      String(fa ?? '').localeCompare(String(fb ?? ''), 'es', { sensitivity: 'base' });
+    let x = cmp(a.apellido_paterno, b.apellido_paterno);
+    if (x !== 0) return x;
+    x = cmp(a.apellido_materno, b.apellido_materno);
+    if (x !== 0) return x;
+    return cmp(a.nombres, b.nombres);
+  });
+}
+
 /**
  * Registro público de asistencia a evento institucional (QR / token). Sin login.
  */
@@ -140,7 +153,12 @@ export default function EventoPublicoAsistencia() {
   };
 
   const onYoAsisti = async () => {
-    if (!apoderadoSel || !alumnoSel || !token) return;
+    if (!alumnoSel || !token) return;
+    if (!apoderadoSel) {
+      setError('Debe presionar el nombre del Apoderado');
+      return;
+    }
+    if (apoderadoSel.ya_asistio) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -221,6 +239,8 @@ export default function EventoPublicoAsistencia() {
       return evento.fecha_evento;
     }
   }, [evento]);
+
+  const alumnosOrdenados = useMemo(() => sortAlumnosByApellido(alumnos), [alumnos]);
 
   if (loading) {
     return (
@@ -331,7 +351,7 @@ export default function EventoPublicoAsistencia() {
             </div>
           ) : (
             <div className="evento-publico-grid">
-              {alumnos.map((a, i) => {
+              {alumnosOrdenados.map((a, i) => {
                 const nombre = nombreCompletoPersona(a);
                 const url = buildFotoUrl(a.foto);
                 return (
@@ -384,7 +404,10 @@ export default function EventoPublicoAsistencia() {
                         outline: selected ? '3px solid rgba(124, 140, 255, 0.85)' : 'none'
                       }}
                       disabled={ap.ya_asistio}
-                      onClick={() => setApoderadoSel(ap)}
+                      onClick={() => {
+                        setError(null);
+                        setApoderadoSel(ap);
+                      }}
                     >
                       {url ? (
                         <img className="evento-pastel-card-avatar" src={url} alt="" />
@@ -404,7 +427,7 @@ export default function EventoPublicoAsistencia() {
               <button
                 type="button"
                 className="evento-yo-asisti"
-                disabled={!apoderadoSel || apoderadoSel.ya_asistio || submitting}
+                disabled={(apoderadoSel && apoderadoSel.ya_asistio) || submitting}
                 onClick={onYoAsisti}
               >
                 {submitting ? 'Registrando…' : 'Yo asistí'}
