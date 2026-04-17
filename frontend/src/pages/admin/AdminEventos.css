@@ -455,7 +455,7 @@
 }
 
 .admin-evento-asis-body {
-  padding: 0 1.5rem 1.25rem;
+  padding: 1.35rem 1.5rem 1.35rem;
   max-height: min(72vh, 620px);
   overflow-y: auto;
 }
@@ -465,10 +465,11 @@
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 1px solid #e2e8f0;
+  gap: 0.85rem;
+  margin-top: 0.15rem;
+  margin-bottom: 1.15rem;
+  padding: 0.85rem 0 1rem;
+  border-bottom: 1px solid rgba(74, 131, 193, 0.2);
 }
 
 .admin-evento-asis-meta {
@@ -488,20 +489,22 @@
 }
 
 .admin-evento-asis-btn-pdf {
-  padding: 0.5rem 1rem;
-  border-radius: 10px;
+  padding: 0.55rem 1.1rem;
+  border-radius: 12px;
   border: none;
-  background: linear-gradient(135deg, #475569, #334155);
+  background: linear-gradient(135deg, #4a83c1 0%, #3d6fa8 55%, #5c8fd4 100%);
   color: #fff;
   font-weight: 700;
   font-size: 0.85rem;
   cursor: pointer;
   font-family: inherit;
   white-space: nowrap;
+  box-shadow: 0 2px 10px rgba(74, 131, 193, 0.35);
 }
 
 .admin-evento-asis-btn-pdf:hover {
-  filter: brightness(1.06);
+  filter: brightness(1.05);
+  box-shadow: 0 4px 14px rgba(74, 131, 193, 0.4);
 }
 
 .admin-evento-asis-group {
@@ -510,10 +513,14 @@
 
 .admin-evento-asis-group-title {
   margin: 0 0 0.5rem;
+  padding: 0.35rem 0.65rem;
   font-size: 0.98rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #0f2942;
   letter-spacing: -0.02em;
+  background: linear-gradient(90deg, rgba(74, 131, 193, 0.14) 0%, rgba(143, 174, 232, 0.12) 100%);
+  border-radius: 10px;
+  border-left: 4px solid #4a83c1;
 }
 
 .admin-evento-asis-total {
@@ -543,8 +550,8 @@
 }
 
 .admin-evento-asis-table-wrap--rounded {
-  border: 1px solid #dbeafe;
-  background: #fafbff;
+  border: 1px solid rgba(74, 131, 193, 0.22);
+  background: linear-gradient(180deg, #fbfdff 0%, #f5f9ff 100%);
 }
 
 .admin-evento-asis-table {
@@ -561,18 +568,20 @@
 }
 
 .admin-evento-asis-table th {
-  background: linear-gradient(180deg, #e8eef5 0%, #dce4ee 100%);
+  background: linear-gradient(135deg, #4a83c1 0%, #6b93d6 50%, #8faee8 100%);
   font-weight: 600;
-  color: #334155;
+  color: #fff;
   white-space: nowrap;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 .admin-evento-asis-table--striped tbody tr:nth-child(odd) td {
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.95);
 }
 
 .admin-evento-asis-table--striped tbody tr:nth-child(even) td {
-  background: rgba(226, 237, 255, 0.55);
+  background: rgba(219, 234, 254, 0.45);
 }
 
 .admin-evento-asis-table tbody td {

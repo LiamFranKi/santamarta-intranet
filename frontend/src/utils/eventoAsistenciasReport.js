@@ -163,30 +163,33 @@ export function exportEventoAsistenciasPdf({
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
   doc.text(`Asistencias — ${titulo || 'Evento'}`, margin, y);
-  y += 6;
+  y += 9;
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   if (fechaEventoTexto) {
     doc.text(fechaEventoTexto, margin, y);
-    y += 5;
+    y += 5.5;
   }
   doc.setTextColor(80, 80, 80);
   doc.text(generadoTexto || '', margin, y);
   doc.setTextColor(0, 0, 0);
-  y += 7;
+  y += 10;
 
   const colX = [margin, margin + 12, margin + 62, margin + 128, margin + 178, margin + 228];
   const maxW = [10, 48, 62, 46, 48, pageW - margin - colX[5]];
   const lh = 3.1;
 
   const drawHeader = () => {
+    const bandH = 6;
     doc.setFontSize(7.5);
     doc.setFont('helvetica', 'bold');
-    doc.setFillColor(241, 245, 249);
-    doc.rect(margin, y - 4, pageW - 2 * margin, 6, 'F');
+    doc.setFillColor(74, 131, 193);
+    doc.rect(margin, y - 4, pageW - 2 * margin, bandH, 'F');
+    doc.setTextColor(255, 255, 255);
     const heads = ['#', 'Alumno', 'Apoderado / asistente', 'Teléfono', 'Correo', 'Parentesco'];
-    heads.forEach((h, i) => doc.text(h, colX[i], y));
-    y += 5;
+    heads.forEach((ht, i) => doc.text(ht, colX[i], y));
+    doc.setTextColor(0, 0, 0);
+    y += 5.5;
     doc.setFont('helvetica', 'normal');
   };
 
@@ -195,11 +198,15 @@ export function exportEventoAsistenciasPdf({
   for (const g of report.groups) {
     if (!g.rows.length) continue;
 
+    if (y + 20 > pageH - margin) newPage();
+    doc.setFillColor(219, 234, 254);
+    doc.rect(margin, y - 3.5, pageW - 2 * margin, 6.5, 'F');
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
-    if (y + 16 > pageH - margin) newPage();
-    doc.text(g.label, margin, y);
-    y += 5;
+    doc.setTextColor(15, 41, 66);
+    doc.text(g.label, margin + 2, y + 0.5);
+    doc.setTextColor(0, 0, 0);
+    y += 7;
     drawHeader();
 
     doc.setFontSize(7.5);
@@ -219,10 +226,14 @@ export function exportEventoAsistenciasPdf({
 
       if (y + rowH > pageH - margin) {
         newPage();
+        doc.setFillColor(219, 234, 254);
+        doc.rect(margin, y - 3.5, pageW - 2 * margin, 6.5, 'F');
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.text(`${g.label} (continuación)`, margin, y);
-        y += 5;
+        doc.setTextColor(15, 41, 66);
+        doc.text(`${g.label} (continuación)`, margin + 2, y + 0.5);
+        doc.setTextColor(0, 0, 0);
+        y += 7;
         drawHeader();
         doc.setFontSize(7.5);
         doc.setFont('helvetica', 'normal');
@@ -243,10 +254,14 @@ export function exportEventoAsistenciasPdf({
     y += 4;
   }
 
-  if (y + 10 > pageH - margin) newPage();
+  if (y + 12 > pageH - margin) newPage();
+  doc.setFillColor(239, 246, 255);
+  doc.rect(margin, y - 3, pageW - 2 * margin, 9, 'F');
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Total de participantes: ${report.total}`, margin, y);
+  doc.setTextColor(30, 27, 75);
+  doc.text(`Total de participantes: ${report.total}`, margin + 2, y + 3.5);
+  doc.setTextColor(0, 0, 0);
 
   doc.save(`asistencias-${safeFileName(titulo)}.pdf`);
 }

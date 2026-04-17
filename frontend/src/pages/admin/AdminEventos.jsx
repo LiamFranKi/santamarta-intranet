@@ -5,6 +5,7 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { QRCodeSVG } from 'qrcode.react';
 import { buildEventoAsistenciasReport, exportEventoAsistenciasPdf } from '../../utils/eventoAsistenciasReport';
+import { formatFechaCortaCardEsPe, formatFechaLargaEsPe } from '../../utils/fechaSoloDia';
 import './AdminEventos.css';
 
 const PASTEL_CARD_BGS = [
@@ -29,28 +30,11 @@ function formatHoraEvento(h) {
 }
 
 function formatFechaCard(d) {
-  if (!d) return '';
-  try {
-    const x = typeof d === 'string' ? d.slice(0, 10) : d;
-    return new Date(x).toLocaleDateString('es-PE', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-  } catch {
-    return String(d).slice(0, 10);
-  }
+  return formatFechaCortaCardEsPe(d);
 }
 
 function formatFechaEventoLarga(d) {
-  if (!d) return '';
-  try {
-    const x = typeof d === 'string' ? d.slice(0, 10) : d;
-    return new Date(x).toLocaleDateString('es-PE', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
-  } catch {
-    return String(d).slice(0, 10);
-  }
+  return formatFechaLargaEsPe(d);
 }
 
 export default function AdminEventos() {

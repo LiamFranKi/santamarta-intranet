@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import { fotoUsuarioAdmin } from '../utils/adminUsuariosFoto';
+import { formatFechaLargaEsPe } from '../utils/fechaSoloDia';
 import './EventoPublicoAsistencia.css';
 
 const PASTEL_BACKGROUNDS = [
@@ -232,12 +233,8 @@ export default function EventoPublicoAsistencia() {
 
   const fechaTexto = useMemo(() => {
     if (!evento?.fecha_evento) return null;
-    try {
-      const d = new Date(evento.fecha_evento);
-      return d.toLocaleDateString('es-PE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    } catch {
-      return evento.fecha_evento;
-    }
+    const t = formatFechaLargaEsPe(evento.fecha_evento);
+    return t || evento.fecha_evento;
   }, [evento]);
 
   const alumnosOrdenados = useMemo(() => sortAlumnosByApellido(alumnos), [alumnos]);
