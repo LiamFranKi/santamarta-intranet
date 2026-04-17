@@ -167,7 +167,10 @@ router.post('/login', async (req, res) => {
       apellido_materno: apellido_materno || null,
       foto: fotoUrl, // URL completa en lugar de solo el nombre
       foto_nombre: fotoNombre || null, // Nombre del archivo para referencia
-      colegio: colegioData
+      colegio: colegioData,
+      personal_id: usuarioDB.personal_id ?? null,
+      alumno_id: usuarioDB.alumno_id ?? null,
+      apoderado_id: usuarioDB.apoderado_id ?? null
     };
 
     // Registrar login exitoso en auditoría
@@ -316,7 +319,10 @@ router.get('/me', authenticateToken, async (req, res) => {
       apellido_materno: apellido_materno || null,
       foto: fotoUrl, // URL completa en lugar de solo el nombre
       foto_nombre: fotoNombre || null, // Nombre del archivo para referencia
-      colegio: colegioData
+      colegio: colegioData,
+      personal_id: usuarioDB.personal_id ?? null,
+      alumno_id: usuarioDB.alumno_id ?? null,
+      apoderado_id: usuarioDB.apoderado_id ?? null
     };
 
     res.json({ user: userData });

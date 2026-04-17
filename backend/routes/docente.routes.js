@@ -8338,7 +8338,18 @@ router.post('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
 router.get('/roles-adicionales', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user;
-    const personalId = req.user.personal_id;
+    let personalId = req.user.personal_id;
+
+    // Si el JWT viejo no traía personal_id pero el usuario ya tiene vínculo en BD (común en admin/docente)
+    if (!personalId && req.user.usuario_id) {
+      const urow = await query(
+        `SELECT personal_id FROM usuarios WHERE id = ? AND colegio_id = ? LIMIT 1`,
+        [req.user.usuario_id, colegio_id]
+      );
+      if (urow.length && urow[0].personal_id) {
+        personalId = urow[0].personal_id;
+      }
+    }
 
     if (!personalId) {
       return res.status(404).json({ error: 'Docente no encontrado' });

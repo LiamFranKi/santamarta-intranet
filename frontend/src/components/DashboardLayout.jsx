@@ -100,11 +100,8 @@ export default function DashboardLayout({ children }) {
   useEffect(() => {
     let cancelled = false;
 
+    /** No usar user.personal_id del frontend: login/me no lo enviaban hasta reciente; el JWT sí lleva personal_id y la API lo resuelve. */
     const cargarRolesAdicionalesSolo = async () => {
-      if (!user?.personal_id) {
-        setRolesAdicionales({ es_apoderado: false, es_tutor: false });
-        return;
-      }
       try {
         const responseRoles = await api.get('/docente/roles-adicionales');
         if (cancelled) return;
