@@ -18,6 +18,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { resolveColegioIdAdmin } = require('../utils/resolveColegioAdmin');
 const { ensureGrupoConn, insertCostoPersonalizado } = require('../utils/matriculaGrupoCosto');
 const { DEFAULT_SEDE_ID } = require('../utils/defaultColegio');
+const { fechaMySQLLima } = require('../utils/fechaHoraLima');
 const { ensurePagosPendientesMatriculaConn, resolverPersonalIdPago } = require('../utils/pagoPendienteInsert');
 
 /** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
@@ -446,7 +447,7 @@ function isSqlSchemaMismatchError(e) {
  * @param {import('mysql2/promise').PoolConnection} [conn] Si se pasa, usa la misma conexión (transacción).
  */
 async function syncImpresionesAlAnularPago(pagoId, conn = null) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = fechaMySQLLima();
   const run = conn
     ? (sql, params) => conn.execute(sql, params)
     : (sql, params) => execute(sql, params);
@@ -873,7 +874,7 @@ async function ensureRcDataForImpresion(impresionId) {
   if (estado !== 'ANULADO') return null;
   let fecha = formatDateYyyyMmDd(imp.fecha_anulado);
   if (!fecha || fecha === '0000-00-00') {
-    fecha = formatDateYyyyMmDd(new Date()) || new Date().toISOString().slice(0, 10);
+    fecha = formatDateYyyyMmDd(new Date()) || fechaMySQLLima();
     await execute(`UPDATE impresiones SET fecha_anulado = ? WHERE id = ?`, [fecha, impresionId]);
   }
   let numeroAnulado = Number(imp.numero_anulado || 0);
@@ -1250,7 +1251,7 @@ async function parseAdminPagoRegistroBody(body, reqUser, colegio_id) {
     if (estado_pago === 'CANCELADO') {
       let fc = String(b.fecha_cancelado || '').trim();
       if (!fc) {
-        fc = new Date().toISOString().slice(0, 10);
+        fc = fechaMySQLLima();
       } else {
         fc = fc.slice(0, 10);
       }
@@ -1808,7 +1809,7 @@ router.get('/equipo/:personalId', async (req, res) => {
 
 /** Valores por defecto para columnas obligatorias de `personal` (compat. legado PHP). */
 function defaultsNuevoPersonal(colegioId, body) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = fechaMySQLLima();
   return {
     colegio_id: colegioId,
     sexo: 0,
@@ -2545,7 +2546,7 @@ router.post('/alumnos', uploadUsuarioFoto.single('foto'), async (req, res) => {
 
     const email = String(req.body.email || '').trim();
     const foto = req.file?.filename || ALUMNO_DEFAULTS.foto;
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaMySQLLima();
 
     await execute(
       `INSERT INTO alumnos (
@@ -3357,7 +3358,7 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/impresiones', asy
     const impresiones = (impRows || []).map((r) => {
       const fechaStr =
         r.fecha_impresion instanceof Date && !Number.isNaN(r.fecha_impresion.getTime())
-          ? r.fecha_impresion.toISOString().slice(0, 10)
+          ? fechaMySQLLima(r.fecha_impresion)
           : r.fecha_impresion != null
             ? String(r.fecha_impresion).slice(0, 10)
             : '';
@@ -3760,7 +3761,7 @@ router.post('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId/anular', async (
     }
     const est = String(rows[0].estado || '').toUpperCase();
     const nextEst = est === 'ACTIVO' ? 'ANULADO' : 'ACTIVO';
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaMySQLLima();
 
     const conn = await mysqlReadPool.getConnection();
     try {

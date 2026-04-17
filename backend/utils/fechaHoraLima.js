@@ -14,7 +14,25 @@ function fechaHoraMySQLLima(date) {
   return moment().tz(ZONA_LIMA).format('YYYY-MM-DD HH:mm:ss');
 }
 
+/** Solo fecha calendario Lima → `YYYY-MM-DD` (auditoría, filtros “hoy”, etc.). */
+function fechaMySQLLima(date) {
+  if (date != null && date !== undefined) {
+    return moment(date).tz(ZONA_LIMA).format('YYYY-MM-DD');
+  }
+  return moment().tz(ZONA_LIMA).format('YYYY-MM-DD');
+}
+
+/** Solo hora en Lima → `HH:mm:ss`. */
+function horaMySQLLima(date) {
+  if (date != null && date !== undefined) {
+    return moment(date).tz(ZONA_LIMA).format('HH:mm:ss');
+  }
+  return moment().tz(ZONA_LIMA).format('HH:mm:ss');
+}
+
 module.exports = {
   fechaHoraMySQLLima,
+  fechaMySQLLima,
+  horaMySQLLima,
   ZONA_LIMA
 };

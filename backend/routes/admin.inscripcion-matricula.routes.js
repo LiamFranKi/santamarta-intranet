@@ -9,6 +9,7 @@ const { query, execute, mysqlReadPool } = require('../utils/mysql');
 const { ensureGrupoConn, insertCostoPersonalizado } = require('../utils/matriculaGrupoCosto');
 const { authenticateToken } = require('../middleware/auth');
 const { DEFAULT_COLEGIO_ID, DEFAULT_SEDE_ID } = require('../utils/defaultColegio');
+const { fechaMySQLLima } = require('../utils/fechaHoraLima');
 
 function sha1Password(plain) {
   return crypto.createHash('sha1').update(String(plain), 'utf8').digest('hex');
@@ -193,7 +194,7 @@ router.post('/inscripcion-matricula', async (req, res) => {
     if (Number.isNaN(sexoAl)) sexoAl = ALUMNO_DEFAULTS.sexo;
     const domicilioAl = String(alumnoIn.domicilio || '').trim();
     const fechaInscripcion = String(alumnoIn.fecha_inscripcion || '').slice(0, 10);
-    const hoy = new Date().toISOString().slice(0, 10);
+    const hoy = fechaMySQLLima();
     const fechaIns = /^\d{4}-\d{2}-\d{2}$/.test(fechaInscripcion) ? fechaInscripcion : hoy;
 
     const ub = b.ubicacion_grupo || b.ubicacion || {};
@@ -669,7 +670,7 @@ router.post('/alumnos/:alumnoId/inscripcion-matricula', async (req, res) => {
 
   const costoModo = String(b.costo_modo || 'personalizado').toLowerCase() === 'tarifario' ? 'tarifario' : 'personalizado';
   const estadoMat = parseInt(b.estado_matricula, 10);
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = fechaMySQLLima();
   const fr = String(b.fecha_registro || hoy).slice(0, 10);
   const modalidad = String(b.modalidad || 'PRESENCIAL').trim().slice(0, 80) || 'PRESENCIAL';
   const registrarLineaPagoMatricula = !!b.registrar_linea_pago_matricula;

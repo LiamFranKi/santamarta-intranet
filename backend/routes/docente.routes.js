@@ -20,7 +20,7 @@ const {
 const { enviarCorreoNotificacion } = require('../services/emailService');
 const mensajesConfig = require('../config/mensajes.json');
 const moment = require('moment-timezone');
-const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
+const { fechaHoraMySQLLima, fechaMySQLLima, horaMySQLLima } = require('../utils/fechaHoraLima');
 const {
   obtenerContextoAlumnoGrupoParaMensaje,
   enriquecerMensajeApoderadoADocente
@@ -2787,7 +2787,7 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/estrellas', async (req, res) => 
     const matriculaId = matricula[0].id;
 
     // Crear registro de estrellas
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const now = fechaHoraMySQLLima();
     const result = await execute(
       `INSERT INTO enrollment_incidents 
        (enrollment_id, assignment_id, worker_id, type, points, description, created_at, updated_at)
@@ -3076,7 +3076,7 @@ router.post('/cursos/:cursoId/alumnos/:alumnoId/incidencias', async (req, res) =
     const matriculaId = matricula[0].id;
 
     // Crear registro de incidencia (type = 1, points = 0)
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const now = fechaHoraMySQLLima();
     const result = await execute(
       `INSERT INTO enrollment_incidents 
        (enrollment_id, assignment_id, worker_id, type, points, description, created_at, updated_at)
@@ -5104,12 +5104,13 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
         if (tema.length > 0) {
           const resultadoTema = await execute(
             `INSERT INTO asignaturas_archivos (asignatura_id, trabajador_id, nombre, archivo, fecha_hora, ciclo, orden)
-             VALUES (?, ?, ?, ?, NOW(), ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
               asignatura_destino_id,
               tema[0].trabajador_id,
               tema[0].nombre,
               tema[0].archivo,
+              fechaHoraMySQLLima(),
               tema[0].ciclo,
               tema[0].orden
             ]
@@ -5133,10 +5134,11 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
         if (tarea.length > 0) {
           const resultado = await execute(
             `INSERT INTO asignaturas_tareas (titulo, descripcion, fecha_hora, fecha_entrega, trabajador_id, asignatura_id, ciclo)
-             VALUES (?, ?, NOW(), ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
               tarea[0].titulo,
               tarea[0].descripcion,
+              fechaHoraMySQLLima(),
               tarea[0].fecha_entrega,
               tarea[0].trabajador_id,
               asignatura_destino_id,
@@ -5332,13 +5334,14 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
         if (video.length > 0) {
           await execute(
             `INSERT INTO asignaturas_videos (asignatura_id, trabajador_id, descripcion, enlace, ciclo, fecha_hora)
-             VALUES (?, ?, ?, ?, ?, NOW())`,
+             VALUES (?, ?, ?, ?, ?, ?)`,
             [
               asignatura_destino_id,
               video[0].trabajador_id,
               video[0].descripcion,
               video[0].enlace,
-              video[0].ciclo
+              video[0].ciclo,
+              fechaHoraMySQLLima()
             ]
           );
           copiados.videos++;
@@ -5357,13 +5360,14 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
         if (enlace.length > 0) {
           await execute(
             `INSERT INTO asignaturas_enlaces (asignatura_id, trabajador_id, descripcion, enlace, ciclo, fecha_hora)
-             VALUES (?, ?, ?, ?, ?, NOW())`,
+             VALUES (?, ?, ?, ?, ?, ?)`,
             [
               asignatura_destino_id,
               enlace[0].trabajador_id,
               enlace[0].descripcion,
               enlace[0].enlace,
-              enlace[0].ciclo
+              enlace[0].ciclo,
+              fechaHoraMySQLLima()
             ]
           );
           copiados.enlaces++;
@@ -7556,7 +7560,7 @@ router.post('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req
     }
 
     const matriculaId = matricula[0].id;
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const now = fechaHoraMySQLLima();
     const result = await execute(
       `INSERT INTO enrollment_incidents 
        (enrollment_id, assignment_id, worker_id, type, points, description, created_at, updated_at)
@@ -7714,7 +7718,7 @@ router.post('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas', async (req, 
 
     const matriculaId = matricula[0].id;
     const pts = parseInt(points, 10);
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const now = fechaHoraMySQLLima();
     const result = await execute(
       `INSERT INTO enrollment_incidents 
        (enrollment_id, assignment_id, worker_id, type, points, description, created_at, updated_at)
@@ -9927,7 +9931,7 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
               ...pago,
               tipo_descripcion: tipoDescripcion,
               total: parseFloat(pago.monto) + montoMoraFinal,
-              fecha_vencimiento: fechaVencimiento ? fechaVencimiento.toISOString().split('T')[0] : null,
+              fecha_vencimiento: fechaVencimiento ? moment(fechaVencimiento).tz('America/Lima').format('YYYY-MM-DD') : null,
               fecha_vencimiento_formateada: fechaVencimientoFormateada,
               hubo_mora: huboMora,
               dias_mora: diasMora,
@@ -12969,7 +12973,7 @@ router.post('/comunicados', uploadComunicado.single('archivo'), async (req, res)
     }
 
     const tipoComunicado = tipo || (archivoPath ? 'ARCHIVO' : 'TEXTO');
-    const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const fechaHora = fechaHoraMySQLLima();
 
     const estadoComunicado = (estado === 'INACTIVO') ? 'INACTIVO' : 'ACTIVO';
 
@@ -16434,7 +16438,7 @@ router.post('/aula-virtual/sesiones', uploadAulaVirtual.single('archivo'), async
 
     const titulo = `SESION - ${tema[0].nombre}`;
     const archivoPath = req.file.filename;
-    const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const fechaHora = fechaHoraMySQLLima();
 
     await execute(
       `INSERT INTO asignaturas_sesion_pdf (asignatura_id, tema_id, titulo, descripcion, archivo, ciclo, trabajador_id, fecha_hora, colegio_id)
@@ -16570,9 +16574,10 @@ router.post('/aula-virtual/tareas', uploadAulaVirtual.single('archivo'), async (
 
     // Registrar auditoría ANTES de crear
     const ahora = new Date();
-    const fecha = ahora.toISOString().split('T')[0];
-    const hora = ahora.toTimeString().split(' ')[0];
-    
+    const fecha = fechaMySQLLima(ahora);
+    const hora = horaMySQLLima(ahora);
+    const fechaHoraAud = fechaHoraMySQLLima(ahora);
+
     const auditoriaResult = await execute(
       `INSERT INTO auditoria_logs (
         usuario_id, colegio_id, tipo_usuario, accion, modulo, entidad, entidad_id,
@@ -16598,14 +16603,14 @@ router.post('/aula-virtual/tareas', uploadAulaVirtual.single('archivo'), async (
         'EXITOSO',
         null,
         null,
-        ahora,
+        fechaHoraAud,
         fecha,
         hora,
       ]
     );
 
     // Insertar la nueva tarea
-    const fechaHora = ahora.toISOString().slice(0, 19).replace('T', ' ');
+    const fechaHora = fechaHoraMySQLLima(ahora);
     const result = await execute(
       `INSERT INTO asignaturas_tareas 
        (titulo, descripcion, fecha_hora, fecha_entrega, trabajador_id, asignatura_id, entregas, visto, archivos, ciclo, enlace)
@@ -17704,7 +17709,7 @@ router.get('/aula-virtual/examenes', async (req, res) => {
           } else if (examen.fecha_desde instanceof Date) {
             // Verificar que la fecha sea válida antes de convertir
             if (!isNaN(examen.fecha_desde.getTime())) {
-              fechaDesdeStr = examen.fecha_desde.toISOString().split('T')[0];
+              fechaDesdeStr = moment(examen.fecha_desde).tz('America/Lima').format('YYYY-MM-DD');
             }
             // Si la fecha es inválida, simplemente no procesar este examen (fechaDesdeStr queda vacío)
           } else {
@@ -17755,7 +17760,7 @@ router.get('/aula-virtual/examenes', async (req, res) => {
             } else if (examen.fecha_hasta instanceof Date) {
               // Verificar que la fecha sea válida antes de convertir
               if (!isNaN(examen.fecha_hasta.getTime())) {
-                fechaHastaStr = examen.fecha_hasta.toISOString().split('T')[0];
+                fechaHastaStr = moment(examen.fecha_hasta).tz('America/Lima').format('YYYY-MM-DD');
               }
               // Si la fecha es inválida, simplemente no procesar (fechaHastaStr queda vacío)
             } else {
@@ -18015,9 +18020,10 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
     // Registrar acción en auditoría ANTES de crear el examen
     // Usaremos null para entidad_id temporalmente y lo actualizaremos después
     const ahora = new Date();
-    const fecha = ahora.toISOString().split('T')[0];
-    const hora = ahora.toTimeString().split(' ')[0];
-    
+    const fecha = fechaMySQLLima(ahora);
+    const hora = horaMySQLLima(ahora);
+    const fechaHoraAud = fechaHoraMySQLLima(ahora);
+
     const auditoriaResult = await execute(
       `INSERT INTO auditoria_logs (
         usuario_id, colegio_id, tipo_usuario, accion, modulo, entidad, entidad_id,
@@ -18043,7 +18049,7 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
         'EXITOSO',
         null,
         null,
-        ahora,
+        fechaHoraAud,
         fecha,
         hora,
       ]
@@ -18350,7 +18356,7 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
           return valor.split(' ')[0].trim();
         }
         if (valor instanceof Date && !isNaN(valor.getTime())) {
-          return valor.toISOString().split('T')[0];
+          return moment(valor).tz('America/Lima').format('YYYY-MM-DD');
         }
         const texto = String(valor);
         if (texto === '0000-00-00' || texto === '0000-00-00 00:00:00') return '';
@@ -20047,8 +20053,8 @@ router.post('/aula-virtual/copiar-temas-biblioteca', async (req, res) => {
 
       await execute(
         `INSERT INTO asignaturas_archivos (asignatura_id, trabajador_id, nombre, archivo, enlace, fecha_hora, ciclo, orden, visto)
-         VALUES (?, ?, ?, ?, ?, NOW(), ?, ?, ?)`,
-        [asignatura_id, personal_id, t.nombre, t.archivo || '', enlaceVal, t.ciclo, t.orden, t.visto || '']
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [asignatura_id, personal_id, t.nombre, t.archivo || '', enlaceVal, fechaHoraMySQLLima(), t.ciclo, t.orden, t.visto || '']
       );
       copiados++;
     }
@@ -20277,8 +20283,8 @@ router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
         const t = tarea[0];
         const resultado = await execute(
           `INSERT INTO asignaturas_tareas (titulo, descripcion, fecha_hora, fecha_entrega, trabajador_id, asignatura_id, ciclo)
-           VALUES (?, ?, NOW(), ?, ?, ?, ?)`,
-          [t.titulo, t.descripcion || '', t.fecha_entrega || new Date(), personal_id, asignatura_id, t.ciclo]
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [t.titulo, t.descripcion || '', fechaHoraMySQLLima(), t.fecha_entrega || new Date(), personal_id, asignatura_id, t.ciclo]
         );
         const nuevaTareaId = resultado.insertId;
         const archivosTarea = await query(`SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`, [item_id]);
@@ -20363,8 +20369,8 @@ router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
         if (video.length === 0) continue;
         const v = video[0];
         await execute(
-          `INSERT INTO asignaturas_videos (asignatura_id, trabajador_id, descripcion, enlace, ciclo, fecha_hora) VALUES (?, ?, ?, ?, ?, NOW())`,
-          [asignatura_id, personal_id, v.descripcion || '', v.enlace || '', v.ciclo]
+          `INSERT INTO asignaturas_videos (asignatura_id, trabajador_id, descripcion, enlace, ciclo, fecha_hora) VALUES (?, ?, ?, ?, ?, ?)`,
+          [asignatura_id, personal_id, v.descripcion || '', v.enlace || '', v.ciclo, fechaHoraMySQLLima()]
         );
         copiados++;
       }
@@ -20376,8 +20382,8 @@ router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
         if (enlace.length === 0) continue;
         const e = enlace[0];
         await execute(
-          `INSERT INTO asignaturas_enlaces (asignatura_id, trabajador_id, descripcion, enlace, ciclo, fecha_hora) VALUES (?, ?, ?, ?, ?, NOW())`,
-          [asignatura_id, personal_id, e.descripcion || '', e.enlace || '', e.ciclo]
+          `INSERT INTO asignaturas_enlaces (asignatura_id, trabajador_id, descripcion, enlace, ciclo, fecha_hora) VALUES (?, ?, ?, ?, ?, ?)`,
+          [asignatura_id, personal_id, e.descripcion || '', e.enlace || '', e.ciclo, fechaHoraMySQLLima()]
         );
         copiados++;
       }
@@ -20573,9 +20579,10 @@ router.post('/aula-virtual/archivos', uploadAulaVirtual.single('archivo'), async
 
     // Registrar auditoría ANTES de crear
     const ahora = new Date();
-    const fecha = ahora.toISOString().split('T')[0];
-    const hora = ahora.toTimeString().split(' ')[0];
-    
+    const fecha = fechaMySQLLima(ahora);
+    const hora = horaMySQLLima(ahora);
+    const fechaHoraAud = fechaHoraMySQLLima(ahora);
+
     const auditoriaResult = await execute(
       `INSERT INTO auditoria_logs (
         usuario_id, colegio_id, tipo_usuario, accion, modulo, entidad, entidad_id,
@@ -20601,22 +20608,25 @@ router.post('/aula-virtual/archivos', uploadAulaVirtual.single('archivo'), async
         'EXITOSO',
         null,
         null,
-        ahora,
+        fechaHoraAud,
         fecha,
         hora,
       ]
     );
 
+    const fechaHoraTema = fechaHoraMySQLLima(ahora);
+
     // Insertar el nuevo tema
     const result = await execute(
       `INSERT INTO asignaturas_archivos 
        (asignatura_id, trabajador_id, nombre, archivo, visto, fecha_hora, ciclo, enlace, orden)
-       VALUES (?, ?, ?, ?, '', NOW(), ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, '', ?, ?, ?, ?)`,
       [
         asignatura_id,
         personal_id,
         nombre,
         archivoPath,
+        fechaHoraTema,
         ciclo || 1,
         enlaceFinal,
         nuevoOrden
@@ -20972,9 +20982,10 @@ router.post('/aula-virtual/videos', async (req, res) => {
 
     // Registrar auditoría ANTES de crear
     const ahora = new Date();
-    const fecha = ahora.toISOString().split('T')[0];
-    const hora = ahora.toTimeString().split(' ')[0];
-    
+    const fecha = fechaMySQLLima(ahora);
+    const hora = horaMySQLLima(ahora);
+    const fechaHoraAud = fechaHoraMySQLLima(ahora);
+
     const auditoriaResult = await execute(
       `INSERT INTO auditoria_logs (
         usuario_id, colegio_id, tipo_usuario, accion, modulo, entidad, entidad_id,
@@ -21000,17 +21011,19 @@ router.post('/aula-virtual/videos', async (req, res) => {
         'EXITOSO',
         null,
         null,
-        ahora,
+        fechaHoraAud,
         fecha,
         hora,
       ]
     );
 
+    const fechaHoraVideo = fechaHoraMySQLLima(ahora);
+
     // Insertar video
     const result = await execute(
       `INSERT INTO asignaturas_videos (asignatura_id, descripcion, enlace, trabajador_id, fecha_hora, ciclo)
-       VALUES (?, ?, ?, ?, NOW(), ?)`,
-      [asignatura_id, descripcion, enlace, personal_id, ciclo]
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [asignatura_id, descripcion, enlace, personal_id, fechaHoraVideo, ciclo]
     );
 
     // Actualizar auditoría con el ID del video
@@ -21255,9 +21268,10 @@ router.post('/aula-virtual/enlaces', async (req, res) => {
 
     // Registrar auditoría ANTES de crear
     const ahora = new Date();
-    const fecha = ahora.toISOString().split('T')[0];
-    const hora = ahora.toTimeString().split(' ')[0];
-    
+    const fecha = fechaMySQLLima(ahora);
+    const hora = horaMySQLLima(ahora);
+    const fechaHoraAud = fechaHoraMySQLLima(ahora);
+
     const auditoriaResult = await execute(
       `INSERT INTO auditoria_logs (
         usuario_id, colegio_id, tipo_usuario, accion, modulo, entidad, entidad_id,
@@ -21283,17 +21297,19 @@ router.post('/aula-virtual/enlaces', async (req, res) => {
         'EXITOSO',
         null,
         null,
-        ahora,
+        fechaHoraAud,
         fecha,
         hora,
       ]
     );
 
+    const fechaHoraEnlace = fechaHoraMySQLLima(ahora);
+
     // Insertar enlace
     const result = await execute(
       `INSERT INTO asignaturas_enlaces (asignatura_id, descripcion, enlace, trabajador_id, fecha_hora, ciclo)
-       VALUES (?, ?, ?, ?, NOW(), ?)`,
-      [asignatura_id, descripcion, enlace, personal_id, ciclo]
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [asignatura_id, descripcion, enlace, personal_id, fechaHoraEnlace, ciclo]
     );
 
     // Actualizar auditoría con el ID del enlace
@@ -21545,9 +21561,9 @@ router.post('/actividades/importar-calendario', async (req, res) => {
             continue;
           }
 
-          // Formatear fechas para MySQL (YYYY-MM-DD HH:mm:ss)
-          const fechaInicioStr = fechaInicio.toISOString().slice(0, 19).replace('T', ' ');
-          const fechaFinStr = fechaFin.toISOString().slice(0, 19).replace('T', ' ');
+          // Formatear fechas para MySQL (YYYY-MM-DD HH:mm:ss), calendario Lima
+          const fechaInicioStr = fechaHoraMySQLLima(fechaInicio);
+          const fechaFinStr = fechaHoraMySQLLima(fechaFin);
 
           // Verificar si ya existe una actividad similar (evitar duplicados)
           const actividadesExistentes = await query(

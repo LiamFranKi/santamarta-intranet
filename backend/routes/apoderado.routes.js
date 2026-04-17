@@ -13,7 +13,7 @@ const {
   obtenerContextoAlumnoGrupoParaMensaje,
   enriquecerMensajeApoderadoADocente
 } = require('../utils/mensajesHijoDocenteContexto');
-const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
+const { fechaHoraMySQLLima, fechaMySQLLima } = require('../utils/fechaHoraLima');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaVigenteMasReciente, sqlMatriculaIdMasRecientePorAlumno } = require('../utils/matriculaVigente');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
@@ -2170,7 +2170,7 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
               ...pago,
               tipo_descripcion: tipoDescripcion,
               total: parseFloat(pago.monto) + montoMoraFinal,
-              fecha_vencimiento: fechaVencimiento ? fechaVencimiento.toISOString().split('T')[0] : null,
+              fecha_vencimiento: fechaVencimiento ? fechaMySQLLima(fechaVencimiento) : null,
               fecha_vencimiento_formateada: fechaVencimientoFormateada,
               hubo_mora: huboMora,
               dias_mora: diasMora,

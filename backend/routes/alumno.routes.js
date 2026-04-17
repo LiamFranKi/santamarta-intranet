@@ -8,7 +8,7 @@ const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
 const phpSerialize = require('php-serialize');
-const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
+const { fechaHoraMySQLLima, fechaMySQLLima, horaMySQLLima } = require('../utils/fechaHoraLima');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
@@ -1264,7 +1264,7 @@ router.post('/avatares/comprar/:itemId', async (req, res) => {
       });
     }
 
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const now = fechaHoraMySQLLima();
     await execute(
       `INSERT INTO avatar_shop_sales (student_id, item_id, created_at, updated_at) VALUES (?, ?, ?, ?)`,
       [alumnoId, itemId, now, now]
@@ -4302,9 +4302,10 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
     // Registrar en auditoría usando la estructura correcta
     try {
       const ahora = new Date();
-      const fecha = ahora.toISOString().split('T')[0]; // YYYY-MM-DD
-      const hora = ahora.toTimeString().split(' ')[0]; // HH:MM:SS
-      
+      const fecha = fechaMySQLLima(ahora);
+      const hora = horaMySQLLima(ahora);
+      const fechaHoraStr = fechaHoraMySQLLima(ahora);
+
       await execute(
         `INSERT INTO auditoria_logs 
          (usuario_id, colegio_id, tipo_usuario, accion, modulo, entidad, entidad_id,
@@ -4316,7 +4317,7 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
           examenId, 
           `Violación de examen: ${tipo}`, 
           JSON.stringify({ tipo, timestamp }), 
-          ahora, 
+          fechaHoraStr, 
           fecha, 
           hora
         ]
@@ -4752,7 +4753,7 @@ router.post('/aula-virtual/tareas/:tareaId/entregar', async (req, res) => {
     }
 
     // Insertar la entrega
-    const fechaHora = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const fechaHora = fechaHoraMySQLLima();
     await execute(
       `INSERT INTO asignaturas_tareas_entregas 
        (alumno_id, tarea_id, archivo, url, nombre, fecha_hora, tipo, mensaje)

@@ -22,7 +22,10 @@ function faseParaDiasRestantes(daysUntil) {
 }
 
 function fechaVencimientoMoment(fechaRaw) {
-  const s = fechaRaw instanceof Date ? fechaRaw.toISOString().slice(0, 10) : String(fechaRaw || '').slice(0, 10);
+  const s =
+    fechaRaw instanceof Date
+      ? moment(fechaRaw).tz(ZONA).format('YYYY-MM-DD')
+      : String(fechaRaw || '').slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
   return moment.tz(s, 'YYYY-MM-DD', ZONA).startOf('day');
 }

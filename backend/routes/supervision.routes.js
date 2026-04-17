@@ -12,6 +12,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { enviarCorreoNotificacion } = require('../services/emailService');
+const { fechaMySQLLima } = require('../utils/fechaHoraLima');
 
 router.use(authenticateToken);
 
@@ -1135,7 +1136,7 @@ router.post('/evaluaciones', requireAdminOrSupervisor, async (req, res) => {
     if (!instId || !gId || !persId) {
       return res.status(400).json({ error: 'instrumento_id, grupo_id y personal_id_evaluado son requeridos' });
     }
-    const fecha = fecha_evaluacion || new Date().toISOString().slice(0, 10);
+    const fecha = fecha_evaluacion || fechaMySQLLima();
 
     const detalle = await cargarDetalleInstrumento(colegio_id, instId);
     if (!detalle || !detalle.instrumento.activo) {

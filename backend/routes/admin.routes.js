@@ -7,6 +7,7 @@ const crypto = require('crypto');
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 const { registrarAccion } = require('../utils/auditoria');
+const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
 const phpSerialize = require('php-serialize');
 
 const personalStorageAdmin = multer.diskStorage({
@@ -1353,7 +1354,7 @@ router.post('/avatares/bases', uploadAvatar.single('imagen_base'), async (req, r
     if (![0, 1].includes(sx)) return res.status(400).json({ error: 'Sexo: 0=Femenino, 1=Masculino' });
     const imagen_base = (req.file && req.file.filename) ? req.file.filename : (req.body.imagen_base || '');
     const ord = parseInt(orden, 10) || 0;
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const now = fechaHoraMySQLLima();
     await execute(
       `INSERT INTO avatar_bases (bimestre, sexo, nombre, descripcion, historia, imagen_base, orden, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1382,7 +1383,7 @@ router.put('/avatares/bases/:id', uploadAvatar.single('imagen_base'), async (req
     const descripcion_ = descripcion !== undefined ? String(descripcion).trim() : row.descripcion;
     const historia_ = historia !== undefined ? String(historia).trim() : row.historia;
     const ord = orden !== undefined ? parseInt(orden, 10) : row.orden;
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const now = fechaHoraMySQLLima();
     await execute(
       `UPDATE avatar_bases SET bimestre=?, sexo=?, nombre=?, descripcion=?, historia=?, imagen_base=?, orden=?, updated_at=? WHERE id=?`,
       [bim, sx, nombre_, descripcion_, historia_, imagen_base, ord, now, id]
@@ -1438,7 +1439,7 @@ router.post('/avatares/bases/:baseId/accesorios', uploadAvatarDosImagenes, async
     const imagen_combinada = (files.imagen_combinada && files.imagen_combinada[0] && files.imagen_combinada[0].filename) ? files.imagen_combinada[0].filename : (req.body.imagen_combinada || '');
     const puntos = parseInt(puntuacion_requerida, 10) || 0;
     const ord = parseInt(orden, 10) || 0;
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const now = fechaHoraMySQLLima();
     await execute(
       `INSERT INTO avatar_accesorios (avatar_base_id, nombre, descripcion, puntuacion_requerida, imagen_accesorio, imagen_combinada, orden, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1467,7 +1468,7 @@ router.put('/avatares/accesorios/:id', uploadAvatarDosImagenes, async (req, res)
     const descripcion_ = descripcion !== undefined ? String(descripcion).trim() : row.descripcion;
     const puntos = puntuacion_requerida !== undefined ? parseInt(puntuacion_requerida, 10) : row.puntuacion_requerida;
     const ord = orden !== undefined ? parseInt(orden, 10) : row.orden;
-    const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    const now = fechaHoraMySQLLima();
     await execute(
       `UPDATE avatar_accesorios SET nombre=?, descripcion=?, puntuacion_requerida=?, imagen_accesorio=?, imagen_combinada=?, orden=?, updated_at=? WHERE id=?`,
       [nombre_, descripcion_, puntos, imagen_accesorio, imagen_combinada, ord, now, id]

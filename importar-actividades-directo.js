@@ -17,6 +17,7 @@ const envPath = path.join(__dirname, 'backend', '.env');
 require('dotenv').config({ path: envPath });
 
 const { query, execute } = require('./backend/utils/mysql');
+const { fechaHoraMySQLLima } = require('./backend/utils/fechaHoraLima');
 
 async function importarActividadesDirecto() {
   try {
@@ -126,8 +127,8 @@ async function importarActividadesDirecto() {
           }
 
           // Formatear fechas para MySQL (YYYY-MM-DD HH:mm:ss)
-          const fechaInicioStr = fechaInicio.toISOString().slice(0, 19).replace('T', ' ');
-          const fechaFinStr = fechaFin.toISOString().slice(0, 19).replace('T', ' ');
+          const fechaInicioStr = fechaHoraMySQLLima(fechaInicio);
+          const fechaFinStr = fechaHoraMySQLLima(fechaFin);
 
           // Verificar si ya existe una actividad similar (evitar duplicados)
           const actividadesExistentes = await query(

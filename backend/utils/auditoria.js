@@ -1,4 +1,5 @@
 const { query, execute } = require('./mysql');
+const { fechaHoraMySQLLima, fechaMySQLLima, horaMySQLLima } = require('./fechaHoraLima');
 
 /**
  * Registrar una acción en el log de auditoría
@@ -34,8 +35,9 @@ function registrarAccion({
     process.nextTick(async () => {
       try {
         const ahora = new Date();
-        const fecha = ahora.toISOString().split('T')[0]; // YYYY-MM-DD
-        const hora = ahora.toTimeString().split(' ')[0]; // HH:MM:SS
+        const fechaHoraStr = fechaHoraMySQLLima(ahora);
+        const fecha = fechaMySQLLima(ahora);
+        const hora = horaMySQLLima(ahora);
         
         // Convertir datos a JSON string para MySQL
         const datosAnterioresJson = datos_anteriores ? (typeof datos_anteriores === 'string' ? datos_anteriores : JSON.stringify(datos_anteriores)) : null;
@@ -66,7 +68,7 @@ function registrarAccion({
             resultado,
             mensaje_error,
             duracion_ms,
-            ahora,
+            fechaHoraStr,
             fecha,
             hora,
           ]
