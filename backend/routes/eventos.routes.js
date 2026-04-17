@@ -320,7 +320,7 @@ router.get('/', async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const rows = await query(
-      `SELECT id, titulo, fecha_evento, lugar, estado, token_publico, created_at
+      `SELECT id, titulo, fecha_evento, hora_inicio, hora_fin, lugar, estado, token_publico, created_at
        FROM eventos_institucionales
        WHERE colegio_id = ?
        ORDER BY created_at DESC`,
@@ -329,6 +329,66 @@ router.get('/', async (req, res) => {
     res.json({ eventos: rows || [] });
   } catch (e) {
     console.error('[eventos admin list]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/** Detalle de asistencias y visitantes (antes de GET /:id) */
+router.get('/:id/asistencias', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseEventoIdParam(req);
+    if (id == null) return res.status(400).json({ error: 'ID inválido' });
+
+    const ev = await query(
+      `SELECT id, titulo FROM eventos_institucionales WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [id, colegio_id]
+    );
+    if (!ev.length) return res.status(404).json({ error: 'No encontrado' });
+
+    const asistencias = await query(
+      `SELECT
+         ea.id,
+         ea.marcado_en,
+         ea.alumno_id,
+         ea.apoderado_id,
+         al.nombres AS alumno_nombres,
+         al.apellido_paterno AS alumno_apellido_paterno,
+         al.apellido_materno AS alumno_apellido_materno,
+         ap.nombres AS apoderado_nombres,
+         ap.apellido_paterno AS apoderado_apellido_paterno,
+         ap.apellido_materno AS apoderado_apellido_materno,
+         ap.telefono_celular AS apoderado_telefono,
+         ap.email AS apoderado_email
+       FROM eventos_institucionales_asistencias ea
+       INNER JOIN eventos_institucionales e ON e.id = ea.evento_id AND e.colegio_id = ?
+       INNER JOIN alumnos al ON al.id = ea.alumno_id AND al.colegio_id = e.colegio_id
+       INNER JOIN apoderados ap ON ap.id = ea.apoderado_id AND ap.colegio_id = e.colegio_id
+       WHERE ea.evento_id = ?
+       ORDER BY ea.marcado_en DESC`,
+      [colegio_id, id]
+    );
+
+    let visitantes = [];
+    try {
+      visitantes = await query(
+        `SELECT id, alumno_id, nombre_completo, telefono, correo, parentesco, marcado_en
+         FROM eventos_institucionales_visitantes
+         WHERE evento_id = ?
+         ORDER BY marcado_en DESC`,
+        [id]
+      );
+    } catch (vErr) {
+      if (vErr.code !== 'ER_NO_SUCH_TABLE') throw vErr;
+    }
+
+    res.json({
+      evento: { id: ev[0].id, titulo: ev[0].titulo },
+      asistencias: asistencias || [],
+      visitantes: visitantes || []
+    });
+  } catch (e) {
+    console.error('[eventos admin asistencias]', e);
     res.status(500).json({ error: e.message || 'Error' });
   }
 });
