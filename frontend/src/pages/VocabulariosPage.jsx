@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
@@ -293,124 +294,129 @@ export default function VocabulariosPage({ variant = 'admin' }) {
         </section>
       </div>
 
-      {modalOpen && puedeGestionar && (
-        <div
-          className="voc-modal-overlay"
-          role="presentation"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setModalOpen(false);
-          }}
-        >
-          <div className="voc-modal voc-modal--wide" role="dialog" aria-modal="true" aria-labelledby="voc-modal-title">
-            <div className="voc-modal-topbar" aria-hidden />
-            <div className="voc-modal-header" id="voc-modal-title">
-              <div className="voc-modal-title-row">
-                <span className="voc-modal-icon-wrap" aria-hidden>
-                  <PictureAsPdfOutlinedIcon sx={{ fontSize: 26, color: '#2563eb' }} />
-                </span>
-                <div>
-                  <div className="voc-modal-kicker">{editItem ? 'Editar publicación' : 'Nueva publicación'}</div>
-                  <h2 className="voc-modal-h2">{editItem ? 'Editar vocabulario' : 'Subir vocabulario'}</h2>
-                </div>
-              </div>
-            </div>
-
-            <div className="voc-modal-body">
-              <div className="voc-panel">
-                <div className="voc-panel-head">
-                  <GroupsOutlinedIcon sx={{ fontSize: 20, color: '#4a83c1' }} />
+      {modalOpen &&
+        puedeGestionar &&
+        createPortal(
+          <div
+            className="voc-modal-overlay"
+            role="presentation"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setModalOpen(false);
+            }}
+          >
+            <div className="voc-modal voc-modal--wide" role="dialog" aria-modal="true" aria-labelledby="voc-modal-title">
+              <div className="voc-modal-topbar" aria-hidden />
+              <div className="voc-modal-header" id="voc-modal-title">
+                <div className="voc-modal-title-row">
+                  <span className="voc-modal-icon-wrap" aria-hidden>
+                    <PictureAsPdfOutlinedIcon sx={{ fontSize: 26, color: '#2563eb' }} />
+                  </span>
                   <div>
-                    <div className="voc-panel-title">Grupo destino</div>
-                    <p className="voc-panel-desc">Nivel, grado y sección del aula. Solo verán el PDF los alumnos de ese grupo.</p>
+                    <div className="voc-modal-kicker">{editItem ? 'Editar publicación' : 'Nueva publicación'}</div>
+                    <h2 className="voc-modal-h2">{editItem ? 'Editar vocabulario' : 'Subir vocabulario'}</h2>
                   </div>
                 </div>
-                <label className="voc-label-block">
-                  <span className="voc-label-text">Aula / grupo</span>
-                  <select
-                    className="voc-input voc-select"
-                    value={form.grupo_id}
-                    onChange={(e) => setForm((f) => ({ ...f, grupo_id: e.target.value }))}
-                    disabled={opciones.length === 0}
-                  >
-                    {opciones.length === 0 ? (
-                      <option value="">Sin grupos disponibles</option>
-                    ) : (
-                      <>
-                        <option value="">Seleccione nivel — grado — sección…</option>
-                        {opciones.map((o) => (
-                          <option key={o.grupo_id} value={String(o.grupo_id)}>
-                            {opcionLabel(o)}
-                          </option>
-                        ))}
-                      </>
-                    )}
-                  </select>
-                </label>
               </div>
 
-              <div className="voc-modal-grid">
-                <label className="voc-label-block">
-                  <span className="voc-label-text">Nombre del material</span>
-                  <input
-                    className="voc-input"
-                    type="text"
-                    value={form.titulo}
-                    onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
-                    placeholder="Ej. Unidad 3 — Glosario"
-                    maxLength={255}
-                  />
-                </label>
-                <label className="voc-label-block voc-span-2">
-                  <span className="voc-label-text">Descripción (opcional)</span>
-                  <textarea
-                    className="voc-input voc-textarea"
-                    value={form.descripcion}
-                    onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
-                    placeholder="Aparece en la grilla como referencia breve."
-                    maxLength={1000}
-                    rows={3}
-                  />
-                </label>
-              </div>
-
-              <div className="voc-file-panel">
-                <div className="voc-file-panel-head">
-                  <PictureAsPdfOutlinedIcon sx={{ fontSize: 22, color: '#dc2626' }} />
-                  <span className="voc-label-text">Archivo PDF {editItem ? <em className="voc-optional">(reemplazar opcional)</em> : null}</span>
+              <div className="voc-modal-body">
+                <div className="voc-panel">
+                  <div className="voc-panel-head">
+                    <GroupsOutlinedIcon sx={{ fontSize: 20, color: '#4a83c1' }} />
+                    <div>
+                      <div className="voc-panel-title">Grupo destino</div>
+                      <p className="voc-panel-desc">Nivel, grado y sección del aula. Solo verán el PDF los alumnos de ese grupo.</p>
+                    </div>
+                  </div>
+                  <label className="voc-label-block">
+                    <span className="voc-label-text">Aula / grupo</span>
+                    <select
+                      className="voc-input voc-select"
+                      value={form.grupo_id}
+                      onChange={(e) => setForm((f) => ({ ...f, grupo_id: e.target.value }))}
+                      disabled={opciones.length === 0}
+                    >
+                      {opciones.length === 0 ? (
+                        <option value="">Sin grupos disponibles</option>
+                      ) : (
+                        <>
+                          <option value="">Seleccione nivel — grado — sección…</option>
+                          {opciones.map((o) => (
+                            <option key={o.grupo_id} value={String(o.grupo_id)}>
+                              {opcionLabel(o)}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                  </label>
                 </div>
-                <label className="voc-file-drop">
-                  <input
-                    type="file"
-                    accept="application/pdf,.pdf"
-                    className="voc-file-input"
-                    onChange={(e) => setArchivo(e.target.files?.[0] || null)}
-                  />
-                  <div className="voc-file-drop-inner">
-                    <span className="voc-file-drop-title">
-                      {archivo ? archivo.name : 'Elegir archivo PDF o arrastre aquí'}
+
+                <div className="voc-modal-grid">
+                  <label className="voc-label-block">
+                    <span className="voc-label-text">Nombre del material</span>
+                    <input
+                      className="voc-input"
+                      type="text"
+                      value={form.titulo}
+                      onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
+                      placeholder="Ej. Unidad 3 — Glosario"
+                      maxLength={255}
+                    />
+                  </label>
+                  <label className="voc-label-block">
+                    <span className="voc-label-text">Descripción (opcional)</span>
+                    <textarea
+                      className="voc-input voc-textarea"
+                      value={form.descripcion}
+                      onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+                      placeholder="Aparece en la grilla como referencia breve."
+                      maxLength={1000}
+                      rows={3}
+                    />
+                  </label>
+                </div>
+
+                <div className="voc-file-panel">
+                  <div className="voc-file-panel-head">
+                    <PictureAsPdfOutlinedIcon sx={{ fontSize: 22, color: '#dc2626' }} />
+                    <span className="voc-label-text">
+                      Archivo PDF {editItem ? <em className="voc-optional">(reemplazar opcional)</em> : null}
                     </span>
-                    <span className="voc-file-hint">Máximo 25 MB · solo formato PDF</span>
                   </div>
-                </label>
-                {editItem && (
-                  <p className="voc-file-current">
-                    Archivo actual: <strong>{editItem.nombre_archivo_original || '—'}</strong>
-                  </p>
-                )}
+                  <label className="voc-file-drop">
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="voc-file-input"
+                      onChange={(e) => setArchivo(e.target.files?.[0] || null)}
+                    />
+                    <div className="voc-file-drop-inner">
+                      <span className="voc-file-drop-title">
+                        {archivo ? archivo.name : 'Elegir archivo PDF o arrastre aquí'}
+                      </span>
+                      <span className="voc-file-hint">Máximo 25 MB · solo formato PDF</span>
+                    </div>
+                  </label>
+                  {editItem && (
+                    <p className="voc-file-current">
+                      Archivo actual: <strong>{editItem.nombre_archivo_original || '—'}</strong>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="voc-modal-footer">
+                <button type="button" className="voc-btn-cancel" onClick={() => setModalOpen(false)}>
+                  Cancelar
+                </button>
+                <button type="button" className="voc-btn-primary" onClick={guardar}>
+                  Guardar
+                </button>
               </div>
             </div>
-
-            <div className="voc-modal-footer">
-              <button type="button" className="voc-btn-cancel" onClick={() => setModalOpen(false)}>
-                Cancelar
-              </button>
-              <button type="button" className="voc-btn-primary" onClick={guardar}>
-                Guardar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </DashboardLayout>
   );
 }
