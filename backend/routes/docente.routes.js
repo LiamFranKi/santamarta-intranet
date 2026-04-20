@@ -14166,7 +14166,7 @@ router.get('/mensajes/alumno/:alumnoId/apoderados-destinatarios', async (req, re
       try {
         const placeholdersDni = apoderadoDnis.map(() => '?').join(',');
         let sqlQuery = `SELECT DISTINCT u.id as usuario_id,
-          CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellido_paterno,''), ' ', COALESCE(p.apellido_materno,'')) as nombre_completo
+          TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))) as nombre_completo
          FROM usuarios u
          INNER JOIN personal p ON p.id = u.personal_id
          WHERE u.colegio_id = ?
