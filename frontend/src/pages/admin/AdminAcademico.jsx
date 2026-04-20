@@ -167,8 +167,8 @@ function inferCicloFromNombre(nombre) {
 }
 
 /**
- * Opciones numéricas según ciclo y modo (años vs grados).
- * Inicial años: 3–5. Inicial grados: 1–3. Primaria: 1–6. Secundaria: 1–9.
+ * Opciones según ciclo y modo.
+ * Inicial + años: 3–5. Inicial + grados: 1–3. Primaria: 1–6. Secundaria: 1–5 (no 1–9).
  */
 function getOpcionesGradoMinMax(ciclo, modoRango) {
   if (modoRango === 'años') {
@@ -177,7 +177,7 @@ function getOpcionesGradoMinMax(ciclo, modoRango) {
   }
   if (ciclo === 'inicial') return [1, 2, 3];
   if (ciclo === 'primaria') return [1, 2, 3, 4, 5, 6];
-  if (ciclo === 'secundaria') return [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  if (ciclo === 'secundaria') return [1, 2, 3, 4, 5];
   return [];
 }
 
@@ -210,38 +210,42 @@ function NivelModalFormBody({
           {modal?.edit ? 'Editar nivel' : 'Nuevo nivel'}
         </h3>
         <p className="admin-academico-nivel-form-card__lead">
-          Datos del nivel educativo. En <strong>Inicial</strong> puede definir rangos por <strong>años</strong> (3–5) o por{' '}
-          <strong>grados</strong>; en <strong>Primaria</strong> (1–6) y <strong>Secundaria</strong> (1–9) el rango es por grados.
-          La hora y la tolerancia se usan en <strong>asistencia</strong>.
+          Complete los datos. <strong>Años</strong> solo aplica a <strong>Inicial</strong> (3, 4 y 5). <strong>Primaria</strong> en
+          grados 1–6; <strong>Secundaria</strong> 1–5. La calificación <strong>cualitativa</strong> usa letras (A–D); la{' '}
+          <strong>cuantitativa</strong> pide reglas de notas. Hora y tolerancia: <strong>asistencia</strong>.
         </p>
 
         <div className="admin-academico-nivel-form-grid">
-          <div className="admin-academico-nivel-form-field">
-            <label>
-              nombre <span className="admin-academico-nivel-form-req">*</span>
-            </label>
-            <input
-              value={form.nombre}
-              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-              placeholder="Ej. Primaria"
-            />
-          </div>
-          <div className="admin-academico-nivel-form-field">
-            <label>abreviatura</label>
-            <input
-              value={form.abreviatura}
-              onChange={(e) => setForm({ ...form, abreviatura: e.target.value })}
-              placeholder="ej. PRI"
-            />
+          <div className="admin-academico-nivel-form-row-3">
+            <div className="admin-academico-nivel-form-field">
+              <label>
+                nombre <span className="admin-academico-nivel-form-req">*</span>
+              </label>
+              <input
+                value={form.nombre}
+                onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                placeholder="Ej. Primaria"
+              />
+            </div>
+            <div className="admin-academico-nivel-form-field">
+              <label>abreviatura</label>
+              <input
+                value={form.abreviatura}
+                onChange={(e) => setForm({ ...form, abreviatura: e.target.value })}
+                placeholder="ej. PRI"
+              />
+            </div>
+            <div className="admin-academico-nivel-form-field">
+              <label>código modular</label>
+              <input
+                value={form.codigo_modular}
+                onChange={(e) => setForm({ ...form, codigo_modular: e.target.value })}
+                placeholder="Opcional"
+              />
+            </div>
           </div>
 
-          <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
-            <label>código modular</label>
-            <input
-              value={form.codigo_modular}
-              onChange={(e) => setForm({ ...form, codigo_modular: e.target.value })}
-            />
-          </div>
+          <p className="admin-academico-nivel-form-section-title">Grados o años</p>
 
           <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
             <label>
@@ -253,16 +257,16 @@ function NivelModalFormBody({
               <option value="secundaria">Secundaria</option>
             </select>
             <p className="admin-academico-nivel-form-micro">
-              El nombre del nivel debería coincidir (p. ej. «Inicial») para reportes.
+              Debe coincidir con el nombre (p. ej. Inicial, Primaria, Secundaria).
             </p>
           </div>
 
           {esInicial && (
             <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
-              <label>definición de rangos</label>
+              <label>definición: ¿por años o por grados?</label>
               <select value={nivelUi.modoRango} onChange={(e) => onModoRangoChange(e.target.value)}>
-                <option value="años">Por años (3 a 5 — educación inicial)</option>
-                <option value="grados">Por grados (1 a 3 — niveles de aula)</option>
+                <option value="años">Por años (solo Inicial: 3, 4 y 5 años)</option>
+                <option value="grados">Por grados (Inicial: 1 a 3)</option>
               </select>
             </div>
           )}
@@ -270,7 +274,7 @@ function NivelModalFormBody({
           {(nivelUi.cicloNivel === 'primaria' || nivelUi.cicloNivel === 'secundaria') && (
             <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
               <p className="admin-academico-nivel-form-banner">
-                Rango por <strong>grados</strong>: Primaria 1–6 · Secundaria 1–9.
+                <strong>Primaria:</strong> grados 1–6 · <strong>Secundaria:</strong> grados 1–5.
               </p>
             </div>
           )}
@@ -326,6 +330,8 @@ function NivelModalFormBody({
             </select>
           </div>
 
+          <p className="admin-academico-nivel-form-section-title">Calificaciones</p>
+
           <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
             <label>
               tipo de calificación <span className="admin-academico-nivel-form-req">*</span>
@@ -345,27 +351,35 @@ function NivelModalFormBody({
                         nota_aprobatoria: ''
                       }
                     : {
-                        tipo_calificacion_final: f.tipo_calificacion_final || '0'
+                        tipo_calificacion_final: f.tipo_calificacion_final || '0',
+                        nota_maxima: f.nota_maxima || '20',
+                        nota_minima: f.nota_minima || '0',
+                        nota_aprobatoria: f.nota_aprobatoria || '11'
                       })
                 }));
               }}
             >
               <option value="">— Seleccione —</option>
-              <option value="0">Cualitativa</option>
-              <option value="1">Cuantitativa</option>
+              <option value="0">Cualitativa (letras A, B, C, D…)</option>
+              <option value="1">Cuantitativa (notas numéricas)</option>
             </select>
+            {form.tipo_calificacion === '0' && (
+              <p className="admin-academico-nivel-form-micro">
+                No se configuran notas numéricas; el registro es por desempeño en letras.
+              </p>
+            )}
           </div>
 
           {cuant && (
             <>
               <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
-                <label>calificación final (cuantitativa)</label>
+                <label>tipo de calificación final</label>
                 <select
                   value={form.tipo_calificacion_final === '' ? '0' : String(form.tipo_calificacion_final)}
                   onChange={(e) => setForm({ ...form, tipo_calificacion_final: e.target.value })}
                 >
-                  <option value="0">Promedio</option>
-                  <option value="1">Porcentual</option>
+                  <option value="0">Por promedio</option>
+                  <option value="1">Por porcentaje</option>
                 </select>
               </div>
               <div className="admin-academico-nivel-form-field">
@@ -374,6 +388,7 @@ function NivelModalFormBody({
                   value={form.nota_maxima}
                   onChange={(e) => setForm({ ...form, nota_maxima: e.target.value })}
                   inputMode="decimal"
+                  placeholder="20"
                 />
               </div>
               <div className="admin-academico-nivel-form-field">
@@ -382,6 +397,7 @@ function NivelModalFormBody({
                   value={form.nota_minima}
                   onChange={(e) => setForm({ ...form, nota_minima: e.target.value })}
                   inputMode="decimal"
+                  placeholder="0"
                 />
               </div>
               <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
@@ -390,10 +406,13 @@ function NivelModalFormBody({
                   value={form.nota_aprobatoria}
                   onChange={(e) => setForm({ ...form, nota_aprobatoria: e.target.value })}
                   inputMode="decimal"
+                  placeholder="11"
                 />
               </div>
             </>
           )}
+
+          <p className="admin-academico-nivel-form-section-title">Asistencia (opcional)</p>
 
           <div className="admin-academico-nivel-form-field">
             <label>hora de entrada</label>
@@ -434,14 +453,33 @@ function NivelModalFormBody({
   );
 }
 
-const NIVEL_CARD_PASTELS = [
-  'linear-gradient(155deg, #e8f4fc 0%, #dbeafe 55%, #f0f9ff 100%)',
-  'linear-gradient(155deg, #ecfdf5 0%, #d1fae5 55%, #f0fdf4 100%)',
-  'linear-gradient(155deg, #fffbeb 0%, #fde68a 45%, #fef3c7 100%)',
-  'linear-gradient(155deg, #fdf2f8 0%, #fbcfe8 55%, #fce7f3 100%)',
-  'linear-gradient(155deg, #f5f3ff 0%, #ddd6fe 55%, #ede9fe 100%)',
-  'linear-gradient(155deg, #fff7ed 0%, #fed7aa 55%, #ffedd5 100%)'
+/** Fondos pasteles suaves + borde; mismo patrón que tarjetas «Categorías», con color distinto por índice */
+const NIVEL_CARD_THEMES = [
+  { bg: '#eff6ff', border: '#bfdbfe' },
+  { bg: '#ecfdf5', border: '#a7f3d0' },
+  { bg: '#fffbeb', border: '#fde68a' },
+  { bg: '#fdf2f8', border: '#fbcfe8' },
+  { bg: '#f5f3ff', border: '#ddd6fe' },
+  { bg: '#fff7ed', border: '#fed7aa' }
 ];
+
+function IconoLapiz() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 3a2.828 2.828 0 1 1 4 4L7 21l-4 1 1-4L17 3z" />
+    </svg>
+  );
+}
+
+function IconoPapelera() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M10 11v6M14 11v6" />
+    </svg>
+  );
+}
 
 function NivelesPanel({ onRefreshMeta }) {
   const [rows, setRows] = useState([]);
@@ -449,7 +487,6 @@ function NivelesPanel({ onRefreshMeta }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(() => ({ ...NIVEL_FORM_DEFAULT }));
   const [nivelUi, setNivelUi] = useState({ cicloNivel: 'primaria', modoRango: 'grados' });
-  const [menuOpenId, setMenuOpenId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -467,16 +504,6 @@ function NivelesPanel({ onRefreshMeta }) {
     load();
   }, [load]);
 
-  useEffect(() => {
-    if (menuOpenId == null) return;
-    const close = (e) => {
-      const el = e.target?.closest?.('.admin-academico-nivel-card__menu');
-      if (!el) setMenuOpenId(null);
-    };
-    document.addEventListener('click', close);
-    return () => document.removeEventListener('click', close);
-  }, [menuOpenId]);
-
   const openNew = () => {
     setNivelUi({ cicloNivel: 'primaria', modoRango: 'grados' });
     setForm({
@@ -486,7 +513,10 @@ function NivelesPanel({ onRefreshMeta }) {
       grado_minimo: '1',
       grado_maximo: '6',
       tipo_calificacion: '1',
-      tipo_calificacion_final: '0'
+      tipo_calificacion_final: '0',
+      nota_maxima: '20',
+      nota_minima: '0',
+      nota_aprobatoria: '11'
     });
     setModal('new');
   };
@@ -615,7 +645,7 @@ function NivelesPanel({ onRefreshMeta }) {
         <div className="admin-academico-niveles-grid">
           {rows.map((r, idx) => {
             const cuant = esCuantitativa(r);
-            const bg = NIVEL_CARD_PASTELS[idx % NIVEL_CARD_PASTELS.length];
+            const theme = NIVEL_CARD_THEMES[idx % NIVEL_CARD_THEMES.length];
             const tieneNotasNum =
               cuant &&
               [r.nota_aprobatoria, r.nota_maxima, r.nota_minima].some(
@@ -624,102 +654,80 @@ function NivelesPanel({ onRefreshMeta }) {
             return (
               <article
                 key={r.id}
-                className="admin-academico-nivel-card"
-                style={{ background: bg }}
+                className="admin-academico-nivel-card admin-academico-nivel-card--compact"
+                style={{ background: theme.bg, borderColor: theme.border }}
               >
                 <div className="admin-academico-nivel-card__head">
                   <div className="admin-academico-nivel-card__titles">
                     <h3 className="admin-academico-nivel-card__nombre">{r.nombre || 'Sin nombre'}</h3>
                     {r.abreviatura ? (
-                      <span className="admin-academico-nivel-card__abrev" title="Abreviatura">
-                        {r.abreviatura}
-                      </span>
+                      <p className="admin-academico-nivel-card__sub">{r.abreviatura}</p>
                     ) : null}
                   </div>
-                  <div
-                    className="admin-academico-nivel-card__menu"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <button
-                      type="button"
-                      className="admin-academico-nivel-card__menu-trigger"
-                      aria-expanded={menuOpenId === r.id}
-                      aria-haspopup="menu"
-                      aria-label="Opciones del nivel"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setMenuOpenId(menuOpenId === r.id ? null : r.id);
-                      }}
-                    >
-                      ⋮
-                    </button>
-                    {menuOpenId === r.id && (
-                      <div className="admin-academico-nivel-card__dropdown" role="menu">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="admin-academico-nivel-card__dropdown-item"
-                          onClick={() => {
-                            setMenuOpenId(null);
-                            openEdit(r);
-                          }}
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="admin-academico-nivel-card__dropdown-item admin-academico-nivel-card__dropdown-item--danger"
-                          onClick={() => {
-                            setMenuOpenId(null);
-                            eliminar(r);
-                          }}
-                        >
-                          Eliminar
-                        </button>
-                      </div>
-                    )}
-                  </div>
                 </div>
 
-                <div className="admin-academico-nivel-card__highlight">
-                  <span className="admin-academico-nivel-card__label">Tipo de calificación</span>
-                  <strong className="admin-academico-nivel-card__value-main">{labelTipoCalificacion(r)}</strong>
+                <div className="admin-academico-nivel-card__body">
+                  <p className="admin-academico-nivel-card__line">
+                    <span className="admin-academico-nivel-card__line-label">Calificación</span>{' '}
+                    <span className="admin-academico-nivel-card__line-val">{labelTipoCalificacion(r)}</span>
+                  </p>
+                  {!cuant && (
+                    <p className="admin-academico-nivel-card__hint">Letras A–D (sin notas numéricas)</p>
+                  )}
+                  {cuant && (
+                    <p className="admin-academico-nivel-card__line admin-academico-nivel-card__line--dense">
+                      <span className="admin-academico-nivel-card__line-label">Final</span>{' '}
+                      <span className="admin-academico-nivel-card__line-val">{labelTipoCalificacionFinal(r)}</span>
+                      {tieneNotasNum && (
+                        <span className="admin-academico-nivel-card__notas-inline">
+                          {r.nota_aprobatoria != null && r.nota_aprobatoria !== '' && (
+                            <span>
+                              · Aprob. <strong>{r.nota_aprobatoria}</strong>
+                            </span>
+                          )}
+                          {r.nota_maxima != null && r.nota_maxima !== '' && (
+                            <span>
+                              · Máx. <strong>{r.nota_maxima}</strong>
+                            </span>
+                          )}
+                          {r.nota_minima != null && r.nota_minima !== '' && (
+                            <span>
+                              · Mín. <strong>{r.nota_minima}</strong>
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </p>
+                  )}
                 </div>
-
-                {cuant && (
-                  <div className="admin-academico-nivel-card__block">
-                    <span className="admin-academico-nivel-card__label">Calificación final</span>
-                    <span className="admin-academico-nivel-card__value">{labelTipoCalificacionFinal(r)}</span>
-                    {tieneNotasNum && (
-                      <div className="admin-academico-nivel-card__notas">
-                        {r.nota_aprobatoria != null && r.nota_aprobatoria !== '' && (
-                          <span title="Nota aprobatoria">
-                            Aprob. <strong>{r.nota_aprobatoria}</strong>
-                          </span>
-                        )}
-                        {r.nota_maxima != null && r.nota_maxima !== '' && (
-                          <span title="Nota máxima">
-                            Máx. <strong>{r.nota_maxima}</strong>
-                          </span>
-                        )}
-                        {r.nota_minima != null && r.nota_minima !== '' && (
-                          <span title="Nota mínima">
-                            Mín. <strong>{r.nota_minima}</strong>
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
 
                 <div className="admin-academico-nivel-card__foot">
-                  <span className="admin-academico-nivel-card__clock" title="Hora de entrada (asistencia)">
-                    <span className="admin-academico-nivel-card__foot-kicker">Hora entrada</span>
-                    {' '}
-                    {r.hora_entrada || '—'}
-                  </span>
-                  <span className="admin-academico-nivel-card__id">ID {r.id}</span>
+                  <div className="admin-academico-nivel-card__actions">
+                    <button
+                      type="button"
+                      className="admin-academico-nivel-card__icon-btn admin-academico-nivel-card__icon-btn--edit"
+                      title="Editar"
+                      aria-label="Editar nivel"
+                      onClick={() => openEdit(r)}
+                    >
+                      <IconoLapiz />
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-academico-nivel-card__icon-btn admin-academico-nivel-card__icon-btn--del"
+                      title="Eliminar"
+                      aria-label="Eliminar nivel"
+                      onClick={() => eliminar(r)}
+                    >
+                      <IconoPapelera />
+                    </button>
+                  </div>
+                  <div className="admin-academico-nivel-card__foot-meta">
+                    <span className="admin-academico-nivel-card__clock" title="Hora de entrada (asistencia)">
+                      Entrada {r.hora_entrada || '—'}
+                    </span>
+                    <span className="admin-academico-nivel-card__id">ID {r.id}</span>
+                  </div>
                 </div>
               </article>
             );
