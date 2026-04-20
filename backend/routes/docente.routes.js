@@ -1954,27 +1954,36 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
     let mensajes = [];
     try {
       mensajes = await query(
-        `SELECT id, asunto, mensaje, fecha_hora
+        `SELECT id, asunto, mensaje, fecha_hora, mensaje_referencia_id
          FROM mensajes_grupos
          WHERE grupo_id = ? AND remitente_id = ?
          ORDER BY fecha_hora DESC`,
         [grupoId, usuario_id]
       );
 
-      // Enriquecer con archivos adjuntos (desde mensajes que coincidan por remitente, asunto, fecha)
+      // Archivos: preferir mensaje_referencia_id (mismo envío que apoderados); fallback legado por asunto+fecha
       const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       for (const mg of mensajes) {
-        // Comparar asunto en utf8mb4 explícito: evita ER_CANT_AGGREGATE_2COLLATIONS si `mensajes` es utf8mb3 y el asunto trae emoji (utf8mb4).
-        const archivosRows = await query(
-          `SELECT DISTINCT ma.nombre_archivo, ma.archivo
-           FROM mensajes_archivos ma
-           INNER JOIN mensajes m ON m.id = ma.mensaje_id
-           WHERE m.remitente_id = ?
-             AND CONVERT(m.asunto USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci
-             AND DATE_FORMAT(m.fecha_hora, '%Y-%m-%d %H:%i:%s') = DATE_FORMAT(?, '%Y-%m-%d %H:%i:%s')`,
-          [usuario_id, mg.asunto, mg.fecha_hora]
-        );
+        let archivosRows;
+        if (mg.mensaje_referencia_id) {
+          archivosRows = await query(
+            `SELECT nombre_archivo, archivo
+             FROM mensajes_archivos
+             WHERE mensaje_id = ?`,
+            [mg.mensaje_referencia_id]
+          );
+        } else {
+          archivosRows = await query(
+            `SELECT DISTINCT ma.nombre_archivo, ma.archivo
+             FROM mensajes_archivos ma
+             INNER JOIN mensajes m ON m.id = ma.mensaje_id
+             WHERE m.remitente_id = ?
+               AND CONVERT(m.asunto USING utf8mb4) COLLATE utf8mb4_unicode_ci = CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci
+               AND DATE_FORMAT(m.fecha_hora, '%Y-%m-%d %H:%i:%s') = DATE_FORMAT(?, '%Y-%m-%d %H:%i:%s')`,
+            [usuario_id, mg.asunto, mg.fecha_hora]
+          );
+        }
         mg.archivos = (archivosRows || []).map(arch => {
           const archivoUrl = isProduction
             ? `${phpSystemUrl}/Static/Archivos/${arch.archivo}`
@@ -14629,22 +14638,6 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           }
         }
 
-        // Registrar en mensajes_grupos (historial Conexiones Familiares) si se envió a grupos
-        if (gruposArray && gruposArray.length > 0) {
-          try {
-            for (const grupoId of gruposArray) {
-              await execute(
-                `INSERT INTO mensajes_grupos (remitente_id, grupo_id, asunto, mensaje, fecha_hora)
-                 VALUES (?, ?, ?, ?, ?)`,
-                [usuario_id, grupoId, asuntoEnviar, mensajeEnviar, fechaHora]
-              );
-              console.log(`📨 [MENSAJES_GRUPOS] Registro historial - grupo_id: ${grupoId}`);
-            }
-          } catch (mgErr) {
-            console.warn('⚠️ [MENSAJES_GRUPOS] Tabla mensajes_grupos puede no existir:', mgErr.message);
-          }
-        }
-
         // Insertar mensajes en la base de datos
         console.log(`📨 [ENVIAR MENSAJE] Procesando ${destinatariosUnicos.length} destinatario(s)`);
         /** Para campanita in-app: un registro por destinatario con el id del mensaje RECIBIDO */
@@ -14701,6 +14694,52 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           } catch (error) {
             console.error(`Error insertando mensaje para destinatario ${destinatarioId}:`, error);
             // Continuar con los demás destinatarios aunque uno falle
+          }
+        }
+
+        // Historial Conexiones Familiares: después de crear mensajes, guardar referencia a un RECIBIDO del envío
+        // (los adjuntos se duplican en todos los mensaje_id; uno basta para listar en historial).
+        const primerMensajeRecibidoId =
+          campanaMensajesDocente.length > 0 ? campanaMensajesDocente[0].mensajeRecibidoId : null;
+        if (gruposArray && gruposArray.length > 0) {
+          try {
+            for (const grupoId of gruposArray) {
+              if (primerMensajeRecibidoId) {
+                try {
+                  await execute(
+                    `INSERT INTO mensajes_grupos (remitente_id, grupo_id, asunto, mensaje, fecha_hora, mensaje_referencia_id)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [usuario_id, grupoId, asuntoEnviar, mensajeEnviar, fechaHora, primerMensajeRecibidoId]
+                  );
+                  console.log(
+                    `📨 [MENSAJES_GRUPOS] Registro historial - grupo_id: ${grupoId}, ref mensaje_id: ${primerMensajeRecibidoId}`
+                  );
+                } catch (refErr) {
+                  const em = String(refErr.message || '');
+                  if (em.includes('Unknown column') && em.includes('mensaje_referencia_id')) {
+                    await execute(
+                      `INSERT INTO mensajes_grupos (remitente_id, grupo_id, asunto, mensaje, fecha_hora)
+                       VALUES (?, ?, ?, ?, ?)`,
+                      [usuario_id, grupoId, asuntoEnviar, mensajeEnviar, fechaHora]
+                    );
+                    console.warn(
+                      `⚠️ [MENSAJES_GRUPOS] Migración 033 pendiente: historial sin mensaje_referencia_id (grupo ${grupoId})`
+                    );
+                  } else {
+                    throw refErr;
+                  }
+                }
+              } else {
+                await execute(
+                  `INSERT INTO mensajes_grupos (remitente_id, grupo_id, asunto, mensaje, fecha_hora)
+                   VALUES (?, ?, ?, ?, ?)`,
+                  [usuario_id, grupoId, asuntoEnviar, mensajeEnviar, fechaHora]
+                );
+                console.log(`📨 [MENSAJES_GRUPOS] Registro historial (sin ref) - grupo_id: ${grupoId}`);
+              }
+            }
+          } catch (mgErr) {
+            console.warn('⚠️ [MENSAJES_GRUPOS] Tabla mensajes_grupos puede no existir:', mgErr.message);
           }
         }
 

@@ -193,7 +193,34 @@ function buildArchivoUrlAdmin(nombreArchivo) {
   return `http://localhost:5000/Static/Archivos/${nombreArchivo}`;
 }
 
-async function obtenerAdjuntosPorRemitenteFecha(remitenteId, fechaHora) {
+/**
+ * Adjuntos de un envío de conexiones/mensajes.
+ * Si existe `mensaje_referencia_id` (mensajes_grupos tras migración 033), se usa ese mensaje RECIBIDO;
+ * si no, fallback por remitente + fecha (menos fiable si hay varios mensajes el mismo segundo).
+ */
+async function obtenerAdjuntosPorRemitenteFecha(remitenteId, fechaHora, mensajeReferenciaId) {
+  const mapArchivos = (archivosRows) =>
+    (archivosRows || []).map((a) => ({
+      id: a.id,
+      nombre_archivo: a.nombre_archivo || a.archivo || 'Adjunto',
+      archivo: a.archivo,
+      archivo_url: buildArchivoUrlAdmin(a.archivo)
+    }));
+
+  if (mensajeReferenciaId) {
+    try {
+      const archivosRows = await query(
+        `SELECT id, nombre_archivo, archivo
+         FROM mensajes_archivos
+         WHERE mensaje_id = ?`,
+        [mensajeReferenciaId]
+      );
+      return mapArchivos(archivosRows);
+    } catch (e) {
+      console.warn('⚠️ [ADMIN CONEXIONES] Error adjuntos por mensaje_referencia_id:', e?.message);
+    }
+  }
+
   if (!remitenteId || !fechaHora) return [];
   try {
     const mensajesMatch = await query(
@@ -213,12 +240,7 @@ async function obtenerAdjuntosPorRemitenteFecha(remitenteId, fechaHora) {
       [mensajesMatch[0].id]
     );
 
-    return (archivosRows || []).map((a) => ({
-      id: a.id,
-      nombre_archivo: a.nombre_archivo || a.archivo || 'Adjunto',
-      archivo: a.archivo,
-      archivo_url: buildArchivoUrlAdmin(a.archivo)
-    }));
+    return mapArchivos(archivosRows);
   } catch (e) {
     console.warn('⚠️ [ADMIN CONEXIONES] Error obteniendo adjuntos del envío:', e?.message);
     return [];
@@ -2556,6 +2578,7 @@ router.get('/conexiones/:id', async (req, res) => {
          mg.asunto,
          mg.mensaje,
          mg.remitente_id,
+         mg.mensaje_referencia_id,
          COALESCE(CONCAT(p.nombres, ' ', p.apellidos), u.usuario, 'Personal') as personal,
          n.nombre as nivel,
          g.grado,
@@ -2587,7 +2610,7 @@ router.get('/conexiones/:id', async (req, res) => {
         perfil_destino: 'TODOS',
         grupo,
         mensaje: r.mensaje || '',
-        archivos: await obtenerAdjuntosPorRemitenteFecha(r.remitente_id, r.fecha_hora)
+        archivos: await obtenerAdjuntosPorRemitenteFecha(r.remitente_id, r.fecha_hora, r.mensaje_referencia_id)
       }
     });
   } catch (error) {
