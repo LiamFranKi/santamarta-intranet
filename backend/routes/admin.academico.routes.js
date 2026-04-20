@@ -17,15 +17,21 @@ function colegio(req) {
   return req.user.colegio_id;
 }
 
-/** Tablas permitidas para introspección de columnas (evita inyección en SHOW COLUMNS). */
+/** Tablas permitidas para introspección vía information_schema (whitelist). */
 const TABLES_INTROSPECT = new Set(['niveles', 'cursos', 'areas', 'grupos']);
 const tableColumnsCache = Object.create(null);
 
 async function getTableColumns(table) {
   if (!TABLES_INTROSPECT.has(table)) throw new Error('Tabla no permitida');
   if (!tableColumnsCache[table]) {
-    const rows = await query(`SHOW COLUMNS FROM \`${table}\``);
-    tableColumnsCache[table] = new Set(rows.map((r) => r.Field));
+    // No usar SHOW COLUMNS: utils/mysql.query() solo admite SELECT.
+    const rows = await query(
+      `SELECT COLUMN_NAME AS \`Field\`
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+      [table]
+    );
+    tableColumnsCache[table] = new Set(rows.map((r) => r.Field || r.field || r.COLUMN_NAME));
   }
   return tableColumnsCache[table];
 }
