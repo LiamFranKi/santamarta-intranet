@@ -17,6 +17,35 @@ function colegio(req) {
   return req.user.colegio_id;
 }
 
+/** Tablas permitidas para introspección de columnas (evita inyección en SHOW COLUMNS). */
+const TABLES_INTROSPECT = new Set(['niveles', 'cursos', 'areas', 'grupos']);
+const tableColumnsCache = Object.create(null);
+
+async function getTableColumns(table) {
+  if (!TABLES_INTROSPECT.has(table)) throw new Error('Tabla no permitida');
+  if (!tableColumnsCache[table]) {
+    const rows = await query(`SHOW COLUMNS FROM \`${table}\``);
+    tableColumnsCache[table] = new Set(rows.map((r) => r.Field));
+  }
+  return tableColumnsCache[table];
+}
+
+function pickExisting(cols, wanted) {
+  return wanted.filter((w) => cols.has(w));
+}
+
+function parseNum(v, fallback = null) {
+  if (v === '' || v === undefined || v === null) return fallback;
+  const n = parseFloat(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function parseIntOrNull(v) {
+  if (v === '' || v === undefined || v === null) return null;
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Catálogos para formularios */
 router.get('/meta', async (req, res) => {
   try {
@@ -40,12 +69,20 @@ router.get('/meta', async (req, res) => {
        ORDER BY p.apellidos, p.nombres`,
       [cid]
     );
+    const [cCols, aCols] = await Promise.all([
+      getTableColumns('cursos').catch(() => null),
+      getTableColumns('areas').catch(() => null)
+    ]);
     res.json({
       anio_activo: anioActivo,
       niveles: niveles || [],
       turnos: turnos || [],
       sedes: sedes || [],
-      docentes: docentes || []
+      docentes: docentes || [],
+      schema: {
+        cursos_nivel_id: !!(cCols && cCols.has('nivel_id')),
+        areas_nivel_id: !!(aCols && aCols.has('nivel_id'))
+      }
     });
   } catch (e) {
     console.error('[admin/academico/meta]', e);
@@ -53,13 +90,49 @@ router.get('/meta', async (req, res) => {
   }
 });
 
-// ——— Niveles ———
+// ——— Niveles (campos alineados al sistema anterior; columnas opcionales según existan en MySQL) ———
+const NIVEL_BODY_KEYS = [
+  'nombre',
+  'abreviatura',
+  'codigo_modular',
+  'definicion_grado',
+  'grado_minimo',
+  'grado_maximo',
+  'tipo_calificacion',
+  'tipo_calificacion_final',
+  'nota_maxima',
+  'nota_minima',
+  'nota_aprobatoria',
+  'hora_entrada',
+  'tolerancia_minutos'
+];
+
 router.get('/niveles', async (req, res) => {
   try {
+    const cid = colegio(req);
+    const cols = await getTableColumns('niveles');
+    const selectList = pickExisting(cols, [
+      'id',
+      'nombre',
+      'abreviatura',
+      'codigo_modular',
+      'definicion_grado',
+      'grado_minimo',
+      'grado_maximo',
+      'tipo_calificacion',
+      'tipo_calificacion_final',
+      'nota_maxima',
+      'nota_minima',
+      'nota_aprobatoria',
+      'hora_entrada',
+      'tolerancia_minutos'
+    ]);
+    if (selectList.length === 0) {
+      return res.status(500).json({ error: 'Estructura de tabla niveles no reconocida' });
+    }
     const rows = await query(
-      `SELECT id, nombre, hora_entrada, tolerancia_minutos, tipo_calificacion
-       FROM niveles WHERE colegio_id = ? ORDER BY id ASC`,
-      [colegio(req)]
+      `SELECT ${selectList.join(', ')} FROM niveles WHERE colegio_id = ? ORDER BY id ASC`,
+      [cid]
     );
     res.json({ niveles: rows || [] });
   } catch (e) {
@@ -73,20 +146,31 @@ router.post('/niveles', async (req, res) => {
     const nombre = String(req.body?.nombre || '').trim();
     if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' });
     const cid = colegio(req);
-    const hora = req.body?.hora_entrada != null ? String(req.body.hora_entrada).trim() : null;
-    const tol = req.body?.tolerancia_minutos != null ? parseInt(req.body.tolerancia_minutos, 10) : null;
-    const tipoCal = req.body?.tipo_calificacion != null ? String(req.body.tipo_calificacion).trim() : null;
-
-    let r;
-    try {
-      r = await execute(
-        `INSERT INTO niveles (colegio_id, nombre, hora_entrada, tolerancia_minutos, tipo_calificacion)
-         VALUES (?, ?, ?, ?, ?)`,
-        [cid, nombre, hora || null, Number.isFinite(tol) ? tol : null, tipoCal || null]
-      );
-    } catch (e1) {
-      r = await execute(`INSERT INTO niveles (colegio_id, nombre) VALUES (?, ?)`, [cid, nombre]);
+    const cols = await getTableColumns('niveles');
+    const fields = ['colegio_id', 'nombre'];
+    const values = [cid, nombre];
+    for (const key of NIVEL_BODY_KEYS) {
+      if (key === 'nombre') continue;
+      if (!cols.has(key)) continue;
+      let v = req.body?.[key];
+      if (key === 'tolerancia_minutos' || key === 'grado_minimo' || key === 'grado_maximo') {
+        v = parseIntOrNull(v);
+      } else if (
+        key === 'tipo_calificacion' ||
+        key === 'tipo_calificacion_final' ||
+        key === 'nota_maxima' ||
+        key === 'nota_minima' ||
+        key === 'nota_aprobatoria'
+      ) {
+        v = v === '' || v === undefined || v === null ? null : parseNum(v, null);
+      } else if (typeof v === 'string') {
+        v = v.trim() || null;
+      }
+      fields.push(key);
+      values.push(v);
     }
+    const placeholders = fields.map(() => '?').join(', ');
+    const r = await execute(`INSERT INTO niveles (${fields.join(', ')}) VALUES (${placeholders})`, values);
     res.json({ success: true, id: r.insertId });
   } catch (e) {
     console.error(e);
@@ -102,18 +186,31 @@ router.put('/niveles/:id', async (req, res) => {
     const cid = colegio(req);
     const [ex] = await query('SELECT id FROM niveles WHERE id = ? AND colegio_id = ?', [id, cid]);
     if (!ex) return res.status(404).json({ error: 'Nivel no encontrado' });
-    const hora = req.body?.hora_entrada != null ? String(req.body.hora_entrada).trim() : null;
-    const tol = req.body?.tolerancia_minutos != null ? parseInt(req.body.tolerancia_minutos, 10) : null;
-    const tipoCal = req.body?.tipo_calificacion != null ? String(req.body.tipo_calificacion).trim() : null;
-    try {
-      await execute(
-        `UPDATE niveles SET nombre = ?, hora_entrada = ?, tolerancia_minutos = ?, tipo_calificacion = ?
-         WHERE id = ? AND colegio_id = ?`,
-        [nombre, hora || null, Number.isFinite(tol) ? tol : null, tipoCal || null, id, cid]
-      );
-    } catch {
-      await execute(`UPDATE niveles SET nombre = ? WHERE id = ? AND colegio_id = ?`, [nombre, id, cid]);
+    const cols = await getTableColumns('niveles');
+    const sets = ['nombre = ?'];
+    const vals = [nombre];
+    for (const key of NIVEL_BODY_KEYS) {
+      if (key === 'nombre') continue;
+      if (!cols.has(key)) continue;
+      let v = req.body?.[key];
+      if (key === 'tolerancia_minutos' || key === 'grado_minimo' || key === 'grado_maximo') {
+        v = parseIntOrNull(v);
+      } else if (
+        key === 'tipo_calificacion' ||
+        key === 'tipo_calificacion_final' ||
+        key === 'nota_maxima' ||
+        key === 'nota_minima' ||
+        key === 'nota_aprobatoria'
+      ) {
+        v = v === '' || v === undefined || v === null ? null : parseNum(v, null);
+      } else if (typeof v === 'string') {
+        v = v.trim() || null;
+      }
+      sets.push(`${key} = ?`);
+      vals.push(v);
     }
+    vals.push(id, cid);
+    await execute(`UPDATE niveles SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, vals);
     res.json({ success: true });
   } catch (e) {
     console.error(e);
@@ -139,14 +236,19 @@ router.delete('/niveles/:id', async (req, res) => {
 });
 
 // ——— Grupos (menú "Grados" / aulas por año) ———
+const GRUPO_EXTRA_KEYS = ['enlace_archivos', 'aula_virtual', 'horario_virtual'];
+
 router.get('/grupos', async (req, res) => {
   try {
     const cid = colegio(req);
     const anio = req.query.anio != null ? parseInt(req.query.anio, 10) : null;
     const [cRow] = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
     const anioF = Number.isFinite(anio) ? anio : parseInt(cRow?.anio_activo || new Date().getFullYear(), 10);
+    const gcols = await getTableColumns('grupos');
+    const extras = pickExisting(gcols, GRUPO_EXTRA_KEYS);
+    const extraSel = extras.length ? `, ${extras.map((e) => `g.${e}`).join(', ')}` : '';
     const rows = await query(
-      `SELECT g.id, g.anio, g.nivel_id, g.grado, g.seccion, g.turno_id, g.tutor_id, g.sede_id,
+      `SELECT g.id, g.anio, g.nivel_id, g.grado, g.seccion, g.turno_id, g.tutor_id, g.sede_id${extraSel},
               n.nombre AS nivel_nombre, t.nombre AS turno_nombre, s.nombre AS sede_nombre,
               TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))) AS tutor_nombre
        FROM grupos g
@@ -178,19 +280,24 @@ router.post('/grupos', async (req, res) => {
     if (!Number.isFinite(anio) || !Number.isFinite(nivel_id) || !Number.isFinite(grado) || !seccion || !Number.isFinite(turno_id) || !Number.isFinite(sede_id)) {
       return res.status(400).json({ error: 'Año, nivel, grado, sección, turno y sede son obligatorios' });
     }
+    const gcols = await getTableColumns('grupos');
+    const fields = ['colegio_id', 'anio', 'nivel_id', 'grado', 'seccion', 'turno_id', 'tutor_id', 'sede_id'];
+    const values = [cid, anio, nivel_id, grado, seccion, turno_id, tutor_id, sede_id];
+    for (const key of GRUPO_EXTRA_KEYS) {
+      if (!gcols.has(key)) continue;
+      const v = req.body?.[key];
+      const s = v != null ? String(v).trim() : '';
+      fields.push(key);
+      values.push(s || null);
+    }
+    const placeholders = fields.map(() => '?').join(', ');
     let r;
     try {
-      r = await execute(
-        `INSERT INTO grupos (colegio_id, anio, nivel_id, grado, seccion, turno_id, tutor_id, sede_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [cid, anio, nivel_id, grado, seccion, turno_id, tutor_id, sede_id]
-      );
+      r = await execute(`INSERT INTO grupos (${fields.join(', ')}) VALUES (${placeholders})`, values);
     } catch (e1) {
-      r = await execute(
-        `INSERT INTO grupos (colegio_id, anio, nivel_id, grado, seccion, turno_id, tutor_id, sede_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [cid, anio, nivel_id, grado, seccion, turno_id, tutor_id || 0, sede_id]
-      );
+      const tIdx = fields.indexOf('tutor_id');
+      if (tIdx >= 0) values[tIdx] = tutor_id || 0;
+      r = await execute(`INSERT INTO grupos (${fields.join(', ')}) VALUES (${placeholders})`, values);
     }
     res.json({ success: true, id: r.insertId });
   } catch (e) {
@@ -218,18 +325,22 @@ router.put('/grupos/:id', async (req, res) => {
     }
     const [ex] = await query('SELECT id FROM grupos WHERE id = ? AND colegio_id = ?', [id, cid]);
     if (!ex) return res.status(404).json({ error: 'Grupo no encontrado' });
+    const gcols = await getTableColumns('grupos');
+    const sets = ['anio = ?', 'nivel_id = ?', 'grado = ?', 'seccion = ?', 'turno_id = ?', 'tutor_id = ?', 'sede_id = ?'];
+    const vals = [anio, nivel_id, grado, seccion, turno_id, tutor_id, sede_id];
+    for (const key of GRUPO_EXTRA_KEYS) {
+      if (!gcols.has(key)) continue;
+      const v = req.body?.[key];
+      const s = v != null ? String(v).trim() : '';
+      sets.push(`${key} = ?`);
+      vals.push(s || null);
+    }
+    vals.push(id, cid);
     try {
-      await execute(
-        `UPDATE grupos SET anio = ?, nivel_id = ?, grado = ?, seccion = ?, turno_id = ?, tutor_id = ?, sede_id = ?
-         WHERE id = ? AND colegio_id = ?`,
-        [anio, nivel_id, grado, seccion, turno_id, tutor_id, sede_id, id, cid]
-      );
+      await execute(`UPDATE grupos SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, vals);
     } catch (e2) {
-      await execute(
-        `UPDATE grupos SET anio = ?, nivel_id = ?, grado = ?, seccion = ?, turno_id = ?, tutor_id = ?, sede_id = ?
-         WHERE id = ? AND colegio_id = ?`,
-        [anio, nivel_id, grado, seccion, turno_id, tutor_id || 0, sede_id, id, cid]
-      );
+      vals[5] = tutor_id || 0;
+      await execute(`UPDATE grupos SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, vals);
     }
     res.json({ success: true });
   } catch (e) {
@@ -259,13 +370,26 @@ router.delete('/grupos/:id', async (req, res) => {
   }
 });
 
-// ——— Cursos ———
+// ——— Cursos (nivel_id y demás campos como en el sistema anterior, si existen columnas) ———
 router.get('/cursos', async (req, res) => {
   try {
-    const rows = await query(
-      `SELECT id, nombre, imagen FROM cursos WHERE colegio_id = ? ORDER BY nombre ASC`,
-      [colegio(req)]
-    );
+    const cid = colegio(req);
+    const cols = await getTableColumns('cursos');
+    const base = pickExisting(cols, ['id', 'nivel_id', 'nombre', 'abreviatura', 'descripcion', 'imagen', 'link_libro']);
+    if (!base.includes('id') || !base.includes('nombre')) {
+      return res.status(500).json({ error: 'Estructura de tabla cursos no reconocida' });
+    }
+    const sel = base.map((c) => `c.${c}`).join(', ');
+    let sql;
+    if (cols.has('nivel_id')) {
+      sql = `SELECT ${sel}, n.nombre AS nivel_nombre
+       FROM cursos c
+       LEFT JOIN niveles n ON n.id = c.nivel_id AND n.colegio_id = c.colegio_id
+       WHERE c.colegio_id = ? ORDER BY n.nombre, c.nombre`;
+    } else {
+      sql = `SELECT ${sel} FROM cursos c WHERE c.colegio_id = ? ORDER BY c.nombre`;
+    }
+    const rows = await query(sql, [cid]);
     res.json({ cursos: rows || [] });
   } catch (e) {
     console.error(e);
@@ -278,13 +402,28 @@ router.post('/cursos', async (req, res) => {
     const nombre = String(req.body?.nombre || '').trim();
     if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' });
     const cid = colegio(req);
-    const imagen = req.body?.imagen != null ? String(req.body.imagen).trim() : '';
-    let r;
-    try {
-      r = await execute(`INSERT INTO cursos (colegio_id, nombre, imagen) VALUES (?, ?, ?)`, [cid, nombre, imagen || null]);
-    } catch {
-      r = await execute(`INSERT INTO cursos (colegio_id, nombre) VALUES (?, ?)`, [cid, nombre]);
+    const cols = await getTableColumns('cursos');
+    const fields = ['colegio_id', 'nombre'];
+    const values = [cid, nombre];
+    if (cols.has('nivel_id')) {
+      const nid = parseInt(req.body?.nivel_id, 10);
+      if (!Number.isFinite(nid)) {
+        return res.status(400).json({ error: 'Debe seleccionar el nivel del curso' });
+      }
+      const [nv] = await query('SELECT id FROM niveles WHERE id = ? AND colegio_id = ?', [nid, cid]);
+      if (!nv) return res.status(400).json({ error: 'Nivel no válido' });
+      fields.push('nivel_id');
+      values.push(nid);
     }
+    for (const key of ['abreviatura', 'descripcion', 'imagen', 'link_libro']) {
+      if (!cols.has(key)) continue;
+      const v = req.body?.[key];
+      const s = v != null ? String(v).trim() : '';
+      fields.push(key);
+      values.push(s || null);
+    }
+    const placeholders = fields.map(() => '?').join(', ');
+    const r = await execute(`INSERT INTO cursos (${fields.join(', ')}) VALUES (${placeholders})`, values);
     res.json({ success: true, id: r.insertId });
   } catch (e) {
     console.error(e);
@@ -300,12 +439,26 @@ router.put('/cursos/:id', async (req, res) => {
     const cid = colegio(req);
     const [ex] = await query('SELECT id FROM cursos WHERE id = ? AND colegio_id = ?', [id, cid]);
     if (!ex) return res.status(404).json({ error: 'Curso no encontrado' });
-    const imagen = req.body?.imagen != null ? String(req.body.imagen).trim() : '';
-    try {
-      await execute(`UPDATE cursos SET nombre = ?, imagen = ? WHERE id = ? AND colegio_id = ?`, [nombre, imagen || null, id, cid]);
-    } catch {
-      await execute(`UPDATE cursos SET nombre = ? WHERE id = ? AND colegio_id = ?`, [nombre, id, cid]);
+    const cols = await getTableColumns('cursos');
+    const sets = ['nombre = ?'];
+    const vals = [nombre];
+    if (cols.has('nivel_id')) {
+      const nid = parseInt(req.body?.nivel_id, 10);
+      if (!Number.isFinite(nid)) return res.status(400).json({ error: 'Nivel obligatorio' });
+      const [nv] = await query('SELECT id FROM niveles WHERE id = ? AND colegio_id = ?', [nid, cid]);
+      if (!nv) return res.status(400).json({ error: 'Nivel no válido' });
+      sets.push('nivel_id = ?');
+      vals.push(nid);
     }
+    for (const key of ['abreviatura', 'descripcion', 'imagen', 'link_libro']) {
+      if (!cols.has(key)) continue;
+      const v = req.body?.[key];
+      const s = v != null ? String(v).trim() : '';
+      sets.push(`${key} = ?`);
+      vals.push(s || null);
+    }
+    vals.push(id, cid);
+    await execute(`UPDATE cursos SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, vals);
     res.json({ success: true });
   } catch (e) {
     console.error(e);
@@ -331,13 +484,25 @@ router.delete('/cursos/:id', async (req, res) => {
   }
 });
 
-// ——— Áreas ———
+// ——— Áreas (nivel_id como en el sistema anterior, si la columna existe) ———
 router.get('/areas', async (req, res) => {
   try {
-    const rows = await query(
-      `SELECT id, nombre FROM areas WHERE colegio_id = ? ORDER BY nombre ASC`,
-      [colegio(req)]
-    );
+    const cid = colegio(req);
+    const cols = await getTableColumns('areas');
+    const base = pickExisting(cols, ['id', 'nombre', 'nivel_id']);
+    if (!base.includes('id') || !base.includes('nombre')) {
+      return res.status(500).json({ error: 'Estructura de tabla areas no reconocida' });
+    }
+    let sql;
+    if (cols.has('nivel_id')) {
+      sql = `SELECT ${base.map((c) => `a.${c}`).join(', ')}, n.nombre AS nivel_nombre
+             FROM areas a
+             LEFT JOIN niveles n ON n.id = a.nivel_id AND n.colegio_id = a.colegio_id
+             WHERE a.colegio_id = ? ORDER BY n.nombre, a.nombre`;
+    } else {
+      sql = `SELECT ${base.map((c) => `a.${c}`).join(', ')} FROM areas a WHERE a.colegio_id = ? ORDER BY a.nombre`;
+    }
+    const rows = await query(sql, [cid]);
     res.json({ areas: rows || [] });
   } catch (e) {
     console.error(e);
@@ -370,7 +535,20 @@ router.post('/areas', async (req, res) => {
   try {
     const nombre = String(req.body?.nombre || '').trim();
     if (!nombre) return res.status(400).json({ error: 'El nombre es obligatorio' });
-    const r = await execute(`INSERT INTO areas (colegio_id, nombre) VALUES (?, ?)`, [colegio(req), nombre]);
+    const cid = colegio(req);
+    const cols = await getTableColumns('areas');
+    const fields = ['colegio_id', 'nombre'];
+    const values = [cid, nombre];
+    if (cols.has('nivel_id')) {
+      const nid = parseInt(req.body?.nivel_id, 10);
+      if (!Number.isFinite(nid)) return res.status(400).json({ error: 'Debe seleccionar el nivel del área' });
+      const [nv] = await query('SELECT id FROM niveles WHERE id = ? AND colegio_id = ?', [nid, cid]);
+      if (!nv) return res.status(400).json({ error: 'Nivel no válido' });
+      fields.push('nivel_id');
+      values.push(nid);
+    }
+    const placeholders = fields.map(() => '?').join(', ');
+    const r = await execute(`INSERT INTO areas (${fields.join(', ')}) VALUES (${placeholders})`, values);
     res.json({ success: true, id: r.insertId });
   } catch (e) {
     console.error(e);
@@ -384,7 +562,19 @@ router.put('/areas/:id', async (req, res) => {
     const nombre = String(req.body?.nombre || '').trim();
     if (!id || !nombre) return res.status(400).json({ error: 'Datos inválidos' });
     const cid = colegio(req);
-    const r = await execute(`UPDATE areas SET nombre = ? WHERE id = ? AND colegio_id = ?`, [nombre, id, cid]);
+    const cols = await getTableColumns('areas');
+    const sets = ['nombre = ?'];
+    const vals = [nombre];
+    if (cols.has('nivel_id')) {
+      const nid = parseInt(req.body?.nivel_id, 10);
+      if (!Number.isFinite(nid)) return res.status(400).json({ error: 'Nivel obligatorio' });
+      const [nv] = await query('SELECT id FROM niveles WHERE id = ? AND colegio_id = ?', [nid, cid]);
+      if (!nv) return res.status(400).json({ error: 'Nivel no válido' });
+      sets.push('nivel_id = ?');
+      vals.push(nid);
+    }
+    vals.push(id, cid);
+    const r = await execute(`UPDATE areas SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, vals);
     if (!r.affectedRows) return res.status(404).json({ error: 'No encontrado' });
     res.json({ success: true });
   } catch (e) {

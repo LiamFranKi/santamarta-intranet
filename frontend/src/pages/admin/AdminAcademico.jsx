@@ -1,9 +1,28 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './AdminDocumentosGestion.css';
 import './AdminAcademico.css';
+
+/** Evita que el sidebar (z-index 9999) cubra el modal: render fuera de .dashboard-content. */
+function ModalRoot({ open, onClose, children, wide }) {
+  if (!open) return null;
+  return createPortal(
+    <div className="admin-academico-modal-overlay" onClick={onClose}>
+      <div
+        className={`admin-academico-modal${wide ? ' admin-academico-modal--wide' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        {children}
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 function Btn({ children, onClick, variant }) {
   return (
@@ -42,6 +61,11 @@ export default function AdminAcademico() {
     loadMeta();
   }, [loadMeta]);
 
+  useEffect(() => {
+    document.body.classList.add('admin-academico-page');
+    return () => document.body.classList.remove('admin-academico-page');
+  }, []);
+
   const titles = {
     niveles: { title: 'Niveles', desc: 'Niveles de enseñanza (Inicial, Primaria, Secundaria, etc.)' },
     grados: { title: 'Grados', desc: 'Aulas por año: grado, sección, turno, sede y tutor (equivalente a grupos del año activo).' },
@@ -68,18 +92,44 @@ export default function AdminAcademico() {
 
       {section === 'niveles' && <NivelesPanel onRefreshMeta={loadMeta} />}
       {section === 'grados' && <GruposPanel meta={meta} />}
-      {section === 'cursos' && <CursosPanel />}
-      {section === 'areas' && <AreasPanel />}
+      {section === 'cursos' && <CursosPanel meta={meta} />}
+      {section === 'areas' && <AreasPanel meta={meta} />}
       {section === 'asignaturas' && <AsignaturasPanel meta={meta} />}
     </div>
   );
+}
+
+const NIVEL_FORM_DEFAULT = {
+  nombre: '',
+  abreviatura: '',
+  codigo_modular: '',
+  definicion_grado: '',
+  grado_minimo: '',
+  grado_maximo: '',
+  tipo_calificacion: '',
+  tipo_calificacion_final: '',
+  nota_maxima: '',
+  nota_minima: '',
+  nota_aprobatoria: '',
+  hora_entrada: '',
+  tolerancia_minutos: ''
+};
+
+function nivelFormFromRow(r) {
+  const o = { ...NIVEL_FORM_DEFAULT };
+  if (!r) return o;
+  for (const k of Object.keys(NIVEL_FORM_DEFAULT)) {
+    if (r[k] === undefined || r[k] === null) continue;
+    o[k] = String(r[k]);
+  }
+  return o;
 }
 
 function NivelesPanel({ onRefreshMeta }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({ nombre: '', hora_entrada: '', tolerancia_minutos: '', tipo_calificacion: '' });
+  const [form, setForm] = useState(() => ({ ...NIVEL_FORM_DEFAULT }));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,17 +148,16 @@ function NivelesPanel({ onRefreshMeta }) {
   }, [load]);
 
   const openNew = () => {
-    setForm({ nombre: '', hora_entrada: '08:00:00', tolerancia_minutos: '5', tipo_calificacion: '' });
+    setForm({
+      ...NIVEL_FORM_DEFAULT,
+      hora_entrada: '08:00:00',
+      tolerancia_minutos: '5'
+    });
     setModal('new');
   };
 
   const openEdit = (r) => {
-    setForm({
-      nombre: r.nombre || '',
-      hora_entrada: r.hora_entrada || '',
-      tolerancia_minutos: r.tolerancia_minutos != null ? String(r.tolerancia_minutos) : '',
-      tipo_calificacion: r.tipo_calificacion || ''
-    });
+    setForm(nivelFormFromRow(r));
     setModal({ edit: r });
   };
 
@@ -167,9 +216,11 @@ function NivelesPanel({ onRefreshMeta }) {
               <tr>
                 <th>ID</th>
                 <th>Nombre</th>
+                <th>Abrev.</th>
+                <th>Nota aprob.</th>
+                <th>Tipo cal.</th>
+                <th>Tipo cal. final</th>
                 <th>Hora entrada</th>
-                <th>Tolerancia (min)</th>
-                <th>Tipo calificación</th>
                 <th />
               </tr>
             </thead>
@@ -178,9 +229,11 @@ function NivelesPanel({ onRefreshMeta }) {
                 <tr key={r.id}>
                   <td>{r.id}</td>
                   <td>{r.nombre}</td>
+                  <td>{r.abreviatura ?? '—'}</td>
+                  <td>{r.nota_aprobatoria != null ? r.nota_aprobatoria : '—'}</td>
+                  <td>{r.tipo_calificacion != null && r.tipo_calificacion !== '' ? r.tipo_calificacion : '—'}</td>
+                  <td>{r.tipo_calificacion_final != null && r.tipo_calificacion_final !== '' ? r.tipo_calificacion_final : '—'}</td>
                   <td>{r.hora_entrada || '—'}</td>
-                  <td>{r.tolerancia_minutos != null ? r.tolerancia_minutos : '—'}</td>
-                  <td>{r.tipo_calificacion || '—'}</td>
                   <td>
                     <div className="admin-academico-actions">
                       <Btn variant="ghost" onClick={() => openEdit(r)}>Editar</Btn>
@@ -194,34 +247,72 @@ function NivelesPanel({ onRefreshMeta }) {
         </div>
       )}
 
-      {modal && (
-        <div className="admin-academico-modal-overlay" onClick={() => setModal(null)}>
-          <div className="admin-academico-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{modal.edit ? 'Editar nivel' : 'Nuevo nivel'}</h3>
-            <p className="admin-academico-hint">La hora y tolerancia se usan en asistencia (si la columna existe en BD).</p>
+      <ModalRoot open={!!modal} onClose={() => setModal(null)} wide>
+        <>
+          <h3>{modal?.edit ? 'Editar nivel' : 'Nuevo nivel'}</h3>
+          <p className="admin-academico-hint">
+            Campos alineados al sistema anterior (calificaciones, grados, código modular). La hora y tolerancia se usan en asistencia cuando existen en la base de datos.
+          </p>
+          <div className="admin-academico-modal-grid">
             <div className="admin-academico-field">
               <label>Nombre *</label>
               <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
             </div>
             <div className="admin-academico-field">
-              <label>Hora entrada</label>
+              <label>Abreviatura</label>
+              <input value={form.abreviatura} onChange={(e) => setForm({ ...form, abreviatura: e.target.value })} placeholder="ej. PRIM" />
+            </div>
+            <div className="admin-academico-field">
+              <label>Código modular</label>
+              <input value={form.codigo_modular} onChange={(e) => setForm({ ...form, codigo_modular: e.target.value })} />
+            </div>
+            <div className="admin-academico-field admin-academico-field--full">
+              <label>Definición de grado</label>
+              <input value={form.definicion_grado} onChange={(e) => setForm({ ...form, definicion_grado: e.target.value })} />
+            </div>
+            <div className="admin-academico-field">
+              <label>Grado mínimo</label>
+              <input type="number" value={form.grado_minimo} onChange={(e) => setForm({ ...form, grado_minimo: e.target.value })} />
+            </div>
+            <div className="admin-academico-field">
+              <label>Grado máximo</label>
+              <input type="number" value={form.grado_maximo} onChange={(e) => setForm({ ...form, grado_maximo: e.target.value })} />
+            </div>
+            <div className="admin-academico-field">
+              <label>Tipo calificación (0 cualitativo / 1 cuantitativo)</label>
+              <input value={form.tipo_calificacion} onChange={(e) => setForm({ ...form, tipo_calificacion: e.target.value })} placeholder="0 o 1" />
+            </div>
+            <div className="admin-academico-field">
+              <label>Tipo calificación final (0 promedio / 1 porcentual)</label>
+              <input value={form.tipo_calificacion_final} onChange={(e) => setForm({ ...form, tipo_calificacion_final: e.target.value })} placeholder="0 o 1" />
+            </div>
+            <div className="admin-academico-field">
+              <label>Nota máxima</label>
+              <input value={form.nota_maxima} onChange={(e) => setForm({ ...form, nota_maxima: e.target.value })} />
+            </div>
+            <div className="admin-academico-field">
+              <label>Nota mínima</label>
+              <input value={form.nota_minima} onChange={(e) => setForm({ ...form, nota_minima: e.target.value })} />
+            </div>
+            <div className="admin-academico-field">
+              <label>Nota aprobatoria</label>
+              <input value={form.nota_aprobatoria} onChange={(e) => setForm({ ...form, nota_aprobatoria: e.target.value })} />
+            </div>
+            <div className="admin-academico-field">
+              <label>Hora entrada (asistencia)</label>
               <input placeholder="08:00:00" value={form.hora_entrada} onChange={(e) => setForm({ ...form, hora_entrada: e.target.value })} />
             </div>
             <div className="admin-academico-field">
               <label>Tolerancia (minutos)</label>
               <input type="number" value={form.tolerancia_minutos} onChange={(e) => setForm({ ...form, tolerancia_minutos: e.target.value })} />
             </div>
-            <div className="admin-academico-field">
-              <label>Tipo calificación</label>
-              <input value={form.tipo_calificacion} onChange={(e) => setForm({ ...form, tipo_calificacion: e.target.value })} />
-            </div>
-            <div className="admin-academico-modal-actions">
-              <Btn variant="ghost" onClick={() => setModal(null)}>Cancelar</Btn>
-              <Btn onClick={guardar}>Guardar</Btn>
-            </div>
           </div>
-        </div>
-      )}
+          <div className="admin-academico-modal-actions">
+            <Btn variant="ghost" onClick={() => setModal(null)}>Cancelar</Btn>
+            <Btn onClick={guardar}>Guardar</Btn>
+          </div>
+        </>
+      </ModalRoot>
     </section>
   );
 }
@@ -258,7 +349,10 @@ function GruposPanel({ meta }) {
       seccion: 'A',
       turno_id: meta?.turnos?.[0]?.id || '',
       sede_id: meta?.sedes?.[0]?.id || '',
-      tutor_id: ''
+      tutor_id: '',
+      enlace_archivos: '',
+      aula_virtual: '',
+      horario_virtual: ''
     });
     setModal('new');
   };
@@ -271,7 +365,10 @@ function GruposPanel({ meta }) {
       seccion: r.seccion,
       turno_id: r.turno_id,
       sede_id: r.sede_id,
-      tutor_id: r.tutor_id || ''
+      tutor_id: r.tutor_id || '',
+      enlace_archivos: r.enlace_archivos || '',
+      aula_virtual: r.aula_virtual || '',
+      horario_virtual: r.horario_virtual || ''
     });
     setModal({ edit: r });
   };
@@ -358,10 +455,11 @@ function GruposPanel({ meta }) {
         </div>
       )}
 
-      {modal && meta && (
-        <div className="admin-academico-modal-overlay" onClick={() => setModal(null)}>
-          <div className="admin-academico-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
-            <h3>{modal.edit ? 'Editar grupo' : 'Nuevo grupo'}</h3>
+      <ModalRoot open={!!(modal && meta)} onClose={() => setModal(null)} wide>
+        <>
+          <h3>{modal?.edit ? 'Editar grupo' : 'Nuevo grupo'}</h3>
+          <p className="admin-academico-hint">Sede, nivel, grado, sección, turno y año definen el aula-grupo (equivalente al registro de grupos del sistema anterior).</p>
+          <div className="admin-academico-modal-grid">
             <div className="admin-academico-field">
               <label>Año</label>
               <input type="number" value={form.anio} onChange={(e) => setForm({ ...form, anio: e.target.value })} />
@@ -369,7 +467,7 @@ function GruposPanel({ meta }) {
             <div className="admin-academico-field">
               <label>Nivel</label>
               <select value={form.nivel_id} onChange={(e) => setForm({ ...form, nivel_id: e.target.value })}>
-                {(meta.niveles || []).map((n) => (
+                {(meta?.niveles || []).map((n) => (
                   <option key={n.id} value={n.id}>{n.nombre}</option>
                 ))}
               </select>
@@ -385,7 +483,7 @@ function GruposPanel({ meta }) {
             <div className="admin-academico-field">
               <label>Turno</label>
               <select value={form.turno_id} onChange={(e) => setForm({ ...form, turno_id: e.target.value })}>
-                {(meta.turnos || []).map((t) => (
+                {(meta?.turnos || []).map((t) => (
                   <option key={t.id} value={t.id}>{t.nombre}</option>
                 ))}
               </select>
@@ -393,36 +491,55 @@ function GruposPanel({ meta }) {
             <div className="admin-academico-field">
               <label>Sede</label>
               <select value={form.sede_id} onChange={(e) => setForm({ ...form, sede_id: e.target.value })}>
-                {(meta.sedes || []).map((s) => (
+                {(meta?.sedes || []).map((s) => (
                   <option key={s.id} value={s.id}>{s.nombre}</option>
                 ))}
               </select>
             </div>
-            <div className="admin-academico-field">
+            <div className="admin-academico-field admin-academico-field--full">
               <label>Tutor (opcional)</label>
               <select value={form.tutor_id} onChange={(e) => setForm({ ...form, tutor_id: e.target.value })}>
                 <option value="">—</option>
-                {(meta.docentes || []).map((d) => (
+                {(meta?.docentes || []).map((d) => (
                   <option key={d.id} value={d.id}>{d.nombre}</option>
                 ))}
               </select>
             </div>
-            <div className="admin-academico-modal-actions">
-              <Btn variant="ghost" onClick={() => setModal(null)}>Cancelar</Btn>
-              <Btn onClick={guardar}>Guardar</Btn>
+            <div className="admin-academico-field admin-academico-field--full">
+              <label>Dirección de archivos (opcional)</label>
+              <input value={form.enlace_archivos} onChange={(e) => setForm({ ...form, enlace_archivos: e.target.value })} placeholder="URL o ruta" />
+            </div>
+            <div className="admin-academico-field">
+              <label>Link aula virtual (opcional)</label>
+              <input value={form.aula_virtual} onChange={(e) => setForm({ ...form, aula_virtual: e.target.value })} />
+            </div>
+            <div className="admin-academico-field">
+              <label>Horario aula virtual (opcional)</label>
+              <input value={form.horario_virtual} onChange={(e) => setForm({ ...form, horario_virtual: e.target.value })} />
             </div>
           </div>
-        </div>
-      )}
+          <div className="admin-academico-modal-actions">
+            <Btn variant="ghost" onClick={() => setModal(null)}>Cancelar</Btn>
+            <Btn onClick={guardar}>Guardar</Btn>
+          </div>
+        </>
+      </ModalRoot>
     </section>
   );
 }
 
-function CursosPanel() {
+function CursosPanel({ meta }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({ nombre: '', imagen: '' });
+  const [form, setForm] = useState({
+    nivel_id: '',
+    nombre: '',
+    abreviatura: '',
+    descripcion: '',
+    imagen: '',
+    link_libro: ''
+  });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -440,9 +557,17 @@ function CursosPanel() {
     load();
   }, [load]);
 
+  const cursoTieneNivel =
+    meta?.schema?.cursos_nivel_id ??
+    (rows.length === 0 || rows.some((r) => Object.prototype.hasOwnProperty.call(r, 'nivel_id')));
+
   const guardar = async () => {
     if (!form.nombre.trim()) {
       Swal.fire({ icon: 'warning', title: 'Nombre requerido' });
+      return;
+    }
+    if (cursoTieneNivel && !String(form.nivel_id || '').trim()) {
+      Swal.fire({ icon: 'warning', title: 'Seleccione el nivel del curso' });
       return;
     }
     try {
@@ -475,7 +600,21 @@ function CursosPanel() {
     <section className="dg-section">
       <div className="dg-section-title">
         <span>Cursos</span>
-        <Btn onClick={() => { setForm({ nombre: '', imagen: '' }); setModal('new'); }}>+ Nuevo curso</Btn>
+        <Btn
+          onClick={() => {
+            setForm({
+              nivel_id: meta?.niveles?.[0]?.id || '',
+              nombre: '',
+              abreviatura: '',
+              descripcion: '',
+              imagen: '',
+              link_libro: ''
+            });
+            setModal('new');
+          }}
+        >
+          + Nuevo curso
+        </Btn>
       </div>
       {loading ? (
         <p>Cargando…</p>
@@ -485,8 +624,11 @@ function CursosPanel() {
             <thead>
               <tr>
                 <th>ID</th>
+                {cursoTieneNivel && <th>Nivel</th>}
                 <th>Nombre</th>
-                <th>Imagen (archivo)</th>
+                <th>Abrev.</th>
+                <th>Imagen</th>
+                <th>Link libro</th>
                 <th />
               </tr>
             </thead>
@@ -494,11 +636,31 @@ function CursosPanel() {
               {rows.map((r) => (
                 <tr key={r.id}>
                   <td>{r.id}</td>
+                  {cursoTieneNivel && <td>{r.nivel_nombre || '—'}</td>}
                   <td>{r.nombre}</td>
+                  <td>{r.abreviatura || '—'}</td>
                   <td style={{ fontSize: '0.8rem', color: '#64748b' }}>{r.imagen || '—'}</td>
+                  <td style={{ fontSize: '0.8rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.link_libro || ''}>
+                    {r.link_libro || '—'}
+                  </td>
                   <td>
                     <div className="admin-academico-actions">
-                      <Btn variant="ghost" onClick={() => { setForm({ nombre: r.nombre, imagen: r.imagen || '' }); setModal({ edit: r }); }}>Editar</Btn>
+                      <Btn
+                        variant="ghost"
+                        onClick={() => {
+                          setForm({
+                            nivel_id: r.nivel_id != null ? String(r.nivel_id) : meta?.niveles?.[0]?.id || '',
+                            nombre: r.nombre || '',
+                            abreviatura: r.abreviatura || '',
+                            descripcion: r.descripcion || '',
+                            imagen: r.imagen || '',
+                            link_libro: r.link_libro || ''
+                          });
+                          setModal({ edit: r });
+                        }}
+                      >
+                        Editar
+                      </Btn>
                       <Btn variant="ghost" onClick={() => eliminar(r)}>Eliminar</Btn>
                     </div>
                   </td>
@@ -508,35 +670,63 @@ function CursosPanel() {
           </table>
         </div>
       )}
-      {modal && (
-        <div className="admin-academico-modal-overlay" onClick={() => setModal(null)}>
-          <div className="admin-academico-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{modal.edit ? 'Editar curso' : 'Nuevo curso'}</h3>
-            <div className="admin-academico-field">
+      <ModalRoot open={!!modal} onClose={() => setModal(null)} wide>
+        <>
+          <h3>{modal?.edit ? 'Editar curso' : 'Nuevo curso'}</h3>
+          <p className="admin-academico-hint">En el sistema anterior cada curso pertenece a un nivel. Descripción y link del libro son opcionales.</p>
+          <div className="admin-academico-modal-grid">
+            {cursoTieneNivel && (
+              <div className="admin-academico-field admin-academico-field--full">
+                <label>Nivel *</label>
+                <select value={form.nivel_id} onChange={(e) => setForm({ ...form, nivel_id: e.target.value })}>
+                  {(meta?.niveles || []).map((n) => (
+                    <option key={n.id} value={n.id}>{n.nombre}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="admin-academico-field admin-academico-field--full">
               <label>Nombre *</label>
               <input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
             </div>
             <div className="admin-academico-field">
-              <label>Imagen (nombre archivo en /Static/Archivos, opcional)</label>
+              <label>Abreviatura</label>
+              <input value={form.abreviatura} onChange={(e) => setForm({ ...form, abreviatura: e.target.value })} />
+            </div>
+            <div className="admin-academico-field admin-academico-field--full">
+              <label>Descripción</label>
+              <textarea
+                className="admin-academico-textarea"
+                rows={2}
+                value={form.descripcion}
+                onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+              />
+            </div>
+            <div className="admin-academico-field">
+              <label>Imagen (archivo en /Static/Archivos)</label>
               <input value={form.imagen} onChange={(e) => setForm({ ...form, imagen: e.target.value })} placeholder="ej. curso-mate.png" />
             </div>
-            <div className="admin-academico-modal-actions">
-              <Btn variant="ghost" onClick={() => setModal(null)}>Cancelar</Btn>
-              <Btn onClick={guardar}>Guardar</Btn>
+            <div className="admin-academico-field">
+              <label>Link libro</label>
+              <input value={form.link_libro} onChange={(e) => setForm({ ...form, link_libro: e.target.value })} placeholder="https://…" />
             </div>
           </div>
-        </div>
-      )}
+          <div className="admin-academico-modal-actions">
+            <Btn variant="ghost" onClick={() => setModal(null)}>Cancelar</Btn>
+            <Btn onClick={guardar}>Guardar</Btn>
+          </div>
+        </>
+      </ModalRoot>
     </section>
   );
 }
 
-function AreasPanel() {
+function AreasPanel({ meta }) {
   const [areas, setAreas] = useState([]);
   const [cursos, setCursos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalArea, setModalArea] = useState(null);
-  const [formNombre, setFormNombre] = useState('');
+  const [areaForm, setAreaForm] = useState({ nombre: '', nivel_id: '' });
   const [linkModal, setLinkModal] = useState(null);
   const [vinculados, setVinculados] = useState([]);
   const [addCursoId, setAddCursoId] = useState('');
@@ -564,13 +754,22 @@ function AreasPanel() {
     })();
   }, [loadAreas, loadCursos]);
 
+  const areaTieneNivel =
+    meta?.schema?.areas_nivel_id ??
+    (areas.length === 0 || areas.some((a) => Object.prototype.hasOwnProperty.call(a, 'nivel_id')));
+
   const guardarArea = async () => {
-    if (!formNombre.trim()) return;
+    if (!areaForm.nombre.trim()) return;
+    if (areaTieneNivel && !String(areaForm.nivel_id || '').trim()) {
+      Swal.fire({ icon: 'warning', title: 'Seleccione el nivel del área' });
+      return;
+    }
     try {
+      const body = { nombre: areaForm.nombre.trim(), nivel_id: areaForm.nivel_id };
       if (modalArea?.edit) {
-        await api.put(`/admin/academico/areas/${modalArea.edit.id}`, { nombre: formNombre });
+        await api.put(`/admin/academico/areas/${modalArea.edit.id}`, body);
       } else {
-        await api.post('/admin/academico/areas', { nombre: formNombre });
+        await api.post('/admin/academico/areas', body);
       }
       setModalArea(null);
       await loadAreas();
@@ -630,7 +829,14 @@ function AreasPanel() {
     <section className="dg-section">
       <div className="dg-section-title">
         <span>Áreas curriculares</span>
-        <Btn onClick={() => { setFormNombre(''); setModalArea('new'); }}>+ Nueva área</Btn>
+        <Btn
+          onClick={() => {
+            setAreaForm({ nombre: '', nivel_id: meta?.niveles?.[0]?.id != null ? String(meta.niveles[0].id) : '' });
+            setModalArea('new');
+          }}
+        >
+          + Nueva área
+        </Btn>
       </div>
       {loading ? (
         <p>Cargando…</p>
@@ -640,6 +846,7 @@ function AreasPanel() {
             <thead>
               <tr>
                 <th>ID</th>
+                {areaTieneNivel && <th>Nivel</th>}
                 <th>Nombre</th>
                 <th />
               </tr>
@@ -648,10 +855,22 @@ function AreasPanel() {
               {areas.map((a) => (
                 <tr key={a.id}>
                   <td>{a.id}</td>
+                  {areaTieneNivel && <td>{a.nivel_nombre || '—'}</td>}
                   <td>{a.nombre}</td>
                   <td>
                     <div className="admin-academico-actions">
-                      <Btn variant="ghost" onClick={() => { setFormNombre(a.nombre); setModalArea({ edit: a }); }}>Editar</Btn>
+                      <Btn
+                        variant="ghost"
+                        onClick={() => {
+                          setAreaForm({
+                            nombre: a.nombre || '',
+                            nivel_id: a.nivel_id != null ? String(a.nivel_id) : meta?.niveles?.[0]?.id != null ? String(meta.niveles[0].id) : ''
+                          });
+                          setModalArea({ edit: a });
+                        }}
+                      >
+                        Editar
+                      </Btn>
                       <Btn variant="ghost" onClick={() => openVinculos(a)}>Cursos del área</Btn>
                       <Btn variant="ghost" onClick={() => eliminarArea(a)}>Eliminar</Btn>
                     </div>
@@ -663,52 +882,59 @@ function AreasPanel() {
         </div>
       )}
 
-      {modalArea && (
-        <div className="admin-academico-modal-overlay" onClick={() => setModalArea(null)}>
-          <div className="admin-academico-modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{modalArea.edit ? 'Editar área' : 'Nueva área'}</h3>
+      <ModalRoot open={!!modalArea} onClose={() => setModalArea(null)}>
+        <>
+          <h3>{modalArea?.edit ? 'Editar área' : 'Nueva área'}</h3>
+          <p className="admin-academico-hint">En el sistema anterior cada área está asociada a un nivel.</p>
+          {areaTieneNivel && (
             <div className="admin-academico-field">
-              <label>Nombre *</label>
-              <input value={formNombre} onChange={(e) => setFormNombre(e.target.value)} />
-            </div>
-            <div className="admin-academico-modal-actions">
-              <Btn variant="ghost" onClick={() => setModalArea(null)}>Cancelar</Btn>
-              <Btn onClick={guardarArea}>Guardar</Btn>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {linkModal && (
-        <div className="admin-academico-modal-overlay" onClick={() => setLinkModal(null)}>
-          <div className="admin-academico-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
-            <h3>Cursos en: {linkModal.nombre}</h3>
-            <p className="admin-academico-hint">Vincule cursos del área para libretas y reportes (tabla areas_cursos).</p>
-            <ul style={{ margin: '0 0 1rem 1rem', padding: 0 }}>
-              {vinculados.map((c) => (
-                <li key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span>{c.nombre}</span>
-                  <Btn variant="ghost" onClick={() => quitarVinculo(c.id)}>Quitar</Btn>
-                </li>
-              ))}
-              {vinculados.length === 0 && <li style={{ color: '#64748b' }}>Ningún curso vinculado.</li>}
-            </ul>
-            <div className="admin-academico-field">
-              <label>Añadir curso</label>
-              <select value={addCursoId} onChange={(e) => setAddCursoId(e.target.value)}>
-                <option value="">— Seleccione —</option>
-                {cursosDisponibles.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nombre}</option>
+              <label>Nivel *</label>
+              <select value={areaForm.nivel_id} onChange={(e) => setAreaForm({ ...areaForm, nivel_id: e.target.value })}>
+                {(meta?.niveles || []).map((n) => (
+                  <option key={n.id} value={n.id}>{n.nombre}</option>
                 ))}
               </select>
             </div>
-            <div className="admin-academico-modal-actions">
-              <Btn variant="ghost" onClick={() => setLinkModal(null)}>Cerrar</Btn>
-              <Btn onClick={agregarVinculo} disabled={!addCursoId}>Añadir</Btn>
-            </div>
+          )}
+          <div className="admin-academico-field">
+            <label>Nombre *</label>
+            <input value={areaForm.nombre} onChange={(e) => setAreaForm({ ...areaForm, nombre: e.target.value })} />
           </div>
-        </div>
-      )}
+          <div className="admin-academico-modal-actions">
+            <Btn variant="ghost" onClick={() => setModalArea(null)}>Cancelar</Btn>
+            <Btn onClick={guardarArea}>Guardar</Btn>
+          </div>
+        </>
+      </ModalRoot>
+
+      <ModalRoot open={!!linkModal} onClose={() => setLinkModal(null)} wide>
+        <>
+          <h3>Cursos en: {linkModal?.nombre}</h3>
+          <p className="admin-academico-hint">Vincule cursos del área para libretas y reportes (tabla areas_cursos).</p>
+          <ul className="admin-academico-link-list">
+            {vinculados.map((c) => (
+              <li key={c.id}>
+                <span>{c.nombre}</span>
+                <Btn variant="ghost" onClick={() => quitarVinculo(c.id)}>Quitar</Btn>
+              </li>
+            ))}
+            {vinculados.length === 0 && <li className="admin-academico-link-empty">Ningún curso vinculado.</li>}
+          </ul>
+          <div className="admin-academico-field">
+            <label>Añadir curso</label>
+            <select value={addCursoId} onChange={(e) => setAddCursoId(e.target.value)}>
+              <option value="">— Seleccione —</option>
+              {cursosDisponibles.map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          </div>
+          <div className="admin-academico-modal-actions">
+            <Btn variant="ghost" onClick={() => setLinkModal(null)}>Cerrar</Btn>
+            <Btn onClick={agregarVinculo} disabled={!addCursoId}>Añadir</Btn>
+          </div>
+        </>
+      </ModalRoot>
     </section>
   );
 }
@@ -864,11 +1090,12 @@ function AsignaturasPanel({ meta }) {
         </div>
       )}
 
-      {modal && meta && (
-        <div className="admin-academico-modal-overlay" onClick={() => setModal(null)}>
-          <div className="admin-academico-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
-            <h3>{modal.edit ? 'Editar asignatura' : 'Nueva asignatura'}</h3>
-            <div className="admin-academico-field">
+      <ModalRoot open={!!(modal && meta)} onClose={() => setModal(null)} wide>
+        <>
+          <h3>{modal?.edit ? 'Editar asignatura' : 'Nueva asignatura'}</h3>
+          <p className="admin-academico-hint">Equivale al formulario legacy: grupo (sede, nivel, grado, sección, turno, año) + curso + docente.</p>
+          <div className="admin-academico-modal-grid">
+            <div className="admin-academico-field admin-academico-field--full">
               <label>Grupo</label>
               <select value={form.grupo_id} onChange={(e) => setForm({ ...form, grupo_id: e.target.value })}>
                 {grupos.map((g) => (
@@ -876,7 +1103,7 @@ function AsignaturasPanel({ meta }) {
                 ))}
               </select>
             </div>
-            <div className="admin-academico-field">
+            <div className="admin-academico-field admin-academico-field--full">
               <label>Curso</label>
               <select value={form.curso_id} onChange={(e) => setForm({ ...form, curso_id: e.target.value })}>
                 {cursosList.map((c) => (
@@ -884,21 +1111,21 @@ function AsignaturasPanel({ meta }) {
                 ))}
               </select>
             </div>
-            <div className="admin-academico-field">
+            <div className="admin-academico-field admin-academico-field--full">
               <label>Docente</label>
               <select value={form.personal_id} onChange={(e) => setForm({ ...form, personal_id: e.target.value })}>
-                {(meta.docentes || []).map((d) => (
+                {(meta?.docentes || []).map((d) => (
                   <option key={d.id} value={d.id}>{d.nombre}</option>
                 ))}
               </select>
             </div>
-            <div className="admin-academico-modal-actions">
-              <Btn variant="ghost" onClick={() => setModal(null)}>Cancelar</Btn>
-              <Btn onClick={guardar}>Guardar</Btn>
-            </div>
           </div>
-        </div>
-      )}
+          <div className="admin-academico-modal-actions">
+            <Btn variant="ghost" onClick={() => setModal(null)}>Cancelar</Btn>
+            <Btn onClick={guardar}>Guardar</Btn>
+          </div>
+        </>
+      </ModalRoot>
     </section>
   );
 }
