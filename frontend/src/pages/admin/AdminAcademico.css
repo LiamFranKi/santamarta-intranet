@@ -1,0 +1,106 @@
+/* Catálogo académico admin — usar junto a AdminDocumentosGestion.css para clases .dg-* */
+
+.admin-academico-wrap {
+  padding: clamp(1rem, 3vw, 2rem);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.admin-academico-table-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(74, 131, 193, 0.15);
+  background: #fff;
+}
+
+.admin-academico-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.admin-academico-table th,
+.admin-academico-table td {
+  padding: 0.65rem 0.85rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.admin-academico-table th {
+  background: linear-gradient(135deg, #f0f7ff 0%, #e8f0fe 100%);
+  color: #1e3a5f;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-academico-table tr:hover td {
+  background: #fafbfc;
+}
+
+.admin-academico-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.admin-academico-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.admin-academico-modal {
+  background: #fff;
+  border-radius: 16px;
+  max-width: 480px;
+  width: 100%;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+
+.admin-academico-modal h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.15rem;
+  color: #1e3a5f;
+}
+
+.admin-academico-field {
+  margin-bottom: 0.85rem;
+}
+
+.admin-academico-field label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.3rem;
+}
+
+.admin-academico-field input,
+.admin-academico-field select {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.admin-academico-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.admin-academico-hint {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0 0 1rem 0;
+  line-height: 1.45;
+}

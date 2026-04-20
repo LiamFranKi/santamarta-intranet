@@ -15,6 +15,7 @@ import AdminUsuariosApoderados from './AdminUsuariosApoderados';
 import AdminConfiguracion from './AdminConfiguracion';
 import AdminConfigCumpleanos from './AdminConfigCumpleanos';
 import AdminMatriculasInscripcion from './AdminMatriculasInscripcion';
+import AdminAcademico from './AdminAcademico';
 
 const coloresPasteles = [
   'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',   // Verde menta
@@ -261,6 +262,15 @@ function Dashboard() {
         <DashboardLayout>
           <div className="dashboard-container">
             <AdminMatriculasInscripcion />
+          </div>
+        </DashboardLayout>
+      );
+    }
+    if (location.pathname.startsWith('/admin/academico/')) {
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <AdminAcademico />
           </div>
         </DashboardLayout>
       );
