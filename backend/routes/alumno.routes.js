@@ -417,7 +417,7 @@ router.get('/dashboard', async (req, res) => {
     // Avatar por bimestre (para widget) - nombre + descripcion + imagen
     let avatarWidget = null;
     try {
-      const bimestre = await getBimestreActualFromConfig(colegio_id, anio_activo);
+      const bimestre = await getAvatarBimestreEfectivo(colegio_id, anio_activo);
       const cols = 'id, bimestre, nombre, sexo, descripcion, imagen_base';
       const sexoAv = alumnoData.sexo !== null && alumnoData.sexo !== undefined ? alumnoData.sexo : 0;
       let bases = await query(`SELECT ${cols} FROM avatar_bases WHERE bimestre = ? AND sexo = ? LIMIT 1`, [bimestre, sexoAv]);
@@ -1348,6 +1348,25 @@ const getBimestreActualFromConfig = async (colegio_id, anio_activo) => {
   return getBimestreActual();
 };
 
+/**
+ * Compatibilidad de avatar: si no existe configuración en el bimestre actual,
+ * usar bimestre 1 para no cortar progreso de alumnos.
+ */
+const getAvatarBimestreEfectivo = async (colegio_id, anio_activo) => {
+  const bimestreActual = await getBimestreActualFromConfig(colegio_id, anio_activo);
+  if (bimestreActual === 1) return 1;
+  try {
+    const rows = await query(
+      'SELECT id FROM avatar_bases WHERE bimestre = ? LIMIT 1',
+      [bimestreActual]
+    );
+    if (rows && rows.length > 0) return bimestreActual;
+  } catch (err) {
+    console.warn('getAvatarBimestreEfectivo:', err.message);
+  }
+  return 1;
+};
+
 const baseAvatarBimestreUrl = () => (process.env.NODE_ENV === 'production'
   ? `${process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe'}/Static/Image/Avatars/`
   : 'http://localhost:5000/Static/Image/Avatars/');
@@ -1401,7 +1420,7 @@ const getTotalEstrellasAlumno = async (alumnoId, colegio_id, anio_activo) => {
 router.get('/avatares-bimestre/resumen', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user;
-    const bimestre = req.query.bimestre ? parseInt(req.query.bimestre, 10) : await getBimestreActualFromConfig(colegio_id, anio_activo);
+    const bimestre = req.query.bimestre ? parseInt(req.query.bimestre, 10) : await getAvatarBimestreEfectivo(colegio_id, anio_activo);
     const data = await getAlumnoIdAndSexo(req);
     if (!data) return res.status(404).json({ error: 'Alumno no encontrado' });
     const { alumnoId, sexo } = data;
@@ -1487,7 +1506,7 @@ router.get('/avatares-bimestre/resumen', async (req, res) => {
 router.get('/avatares-bimestre/bases', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user || {};
-    const bimestre = req.query.bimestre ? parseInt(req.query.bimestre, 10) : await getBimestreActualFromConfig(colegio_id, anio_activo);
+    const bimestre = req.query.bimestre ? parseInt(req.query.bimestre, 10) : await getAvatarBimestreEfectivo(colegio_id, anio_activo);
     const sexo = req.query.sexo !== undefined ? parseInt(req.query.sexo, 10) : null;
     let bases = [];
     if (sexo !== null && !isNaN(sexo)) {
@@ -2753,6 +2772,29 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         let mensajesInsertados = 0;
         const mensajesIds = [];
         const mensajeCuerpo = normalizarUrlsImagenesEnHtml(mensaje, phpBaseMensajes);
+        let remitenteNombre = 'Alumno';
+        try {
+          const remitenteRows = await query(
+            `SELECT COALESCE(
+                      NULLIF(TRIM(CONCAT(COALESCE(p.nombres, ''), ' ', COALESCE(p.apellidos, ''))), ''),
+                      NULLIF(TRIM(CONCAT(COALESCE(a.nombres, ''), ' ', COALESCE(a.apellido_paterno, ''), ' ', COALESCE(a.apellido_materno, ''))), ''),
+                      NULLIF(TRIM(CONCAT(COALESCE(ap.nombres, ''), ' ', COALESCE(ap.apellido_paterno, ''), ' ', COALESCE(ap.apellido_materno, ''))), ''),
+                      u.usuario
+                    ) as remitente_nombre
+             FROM usuarios u
+             LEFT JOIN personal p ON p.id = u.personal_id
+             LEFT JOIN alumnos a ON a.id = u.alumno_id
+             LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
+             WHERE u.id = ? AND u.colegio_id = ?
+             LIMIT 1`,
+            [usuario_id, colegio_id]
+          );
+          if (remitenteRows[0]?.remitente_nombre) {
+            remitenteNombre = String(remitenteRows[0].remitente_nombre).trim();
+          }
+        } catch (err) {
+          console.warn('[MENSAJES ALUMNO] No se pudo obtener nombre remitente:', err.message);
+        }
 
         const campanaAlumnoMensajes = [];
         for (const destinatarioId of destinatariosArray) {
@@ -2808,7 +2850,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               [...idsC, colegio_id]
             );
             mapTipoAlumnoMensajes = new Map((tiposC || []).map((r) => [parseInt(r.id, 10), r.tipo]));
-            const contenidoBell = `Nuevo mensaje de alumno: "${(asunto || 'Sin asunto').substring(0, 150)}".`;
+            const contenidoBell = `Remitente: ${remitenteNombre}. Asunto: "${(asunto || 'Sin asunto').substring(0, 150)}".`;
             for (const row of campanaAlumnoMensajes) {
               const td = mapTipoAlumnoMensajes.get(row.destinatarioId) || 'DOCENTE';
               let urlDest = '/docente/mensajes';
@@ -2868,7 +2910,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                   },
                   payload: {
                     title: 'Nuevo mensaje',
-                    body: asuntoCorto,
+                    body: `${remitenteNombre}: ${asuntoCorto}`,
                     icon: '/icons/icon-192x192.png',
                     badge: '/icons/icon-192x192.png',
                     vibrate: [200, 100, 200],

@@ -4941,6 +4941,29 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         let alumnosEnGrupos = 0;
         let destinatariosDirectos = 0;
         const mensajeCuerpo = normalizarUrlsImagenesEnHtml(mensaje, phpBaseMensajes);
+        let remitenteNombre = 'Apoderado';
+        try {
+          const remitenteRows = await query(
+            `SELECT COALESCE(
+                      NULLIF(TRIM(CONCAT(COALESCE(p.nombres, ''), ' ', COALESCE(p.apellidos, ''))), ''),
+                      NULLIF(TRIM(CONCAT(COALESCE(a.nombres, ''), ' ', COALESCE(a.apellido_paterno, ''), ' ', COALESCE(a.apellido_materno, ''))), ''),
+                      NULLIF(TRIM(CONCAT(COALESCE(ap.nombres, ''), ' ', COALESCE(ap.apellido_paterno, ''), ' ', COALESCE(ap.apellido_materno, ''))), ''),
+                      u.usuario
+                    ) as remitente_nombre
+             FROM usuarios u
+             LEFT JOIN personal p ON p.id = u.personal_id
+             LEFT JOIN alumnos a ON a.id = u.alumno_id
+             LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
+             WHERE u.id = ? AND u.colegio_id = ?
+             LIMIT 1`,
+            [usuario_id, colegio_id]
+          );
+          if (remitenteRows[0]?.remitente_nombre) {
+            remitenteNombre = String(remitenteRows[0].remitente_nombre).trim();
+          }
+        } catch (err) {
+          console.warn('[MENSAJES APODERADO GENERAL] No se pudo obtener nombre remitente:', err.message);
+        }
 
         // Obtener alumnos de los grupos seleccionados
         const alumnosGrupos = new Set();
@@ -5025,7 +5048,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         }
         try {
           if (campanaApoderadoGeneral.length > 0) {
-            const contenidoBell = `Nuevo mensaje (apoderado): "${(asunto || 'Sin asunto').substring(0, 150)}".`;
+            const contenidoBell = `Remitente: ${remitenteNombre}. Asunto: "${(asunto || 'Sin asunto').substring(0, 150)}".`;
             for (const row of campanaApoderadoGeneral) {
               const td = mapTipoApoderadoGeneral.get(row.destinatarioId) || 'DOCENTE';
               let urlDest = '/docente/mensajes';
@@ -5086,7 +5109,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                   },
                   payload: {
                     title: 'Nuevo mensaje',
-                    body: asuntoCorto,
+                    body: `${remitenteNombre}: ${asuntoCorto}`,
                     icon: '/icons/icon-192x192.png',
                     badge: '/icons/icon-192x192.png',
                     vibrate: [200, 100, 200],
@@ -5128,7 +5151,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             const colegioInfo = await query(`SELECT nombre FROM colegios WHERE id = ?`, [colegio_id]);
             const colegioNombre = colegioInfo.length > 0 ? colegioInfo[0].nombre : 'Vanguard Schools';
             const tituloNotif = 'Nuevo mensaje';
-            const contenidoNotif = `Tiene un nuevo mensaje: "${(asunto || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
+            const contenidoNotif = `Remitente: ${remitenteNombre}. Asunto: "${(asunto || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
             for (const email of emailsUnicos.values()) {
               enviarCorreoNotificacion(email, tituloNotif, contenidoNotif, colegioNombre, 'MENSAJES')
                 .catch(err => console.warn(`❌ [MENSAJES] Error correo a ${email}:`, err.message));

@@ -2127,6 +2127,19 @@ router.get('/alumnos/:alumnoId/info', async (req, res) => {
       }
     } catch (e) { /* usar bimestre por defecto */ }
 
+    // Compatibilidad: si no hay avatar configurado para el bimestre actual, caer a Bimestre 1.
+    if (bimestre !== 1) {
+      try {
+        const basesBimestre = await query(
+          'SELECT id FROM avatar_bases WHERE bimestre = ? LIMIT 1',
+          [bimestre]
+        );
+        if (!basesBimestre || basesBimestre.length === 0) bimestre = 1;
+      } catch (e) {
+        bimestre = 1;
+      }
+    }
+
     // Intentar avatar_bases (sistema por bimestre)
     let avatarBimestre = null;
     try {
@@ -14300,6 +14313,29 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
         let mensajeEnviar = mensaje;
         const esConexionEnvio = esConexionManual || (gruposArray && gruposArray.length > 0) || alcanceEnvio === 'todos';
         let refGrupoNotif = '';
+        let remitenteNombre = 'Docente';
+        try {
+          const remitenteRows = await query(
+            `SELECT COALESCE(
+                      NULLIF(TRIM(CONCAT(COALESCE(p.nombres, ''), ' ', COALESCE(p.apellidos, ''))), ''),
+                      NULLIF(TRIM(CONCAT(COALESCE(a.nombres, ''), ' ', COALESCE(a.apellido_paterno, ''), ' ', COALESCE(a.apellido_materno, ''))), ''),
+                      NULLIF(TRIM(CONCAT(COALESCE(ap.nombres, ''), ' ', COALESCE(ap.apellido_paterno, ''), ' ', COALESCE(ap.apellido_materno, ''))), ''),
+                      u.usuario
+                    ) as remitente_nombre
+             FROM usuarios u
+             LEFT JOIN personal p ON p.id = u.personal_id
+             LEFT JOIN alumnos a ON a.id = u.alumno_id
+             LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
+             WHERE u.id = ? AND u.colegio_id = ?
+             LIMIT 1`,
+            [usuario_id, colegio_id]
+          );
+          if (remitenteRows[0]?.remitente_nombre) {
+            remitenteNombre = String(remitenteRows[0].remitente_nombre).trim();
+          }
+        } catch (err) {
+          console.warn('[MENSAJES] No se pudo obtener nombre remitente:', err.message);
+        }
         if (gruposArray && gruposArray.length > 0) {
           try {
             const gruposMeta = await obtenerMetaGruposConexiones(colegio_id, gruposArray);
@@ -14749,7 +14785,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             const tipoPorIdCampana = new Map((tiposCampana || []).map((r) => [parseInt(r.id, 10), r.tipo]));
             const tituloBell = esConexionEnvio ? 'Conexiones familiares' : 'Nuevo mensaje del docente';
             const refTxtBell = refGrupoNotif ? `${refGrupoNotif}. ` : '';
-            const contenidoBell = `Tiene un nuevo mensaje. ${refTxtBell}"${(asuntoEnviar || 'Sin asunto').substring(0, 150)}".`;
+            const contenidoBell = `Remitente: ${remitenteNombre}. ${refTxtBell}Asunto: "${(asuntoEnviar || 'Sin asunto').substring(0, 150)}".`;
             const accionTipoBell = esConexionEnvio ? 'mensajes_conexiones' : 'mensaje_nuevo';
             for (const row of campanaMensajesDocente) {
               const tipoD = tipoPorIdCampana.get(row.destinatarioId) || 'APODERADO';
@@ -14825,7 +14861,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                   },
                   payload: {
                     title: esConexionEnvio ? 'Conexiones familiares' : 'Nuevo mensaje',
-                    body: asuntoCorto,
+                    body: `${remitenteNombre}: ${asuntoCorto}`,
                     icon: '/icons/icon-192x192.png',
                     badge: '/icons/icon-192x192.png',
                     vibrate: [200, 100, 200],
@@ -14866,7 +14902,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
           const colegioNombre = colegioInfo.length > 0 ? colegioInfo[0].nombre : 'Vanguard Schools';
           const tituloNotif = esConexionEnvio ? 'Mensaje — Conexiones familiares' : 'Nuevo mensaje del docente';
           const refMail = refGrupoNotif ? ` Origen: ${refGrupoNotif}.` : '';
-          const contenidoNotif = `Tiene un nuevo mensaje:${refMail} "${(asuntoEnviar || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
+          const contenidoNotif = `Remitente: ${remitenteNombre}.${refMail} Asunto: "${(asuntoEnviar || 'Sin asunto').substring(0, 150)}". Ingrese a Mensajes para ver el contenido.`;
           for (const email of emailsUnicos.values()) {
             enviarCorreoNotificacion(email, tituloNotif, contenidoNotif, colegioNombre, 'MENSAJES')
               .catch(err => console.warn(`❌ [MENSAJES] Error correo a ${email}:`, err.message));
@@ -22465,7 +22501,8 @@ async function verificarTareasPorVencer() {
 
         // Obtener alumnos del grupo
         const alumnos = await query(
-          `SELECT DISTINCT a.id as alumno_id, u.id as usuario_id
+          `SELECT DISTINCT a.id as alumno_id, u.id as usuario_id,
+                  CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', COALESCE(a.apellido_materno, '')) as alumno_nombre
            FROM alumnos a
            INNER JOIN matriculas m ON m.alumno_id = a.id
            INNER JOIN usuarios u ON u.alumno_id = a.id
@@ -22492,6 +22529,9 @@ async function verificarTareasPorVencer() {
         
         const alumnoIds = alumnosPendientes.map(a => a.alumno_id);
         const alumnoUsuarioIds = alumnosPendientes.map(a => a.usuario_id);
+        const alumnoNombrePorUsuarioId = new Map(
+          alumnosPendientes.map((a) => [parseInt(a.usuario_id, 10), String(a.alumno_nombre || '').trim()])
+        );
         
         console.log(`📅 [TAREAS POR VENCER] Tarea "${tarea.titulo}": ${alumnos.length} alumnos totales, ${alumnosConEntregaIds.length} ya entregaron, ${alumnoIds.length} pendientes`);
         
@@ -22536,6 +22576,33 @@ async function verificarTareasPorVencer() {
         
         // Combinar todos los destinatarios
         const todosDestinatarios = [...new Set([...alumnoUsuarioIds, ...apoderadoUsuarioIds])];
+
+        const apoderadoAlumnosPorUsuario = new Map();
+        if (apoderadoUsuarioIds.length > 0 && alumnoIds.length > 0) {
+          try {
+            const apoderadoAlumnos = await query(
+              `SELECT u.id as usuario_id,
+                      CONCAT(al.nombres, ' ', al.apellido_paterno, ' ', COALESCE(al.apellido_materno, '')) as alumno_nombre
+               FROM usuarios u
+               INNER JOIN apoderados ap ON ap.id = u.apoderado_id
+               INNER JOIN familias f ON f.apoderado_id = ap.id
+               INNER JOIN alumnos al ON al.id = f.alumno_id
+               WHERE u.id IN (${apoderadoUsuarioIds.map(() => '?').join(',')})
+                 AND f.alumno_id IN (${alumnoIds.map(() => '?').join(',')})
+                 AND u.colegio_id = ?
+                 AND ap.colegio_id = ?`,
+              [...apoderadoUsuarioIds, ...alumnoIds, tarea.colegio_id, tarea.colegio_id]
+            );
+            for (const row of apoderadoAlumnos || []) {
+              const key = parseInt(row.usuario_id, 10);
+              const nombre = String(row.alumno_nombre || '').trim();
+              if (!apoderadoAlumnosPorUsuario.has(key)) apoderadoAlumnosPorUsuario.set(key, []);
+              if (nombre) apoderadoAlumnosPorUsuario.get(key).push(nombre);
+            }
+          } catch (err) {
+            console.warn('⚠️ [TAREAS POR VENCER] No se pudo mapear alumnos por apoderado:', err.message);
+          }
+        }
         
         if (todosDestinatarios.length === 0) {
           console.log(`⚠️ [TAREAS POR VENCER] No se encontraron destinatarios para tarea "${tarea.titulo}"`);
@@ -22557,9 +22624,39 @@ async function verificarTareasPorVencer() {
         console.log(`📅 [TAREAS POR VENCER] Enviando notificaciones para tarea "${tarea.titulo}" (${tipoNotificacion}) a ${todosDestinatarios.length} destinatarios`);
         
         const asignaturaTarea = tarea.asignatura_id;
+        const mensajePorDestinatario = new Map();
+        const construirMensajePorDestinatario = (destinatarioId) => {
+          const destId = parseInt(destinatarioId, 10);
+          const alumnoDirecto = alumnoNombrePorUsuarioId.get(destId);
+          const alumnosApoderado = apoderadoAlumnosPorUsuario.get(destId) || [];
+          let prefijoAlumno = '';
+          if (alumnoDirecto) {
+            prefijoAlumno = `Alumno: ${alumnoDirecto} - `;
+          } else if (alumnosApoderado.length === 1) {
+            prefijoAlumno = `Alumno: ${alumnosApoderado[0]} - `;
+          } else if (alumnosApoderado.length > 1) {
+            const muestra = alumnosApoderado.slice(0, 3).join(', ');
+            const extra = alumnosApoderado.length > 3 ? ` (+${alumnosApoderado.length - 3})` : '';
+            prefijoAlumno = `Alumnos: ${muestra}${extra} - `;
+          }
+
+          if (diasRestantes === 0) {
+            return `⚠️ ${prefijoAlumno}El proyecto "${tarea.titulo}" se vence HOY - Curso: ${tarea.curso_nombre}`;
+          }
+          if (diasRestantes === 1) {
+            return `⏰ ${prefijoAlumno}El proyecto "${tarea.titulo}" se vence MAÑANA - Curso: ${tarea.curso_nombre}`;
+          }
+          if (diasRestantes === 2) {
+            return `📅 ${prefijoAlumno}El proyecto "${tarea.titulo}" se vence en 2 DÍAS - Curso: ${tarea.curso_nombre}`;
+          }
+          return `📅 ${prefijoAlumno}El proyecto "${tarea.titulo}" se vence en 3 DÍAS - Curso: ${tarea.curso_nombre}`;
+        };
+
         // Crear notificaciones en la BD
         for (const destinatarioId of todosDestinatarios) {
           try {
+            const mensajeDestinatario = construirMensajePorDestinatario(destinatarioId);
+            mensajePorDestinatario.set(parseInt(destinatarioId, 10), mensajeDestinatario);
             const urlT = await obtenerUrlAulaVirtual(query, destinatarioId, {
               asignatura_id: asignaturaTarea,
               grupo_id: tarea.grupo_id,
@@ -22572,7 +22669,7 @@ async function verificarTareasPorVencer() {
               usuario_id: tarea.personal_id,
               destinatario_id: destinatarioId,
               asunto: tituloNotificacion,
-              contenido: mensajeNotificacion,
+              contenido: mensajeDestinatario,
               estado: 'NO ENVIADO',
               accion_tipo: 'tarea_por_vencer',
               accion_payload: {
@@ -22615,7 +22712,7 @@ async function verificarTareasPorVencer() {
               },
               payload: {
                 title: tituloNotificacion,
-                body: mensajeNotificacion,
+                body: mensajePorDestinatario.get(parseInt(sub.usuario_id, 10)) || mensajeNotificacion,
                 icon: '/icons/icon-192x192.png',
                 badge: '/icons/icon-192x192.png',
                 vibrate: [200, 100, 200],
@@ -22662,10 +22759,13 @@ async function verificarTareasPorVencer() {
             const emailsUnicos = new Map();
             usuariosConEmail.forEach(u => {
               const email = (u.email || '').toLowerCase().trim();
-              if (email && !emailsUnicos.has(email)) emailsUnicos.set(email, u.email);
+              if (email && !emailsUnicos.has(email)) {
+                emailsUnicos.set(email, { emailOriginal: u.email, usuarioId: parseInt(u.id, 10) });
+              }
             });
-            for (const email of emailsUnicos.values()) {
-              enviarCorreoNotificacion(email, tituloNotificacion, mensajeNotificacion, colegioNombre, 'GENERAL')
+            for (const dataEmail of emailsUnicos.values()) {
+              const contenidoEmail = mensajePorDestinatario.get(dataEmail.usuarioId) || mensajeNotificacion;
+              enviarCorreoNotificacion(dataEmail.emailOriginal, tituloNotificacion, contenidoEmail, colegioNombre, 'GENERAL')
                 .catch(err => console.error(`❌ [TAREAS POR VENCER] Error correo:`, err));
             }
             if (emailsUnicos.size > 0) {
@@ -22834,15 +22934,58 @@ async function verificarTareasVencidasSinEntrega() {
         }
 
         const tituloNotificacion = 'Proyecto vencido sin entrega';
-        const mensajeNotificacion = `⚠️ Su hijo(a) no entregó el proyecto "${tarea.titulo}" dentro del plazo. Se le asignó nota 0. - Curso: ${tarea.curso_nombre}`;
+        const mensajeNotificacionBase = `⚠️ No se entregó el proyecto "${tarea.titulo}" dentro del plazo. Se asignó nota 0. - Curso: ${tarea.curso_nombre}`;
         const refAlumno = alumnosSinEntregaYSinNota[0];
         const urlRefApoderado =
           refAlumno && tarea.asignatura_id
             ? `/apoderado/hijos/${refAlumno.alumno_id}/aula-virtual/${tarea.asignatura_id}?abrir=tarea&id=${tarea.id}`
             : '/apoderado/hijos';
 
+        const alumnosPorApoderado = new Map();
+        if (apoderadoUsuarioIds.length > 0 && alumnoIdsParaApoderados.length > 0) {
+          try {
+            const mapRows = await query(
+              `SELECT u.id as usuario_id,
+                      CONCAT(al.nombres, ' ', al.apellido_paterno, ' ', COALESCE(al.apellido_materno, '')) as alumno_nombre
+               FROM usuarios u
+               INNER JOIN apoderados ap ON ap.id = u.apoderado_id
+               INNER JOIN familias f ON f.apoderado_id = ap.id
+               INNER JOIN alumnos al ON al.id = f.alumno_id
+               WHERE u.id IN (${apoderadoUsuarioIds.map(() => '?').join(',')})
+                 AND f.alumno_id IN (${alumnoIdsParaApoderados.map(() => '?').join(',')})
+                 AND u.colegio_id = ?
+                 AND ap.colegio_id = ?`,
+              [...apoderadoUsuarioIds, ...alumnoIdsParaApoderados, tarea.colegio_id, tarea.colegio_id]
+            );
+            for (const row of mapRows || []) {
+              const uid = parseInt(row.usuario_id, 10);
+              const nombre = String(row.alumno_nombre || '').trim();
+              if (!alumnosPorApoderado.has(uid)) alumnosPorApoderado.set(uid, []);
+              if (nombre) alumnosPorApoderado.get(uid).push(nombre);
+            }
+          } catch (err) {
+            console.warn('⚠️ [TAREAS VENCIDAS SIN ENTREGA] No se pudo mapear alumnos por apoderado:', err.message);
+          }
+        }
+
+        const mensajePorApoderado = new Map();
+        const construirMensajeVencido = (destinatarioId) => {
+          const alumnosRef = alumnosPorApoderado.get(parseInt(destinatarioId, 10)) || [];
+          if (alumnosRef.length === 1) {
+            return `⚠️ Alumno: ${alumnosRef[0]} - No entregó el proyecto "${tarea.titulo}" dentro del plazo. Se asignó nota 0. - Curso: ${tarea.curso_nombre}`;
+          }
+          if (alumnosRef.length > 1) {
+            const muestra = alumnosRef.slice(0, 3).join(', ');
+            const extra = alumnosRef.length > 3 ? ` (+${alumnosRef.length - 3})` : '';
+            return `⚠️ Alumnos: ${muestra}${extra} - No entregaron el proyecto "${tarea.titulo}" dentro del plazo. Se asignó nota 0. - Curso: ${tarea.curso_nombre}`;
+          }
+          return mensajeNotificacionBase;
+        };
+
         for (const destinatarioId of apoderadoUsuarioIds) {
           try {
+            const mensajeNotificacion = construirMensajeVencido(destinatarioId);
+            mensajePorApoderado.set(parseInt(destinatarioId, 10), mensajeNotificacion);
             await insertNotificacionUsuario(execute, {
               usuario_id: tarea.personal_id,
               destinatario_id: destinatarioId,
@@ -22877,7 +23020,7 @@ async function verificarTareasVencidasSinEntrega() {
             },
             payload: {
               title: tituloNotificacion,
-              body: mensajeNotificacion,
+              body: mensajePorApoderado.get(parseInt(sub.usuario_id, 10)) || mensajeNotificacionBase,
               icon: '/icons/icon-192x192.png',
               badge: '/icons/icon-192x192.png',
               vibrate: [200, 100, 200],
@@ -22912,10 +23055,13 @@ async function verificarTareasVencidasSinEntrega() {
           const emailsUnicos = new Map();
           usuariosConEmail.forEach(u => {
             const email = (u.email || '').toLowerCase().trim();
-            if (email && !emailsUnicos.has(email)) emailsUnicos.set(email, u.email);
+            if (email && !emailsUnicos.has(email)) {
+              emailsUnicos.set(email, { emailOriginal: u.email, usuarioId: parseInt(u.id, 10) });
+            }
           });
-          for (const email of emailsUnicos.values()) {
-            enviarCorreoNotificacion(email, tituloNotificacion, mensajeNotificacion, colegioNombre, 'GENERAL')
+          for (const dataEmail of emailsUnicos.values()) {
+            const contenidoEmail = mensajePorApoderado.get(dataEmail.usuarioId) || mensajeNotificacionBase;
+            enviarCorreoNotificacion(dataEmail.emailOriginal, tituloNotificacion, contenidoEmail, colegioNombre, 'GENERAL')
               .catch(err => console.error(`❌ [TAREAS VENCIDAS SIN ENTREGA] Error correo:`, err));
           }
           if (emailsUnicos.size > 0) {

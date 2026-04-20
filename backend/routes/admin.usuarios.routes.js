@@ -1478,6 +1478,21 @@ const getBimestreActualFromConfig = async (colegio_id, anio_activo) => {
   return getBimestreActual();
 };
 
+const getAvatarBimestreEfectivo = async (colegio_id, anio_activo) => {
+  const bimestreActual = await getBimestreActualFromConfig(colegio_id, anio_activo);
+  if (bimestreActual === 1) return 1;
+  try {
+    const rows = await query(
+      'SELECT id FROM avatar_bases WHERE bimestre = ? LIMIT 1',
+      [bimestreActual]
+    );
+    if (rows && rows.length > 0) return bimestreActual;
+  } catch (err) {
+    console.warn('getAvatarBimestreEfectivo admin:', err.message);
+  }
+  return 1;
+};
+
 function getAvatarBaseUrlForReq(req) {
   if (process.env.NODE_ENV !== 'production') {
     return 'http://localhost:5000/api/static/avatars';
@@ -2479,7 +2494,7 @@ router.get('/alumnos/:id', async (req, res) => {
 
     let avatar_asignado_url = null;
     try {
-      const bimestre = await getBimestreActualFromConfig(colegio_id, req.user?.anio_activo);
+      const bimestre = await getAvatarBimestreEfectivo(colegio_id, req.user?.anio_activo);
       const sexoAv = alumno.sexo !== null && alumno.sexo !== undefined ? alumno.sexo : 0;
       let bases = await query(
         'SELECT id, imagen_base FROM avatar_bases WHERE bimestre = ? AND sexo = ? LIMIT 1',
