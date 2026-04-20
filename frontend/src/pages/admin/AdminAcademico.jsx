@@ -428,8 +428,8 @@ function NivelModalFormBody({ modal, form, setForm, nivelUi, onModoRangoChange, 
   );
 }
 
-/** Fondos pasteles suaves + borde; mismo patrón que tarjetas «Categorías», con color distinto por índice */
-const NIVEL_CARD_THEMES = [
+/** Fondos pasteles suaves + borde (Niveles, Grados/grupos, etc.) */
+const PASTEL_CARD_THEMES = [
   { bg: '#eff6ff', border: '#bfdbfe' },
   { bg: '#ecfdf5', border: '#a7f3d0' },
   { bg: '#fffbeb', border: '#fde68a' },
@@ -437,6 +437,29 @@ const NIVEL_CARD_THEMES = [
   { bg: '#f5f3ff', border: '#ddd6fe' },
   { bg: '#fff7ed', border: '#fed7aa' }
 ];
+
+const SECCIONES_GRUPO = [
+  { v: 'UNICA', l: 'Única' },
+  { v: 'A', l: 'A' },
+  { v: 'B', l: 'B' },
+  { v: 'C', l: 'C' },
+  { v: 'D', l: 'D' },
+  { v: 'E', l: 'E' },
+  { v: 'F', l: 'F' }
+];
+
+function gradosDisponiblesPorNivel(nivelId, niveles) {
+  const n = (niveles || []).find((x) => String(x.id) === String(nivelId));
+  if (!n) return [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  let min = parseInt(n.grado_minimo, 10);
+  let max = parseInt(n.grado_maximo, 10);
+  if (!Number.isFinite(min)) min = 1;
+  if (!Number.isFinite(max)) max = 10;
+  if (min > max) [min, max] = [max, min];
+  const arr = [];
+  for (let i = min; i <= max; i += 1) arr.push(i);
+  return arr.length ? arr : [1];
+}
 
 function IconoLapiz() {
   return (
@@ -599,7 +622,7 @@ function NivelesPanel({ onRefreshMeta }) {
         <div className="admin-academico-niveles-grid">
           {rows.map((r, idx) => {
             const cuant = esCuantitativa(r);
-            const theme = NIVEL_CARD_THEMES[idx % NIVEL_CARD_THEMES.length];
+            const theme = PASTEL_CARD_THEMES[idx % PASTEL_CARD_THEMES.length];
             const tieneNotasNum =
               cuant &&
               [r.nota_aprobatoria, r.nota_maxima, r.nota_minima].some(
@@ -711,34 +734,74 @@ function NivelesPanel({ onRefreshMeta }) {
 
 function GruposPanel({ meta }) {
   const anioDef = meta?.anio_activo || new Date().getFullYear();
+  const anioActual = new Date().getFullYear();
   const [anio, setAnio] = useState(anioDef);
+  const [filtroNivelId, setFiltroNivelId] = useState('');
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
+  const [menuGrupoId, setMenuGrupoId] = useState(null);
+
+  const personalLista = meta?.personal?.length ? meta.personal : meta?.docentes || [];
+  const nivelesLista = useMemo(() => meta?.niveles || [], [meta]);
+
+  const añosSelect = useMemo(() => {
+    const arr = [];
+    for (let y = anioDef + 3; y >= anioDef - 10; y -= 1) arr.push(y);
+    return arr;
+  }, [anioDef]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/admin/academico/grupos', { params: { anio } });
+      const params = { anio };
+      if (filtroNivelId) params.nivel_id = filtroNivelId;
+      const { data } = await api.get('/admin/academico/grupos', { params });
       setRows(data.grupos || []);
     } catch (e) {
       Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
     } finally {
       setLoading(false);
     }
-  }, [anio]);
+  }, [anio, filtroNivelId]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (menuGrupoId == null) return;
+    const close = (e) => {
+      const el = e.target?.closest?.('.admin-academico-grupo-card__menu');
+      if (!el) setMenuGrupoId(null);
+    };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [menuGrupoId]);
+
+  const gradosOpciones = useMemo(() => {
+    const base = gradosDisponiblesPorNivel(form.nivel_id, nivelesLista);
+    const g = parseInt(form.grado, 10);
+    if (Number.isFinite(g) && !base.includes(g)) {
+      return [...base, g].sort((a, b) => a - b);
+    }
+    return base;
+  }, [form.nivel_id, form.grado, nivelesLista]);
+
+  const verTodo = () => {
+    setFiltroNivelId('');
+    setAnio(anioDef);
+  };
+
   const openNew = () => {
+    const nid = nivelesLista[0]?.id || '';
+    const gs = gradosDisponiblesPorNivel(nid, nivelesLista);
     setForm({
-      anio,
-      nivel_id: meta?.niveles?.[0]?.id || '',
-      grado: 1,
-      seccion: 'A',
+      anio: String(anioActual),
+      nivel_id: nid,
+      grado: String(gs[0] ?? 1),
+      seccion: 'UNICA',
       turno_id: meta?.turnos?.[0]?.id || '',
       sede_id: meta?.sedes?.[0]?.id || '',
       tutor_id: '',
@@ -750,11 +813,13 @@ function GruposPanel({ meta }) {
   };
 
   const openEdit = (r) => {
+    let sec = String(r.seccion || '').toUpperCase();
+    if (sec === 'ÚNICA' || sec === 'UNICA') sec = 'UNICA';
     setForm({
-      anio: r.anio,
+      anio: String(r.anio),
       nivel_id: r.nivel_id,
-      grado: r.grado,
-      seccion: r.seccion,
+      grado: String(r.grado),
+      seccion: SECCIONES_GRUPO.some((s) => s.v === sec) ? sec : 'A',
       turno_id: r.turno_id,
       sede_id: r.sede_id,
       tutor_id: r.tutor_id || '',
@@ -765,9 +830,22 @@ function GruposPanel({ meta }) {
     setModal({ edit: r });
   };
 
+  const onNivelFormChange = (nivelId) => {
+    const gs = gradosDisponiblesPorNivel(nivelId, nivelesLista);
+    setForm((f) => ({
+      ...f,
+      nivel_id: nivelId,
+      grado: String(gs.includes(parseInt(f.grado, 10)) ? parseInt(f.grado, 10) : gs[0])
+    }));
+  };
+
   const guardar = async () => {
     try {
-      const body = { ...form, grado: parseInt(form.grado, 10), anio: parseInt(form.anio, 10) };
+      const body = {
+        ...form,
+        grado: parseInt(form.grado, 10),
+        anio: parseInt(form.anio, 10)
+      };
       if (modal?.edit) {
         await api.put(`/admin/academico/grupos/${modal.edit.id}`, body);
       } else {
@@ -799,122 +877,258 @@ function GruposPanel({ meta }) {
   };
 
   return (
-    <section className="dg-section">
-      <div className="dg-filters">
-        <label>
-          Año
-          <input type="number" value={anio} onChange={(e) => setAnio(parseInt(e.target.value, 10) || anioDef)} style={{ marginLeft: 8, width: 100 }} />
-        </label>
-        <Btn onClick={openNew}>+ Nuevo grupo</Btn>
-      </div>
-      {loading ? (
-        <p>Cargando…</p>
-      ) : (
-        <div className="admin-academico-table-wrap">
-          <table className="admin-academico-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Nivel</th>
-                <th>Grado</th>
-                <th>Secc.</th>
-                <th>Turno</th>
-                <th>Sede</th>
-                <th>Tutor</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.id}</td>
-                  <td>{r.nivel_nombre}</td>
-                  <td>{r.grado}°</td>
-                  <td>{r.seccion}</td>
-                  <td>{r.turno_nombre}</td>
-                  <td>{r.sede_nombre || '—'}</td>
-                  <td>{r.tutor_nombre || '—'}</td>
-                  <td>
-                    <div className="admin-academico-actions">
-                      <Btn variant="ghost" onClick={() => openEdit(r)}>Editar</Btn>
-                      <Btn variant="ghost" onClick={() => eliminar(r)}>Eliminar</Btn>
-                    </div>
-                  </td>
-                </tr>
+    <section className="dg-section admin-academico-grupos-section">
+      <div className="admin-academico-grupos-toolbar">
+        <div className="admin-academico-grupos-filters">
+          <label className="admin-academico-grupos-filter-field">
+            <span>Año</span>
+            <select value={anio} onChange={(e) => setAnio(parseInt(e.target.value, 10) || anioDef)}>
+              {añosSelect.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
               ))}
-            </tbody>
-          </table>
+            </select>
+          </label>
+          <label className="admin-academico-grupos-filter-field">
+            <span>Nivel</span>
+            <select value={filtroNivelId} onChange={(e) => setFiltroNivelId(e.target.value)}>
+              <option value="">Todos los niveles</option>
+              {nivelesLista.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="dg-btn-ghost admin-academico-grupos-ver-todo" onClick={verTodo}>
+            Ver todo
+          </button>
+        </div>
+        <button type="button" className="admin-academico-grupos-btn-nuevo" onClick={openNew}>
+          + Nuevo grado
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="admin-academico-grupos-loading">Cargando…</p>
+      ) : rows.length === 0 ? (
+        <p className="admin-academico-niveles-empty">No hay grupos para este año y filtros. Use «+ Nuevo grado».</p>
+      ) : (
+        <div className="admin-academico-grupos-grid">
+          {rows.map((r, idx) => {
+            const theme = PASTEL_CARD_THEMES[idx % PASTEL_CARD_THEMES.length];
+            const nMat = r.matriculas_count != null ? Number(r.matriculas_count) : 0;
+            return (
+              <article
+                key={r.id}
+                className="admin-academico-grupo-card"
+                style={{ background: theme.bg, borderColor: theme.border }}
+              >
+                <h3 className="admin-academico-grupo-card__nivel">{r.nivel_nombre || '—'}</h3>
+                <div className="admin-academico-grupo-card__grado-seccion">
+                  <span className="admin-academico-grupo-card__grado-num">{r.grado}°</span>
+                  <span className="admin-academico-grupo-card__sep">·</span>
+                  <span className="admin-academico-grupo-card__seccion">
+                    Secc. {String(r.seccion).toUpperCase() === 'UNICA' ? 'Única' : r.seccion}
+                  </span>
+                </div>
+                <p className="admin-academico-grupo-card__line">
+                  <span className="admin-academico-grupo-card__k">Turno</span> {r.turno_nombre || '—'}
+                </p>
+                <p className="admin-academico-grupo-card__line">
+                  <span className="admin-academico-grupo-card__k">Tutor</span> {r.tutor_nombre || '—'}
+                </p>
+                <p className="admin-academico-grupo-card__alumnos">
+                  <span className="admin-academico-grupo-card__k">Alumnos matriculados</span>
+                  <span className="admin-academico-grupo-card__alumnos-val">{nMat}</span>
+                </p>
+                <div className="admin-academico-grupo-card__foot">
+                  <div
+                    className="admin-academico-grupo-card__menu"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      className="admin-academico-grupo-card__opciones"
+                      aria-expanded={menuGrupoId === r.id}
+                      aria-haspopup="menu"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuGrupoId(menuGrupoId === r.id ? null : r.id);
+                      }}
+                    >
+                      Opciones
+                    </button>
+                    {menuGrupoId === r.id && (
+                      <div className="admin-academico-grupo-card__dropdown" role="menu">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="admin-academico-grupo-card__dropdown-item"
+                          onClick={() => {
+                            setMenuGrupoId(null);
+                            openEdit(r);
+                          }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="admin-academico-grupo-card__dropdown-item admin-academico-grupo-card__dropdown-item--danger"
+                          onClick={() => {
+                            setMenuGrupoId(null);
+                            eliminar(r);
+                          }}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
 
-      <ModalRoot open={!!(modal && meta)} onClose={() => setModal(null)} wide>
-        <>
-          <h3>{modal?.edit ? 'Editar grupo' : 'Nuevo grupo'}</h3>
-          <p className="admin-academico-hint">Sede, nivel, grado, sección, turno y año definen el aula-grupo (equivalente al registro de grupos del sistema anterior).</p>
-          <div className="admin-academico-modal-grid">
-            <div className="admin-academico-field">
-              <label>Año</label>
-              <input type="number" value={form.anio} onChange={(e) => setForm({ ...form, anio: e.target.value })} />
+      <ModalRoot
+        open={!!(modal && meta)}
+        onClose={() => setModal(null)}
+        wide
+        modalClassName="admin-academico-modal--grupo-form"
+      >
+        <div className="admin-academico-grupo-form-card">
+          <h3 className="admin-academico-nivel-form-card__title">
+            {modal?.edit ? 'Editar grupo' : 'Nuevo grado'}
+          </h3>
+          <p className="admin-academico-nivel-form-card__lead">
+            Sede, nivel y aula (grado, sección, turno); año y tutor. Otros datos son opcionales.
+          </p>
+          <div className="admin-academico-nivel-form-grid">
+            <div className="admin-academico-grupo-form-row-sede-nivel">
+              <div className="admin-academico-nivel-form-field">
+                <label>
+                  sede <span className="admin-academico-nivel-form-req">*</span>
+                </label>
+                <select value={form.sede_id} onChange={(e) => setForm({ ...form, sede_id: e.target.value })}>
+                  {(meta?.sedes || []).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="admin-academico-nivel-form-field">
+                <label>
+                  nivel <span className="admin-academico-nivel-form-req">*</span>
+                </label>
+                <select value={form.nivel_id} onChange={(e) => onNivelFormChange(e.target.value)}>
+                  {nivelesLista.map((n) => (
+                    <option key={n.id} value={n.id}>
+                      {n.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="admin-academico-field">
-              <label>Nivel</label>
-              <select value={form.nivel_id} onChange={(e) => setForm({ ...form, nivel_id: e.target.value })}>
-                {(meta?.niveles || []).map((n) => (
-                  <option key={n.id} value={n.id}>{n.nombre}</option>
-                ))}
-              </select>
+
+            <div className="admin-academico-nivel-form-row-3">
+              <div className="admin-academico-nivel-form-field">
+                <label>
+                  grado <span className="admin-academico-nivel-form-req">*</span>
+                </label>
+                <select value={form.grado} onChange={(e) => setForm({ ...form, grado: e.target.value })}>
+                  {gradosOpciones.map((g) => (
+                    <option key={g} value={String(g)}>
+                      {g}°
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="admin-academico-nivel-form-field">
+                <label>
+                  sección <span className="admin-academico-nivel-form-req">*</span>
+                </label>
+                <select value={form.seccion} onChange={(e) => setForm({ ...form, seccion: e.target.value })}>
+                  {SECCIONES_GRUPO.map((s) => (
+                    <option key={s.v} value={s.v}>
+                      {s.l}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="admin-academico-nivel-form-field">
+                <label>
+                  turno <span className="admin-academico-nivel-form-req">*</span>
+                </label>
+                <select value={form.turno_id} onChange={(e) => setForm({ ...form, turno_id: e.target.value })}>
+                  {(meta?.turnos || []).map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="admin-academico-field">
-              <label>Grado (número)</label>
-              <input type="number" min={1} value={form.grado} onChange={(e) => setForm({ ...form, grado: e.target.value })} />
+
+            <div className="admin-academico-grupo-form-row-anio-tutor">
+              <div className="admin-academico-nivel-form-field">
+                <label>
+                  año <span className="admin-academico-nivel-form-req">*</span>
+                </label>
+                <select value={form.anio} onChange={(e) => setForm({ ...form, anio: e.target.value })}>
+                  {añosSelect.map((y) => (
+                    <option key={y} value={String(y)}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="admin-academico-nivel-form-field">
+                <label>tutor</label>
+                <select value={form.tutor_id} onChange={(e) => setForm({ ...form, tutor_id: e.target.value })}>
+                  <option value="">— Sin asignar —</option>
+                  {personalLista.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="admin-academico-field">
-              <label>Sección</label>
-              <input value={form.seccion} onChange={(e) => setForm({ ...form, seccion: e.target.value })} maxLength={8} />
-            </div>
-            <div className="admin-academico-field">
-              <label>Turno</label>
-              <select value={form.turno_id} onChange={(e) => setForm({ ...form, turno_id: e.target.value })}>
-                {(meta?.turnos || []).map((t) => (
-                  <option key={t.id} value={t.id}>{t.nombre}</option>
-                ))}
-              </select>
-            </div>
-            <div className="admin-academico-field">
-              <label>Sede</label>
-              <select value={form.sede_id} onChange={(e) => setForm({ ...form, sede_id: e.target.value })}>
-                {(meta?.sedes || []).map((s) => (
-                  <option key={s.id} value={s.id}>{s.nombre}</option>
-                ))}
-              </select>
-            </div>
-            <div className="admin-academico-field admin-academico-field--full">
-              <label>Tutor (opcional)</label>
-              <select value={form.tutor_id} onChange={(e) => setForm({ ...form, tutor_id: e.target.value })}>
-                <option value="">—</option>
-                {(meta?.docentes || []).map((d) => (
-                  <option key={d.id} value={d.id}>{d.nombre}</option>
-                ))}
-              </select>
-            </div>
-            <div className="admin-academico-field admin-academico-field--full">
-              <label>Dirección de archivos (opcional)</label>
-              <input value={form.enlace_archivos} onChange={(e) => setForm({ ...form, enlace_archivos: e.target.value })} placeholder="URL o ruta" />
-            </div>
-            <div className="admin-academico-field">
-              <label>Link aula virtual (opcional)</label>
-              <input value={form.aula_virtual} onChange={(e) => setForm({ ...form, aula_virtual: e.target.value })} />
-            </div>
-            <div className="admin-academico-field">
-              <label>Horario aula virtual (opcional)</label>
-              <input value={form.horario_virtual} onChange={(e) => setForm({ ...form, horario_virtual: e.target.value })} />
-            </div>
+
+            <details className="admin-academico-grupo-form-extras">
+              <summary>Más datos (opcional)</summary>
+              <div className="admin-academico-nivel-form-grid" style={{ marginTop: '0.75rem' }}>
+                <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
+                  <label>Dirección de archivos</label>
+                  <input
+                    value={form.enlace_archivos}
+                    onChange={(e) => setForm({ ...form, enlace_archivos: e.target.value })}
+                    placeholder="URL o ruta"
+                  />
+                </div>
+                <div className="admin-academico-nivel-form-field">
+                  <label>Link aula virtual</label>
+                  <input value={form.aula_virtual} onChange={(e) => setForm({ ...form, aula_virtual: e.target.value })} />
+                </div>
+                <div className="admin-academico-nivel-form-field">
+                  <label>Horario aula virtual</label>
+                  <input value={form.horario_virtual} onChange={(e) => setForm({ ...form, horario_virtual: e.target.value })} />
+                </div>
+              </div>
+            </details>
           </div>
           <div className="admin-academico-modal-actions">
-            <Btn variant="ghost" onClick={() => setModal(null)}>Cancelar</Btn>
+            <Btn variant="ghost" onClick={() => setModal(null)}>
+              Cancelar
+            </Btn>
             <Btn onClick={guardar}>Guardar</Btn>
           </div>
-        </>
+        </div>
       </ModalRoot>
     </section>
   );

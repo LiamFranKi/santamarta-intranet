@@ -58,8 +58,15 @@ router.get('/meta', async (req, res) => {
     const cid = colegio(req);
     const [cRow] = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
     const anioActivo = parseInt(cRow?.anio_activo || new Date().getFullYear(), 10);
+    const nivCols = await getTableColumns('niveles').catch(() => null);
+    let nivelesSelect = 'id, nombre';
+    if (nivCols?.has('grado_minimo')) nivelesSelect += ', grado_minimo';
+    if (nivCols?.has('grado_maximo')) nivelesSelect += ', grado_maximo';
+    const nivelesOrder = nivCols?.has('grado_minimo')
+      ? 'COALESCE(grado_minimo, 0) ASC, id ASC'
+      : 'id ASC';
     const niveles = await query(
-      'SELECT id, nombre FROM niveles WHERE colegio_id = ? ORDER BY id ASC',
+      `SELECT ${nivelesSelect} FROM niveles WHERE colegio_id = ? ORDER BY ${nivelesOrder}`,
       [cid]
     );
     let turnos = await query('SELECT id, nombre FROM turnos WHERE colegio_id = ? ORDER BY nombre ASC', [cid]).catch(() => []);
@@ -75,6 +82,15 @@ router.get('/meta', async (req, res) => {
        ORDER BY p.apellidos, p.nombres`,
       [cid]
     );
+    /** Todo el personal con usuario activo (tutores / equipo) */
+    const personal = await query(
+      `SELECT p.id,
+              TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre
+       FROM personal p
+       INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+       ORDER BY p.apellidos, p.nombres`,
+      [cid]
+    ).catch(() => []);
     const [cCols, aCols] = await Promise.all([
       getTableColumns('cursos').catch(() => null),
       getTableColumns('areas').catch(() => null)
@@ -85,6 +101,7 @@ router.get('/meta', async (req, res) => {
       turnos: turnos || [],
       sedes: sedes || [],
       docentes: docentes || [],
+      personal: personal || [],
       schema: {
         cursos_nivel_id: !!(cCols && cCols.has('nivel_id')),
         areas_nivel_id: !!(aCols && aCols.has('nivel_id'))
@@ -249,6 +266,7 @@ async function listGrupos(req, res) {
   try {
     const cid = colegio(req);
     const anio = req.query.anio != null ? parseInt(req.query.anio, 10) : null;
+    const nivelIdQ = req.query.nivel_id != null && String(req.query.nivel_id).trim() !== '' ? parseInt(req.query.nivel_id, 10) : null;
     const [cRow] = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
     const anioF = Number.isFinite(anio) ? anio : parseInt(cRow?.anio_activo || new Date().getFullYear(), 10);
     const gcols = await getTableColumns('grupos');
@@ -260,6 +278,7 @@ async function listGrupos(req, res) {
     }
 
     let sql = `SELECT ${gFields.map((c) => `g.\`${c}\``).join(', ')}`;
+    sql += `, (SELECT COUNT(*) FROM matriculas m WHERE m.grupo_id = g.id) AS matriculas_count`;
     if (gcols.has('nivel_id')) sql += `, n.nombre AS nivel_nombre`;
     if (gcols.has('turno_id')) sql += `, t.nombre AS turno_nombre`;
     if (gcols.has('sede_id')) sql += `, s.nombre AS sede_nombre`;
@@ -288,11 +307,19 @@ async function listGrupos(req, res) {
       sql += ` AND g.anio = ?`;
       params.push(anioF);
     }
+    if (Number.isFinite(nivelIdQ) && gcols.has('nivel_id')) {
+      sql += ` AND g.nivel_id = ?`;
+      params.push(nivelIdQ);
+    }
 
+    const nivColsOrder = gcols.has('nivel_id') ? await getTableColumns('niveles').catch(() => null) : null;
     const orderParts = [];
-    if (gcols.has('nivel_id')) orderParts.push('n.nombre');
-    if (gcols.has('grado')) orderParts.push('g.grado');
-    if (gcols.has('seccion')) orderParts.push('g.seccion');
+    if (gcols.has('nivel_id')) {
+      if (nivColsOrder?.has('grado_minimo')) orderParts.push('COALESCE(n.grado_minimo, 0) ASC');
+      orderParts.push('n.id ASC');
+    }
+    if (gcols.has('grado')) orderParts.push('g.grado ASC');
+    if (gcols.has('seccion')) orderParts.push('g.seccion ASC');
     sql += ` ORDER BY ${orderParts.length ? orderParts.join(', ') : 'g.id'}`;
 
     const rows = await query(sql, params);

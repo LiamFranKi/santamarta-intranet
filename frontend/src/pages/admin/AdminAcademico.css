@@ -77,6 +77,10 @@
   max-width: min(720px, 96vw);
 }
 
+.admin-academico-modal.admin-academico-modal--grupo-form {
+  max-width: min(680px, 96vw);
+}
+
 .admin-academico-modal-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -496,4 +500,266 @@ body.admin-academico-page .swal2-container {
   .admin-academico-nivel-form-row-2-cal {
     grid-template-columns: 1fr;
   }
+}
+
+/* ——— Grados / grupos: barra filtros + tarjetas pasteles ——— */
+.admin-academico-grupos-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.15rem;
+}
+
+.admin-academico-grupos-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+
+.admin-academico-grupos-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.admin-academico-grupos-filter-field span {
+  color: #64748b;
+}
+
+.admin-academico-grupos-filter-field select {
+  min-width: 160px;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.admin-academico-grupos-ver-todo {
+  align-self: center;
+}
+
+.admin-academico-grupos-btn-nuevo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem 1.35rem;
+  min-width: min(100%, 280px);
+  background: linear-gradient(135deg, #4a83c1 0%, #2d5a8f 100%);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(74, 131, 193, 0.35);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.admin-academico-grupos-btn-nuevo:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(74, 131, 193, 0.42);
+}
+
+.admin-academico-grupos-loading {
+  margin: 0;
+  color: #64748b;
+}
+
+.admin-academico-grupos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
+  gap: 0.9rem;
+}
+
+.admin-academico-grupo-card {
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 1rem 1.05rem 0.85rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-height: 0;
+  position: relative;
+}
+
+.admin-academico-grupo-card__nivel {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #1e3a5f;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.admin-academico-grupo-card__grado-seccion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.admin-academico-grupo-card__grado-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-academico-grupo-card__sep {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.admin-academico-grupo-card__line {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.admin-academico-grupo-card__k {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  margin-right: 0.35rem;
+}
+
+.admin-academico-grupo-card__alumnos {
+  margin: 0.15rem 0 0 0;
+  padding: 0.5rem 0.55rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px dashed rgba(30, 58, 95, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.admin-academico-grupo-card__alumnos-val {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #1e3a5f;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-academico-grupo-card__foot {
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
+.admin-academico-grupo-card__menu {
+  position: relative;
+}
+
+.admin-academico-grupo-card__opciones {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid rgba(74, 131, 193, 0.35);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.85);
+  color: #2d5a8f;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.admin-academico-grupo-card__opciones:hover {
+  background: #fff;
+  border-color: rgba(74, 131, 193, 0.55);
+}
+
+.admin-academico-grupo-card__dropdown {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  padding: 0.35rem;
+  background: #fff;
+  border: 1px solid rgba(74, 131, 193, 0.22);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+  z-index: 20;
+}
+
+.admin-academico-grupo-card__dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e3a5f;
+  cursor: pointer;
+}
+
+.admin-academico-grupo-card__dropdown-item:hover {
+  background: #f0f7ff;
+}
+
+.admin-academico-grupo-card__dropdown-item--danger {
+  color: #b91c1c;
+}
+
+.admin-academico-grupo-card__dropdown-item--danger:hover {
+  background: #fef2f2;
+}
+
+.admin-academico-grupo-form-card {
+  margin: -0.25rem 0 0 0;
+}
+
+.admin-academico-grupo-form-row-sede-nivel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem 1.1rem;
+  align-items: end;
+}
+
+.admin-academico-grupo-form-row-anio-tutor {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) 2fr;
+  gap: 0.85rem 1.1rem;
+  align-items: end;
+}
+
+@media (max-width: 560px) {
+  .admin-academico-grupo-form-row-sede-nivel,
+  .admin-academico-grupo-form-row-anio-tutor {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-academico-grupo-form-extras {
+  grid-column: 1 / -1;
+  margin-top: 0.35rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #f1f5f9;
+  border-radius: 10px;
+  background: #fafbfc;
+}
+
+.admin-academico-grupo-form-extras summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #64748b;
 }
