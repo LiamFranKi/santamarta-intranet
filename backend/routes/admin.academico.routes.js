@@ -238,34 +238,70 @@ router.delete('/niveles/:id', async (req, res) => {
 // ——— Grupos (menú "Grados" / aulas por año) ———
 const GRUPO_EXTRA_KEYS = ['enlace_archivos', 'aula_virtual', 'horario_virtual'];
 
-router.get('/grupos', async (req, res) => {
+/** Lista grupos con SQL según columnas reales en MySQL (evita 500 si falta p. ej. sede_id). Alias GET /grados = /grupos (UI). */
+async function listGrupos(req, res) {
   try {
     const cid = colegio(req);
     const anio = req.query.anio != null ? parseInt(req.query.anio, 10) : null;
     const [cRow] = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
     const anioF = Number.isFinite(anio) ? anio : parseInt(cRow?.anio_activo || new Date().getFullYear(), 10);
     const gcols = await getTableColumns('grupos');
+    const core = pickExisting(gcols, ['id', 'anio', 'nivel_id', 'grado', 'seccion', 'turno_id', 'tutor_id', 'sede_id']);
     const extras = pickExisting(gcols, GRUPO_EXTRA_KEYS);
-    const extraSel = extras.length ? `, ${extras.map((e) => `g.${e}`).join(', ')}` : '';
-    const rows = await query(
-      `SELECT g.id, g.anio, g.nivel_id, g.grado, g.seccion, g.turno_id, g.tutor_id, g.sede_id${extraSel},
-              n.nombre AS nivel_nombre, t.nombre AS turno_nombre, s.nombre AS sede_nombre,
-              TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))) AS tutor_nombre
-       FROM grupos g
-       INNER JOIN niveles n ON n.id = g.nivel_id AND n.colegio_id = ?
-       INNER JOIN turnos t ON t.id = g.turno_id
-       LEFT JOIN sedes s ON s.id = g.sede_id
-       LEFT JOIN personal p ON p.id = g.tutor_id
-       WHERE g.colegio_id = ? AND g.anio = ?
-       ORDER BY n.nombre, g.grado, g.seccion`,
-      [cid, cid, anioF]
-    );
+    const gFields = [...new Set([...core, ...extras])];
+    if (!gFields.length || !gFields.includes('id')) {
+      return res.status(500).json({ error: 'Tabla grupos no tiene la estructura esperada (falta id).' });
+    }
+
+    let sql = `SELECT ${gFields.map((c) => `g.\`${c}\``).join(', ')}`;
+    if (gcols.has('nivel_id')) sql += `, n.nombre AS nivel_nombre`;
+    if (gcols.has('turno_id')) sql += `, t.nombre AS turno_nombre`;
+    if (gcols.has('sede_id')) sql += `, s.nombre AS sede_nombre`;
+    if (gcols.has('tutor_id')) {
+      sql += `, TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))) AS tutor_nombre`;
+    }
+
+    sql += ` FROM grupos g`;
+    const params = [];
+    if (gcols.has('nivel_id')) {
+      sql += ` INNER JOIN niveles n ON n.id = g.nivel_id AND n.colegio_id = ?`;
+      params.push(cid);
+    }
+    if (gcols.has('turno_id')) {
+      sql += ` LEFT JOIN turnos t ON t.id = g.turno_id`;
+    }
+    if (gcols.has('sede_id')) {
+      sql += ` LEFT JOIN sedes s ON s.id = g.sede_id`;
+    }
+    if (gcols.has('tutor_id')) {
+      sql += ` LEFT JOIN personal p ON p.id = g.tutor_id`;
+    }
+    sql += ` WHERE g.colegio_id = ?`;
+    params.push(cid);
+    if (gcols.has('anio')) {
+      sql += ` AND g.anio = ?`;
+      params.push(anioF);
+    }
+
+    const orderParts = [];
+    if (gcols.has('nivel_id')) orderParts.push('n.nombre');
+    if (gcols.has('grado')) orderParts.push('g.grado');
+    if (gcols.has('seccion')) orderParts.push('g.seccion');
+    sql += ` ORDER BY ${orderParts.length ? orderParts.join(', ') : 'g.id'}`;
+
+    const rows = await query(sql, params);
     res.json({ anio: anioF, grupos: rows || [] });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'Error al listar grupos' });
+    console.error('[admin/academico/grupos]', e);
+    res.status(500).json({
+      error: 'Error al listar grupos',
+      details: process.env.NODE_ENV !== 'production' ? e.message : undefined
+    });
   }
-});
+}
+
+router.get('/grupos', listGrupos);
+router.get('/grados', listGrupos);
 
 router.post('/grupos', async (req, res) => {
   try {

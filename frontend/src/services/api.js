@@ -173,6 +173,8 @@ api.interceptors.response.use(
     const isNotificacionesRoute = error.config?.url?.includes('/notificaciones');
     const isActividadesRoute = error.config?.url?.includes('/actividades');
     const isGruposRoute = error.config?.url?.includes('/grupos');
+    /** Catálogo académico admin: errores 500 no deben cerrar sesión (bug de API ≠ sesión inválida). */
+    const isAdminAcademicoRoute = reqUrl.includes('/admin/academico/');
     const isAdminImpresionesRoute =
       reqUrl.includes('/admin/usuarios/alumnos/') && reqUrl.includes('/impresiones');
     /** Asistencia a eventos por QR (público): 403/500 no deben cerrar la sesión del intranet */
@@ -181,6 +183,7 @@ api.interceptors.response.use(
     const isMensajesIntranetRoute = /\/(alumno|apoderado|docente)\/mensajes/.test(reqUrl);
     const skipLogoutMensajesApi = isMensajesIntranetRoute && (status === 403 || status === 500);
     const skipLogoutAdminImpresiones = isAdminImpresionesRoute && status === 500;
+    const skipLogoutAdminAcademico500 = status === 500 && isAdminAcademicoRoute;
 
     if (
       status &&
@@ -197,6 +200,7 @@ api.interceptors.response.use(
       !isGruposRoute &&
       !skipLogoutMensajesApi &&
       !skipLogoutAdminImpresiones &&
+      !skipLogoutAdminAcademico500 &&
       !isPublicEventosRoute
     ) {
       const errorInfo = criticalErrors[status];
