@@ -167,11 +167,21 @@ function urlPublicacionPorTipoUsuario(tipoUsuario) {
   return '/docente/dashboard#publicaciones';
 }
 
+/** Ruta SPA a vocabularios (herramientas) según rol. */
+function urlVocabularioPorTipoUsuario(tipoUsuario) {
+  const t = String(tipoUsuario || '').toUpperCase();
+  if (t === 'ALUMNO') return '/alumno/vocabularios';
+  if (t === 'APODERADO') return '/apoderado/dashboard';
+  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA') return '/admin/herramientas/vocabularios';
+  return '/docente/herramientas/vocabularios';
+}
+
 module.exports = {
   obtenerUrlAulaVirtual,
   obtenerUrlExamenActivado,
   inferirUrlApoderadoNotificacion,
   inferirUrlNotificacionFamiliaPorDestinatario,
   urlPortalHijoPorTipoUsuario,
-  urlPublicacionPorTipoUsuario
+  urlPublicacionPorTipoUsuario,
+  urlVocabularioPorTipoUsuario
 };

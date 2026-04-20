@@ -1,5 +1,5 @@
--- Vocabularios: PDFs por nivel y grado (año lectivo), visibles para alumnos del mismo nivel+grado.
--- Docentes solo publican para grados donde tienen asignatura o tutoría.
+-- Vocabularios: PDF por grupo (nivel + grado + sección = grupos.id), año lectivo.
+-- Docentes solo publican para grupos donde tienen asignatura o tutoría.
 --
 -- NOTA: No se declaran FOREIGN KEY hacia colegios / niveles / personal porque en muchas
 -- instalaciones legacy esas tablas siguen en MyISAM; InnoDB no puede referenciarlas (errno 150).
@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS `vocabularios` (
   `anio` int(11) NOT NULL COMMENT 'Año lectivo (grupos.anio)',
   `nivel_id` int(11) NOT NULL,
   `grado` int(11) NOT NULL COMMENT 'Número de grado (grupos.grado)',
+  `grupo_id` int(11) NULL DEFAULT NULL COMMENT 'grupos.id (nivel+grado+sección)',
   `titulo` varchar(255) NOT NULL DEFAULT '',
   `descripcion` varchar(1000) DEFAULT NULL,
   `nombre_archivo_original` varchar(500) NOT NULL DEFAULT '',
@@ -22,6 +23,7 @@ CREATE TABLE IF NOT EXISTS `vocabularios` (
   PRIMARY KEY (`id`),
   KEY `idx_vocab_colegio_anio` (`colegio_id`, `anio`),
   KEY `idx_vocab_nivel_grado` (`nivel_id`, `grado`),
+  KEY `idx_vocab_grupo` (`grupo_id`),
   KEY `idx_vocab_personal` (`personal_id`),
   KEY `idx_vocab_usuario_creador` (`usuario_creador_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci

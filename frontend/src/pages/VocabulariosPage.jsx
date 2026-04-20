@@ -5,6 +5,8 @@ import Swal from 'sweetalert2';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
+import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import './VocabulariosPage.css';
@@ -23,20 +25,34 @@ function formatFecha(iso) {
   return d.toLocaleDateString('es-PE', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+/** Texto de grupo: nivel — grado° — sección */
+function etiquetaGrupo(row) {
+  const sec = (row.seccion || '').trim();
+  const parteSec = sec ? ` · Sec. ${sec}` : '';
+  return `${row.nivel_nombre || ''} · ${row.grado}°${parteSec}`;
+}
+
+function opcionLabel(o) {
+  const sec = (o.seccion || '').trim();
+  const parteSec = sec ? ` · Sec. ${sec}` : '';
+  return `${o.nivel_nombre} — ${o.grado}°${parteSec}`;
+}
+
 const VARIANT_COPY = {
   admin: {
     title: 'Vocabularios',
-    subtitle: 'Gestione los PDF de vocabulario por nivel y grado. Los alumnos solo ven los de su grado.',
+    subtitle:
+      'Publique PDF por grupo (nivel, grado y sección). Cada alumno solo ve los de su aula.',
     section: 'Listado del colegio (año lectivo actual)'
   },
   docente: {
     title: 'Vocabularios',
-    subtitle: 'Suba PDF para los grados donde imparte o es tutor. Los alumnos los verán en su menú.',
-    section: 'Publicaciones visibles para sus grados'
+    subtitle: 'Suba material para los grupos donde imparte o es tutor. Se elige la sección en el formulario.',
+    section: 'Publicaciones visibles para sus grupos'
   },
   alumno: {
     title: 'Vocabulario',
-    subtitle: 'Material de vocabulario publicado para su nivel y grado.',
+    subtitle: 'Material publicado para su nivel, grado y sección.',
     section: 'Documentos disponibles'
   }
 };
@@ -50,7 +66,7 @@ export default function VocabulariosPage({ variant = 'admin' }) {
   const [opciones, setOpciones] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState({ nivel_grado: '', titulo: '', descripcion: '' });
+  const [form, setForm] = useState({ grupo_id: '', titulo: '', descripcion: '' });
   const [archivo, setArchivo] = useState(null);
 
   const cargarOpciones = useCallback(async () => {
@@ -89,28 +105,26 @@ export default function VocabulariosPage({ variant = 'admin' }) {
     refrescar();
   }, [refrescar]);
 
-  const parseNivelGrado = (val) => {
-    const [nid, gr] = String(val).split('|');
-    return { nivel_id: parseInt(nid, 10), grado: parseInt(gr, 10) };
+  const resolverGrupoIdInicial = (row, opts) => {
+    if (!row) {
+      const first = opts[0];
+      return first ? String(first.grupo_id) : '';
+    }
+    if (row.grupo_id) return String(row.grupo_id);
+    const m = opts.find(
+      (o) => Number(o.nivel_id) === Number(row.nivel_id) && Number(o.grado) === Number(row.grado)
+    );
+    return m ? String(m.grupo_id) : '';
   };
 
   const abrirModal = (row = null) => {
     setEditItem(row);
     setArchivo(null);
-    if (row) {
-      setForm({
-        nivel_grado: `${row.nivel_id}|${row.grado}`,
-        titulo: row.titulo || '',
-        descripcion: row.descripcion || ''
-      });
-    } else {
-      const first = opciones[0];
-      setForm({
-        nivel_grado: first ? `${first.nivel_id}|${first.grado}` : '',
-        titulo: '',
-        descripcion: ''
-      });
-    }
+    setForm({
+      grupo_id: resolverGrupoIdInicial(row, opciones),
+      titulo: row?.titulo || '',
+      descripcion: row?.descripcion || ''
+    });
     setModalOpen(true);
   };
 
@@ -119,23 +133,22 @@ export default function VocabulariosPage({ variant = 'admin' }) {
       Swal.fire({ icon: 'warning', title: 'Indique un nombre o título' });
       return;
     }
-    if (!form.nivel_grado) {
-      Swal.fire({ icon: 'warning', title: 'Elija nivel y grado' });
+    if (!form.grupo_id) {
+      Swal.fire({ icon: 'warning', title: 'Elija el grupo (nivel, grado y sección)' });
       return;
     }
     if (!editItem && !archivo) {
       Swal.fire({ icon: 'warning', title: 'Debe adjuntar un PDF' });
       return;
     }
-    const { nivel_id, grado } = parseNivelGrado(form.nivel_grado);
-    if (!nivel_id || Number.isNaN(grado)) {
-      Swal.fire({ icon: 'warning', title: 'Nivel y grado no válidos' });
+    const gid = parseInt(form.grupo_id, 10);
+    if (!gid || Number.isNaN(gid)) {
+      Swal.fire({ icon: 'warning', title: 'Grupo no válido' });
       return;
     }
 
     const fd = new FormData();
-    fd.append('nivel_id', String(nivel_id));
-    fd.append('grado', String(grado));
+    fd.append('grupo_id', String(gid));
     fd.append('titulo', form.titulo.trim());
     fd.append('descripcion', form.descripcion.trim());
     if (archivo) fd.append('archivo', archivo);
@@ -214,7 +227,7 @@ export default function VocabulariosPage({ variant = 'admin' }) {
           ) : items.length === 0 ? (
             <div className="voc-empty">
               {variant === 'alumno'
-                ? 'Aún no hay vocabularios publicados para su grado.'
+                ? 'Aún no hay vocabularios publicados para su grupo.'
                 : 'No hay registros. Use «Subir vocabulario» para agregar el primero.'}
             </div>
           ) : (
@@ -225,7 +238,7 @@ export default function VocabulariosPage({ variant = 'admin' }) {
                     <th>Fecha</th>
                     <th>Nombre</th>
                     <th>Descripción</th>
-                    <th>Grado</th>
+                    <th>Grupo</th>
                     {(variant === 'admin' || variant === 'docente') && <th>Docente</th>}
                     <th aria-label="Acciones" />
                   </tr>
@@ -239,15 +252,11 @@ export default function VocabulariosPage({ variant = 'admin' }) {
                           {row.titulo}
                           {variant === 'docente' && row.es_mio && <span className="voc-badge-mio">Tuyo</span>}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '0.2rem' }}>
-                          {row.nombre_archivo_original || 'PDF'}
-                        </div>
+                        <div className="voc-file-meta">{row.nombre_archivo_original || 'PDF'}</div>
                       </td>
                       <td className="voc-desc">{row.descripcion || '—'}</td>
                       <td>
-                        <span className="voc-badge-grado">
-                          {row.nivel_nombre} · {row.grado}°
-                        </span>
+                        <span className="voc-badge-grado">{etiquetaGrupo(row)}</span>
                       </td>
                       {(variant === 'admin' || variant === 'docente') && (
                         <td className="voc-docente">{row.docente_nombre?.trim() || '—'}</td>
@@ -292,61 +301,105 @@ export default function VocabulariosPage({ variant = 'admin' }) {
             if (e.target === e.currentTarget) setModalOpen(false);
           }}
         >
-          <div className="voc-modal" role="dialog" aria-modal="true" aria-labelledby="voc-modal-title">
+          <div className="voc-modal voc-modal--wide" role="dialog" aria-modal="true" aria-labelledby="voc-modal-title">
+            <div className="voc-modal-topbar" aria-hidden />
             <div className="voc-modal-header" id="voc-modal-title">
-              {editItem ? 'Editar vocabulario' : 'Nuevo vocabulario'}
+              <div className="voc-modal-title-row">
+                <span className="voc-modal-icon-wrap" aria-hidden>
+                  <PictureAsPdfOutlinedIcon sx={{ fontSize: 26, color: '#2563eb' }} />
+                </span>
+                <div>
+                  <div className="voc-modal-kicker">{editItem ? 'Editar publicación' : 'Nueva publicación'}</div>
+                  <h2 className="voc-modal-h2">{editItem ? 'Editar vocabulario' : 'Subir vocabulario'}</h2>
+                </div>
+              </div>
             </div>
+
             <div className="voc-modal-body">
-              <label>
-                Nivel y grado
-                <select
-                  value={form.nivel_grado}
-                  onChange={(e) => setForm((f) => ({ ...f, nivel_grado: e.target.value }))}
-                  disabled={opciones.length === 0}
-                >
-                  {opciones.length === 0 ? (
-                    <option value="">Sin opciones</option>
-                  ) : (
-                    opciones.map((o) => (
-                      <option key={`${o.nivel_id}-${o.grado}`} value={`${o.nivel_id}|${o.grado}`}>
-                        {o.nivel_nombre} — {o.grado}°
-                      </option>
-                    ))
-                  )}
-                </select>
-              </label>
-              <label>
-                Nombre
-                <input
-                  type="text"
-                  value={form.titulo}
-                  onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
-                  placeholder="Ej. Unidad 3 — Glosario"
-                  maxLength={255}
-                />
-              </label>
-              <label>
-                Descripción (opcional)
-                <textarea
-                  value={form.descripcion}
-                  onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
-                  placeholder="Breve descripción para la grilla"
-                  maxLength={1000}
-                />
-              </label>
-              <label>
-                Archivo PDF {editItem ? '(opcional — reemplazar)' : ''}
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  onChange={(e) => setArchivo(e.target.files?.[0] || null)}
-                />
-                <span className="voc-file-hint">Máx. 25 MB. Solo PDF.</span>
+              <div className="voc-panel">
+                <div className="voc-panel-head">
+                  <GroupsOutlinedIcon sx={{ fontSize: 20, color: '#4a83c1' }} />
+                  <div>
+                    <div className="voc-panel-title">Grupo destino</div>
+                    <p className="voc-panel-desc">Nivel, grado y sección del aula. Solo verán el PDF los alumnos de ese grupo.</p>
+                  </div>
+                </div>
+                <label className="voc-label-block">
+                  <span className="voc-label-text">Aula / grupo</span>
+                  <select
+                    className="voc-input voc-select"
+                    value={form.grupo_id}
+                    onChange={(e) => setForm((f) => ({ ...f, grupo_id: e.target.value }))}
+                    disabled={opciones.length === 0}
+                  >
+                    {opciones.length === 0 ? (
+                      <option value="">Sin grupos disponibles</option>
+                    ) : (
+                      <>
+                        <option value="">Seleccione nivel — grado — sección…</option>
+                        {opciones.map((o) => (
+                          <option key={o.grupo_id} value={String(o.grupo_id)}>
+                            {opcionLabel(o)}
+                          </option>
+                        ))}
+                      </>
+                    )}
+                  </select>
+                </label>
+              </div>
+
+              <div className="voc-modal-grid">
+                <label className="voc-label-block">
+                  <span className="voc-label-text">Nombre del material</span>
+                  <input
+                    className="voc-input"
+                    type="text"
+                    value={form.titulo}
+                    onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
+                    placeholder="Ej. Unidad 3 — Glosario"
+                    maxLength={255}
+                  />
+                </label>
+                <label className="voc-label-block voc-span-2">
+                  <span className="voc-label-text">Descripción (opcional)</span>
+                  <textarea
+                    className="voc-input voc-textarea"
+                    value={form.descripcion}
+                    onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+                    placeholder="Aparece en la grilla como referencia breve."
+                    maxLength={1000}
+                    rows={3}
+                  />
+                </label>
+              </div>
+
+              <div className="voc-file-panel">
+                <div className="voc-file-panel-head">
+                  <PictureAsPdfOutlinedIcon sx={{ fontSize: 22, color: '#dc2626' }} />
+                  <span className="voc-label-text">Archivo PDF {editItem ? <em className="voc-optional">(reemplazar opcional)</em> : null}</span>
+                </div>
+                <label className="voc-file-drop">
+                  <input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    className="voc-file-input"
+                    onChange={(e) => setArchivo(e.target.files?.[0] || null)}
+                  />
+                  <div className="voc-file-drop-inner">
+                    <span className="voc-file-drop-title">
+                      {archivo ? archivo.name : 'Elegir archivo PDF o arrastre aquí'}
+                    </span>
+                    <span className="voc-file-hint">Máximo 25 MB · solo formato PDF</span>
+                  </div>
+                </label>
                 {editItem && (
-                  <span className="voc-file-hint">Archivo actual: {editItem.nombre_archivo_original || '—'}</span>
+                  <p className="voc-file-current">
+                    Archivo actual: <strong>{editItem.nombre_archivo_original || '—'}</strong>
+                  </p>
                 )}
-              </label>
+              </div>
             </div>
+
             <div className="voc-modal-footer">
               <button type="button" className="voc-btn-cancel" onClick={() => setModalOpen(false)}>
                 Cancelar
