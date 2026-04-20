@@ -34,6 +34,8 @@ import AdminHerramientasDinamicas from './pages/admin/AdminHerramientasDinamicas
 import AdminHerramientasAcademicas from './pages/admin/AdminHerramientasAcademicas';
 import AdminHerramientasEmocionales from './pages/admin/AdminHerramientasEmocionales';
 import AdminVocabularios from './pages/admin/AdminVocabularios';
+import DocenteVocabularios from './pages/DocenteVocabularios';
+import AlumnoVocabularios from './pages/AlumnoVocabularios';
 import AdminIncidencias from './pages/admin/AdminIncidencias';
 import HerramientasExamenesLista from './pages/herramientas/HerramientasExamenesLista';
 import HerramientasExamenEditor from './pages/herramientas/HerramientasExamenEditor';
@@ -49,7 +51,6 @@ import AdminEncuestaHistorial from './pages/admin/AdminEncuestaHistorial';
 import AdminEventos from './pages/admin/AdminEventos';
 import MisEncuestas from './pages/MisEncuestas';
 import EncuestaResponder from './pages/EncuestaResponder';
-import AdminEnConstruccion from './pages/admin/AdminEnConstruccion';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
 import AlumnoDashboard from './pages/AlumnoDashboard';
 import AlumnoPerfil from './pages/AlumnoPerfil';
@@ -536,7 +537,7 @@ function AppRoutes() {
         path="/docente/herramientas/vocabularios"
         element={
           <PrivateRoute requiredType="DOCENTE">
-            <AdminEnConstruccion titulo="Vocabularios" />
+            <DocenteVocabularios />
           </PrivateRoute>
         }
       />
@@ -781,6 +782,14 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredType="ALUMNO">
             <AlumnoMensajes />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/alumno/vocabularios"
+        element={
+          <PrivateRoute requiredType="ALUMNO">
+            <AlumnoVocabularios />
           </PrivateRoute>
         }
       />

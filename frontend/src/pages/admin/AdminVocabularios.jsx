@@ -1,6 +1,6 @@
 import React from 'react';
-import AdminEnConstruccion from './AdminEnConstruccion';
+import VocabulariosPage from '../VocabulariosPage';
 
 export default function AdminVocabularios() {
-  return <AdminEnConstruccion titulo="Vocabularios / Vocabulary" />;
+  return <VocabulariosPage variant="admin" />;
 }

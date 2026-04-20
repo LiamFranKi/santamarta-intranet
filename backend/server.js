@@ -150,6 +150,7 @@ if (!fs.existsSync(uploadsPath)) {
       fs.mkdirSync(path.join(uploadsPath, 'comunicados'), { recursive: true }); // Para comunicados del sistema nuevo
       fs.mkdirSync(path.join(uploadsPath, 'aula-virtual'), { recursive: true }); // Para archivos del aula virtual
       fs.mkdirSync(path.join(uploadsPath, 'gestion-documentos'), { recursive: true }); // PDFs Documento De Gestión
+      fs.mkdirSync(path.join(uploadsPath, 'vocabularios'), { recursive: true }); // PDFs vocabularios (herramientas)
     }
 const gestionDocsUploadPath = path.join(uploadsPath, 'gestion-documentos');
 if (!fs.existsSync(gestionDocsUploadPath)) {
@@ -266,6 +267,7 @@ const cumpleanosRoutes = require('./routes/cumpleanos.routes');
 const supervisionRoutes = require('./routes/supervision.routes');
 const encuestasRoutes = require('./routes/encuestas.routes');
 const herramientasExamenesRoutes = require('./routes/herramientasExamenes.routes');
+const vocabulariosRoutes = require('./routes/vocabularios.routes');
 
 app.use('/api/docente', docenteRoutes);
 app.use('/api/alumno', alumnoRoutes);
@@ -281,6 +283,7 @@ app.use('/api/cumpleanos', cumpleanosRoutes);
 app.use('/api/supervision', supervisionRoutes);
 app.use('/api/encuestas', encuestasRoutes);
 app.use('/api/herramientas-examenes', herramientasExamenesRoutes);
+app.use('/api/vocabularios', vocabulariosRoutes);
 
 const eventosRoutes = require('./routes/eventos.routes');
 app.use('/api/public/eventos', eventosRoutes.publicEventosRouter);
