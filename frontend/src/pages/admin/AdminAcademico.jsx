@@ -157,51 +157,40 @@ function esCuantitativaForm(form) {
   return parseTipoCal(form.tipo_calificacion) === 1;
 }
 
-/** Ciclo educativo: determina rangos de grado/año */
-function inferCicloFromNombre(nombre) {
-  const n = String(nombre || '').toLowerCase();
-  if (n.includes('inicial')) return 'inicial';
-  if (n.includes('secundaria')) return 'secundaria';
-  if (n.includes('primaria')) return 'primaria';
-  return 'primaria';
+/** Listas mín/máx: valores 1–10; en pantalla se muestran como 01–10 */
+const OPCIONES_GRADO_ANIO = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+function pad2(n) {
+  return String(n).padStart(2, '0');
 }
 
-/**
- * Opciones según ciclo y modo.
- * Inicial + años: 3–5. Inicial + grados: 1–3. Primaria: 1–6. Secundaria: 1–5 (no 1–9).
- */
-function getOpcionesGradoMinMax(ciclo, modoRango) {
-  if (modoRango === 'años') {
-    if (ciclo !== 'inicial') return [];
-    return [3, 4, 5];
-  }
-  if (ciclo === 'inicial') return [1, 2, 3];
-  if (ciclo === 'primaria') return [1, 2, 3, 4, 5, 6];
-  if (ciclo === 'secundaria') return [1, 2, 3, 4, 5];
-  return [];
-}
-
-function construirDefinicionGrado(ciclo, modoRango, gmin, gmax) {
-  const c = { inicial: 'Inicial', primaria: 'Primaria', secundaria: 'Secundaria' }[ciclo] || ciclo;
+/** Solo GRADOS o AÑOS y el rango (ej. Grados · 01–06) */
+function construirDefinicionGrado(modoRango, gmin, gmax) {
   const m = modoRango === 'años' ? 'Años' : 'Grados';
-  return `${m} · ${c} · ${gmin}–${gmax}`;
+  return `${m} · ${pad2(gmin)}–${pad2(gmax)}`;
 }
 
-function NivelModalFormBody({
-  modal,
-  form,
-  setForm,
-  nivelUi,
-  opcionesGrados,
-  onCicloChange,
-  onModoRangoChange,
-  onCancel,
-  onGuardar
-}) {
+function inferModoRangoFromRow(r) {
+  const d = String(r.definicion_grado || '');
+  if (/^\s*años\b/i.test(d) || /\bAños\s*·/i.test(d)) return 'años';
+  if (/^\s*grados\b/i.test(d) || /\bGrados\s*·/i.test(d)) return 'grados';
+  const gmin = parseInt(r.grado_minimo, 10);
+  const gmax = parseInt(r.grado_maximo, 10);
+  if (
+    Number.isFinite(gmin) &&
+    Number.isFinite(gmax) &&
+    gmin >= 3 &&
+    gmin <= 5 &&
+    gmax >= 3 &&
+    gmax <= 5
+  ) {
+    return 'años';
+  }
+  return 'grados';
+}
+
+function NivelModalFormBody({ modal, form, setForm, nivelUi, onModoRangoChange, onCancel, onGuardar }) {
   const cuant = esCuantitativaForm(form);
-  const esInicial = nivelUi.cicloNivel === 'inicial';
-  const etiquetaMinMax =
-    esInicial && nivelUi.modoRango === 'años' ? 'Año' : 'Grado';
 
   return (
     <>
@@ -210,9 +199,8 @@ function NivelModalFormBody({
           {modal?.edit ? 'Editar nivel' : 'Nuevo nivel'}
         </h3>
         <p className="admin-academico-nivel-form-card__lead">
-          Complete los datos. <strong>Años</strong> solo aplica a <strong>Inicial</strong> (3, 4 y 5). <strong>Primaria</strong> en
-          grados 1–6; <strong>Secundaria</strong> 1–5. La calificación <strong>cualitativa</strong> usa letras (A–D); la{' '}
-          <strong>cuantitativa</strong> pide reglas de notas. Hora y tolerancia: <strong>asistencia</strong>.
+          Indique nombre, abreviatura y código; defina si el nivel es por <strong>GRADOS</strong> o por <strong>AÑOS</strong> con
+          mínimo y máximo; calificación y asistencia.
         </p>
 
         <div className="admin-academico-nivel-form-grid">
@@ -245,143 +233,128 @@ function NivelModalFormBody({
             </div>
           </div>
 
-          <p className="admin-academico-nivel-form-section-title">Grados o años</p>
-
-          <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
-            <label>
-              etapa del nivel <span className="admin-academico-nivel-form-req">*</span>
-            </label>
-            <select value={nivelUi.cicloNivel} onChange={(e) => onCicloChange(e.target.value)}>
-              <option value="inicial">Inicial</option>
-              <option value="primaria">Primaria</option>
-              <option value="secundaria">Secundaria</option>
-            </select>
-            <p className="admin-academico-nivel-form-micro">
-              Debe coincidir con el nombre (p. ej. Inicial, Primaria, Secundaria).
-            </p>
-          </div>
-
-          {esInicial && (
-            <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
-              <label>definición: ¿por años o por grados?</label>
+          <div className="admin-academico-nivel-form-row-definicion">
+            <div className="admin-academico-nivel-form-field">
+              <label>
+                definición <span className="admin-academico-nivel-form-req">*</span>
+              </label>
               <select value={nivelUi.modoRango} onChange={(e) => onModoRangoChange(e.target.value)}>
-                <option value="años">Por años (solo Inicial: 3, 4 y 5 años)</option>
-                <option value="grados">Por grados (Inicial: 1 a 3)</option>
+                <option value="grados">GRADOS</option>
+                <option value="años">AÑOS</option>
               </select>
             </div>
-          )}
-
-          {(nivelUi.cicloNivel === 'primaria' || nivelUi.cicloNivel === 'secundaria') && (
-            <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
-              <p className="admin-academico-nivel-form-banner">
-                <strong>Primaria:</strong> grados 1–6 · <strong>Secundaria:</strong> grados 1–5.
-              </p>
+            <div className="admin-academico-nivel-form-field">
+              <label>
+                mínimo <span className="admin-academico-nivel-form-req">*</span>
+              </label>
+              <select
+                value={form.grado_minimo}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setForm((f) => {
+                    const gmin = parseInt(v, 10);
+                    const gmax = parseInt(f.grado_maximo, 10);
+                    if (Number.isFinite(gmin) && Number.isFinite(gmax) && gmin > gmax) {
+                      return { ...f, grado_minimo: v, grado_maximo: v };
+                    }
+                    return { ...f, grado_minimo: v };
+                  });
+                }}
+              >
+                {OPCIONES_GRADO_ANIO.map((n) => (
+                  <option key={`min-${n}`} value={String(n)}>
+                    {pad2(n)}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
-
-          <div className="admin-academico-nivel-form-field">
-            <label>
-              {etiquetaMinMax} mínimo <span className="admin-academico-nivel-form-req">*</span>
-            </label>
-            <select
-              value={form.grado_minimo}
-              onChange={(e) => {
-                const v = e.target.value;
-                setForm((f) => {
-                  const gmin = parseInt(v, 10);
-                  const gmax = parseInt(f.grado_maximo, 10);
-                  if (Number.isFinite(gmin) && Number.isFinite(gmax) && gmin > gmax) {
-                    return { ...f, grado_minimo: v, grado_maximo: v };
-                  }
-                  return { ...f, grado_minimo: v };
-                });
-              }}
-            >
-              {opcionesGrados.map((n) => (
-                <option key={`min-${n}`} value={String(n)}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="admin-academico-nivel-form-field">
-            <label>
-              {etiquetaMinMax} máximo <span className="admin-academico-nivel-form-req">*</span>
-            </label>
-            <select
-              value={form.grado_maximo}
-              onChange={(e) => {
-                const v = e.target.value;
-                setForm((f) => {
-                  const gmax = parseInt(v, 10);
-                  const gmin = parseInt(f.grado_minimo, 10);
-                  if (Number.isFinite(gmin) && Number.isFinite(gmax) && gmin > gmax) {
-                    return { ...f, grado_maximo: v, grado_minimo: v };
-                  }
-                  return { ...f, grado_maximo: v };
-                });
-              }}
-            >
-              {opcionesGrados.map((n) => (
-                <option key={`max-${n}`} value={String(n)}>
-                  {n}
-                </option>
-              ))}
-            </select>
+            <div className="admin-academico-nivel-form-field">
+              <label>
+                máximo <span className="admin-academico-nivel-form-req">*</span>
+              </label>
+              <select
+                value={form.grado_maximo}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setForm((f) => {
+                    const gmax = parseInt(v, 10);
+                    const gmin = parseInt(f.grado_minimo, 10);
+                    if (Number.isFinite(gmin) && Number.isFinite(gmax) && gmin > gmax) {
+                      return { ...f, grado_maximo: v, grado_minimo: v };
+                    }
+                    return { ...f, grado_maximo: v };
+                  });
+                }}
+              >
+                {OPCIONES_GRADO_ANIO.map((n) => (
+                  <option key={`max-${n}`} value={String(n)}>
+                    {pad2(n)}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <p className="admin-academico-nivel-form-section-title">Calificaciones</p>
-
-          <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
-            <label>
-              tipo de calificación <span className="admin-academico-nivel-form-req">*</span>
-            </label>
-            <select
-              value={form.tipo_calificacion === '' ? '' : String(form.tipo_calificacion)}
-              onChange={(e) => {
-                const v = e.target.value;
-                setForm((f) => ({
-                  ...f,
-                  tipo_calificacion: v,
-                  ...(v === '0'
-                    ? {
-                        tipo_calificacion_final: '',
-                        nota_maxima: '',
-                        nota_minima: '',
-                        nota_aprobatoria: ''
-                      }
-                    : {
-                        tipo_calificacion_final: f.tipo_calificacion_final || '0',
-                        nota_maxima: f.nota_maxima || '20',
-                        nota_minima: f.nota_minima || '0',
-                        nota_aprobatoria: f.nota_aprobatoria || '11'
-                      })
-                }));
-              }}
-            >
-              <option value="">— Seleccione —</option>
-              <option value="0">Cualitativa (letras A, B, C, D…)</option>
-              <option value="1">Cuantitativa (notas numéricas)</option>
-            </select>
-            {form.tipo_calificacion === '0' && (
-              <p className="admin-academico-nivel-form-micro">
-                No se configuran notas numéricas; el registro es por desempeño en letras.
-              </p>
-            )}
+          <div className="admin-academico-nivel-form-row-2-cal">
+            <div className="admin-academico-nivel-form-field">
+              <label>
+                tipo de calificación <span className="admin-academico-nivel-form-req">*</span>
+              </label>
+              <select
+                value={form.tipo_calificacion === '' ? '' : String(form.tipo_calificacion)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setForm((f) => ({
+                    ...f,
+                    tipo_calificacion: v,
+                    ...(v === '0'
+                      ? {
+                          tipo_calificacion_final: '',
+                          nota_maxima: '',
+                          nota_minima: '',
+                          nota_aprobatoria: ''
+                        }
+                      : {
+                          tipo_calificacion_final: f.tipo_calificacion_final || '0',
+                          nota_maxima: f.nota_maxima || '20',
+                          nota_minima: f.nota_minima || '0',
+                          nota_aprobatoria: f.nota_aprobatoria || '11'
+                        })
+                  }));
+                }}
+              >
+                <option value="">— Seleccione —</option>
+                <option value="0">Cualitativa</option>
+                <option value="1">Cuantitativa</option>
+              </select>
+            </div>
+            <div className="admin-academico-nivel-form-field">
+              <label>tipo de calificación final</label>
+              <select
+                value={
+                  cuant
+                    ? form.tipo_calificacion_final === ''
+                      ? '0'
+                      : String(form.tipo_calificacion_final)
+                    : ''
+                }
+                onChange={(e) => setForm({ ...form, tipo_calificacion_final: e.target.value })}
+                disabled={!cuant}
+              >
+                {cuant ? (
+                  <>
+                    <option value="0">Promedio</option>
+                    <option value="1">Porcentaje</option>
+                  </>
+                ) : (
+                  <option value="">—</option>
+                )}
+              </select>
+            </div>
           </div>
 
           {cuant && (
-            <>
-              <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
-                <label>tipo de calificación final</label>
-                <select
-                  value={form.tipo_calificacion_final === '' ? '0' : String(form.tipo_calificacion_final)}
-                  onChange={(e) => setForm({ ...form, tipo_calificacion_final: e.target.value })}
-                >
-                  <option value="0">Por promedio</option>
-                  <option value="1">Por porcentaje</option>
-                </select>
-              </div>
+            <div className="admin-academico-nivel-form-row-3-notas">
               <div className="admin-academico-nivel-form-field">
                 <label>nota máxima</label>
                 <input
@@ -400,7 +373,7 @@ function NivelModalFormBody({
                   placeholder="0"
                 />
               </div>
-              <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
+              <div className="admin-academico-nivel-form-field">
                 <label>nota aprobatoria</label>
                 <input
                   value={form.nota_aprobatoria}
@@ -409,10 +382,12 @@ function NivelModalFormBody({
                   placeholder="11"
                 />
               </div>
-            </>
+            </div>
           )}
 
-          <p className="admin-academico-nivel-form-section-title">Asistencia (opcional)</p>
+          <p className="admin-academico-nivel-form-section-title admin-academico-nivel-form-section-title--asist">
+            Asistencia
+          </p>
 
           <div className="admin-academico-nivel-form-field">
             <label>hora de entrada</label>
@@ -429,7 +404,7 @@ function NivelModalFormBody({
                 setForm({ ...form, hora_entrada: t ? `${t}:00` : '' });
               }}
             />
-            <p className="admin-academico-nivel-form-micro">Asistencia: se guarda como HH:MM:SS en base de datos.</p>
+            <p className="admin-academico-nivel-form-micro">Formato HH:MM:SS.</p>
           </div>
           <div className="admin-academico-nivel-form-field">
             <label>tolerancia (minutos)</label>
@@ -486,7 +461,7 @@ function NivelesPanel({ onRefreshMeta }) {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState(() => ({ ...NIVEL_FORM_DEFAULT }));
-  const [nivelUi, setNivelUi] = useState({ cicloNivel: 'primaria', modoRango: 'grados' });
+  const [nivelUi, setNivelUi] = useState({ modoRango: 'grados' });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -505,7 +480,7 @@ function NivelesPanel({ onRefreshMeta }) {
   }, [load]);
 
   const openNew = () => {
-    setNivelUi({ cicloNivel: 'primaria', modoRango: 'grados' });
+    setNivelUi({ modoRango: 'grados' });
     setForm({
       ...NIVEL_FORM_DEFAULT,
       hora_entrada: '08:00:00',
@@ -522,54 +497,27 @@ function NivelesPanel({ onRefreshMeta }) {
   };
 
   const openEdit = (r) => {
-    const ciclo = inferCicloFromNombre(r.nombre);
-    const gmin = parseInt(r.grado_minimo, 10);
-    const gmax = parseInt(r.grado_maximo, 10);
-    let modoRango = 'grados';
-    if (ciclo === 'inicial' && gmin >= 3 && gmin <= 5 && gmax >= 3 && gmax <= 5) {
-      modoRango = 'años';
+    const modoRango = inferModoRangoFromRow(r);
+    setNivelUi({ modoRango });
+    const f = nivelFormFromRow(r);
+    const clamp = (v) => {
+      const n = parseInt(v, 10);
+      if (!Number.isFinite(n)) return '1';
+      return String(Math.min(10, Math.max(1, n)));
+    };
+    f.grado_minimo = clamp(f.grado_minimo);
+    f.grado_maximo = clamp(f.grado_maximo);
+    const gmin = parseInt(f.grado_minimo, 10);
+    const gmax = parseInt(f.grado_maximo, 10);
+    if (gmin > gmax) {
+      f.grado_maximo = f.grado_minimo;
     }
-    setNivelUi({ cicloNivel: ciclo, modoRango });
-    setForm(nivelFormFromRow(r));
+    setForm(f);
     setModal({ edit: r });
   };
 
-  const opcionesGrados = useMemo(() => {
-    const base = getOpcionesGradoMinMax(nivelUi.cicloNivel, nivelUi.modoRango);
-    const gmin = parseInt(form.grado_minimo, 10);
-    const gmax = parseInt(form.grado_maximo, 10);
-    const extra = [];
-    if (Number.isFinite(gmin) && !base.includes(gmin)) extra.push(gmin);
-    if (Number.isFinite(gmax) && !base.includes(gmax)) extra.push(gmax);
-    const merged = [...new Set([...base, ...extra])].sort((a, b) => a - b);
-    return merged.length ? merged : base;
-  }, [nivelUi.cicloNivel, nivelUi.modoRango, form.grado_minimo, form.grado_maximo]);
-
-  const handleCicloChange = (ciclo) => {
-    const modoRango = ciclo === 'primaria' || ciclo === 'secundaria' ? 'grados' : nivelUi.modoRango;
-    const opts = getOpcionesGradoMinMax(ciclo, modoRango);
-    setNivelUi({ cicloNivel: ciclo, modoRango });
-    if (opts.length) {
-      setForm((f) => ({
-        ...f,
-        grado_minimo: String(opts[0]),
-        grado_maximo: String(opts[opts.length - 1])
-      }));
-    }
-  };
-
   const handleModoRangoChange = (modo) => {
-    const { cicloNivel } = nivelUi;
-    if ((cicloNivel === 'primaria' || cicloNivel === 'secundaria') && modo === 'años') return;
-    const opts = getOpcionesGradoMinMax(cicloNivel, modo);
-    setNivelUi((u) => ({ ...u, modoRango: modo }));
-    if (opts.length) {
-      setForm((f) => ({
-        ...f,
-        grado_minimo: String(opts[0]),
-        grado_maximo: String(opts[opts.length - 1])
-      }));
-    }
+    setNivelUi({ modoRango: modo });
   };
 
   const guardar = async () => {
@@ -579,8 +527,14 @@ function NivelesPanel({ onRefreshMeta }) {
     }
     const gmin = parseInt(form.grado_minimo, 10);
     const gmax = parseInt(form.grado_maximo, 10);
-    if (!Number.isFinite(gmin) || !Number.isFinite(gmax) || gmin > gmax) {
-      Swal.fire({ icon: 'warning', title: 'Revise grado / año mínimo y máximo' });
+    if (
+      !Number.isFinite(gmin) ||
+      !Number.isFinite(gmax) ||
+      gmin > gmax ||
+      gmin < 1 ||
+      gmax > 10
+    ) {
+      Swal.fire({ icon: 'warning', title: 'Revise mínimo y máximo (01 a 10)' });
       return;
     }
     if (form.tipo_calificacion === '' || form.tipo_calificacion == null) {
@@ -590,7 +544,7 @@ function NivelesPanel({ onRefreshMeta }) {
     const cuant = esCuantitativaForm(form);
     const body = {
       ...form,
-      definicion_grado: construirDefinicionGrado(nivelUi.cicloNivel, nivelUi.modoRango, gmin, gmax),
+      definicion_grado: construirDefinicionGrado(nivelUi.modoRango, gmin, gmax),
       tipo_calificacion_final: cuant ? form.tipo_calificacion_final : '',
       nota_maxima: cuant ? form.nota_maxima : '',
       nota_minima: cuant ? form.nota_minima : '',
@@ -746,8 +700,6 @@ function NivelesPanel({ onRefreshMeta }) {
           form={form}
           setForm={setForm}
           nivelUi={nivelUi}
-          opcionesGrados={opcionesGrados}
-          onCicloChange={handleCicloChange}
           onModoRangoChange={handleModoRangoChange}
           onCancel={() => setModal(null)}
           onGuardar={guardar}

@@ -461,8 +461,39 @@ body.admin-academico-page .swal2-container {
   color: #94a3b8;
 }
 
-.admin-academico-nivel-form-grid > .admin-academico-nivel-form-section-title:first-of-type {
-  border-top: none;
-  padding-top: 0;
-  margin-top: 0.15rem;
+.admin-academico-nivel-form-row-definicion {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr 1fr;
+  gap: 0.85rem 1.1rem;
+  align-items: end;
+}
+
+.admin-academico-nivel-form-row-2-cal {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem 1.1rem;
+  align-items: end;
+}
+
+.admin-academico-nivel-form-row-3-notas {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.85rem 1.1rem;
+  align-items: end;
+}
+
+@media (max-width: 640px) {
+  .admin-academico-nivel-form-row-definicion,
+  .admin-academico-nivel-form-row-3-notas {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-academico-nivel-form-row-2-cal {
+    grid-template-columns: 1fr;
+  }
 }
