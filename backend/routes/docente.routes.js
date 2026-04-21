@@ -17239,19 +17239,26 @@ router.put('/aula-virtual/tareas/:tareaId/entregas/:matriculaId/nota', async (re
                     CONCAT(a.nombres, ' ', a.apellido_paterno, ' ', COALESCE(a.apellido_materno, '')) as alumno_nombre,
                     t.titulo as tarea_titulo,
                     c.nombre as curso_nombre,
-                    CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre
+                    CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
+                    g.grado, g.seccion, n.nombre AS nivel_nombre
              FROM matriculas m
              INNER JOIN alumnos a ON a.id = m.alumno_id
              INNER JOIN asignaturas_tareas t ON t.id = ?
              INNER JOIN asignaturas asig ON asig.id = t.asignatura_id
              INNER JOIN cursos c ON c.id = asig.curso_id
              INNER JOIN personal p ON p.id = asig.personal_id
+             INNER JOIN grupos g ON g.id = asig.grupo_id
+             LEFT JOIN niveles n ON n.id = g.nivel_id
              WHERE m.id = ?`,
             [tareaId, matriculaId]
           );
 
           if (infoNota.length > 0) {
-            const { alumno_id, alumno_nombre, tarea_titulo, curso_nombre, docente_nombre } = infoNota[0];
+            const { alumno_id, alumno_nombre, tarea_titulo, curso_nombre, docente_nombre, grado, seccion, nivel_nombre } = infoNota[0];
+            const gradoTxt = grado ? `${grado}°` : '';
+            const seccionTxt = seccion ? String(seccion).trim() : '';
+            const aulaTxt = `${nivel_nombre || ''} ${gradoTxt} ${seccionTxt}`.trim();
+            const prefijoAula = aulaTxt ? `Aula: ${aulaTxt} - ` : '';
             
             await crearNotificacionesApoderados({
               alumno_id: alumno_id,
@@ -17259,7 +17266,7 @@ router.put('/aula-virtual/tareas/:tareaId/entregas/:matriculaId/nota', async (re
               colegio_id: colegio_id,
               anio_activo: anio_activo,
               tituloNotificacion: 'Nota de Proyecto Asignada',
-              mensajeNotificacion: `${alumno_nombre} recibió nota ${nota.trim()} en la tarea "${tarea_titulo}" - Curso: ${curso_nombre} - Docente: ${docente_nombre}`,
+              mensajeNotificacion: `Alumno: ${alumno_nombre} - ${prefijoAula}recibió nota ${nota.trim()} en la tarea "${tarea_titulo}" - Curso: ${curso_nombre} - Docente: ${docente_nombre}`,
               tipoNotificacion: 'nota_tarea',
               dataExtra: {
                 tarea_id: parseInt(tareaId),
@@ -22468,12 +22475,14 @@ async function verificarTareasPorVencer() {
                 a.grupo_id, a.curso_id, a.colegio_id, a.personal_id,
                 c.nombre as curso_nombre,
                 CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre_completo,
-                g.anio
+                g.anio, g.grado, g.seccion,
+                n.nombre AS nivel_nombre
          FROM asignaturas_tareas t
          INNER JOIN asignaturas a ON a.id = t.asignatura_id
          INNER JOIN cursos c ON c.id = a.curso_id
          INNER JOIN personal p ON p.id = a.personal_id
          INNER JOIN grupos g ON g.id = a.grupo_id
+         LEFT JOIN niveles n ON n.id = g.nivel_id
          WHERE DATE(t.fecha_entrega) >= DATE(NOW())
            AND DATE(t.fecha_entrega) <= DATE(DATE_ADD(NOW(), INTERVAL 3 DAY))
            AND a.colegio_id = ?
@@ -22668,6 +22677,9 @@ async function verificarTareasPorVencer() {
           const destId = parseInt(destinatarioId, 10);
           const alumnoDirecto = alumnoNombrePorUsuarioId.get(destId);
           const alumnosApoderado = apoderadoAlumnosPorUsuario.get(destId) || [];
+          const gradoTxt = tarea.grado ? `${tarea.grado}°` : '';
+          const seccionTxt = tarea.seccion ? String(tarea.seccion).trim() : '';
+          const aulaTxt = `${tarea.nivel_nombre || ''} ${gradoTxt} ${seccionTxt}`.trim();
           let prefijoAlumno = '';
           if (alumnoDirecto) {
             prefijoAlumno = `Alumno: ${alumnoDirecto} - `;
@@ -22678,17 +22690,18 @@ async function verificarTareasPorVencer() {
             const extra = alumnosApoderado.length > 3 ? ` (+${alumnosApoderado.length - 3})` : '';
             prefijoAlumno = `Alumnos: ${muestra}${extra} - `;
           }
+          const prefijoAula = aulaTxt ? `Aula: ${aulaTxt} - ` : '';
 
           if (diasRestantes === 0) {
-            return `⚠️ ${prefijoAlumno}El proyecto "${tarea.titulo}" se vence HOY - Curso: ${tarea.curso_nombre}`;
+            return `⚠️ ${prefijoAlumno}${prefijoAula}El proyecto "${tarea.titulo}" se vence HOY - Curso: ${tarea.curso_nombre}`;
           }
           if (diasRestantes === 1) {
-            return `⏰ ${prefijoAlumno}El proyecto "${tarea.titulo}" se vence MAÑANA - Curso: ${tarea.curso_nombre}`;
+            return `⏰ ${prefijoAlumno}${prefijoAula}El proyecto "${tarea.titulo}" se vence MAÑANA - Curso: ${tarea.curso_nombre}`;
           }
           if (diasRestantes === 2) {
-            return `📅 ${prefijoAlumno}El proyecto "${tarea.titulo}" se vence en 2 DÍAS - Curso: ${tarea.curso_nombre}`;
+            return `📅 ${prefijoAlumno}${prefijoAula}El proyecto "${tarea.titulo}" se vence en 2 DÍAS - Curso: ${tarea.curso_nombre}`;
           }
-          return `📅 ${prefijoAlumno}El proyecto "${tarea.titulo}" se vence en 3 DÍAS - Curso: ${tarea.curso_nombre}`;
+          return `📅 ${prefijoAlumno}${prefijoAula}El proyecto "${tarea.titulo}" se vence en 3 DÍAS - Curso: ${tarea.curso_nombre}`;
         };
 
         // Crear notificaciones en la BD
@@ -22849,12 +22862,14 @@ async function verificarTareasVencidasSinEntrega() {
                 a.grupo_id, a.curso_id, a.colegio_id, a.personal_id,
                 c.nombre as curso_nombre,
                 CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre_completo,
-                g.anio
+                g.anio, g.grado, g.seccion,
+                n.nombre AS nivel_nombre
          FROM asignaturas_tareas t
          INNER JOIN asignaturas a ON a.id = t.asignatura_id
          INNER JOIN cursos c ON c.id = a.curso_id
          INNER JOIN personal p ON p.id = a.personal_id
          INNER JOIN grupos g ON g.id = a.grupo_id
+         LEFT JOIN niveles n ON n.id = g.nivel_id
          WHERE DATE(t.fecha_entrega) < DATE(NOW())
            AND a.colegio_id = ?
            AND g.anio = ?
@@ -22973,7 +22988,11 @@ async function verificarTareasVencidasSinEntrega() {
         }
 
         const tituloNotificacion = 'Proyecto vencido sin entrega';
-        const mensajeNotificacionBase = `⚠️ No se entregó el proyecto "${tarea.titulo}" dentro del plazo. Se asignó nota 0. - Curso: ${tarea.curso_nombre}`;
+        const gradoTxt = tarea.grado ? `${tarea.grado}°` : '';
+        const seccionTxt = tarea.seccion ? String(tarea.seccion).trim() : '';
+        const aulaTxt = `${tarea.nivel_nombre || ''} ${gradoTxt} ${seccionTxt}`.trim();
+        const prefijoAula = aulaTxt ? `Aula: ${aulaTxt} - ` : '';
+        const mensajeNotificacionBase = `⚠️ ${prefijoAula}No se entregó el proyecto "${tarea.titulo}" dentro del plazo. Se asignó nota 0. - Curso: ${tarea.curso_nombre}`;
         const refAlumno = alumnosSinEntregaYSinNota[0];
         const urlRefApoderado =
           refAlumno && tarea.asignatura_id
@@ -23011,12 +23030,12 @@ async function verificarTareasVencidasSinEntrega() {
         const construirMensajeVencido = (destinatarioId) => {
           const alumnosRef = alumnosPorApoderado.get(parseInt(destinatarioId, 10)) || [];
           if (alumnosRef.length === 1) {
-            return `⚠️ Alumno: ${alumnosRef[0]} - No entregó el proyecto "${tarea.titulo}" dentro del plazo. Se asignó nota 0. - Curso: ${tarea.curso_nombre}`;
+            return `⚠️ Alumno: ${alumnosRef[0]} - ${prefijoAula}No entregó el proyecto "${tarea.titulo}" dentro del plazo. Se asignó nota 0. - Curso: ${tarea.curso_nombre}`;
           }
           if (alumnosRef.length > 1) {
             const muestra = alumnosRef.slice(0, 3).join(', ');
             const extra = alumnosRef.length > 3 ? ` (+${alumnosRef.length - 3})` : '';
-            return `⚠️ Alumnos: ${muestra}${extra} - No entregaron el proyecto "${tarea.titulo}" dentro del plazo. Se asignó nota 0. - Curso: ${tarea.curso_nombre}`;
+            return `⚠️ Alumnos: ${muestra}${extra} - ${prefijoAula}No entregaron el proyecto "${tarea.titulo}" dentro del plazo. Se asignó nota 0. - Curso: ${tarea.curso_nombre}`;
           }
           return mensajeNotificacionBase;
         };

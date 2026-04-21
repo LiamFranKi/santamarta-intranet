@@ -542,7 +542,8 @@ body.admin-academico-page .swal2-container {
 }
 
 .admin-academico-grupos-ver-todo {
-  align-self: center;
+  align-self: flex-end;
+  margin-bottom: 1px;
 }
 
 .admin-academico-grupos-btn-nuevo {
