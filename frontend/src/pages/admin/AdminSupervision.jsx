@@ -844,41 +844,34 @@ function PanelSupervisionEjecutor({ loadYo, canExecute }) {
           <p className="admin-sup-muted" style={{ marginTop: 0 }}>
             Rúbricas activas para el año lectivo. Use <strong>Opciones</strong> en cada fila para registrar una supervisión o ver el historial de esa rúbrica. El permiso de supervisor lo asigna el administrador en Herramientas → Supervisión → <strong>Supervisores</strong>.
           </p>
-          <div className="admin-usu-table-scroll">
-            <table className="admin-usu-table">
-              <thead>
-                <tr>
-                  <th>Título</th>
-                  <th style={{ width: 200 }}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {list.map((r) => (
-                  <tr key={r.id}>
-                    <td style={{ textAlign: 'left' }}>{r.titulo}</td>
-                    <td style={{ position: 'relative', verticalAlign: 'middle' }}>
-                      <div className="admin-sup-opciones-wrap">
-                        <button
-                          type="button"
-                          className="admin-usu-btn admin-usu-btn-primary admin-sup-opciones-btn"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (menuRowId === r.id) {
-                              closeMenu();
-                            } else {
-                              setMenuRowId(r.id);
-                              setMenuAnchor(e.currentTarget);
-                            }
-                          }}
-                        >
-                          Opciones ▼
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="admin-sup-doc-grid">
+            {list.map((r, idx) => (
+              <article
+                key={r.id}
+                className={`admin-sup-doc-card admin-sup-doc-card--${idx % 6}`}
+              >
+                <h3 className="admin-sup-doc-card__title">{r.titulo}</h3>
+                <div className="admin-sup-doc-card__actions">
+                  <div className="admin-sup-opciones-wrap">
+                    <button
+                      type="button"
+                      className="admin-usu-btn admin-usu-btn-primary admin-sup-opciones-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (menuRowId === r.id) {
+                          closeMenu();
+                        } else {
+                          setMenuRowId(r.id);
+                          setMenuAnchor(e.currentTarget);
+                        }
+                      }}
+                    >
+                      Opciones ▼
+                    </button>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
           {list.length === 0 && (
             <p className="admin-sup-muted" style={{ marginBottom: 0 }}>

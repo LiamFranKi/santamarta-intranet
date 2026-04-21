@@ -216,6 +216,41 @@
   font-weight: 600;
 }
 
+/* Docente (ejecutor): lista en cards pastel, 3 por fila aprox. */
+.admin-sup-doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 0.85rem;
+}
+
+.admin-sup-doc-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.85rem 0.95rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.admin-sup-doc-card--0 { background: #eff6ff; border-color: #bfdbfe; }
+.admin-sup-doc-card--1 { background: #ecfdf5; border-color: #a7f3d0; }
+.admin-sup-doc-card--2 { background: #fffbeb; border-color: #fde68a; }
+.admin-sup-doc-card--3 { background: #fdf2f8; border-color: #fbcfe8; }
+.admin-sup-doc-card--4 { background: #f5f3ff; border-color: #ddd6fe; }
+.admin-sup-doc-card--5 { background: #fff7ed; border-color: #fed7aa; }
+
+.admin-sup-doc-card__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e3a5f;
+}
+
+.admin-sup-doc-card__actions {
+  margin-top: auto;
+}
+
 .admin-sup-opciones-menu {
   position: absolute;
   right: 0;

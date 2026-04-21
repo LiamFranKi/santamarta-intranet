@@ -512,6 +512,17 @@ function IconoPapelera() {
   );
 }
 
+const OPCIONES_GRUPO_MENU = [
+  { key: 'lista_alumnos', label: 'Lista de Alumnos', icon: '👥' },
+  { key: 'ver_horario', label: 'Ver Horario', icon: '🗓️' },
+  { key: 'registro_asistencia', label: 'Registro de Asistencia', icon: '📝' },
+  { key: 'imprimir_qr', label: 'Imprimir QR', icon: '🧾' },
+  { key: 'registro_notas', label: 'Registro de Notas', icon: '📚' },
+  { key: 'recomendaciones', label: 'Recomendaciones', icon: '💡' },
+  { key: 'editar', label: 'Editar', icon: '✏️' },
+  { key: 'eliminar', label: 'Eliminar', icon: '🗑️', danger: true }
+];
+
 function NivelesPanel({ onRefreshMeta }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -777,7 +788,16 @@ function GruposPanel({ meta }) {
   const [menuGrupoId, setMenuGrupoId] = useState(null);
   const [subiendoHorario, setSubiendoHorario] = useState(false);
 
-  const personalLista = meta?.personal?.length ? meta.personal : meta?.docentes || [];
+  const personalLista = useMemo(() => {
+    const base = meta?.personal?.length ? meta.personal : meta?.docentes || [];
+    const byId = new Map();
+    for (const p of base) {
+      const id = String(p?.id ?? '');
+      if (!id || byId.has(id)) continue;
+      byId.set(id, p);
+    }
+    return [...byId.values()];
+  }, [meta]);
   const nivelesLista = useMemo(
     () => ordenarNivelesInicialPrimariaSecundaria(meta?.niveles),
     [meta]
@@ -943,6 +963,30 @@ function GruposPanel({ meta }) {
     }
   };
 
+  const accionGrupoMenu = async (accion, row) => {
+    if (accion === 'editar') {
+      openEdit(row);
+      return;
+    }
+    if (accion === 'eliminar') {
+      await eliminar(row);
+      return;
+    }
+    const titulos = {
+      lista_alumnos: 'Lista de Alumnos',
+      ver_horario: 'Ver Horario',
+      registro_asistencia: 'Registro de Asistencia',
+      imprimir_qr: 'Imprimir QR',
+      registro_notas: 'Registro de Notas',
+      recomendaciones: 'Recomendaciones'
+    };
+    await Swal.fire({
+      icon: 'info',
+      title: titulos[accion] || 'Opción',
+      text: `Esta opción para ${row.nivel_nombre} ${row.grado}° ${etiquetaSeccionGrupo(row.seccion)} se activará en el siguiente paso.`
+    });
+  };
+
   return (
     <section className="dg-section admin-academico-grupos-section">
       <div className="admin-academico-grupos-toolbar">
@@ -1032,28 +1076,23 @@ function GruposPanel({ meta }) {
                     </button>
                     {menuGrupoId === r.id && (
                       <div className="admin-academico-grupo-card__dropdown" role="menu">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="admin-academico-grupo-card__dropdown-item"
-                          onClick={() => {
-                            setMenuGrupoId(null);
-                            openEdit(r);
-                          }}
-                        >
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="admin-academico-grupo-card__dropdown-item admin-academico-grupo-card__dropdown-item--danger"
-                          onClick={() => {
-                            setMenuGrupoId(null);
-                            eliminar(r);
-                          }}
-                        >
-                          Eliminar
-                        </button>
+                        {OPCIONES_GRUPO_MENU.map((op) => (
+                          <button
+                            key={op.key}
+                            type="button"
+                            role="menuitem"
+                            className={`admin-academico-grupo-card__dropdown-item${op.danger ? ' admin-academico-grupo-card__dropdown-item--danger' : ''}`}
+                            onClick={async () => {
+                              setMenuGrupoId(null);
+                              await accionGrupoMenu(op.key, r);
+                            }}
+                          >
+                            <span className="admin-academico-grupo-card__dropdown-icon" aria-hidden>
+                              {op.icon}
+                            </span>
+                            {op.label}
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>

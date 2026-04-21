@@ -171,6 +171,78 @@
   margin-top: 0.2rem;
 }
 
+/* Docente: listado en cards (3 por fila aprox.) */
+.voc-doc-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: 0.95rem;
+}
+
+.voc-doc-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.9rem 0.95rem;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.voc-doc-card__title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.voc-doc-card__title {
+  margin: 0;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: #1e3a5f;
+}
+
+.voc-doc-card__date {
+  font-size: 0.75rem;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.voc-doc-card__file {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.voc-doc-card__desc {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #475569;
+  line-height: 1.4;
+}
+
+.voc-doc-card__grupo {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1e40af;
+}
+
+.voc-doc-card__docente {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.voc-doc-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  margin-top: auto;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(30, 58, 95, 0.1);
+}
+
 /* Por encima del header sticky (100) y del sidebar (9999); el modal se renderiza con portal a document.body */
 .voc-modal-overlay {
   position: fixed;

@@ -57,6 +57,14 @@ const VARIANT_COPY = {
     section: 'Documentos disponibles'
   }
 };
+const DOCENTE_PASTELS = [
+  { bg: '#eff6ff', border: '#bfdbfe' },
+  { bg: '#ecfdf5', border: '#a7f3d0' },
+  { bg: '#fffbeb', border: '#fde68a' },
+  { bg: '#fdf2f8', border: '#fbcfe8' },
+  { bg: '#f5f3ff', border: '#ddd6fe' },
+  { bg: '#fff7ed', border: '#fed7aa' }
+];
 
 export default function VocabulariosPage({ variant = 'admin' }) {
   const copy = VARIANT_COPY[variant] || VARIANT_COPY.admin;
@@ -230,6 +238,52 @@ export default function VocabulariosPage({ variant = 'admin' }) {
               {variant === 'alumno'
                 ? 'Aún no hay vocabularios publicados para su grupo.'
                 : 'No hay registros. Use «Subir vocabulario» para agregar el primero.'}
+            </div>
+          ) : variant === 'docente' ? (
+            <div className="voc-doc-cards-grid">
+              {items.map((row, idx) => {
+                const pastel = DOCENTE_PASTELS[idx % DOCENTE_PASTELS.length];
+                return (
+                  <article
+                    key={row.id}
+                    className="voc-doc-card"
+                    style={{ background: pastel.bg, borderColor: pastel.border }}
+                  >
+                    <div className="voc-doc-card__title-row">
+                      <h3 className="voc-doc-card__title">
+                        {row.titulo}
+                        {row.es_mio && <span className="voc-badge-mio">Tuyo</span>}
+                      </h3>
+                      <span className="voc-doc-card__date">{formatFecha(row.created_at)}</span>
+                    </div>
+                    <p className="voc-doc-card__file">{row.nombre_archivo_original || 'PDF'}</p>
+                    <p className="voc-doc-card__desc">{row.descripcion || '—'}</p>
+                    <p className="voc-doc-card__grupo">{etiquetaGrupo(row)}</p>
+                    <p className="voc-doc-card__docente">{row.docente_nombre?.trim() || '—'}</p>
+                    <div className="voc-doc-card__actions">
+                      <Tooltip title="Ver PDF">
+                        <IconButton size="small" color="primary" onClick={() => verPdf(row)} aria-label="Ver PDF">
+                          <VisibilityOutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {puedeGestionar && row.puede_editar && (
+                        <>
+                          <Tooltip title="Editar">
+                            <IconButton size="small" color="primary" onClick={() => abrirModal(row)} aria-label="Editar">
+                              <EditOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Eliminar">
+                            <IconButton size="small" color="error" onClick={() => eliminar(row)} aria-label="Eliminar">
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                        </>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <div className="voc-table-wrap">

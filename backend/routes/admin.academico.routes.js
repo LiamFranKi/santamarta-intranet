@@ -102,7 +102,7 @@ router.get('/meta', async (req, res) => {
     );
     /** Todo el personal con usuario activo (tutores / equipo) */
     const personal = await query(
-      `SELECT p.id,
+      `SELECT DISTINCT p.id,
               TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre
        FROM personal p
        INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'

@@ -654,8 +654,8 @@ body.admin-academico-page .swal2-container {
   border-top: 1px solid rgba(30, 58, 95, 0.08);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  justify-content: flex-start;
+  gap: 0.3rem;
 }
 
 .admin-academico-grupo-card__alumnos-label {
@@ -663,6 +663,7 @@ body.admin-academico-page .swal2-container {
   font-weight: 600;
   color: #94a3b8;
   letter-spacing: 0.03em;
+  margin-right: 0.1rem;
 }
 
 .admin-academico-grupo-card__alumnos-num {
@@ -714,7 +715,9 @@ body.admin-academico-page .swal2-container {
 }
 
 .admin-academico-grupo-card__dropdown-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
   width: 100%;
   text-align: left;
   padding: 0.55rem 0.75rem;
@@ -725,6 +728,12 @@ body.admin-academico-page .swal2-container {
   font-weight: 600;
   color: #1e3a5f;
   cursor: pointer;
+}
+
+.admin-academico-grupo-card__dropdown-icon {
+  width: 1.1rem;
+  display: inline-flex;
+  justify-content: center;
 }
 
 .admin-academico-grupo-card__dropdown-item:hover {
