@@ -461,6 +461,39 @@ function gradosDisponiblesPorNivel(nivelId, niveles) {
   return arr.length ? arr : [1];
 }
 
+/** Orden fijo: Inicial → Primaria → Secundaria (resto al final por nombre). */
+function ordenNivelEducativo(nombre) {
+  const n = String(nombre || '').toLowerCase();
+  if (n.includes('inicial')) return 0;
+  if (n.includes('primaria')) return 1;
+  if (n.includes('secundaria')) return 2;
+  return 50;
+}
+
+function ordenarNivelesInicialPrimariaSecundaria(niveles) {
+  return [...(niveles || [])].sort((a, b) => {
+    const oa = ordenNivelEducativo(a.nombre);
+    const ob = ordenNivelEducativo(b.nombre);
+    if (oa !== ob) return oa - ob;
+    return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
+  });
+}
+
+function etiquetaSeccionGrupo(sec) {
+  const u = String(sec || '').toUpperCase();
+  if (u === 'UNICA' || u === 'ÚNICA') return 'Única';
+  return String(sec || '').toUpperCase();
+}
+
+function urlArchivoHorarioVirtual(guardado) {
+  if (!guardado || !String(guardado).trim()) return '';
+  const s = String(guardado).trim();
+  if (/^https?:\/\//i.test(s)) return s;
+  const clean = s.replace(/^\/+/, '');
+  if (clean.startsWith('Static/')) return `${window.location.origin}/${clean}`;
+  return `${window.location.origin}/Static/${clean}`;
+}
+
 function IconoLapiz() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -742,9 +775,13 @@ function GruposPanel({ meta }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [menuGrupoId, setMenuGrupoId] = useState(null);
+  const [subiendoHorario, setSubiendoHorario] = useState(false);
 
   const personalLista = meta?.personal?.length ? meta.personal : meta?.docentes || [];
-  const nivelesLista = useMemo(() => meta?.niveles || [], [meta]);
+  const nivelesLista = useMemo(
+    () => ordenarNivelesInicialPrimariaSecundaria(meta?.niveles),
+    [meta]
+  );
 
   const añosSelect = useMemo(() => {
     const arr = [];
@@ -788,6 +825,36 @@ function GruposPanel({ meta }) {
     }
     return base;
   }, [form.nivel_id, form.grado, nivelesLista]);
+
+  const filasGruposOrdenadas = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const oa = ordenNivelEducativo(a.nivel_nombre);
+      const ob = ordenNivelEducativo(b.nivel_nombre);
+      if (oa !== ob) return oa - ob;
+      const ga = parseInt(a.grado, 10) || 0;
+      const gb = parseInt(b.grado, 10) || 0;
+      if (ga !== gb) return ga - gb;
+      return String(a.seccion || '').localeCompare(String(b.seccion || ''), 'es');
+    });
+  }, [rows]);
+
+  const onHorarioVirtualFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setSubiendoHorario(true);
+    try {
+      const fd = new FormData();
+      fd.append('archivo', file);
+      const { data } = await api.post('/admin/academico/grupos/upload-horario', fd);
+      setForm((f) => ({ ...f, horario_virtual: data.path || '' }));
+      Swal.fire({ icon: 'success', title: 'Archivo subido', timer: 1400, showConfirmButton: false });
+    } catch (err) {
+      Swal.fire({ icon: 'error', text: err.response?.data?.error || 'No se pudo subir el archivo' });
+    } finally {
+      setSubiendoHorario(false);
+    }
+  };
 
   const verTodo = () => {
     setFiltroNivelId('');
@@ -916,7 +983,7 @@ function GruposPanel({ meta }) {
         <p className="admin-academico-niveles-empty">No hay grupos para este año y filtros. Use «+ Nuevo grado».</p>
       ) : (
         <div className="admin-academico-grupos-grid">
-          {rows.map((r, idx) => {
+          {filasGruposOrdenadas.map((r, idx) => {
             const theme = PASTEL_CARD_THEMES[idx % PASTEL_CARD_THEMES.length];
             const nMat = r.matriculas_count != null ? Number(r.matriculas_count) : 0;
             return (
@@ -925,24 +992,27 @@ function GruposPanel({ meta }) {
                 className="admin-academico-grupo-card"
                 style={{ background: theme.bg, borderColor: theme.border }}
               >
-                <h3 className="admin-academico-grupo-card__nivel">{r.nivel_nombre || '—'}</h3>
-                <div className="admin-academico-grupo-card__grado-seccion">
-                  <span className="admin-academico-grupo-card__grado-num">{r.grado}°</span>
-                  <span className="admin-academico-grupo-card__sep">·</span>
-                  <span className="admin-academico-grupo-card__seccion">
-                    Secc. {String(r.seccion).toUpperCase() === 'UNICA' ? 'Única' : r.seccion}
+                <div className="admin-academico-grupo-card__title-row">
+                  <span className="admin-academico-grupo-card__nivel">{r.nivel_nombre || '—'}</span>
+                  <span className="admin-academico-grupo-card__title-sep" aria-hidden>
+                    ·
+                  </span>
+                  <span className="admin-academico-grupo-card__grado-seccion-inline">
+                    {r.grado}° {etiquetaSeccionGrupo(r.seccion)}
                   </span>
                 </div>
                 <p className="admin-academico-grupo-card__line">
-                  <span className="admin-academico-grupo-card__k">Turno</span> {r.turno_nombre || '—'}
+                  <span className="admin-academico-grupo-card__k">Turno</span>
+                  <span className="admin-academico-grupo-card__v">{r.turno_nombre || '—'}</span>
                 </p>
                 <p className="admin-academico-grupo-card__line">
-                  <span className="admin-academico-grupo-card__k">Tutor</span> {r.tutor_nombre || '—'}
+                  <span className="admin-academico-grupo-card__k">Tutor</span>
+                  <span className="admin-academico-grupo-card__v">{r.tutor_nombre || '—'}</span>
                 </p>
-                <p className="admin-academico-grupo-card__alumnos">
-                  <span className="admin-academico-grupo-card__k">Alumnos matriculados</span>
-                  <span className="admin-academico-grupo-card__alumnos-val">{nMat}</span>
-                </p>
+                <div className="admin-academico-grupo-card__alumnos">
+                  <span className="admin-academico-grupo-card__alumnos-label">Alumnos matriculados</span>
+                  <span className="admin-academico-grupo-card__alumnos-num">{nMat}</span>
+                </div>
                 <div className="admin-academico-grupo-card__foot">
                   <div
                     className="admin-academico-grupo-card__menu"
@@ -1111,13 +1181,40 @@ function GruposPanel({ meta }) {
                     placeholder="URL o ruta"
                   />
                 </div>
-                <div className="admin-academico-nivel-form-field">
+                <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
                   <label>Link aula virtual</label>
-                  <input value={form.aula_virtual} onChange={(e) => setForm({ ...form, aula_virtual: e.target.value })} />
+                  <input
+                    value={form.aula_virtual}
+                    onChange={(e) => setForm({ ...form, aula_virtual: e.target.value })}
+                    placeholder="https://…"
+                  />
                 </div>
-                <div className="admin-academico-nivel-form-field">
-                  <label>Horario aula virtual</label>
-                  <input value={form.horario_virtual} onChange={(e) => setForm({ ...form, horario_virtual: e.target.value })} />
+                <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
+                  <label>Horario aula virtual (archivo)</label>
+                  {form.horario_virtual ? (
+                    <p className="admin-academico-grupo-form-archivo-actual">
+                      <a href={urlArchivoHorarioVirtual(form.horario_virtual)} target="_blank" rel="noopener noreferrer">
+                        Ver archivo actual
+                      </a>
+                      <button
+                        type="button"
+                        className="admin-academico-grupo-form-quitar-archivo"
+                        onClick={() => setForm((f) => ({ ...f, horario_virtual: '' }))}
+                      >
+                        Quitar
+                      </button>
+                    </p>
+                  ) : null}
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,image/*"
+                    disabled={subiendoHorario}
+                    onChange={onHorarioVirtualFile}
+                    className="admin-academico-grupo-form-file"
+                  />
+                  <p className="admin-academico-nivel-form-micro">
+                    {subiendoHorario ? 'Subiendo…' : 'Adjunte PDF, imagen u Office. Puede reemplazar el archivo cuando quiera.'}
+                  </p>
                 </div>
               </div>
             </details>

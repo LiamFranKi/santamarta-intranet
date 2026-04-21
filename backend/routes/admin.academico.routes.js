@@ -3,6 +3,9 @@
  * Solo ADMINISTRADOR.
  */
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
@@ -15,6 +18,15 @@ router.use((req, res, next) => {
 
 function colegio(req) {
   return req.user.colegio_id;
+}
+
+/** Inicial → Primaria → Secundaria; el resto al final. */
+function ordenNivelEducativoNombre(nombre) {
+  const n = String(nombre || '').toLowerCase();
+  if (n.includes('inicial')) return 0;
+  if (n.includes('primaria')) return 1;
+  if (n.includes('secundaria')) return 2;
+  return 50;
 }
 
 /** Tablas permitidas para introspección vía information_schema (whitelist). */
@@ -65,10 +77,16 @@ router.get('/meta', async (req, res) => {
     const nivelesOrder = nivCols?.has('grado_minimo')
       ? 'COALESCE(grado_minimo, 0) ASC, id ASC'
       : 'id ASC';
-    const niveles = await query(
+    const nivelesRows = await query(
       `SELECT ${nivelesSelect} FROM niveles WHERE colegio_id = ? ORDER BY ${nivelesOrder}`,
       [cid]
     );
+    const niveles = [...(nivelesRows || [])].sort((a, b) => {
+      const oa = ordenNivelEducativoNombre(a.nombre);
+      const ob = ordenNivelEducativoNombre(b.nombre);
+      if (oa !== ob) return oa - ob;
+      return String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es');
+    });
     let turnos = await query('SELECT id, nombre FROM turnos WHERE colegio_id = ? ORDER BY nombre ASC', [cid]).catch(() => []);
     if (!turnos || turnos.length === 0) {
       turnos = await query('SELECT id, nombre FROM turnos ORDER BY nombre ASC').catch(() => []);
@@ -806,6 +824,42 @@ router.delete('/asignaturas/:id', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: e.message || 'No se pudo eliminar (puede haber notas o contenidos vinculados).' });
+  }
+});
+
+/** Subida de horario de aula virtual (grupo); se guarda en Static/Archivos y se devuelve ruta relativa para `horario_virtual`. */
+const horarioGrupoDir = path.join(__dirname, '../Static/Archivos/grupos-horarios');
+const horarioGrupoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      if (!fs.existsSync(horarioGrupoDir)) fs.mkdirSync(horarioGrupoDir, { recursive: true });
+    } catch (err) {
+      return cb(err);
+    }
+    cb(null, horarioGrupoDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '') || '';
+    const base = `horario_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    cb(null, `${base}${ext}`);
+  }
+});
+const uploadHorarioGrupo = multer({
+  storage: horarioGrupoStorage,
+  limits: { fileSize: 12 * 1024 * 1024 }
+});
+
+router.post('/grupos/upload-horario', uploadHorarioGrupo.single('archivo'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No se recibió archivo' });
+    const relPath = `Archivos/grupos-horarios/${req.file.filename}`;
+    res.json({
+      path: relPath,
+      originalName: req.file.originalname || req.file.filename
+    });
+  } catch (e) {
+    console.error('[grupos/upload-horario]', e);
+    res.status(500).json({ error: e.message || 'Error al subir archivo' });
   }
 });
 
