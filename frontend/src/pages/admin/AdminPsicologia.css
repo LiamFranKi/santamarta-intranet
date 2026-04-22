@@ -47,13 +47,62 @@
 }
 
 .psi-alumno-card {
+  position: relative;
   border-radius: 14px;
-  padding: 1rem 1.15rem;
+  padding: 1rem 5.5rem 1rem 1.15rem;
+  min-height: 118px;
   border: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   cursor: pointer;
   text-align: left;
+}
+
+.psi-alumno-card-body {
+  position: relative;
+  z-index: 0;
+}
+
+.psi-alumno-grupo {
+  font-size: 0.72rem !important;
+  color: #475569 !important;
+  font-weight: 600;
+  margin-top: 0.15rem;
+}
+
+.psi-alumno-card-foto {
+  position: absolute;
+  right: 0.65rem;
+  bottom: 0.65rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.95);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.18);
+  background: linear-gradient(145deg, #e0e7ff 0%, #fae8ff 100%);
+  z-index: 1;
+}
+
+.psi-alumno-card-foto-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #4338ca;
+  letter-spacing: -0.02em;
+}
+
+.psi-alumno-card-foto-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 2;
 }
 
 .psi-alumno-card:hover {

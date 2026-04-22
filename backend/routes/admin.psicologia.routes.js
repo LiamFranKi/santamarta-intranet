@@ -312,9 +312,20 @@ router.get('/grupo', async (req, res) => {
                 COALESCE(a.apellido_paterno,''), ' ',
                 COALESCE(a.apellido_materno,''), ' ',
                 COALESCE(a.nombres,'')
-              )) AS nombre_completo
+              )) AS nombre_completo,
+              NULLIF(TRIM(a.foto), '') AS foto_alumno,
+              NULLIF(TRIM(a.nro_documento), '') AS nro_documento,
+              TRIM(CONCAT(
+                COALESCE(n.nombre, ''),
+                ' — ',
+                COALESCE(g.grado, ''),
+                ' — ',
+                COALESCE(g.seccion, '')
+              )) AS grupo_etiqueta
        FROM matriculas m
        INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = m.colegio_id
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
        WHERE m.colegio_id = ? AND m.grupo_id = ? AND (m.estado = 0 OR m.estado = 4)
        ORDER BY a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC`,
       [cid, grupoId]
@@ -323,6 +334,88 @@ router.get('/grupo', async (req, res) => {
   } catch (e) {
     console.error('[admin/psicologia/grupo]', e);
     res.status(500).json({ error: e.message || 'Error al buscar grupo' });
+  }
+});
+
+/** Búsqueda por apellidos, nombres o DNI en matrículas del año (todo el colegio). */
+router.get('/alumnos-buscar', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anio = parseInt(req.query.anio, 10);
+    let q = String(req.query.q || '')
+      .trim()
+      .replace(/[%_\\]/g, ' ')
+      .replace(/\s+/g, ' ');
+    if (!Number.isFinite(anio)) return res.status(400).json({ error: 'Indique un año escolar válido.' });
+    if (q.length < 2) return res.status(400).json({ error: 'Escriba al menos 2 caracteres para buscar.' });
+    const like = `%${q}%`;
+    let mats;
+    try {
+      mats = await query(
+        `SELECT m.id AS matricula_id, m.alumno_id, m.estado, m.grupo_id,
+                TRIM(CONCAT(
+                  COALESCE(a.apellido_paterno,''), ' ',
+                  COALESCE(a.apellido_materno,''), ' ',
+                  COALESCE(a.nombres,'')
+                )) AS nombre_completo,
+                NULLIF(TRIM(a.foto), '') AS foto_alumno,
+                NULLIF(TRIM(a.nro_documento), '') AS nro_documento,
+                TRIM(CONCAT(
+                  COALESCE(n.nombre, ''),
+                  ' — ',
+                  COALESCE(g.grado, ''),
+                  ' — ',
+                  COALESCE(g.seccion, '')
+                )) AS grupo_etiqueta
+         FROM matriculas m
+         INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = m.colegio_id
+         INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+         LEFT JOIN niveles n ON n.id = g.nivel_id
+         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)
+           AND (
+             a.nro_documento LIKE ?
+             OR CONCAT_WS(' ', a.apellido_paterno, a.apellido_materno, a.nombres) LIKE ?
+           )
+         ORDER BY a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC
+         LIMIT 80`,
+        [cid, anio, like, like]
+      );
+    } catch (eSql) {
+      if (String(eSql.message || '').includes('nro_documento')) {
+        mats = await query(
+          `SELECT m.id AS matricula_id, m.alumno_id, m.estado, m.grupo_id,
+                  TRIM(CONCAT(
+                    COALESCE(a.apellido_paterno,''), ' ',
+                    COALESCE(a.apellido_materno,''), ' ',
+                    COALESCE(a.nombres,'')
+                  )) AS nombre_completo,
+                  NULLIF(TRIM(a.foto), '') AS foto_alumno,
+                  NULL AS nro_documento,
+                  TRIM(CONCAT(
+                    COALESCE(n.nombre, ''),
+                    ' — ',
+                    COALESCE(g.grado, ''),
+                    ' — ',
+                    COALESCE(g.seccion, '')
+                  )) AS grupo_etiqueta
+           FROM matriculas m
+           INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = m.colegio_id
+           INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
+           LEFT JOIN niveles n ON n.id = g.nivel_id
+           WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)
+             AND CONCAT_WS(' ', a.apellido_paterno, a.apellido_materno, a.nombres) LIKE ?
+           ORDER BY a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC
+           LIMIT 80`,
+          [cid, anio, like]
+        );
+      } else {
+        throw eSql;
+      }
+    }
+    res.json({ matriculas: mats || [], por_texto: true });
+  } catch (e) {
+    console.error('[admin/psicologia/alumnos-buscar]', e);
+    res.status(500).json({ error: e.message || 'Error al buscar alumnos' });
   }
 });
 
