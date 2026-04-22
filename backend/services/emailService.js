@@ -94,6 +94,30 @@ function getTransporterPorCategoria(categoria) {
   return { transporter, fromUser: process.env.EMAIL_USER };
 }
 
+// Evita spam de logs/reintentos cuando Gmail bloquea por límite diario (550 5.4.5).
+const cooldownEmailPorCuenta = new Map();
+
+function esErrorLimiteDiarioGmail(error) {
+  const txt = String(error?.message || error?.response || '').toLowerCase();
+  return txt.includes('5.4.5') || txt.includes('daily user sending limit exceeded');
+}
+
+function cuentaEnCooldown(fromUser) {
+  const key = String(fromUser || 'GENERAL').toLowerCase();
+  const hasta = cooldownEmailPorCuenta.get(key);
+  if (!hasta) return false;
+  if (Date.now() >= hasta) {
+    cooldownEmailPorCuenta.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function activarCooldownCuenta(fromUser, ms = 60 * 60 * 1000) {
+  const key = String(fromUser || 'GENERAL').toLowerCase();
+  cooldownEmailPorCuenta.set(key, Date.now() + ms);
+}
+
 // Configurar manejo de errores y rebotes
 // Los rebotes y errores de entrega se registrarán en logs pero NO se reenviarán al remitente
 transporter.on('error', (error) => {
@@ -471,6 +495,11 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
       return { success: false, error: 'Parámetros incompletos' };
     }
 
+    if (cuentaEnCooldown(fromUser)) {
+      console.warn(`⚠️ [EMAIL NOTIFICACION] Cuenta ${fromUser} en cooldown por límite diario de Gmail. Se omite envío temporalmente.`);
+      return { success: false, error: 'Cuenta de correo en cooldown por límite diario de Gmail' };
+    }
+
     const emailDestino = String(destinatario).trim();
     if (!esEmailValido(emailDestino)) {
       console.warn(`⚠️ [EMAIL] Email inválido omitido (falta @ o tiene espacios): "${emailDestino}"`);
@@ -510,6 +539,12 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
     console.log(`✅ [EMAIL NOTIFICACION] Correo enviado exitosamente. MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
+    if (esErrorLimiteDiarioGmail(error)) {
+      // Evita repetir errores en cada intento durante la hora siguiente.
+      activarCooldownCuenta(getTransporterPorCategoria(categoria || 'GENERAL').fromUser, 60 * 60 * 1000);
+      console.error(`❌ [EMAIL NOTIFICACION] Límite diario de Gmail alcanzado. Se activa cooldown 60 min para esta cuenta.`);
+      return { success: false, error: 'Límite diario de Gmail alcanzado (cooldown 60 min)' };
+    }
     // Error capturado: solo registrar en logs, NO reenviar al remitente
     const emailDestino = (destinatario && String(destinatario).trim()) || '?';
     console.error(`❌ [EMAIL NOTIFICACION] Error enviando correo a ${emailDestino}:`, error.message);

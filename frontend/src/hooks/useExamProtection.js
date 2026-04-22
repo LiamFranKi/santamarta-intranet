@@ -10,6 +10,7 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
   const [violations, setViolations] = useState(0);
   const violationCountRef = useRef(0);
   const fullscreenEnabled = useRef(false);
+  const lastViolationRef = useRef({ type: null, timestampMs: 0 });
 
   useEffect(() => {
     if (!enabled) {
@@ -50,52 +51,61 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
 
     enableFullscreen();
 
-    // 2. Detectar cambio de pestaña/ventana (Page Visibility API)
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        violationCountRef.current += 1;
-        setViolations(violationCountRef.current);
-        
-        if (onViolation) {
-          onViolation({
-            type: 'TAB_CHANGE',
-            count: violationCountRef.current,
-            timestamp: new Date()
-          });
-        }
+    const registrarViolacion = (type) => {
+      const ahora = Date.now();
+      const ultima = lastViolationRef.current;
+      const COOLDOWN_GENERAL_MS = 2500;
+      const COOLDOWN_MISMO_TIPO_MS = 5000;
 
-        // Si autoFinish está activado y hay muchas violaciones
-        if (autoFinish && violationCountRef.current >= 3) {
-          if (window.confirm('Has salido de la ventana del examen múltiples veces. ¿Deseas finalizar el examen ahora?')) {
-            // Llamar función para finalizar
-            if (onViolation) {
-              onViolation({
-                type: 'AUTO_FINISH',
-                count: violationCountRef.current,
-                timestamp: new Date()
-              });
-            }
+      // Evitar que una sola acción del sistema dispare múltiples eventos consecutivos.
+      if (ahora - ultima.timestampMs < COOLDOWN_GENERAL_MS) {
+        return;
+      }
+
+      // Evitar duplicados repetitivos del mismo evento (ej. EDGE_SWIPE continuo).
+      if (ultima.type === type && ahora - ultima.timestampMs < COOLDOWN_MISMO_TIPO_MS) {
+        return;
+      }
+
+      lastViolationRef.current = { type, timestampMs: ahora };
+      violationCountRef.current += 1;
+      setViolations(violationCountRef.current);
+
+      if (onViolation) {
+        onViolation({
+          type,
+          count: violationCountRef.current,
+          timestamp: new Date(ahora)
+        });
+      }
+
+      if (autoFinish && violationCountRef.current >= 3) {
+        if (window.confirm('Has salido de la ventana del examen múltiples veces. ¿Deseas finalizar el examen ahora?')) {
+          if (onViolation) {
+            onViolation({
+              type: 'AUTO_FINISH',
+              count: violationCountRef.current,
+              timestamp: new Date(ahora)
+            });
           }
         }
       }
     };
 
-        // 3. Detectar pérdida de foco de la ventana (solo si está visible)
-        const handleBlur = () => {
-          // Solo registrar si la ventana está visible (no oculta)
-          if (!document.hidden) {
-            violationCountRef.current += 1;
-            setViolations(violationCountRef.current);
-            
-            if (onViolation) {
-              onViolation({
-                type: 'WINDOW_BLUR',
-                count: violationCountRef.current,
-                timestamp: new Date()
-              });
-            }
-          }
-        };
+    // 2. Detectar cambio de pestaña/ventana (Page Visibility API)
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        registrarViolacion('TAB_CHANGE');
+      }
+    };
+
+    // 3. Detectar pérdida de foco de la ventana (solo si está visible)
+    const handleBlur = () => {
+      // Solo registrar si la ventana está visible (no oculta)
+      if (!document.hidden) {
+        registrarViolacion('WINDOW_BLUR');
+      }
+    };
 
     // 4. Prevenir cierre accidental del navegador
     const handleBeforeUnload = (e) => {
@@ -144,19 +154,11 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
 
     const handleTouchMove = (e) => {
       // Detectar swipe desde los bordes (gesto de navegación del sistema)
+      if (!e.touches || e.touches.length === 0) return;
       const touch = e.touches[0];
       if (touch.clientX <= 10 || touch.clientX >= window.innerWidth - 10) {
         // Swipe desde el borde - podría ser navegación del sistema
-        violationCountRef.current += 1;
-        setViolations(violationCountRef.current);
-        
-        if (onViolation) {
-          onViolation({
-            type: 'EDGE_SWIPE',
-            count: violationCountRef.current,
-            timestamp: new Date()
-          });
-        }
+        registrarViolacion('EDGE_SWIPE');
       }
     };
 
@@ -167,16 +169,7 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
           !document.mozFullScreenElement &&
           !document.msFullscreenElement) {
         // El usuario salió de pantalla completa
-        violationCountRef.current += 1;
-        setViolations(violationCountRef.current);
-        
-        if (onViolation) {
-          onViolation({
-            type: 'FULLSCREEN_EXIT',
-            count: violationCountRef.current,
-            timestamp: new Date()
-          });
-        }
+        registrarViolacion('FULLSCREEN_EXIT');
 
         // Intentar volver a pantalla completa
         enableFullscreen();

@@ -4373,6 +4373,27 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
     }
 
     const pruebaActiva = pruebasActivas[0];
+    const tipoNormalizado = String(tipo || 'DESCONOCIDA').slice(0, 60);
+
+    const [estadoActualViolaciones] = await query(
+      `SELECT id, violaciones_count, ultima_violacion_tipo,
+              TIMESTAMPDIFF(SECOND, ultima_violacion_fecha, NOW()) AS segundos_desde_ultima
+       FROM asignaturas_examenes_pruebas
+       WHERE id = ?
+       LIMIT 1`,
+      [pruebaActiva.id]
+    );
+
+    const segundosDesdeUltima = Number(estadoActualViolaciones?.segundos_desde_ultima);
+    const tieneViolacionReciente = Number.isFinite(segundosDesdeUltima) && segundosDesdeUltima >= 0 && segundosDesdeUltima <= 2;
+    if (tieneViolacionReciente) {
+      return res.json({
+        success: true,
+        action: 'WARNING',
+        violations: Number(estadoActualViolaciones?.violaciones_count || 0),
+        message: 'Evento duplicado de seguridad ignorado'
+      });
+    }
 
     await execute(
       `UPDATE asignaturas_examenes_pruebas
@@ -4380,7 +4401,7 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
            ultima_violacion_tipo = ?,
            ultima_violacion_fecha = NOW()
        WHERE id = ?`,
-      [String(tipo || 'DESCONOCIDA').slice(0, 60), pruebaActiva.id]
+      [tipoNormalizado, pruebaActiva.id]
     );
 
     const [pruebaActualizada] = await query(
@@ -4453,8 +4474,8 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
           usuario_id || null, 
           colegio_id || null, 
           examenId, 
-          `Violación de examen: ${tipo} (conteo: ${violacionesCount})`, 
-          JSON.stringify({ tipo, timestamp, violacionesCount, accion }), 
+          `Violación de examen: ${tipoNormalizado} (conteo: ${violacionesCount})`, 
+          JSON.stringify({ tipo: tipoNormalizado, timestamp, violacionesCount, accion }), 
           fechaHoraStr, 
           fecha, 
           hora

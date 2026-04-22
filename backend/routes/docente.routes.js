@@ -17371,9 +17371,11 @@ router.post('/aula-virtual/tareas/:tareaId/asignar-registro', async (req, res) =
 
     // Verificar que la tarea existe y pertenece a una asignatura del docente
     const tarea = await query(
-      `SELECT t.*, a.id as asignatura_id, a.grupo_id FROM asignaturas_tareas t
+      `SELECT t.*, a.id as asignatura_id, a.grupo_id, n.nota_minima
+       FROM asignaturas_tareas t
        INNER JOIN asignaturas a ON a.id = t.asignatura_id
        INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
        WHERE t.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
       [tareaId, personal_id, colegio_id, anio_activo]
     );
@@ -17417,6 +17419,8 @@ router.post('/aula-virtual/tareas/:tareaId/asignar-registro', async (req, res) =
     });
 
     const phpSerialize = require('php-serialize');
+    const notaMinimaRegistro = Number(tareaInfo?.nota_minima);
+    const notaMinimaValida = Number.isFinite(notaMinimaRegistro) ? notaMinimaRegistro : 0;
 
     // Procesar cada matrícula
     for (const matricula of matriculas) {
@@ -17427,6 +17431,15 @@ router.post('/aula-virtual/tareas/:tareaId/asignar-registro', async (req, res) =
       if (!notaTarea || notaTarea.trim() === '') {
         continue;
       }
+
+      let notaTareaNumero = parseFloat(notaTarea);
+      if (Number.isNaN(notaTareaNumero)) {
+        continue;
+      }
+      if (notaTareaNumero < notaMinimaValida) {
+        notaTareaNumero = notaMinimaValida;
+      }
+      const valorCuadro = notaTareaNumero.toString();
 
       // Obtener o crear Nota_Detalle
       let detalles = await query(
@@ -17454,7 +17467,7 @@ router.post('/aula-virtual/tareas/:tareaId/asignar-registro', async (req, res) =
       }
 
       // Asignar la nota en la posición del cuadro
-      datosDetalles[criterioId][indicadorId][cuadroIndex] = notaTarea;
+      datosDetalles[criterioId][indicadorId][cuadroIndex] = valorCuadro;
 
       // Serializar y guardar
       const dataSerializada = phpSerialize.serialize(datosDetalles);
@@ -17591,9 +17604,11 @@ router.post('/aula-virtual/examenes/:examenId/asignar-registro', async (req, res
 
     // Verificar que el examen existe y pertenece a una asignatura del docente
     const examen = await query(
-      `SELECT ae.*, a.id as asignatura_id, a.grupo_id FROM asignaturas_examenes ae
+      `SELECT ae.*, a.id as asignatura_id, a.grupo_id, n.nota_minima
+       FROM asignaturas_examenes ae
        INNER JOIN asignaturas a ON a.id = ae.asignatura_id
        INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
        WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
       [examenId, personal_id, colegio_id, anio_activo]
     );
@@ -17643,6 +17658,8 @@ router.post('/aula-virtual/examenes/:examenId/asignar-registro', async (req, res
     });
 
     const phpSerialize = require('php-serialize');
+    const notaMinimaRegistro = Number(examenInfo?.nota_minima);
+    const notaMinimaValida = Number.isFinite(notaMinimaRegistro) ? notaMinimaRegistro : 0;
 
     // Procesar cada matrícula
     for (const matricula of matriculas) {
@@ -17661,8 +17678,8 @@ router.post('/aula-virtual/examenes/:examenId/asignar-registro', async (req, res
       if (puntajeFinal < 0) puntajeFinal = 0;
       if (puntajeFinal > 20) puntajeFinal = 20;
 
-      // En registro de notas la nota mínima mostrada es 06 cuando el examen sale 0
-      const valorCuadro = puntajeFinal === 0 ? '06' : puntajeFinal.toString();
+      // Aplicar mínimo de registro según configuración del nivel en BD
+      const valorCuadro = Math.max(puntajeFinal, notaMinimaValida).toString();
 
       // Obtener o crear Nota_Detalle
       let detalles = await query(
