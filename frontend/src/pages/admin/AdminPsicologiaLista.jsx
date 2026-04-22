@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -13,6 +13,26 @@ import {
 import api from '../../services/api';
 import './AdminPsicologia.css';
 
+/** Secciones habituales en el colegio (orden: UNICA primero). */
+const SECCIONES_OPCIONES = ['UNICA', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+/** Lista de números de grado según el nivel (usa grado_minimo/grado_maximo del catálogo si existen). */
+function gradosParaNivel(nivel) {
+  if (!nivel) return [];
+  const gminRaw = nivel.grado_minimo;
+  const gmaxRaw = nivel.grado_maximo;
+  const gmin = gminRaw !== undefined && gminRaw !== null && gminRaw !== '' ? Number(gminRaw) : NaN;
+  const gmax = gmaxRaw !== undefined && gmaxRaw !== null && gmaxRaw !== '' ? Number(gmaxRaw) : NaN;
+  if (Number.isFinite(gmin) && Number.isFinite(gmax) && gmax >= gmin) {
+    return Array.from({ length: gmax - gmin + 1 }, (_, i) => gmin + i);
+  }
+  const name = String(nivel.nombre || '').toLowerCase();
+  if (name.includes('inicial')) return [1, 2, 3, 4, 5];
+  if (name.includes('primaria')) return [1, 2, 3, 4, 5, 6];
+  if (name.includes('secundaria')) return [1, 2, 3, 4, 5];
+  return [1, 2, 3, 4, 5, 6];
+}
+
 export default function AdminPsicologiaLista() {
   const navigate = useNavigate();
   const [meta, setMeta] = useState(null);
@@ -20,27 +40,58 @@ export default function AdminPsicologiaLista() {
   const [sedeId, setSedeId] = useState('');
   const [nivelId, setNivelId] = useState('');
   const [grado, setGrado] = useState('');
-  const [seccion, setSeccion] = useState('');
+  const [seccion, setSeccion] = useState('UNICA');
   const [turnoId, setTurnoId] = useState('');
   const [anio, setAnio] = useState('');
   const [matriculas, setMatriculas] = useState([]);
   const [loadingBuscar, setLoadingBuscar] = useState(false);
   const [buscarErr, setBuscarErr] = useState(null);
   const [sinGrupo, setSinGrupo] = useState(false);
+  const defaultsAppliedRef = useRef(false);
 
   useEffect(() => {
     api
       .get('/admin/psicologia/meta')
       .then(({ data }) => {
         setMeta(data);
-        setAnio(String(data.anio_activo || new Date().getFullYear()));
-        if (data.sedes?.length === 1) setSedeId(String(data.sedes[0].id));
         setLoadMetaErr(null);
       })
       .catch((e) => {
         setLoadMetaErr(e.response?.data?.error || 'No se pudieron cargar sedes/niveles');
       });
   }, []);
+
+  /** Valores por defecto: sede San Martín, turno Mañana, nivel Inicial (si existe), primer grado del nivel, sección UNICA. */
+  useEffect(() => {
+    if (!meta || defaultsAppliedRef.current) return;
+    defaultsAppliedRef.current = true;
+
+    const anioAct = String(meta.anio_activo || new Date().getFullYear());
+    setAnio(anioAct);
+
+    const sedes = meta.sedes || [];
+    const sedeSm = sedes.find((s) => /san\s*mart[ií]n/i.test(String(s.nombre || '')));
+    if (sedeSm) setSedeId(String(sedeSm.id));
+    else if (sedes.length === 1) setSedeId(String(sedes[0].id));
+    else if (sedes.length) setSedeId(String(sedes[0].id));
+
+    const turnos = meta.turnos || [];
+    const turnoMan = turnos.find((t) => /mañana|manana/i.test(String(t.nombre || '')));
+    if (turnoMan) setTurnoId(String(turnoMan.id));
+    else if (turnos.length === 1) setTurnoId(String(turnos[0].id));
+    else if (turnos.length) setTurnoId(String(turnos[0].id));
+
+    const nivs = meta.niveles || [];
+    const inicial = nivs.find((n) => /inicial/i.test(String(n.nombre || '')));
+    const nivelElegido = inicial || nivs[0];
+    if (nivelElegido) {
+      setNivelId(String(nivelElegido.id));
+      const gList = gradosParaNivel(nivelElegido);
+      setGrado(gList.length ? String(gList[0]) : '');
+    }
+
+    setSeccion('UNICA');
+  }, [meta]);
 
   const buscar = useCallback(async () => {
     setBuscarErr(null);
@@ -51,8 +102,8 @@ export default function AdminPsicologiaLista() {
       const params = {
         anio,
         nivel_id: nivelId,
-        grado,
-        seccion: seccion.trim(),
+        grado: String(grado),
+        seccion: String(seccion || '').trim(),
         turno_id: turnoId,
       };
       if (sedeId !== '') params.sede_id = sedeId;
@@ -86,6 +137,16 @@ export default function AdminPsicologiaLista() {
     );
   }
 
+  const nivelActual = (meta.niveles || []).find((n) => String(n.id) === String(nivelId));
+  const gradosOpciones = nivelActual ? gradosParaNivel(nivelActual) : [];
+
+  const onNivelChange = (id) => {
+    setNivelId(id);
+    const n = (meta.niveles || []).find((x) => String(x.id) === String(id));
+    const gList = n ? gradosParaNivel(n) : [];
+    setGrado(gList.length ? String(gList[0]) : '');
+  };
+
   return (
     <div className="psi-page">
       <div className="psi-hero">
@@ -103,9 +164,8 @@ export default function AdminPsicologiaLista() {
               label="Sede"
               value={sedeId}
               onChange={(e) => setSedeId(e.target.value)}
-              sx={{ minWidth: 160 }}
+              sx={{ minWidth: 180 }}
             >
-              <MenuItem value="">(Todas)</MenuItem>
               {(meta.sedes || []).map((s) => (
                 <MenuItem key={s.id} value={String(s.id)}>
                   {s.nombre}
@@ -118,7 +178,7 @@ export default function AdminPsicologiaLista() {
             size="small"
             label="Nivel"
             value={nivelId}
-            onChange={(e) => setNivelId(e.target.value)}
+            onChange={(e) => onNivelChange(e.target.value)}
             sx={{ minWidth: 160 }}
             required
           >
@@ -132,22 +192,42 @@ export default function AdminPsicologiaLista() {
             ))}
           </TextField>
           <TextField
+            select
             size="small"
             label="Grado"
-            type="number"
             value={grado}
             onChange={(e) => setGrado(e.target.value)}
-            sx={{ width: 100 }}
+            sx={{ minWidth: 120 }}
             required
-          />
+            disabled={!nivelId || gradosOpciones.length === 0}
+          >
+            {!nivelId ? (
+              <MenuItem value="" disabled>
+                Elija nivel…
+              </MenuItem>
+            ) : (
+              gradosOpciones.map((g) => (
+                <MenuItem key={g} value={String(g)}>
+                  {g}°
+                </MenuItem>
+              ))
+            )}
+          </TextField>
           <TextField
+            select
             size="small"
             label="Sección"
             value={seccion}
             onChange={(e) => setSeccion(e.target.value)}
-            sx={{ width: 110 }}
+            sx={{ minWidth: 110 }}
             required
-          />
+          >
+            {SECCIONES_OPCIONES.map((sec) => (
+              <MenuItem key={sec} value={sec}>
+                {sec}
+              </MenuItem>
+            ))}
+          </TextField>
           <TextField
             select
             size="small"
@@ -157,9 +237,6 @@ export default function AdminPsicologiaLista() {
             sx={{ minWidth: 140 }}
             required
           >
-            <MenuItem value="" disabled>
-              Elija…
-            </MenuItem>
             {(meta.turnos || []).map((t) => (
               <MenuItem key={t.id} value={String(t.id)}>
                 {t.nombre}

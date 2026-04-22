@@ -12,15 +12,26 @@ const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = requ
 
 const PSICOLOGIA_TIPOS = new Set(['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA']);
 
+function colegioId(req) {
+  if (req.psico_colegio_id != null) return req.psico_colegio_id;
+  const raw = req.user?.colegio_id;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : null;
+}
+
 router.use(authenticateToken);
 router.use((req, res, next) => {
   if (PSICOLOGIA_TIPOS.has(req.user?.tipo)) return next();
   return res.status(403).json({ error: 'Sin permiso para el módulo de Psicología.' });
 });
-
-function colegioId(req) {
-  return req.user.colegio_id;
-}
+router.use((req, res, next) => {
+  const n = Number(req.user?.colegio_id);
+  if (!Number.isFinite(n)) {
+    return res.status(400).json({ error: 'Usuario sin colegio asignado (colegio_id).' });
+  }
+  req.psico_colegio_id = n;
+  next();
+});
 
 function ordenNivelEducativoNombre(nombre) {
   const n = String(nombre || '').toLowerCase();
@@ -34,8 +45,23 @@ function ordenNivelEducativoNombre(nombre) {
 router.get('/meta', async (req, res) => {
   try {
     const cid = colegioId(req);
-    const [cRow] = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
-    const anioActivo = parseInt(cRow?.anio_activo || new Date().getFullYear(), 10);
+    let anioActivo = new Date().getFullYear();
+    try {
+      const cRows = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
+      const cRow = cRows[0];
+      if (cRow?.anio_activo != null && cRow.anio_activo !== '') {
+        anioActivo = parseInt(cRow.anio_activo, 10) || anioActivo;
+      }
+    } catch (eColegio) {
+      console.warn('[admin/psicologia/meta] colegios:', eColegio.message);
+      try {
+        const chk = await query('SELECT id FROM colegios WHERE id = ? LIMIT 1', [cid]);
+        if (!chk.length) return res.status(404).json({ error: 'Colegio no encontrado' });
+      } catch (e2) {
+        console.error('[admin/psicologia/meta]', e2);
+        return res.status(500).json({ error: e2.message || 'Error al leer colegio' });
+      }
+    }
     let niveles = [];
     try {
       niveles = await query(
@@ -44,7 +70,12 @@ router.get('/meta', async (req, res) => {
         [cid]
       );
     } catch {
-      niveles = await query('SELECT id, nombre FROM niveles WHERE colegio_id = ? ORDER BY id ASC', [cid]);
+      try {
+        niveles = await query('SELECT id, nombre FROM niveles WHERE colegio_id = ? ORDER BY id ASC', [cid]);
+      } catch (eNiv) {
+        console.warn('[admin/psicologia/meta] niveles:', eNiv.message);
+        niveles = [];
+      }
     }
     niveles = [...(niveles || [])].sort((a, b) => {
       const oa = ordenNivelEducativoNombre(a.nombre);
@@ -192,7 +223,12 @@ router.get('/grupo', async (req, res) => {
       return res.status(400).json({ error: 'Parámetros incompletos: anio, nivel_id, grado, seccion, turno_id' });
     }
 
-    const hasSede = await columnExists('grupos', 'sede_id');
+    let hasSede = false;
+    try {
+      hasSede = await columnExists('grupos', 'sede_id');
+    } catch (eCol) {
+      console.warn('[admin/psicologia/grupo] columnExists sede_id:', eCol.message);
+    }
     let sql = `SELECT g.id FROM grupos g
       WHERE g.colegio_id = ? AND g.anio = ? AND g.nivel_id = ? AND g.grado = ?
         AND UPPER(TRIM(g.seccion)) = UPPER(?) AND g.turno_id = ?`;
@@ -212,11 +248,15 @@ router.get('/grupo', async (req, res) => {
     const grupoId = rows[0].id;
     const mats = await query(
       `SELECT m.id AS matricula_id, m.alumno_id, m.estado, m.grupo_id,
-              TRIM(CONCAT(COALESCE(a.apellidos,''), ', ', COALESCE(a.nombres,''))) AS nombre_completo
+              TRIM(CONCAT(
+                COALESCE(a.apellido_paterno,''), ' ',
+                COALESCE(a.apellido_materno,''), ' ',
+                COALESCE(a.nombres,'')
+              )) AS nombre_completo
        FROM matriculas m
        INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = m.colegio_id
        WHERE m.colegio_id = ? AND m.grupo_id = ? AND (m.estado = 0 OR m.estado = 4)
-       ORDER BY a.apellidos ASC, a.nombres ASC`,
+       ORDER BY a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC`,
       [cid, grupoId]
     );
     res.json({ grupo: { id: grupoId }, matriculas: mats || [] });
@@ -235,7 +275,12 @@ router.get('/alumnos/:alumnoId/resumen', async (req, res) => {
     if (!(await assertAlumnoEnColegio(cid, alumnoId))) return res.status(404).json({ error: 'Alumno no encontrado' });
 
     const [aRow] = await query(
-      `SELECT a.id, TRIM(CONCAT(COALESCE(a.apellidos,''), ', ', COALESCE(a.nombres,''))) AS nombre_completo,
+      `SELECT a.id,
+              TRIM(CONCAT(
+                COALESCE(a.apellido_paterno,''), ' ',
+                COALESCE(a.apellido_materno,''), ' ',
+                COALESCE(a.nombres,'')
+              )) AS nombre_completo,
               a.fecha_nacimiento
        FROM alumnos a WHERE a.id = ? AND a.colegio_id = ? LIMIT 1`,
       [alumnoId, cid]
