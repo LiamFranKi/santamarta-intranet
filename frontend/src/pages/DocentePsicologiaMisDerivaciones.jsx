@@ -1,28 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
-import { Box, Button, CircularProgress, Paper, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import api from '../services/api';
+import Swal from 'sweetalert2';
+import './DocentePsicologia.css';
 
 const LIMA_TZ = 'America/Lima';
 
-function formatLimaLine(iso) {
+function formatLimaSoloFecha(iso) {
   if (iso == null || iso === '') return '—';
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso);
-  const fecha = d.toLocaleDateString('es-PE', {
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-PE', {
     timeZone: LIMA_TZ,
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   });
-  const hora = d.toLocaleTimeString('es-PE', {
-    timeZone: LIMA_TZ,
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  });
-  return `${fecha} · ${hora}`;
 }
 
 export default function DocentePsicologiaMisDerivaciones() {
@@ -31,7 +27,8 @@ export default function DocentePsicologiaMisDerivaciones() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
 
-  useEffect(() => {
+  const cargar = useCallback(() => {
+    setLoading(true);
     api
       .get('/docente/psicologia/mis-derivaciones')
       .then(({ data }) => {
@@ -42,66 +39,123 @@ export default function DocentePsicologiaMisDerivaciones() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  const irEditar = (r) => {
+    const mid = r.matricula_id != null ? String(r.matricula_id) : '';
+    const q = new URLSearchParams();
+    if (mid) q.set('matricula_id', mid);
+    q.set('derivacion_id', String(r.id));
+    navigate(`/docente/psicologia/derivar/${r.alumno_id}?${q.toString()}`);
+  };
+
+  const eliminar = async (r) => {
+    if (String(r.estado) !== 'RECIBIDA') {
+      Swal.fire({ icon: 'info', title: 'Solo se pueden eliminar derivaciones en estado RECIBIDA.' });
+      return;
+    }
+    const ok = await Swal.fire({
+      icon: 'warning',
+      title: '¿Eliminar esta derivación?',
+      text: 'Si psicología ya la tomó a su cargo, no podrá eliminarla.',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/docente/psicologia/derivaciones/${r.id}`);
+      await Swal.fire({ icon: 'success', title: 'Eliminada', timer: 1200, showConfirmButton: false });
+      cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: e.response?.data?.error || 'No se pudo eliminar' });
+    }
+  };
+
   return (
     <DashboardLayout>
-      <Box sx={{ maxWidth: 960, mx: 'auto', p: 2 }}>
-        <Typography variant="h5" fontWeight={800} gutterBottom>
-          Mis derivaciones psicológicas
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Aquí aparecen las fichas que usted registró como docente referente. Para crear una nueva, use{' '}
-          <strong>Grupos asignados</strong> → <strong>Opciones</strong> del alumno → <strong>Derivación psicológica</strong>.
-        </Typography>
-        <Button variant="outlined" sx={{ mb: 2 }} onClick={() => navigate('/docente/grupos')}>
-          Ir a mis grupos
-        </Button>
-        {loading && (
-          <Box display="flex" justifyContent="center" py={4}>
-            <CircularProgress />
-          </Box>
-        )}
-        {err && (
-          <Typography color="error" sx={{ mb: 2 }}>
-            {err}
-          </Typography>
-        )}
+      <div className="psi-doc-page">
+        <div className="psi-doc-hero">
+          <h1>Derivaciones psicológicas</h1>
+          <p>
+            Fichas que usted envió como docente referente. Para registrar una nueva:{' '}
+            <strong>Grupos asignados</strong> → <strong>Opciones</strong> → <strong>Derivación psicológica</strong>.
+          </p>
+        </div>
+
+        <div className="psi-doc-card">
+          <button type="button" className="psi-doc-btn psi-doc-btn-secondary" onClick={() => navigate('/docente/grupos')}>
+            Ir a mis grupos
+          </button>
+        </div>
+
+        {loading && <p className="psi-doc-muted">Cargando…</p>}
+        {err && <p className="psi-doc-muted" style={{ color: '#b91c1c' }}>{err}</p>}
+
         {!loading && !err && (
-          <Paper variant="outlined" sx={{ overflow: 'auto' }}>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Fecha (Lima)</TableCell>
-                  <TableCell>Alumno</TableCell>
-                  <TableCell>Estado</TableCell>
-                  <TableCell>Urgencia</TableCell>
-                  <TableCell>Resumen</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
+          <div className="psi-doc-table-wrap">
+            <table className="psi-doc-table">
+              <thead>
+                <tr>
+                  <th>Fecha (Lima)</th>
+                  <th>Alumno</th>
+                  <th>Estado</th>
+                  <th>Urgencia</th>
+                  <th>Resumen</th>
+                  <th style={{ width: 100 }} aria-label="Acciones">
+                    {' '}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
                 {rows.map((r) => (
-                  <TableRow key={r.id} hover>
-                    <TableCell>{formatLimaLine(r.created_at)}</TableCell>
-                    <TableCell>{r.alumno_nombre || `#${r.alumno_id}`}</TableCell>
-                    <TableCell>{r.estado}</TableCell>
-                    <TableCell>{r.urgencia}</TableCell>
-                    <TableCell sx={{ maxWidth: 320 }}>
-                      {(r.descripcion_caso || '').slice(0, 120)}
-                      {(r.descripcion_caso || '').length > 120 ? '…' : ''}
-                    </TableCell>
-                  </TableRow>
+                  <tr key={r.id}>
+                    <td>{formatLimaSoloFecha(r.created_at)}</td>
+                    <td>{r.alumno_nombre || `#${r.alumno_id}`}</td>
+                    <td>{r.estado}</td>
+                    <td>{r.urgencia}</td>
+                    <td style={{ maxWidth: 280 }}>
+                      {(r.descripcion_caso || '').slice(0, 100)}
+                      {(r.descripcion_caso || '').length > 100 ? '…' : ''}
+                    </td>
+                    <td>
+                      <div className="psi-doc-actions">
+                        <button
+                          type="button"
+                          className="psi-doc-icon-btn"
+                          title="Editar"
+                          disabled={String(r.estado) !== 'RECIBIDA'}
+                          onClick={() => irEditar(r)}
+                        >
+                          <EditIcon fontSize="small" />
+                        </button>
+                        <button
+                          type="button"
+                          className="psi-doc-icon-btn danger"
+                          title="Eliminar"
+                          disabled={String(r.estado) !== 'RECIBIDA'}
+                          onClick={() => eliminar(r)}
+                        >
+                          <DeleteOutlineIcon fontSize="small" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
                 ))}
                 {rows.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center">
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '1.5rem' }} className="psi-doc-muted">
                       Aún no tiene derivaciones registradas.
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 )}
-              </TableBody>
-            </Table>
-          </Paper>
+              </tbody>
+            </table>
+          </div>
         )}
-      </Box>
+      </div>
     </DashboardLayout>
   );
 }

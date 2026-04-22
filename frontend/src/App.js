@@ -133,6 +133,8 @@ function PrivateRoute({ children, requiredType = null, requiredTypes = null }) {
       return <Navigate to="/admin/dashboard" />;
     } else if (user?.tipo === 'ADMINISTRADOR') {
       return <Navigate to="/admin/dashboard" />;
+    } else if (user?.tipo === 'PSICOLOGA') {
+      return <Navigate to="/admin/psicologia" replace />;
     }
     // Si no tiene un tipo válido, redirigir al login
     return <Navigate to="/login" />;
@@ -205,6 +207,8 @@ function NavigateToDashboard() {
     return <Navigate to="/promotoria/dashboard" replace />;
   } else if (tipo === 'SECRETARIA') {
     return <Navigate to="/admin/dashboard" replace />;
+  } else if (tipo === 'PSICOLOGA') {
+    return <Navigate to="/admin/psicologia" replace />;
   }
 
   // Tipo desconocido: ir al login en lugar de asumir admin
@@ -227,7 +231,7 @@ function AppRoutes() {
       <Route
         path="/admin/perfil"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']}>
             <AdminPerfil />
           </PrivateRoute>
         }
@@ -920,7 +924,7 @@ function AppRoutes() {
       <Route
         path="/admin/psicologia/alumno/:alumnoId"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -928,7 +932,7 @@ function AppRoutes() {
       <Route
         path="/admin/psicologia"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1124,7 +1128,7 @@ function AppRoutes() {
       <Route
         path="/admin/mensajes"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
             <DocenteMensajes />
           </PrivateRoute>
         }

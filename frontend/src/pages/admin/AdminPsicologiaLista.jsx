@@ -16,6 +16,20 @@ import './AdminPsicologia.css';
 /** Secciones habituales en el colegio (orden: UNICA primero). */
 const SECCIONES_OPCIONES = ['UNICA', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
+const LIMA_TZ = 'America/Lima';
+
+function formatLimaSoloFecha(iso) {
+  if (iso == null || iso === '') return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-PE', {
+    timeZone: LIMA_TZ,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
 /** Lista de números de grado según el nivel (usa grado_minimo/grado_maximo del catálogo si existen). */
 function gradosParaNivel(nivel) {
   if (!nivel) return [];
@@ -48,6 +62,9 @@ export default function AdminPsicologiaLista() {
   const [buscarErr, setBuscarErr] = useState(null);
   const [sinGrupo, setSinGrupo] = useState(false);
   const defaultsAppliedRef = useRef(false);
+  const [pendientes, setPendientes] = useState([]);
+  const [loadingPendientes, setLoadingPendientes] = useState(true);
+  const [pendientesErr, setPendientesErr] = useState(null);
 
   useEffect(() => {
     api
@@ -59,6 +76,18 @@ export default function AdminPsicologiaLista() {
       .catch((e) => {
         setLoadMetaErr(e.response?.data?.error || 'No se pudieron cargar sedes/niveles');
       });
+  }, []);
+
+  useEffect(() => {
+    setLoadingPendientes(true);
+    setPendientesErr(null);
+    api
+      .get('/admin/psicologia/derivaciones/pendientes', { params: { limit: 100 } })
+      .then(({ data }) => {
+        setPendientes(data.derivaciones || []);
+      })
+      .catch((e) => setPendientesErr(e.response?.data?.error || 'No se pudieron cargar las derivaciones pendientes'))
+      .finally(() => setLoadingPendientes(false));
   }, []);
 
   /** Valores por defecto: sede San Martín, turno Mañana, nivel Inicial (si existe), primer grado del nivel, sección UNICA. */
@@ -152,6 +181,69 @@ export default function AdminPsicologiaLista() {
       <div className="psi-hero">
         <h1>Psicología</h1>
         <p>Busque por aula y abra el expediente de cada estudiante: atenciones, derivaciones, actas con familias y PIAR.</p>
+      </div>
+
+      <div className="psi-pendientes-card">
+        <div className="psi-pendientes-title">Derivaciones pendientes (RECIBIDA)</div>
+        <p className="psi-pendientes-sub">
+          Fichas enviadas por docentes que aún no pasan a evaluación o cierre. Use “Abrir” para ir al expediente del alumno.
+        </p>
+        {pendientesErr && (
+          <Alert severity="warning" sx={{ mb: 1 }}>
+            {pendientesErr}
+          </Alert>
+        )}
+        {loadingPendientes ? (
+          <Box display="flex" justifyContent="center" py={2}>
+            <CircularProgress size={28} />
+          </Box>
+        ) : pendientes.length === 0 ? (
+          <p className="psi-muted" style={{ margin: 0 }}>
+            No hay derivaciones pendientes en este momento.
+          </p>
+        ) : (
+          <div className="psi-pendientes-table-wrap">
+            <table className="psi-pendientes-table">
+              <thead>
+                <tr>
+                  <th>Fecha (Lima)</th>
+                  <th>Alumno</th>
+                  <th>Docente</th>
+                  <th>Urgencia</th>
+                  <th>Resumen</th>
+                  <th style={{ width: 90 }}> </th>
+                </tr>
+              </thead>
+              <tbody>
+                {pendientes.map((p) => (
+                  <tr key={p.id}>
+                    <td>{formatLimaSoloFecha(p.created_at)}</td>
+                    <td>{p.alumno_nombre || '—'}</td>
+                    <td>{p.docente_nombre || '—'}</td>
+                    <td>{p.urgencia}</td>
+                    <td className="psi-pend-resumen">
+                      {(p.descripcion_caso || '').slice(0, 80)}
+                      {(p.descripcion_caso || '').length > 80 ? '…' : ''}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="psi-pend-btn-abrir"
+                        onClick={() =>
+                          navigate(
+                            `/admin/psicologia/alumno/${p.alumno_id}${p.matricula_id != null ? `?matricula_id=${p.matricula_id}` : ''}`
+                          )
+                        }
+                      >
+                        Abrir
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="psi-filter-card">

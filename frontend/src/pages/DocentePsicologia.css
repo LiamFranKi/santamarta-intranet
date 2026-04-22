@@ -1,0 +1,182 @@
+/* Derivaciones psicología — docente (alineado a AdminPsicologia / intranet) */
+.psi-doc-page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1rem 1.25rem 2rem;
+}
+
+.psi-doc-hero {
+  background: linear-gradient(135deg, #5b6ee8 0%, #7c4dff 45%, #00bcd4 100%);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  color: #fff;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 8px 28px rgba(91, 110, 232, 0.28);
+}
+
+.psi-doc-hero h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.psi-doc-hero p {
+  margin: 0;
+  opacity: 0.92;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.psi-doc-card {
+  background: linear-gradient(145deg, #f0f7ff 0%, #fdf2ff 55%, #f0fdf9 100%);
+  border-radius: 14px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid #e8e0f4;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.psi-doc-table-wrap {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  overflow: auto;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+}
+
+.psi-doc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.psi-doc-table th {
+  text-align: left;
+  padding: 0.75rem 0.85rem;
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: 700;
+  border-bottom: 1px solid #e2e8f0;
+  white-space: nowrap;
+}
+
+.psi-doc-table td {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid #eef2f7;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.psi-doc-table tr:last-child td {
+  border-bottom: none;
+}
+
+.psi-doc-table tr:hover td {
+  background: #fafbff;
+}
+
+.psi-doc-actions {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.psi-doc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  border: none;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.psi-doc-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.psi-doc-btn-secondary {
+  background: #fff;
+  color: #4f46e5;
+  border: 2px solid #6366f1;
+}
+
+.psi-doc-btn-secondary:hover:not(:disabled) {
+  background: #eef2ff;
+}
+
+.psi-doc-btn-primary {
+  background: linear-gradient(135deg, #5b6ee8 0%, #6366f1 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+}
+
+.psi-doc-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.4);
+}
+
+.psi-doc-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.psi-doc-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.psi-doc-icon-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #1e293b;
+}
+
+.psi-doc-icon-btn.danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.psi-doc-icon-btn.danger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.psi-doc-muted {
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.psi-doc-alert {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  color: #1e40af;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.psi-doc-alumno-line {
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}

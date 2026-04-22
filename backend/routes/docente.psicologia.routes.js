@@ -5,6 +5,7 @@ const express = require('express');
 const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
+const { notificarStaffNuevaDerivacionDocente } = require('../utils/psicologiaDerivacionNotificarStaff');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -87,6 +88,145 @@ router.get('/mis-derivaciones', async (req, res) => {
   }
 });
 
+/** Nombre del alumno + matrícula de referencia (formulario derivación). */
+router.get('/alumnos/:alumnoId/cabecera', async (req, res) => {
+  try {
+    const colegio_id = cid(req);
+    const alumnoId = parseInt(req.params.alumnoId, 10);
+    if (!colegio_id || !Number.isFinite(alumnoId)) return res.status(400).json({ error: 'Parámetros inválidos' });
+    if (!(await assertAlumnoEnColegio(colegio_id, alumnoId))) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    if (!(await assertDocentePuedeAlumno(req, alumnoId))) {
+      return res.status(403).json({ error: 'No tiene al alumno en sus grupos o tutorías este año.' });
+    }
+    const [row] = await query(
+      `SELECT TRIM(CONCAT(
+          COALESCE(a.apellido_paterno,''), ' ',
+          COALESCE(a.apellido_materno,''), ' ',
+          COALESCE(a.nombres,''))) AS nombre_completo
+       FROM alumnos a WHERE a.id = ? AND a.colegio_id = ? LIMIT 1`,
+      [alumnoId, colegio_id]
+    );
+    res.json({ nombre_completo: (row && row.nombre_completo) || '' });
+  } catch (e) {
+    console.error('[docente/psicologia/cabecera]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/** Detalle de una derivación propia (solo docente referente). */
+router.get('/derivaciones/:id', async (req, res) => {
+  try {
+    const colegio_id = cid(req);
+    const pid = personalId(req);
+    const id = parseInt(req.params.id, 10);
+    if (!colegio_id || !pid || !Number.isFinite(id)) return res.status(400).json({ error: 'Parámetros inválidos' });
+    const rows = await query(
+      `SELECT d.* FROM psicologia_derivaciones d
+       WHERE d.id = ? AND d.colegio_id = ? AND d.docente_personal_id = ? LIMIT 1`,
+      [id, colegio_id, pid]
+    );
+    const d = rows[0];
+    if (!d) return res.status(404).json({ error: 'No encontrado' });
+    let motivos = [];
+    try {
+      motivos = typeof d.motivos_json === 'string' ? JSON.parse(d.motivos_json || '[]') : d.motivos_json || [];
+    } catch (_) {
+      motivos = [];
+    }
+    res.json({ derivacion: { ...d, motivos_json: Array.isArray(motivos) ? motivos : [] } });
+  } catch (e) {
+    console.error('[docente/psicologia/derivaciones GET]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/** Actualizar derivación propia mientras siga RECIBIDA. */
+router.put('/derivaciones/:id', async (req, res) => {
+  try {
+    const colegio_id = cid(req);
+    const pid = personalId(req);
+    const id = parseInt(req.params.id, 10);
+    if (!colegio_id || !pid || !Number.isFinite(id)) return res.status(400).json({ error: 'Parámetros inválidos' });
+    const [row] = await query(
+      `SELECT id, estado FROM psicologia_derivaciones
+       WHERE id = ? AND colegio_id = ? AND docente_personal_id = ? LIMIT 1`,
+      [id, colegio_id, pid]
+    );
+    if (!row) return res.status(404).json({ error: 'No encontrado' });
+    if (String(row.estado) !== 'RECIBIDA') {
+      return res.status(400).json({ error: 'Solo puede editar derivaciones en estado RECIBIDA.' });
+    }
+    const b = req.body || {};
+    const descripcion = b.descripcion_caso != null ? String(b.descripcion_caso).trim() : null;
+    if (descripcion !== null && descripcion === '') {
+      return res.status(400).json({ error: 'descripcion_caso no puede quedar vacía' });
+    }
+    const sets = [];
+    const params = [];
+    if (b.motivos_json !== undefined) {
+      sets.push('motivos_json = ?');
+      params.push(JSON.stringify(Array.isArray(b.motivos_json) ? b.motivos_json : []));
+    }
+    if (b.motivo_otro !== undefined) {
+      sets.push('motivo_otro = ?');
+      params.push(b.motivo_otro != null ? String(b.motivo_otro).slice(0, 500) : null);
+    }
+    if (descripcion != null) {
+      sets.push('descripcion_caso = ?');
+      params.push(descripcion);
+    }
+    if (b.estrategias_aula !== undefined) {
+      sets.push('estrategias_aula = ?');
+      params.push(b.estrategias_aula != null ? String(b.estrategias_aula) : null);
+    }
+    if (b.urgencia != null && ['ALTA', 'MEDIA', 'BAJA'].includes(String(b.urgencia).toUpperCase())) {
+      sets.push('urgencia = ?');
+      params.push(String(b.urgencia).toUpperCase());
+    }
+    if (b.firma_docente_imagen !== undefined) {
+      sets.push('firma_docente_imagen = ?');
+      params.push(b.firma_docente_imagen != null ? String(b.firma_docente_imagen) : null);
+    }
+    if (b.firma_docente_fecha !== undefined) {
+      sets.push('firma_docente_fecha = ?');
+      params.push(b.firma_docente_fecha || null);
+    }
+    if (!sets.length) return res.status(400).json({ error: 'Nada que actualizar' });
+    params.push(id, colegio_id, pid);
+    await execute(
+      `UPDATE psicologia_derivaciones SET ${sets.join(', ')}
+       WHERE id = ? AND colegio_id = ? AND docente_personal_id = ? AND estado = 'RECIBIDA'`,
+      params
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[docente/psicologia/derivaciones PUT]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/** Eliminar derivación propia solo en RECIBIDA. */
+router.delete('/derivaciones/:id', async (req, res) => {
+  try {
+    const colegio_id = cid(req);
+    const pid = personalId(req);
+    const id = parseInt(req.params.id, 10);
+    if (!colegio_id || !pid || !Number.isFinite(id)) return res.status(400).json({ error: 'Parámetros inválidos' });
+    const r = await execute(
+      `DELETE FROM psicologia_derivaciones
+       WHERE id = ? AND colegio_id = ? AND docente_personal_id = ? AND estado = 'RECIBIDA'`,
+      [id, colegio_id, pid]
+    );
+    if (!r.affectedRows) return res.status(404).json({ error: 'No encontrado o ya atendida por psicología' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[docente/psicologia/derivaciones DELETE]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
 /** Crear derivación (sin recepción de psicología; la registra luego el equipo). */
 router.post('/alumnos/:alumnoId/derivaciones', async (req, res) => {
   try {
@@ -137,7 +277,20 @@ router.post('/alumnos/:alumnoId/derivaciones', async (req, res) => {
         Number.isFinite(uid) ? uid : null,
       ]
     );
-    res.json({ id: r.insertId });
+    const newId = r.insertId;
+    try {
+      await notificarStaffNuevaDerivacionDocente({
+        colegio_id,
+        derivacionId: newId,
+        alumnoId,
+        matriculaId: Number.isFinite(matriculaId) ? matriculaId : null,
+        docentePersonalId: pid,
+        remitenteUsuarioId: uid,
+      });
+    } catch (nErr) {
+      console.warn('[docente/psicologia] notificación staff omitida:', nErr.message);
+    }
+    res.json({ id: newId });
   } catch (e) {
     console.error('[docente/psicologia/derivaciones POST]', e);
     res.status(500).json({ error: e.message || 'Error' });

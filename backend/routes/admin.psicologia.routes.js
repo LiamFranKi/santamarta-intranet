@@ -10,7 +10,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { fechaHoraMySQLLima, fechaHoraTextoLima, fechaTextoLima } = require('../utils/fechaHoraLima');
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
 
-const PSICOLOGIA_TIPOS = new Set(['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA']);
+const PSICOLOGIA_TIPOS = new Set(['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']);
 
 function colegioId(req) {
   if (req.psico_colegio_id != null) return req.psico_colegio_id;
@@ -221,6 +221,33 @@ async function notificarDocenteDerivacion(req, { colegio_id, docentePersonalId, 
     console.error('[psicologia] mensaje docente derivación:', msgErr.message);
   }
 }
+
+/** Derivaciones pendientes de atención (RECIBIDA), más recientes primero. */
+router.get('/derivaciones/pendientes', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const lim = Math.min(parseInt(req.query.limit, 10) || 80, 200);
+    const rows = await query(
+      `SELECT d.id, d.created_at, d.urgencia, d.estado, d.alumno_id, d.matricula_id, d.descripcion_caso,
+              TRIM(CONCAT(
+                COALESCE(a.apellido_paterno,''), ' ',
+                COALESCE(a.apellido_materno,''), ' ',
+                COALESCE(a.nombres,''))) AS alumno_nombre,
+              ${sqlNombrePersonal('p')} AS docente_nombre
+       FROM psicologia_derivaciones d
+       INNER JOIN alumnos a ON a.id = d.alumno_id AND a.colegio_id = d.colegio_id
+       LEFT JOIN personal p ON p.id = d.docente_personal_id
+       WHERE d.colegio_id = ? AND d.estado = 'RECIBIDA'
+       ORDER BY d.id DESC
+       LIMIT ?`,
+      [cid, lim]
+    );
+    res.json({ derivaciones: rows || [] });
+  } catch (e) {
+    console.error('[admin/psicologia/derivaciones/pendientes]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
 
 /** Buscar grupo exacto y devolver id (o null si no existe / hay duplicado extraño). */
 router.get('/grupo', async (req, res) => {

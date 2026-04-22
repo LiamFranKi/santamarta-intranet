@@ -177,7 +177,12 @@ export default function DashboardLayout({ children }) {
 
     if (user?.tipo === 'DOCENTE') {
       cargarDatosDocente();
-    } else if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'SECRETARIA') {
+    } else if (
+      user?.tipo === 'ADMINISTRADOR'
+      || user?.tipo === 'PROMOTORIA'
+      || user?.tipo === 'SECRETARIA'
+      || user?.tipo === 'PSICOLOGA'
+    ) {
       resetNoDocenteAcademico();
       cargarRolesAdicionalesSolo();
     } else {
@@ -305,7 +310,30 @@ export default function DashboardLayout({ children }) {
 
       <aside className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <div className="sidebar-logo" role="button" tabIndex={0} onClick={() => navigate(role === 'DOCENTE' ? '/docente/dashboard' : role === 'ALUMNO' ? '/alumno/dashboard' : role === 'APODERADO' ? '/apoderado/dashboard' : role === 'ADMINISTRADOR' ? '/admin/dashboard' : role === 'PROMOTORIA' ? '/promotoria/dashboard' : role === 'SECRETARIA' ? '/admin/dashboard' : '/admin/dashboard')}>
+          <div
+            className="sidebar-logo"
+            role="button"
+            tabIndex={0}
+            onClick={() =>
+              navigate(
+                role === 'DOCENTE'
+                  ? '/docente/dashboard'
+                  : role === 'ALUMNO'
+                    ? '/alumno/dashboard'
+                    : role === 'APODERADO'
+                      ? '/apoderado/dashboard'
+                      : role === 'PSICOLOGA'
+                        ? '/admin/psicologia'
+                        : role === 'ADMINISTRADOR'
+                          ? '/admin/dashboard'
+                          : role === 'PROMOTORIA'
+                            ? '/promotoria/dashboard'
+                            : role === 'SECRETARIA'
+                              ? '/admin/dashboard'
+                              : '/admin/dashboard'
+              )
+            }
+          >
             {logoUrl ? (
               <img className="sidebar-logo-image" src={logoUrl} alt="Logo" />
             ) : (
@@ -439,7 +467,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>
                       🧠
                     </span>
-                    <span className="sidebar-label">Mis derivaciones (psicología)</span>
+                    <span className="sidebar-label">Derivaciones</span>
                   </NavLink>
                   {esSupervisorSupervision ? (
                     <NavLink
@@ -880,6 +908,27 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
             </>
+          ) : role === 'PSICOLOGA' ? (
+            <>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia" end>
+                  <span className="sidebar-icon">🧠</span>
+                  <span className="sidebar-label">Psicología</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/perfil">
+                  <span className="sidebar-icon">👤</span>
+                  <span className="sidebar-label">Mi Perfil</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/mensajes">
+                  <span className="sidebar-icon">✉️</span>
+                  <span className="sidebar-label">Mensajes</span>
+                </NavLink>
+              </div>
+            </>
           ) : (
             <>
               <div className="sidebar-item">
@@ -1205,8 +1254,31 @@ export default function DashboardLayout({ children }) {
           </div>
 
           <div className="header-actions">
-            {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO' || role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA') && <NotificacionesWidget />}
-            <button className="header-btn" type="button" title="Mi Perfil" onClick={() => navigate(role === 'DOCENTE' ? '/docente/perfil' : role === 'ALUMNO' ? '/alumno/perfil' : role === 'APODERADO' ? '/apoderado/perfil' : role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' ? '/admin/perfil' : '/perfil')}>
+            {(role === 'DOCENTE'
+              || role === 'ALUMNO'
+              || role === 'APODERADO'
+              || role === 'ADMINISTRADOR'
+              || role === 'PROMOTORIA'
+              || role === 'SECRETARIA'
+              || role === 'PSICOLOGA') && <NotificacionesWidget />}
+            <button
+              className="header-btn"
+              type="button"
+              title="Mi Perfil"
+              onClick={() =>
+                navigate(
+                  role === 'DOCENTE'
+                    ? '/docente/perfil'
+                    : role === 'ALUMNO'
+                      ? '/alumno/perfil'
+                      : role === 'APODERADO'
+                        ? '/apoderado/perfil'
+                        : role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA'
+                          ? '/admin/perfil'
+                          : '/perfil'
+                )
+              }
+            >
               👤
             </button>
             <button className="header-btn header-btn-logout" type="button" title="Cerrar sesión" onClick={logout}>
@@ -1218,7 +1290,13 @@ export default function DashboardLayout({ children }) {
           </div>
         </header>
 
-        <div className={`dashboard-main-wrapper ${role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' ? 'dashboard-main-wrapper-no-sidebar' : ''}`}>
+        <div
+          className={`dashboard-main-wrapper ${
+            role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' || role === 'PSICOLOGA'
+              ? 'dashboard-main-wrapper-no-sidebar'
+              : ''
+          }`}
+        >
           <main className="dashboard-main">{children}</main>
           
           {/* Columna derecha (calendario, publicaciones): no se muestra para ADMINISTRADOR */}
