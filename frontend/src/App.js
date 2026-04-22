@@ -36,6 +36,7 @@ import AdminHerramientasEmocionales from './pages/admin/AdminHerramientasEmocion
 import AdminVocabularios from './pages/admin/AdminVocabularios';
 import DocenteVocabularios from './pages/DocenteVocabularios';
 import AlumnoVocabularios from './pages/AlumnoVocabularios';
+import AlumnoHerramientasDocumentos from './pages/AlumnoHerramientasDocumentos';
 import AdminIncidencias from './pages/admin/AdminIncidencias';
 import HerramientasExamenesLista from './pages/herramientas/HerramientasExamenesLista';
 import HerramientasExamenEditor from './pages/herramientas/HerramientasExamenEditor';
@@ -76,6 +77,7 @@ import ApoderadoHijos from './pages/ApoderadoHijos';
 import ApoderadoComunicados from './pages/ApoderadoComunicados';
 import ApoderadoActividades from './pages/ApoderadoActividades';
 import ApoderadoMensajes from './pages/ApoderadoMensajes';
+import ApoderadoDocumentos from './pages/ApoderadoDocumentos';
 import ApoderadoHijoAulaVirtual from './pages/ApoderadoHijoAulaVirtual';
 import './App.css';
 
@@ -793,6 +795,15 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      <Route
+        path="/alumno/herramientas/documentos"
+        element={
+          <PrivateRoute requiredType="ALUMNO">
+            <AlumnoHerramientasDocumentos />
+          </PrivateRoute>
+        }
+      />
+      <Route path="/alumno/herramientas" element={<Navigate to="/alumno/herramientas/documentos" replace />} />
       {/* Rutas de Apoderado */}
       <Route
         path="/apoderado/dashboard"
@@ -823,6 +834,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <ApoderadoComunicados />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/apoderado/documentos"
+        element={
+          <PrivateRoute>
+            <ApoderadoDocumentos />
           </PrivateRoute>
         }
       />

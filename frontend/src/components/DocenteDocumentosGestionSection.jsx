@@ -13,6 +13,8 @@ export default function DocenteDocumentosGestionSection({
   loading,
   maxPorCategoria,
   verMasTo,
+  heroTitle = 'Herramientas',
+  heroSubtitle = 'Documentos institucionales disponibles para tu perfil. Abre cada PDF en una nueva pestaña.',
 }) {
   const grupos = useMemo(() => {
     const full = groupDocenteDocsByCategory(documentos);
@@ -37,10 +39,8 @@ export default function DocenteDocumentosGestionSection({
             📑
           </div>
           <div className="docs-gestion-hero-text">
-            <h2 className="section-title docs-gestion-hero-title">Herramientas</h2>
-            <p className="docs-gestion-hero-sub">
-              Documentos institucionales disponibles para tu perfil. Abre cada PDF en una nueva pestaña.
-            </p>
+            <h2 className="section-title docs-gestion-hero-title">{heroTitle}</h2>
+            <p className="docs-gestion-hero-sub">{heroSubtitle}</p>
           </div>
         </div>
       </div>

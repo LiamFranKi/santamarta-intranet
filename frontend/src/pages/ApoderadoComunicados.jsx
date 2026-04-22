@@ -3,7 +3,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import Swal from 'sweetalert2';
-import './AlumnoComunicados.css';
+import './DocenteComunicados.css';
 
 function ApoderadoComunicados() {
   console.log('✅ [APODERADO COMUNICADOS] Componente montado');
@@ -221,7 +221,7 @@ function ApoderadoComunicados() {
   if (loading && comunicados.length === 0) {
     return (
       <DashboardLayout>
-        <div className="alumno-comunicados-loading">
+        <div className="docente-comunicados-loading">
           <div className="loading-spinner">Cargando comunicados...</div>
         </div>
       </DashboardLayout>
@@ -230,10 +230,13 @@ function ApoderadoComunicados() {
 
   return (
     <DashboardLayout>
-      <div className="alumno-comunicados">
+      <div className="docente-comunicados">
         <div className="page-header">
           <h1>Comunicados</h1>
-          <p>Comunicados y anuncios oficiales del colegio</p>
+          <p>Comunicados y anuncios oficiales del colegio.</p>
+          <p className="page-header-lectura">
+            Solo lectura: puedes ver el contenido y archivos adjuntos; no puedes crear ni modificar comunicados.
+          </p>
         </div>
 
         <div className="comunicados-search-bar">
@@ -254,12 +257,12 @@ function ApoderadoComunicados() {
         {comunicados.length > 0 ? (
           <>
             <div className="comunicados-grid">
-              {comunicados.map((comunicado) => {
+              {comunicados.map((comunicado, idx) => {
                 const esNuevo = esComunicadoNuevo(comunicado.id, comunicado.fecha_hora);
                 return (
                 <div 
                   key={comunicado.id} 
-                  className={`comunicado-card ${esNuevo ? 'comunicado-nuevo' : ''}`}
+                  className={`comunicado-card ${esNuevo ? 'comunicado-nuevo' : `comunicado-card--pastel-${idx % 6}`}`}
                 >
                   <div className="comunicado-card-header">
                     <div className="comunicado-icon">

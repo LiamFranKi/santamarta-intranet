@@ -2476,6 +2476,26 @@ function DocenteCursos() {
     return v === 'A' || v === 'B' || v === 'C' || v === 'AD';
   };
 
+  /** Solo dígitos, máx. 2 caracteres: permite escribir 11 sin bloquear en el primer "1". */
+  const sanearEntradaCuantitativaNotasModal = (val) =>
+    String(val ?? '').replace(/\D/g, '').slice(0, 2);
+
+  /** Al salir del campo: redondea, limita al rango del nivel y reporta inválidos / fuera de rango. */
+  const aplicarCuantitativaAlSalirNotasModal = (raw) => {
+    const min = Number(datosNotas?.curso?.nivel?.nota_minima ?? 0);
+    const max = Number(datosNotas?.curso?.nivel?.nota_maxima ?? 20);
+    const t = String(raw ?? '').trim();
+    if (!t) return { texto: '', tipo: null, min, max };
+    const n = parseFloat(t);
+    if (!Number.isFinite(n)) return { texto: '', tipo: 'invalido', min, max };
+    const r = Math.round(n);
+    if (r < min || r > max) {
+      const clamped = Math.min(max, Math.max(min, r));
+      return { texto: String(clamped), tipo: 'fuera', min, max, intentado: r };
+    }
+    return { texto: String(r), tipo: null, min, max };
+  };
+
   // Calcular promedio de un indicador (usa notasEditadas si existe; si no, datos originales)
   const calcularPromedioIndicador = (matriculaId, criterioId, indicadorId) => {
     let notas = notasEditadas[matriculaId]?.[criterioId]?.[indicadorId];
@@ -5458,11 +5478,14 @@ function DocenteCursos() {
                                                   if (esCualitativa) {
                                                     if (!esEntradaValidaCualitativa(nuevoValor)) return;
                                                     actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, nuevoValor);
-                                                  } else if (nuevoValor === '' || 
-                                                      (!isNaN(parseFloat(nuevoValor)) && 
-                                                       parseFloat(nuevoValor) >= datosNotas.curso.nivel.nota_minima && 
-                                                       parseFloat(nuevoValor) <= datosNotas.curso.nivel.nota_maxima)) {
-                                                    actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, nuevoValor);
+                                                  } else {
+                                                    actualizarNota(
+                                                      alumno.matricula_id,
+                                                      criterio.id,
+                                                      indicador.id,
+                                                      i,
+                                                      sanearEntradaCuantitativaNotasModal(nuevoValor)
+                                                    );
                                                   }
                                                 }}
                                                 onBlur={(e) => {
@@ -5474,10 +5497,26 @@ function DocenteCursos() {
                                                       actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, v);
                                                     }
                                                   } else {
-                                                    const valor = parseFloat(e.target.value);
-                                                    if (!isNaN(valor)) {
-                                                      actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, Math.round(valor).toString());
+                                                    const res = aplicarCuantitativaAlSalirNotasModal(e.target.value);
+                                                    if (res.tipo === 'invalido') {
+                                                      void Swal.fire({
+                                                        icon: 'warning',
+                                                        title: 'Nota no válida',
+                                                        text: `Ingrese un número entero entre ${res.min} y ${res.max}.`,
+                                                        confirmButtonText: 'Entendido'
+                                                      });
+                                                      actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, '');
+                                                      return;
                                                     }
+                                                    if (res.tipo === 'fuera') {
+                                                      void Swal.fire({
+                                                        icon: 'info',
+                                                        title: 'Nota fuera de rango',
+                                                        html: `El rango permitido es <strong>${res.min}</strong> a <strong>${res.max}</strong>. El valor (${res.intentado}) se ajustó a <strong>${res.texto}</strong>.`,
+                                                        confirmButtonText: 'Entendido'
+                                                      });
+                                                    }
+                                                    actualizarNota(alumno.matricula_id, criterio.id, indicador.id, i, res.texto);
                                                   }
                                                 }}
                                                 placeholder=""
@@ -5512,15 +5551,13 @@ function DocenteCursos() {
                                                 return nuevo;
                                               });
                                               setForceUpdate(prev => prev + 1);
-                                            } else if (nuevoValor === '' || 
-                                                (!isNaN(parseFloat(nuevoValor)) && 
-                                                 parseFloat(nuevoValor) >= datosNotas.curso.nivel.nota_minima && 
-                                                 parseFloat(nuevoValor) <= datosNotas.curso.nivel.nota_maxima)) {
+                                            } else {
+                                              const limpio = sanearEntradaCuantitativaNotasModal(nuevoValor);
                                               setNotasEditadas(prev => {
                                                 const nuevo = { ...prev };
                                                 if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
                                                 if (!nuevo[alumno.matricula_id][criterio.id]) nuevo[alumno.matricula_id][criterio.id] = {};
-                                                nuevo[alumno.matricula_id][criterio.id].directa = nuevoValor;
+                                                nuevo[alumno.matricula_id][criterio.id].directa = limpio;
                                                 return nuevo;
                                               });
                                               setForceUpdate(prev => prev + 1);
@@ -5549,18 +5586,40 @@ function DocenteCursos() {
                                                 setForceUpdate(prev => prev + 1);
                                               }
                                             } else {
-                                              const valor = parseFloat(e.target.value);
-                                              if (!isNaN(valor)) {
-                                                const valorFormateado = Math.round(valor).toString();
+                                              const res = aplicarCuantitativaAlSalirNotasModal(e.target.value);
+                                              if (res.tipo === 'invalido') {
+                                                void Swal.fire({
+                                                  icon: 'warning',
+                                                  title: 'Nota no válida',
+                                                  text: `Ingrese un número entero entre ${res.min} y ${res.max}.`,
+                                                  confirmButtonText: 'Entendido'
+                                                });
                                                 setNotasEditadas(prev => {
                                                   const nuevo = { ...prev };
                                                   if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
                                                   if (!nuevo[alumno.matricula_id][criterio.id]) nuevo[alumno.matricula_id][criterio.id] = {};
-                                                  nuevo[alumno.matricula_id][criterio.id].directa = valorFormateado;
+                                                  nuevo[alumno.matricula_id][criterio.id].directa = '';
                                                   return nuevo;
                                                 });
                                                 setForceUpdate(prev => prev + 1);
+                                                return;
                                               }
+                                              if (res.tipo === 'fuera') {
+                                                void Swal.fire({
+                                                  icon: 'info',
+                                                  title: 'Nota fuera de rango',
+                                                  html: `El rango permitido es <strong>${res.min}</strong> a <strong>${res.max}</strong>. El valor (${res.intentado}) se ajustó a <strong>${res.texto}</strong>.`,
+                                                  confirmButtonText: 'Entendido'
+                                                });
+                                              }
+                                              setNotasEditadas(prev => {
+                                                const nuevo = { ...prev };
+                                                if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
+                                                if (!nuevo[alumno.matricula_id][criterio.id]) nuevo[alumno.matricula_id][criterio.id] = {};
+                                                nuevo[alumno.matricula_id][criterio.id].directa = res.texto;
+                                                return nuevo;
+                                              });
+                                              setForceUpdate(prev => prev + 1);
                                             }
                                           }}
                                           placeholder=""
@@ -5584,19 +5643,72 @@ function DocenteCursos() {
                                       }
                                       onChange={(e) => {
                                         const nuevoValor = e.target.value;
-                                        if (nuevoValor === '' || 
-                                            (!isNaN(nuevoValor) && 
-                                             parseFloat(nuevoValor) >= datosNotas.curso.nivel.nota_minima && 
-                                             parseFloat(nuevoValor) <= datosNotas.curso.nivel.nota_maxima)) {
+                                        if (esCualitativa) {
+                                          if (!esEntradaValidaCualitativa(nuevoValor)) return;
+                                        }
+                                        const valorCampo = esCualitativa
+                                          ? nuevoValor
+                                          : sanearEntradaCuantitativaNotasModal(nuevoValor);
+                                        setNotasEditadas(prev => {
+                                          const nuevo = { ...prev };
+                                          if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
+                                          if (!nuevo[alumno.matricula_id].examen_mensual) nuevo[alumno.matricula_id].examen_mensual = {};
+                                          nuevo[alumno.matricula_id].examen_mensual[1] = valorCampo;
+                                          return nuevo;
+                                        });
+                                        setForceUpdate(prev => prev + 1);
+                                      }}
+                                      onBlur={(e) => {
+                                        if (esCualitativa) {
+                                          const v = (e.target.value || '').trim().toUpperCase();
                                           setNotasEditadas(prev => {
                                             const nuevo = { ...prev };
                                             if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
                                             if (!nuevo[alumno.matricula_id].examen_mensual) nuevo[alumno.matricula_id].examen_mensual = {};
-                                            nuevo[alumno.matricula_id].examen_mensual[1] = nuevoValor;
+                                            if (v && !esEntradaValidaCualitativa(v)) {
+                                              nuevo[alumno.matricula_id].examen_mensual[1] = '';
+                                            } else {
+                                              nuevo[alumno.matricula_id].examen_mensual[1] = v;
+                                            }
                                             return nuevo;
                                           });
                                           setForceUpdate(prev => prev + 1);
+                                          return;
                                         }
+                                        const res = aplicarCuantitativaAlSalirNotasModal(e.target.value);
+                                        if (res.tipo === 'invalido') {
+                                          void Swal.fire({
+                                            icon: 'warning',
+                                            title: 'Nota no válida',
+                                            text: `Ingrese un número entero entre ${res.min} y ${res.max}.`,
+                                            confirmButtonText: 'Entendido'
+                                          });
+                                          setNotasEditadas(prev => {
+                                            const nuevo = { ...prev };
+                                            if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
+                                            if (!nuevo[alumno.matricula_id].examen_mensual) nuevo[alumno.matricula_id].examen_mensual = {};
+                                            nuevo[alumno.matricula_id].examen_mensual[1] = '';
+                                            return nuevo;
+                                          });
+                                          setForceUpdate(prev => prev + 1);
+                                          return;
+                                        }
+                                        if (res.tipo === 'fuera') {
+                                          void Swal.fire({
+                                            icon: 'info',
+                                            title: 'Nota fuera de rango',
+                                            html: `El rango permitido es <strong>${res.min}</strong> a <strong>${res.max}</strong>. El valor (${res.intentado}) se ajustó a <strong>${res.texto}</strong>.`,
+                                            confirmButtonText: 'Entendido'
+                                          });
+                                        }
+                                        setNotasEditadas(prev => {
+                                          const nuevo = { ...prev };
+                                          if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
+                                          if (!nuevo[alumno.matricula_id].examen_mensual) nuevo[alumno.matricula_id].examen_mensual = {};
+                                          nuevo[alumno.matricula_id].examen_mensual[1] = res.texto;
+                                          return nuevo;
+                                        });
+                                        setForceUpdate(prev => prev + 1);
                                       }}
                                       placeholder=""
                                       maxLength={2}
@@ -5611,19 +5723,72 @@ function DocenteCursos() {
                                       }
                                       onChange={(e) => {
                                         const nuevoValor = e.target.value;
-                                        if (nuevoValor === '' || 
-                                            (!isNaN(nuevoValor) && 
-                                             parseFloat(nuevoValor) >= datosNotas.curso.nivel.nota_minima && 
-                                             parseFloat(nuevoValor) <= datosNotas.curso.nivel.nota_maxima)) {
+                                        if (esCualitativa) {
+                                          if (!esEntradaValidaCualitativa(nuevoValor)) return;
+                                        }
+                                        const valorCampo = esCualitativa
+                                          ? nuevoValor
+                                          : sanearEntradaCuantitativaNotasModal(nuevoValor);
+                                        setNotasEditadas(prev => {
+                                          const nuevo = { ...prev };
+                                          if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
+                                          if (!nuevo[alumno.matricula_id].examen_mensual) nuevo[alumno.matricula_id].examen_mensual = {};
+                                          nuevo[alumno.matricula_id].examen_mensual[2] = valorCampo;
+                                          return nuevo;
+                                        });
+                                        setForceUpdate(prev => prev + 1);
+                                      }}
+                                      onBlur={(e) => {
+                                        if (esCualitativa) {
+                                          const v = (e.target.value || '').trim().toUpperCase();
                                           setNotasEditadas(prev => {
                                             const nuevo = { ...prev };
                                             if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
                                             if (!nuevo[alumno.matricula_id].examen_mensual) nuevo[alumno.matricula_id].examen_mensual = {};
-                                            nuevo[alumno.matricula_id].examen_mensual[2] = nuevoValor;
+                                            if (v && !esEntradaValidaCualitativa(v)) {
+                                              nuevo[alumno.matricula_id].examen_mensual[2] = '';
+                                            } else {
+                                              nuevo[alumno.matricula_id].examen_mensual[2] = v;
+                                            }
                                             return nuevo;
                                           });
                                           setForceUpdate(prev => prev + 1);
+                                          return;
                                         }
+                                        const res = aplicarCuantitativaAlSalirNotasModal(e.target.value);
+                                        if (res.tipo === 'invalido') {
+                                          void Swal.fire({
+                                            icon: 'warning',
+                                            title: 'Nota no válida',
+                                            text: `Ingrese un número entero entre ${res.min} y ${res.max}.`,
+                                            confirmButtonText: 'Entendido'
+                                          });
+                                          setNotasEditadas(prev => {
+                                            const nuevo = { ...prev };
+                                            if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
+                                            if (!nuevo[alumno.matricula_id].examen_mensual) nuevo[alumno.matricula_id].examen_mensual = {};
+                                            nuevo[alumno.matricula_id].examen_mensual[2] = '';
+                                            return nuevo;
+                                          });
+                                          setForceUpdate(prev => prev + 1);
+                                          return;
+                                        }
+                                        if (res.tipo === 'fuera') {
+                                          void Swal.fire({
+                                            icon: 'info',
+                                            title: 'Nota fuera de rango',
+                                            html: `El rango permitido es <strong>${res.min}</strong> a <strong>${res.max}</strong>. El valor (${res.intentado}) se ajustó a <strong>${res.texto}</strong>.`,
+                                            confirmButtonText: 'Entendido'
+                                          });
+                                        }
+                                        setNotasEditadas(prev => {
+                                          const nuevo = { ...prev };
+                                          if (!nuevo[alumno.matricula_id]) nuevo[alumno.matricula_id] = {};
+                                          if (!nuevo[alumno.matricula_id].examen_mensual) nuevo[alumno.matricula_id].examen_mensual = {};
+                                          nuevo[alumno.matricula_id].examen_mensual[2] = res.texto;
+                                          return nuevo;
+                                        });
+                                        setForceUpdate(prev => prev + 1);
                                       }}
                                       placeholder=""
                                       maxLength={2}

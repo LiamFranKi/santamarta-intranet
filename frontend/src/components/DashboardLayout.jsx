@@ -37,7 +37,8 @@ export default function DashboardLayout({ children }) {
     herramientas: null,
     comunicaciones: null,
     configuracion: null,
-    docenteHerramientas: null
+    docenteHerramientas: null,
+    alumnoHerramientas: null
   });
 
   // Mantener abierto el submenú que contiene la ruta actual (evita que se "bloquee" la navegación en Config, etc.)
@@ -62,6 +63,14 @@ export default function DashboardLayout({ children }) {
       ),
       ...(path.startsWith('/admin/config') && { configuracion: true }),
       ...((path.startsWith('/docente/herramientas') || path === '/docente/supervision') && { docenteHerramientas: true }),
+      ...(
+        (
+          path.startsWith('/alumno/herramientas') ||
+          path.startsWith('/alumno/vocabularios') ||
+          path.startsWith('/herramientas-examenes') ||
+          path.startsWith('/encuestas')
+        ) && { alumnoHerramientas: true }
+      ),
     }));
   }, [location.pathname]);
 
@@ -542,28 +551,66 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Comunicados</span>
                 </NavLink>
               </div>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.alumnoHerramientas ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('alumnoHerramientas')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">🧰</span>
+                    <span className="sidebar-label">Herramientas</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div
+                  ref={(el) => {
+                    submenuRefs.current.alumnoHerramientas = el;
+                  }}
+                  className={`sidebar-submenu ${expandedMenus.alumnoHerramientas ? 'expanded' : ''}`}
+                >
+                  <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/encuestas"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      📋
+                    </span>
+                    <span className="sidebar-label">Encuestas</span>
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/herramientas-examenes"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      📝
+                    </span>
+                    <span className="sidebar-label">Exámenes</span>
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/alumno/vocabularios"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      📚
+                    </span>
+                    <span className="sidebar-label">Vocabularios</span>
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/alumno/herramientas/documentos"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      📄
+                    </span>
+                    <span className="sidebar-label">Documentos</span>
+                  </NavLink>
+                </div>
+              </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/actividades">
                   <span className="sidebar-icon">📆</span>
                   <span className="sidebar-label">Actividades</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/encuestas">
-                  <span className="sidebar-icon">📋</span>
-                  <span className="sidebar-label">Encuestas</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/herramientas-examenes">
-                  <span className="sidebar-icon">📝</span>
-                  <span className="sidebar-label">Exámenes</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/alumno/vocabularios">
-                  <span className="sidebar-icon">📚</span>
-                  <span className="sidebar-label">Vocabulario</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
@@ -718,6 +765,12 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/comunicados">
                   <span className="sidebar-icon">📢</span>
                   <span className="sidebar-label">Comunicados</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/documentos">
+                  <span className="sidebar-icon">📄</span>
+                  <span className="sidebar-label">Documentos</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">

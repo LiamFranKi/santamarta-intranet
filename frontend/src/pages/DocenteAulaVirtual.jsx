@@ -1175,6 +1175,41 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     }
   };
 
+  const sanearNotaCuantitativaEntrega = (val) =>
+    String(val ?? '').replace(/\D/g, '').slice(0, 2);
+
+  const esEntregaNivelCualitativo = () =>
+    infoTareaEntregas?.tipo_calificacion === 0 ||
+    String(infoTareaEntregas?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+
+  const esEntradaValidaCualitativaEntrega = (val) => {
+    if (val === '') return true;
+    const v = String(val).toUpperCase();
+    return v === 'A' || v === 'B' || v === 'C' || v === 'AD';
+  };
+
+  /** Al salir del campo o antes de guardar: valida según nivel (cualitativo A–AD o cuantitativo con rango). */
+  const normalizarNotaEntregaAlSalir = (raw) => {
+    const min = Number(infoTareaEntregas?.nota_minima ?? 0);
+    const max = Number(infoTareaEntregas?.nota_maxima ?? 20);
+    if (esEntregaNivelCualitativo()) {
+      const v = String(raw ?? '').trim().toUpperCase();
+      if (!v) return { texto: '', tipo: null, min, max };
+      if (!esEntradaValidaCualitativaEntrega(v)) return { texto: '', tipo: 'invalido_cual', min, max };
+      return { texto: v, tipo: null, min, max };
+    }
+    const t = String(raw ?? '').trim();
+    if (!t) return { texto: '', tipo: null, min, max };
+    const n = parseFloat(t);
+    if (!Number.isFinite(n)) return { texto: '', tipo: 'invalido', min, max };
+    const r = Math.round(n);
+    if (r < min || r > max) {
+      const clamped = Math.min(max, Math.max(min, r));
+      return { texto: String(clamped), tipo: 'fuera', min, max, intentado: r };
+    }
+    return { texto: String(r), tipo: null, min, max };
+  };
+
   const handleMarcarEntregas = async (tarea) => {
     try {
       setTareaParaEntregas(tarea);
@@ -1213,9 +1248,33 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     if (soloLecturaTutor) return;
     if (!tareaParaEntregas) return;
 
-    const notasAGuardar = Object.keys(notasTemporales).filter(matriculaId => {
-      const nota = notasTemporales[matriculaId];
-      return nota && nota.trim() !== '';
+    const actualizadas = { ...notasTemporales };
+    let huboCambioNormalizacion = false;
+    for (const matriculaId of Object.keys(actualizadas)) {
+      const raw = actualizadas[matriculaId];
+      if (raw == null || String(raw).trim() === '') continue;
+      const res = normalizarNotaEntregaAlSalir(raw);
+      if (res.tipo === 'invalido' || res.tipo === 'invalido_cual') {
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Nota no válida',
+          text: esEntregaNivelCualitativo()
+            ? 'Use A, B, C o AD.'
+            : `Ingrese un número entero entre ${res.min} y ${res.max}.`,
+          confirmButtonText: 'Entendido'
+        });
+        return;
+      }
+      if (String(raw).trim() !== res.texto) huboCambioNormalizacion = true;
+      actualizadas[matriculaId] = res.texto;
+    }
+    if (huboCambioNormalizacion) {
+      setNotasTemporales(actualizadas);
+    }
+
+    const notasAGuardar = Object.keys(actualizadas).filter(matriculaId => {
+      const nota = actualizadas[matriculaId];
+      return nota && String(nota).trim() !== '';
     });
 
     if (notasAGuardar.length === 0) {
@@ -1236,7 +1295,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       await Promise.all(
         notasAGuardar.map(matriculaId =>
           api.put(`/docente/aula-virtual/tareas/${tareaParaEntregas.id}/entregas/${matriculaId}/nota`, {
-            nota: notasTemporales[matriculaId]
+            nota: actualizadas[matriculaId]
           })
         )
       );
@@ -4401,12 +4460,49 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                                   type="text"
                                   value={notasTemporales[alumno.matricula_id] || ''}
                                   onChange={(e) => {
+                                    const raw = e.target.value;
+                                    const valor = esEntregaNivelCualitativo()
+                                      ? raw
+                                      : sanearNotaCuantitativaEntrega(raw);
+                                    if (esEntregaNivelCualitativo() && !esEntradaValidaCualitativaEntrega(valor)) return;
                                     setNotasTemporales({
                                       ...notasTemporales,
-                                      [alumno.matricula_id]: e.target.value
+                                      [alumno.matricula_id]: valor
                                     });
                                   }}
-                                  placeholder="0-20"
+                                  onBlur={(e) => {
+                                    const res = normalizarNotaEntregaAlSalir(e.target.value);
+                                    if (res.tipo === 'invalido') {
+                                      void Swal.fire({
+                                        icon: 'warning',
+                                        title: 'Nota no válida',
+                                        text: `Ingrese un número entero entre ${res.min} y ${res.max}.`,
+                                        confirmButtonText: 'Entendido'
+                                      });
+                                      setNotasTemporales(prev => ({ ...prev, [alumno.matricula_id]: '' }));
+                                      return;
+                                    }
+                                    if (res.tipo === 'invalido_cual') {
+                                      void Swal.fire({
+                                        icon: 'warning',
+                                        title: 'Nota no válida',
+                                        text: 'Use A, B, C o AD.',
+                                        confirmButtonText: 'Entendido'
+                                      });
+                                      setNotasTemporales(prev => ({ ...prev, [alumno.matricula_id]: '' }));
+                                      return;
+                                    }
+                                    if (res.tipo === 'fuera') {
+                                      void Swal.fire({
+                                        icon: 'info',
+                                        title: 'Nota fuera de rango',
+                                        html: `El rango permitido es <strong>${res.min}</strong> a <strong>${res.max}</strong>. El valor (${res.intentado}) se ajustó a <strong>${res.texto}</strong>.`,
+                                        confirmButtonText: 'Entendido'
+                                      });
+                                    }
+                                    setNotasTemporales(prev => ({ ...prev, [alumno.matricula_id]: res.texto }));
+                                  }}
+                                  placeholder={esEntregaNivelCualitativo() ? 'A–AD' : '0–20'}
                                   style={{
                                     width: '100px',
                                     padding: '8px',

@@ -295,12 +295,12 @@ function DocenteComunicados() {
         {comunicados.length > 0 ? (
           <>
             <div className="comunicados-grid">
-              {comunicados.map((comunicado) => {
+              {comunicados.map((comunicado, idx) => {
                 const esNuevo = esComunicadoNuevo(comunicado.id, comunicado.fecha_hora);
                 return (
                 <div 
                   key={comunicado.id} 
-                  className={`comunicado-card ${esNuevo ? 'comunicado-nuevo' : ''}`}
+                  className={`comunicado-card ${esNuevo ? 'comunicado-nuevo' : `comunicado-card--pastel-${idx % 6}`}`}
                 >
                   <div className="comunicado-card-header">
                     <div className="comunicado-icon">

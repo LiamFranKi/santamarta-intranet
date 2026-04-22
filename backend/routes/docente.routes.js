@@ -6305,11 +6305,13 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas/:tareaId/entregas', asy
     );
     if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     const tarea = await query(
-      `SELECT t.*, a.grupo_id, g.grado, g.seccion, g.id as grupo_id_real, c.nombre as curso_nombre
+      `SELECT t.*, a.grupo_id, g.grado, g.seccion, g.id as grupo_id_real, c.nombre as curso_nombre,
+              n.nota_minima, n.nota_maxima, n.tipo_calificacion, n.nombre as nivel_nombre
        FROM asignaturas_tareas t
        INNER JOIN asignaturas a ON a.id = t.asignatura_id
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
        WHERE t.id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?`,
       [tareaId, grupoId, colegio_id, anio_activo]
     );
@@ -6377,7 +6379,11 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas/:tareaId/entregas', asy
         titulo: tareaInfo.titulo,
         curso_nombre: tareaInfo.curso_nombre,
         grado: tareaInfo.grado,
-        seccion: tareaInfo.seccion
+        seccion: tareaInfo.seccion,
+        nota_minima: tareaInfo.nota_minima,
+        nota_maxima: tareaInfo.nota_maxima,
+        tipo_calificacion: tareaInfo.tipo_calificacion,
+        nivel_nombre: tareaInfo.nivel_nombre
       }
     });
   } catch (error) {
@@ -16959,11 +16965,13 @@ router.get('/aula-virtual/tareas/:tareaId/entregas', async (req, res) => {
 
     // Verificar que la tarea existe y pertenece a una asignatura del docente
     const tarea = await query(
-      `SELECT t.*, a.grupo_id, g.grado, g.seccion, g.id as grupo_id_real, c.nombre as curso_nombre
+      `SELECT t.*, a.grupo_id, g.grado, g.seccion, g.id as grupo_id_real, c.nombre as curso_nombre,
+              n.nota_minima, n.nota_maxima, n.tipo_calificacion, n.nombre as nivel_nombre
        FROM asignaturas_tareas t
        INNER JOIN asignaturas a ON a.id = t.asignatura_id
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
        WHERE t.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
       [tareaId, personal_id, colegio_id, anio_activo]
     );
@@ -17070,7 +17078,11 @@ router.get('/aula-virtual/tareas/:tareaId/entregas', async (req, res) => {
         titulo: tareaInfo.titulo,
         curso_nombre: tareaInfo.curso_nombre,
         grado: tareaInfo.grado,
-        seccion: tareaInfo.seccion
+        seccion: tareaInfo.seccion,
+        nota_minima: tareaInfo.nota_minima,
+        nota_maxima: tareaInfo.nota_maxima,
+        tipo_calificacion: tareaInfo.tipo_calificacion,
+        nivel_nombre: tareaInfo.nivel_nombre
       }
     });
   } catch (error) {

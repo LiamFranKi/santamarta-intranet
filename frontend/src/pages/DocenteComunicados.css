@@ -30,6 +30,13 @@
   text-align: left;
 }
 
+.page-header-lectura {
+  margin: 0.45rem 0 0 !important;
+  font-size: 0.9rem !important;
+  color: #64748b !important;
+  line-height: 1.45;
+}
+
 /* Barra de búsqueda */
 .comunicados-search-bar {
   margin-bottom: 2rem;
@@ -157,6 +164,63 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+}
+
+/* Pastel suave por tarjeta (rotativo), mismo criterio que documentos de gestión */
+.comunicado-card--pastel-0 {
+  background: linear-gradient(145deg, #fdf2f8 0%, #fce7f3 100%);
+  border-color: rgba(236, 72, 153, 0.14);
+  box-shadow: 0 4px 16px rgba(236, 72, 153, 0.08);
+}
+.comunicado-card--pastel-1 {
+  background: linear-gradient(145deg, #eff6ff 0%, #e0f2fe 100%);
+  border-color: rgba(59, 130, 246, 0.14);
+  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.08);
+}
+.comunicado-card--pastel-2 {
+  background: linear-gradient(145deg, #f0fdf4 0%, #dcfce7 100%);
+  border-color: rgba(34, 197, 94, 0.14);
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.08);
+}
+.comunicado-card--pastel-3 {
+  background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 100%);
+  border-color: rgba(245, 158, 11, 0.16);
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.08);
+}
+.comunicado-card--pastel-4 {
+  background: linear-gradient(145deg, #faf5ff 0%, #f3e8ff 100%);
+  border-color: rgba(168, 85, 247, 0.14);
+  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.08);
+}
+.comunicado-card--pastel-5 {
+  background: linear-gradient(145deg, #ecfeff 0%, #cffafe 100%);
+  border-color: rgba(6, 182, 212, 0.14);
+  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.08);
+}
+
+.comunicado-card--pastel-0:hover {
+  border-color: rgba(236, 72, 153, 0.26);
+  box-shadow: 0 8px 24px rgba(236, 72, 153, 0.12);
+}
+.comunicado-card--pastel-1:hover {
+  border-color: rgba(59, 130, 246, 0.26);
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.12);
+}
+.comunicado-card--pastel-2:hover {
+  border-color: rgba(34, 197, 94, 0.26);
+  box-shadow: 0 8px 24px rgba(34, 197, 94, 0.12);
+}
+.comunicado-card--pastel-3:hover {
+  border-color: rgba(245, 158, 11, 0.28);
+  box-shadow: 0 8px 24px rgba(245, 158, 11, 0.12);
+}
+.comunicado-card--pastel-4:hover {
+  border-color: rgba(168, 85, 247, 0.26);
+  box-shadow: 0 8px 24px rgba(168, 85, 247, 0.12);
+}
+.comunicado-card--pastel-5:hover {
+  border-color: rgba(6, 182, 212, 0.26);
+  box-shadow: 0 8px 24px rgba(6, 182, 212, 0.12);
 }
 
 .comunicado-card:hover {
