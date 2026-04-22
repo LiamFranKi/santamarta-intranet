@@ -297,13 +297,29 @@ router.post('/alumnos/:alumnoId/derivaciones', async (req, res) => {
   }
 });
 
+/** Matrícula del año del PIAR: nivel — grado — sección (última matrícula vigente). */
+const sqlGrupoAulaPiar = `
+  (SELECT TRIM(CONCAT(
+      COALESCE(nv.nombre, ''),
+      ' — ',
+      COALESCE(gv.grado, ''),
+      ' — ',
+      COALESCE(gv.seccion, '')
+    ))
+   FROM matriculas mv
+   INNER JOIN grupos gv ON gv.id = mv.grupo_id AND gv.colegio_id = mv.colegio_id AND gv.anio = p.anio
+   LEFT JOIN niveles nv ON nv.id = gv.nivel_id
+   WHERE mv.alumno_id = p.alumno_id AND mv.colegio_id = p.colegio_id AND (mv.estado = 0 OR mv.estado = 4)
+   ORDER BY mv.id DESC LIMIT 1)`;
+
 async function assertDocenteAsignadoPiar(colegio_id, pid, piarId) {
   if (!colegio_id || !pid || !Number.isFinite(piarId)) return null;
   const rows = await query(
     `SELECT p.id, p.alumno_id, p.anio, p.numero_version, p.estado, p.diagnostico, p.fortalezas, p.areas_dificultad,
             p.estilo_aprendizaje, p.observaciones_relevantes, p.estrategias_docentes, p.frecuencia_aplicacion,
             p.fecha_revision, p.avances_observados, p.ajustes_necesarios_revision, p.docente_responsable_personal_id,
-            p.ajustes_checklist_json, p.objetivos_json, p.evaluacion_kpi_json, p.firma_docente_imagen, p.firma_docente_fecha
+            p.ajustes_checklist_json, p.objetivos_json, p.evaluacion_kpi_json, p.firma_docente_imagen, p.firma_docente_fecha,
+            ${sqlGrupoAulaPiar} AS grupo_aula_etiqueta
      FROM psicologia_piar p
      WHERE p.id = ? AND p.colegio_id = ? AND p.docente_responsable_personal_id = ?
        AND p.estado IN ('ACTIVO','BORRADOR')
@@ -324,7 +340,8 @@ router.get('/mis-piar', async (req, res) => {
               TRIM(CONCAT(
                 COALESCE(a.apellido_paterno,''), ' ',
                 COALESCE(a.apellido_materno,''), ' ',
-                COALESCE(a.nombres,''))) AS alumno_nombre
+                COALESCE(a.nombres,''))) AS alumno_nombre,
+              ${sqlGrupoAulaPiar} AS grupo_aula_etiqueta
        FROM psicologia_piar p
        INNER JOIN alumnos a ON a.id = p.alumno_id AND a.colegio_id = p.colegio_id
        WHERE p.colegio_id = ? AND p.docente_responsable_personal_id = ? AND p.estado IN ('ACTIVO','BORRADOR')
@@ -402,6 +419,7 @@ router.put('/piar/:id', async (req, res) => {
       params.push(b.firma_docente_fecha || null);
     }
     if (!sets.length) return res.status(400).json({ error: 'Nada que actualizar' });
+    sets.push('updated_at = NOW()');
     params.push(id, colegio_id);
     await execute(`UPDATE psicologia_piar SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, params);
     res.json({ ok: true });

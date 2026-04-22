@@ -67,6 +67,15 @@
   vertical-align: middle;
 }
 
+.psi-doc-grupo-sub {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-top: 0.25rem;
+  line-height: 1.35;
+}
+
 .psi-doc-table tr:last-child td {
   border-bottom: none;
 }

@@ -57,7 +57,7 @@ export default function DocentePsicologiaMisPiar() {
             <table className="psi-doc-table">
               <thead>
                 <tr>
-                  <th>Alumno</th>
+                  <th style={{ textAlign: 'center' }}>Alumno</th>
                   <th>Año</th>
                   <th>Versión</th>
                   <th>Estado</th>
@@ -68,7 +68,12 @@ export default function DocentePsicologiaMisPiar() {
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.id}>
-                    <td>{r.alumno_nombre || `#${r.alumno_id}`}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <div>{r.alumno_nombre || `#${r.alumno_id}`}</div>
+                      {r.grupo_aula_etiqueta ? (
+                        <div className="psi-doc-grupo-sub">{String(r.grupo_aula_etiqueta).trim()}</div>
+                      ) : null}
+                    </td>
                     <td>{r.anio}</td>
                     <td>{r.numero_version}</td>
                     <td>{r.estado}</td>

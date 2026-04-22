@@ -120,11 +120,16 @@ export default function DocentePsicologiaPiarDetalle() {
   return (
     <DashboardLayout>
       <div className="psi-doc-page" style={{ maxWidth: 720 }}>
-        <div className="psi-doc-hero">
+        <div className="psi-doc-hero" style={{ textAlign: 'center' }}>
           <h1>PIAR · seguimiento en aula</h1>
-          <p>
+          <p style={{ margin: 0 }}>
             <strong>{piar.alumno_nombre || 'Alumno'}</strong> — Año {piar.anio} · Versión {piar.numero_version} · {piar.estado}
           </p>
+          {piar.grupo_aula_etiqueta ? (
+            <p className="psi-doc-grupo-sub" style={{ margin: '0.35rem 0 0' }}>
+              {String(piar.grupo_aula_etiqueta).trim()}
+            </p>
+          ) : null}
         </div>
         <button type="button" className="psi-doc-btn psi-doc-btn-secondary" style={{ marginBottom: 12 }} onClick={() => navigate('/docente/psicologia/piar')}>
           ← Volver al listado

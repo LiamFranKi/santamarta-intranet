@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert,
@@ -186,6 +186,13 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
     ],
     evaluacion_kpi: { participacion: false, comprension: false, autonomia: false, escala: 'en_proceso' },
     estado: 'BORRADOR',
+  });
+
+  /** Evita que un guardado desde este modal pise texto que el docente guardó en PIAR a mi cargo sin reabrir el modal. */
+  const piarDocenteCamposSnapshotRef = useRef({
+    estrategias_docentes: '',
+    frecuencia_aplicacion: '',
+    avances_observados: '',
   });
 
   const [seguimientoItems, setSeguimientoItems] = useState([]);
@@ -597,6 +604,11 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
       evaluacion_kpi: { participacion: false, comprension: false, autonomia: false, escala: 'en_proceso' },
       estado: 'BORRADOR',
     });
+    piarDocenteCamposSnapshotRef.current = {
+      estrategias_docentes: '',
+      frecuencia_aplicacion: '',
+      avances_observados: '',
+    };
     setDlgPiar(true);
   };
 
@@ -656,6 +668,11 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
       evaluacion_kpi: { participacion: false, comprension: false, autonomia: false, escala: 'en_proceso', ...kpi },
       estado: row.estado || 'BORRADOR',
     });
+    piarDocenteCamposSnapshotRef.current = {
+      estrategias_docentes: row.estrategias_docentes != null ? String(row.estrategias_docentes) : '',
+      frecuencia_aplicacion: row.frecuencia_aplicacion != null ? String(row.frecuencia_aplicacion) : '',
+      avances_observados: row.avances_observados != null ? String(row.avances_observados) : '',
+    };
     setDlgPiar(true);
   };
 
@@ -700,6 +717,24 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
         estado: piarForm.estado,
         fecha_elaboracion: new Date().toISOString().slice(0, 10),
       };
+      if (piarEditing?.id && alumnoId) {
+        const snap = piarDocenteCamposSnapshotRef.current;
+        try {
+          const { data } = await api.get(`/admin/psicologia/alumnos/${alumnoId}/piar`);
+          const serverRow = (data.piar_lista || []).find((x) => Number(x.id) === Number(piarEditing.id));
+          if (serverRow) {
+            ['estrategias_docentes', 'frecuencia_aplicacion', 'avances_observados'].forEach((k) => {
+              const formVal = body[k] != null ? String(body[k]) : '';
+              const snapVal = snap[k] != null ? String(snap[k]) : '';
+              if (formVal === snapVal && serverRow[k] != null && String(serverRow[k]) !== formVal) {
+                body[k] = serverRow[k];
+              }
+            });
+          }
+        } catch {
+          /* si falla la lectura, se envía el body del formulario */
+        }
+      }
       if (piarEditing?.id) {
         await api.put(`/admin/psicologia/piar/${piarEditing.id}`, body);
       } else {

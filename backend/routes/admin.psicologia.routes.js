@@ -1227,9 +1227,21 @@ router.get('/piar/:id/pdf', async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!Number.isFinite(id)) return res.status(400).json({ error: 'id inválido' });
     const rows = await query(
-      `SELECT p.*, TRIM(CONCAT(COALESCE(a.apellido_paterno,''),' ',COALESCE(a.apellido_materno,''),' ',COALESCE(a.nombres,''))) AS alumno_nombre
+      `SELECT p.*, TRIM(CONCAT(COALESCE(a.apellido_paterno,''),' ',COALESCE(a.apellido_materno,''),' ',COALESCE(a.nombres,''))) AS alumno_nombre,
+        ${sqlNombrePersonal('pd')} AS docente_responsable_nombre,
+        ${sqlNombrePersonal('pc')} AS coordinador_nombre,
+        ${sqlNombrePersonal('pp')} AS elaborado_por_nombre,
+        (SELECT TRIM(CONCAT(COALESCE(nv.nombre,''), ' — ', COALESCE(gv.grado,''), ' — ', COALESCE(gv.seccion,'')))
+         FROM matriculas mv
+         INNER JOIN grupos gv ON gv.id = mv.grupo_id AND gv.colegio_id = mv.colegio_id AND gv.anio = p.anio
+         LEFT JOIN niveles nv ON nv.id = gv.nivel_id
+         WHERE mv.alumno_id = p.alumno_id AND mv.colegio_id = p.colegio_id AND (mv.estado = 0 OR mv.estado = 4)
+         ORDER BY mv.id DESC LIMIT 1) AS grupo_aula_etiqueta
        FROM psicologia_piar p
        INNER JOIN alumnos a ON a.id = p.alumno_id AND a.colegio_id = p.colegio_id
+       LEFT JOIN personal pd ON pd.id = p.docente_responsable_personal_id
+       LEFT JOIN personal pc ON pc.id = p.coordinador_personal_id
+       LEFT JOIN personal pp ON pp.id = p.creado_por_personal_id
        WHERE p.id = ? AND p.colegio_id = ? LIMIT 1`,
       [id, cid]
     );
@@ -1245,6 +1257,15 @@ router.get('/piar/:id/pdf', async (req, res) => {
     doc.text(`Estudiante: ${p.alumno_nombre || '—'}`);
     doc.text(`Año: ${p.anio} · Versión: ${p.numero_version} · Estado: ${p.estado || '—'}`);
     doc.text(`Fecha elaboración (Lima): ${fechaTextoLima(p.fecha_elaboracion)}`);
+    doc.text(
+      `Nivel — grado — sección (año PIAR): ${p.grupo_aula_etiqueta && String(p.grupo_aula_etiqueta).trim() ? p.grupo_aula_etiqueta : '—'}`
+    );
+    doc.moveDown(0.25);
+    doc.font('Helvetica-Bold').text('Responsables', { underline: true });
+    doc.font('Helvetica');
+    doc.text(`Elaboración (psicología / registro): ${String(p.elaborado_por_nombre || '').trim() || '—'}`);
+    doc.text(`Docente responsable (seguimiento en aula): ${String(p.docente_responsable_nombre || '').trim() || '—'}`);
+    doc.text(`Coordinador PIAR: ${String(p.coordinador_nombre || '').trim() || '—'}`);
     doc.moveDown();
     const narr = [
       ['Diagnóstico (si aplica)', p.diagnostico],
@@ -1281,8 +1302,33 @@ router.get('/piar/:id/pdf', async (req, res) => {
     } else {
       doc.text('—');
     }
+    doc.moveDown(0.4);
+    let segRows = [];
+    try {
+      segRows = await query(
+        `SELECT s.autor_tipo, s.contenido, s.created_at
+         FROM psicologia_piar_seguimiento s
+         WHERE s.colegio_id = ? AND s.piar_id = ?
+         ORDER BY s.id ASC`,
+        [cid, id]
+      );
+    } catch (segErr) {
+      console.warn('[psicologia pdf piar] seguimiento:', segErr.message);
+    }
+    doc.fontSize(11).fillColor('#000').font('Helvetica-Bold').text('Bitácora de seguimiento', { underline: true });
+    doc.font('Helvetica').fontSize(10);
+    if (segRows && segRows.length) {
+      segRows.forEach((s) => {
+        const rol = String(s.autor_tipo || '') === 'DOCENTE' ? 'Docente' : 'Psicología / administración';
+        doc.font('Helvetica-Bold').fontSize(9).text(`${rol} · ${fechaHoraTextoLima(s.created_at)}`);
+        doc.font('Helvetica').fontSize(10).text(String(s.contenido && String(s.contenido).trim() ? s.contenido : '—'));
+        doc.moveDown(0.35);
+      });
+    } else {
+      doc.text('—');
+    }
     doc.moveDown();
-    doc.fontSize(9).fillColor('#555').text(
+    doc.fontSize(9).fillColor('#555').font('Helvetica').text(
       'Documento generado desde VanguardNet. Las firmas digitalizadas se encuentran en el expediente electrónico.',
       { align: 'left' }
     );
