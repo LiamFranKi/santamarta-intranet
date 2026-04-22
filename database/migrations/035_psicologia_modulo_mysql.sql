@@ -1,0 +1,116 @@
+-- Módulo Psicología (intranet React) — tablas nuevas; no usa topico_atenciones.
+-- Ejecutar en el servidor MySQL del colegio.
+
+-- Atenciones / consultas (alumno o familia), evolución del registro simple del sistema anterior.
+CREATE TABLE IF NOT EXISTS psicologia_atenciones (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  colegio_id INT UNSIGNED NOT NULL,
+  alumno_id INT UNSIGNED NOT NULL,
+  matricula_id INT UNSIGNED NULL COMMENT 'Matrícula vigente o año de referencia',
+  tipo ENUM('ALUMNO','FAMILIA','OTRO') NOT NULL DEFAULT 'ALUMNO',
+  fecha_hora DATETIME NOT NULL,
+  motivo TEXT NOT NULL,
+  tratamiento_intervencion TEXT NOT NULL,
+  observaciones TEXT NULL,
+  registrado_por_personal_id INT UNSIGNED NULL,
+  estado ENUM('BORRADOR','REGISTRADO') NOT NULL DEFAULT 'REGISTRADO',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_psi_atn_colegio_alumno (colegio_id, alumno_id),
+  KEY idx_psi_atn_alumno_fecha (alumno_id, fecha_hora),
+  KEY idx_psi_atn_tipo (colegio_id, tipo)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Ficha de derivación psicológica (docente → psicología).
+CREATE TABLE IF NOT EXISTS psicologia_derivaciones (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  colegio_id INT UNSIGNED NOT NULL,
+  alumno_id INT UNSIGNED NOT NULL,
+  matricula_id INT UNSIGNED NULL,
+  docente_personal_id INT UNSIGNED NULL COMMENT 'Docente que deriva',
+  motivos_json JSON NULL COMMENT 'Lista de claves: conducta_disruptiva, dificultades_aprendizaje, etc.',
+  motivo_otro VARCHAR(500) NULL,
+  descripcion_caso TEXT NOT NULL,
+  estrategias_aula TEXT NULL,
+  urgencia ENUM('ALTA','MEDIA','BAJA') NOT NULL DEFAULT 'MEDIA',
+  observaciones TEXT NULL,
+  estado ENUM('RECIBIDA','EN_EVALUACION','CERRADA','DERIVADA_EXTERNA') NOT NULL DEFAULT 'RECIBIDA',
+  firma_docente_imagen LONGTEXT NULL COMMENT 'Data URL PNG/SVG firma',
+  firma_docente_fecha DATETIME NULL,
+  recepcion_psicologia_personal_id INT UNSIGNED NULL,
+  recepcion_psicologia_fecha DATETIME NULL,
+  creado_por_usuario_id INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_psi_der_colegio_alumno (colegio_id, alumno_id),
+  KEY idx_psi_der_estado (colegio_id, estado)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Acta de reunión con padres (borrador con guardado frecuente + cierre con firmas).
+CREATE TABLE IF NOT EXISTS psicologia_reuniones_acta (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  colegio_id INT UNSIGNED NOT NULL,
+  alumno_id INT UNSIGNED NOT NULL,
+  matricula_id INT UNSIGNED NULL,
+  fecha_reunion DATETIME NULL,
+  participantes TEXT NULL,
+  temas_tratados TEXT NULL,
+  acuerdos TEXT NULL,
+  compromisos_familia TEXT NULL,
+  compromisos_colegio TEXT NULL,
+  estado ENUM('BORRADOR','CERRADA') NOT NULL DEFAULT 'BORRADOR',
+  firma_padre_imagen LONGTEXT NULL,
+  firma_padre_fecha DATETIME NULL,
+  firma_psicologia_imagen LONGTEXT NULL,
+  firma_psicologia_fecha DATETIME NULL,
+  firma_docente_imagen LONGTEXT NULL,
+  firma_docente_fecha DATETIME NULL,
+  facilitador_personal_id INT UNSIGNED NULL COMMENT 'Psicología u otro profesional',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_psi_reu_colegio_alumno (colegio_id, alumno_id),
+  KEY idx_psi_reu_estado (colegio_id, estado)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- PIAR por alumno: versiones por año académico.
+CREATE TABLE IF NOT EXISTS psicologia_piar (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  colegio_id INT UNSIGNED NOT NULL,
+  alumno_id INT UNSIGNED NOT NULL,
+  matricula_id INT UNSIGNED NULL,
+  anio SMALLINT NOT NULL COMMENT 'Año escolar de referencia',
+  numero_version INT UNSIGNED NOT NULL DEFAULT 1,
+  estado ENUM('BORRADOR','ACTIVO','ARCHIVADO') NOT NULL DEFAULT 'BORRADOR',
+  fecha_elaboracion DATE NULL,
+  docente_responsable_personal_id INT UNSIGNED NULL,
+  coordinador_personal_id INT UNSIGNED NULL,
+  diagnostico TEXT NULL,
+  fortalezas TEXT NULL,
+  areas_dificultad TEXT NULL,
+  estilo_aprendizaje VARCHAR(255) NULL,
+  observaciones_relevantes TEXT NULL,
+  ajustes_checklist_json JSON NULL COMMENT 'metodologia, tiempo, evaluacion, ambiente → listas de claves',
+  objetivos_json JSON NULL COMMENT '[{objetivo, indicador}]',
+  estrategias_docentes TEXT NULL,
+  frecuencia_aplicacion TEXT NULL,
+  evaluacion_kpi_json JSON NULL COMMENT 'checks y escala de progreso',
+  fecha_revision DATE NULL,
+  avances_observados TEXT NULL,
+  ajustes_necesarios_revision TEXT NULL,
+  firma_docente_imagen LONGTEXT NULL,
+  firma_docente_fecha DATETIME NULL,
+  firma_coordinador_imagen LONGTEXT NULL,
+  firma_coordinador_fecha DATETIME NULL,
+  firma_padre_imagen LONGTEXT NULL,
+  firma_padre_fecha DATETIME NULL,
+  creado_por_personal_id INT UNSIGNED NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_psi_piar_alumno_anio_ver (colegio_id, alumno_id, anio, numero_version),
+  KEY idx_psi_piar_alumno (alumno_id, anio),
+  KEY idx_psi_piar_estado (colegio_id, estado)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

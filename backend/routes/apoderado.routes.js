@@ -5717,6 +5717,98 @@ router.post('/hijos/:hijoId/reiniciar-contrasena', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/apoderado/psicologia/mis-hijos
+ * Hijos del apoderado con conteo de actas cerradas y PIAR activos (vista familia).
+ */
+router.get('/psicologia/mis-hijos', async (req, res) => {
+  try {
+    const { colegio_id, apoderado_id } = req.user;
+    if (!apoderado_id) {
+      return res.status(400).json({ error: 'Sin datos de apoderado' });
+    }
+    const hijos = await query(
+      `SELECT DISTINCT a.id AS alumno_id,
+              TRIM(CONCAT(COALESCE(a.apellido_paterno,''),' ',COALESCE(a.apellido_materno,''),' ',COALESCE(a.nombres,''))) AS nombre,
+              (SELECT COUNT(*) FROM psicologia_reuniones_acta r
+               WHERE r.alumno_id = a.id AND r.colegio_id = a.colegio_id AND r.estado = 'CERRADA') AS actas_cerradas,
+              (SELECT COUNT(*) FROM psicologia_piar p
+               WHERE p.alumno_id = a.id AND p.colegio_id = a.colegio_id AND p.estado = 'ACTIVO') AS piar_activos
+       FROM familias f
+       INNER JOIN alumnos a ON a.id = f.alumno_id AND a.colegio_id = ?
+       WHERE f.apoderado_id = ?
+       ORDER BY nombre ASC`,
+      [colegio_id, apoderado_id]
+    ).catch(() => []);
+    res.json({ hijos: hijos || [] });
+  } catch (e) {
+    console.error('[apoderado/psicologia/mis-hijos]', e);
+    if (String(e.message || '').includes("doesn't exist") || e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Módulo Psicología no instalado en la base de datos.',
+        hint: 'Ejecute database/migrations/035_psicologia_modulo_mysql.sql',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/**
+ * GET /api/apoderado/psicologia/alumnos/:alumnoId/vista-familia
+ * Actas cerradas + PIAR activo (sin atenciones clínicas ni derivaciones).
+ */
+router.get('/psicologia/alumnos/:alumnoId/vista-familia', async (req, res) => {
+  try {
+    const { colegio_id, apoderado_id } = req.user;
+    const alumnoId = parseInt(req.params.alumnoId, 10);
+    if (!Number.isFinite(alumnoId)) return res.status(400).json({ error: 'Alumno inválido' });
+    if (!apoderado_id) return res.status(400).json({ error: 'Sin datos de apoderado' });
+
+    const ok = await query(
+      `SELECT 1 FROM familias f
+       INNER JOIN alumnos a ON a.id = f.alumno_id AND a.colegio_id = ?
+       WHERE f.apoderado_id = ? AND f.alumno_id = ? LIMIT 1`,
+      [colegio_id, apoderado_id, alumnoId]
+    );
+    if (!ok.length) return res.status(403).json({ error: 'No tiene acceso a este estudiante' });
+
+    const [alRow] = await query(
+      `SELECT id, TRIM(CONCAT(COALESCE(apellido_paterno,''),' ',COALESCE(apellido_materno,''),' ',COALESCE(nombres,''))) AS nombre
+       FROM alumnos WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [alumnoId, colegio_id]
+    );
+
+    const actas = await query(
+      `SELECT id, fecha_reunion, participantes, temas_tratados, acuerdos, compromisos_familia, compromisos_colegio, estado, updated_at
+       FROM psicologia_reuniones_acta
+       WHERE colegio_id = ? AND alumno_id = ? AND estado = 'CERRADA'
+       ORDER BY COALESCE(updated_at, created_at) DESC`,
+      [colegio_id, alumnoId]
+    ).catch(() => []);
+
+    const piarRows = await query(
+      `SELECT id, anio, numero_version, estado, fecha_elaboracion, fortalezas, areas_dificultad, estilo_aprendizaje,
+              objetivos_json, ajustes_checklist_json, fecha_revision, avances_observados
+       FROM psicologia_piar
+       WHERE colegio_id = ? AND alumno_id = ? AND estado = 'ACTIVO'
+       ORDER BY anio DESC, numero_version DESC LIMIT 1`,
+      [colegio_id, alumnoId]
+    ).catch(() => []);
+
+    res.json({
+      alumno: alRow || null,
+      actas_cerradas: actas || [],
+      piar_activo: piarRows && piarRows[0] ? piarRows[0] : null,
+    });
+  } catch (e) {
+    console.error('[apoderado/psicologia/vista-familia]', e);
+    if (String(e.message || '').includes("doesn't exist") || e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({ error: 'Tablas de psicología no instaladas.' });
+    }
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
 // Exportar router
 module.exports = router;
 

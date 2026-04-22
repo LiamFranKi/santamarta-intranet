@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import BirthdayWidget from '../../components/BirthdayWidget';
@@ -16,6 +16,8 @@ import AdminConfiguracion from './AdminConfiguracion';
 import AdminConfigCumpleanos from './AdminConfigCumpleanos';
 import AdminMatriculasInscripcion from './AdminMatriculasInscripcion';
 import AdminAcademico from './AdminAcademico';
+import AdminPsicologiaLista from './AdminPsicologiaLista';
+import AdminPsicologiaExpediente from './AdminPsicologiaExpediente';
 
 const coloresPasteles = [
   'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',   // Verde menta
@@ -53,6 +55,7 @@ function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const routeParams = useParams();
 
   // Mapeo de rutas a títulos y descripciones
   const routeInfo = {
@@ -195,14 +198,27 @@ function Dashboard() {
       title: '🧾 Auditoría',
       description: 'Visualiza los logs de auditoría del sistema',
       icon: '🧾'
+    },
+    '/admin/psicologia': {
+      title: '🧠 Psicología',
+      description: 'Búsqueda de alumnos y expediente (atenciones, derivaciones, actas, PIAR)',
+      icon: '🧠'
     }
   };
   
-  const currentRouteInfo = routeInfo[location.pathname] || {
-    title: '📊 Dashboard',
-    description: 'Aquí tienes un resumen de tu sistema educativo',
-    icon: '📊'
-  };
+  const currentRouteInfo =
+    routeInfo[location.pathname] ||
+    (location.pathname.startsWith('/admin/psicologia/alumno')
+      ? {
+          title: '🧠 Expediente psicológico',
+          description: 'Atenciones, derivación, reuniones con familias y PIAR',
+          icon: '🧠'
+        }
+      : {
+          title: '📊 Dashboard',
+          description: 'Aquí tienes un resumen de tu sistema educativo',
+          icon: '📊'
+        });
 
   // Si es una ruta específica de admin (pero NO el dashboard principal), mostrar contenido específico (placeholder)
   const isAdminRoute = location.pathname.startsWith('/admin/') && location.pathname !== '/admin/dashboard';
@@ -262,6 +278,34 @@ function Dashboard() {
         <DashboardLayout>
           <div className="dashboard-container">
             <AdminMatriculasInscripcion />
+          </div>
+        </DashboardLayout>
+      );
+    }
+    if (location.pathname === '/admin/psicologia') {
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <AdminPsicologiaLista />
+          </div>
+        </DashboardLayout>
+      );
+    }
+    if (location.pathname.startsWith('/admin/psicologia/alumno/')) {
+      const alumnoId = parseInt(routeParams?.alumnoId, 10);
+      if (!Number.isFinite(alumnoId)) {
+        return (
+          <DashboardLayout>
+            <div className="dashboard-container">
+              <p>Alumno no válido.</p>
+            </div>
+          </DashboardLayout>
+        );
+      }
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <AdminPsicologiaExpediente alumnoId={alumnoId} />
           </div>
         </DashboardLayout>
       );

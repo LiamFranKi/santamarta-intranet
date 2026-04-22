@@ -1,0 +1,201 @@
+.psi-page {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.psi-hero {
+  background: linear-gradient(135deg, #5b6ee8 0%, #7c4dff 45%, #00bcd4 100%);
+  border-radius: 16px;
+  padding: 1.5rem 1.75rem;
+  color: #fff;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 8px 32px rgba(91, 110, 232, 0.35);
+}
+
+.psi-hero h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.psi-hero p {
+  margin: 0;
+  opacity: 0.92;
+  font-size: 0.95rem;
+}
+
+.psi-filter-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e8ecf4;
+}
+
+.psi-filter-title {
+  font-weight: 700;
+  color: #334155;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+}
+
+.psi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.psi-alumno-card {
+  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+  text-align: left;
+}
+
+.psi-alumno-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(91, 110, 232, 0.15);
+  border-color: #c7d2fe;
+}
+
+.psi-alumno-card h3 {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  color: #1e293b;
+}
+
+.psi-alumno-card .sub {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.psi-badge {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  margin-top: 0.5rem;
+}
+
+.psi-badge-exp {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.psi-exp-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.psi-exp-back {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  color: #475569;
+}
+
+.psi-exp-back:hover {
+  background: #f8fafc;
+}
+
+.psi-stat-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.psi-stat-card {
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.35rem;
+  text-align: center;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.psi-stat-card span {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  opacity: 0.9;
+  margin-top: 0.25rem;
+}
+
+.psi-stat-a { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.psi-stat-d { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.psi-stat-r { background: linear-gradient(135deg, #10b981, #059669); }
+.psi-stat-p { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+
+.psi-tabs-wrap {
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #e8ecf4;
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.psi-timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.psi-timeline li {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.psi-timeline li:last-child {
+  border-bottom: none;
+}
+
+.psi-sig-wrap {
+  margin-top: 0.5rem;
+}
+
+.psi-sig-canvas {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.psi-sig-clear {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.psi-muted {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.psi-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.5rem 0;
+}

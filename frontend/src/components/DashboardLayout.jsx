@@ -171,7 +171,7 @@ export default function DashboardLayout({ children }) {
 
     if (user?.tipo === 'DOCENTE') {
       cargarDatosDocente();
-    } else if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') {
+    } else if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'SECRETARIA') {
       resetNoDocenteAcademico();
       cargarRolesAdicionalesSolo();
     } else {
@@ -299,7 +299,7 @@ export default function DashboardLayout({ children }) {
 
       <aside className={`dashboard-sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
-          <div className="sidebar-logo" role="button" tabIndex={0} onClick={() => navigate(role === 'DOCENTE' ? '/docente/dashboard' : role === 'ALUMNO' ? '/alumno/dashboard' : role === 'APODERADO' ? '/apoderado/dashboard' : role === 'ADMINISTRADOR' ? '/admin/dashboard' : role === 'PROMOTORIA' ? '/promotoria/dashboard' : '/admin/dashboard')}>
+          <div className="sidebar-logo" role="button" tabIndex={0} onClick={() => navigate(role === 'DOCENTE' ? '/docente/dashboard' : role === 'ALUMNO' ? '/alumno/dashboard' : role === 'APODERADO' ? '/apoderado/dashboard' : role === 'ADMINISTRADOR' ? '/admin/dashboard' : role === 'PROMOTORIA' ? '/promotoria/dashboard' : role === 'SECRETARIA' ? '/admin/dashboard' : '/admin/dashboard')}>
             {logoUrl ? (
               <img className="sidebar-logo-image" src={logoUrl} alt="Logo" />
             ) : (
@@ -635,6 +635,12 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia">
+                  <span className="sidebar-icon">🧠</span>
+                  <span className="sidebar-label">Psicología</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/actividades">
                   <span className="sidebar-icon">📅</span>
                   <span className="sidebar-label">Actividades</span>
@@ -743,6 +749,19 @@ export default function DashboardLayout({ children }) {
             </>
           ) : role === 'APODERADO' ? (
             <>
+              <div
+                className="sidebar-section-label"
+                style={{
+                  fontSize: '0.75rem',
+                  color: '#9ca3af',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  padding: '0.75rem 1.5rem 0.35rem 1.5rem',
+                }}
+              >
+                Inicio
+              </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/dashboard" end>
                   <span className="sidebar-icon">📊</span>
@@ -752,14 +771,48 @@ export default function DashboardLayout({ children }) {
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/perfil">
                   <span className="sidebar-icon">👤</span>
-                  <span className="sidebar-label">Mi Perfil</span>
+                  <span className="sidebar-label">Mi perfil</span>
                 </NavLink>
+              </div>
+              <div className="sidebar-section-divider" />
+              <div
+                className="sidebar-section-label"
+                style={{
+                  fontSize: '0.75rem',
+                  color: '#9ca3af',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  padding: '0.75rem 1.5rem 0.35rem 1.5rem',
+                }}
+              >
+                Familia e hijos
               </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/hijos">
                   <span className="sidebar-icon">👨‍👩‍👧‍👦</span>
-                  <span className="sidebar-label">Hijos a Cargo</span>
+                  <span className="sidebar-label">Hijos a cargo</span>
                 </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/psicologia">
+                  <span className="sidebar-icon">🧠</span>
+                  <span className="sidebar-label">Psicología y familia</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-section-divider" />
+              <div
+                className="sidebar-section-label"
+                style={{
+                  fontSize: '0.75rem',
+                  color: '#9ca3af',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  padding: '0.75rem 1.5rem 0.35rem 1.5rem',
+                }}
+              >
+                Comunicación y agenda
               </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/comunicados">
@@ -768,15 +821,35 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/documentos">
-                  <span className="sidebar-icon">📄</span>
-                  <span className="sidebar-label">Documentos</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/actividades">
                   <span className="sidebar-icon">📆</span>
                   <span className="sidebar-label">Actividades</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/mensajes">
+                  <span className="sidebar-icon">✉️</span>
+                  <span className="sidebar-label">Mensajes</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-section-divider" />
+              <div
+                className="sidebar-section-label"
+                style={{
+                  fontSize: '0.75rem',
+                  color: '#9ca3af',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  padding: '0.75rem 1.5rem 0.35rem 1.5rem',
+                }}
+              >
+                Documentos y herramientas
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/documentos">
+                  <span className="sidebar-icon">📄</span>
+                  <span className="sidebar-label">Documentos</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
@@ -789,12 +862,6 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/herramientas-examenes">
                   <span className="sidebar-icon">📝</span>
                   <span className="sidebar-label">Exámenes</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/mensajes">
-                  <span className="sidebar-icon">✉️</span>
-                  <span className="sidebar-label">Mensajes</span>
                 </NavLink>
               </div>
             </>
@@ -830,6 +897,12 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/matriculas">
                   <span className="sidebar-icon">📋</span>
                   <span className="sidebar-label">Matrículas</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia">
+                  <span className="sidebar-icon">🧠</span>
+                  <span className="sidebar-label">Psicología</span>
                 </NavLink>
               </div>
               <div className="sidebar-menu-item">
@@ -1117,8 +1190,8 @@ export default function DashboardLayout({ children }) {
           </div>
 
           <div className="header-actions">
-            {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO' || role === 'ADMINISTRADOR' || role === 'PROMOTORIA') && <NotificacionesWidget />}
-            <button className="header-btn" type="button" title="Mi Perfil" onClick={() => navigate(role === 'DOCENTE' ? '/docente/perfil' : role === 'ALUMNO' ? '/alumno/perfil' : role === 'APODERADO' ? '/apoderado/perfil' : role === 'ADMINISTRADOR' || role === 'PROMOTORIA' ? '/admin/perfil' : '/perfil')}>
+            {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO' || role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA') && <NotificacionesWidget />}
+            <button className="header-btn" type="button" title="Mi Perfil" onClick={() => navigate(role === 'DOCENTE' ? '/docente/perfil' : role === 'ALUMNO' ? '/alumno/perfil' : role === 'APODERADO' ? '/apoderado/perfil' : role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' ? '/admin/perfil' : '/perfil')}>
               👤
             </button>
             <button className="header-btn header-btn-logout" type="button" title="Cerrar sesión" onClick={logout}>
@@ -1130,7 +1203,7 @@ export default function DashboardLayout({ children }) {
           </div>
         </header>
 
-        <div className={`dashboard-main-wrapper ${role === 'ADMINISTRADOR' || role === 'PROMOTORIA' ? 'dashboard-main-wrapper-no-sidebar' : ''}`}>
+        <div className={`dashboard-main-wrapper ${role === 'ADMINISTRADOR' || role === 'PROMOTORIA' || role === 'SECRETARIA' ? 'dashboard-main-wrapper-no-sidebar' : ''}`}>
           <main className="dashboard-main">{children}</main>
           
           {/* Columna derecha (calendario, publicaciones): no se muestra para ADMINISTRADOR */}

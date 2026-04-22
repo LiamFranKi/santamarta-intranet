@@ -78,6 +78,7 @@ import ApoderadoComunicados from './pages/ApoderadoComunicados';
 import ApoderadoActividades from './pages/ApoderadoActividades';
 import ApoderadoMensajes from './pages/ApoderadoMensajes';
 import ApoderadoDocumentos from './pages/ApoderadoDocumentos';
+import ApoderadoPsicologia from './pages/ApoderadoPsicologia';
 import ApoderadoHijoAulaVirtual from './pages/ApoderadoHijoAulaVirtual';
 import './App.css';
 
@@ -126,6 +127,8 @@ function PrivateRoute({ children, requiredType = null, requiredTypes = null }) {
       return <Navigate to="/asistencia/escaneo" />;
     } else if (user?.tipo === 'PROMOTORIA') {
       return <Navigate to="/promotoria/dashboard" />;
+    } else if (user?.tipo === 'SECRETARIA') {
+      return <Navigate to="/admin/dashboard" />;
     } else if (user?.tipo === 'ADMINISTRADOR') {
       return <Navigate to="/admin/dashboard" />;
     }
@@ -198,6 +201,8 @@ function NavigateToDashboard() {
     return <Navigate to="/asistencia/escaneo" replace />;
   } else if (tipo === 'PROMOTORIA') {
     return <Navigate to="/promotoria/dashboard" replace />;
+  } else if (tipo === 'SECRETARIA') {
+    return <Navigate to="/admin/dashboard" replace />;
   }
 
   // Tipo desconocido: ir al login en lugar de asumir admin
@@ -212,7 +217,7 @@ function AppRoutes() {
       <Route
         path="/admin/dashboard"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -220,7 +225,7 @@ function AppRoutes() {
       <Route
         path="/admin/perfil"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA']}>
             <AdminPerfil />
           </PrivateRoute>
         }
@@ -869,11 +874,43 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      <Route
+        path="/apoderado/psicologia/:alumnoId"
+        element={
+          <PrivateRoute requiredType="APODERADO">
+            <ApoderadoPsicologia />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/apoderado/psicologia"
+        element={
+          <PrivateRoute requiredType="APODERADO">
+            <ApoderadoPsicologia />
+          </PrivateRoute>
+        }
+      />
       {/* Rutas de Administrador */}
       <Route
         path="/admin/matriculas"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
+            <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/psicologia/alumno/:alumnoId"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA']}>
+            <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/psicologia"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA']}>
             <Dashboard />
           </PrivateRoute>
         }
