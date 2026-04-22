@@ -899,7 +899,7 @@ function DocenteGrupos() {
                                   } else {
                                     // Calcular posición del dropdown
                                     const dropdownWidth = 250;
-                                    const dropdownHeight = 140; // 3 ítems (Mensaje alumno, Apoderados, Info)
+                                    const dropdownHeight = 200; // 4 ítems (incl. derivación psicológica)
                                     let left = rect.left;
                                     let top = rect.bottom + 2;
                                     
@@ -981,6 +981,23 @@ function DocenteGrupos() {
                                     >
                                       <span className="dropdown-icon">ℹ️</span>
                                       <span>Ver Información</span>
+                                    </button>
+                                    <button
+                                      className="dropdown-item"
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setOpenDropdownAlumno(null);
+                                        const gid = selectedGrupo != null ? String(selectedGrupo) : '';
+                                        const mid = alumno.matricula_id != null ? String(alumno.matricula_id) : '';
+                                        navigate(
+                                          `/docente/psicologia/derivar/${alumno.id}?grupo_id=${encodeURIComponent(gid)}&matricula_id=${encodeURIComponent(mid)}`
+                                        );
+                                      }}
+                                    >
+                                      <span className="dropdown-icon">🧠</span>
+                                      <span>Derivación psicológica</span>
                                     </button>
                                   </div>,
                                   document.body

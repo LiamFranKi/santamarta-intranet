@@ -62,7 +62,13 @@ export default function DashboardLayout({ children }) {
         ) && { comunicaciones: true }
       ),
       ...(path.startsWith('/admin/config') && { configuracion: true }),
-      ...((path.startsWith('/docente/herramientas') || path === '/docente/supervision') && { docenteHerramientas: true }),
+      ...(
+        (
+          path.startsWith('/docente/herramientas')
+          || path === '/docente/supervision'
+          || path.startsWith('/docente/psicologia')
+        ) && { docenteHerramientas: true }
+      ),
       ...(
         (
           path.startsWith('/alumno/herramientas') ||
@@ -425,6 +431,15 @@ export default function DashboardLayout({ children }) {
                       📚
                     </span>
                     <span className="sidebar-label">Vocabularios</span>
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/docente/psicologia/derivaciones"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      🧠
+                    </span>
+                    <span className="sidebar-label">Mis derivaciones (psicología)</span>
                   </NavLink>
                   {esSupervisorSupervision ? (
                     <NavLink

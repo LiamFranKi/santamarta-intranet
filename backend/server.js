@@ -271,6 +271,8 @@ const encuestasRoutes = require('./routes/encuestas.routes');
 const herramientasExamenesRoutes = require('./routes/herramientasExamenes.routes');
 const vocabulariosRoutes = require('./routes/vocabularios.routes');
 
+const docentePsicologiaRoutes = require('./routes/docente.psicologia.routes');
+app.use('/api/docente/psicologia', docentePsicologiaRoutes);
 app.use('/api/docente', docenteRoutes);
 app.use('/api/alumno', alumnoRoutes);
 app.use('/api/asistencia', asistenciaRoutes);

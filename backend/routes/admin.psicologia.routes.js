@@ -7,7 +7,7 @@ const PDFDocument = require('pdfkit');
 const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
-const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
+const { fechaHoraMySQLLima, fechaHoraTextoLima, fechaTextoLima } = require('../utils/fechaHoraLima');
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
 
 const PSICOLOGIA_TIPOS = new Set(['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA']);
@@ -301,7 +301,7 @@ router.get('/alumnos/:alumnoId/resumen', async (req, res) => {
       [alumnoId, cid]
     );
 
-    const [[atn], [der], [reu], [piar]] = await Promise.all([
+    const [atnRows, derRows, reuRows, piarRows] = await Promise.all([
       query(
         `SELECT COUNT(*) AS c FROM psicologia_atenciones WHERE colegio_id = ? AND alumno_id = ?`,
         [cid, alumnoId]
@@ -319,6 +319,10 @@ router.get('/alumnos/:alumnoId/resumen', async (req, res) => {
         [cid, alumnoId]
       ),
     ]);
+    const atn = atnRows[0];
+    const der = derRows[0];
+    const reu = reuRows[0];
+    const piar = piarRows[0];
 
     const ultima = await query(
       `SELECT tipo, id, cuando FROM (
@@ -682,6 +686,20 @@ router.put('/derivaciones/:id', async (req, res) => {
   }
 });
 
+router.delete('/derivaciones/:id', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'id inválido' });
+    const r = await execute('DELETE FROM psicologia_derivaciones WHERE id = ? AND colegio_id = ?', [id, cid]);
+    if (!r.affectedRows) return res.status(404).json({ error: 'No encontrado' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
 // ——— Reuniones / acta ———
 router.get('/alumnos/:alumnoId/reuniones', async (req, res) => {
   try {
@@ -997,6 +1015,25 @@ router.put('/piar/:id', async (req, res) => {
   }
 });
 
+router.delete('/piar/:id', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'id inválido' });
+    const [row] = await query('SELECT id, estado FROM psicologia_piar WHERE id = ? AND colegio_id = ? LIMIT 1', [id, cid]);
+    if (!row) return res.status(404).json({ error: 'No encontrado' });
+    if (String(row.estado) !== 'BORRADOR') {
+      return res.status(409).json({ error: 'Solo se pueden eliminar PIAR en estado BORRADOR.' });
+    }
+    const r = await execute('DELETE FROM psicologia_piar WHERE id = ? AND colegio_id = ?', [id, cid]);
+    if (!r.affectedRows) return res.status(404).json({ error: 'No encontrado' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
 function parseJsonSafe(v, fallback) {
   if (v == null) return fallback;
   if (typeof v === 'object') return v;
@@ -1045,11 +1082,12 @@ router.get('/reuniones/:id/pdf', async (req, res) => {
     doc.moveDown(0.6);
     doc.fontSize(10).font('Helvetica');
     doc.text(`Alumno/a: ${r.alumno_nombre || '—'}`);
-    const fechaReu =
+    const refReu =
       r.fecha_reunion != null && String(r.fecha_reunion).trim() !== ''
-        ? fechaHoraMySQLLima(r.fecha_reunion)
-        : '—';
-    doc.text(`Fecha reunión (Lima): ${fechaReu}`);
+        ? r.fecha_reunion
+        : r.updated_at || r.created_at;
+    const fechaReuTxt = refReu ? fechaHoraTextoLima(refReu) : '—';
+    doc.text(`Fecha y hora reunión (Lima): ${fechaReuTxt}`);
     doc.text(`Estado documento: ${r.estado || '—'}`);
     doc.moveDown();
     const bloques = [
@@ -1117,7 +1155,7 @@ router.get('/piar/:id/pdf', async (req, res) => {
     doc.fontSize(10).font('Helvetica');
     doc.text(`Estudiante: ${p.alumno_nombre || '—'}`);
     doc.text(`Año: ${p.anio} · Versión: ${p.numero_version} · Estado: ${p.estado || '—'}`);
-    doc.text(`Fecha elaboración: ${p.fecha_elaboracion || '—'}`);
+    doc.text(`Fecha elaboración (Lima): ${fechaTextoLima(p.fecha_elaboracion)}`);
     doc.moveDown();
     const narr = [
       ['Diagnóstico (si aplica)', p.diagnostico],
@@ -1127,7 +1165,7 @@ router.get('/piar/:id/pdf', async (req, res) => {
       ['Observaciones', p.observaciones_relevantes],
       ['Estrategias docentes', p.estrategias_docentes],
       ['Frecuencia de aplicación', p.frecuencia_aplicacion],
-      ['Fecha de revisión', p.fecha_revision],
+      ['Fecha de revisión (Lima)', fechaTextoLima(p.fecha_revision)],
       ['Avances observados', p.avances_observados],
       ['Ajustes tras revisión', p.ajustes_necesarios_revision],
     ];

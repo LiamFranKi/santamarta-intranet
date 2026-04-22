@@ -30,9 +30,23 @@ function horaMySQLLima(date) {
   return moment().tz(ZONA_LIMA).format('HH:mm:ss');
 }
 
+/** Texto legible para PDF / pantalla: `22/04/2026 15:30` (Lima). */
+function fechaHoraTextoLima(date) {
+  if (date == null || date === undefined || String(date).trim() === '') return '—';
+  return moment(date).tz(ZONA_LIMA).format('DD/MM/YYYY HH:mm');
+}
+
+/** Solo fecha legible en Lima. */
+function fechaTextoLima(date) {
+  if (date == null || date === undefined || String(date).trim() === '') return '—';
+  return moment(date).tz(ZONA_LIMA).format('DD/MM/YYYY');
+}
+
 module.exports = {
   fechaHoraMySQLLima,
   fechaMySQLLima,
   horaMySQLLima,
+  fechaHoraTextoLima,
+  fechaTextoLima,
   ZONA_LIMA
 };

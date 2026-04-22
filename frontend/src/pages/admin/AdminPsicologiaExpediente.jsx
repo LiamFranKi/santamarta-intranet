@@ -22,6 +22,7 @@ import {
   Typography,
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import EditIcon from '@mui/icons-material/Edit';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { useAuth } from '../../context/AuthContext';
@@ -85,6 +86,12 @@ function formatLimaFechaHora(iso) {
   return { fecha, hora };
 }
 
+function formatLimaLine(iso) {
+  const { fecha, hora } = formatLimaFechaHora(iso);
+  if (fecha === '—') return '—';
+  return hora ? `${fecha} · ${hora}` : fecha;
+}
+
 const TIMELINE_TIPO_LABEL = {
   atencion: 'Atención',
   derivacion: 'Derivación',
@@ -124,9 +131,11 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
   const [loading, setLoading] = useState(true);
 
   const [dlgAtencion, setDlgAtencion] = useState(false);
+  const [atencionEditId, setAtencionEditId] = useState(null);
   const [atForm, setAtForm] = useState({ tipo: 'ALUMNO', motivo: '', tratamiento_intervencion: '' });
 
   const [dlgDer, setDlgDer] = useState(false);
+  const [derivacionEditId, setDerivacionEditId] = useState(null);
   const [derForm, setDerForm] = useState({
     motivos_sel: [],
     motivo_otro: '',
@@ -210,30 +219,51 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
     reloadAll();
   }, [reloadAll]);
 
-  /** Si el usuario logueado es personal docente, preseleccionar en la ficha de derivación. */
+  /** Si el usuario logueado es personal docente, preseleccionar en la ficha de derivación (solo alta nueva). */
   useEffect(() => {
-    if (!dlgDer || !meta?.docentes?.length) return;
+    if (!dlgDer || derivacionEditId || !meta?.docentes?.length) return;
     const pid = user?.personal_id != null ? String(user.personal_id) : '';
     if (!pid) return;
     const existe = meta.docentes.some((d) => String(d.id) === pid);
     if (existe) {
       setDerForm((f) => ({ ...f, docente_personal_id: f.docente_personal_id || pid }));
     }
-  }, [dlgDer, meta, user?.personal_id]);
+  }, [dlgDer, derivacionEditId, meta, user?.personal_id]);
 
   const guardarAtencion = async () => {
     try {
-      await api.post(`/admin/psicologia/alumnos/${alumnoId}/atenciones`, {
-        ...atForm,
-        matricula_id: matriculaId || null,
-      });
-      Swal.fire({ icon: 'success', title: 'Registrado', timer: 1400, showConfirmButton: false });
+      if (atencionEditId) {
+        await api.put(`/admin/psicologia/atenciones/${atencionEditId}`, { ...atForm });
+      } else {
+        await api.post(`/admin/psicologia/alumnos/${alumnoId}/atenciones`, {
+          ...atForm,
+          matricula_id: matriculaId || null,
+        });
+      }
+      Swal.fire({ icon: 'success', title: atencionEditId ? 'Actualizado' : 'Registrado', timer: 1400, showConfirmButton: false });
       setDlgAtencion(false);
+      setAtencionEditId(null);
       setAtForm({ tipo: 'ALUMNO', motivo: '', tratamiento_intervencion: '' });
       reloadAll();
     } catch (e) {
       Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error' });
     }
+  };
+
+  const abrirNuevaAtencion = () => {
+    setAtencionEditId(null);
+    setAtForm({ tipo: 'ALUMNO', motivo: '', tratamiento_intervencion: '' });
+    setDlgAtencion(true);
+  };
+
+  const abrirEditarAtencion = (a) => {
+    setAtencionEditId(a.id);
+    setAtForm({
+      tipo: a.tipo || 'ALUMNO',
+      motivo: a.motivo || '',
+      tratamiento_intervencion: a.tratamiento_intervencion || '',
+    });
+    setDlgAtencion(true);
   };
 
   const eliminarAtencion = async (id) => {
@@ -252,33 +282,129 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
     }
   };
 
+  const resetDerForm = () => ({
+    motivos_sel: [],
+    motivo_otro: '',
+    descripcion_caso: '',
+    estrategias_aula: '',
+    urgencia: 'MEDIA',
+    docente_personal_id: '',
+    firma_docente_imagen: '',
+  });
+
+  const abrirNuevaDerivacion = () => {
+    setDerivacionEditId(null);
+    setDerForm(resetDerForm());
+    setDlgDer(true);
+  };
+
+  const abrirEditarDerivacion = (d) => {
+    let motivos = [];
+    const raw = d.motivos_json;
+    if (Array.isArray(raw)) motivos = raw;
+    else if (raw && typeof raw === 'object') motivos = Object.values(raw);
+    else if (typeof raw === 'string') {
+      try {
+        const p = JSON.parse(raw);
+        motivos = Array.isArray(p) ? p : [];
+      } catch {
+        motivos = [];
+      }
+    }
+    setDerivacionEditId(d.id);
+    setDerForm({
+      motivos_sel: motivos,
+      motivo_otro: d.motivo_otro || '',
+      descripcion_caso: d.descripcion_caso || '',
+      estrategias_aula: d.estrategias_aula || '',
+      urgencia: d.urgencia || 'MEDIA',
+      docente_personal_id: d.docente_personal_id != null ? String(d.docente_personal_id) : '',
+      firma_docente_imagen: d.firma_docente_imagen || '',
+    });
+    setDlgDer(true);
+  };
+
+  const eliminarDerivacion = async (id) => {
+    const ok = await Swal.fire({
+      title: '¿Eliminar esta derivación?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#c62828',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/admin/psicologia/derivaciones/${id}`);
+      Swal.fire({ icon: 'success', title: 'Eliminada', timer: 1200, showConfirmButton: false });
+      reloadAll();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error' });
+    }
+  };
+
+  const eliminarPiar = async (id) => {
+    const ok = await Swal.fire({
+      title: '¿Eliminar este PIAR?',
+      text: 'Solo se permiten borradores. No se puede deshacer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#c62828',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/admin/psicologia/piar/${id}`);
+      Swal.fire({ icon: 'success', title: 'PIAR eliminado', timer: 1200, showConfirmButton: false });
+      reloadAll();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error' });
+    }
+  };
+
   const guardarDerivacion = async () => {
     try {
-      await api.post(`/admin/psicologia/alumnos/${alumnoId}/derivaciones`, {
-        matricula_id: matriculaId || null,
-        motivos_json: derForm.motivos_sel,
-        motivo_otro: derForm.motivo_otro,
-        descripcion_caso: derForm.descripcion_caso,
-        estrategias_aula: derForm.estrategias_aula,
-        urgencia: derForm.urgencia,
-        docente_personal_id: derForm.docente_personal_id || null,
-        firma_docente_imagen: derForm.firma_docente_imagen || null,
-        firma_docente_fecha: derForm.firma_docente_imagen ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null,
-        recepcion_psicologia_personal_id:
-          user?.personal_id != null ? parseInt(user.personal_id, 10) : null,
-        recepcion_psicologia_fecha: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      if (derivacionEditId) {
+        await api.put(`/admin/psicologia/derivaciones/${derivacionEditId}`, {
+          motivos_json: derForm.motivos_sel,
+          motivo_otro: derForm.motivo_otro,
+          descripcion_caso: derForm.descripcion_caso,
+          estrategias_aula: derForm.estrategias_aula,
+          urgencia: derForm.urgencia,
+          docente_personal_id: derForm.docente_personal_id || null,
+          firma_docente_imagen: derForm.firma_docente_imagen || null,
+          firma_docente_fecha: derForm.firma_docente_imagen
+            ? new Date().toISOString().slice(0, 19).replace('T', ' ')
+            : null,
+        });
+      } else {
+        await api.post(`/admin/psicologia/alumnos/${alumnoId}/derivaciones`, {
+          matricula_id: matriculaId || null,
+          motivos_json: derForm.motivos_sel,
+          motivo_otro: derForm.motivo_otro,
+          descripcion_caso: derForm.descripcion_caso,
+          estrategias_aula: derForm.estrategias_aula,
+          urgencia: derForm.urgencia,
+          docente_personal_id: derForm.docente_personal_id || null,
+          firma_docente_imagen: derForm.firma_docente_imagen || null,
+          firma_docente_fecha: derForm.firma_docente_imagen
+            ? new Date().toISOString().slice(0, 19).replace('T', ' ')
+            : null,
+          recepcion_psicologia_personal_id:
+            user?.personal_id != null ? parseInt(user.personal_id, 10) : null,
+          recepcion_psicologia_fecha: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        });
+      }
+      Swal.fire({
+        icon: 'success',
+        title: derivacionEditId ? 'Derivación actualizada' : 'Derivación registrada',
+        timer: 1400,
+        showConfirmButton: false,
       });
-      Swal.fire({ icon: 'success', title: 'Derivación registrada', timer: 1400, showConfirmButton: false });
       setDlgDer(false);
-      setDerForm({
-        motivos_sel: [],
-        motivo_otro: '',
-        descripcion_caso: '',
-        estrategias_aula: '',
-        urgencia: 'MEDIA',
-        docente_personal_id: '',
-        firma_docente_imagen: '',
-      });
+      setDerivacionEditId(null);
+      setDerForm(resetDerForm());
       reloadAll();
     } catch (e) {
       Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error' });
@@ -325,10 +451,13 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
     }
   };
 
-  const eliminarReunion = async (id) => {
+  const eliminarReunion = async (id, estadoActa) => {
+    const cerrada = String(estadoActa || '').toUpperCase() === 'CERRADA';
     const ok = await Swal.fire({
-      title: '¿Eliminar esta acta?',
-      text: 'Solo use esta opción para borradores que no necesite. No se puede deshacer.',
+      title: cerrada ? '¿Eliminar acta cerrada?' : '¿Eliminar esta acta?',
+      text: cerrada
+        ? 'El acta está CERRADA. Solo elimine si es corrección administrativa. No se puede deshacer.'
+        : 'Se eliminará el borrador. No se puede deshacer.',
       icon: 'warning',
       showCancelButton: true,
       confirmButtonText: 'Eliminar',
@@ -664,7 +793,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
 
         <TabPanel value={tab} index={1}>
           <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}>
-            <Button variant="contained" onClick={() => setDlgAtencion(true)}>
+            <Button variant="contained" onClick={abrirNuevaAtencion}>
               + Registrar atención
             </Button>
           </Stack>
@@ -681,9 +810,17 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
               >
                 <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
                   <Chip size="small" label={a.tipo} color={a.tipo === 'FAMILIA' ? 'success' : 'primary'} />
-                  <Typography variant="caption" color="text.secondary">
-                    {a.fecha_hora} · {a.registrado_por_nombre || '—'}
-                  </Typography>
+                  <Stack direction="row" spacing={0.5} alignItems="center">
+                    <Typography variant="caption" color="text.secondary" sx={{ mr: 0.5 }}>
+                      {formatLimaLine(a.fecha_hora)} · {a.registrado_por_nombre || '—'}
+                    </Typography>
+                    <IconButton size="small" color="primary" aria-label="Editar atención" onClick={() => abrirEditarAtencion(a)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton size="small" color="error" aria-label="Eliminar atención" onClick={() => eliminarAtencion(a.id)}>
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
                 </Stack>
                 <Typography variant="subtitle2" sx={{ mt: 1 }}>
                   Motivo
@@ -693,9 +830,6 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
                   Tratamiento / intervención
                 </Typography>
                 <Typography variant="body2">{a.tratamiento_intervencion}</Typography>
-                <Button size="small" color="error" sx={{ mt: 1 }} onClick={() => eliminarAtencion(a.id)}>
-                  Eliminar
-                </Button>
               </Box>
             ))}
             {!atenciones.length && <Typography className="psi-muted">No hay atenciones registradas.</Typography>}
@@ -704,19 +838,32 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
 
         <TabPanel value={tab} index={2}>
           <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}>
-            <Button variant="contained" onClick={() => setDlgDer(true)}>
+            <Button variant="contained" onClick={abrirNuevaDerivacion}>
               + Nueva derivación
             </Button>
           </Stack>
           <Stack spacing={1.5}>
             {derivaciones.map((d) => (
               <Box key={d.id} sx={{ p: 2, borderRadius: 2, border: '1px solid #fed7aa', bgcolor: '#fffbeb' }}>
-                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                  <Chip label={d.estado} size="small" />
-                  <Chip label={d.urgencia} size="small" color="warning" variant="outlined" />
-                  {d.docente_nombre && (
-                    <Typography variant="caption">Docente: {d.docente_nombre}</Typography>
-                  )}
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1}>
+                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+                    <Chip label={d.estado} size="small" />
+                    <Chip label={d.urgencia} size="small" color="warning" variant="outlined" />
+                    {d.docente_nombre && (
+                      <Typography variant="caption">Docente: {d.docente_nombre}</Typography>
+                    )}
+                    <Typography variant="caption" color="text.secondary">
+                      {formatLimaLine(d.created_at)}
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={0}>
+                    <IconButton size="small" color="primary" aria-label="Editar derivación" onClick={() => abrirEditarDerivacion(d)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton size="small" color="error" aria-label="Eliminar derivación" onClick={() => eliminarDerivacion(d.id)}>
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
                 </Stack>
                 <Typography variant="body2" sx={{ mt: 1 }}>
                   {d.descripcion_caso}
@@ -744,20 +891,26 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
                   <span>
                     Acta #{r.id} — {r.estado}
                     {r.facilitador_nombre ? ` · ${r.facilitador_nombre}` : ''}
+                    {r.created_at ? (
+                      <Typography component="span" variant="caption" color="text.secondary" display="block">
+                        {formatLimaLine(r.created_at)}
+                      </Typography>
+                    ) : null}
                   </span>
                   <span>✎</span>
                 </Button>
                 <Stack direction="row" spacing={0.5} alignItems="center">
-                  {r.estado === 'BORRADOR' && (
-                    <IconButton
-                      color="error"
-                      size="small"
-                      aria-label="Eliminar acta"
-                      onClick={() => eliminarReunion(r.id)}
-                    >
-                      <DeleteOutlineIcon />
-                    </IconButton>
-                  )}
+                  <IconButton color="primary" size="small" aria-label="Editar acta" onClick={() => abrirReunion(r)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                  <IconButton
+                    color="error"
+                    size="small"
+                    aria-label="Eliminar acta"
+                    onClick={() => eliminarReunion(r.id, r.estado)}
+                  >
+                    <DeleteOutlineIcon fontSize="small" />
+                  </IconButton>
                   <Button
                     variant="contained"
                     color="secondary"
@@ -785,8 +938,13 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
                 <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
                   <Typography fontWeight={700}>
                     Año {p.anio} · Versión {p.numero_version} · {p.estado}
+                    {p.created_at ? (
+                      <Typography component="span" variant="caption" color="text.secondary" display="block">
+                        {formatLimaLine(p.created_at)}
+                      </Typography>
+                    ) : null}
                   </Typography>
-                  <Stack direction="row" spacing={1}>
+                  <Stack direction="row" spacing={0.5} alignItems="center">
                     <Button
                       size="small"
                       variant="outlined"
@@ -794,9 +952,14 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
                     >
                       PDF
                     </Button>
-                    <Button size="small" variant="contained" onClick={() => abrirEditarPiar(p)}>
-                      Editar
-                    </Button>
+                    <IconButton size="small" color="primary" aria-label="Editar PIAR" onClick={() => abrirEditarPiar(p)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    {p.estado === 'BORRADOR' && (
+                      <IconButton size="small" color="error" aria-label="Eliminar PIAR" onClick={() => eliminarPiar(p.id)}>
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    )}
                   </Stack>
                 </Stack>
                 <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -812,12 +975,15 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
 
       <Dialog
         open={dlgAtencion}
-        onClose={() => setDlgAtencion(false)}
+        onClose={() => {
+          setDlgAtencion(false);
+          setAtencionEditId(null);
+        }}
         maxWidth="sm"
         fullWidth
         PaperProps={{ className: 'psi-dialog-paper' }}
       >
-        <DialogTitle>Registrar atención</DialogTitle>
+        <DialogTitle>{atencionEditId ? 'Editar atención' : 'Registrar atención'}</DialogTitle>
         <DialogContent>
           <TextField
             select
@@ -851,21 +1017,32 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDlgAtencion(false)}>Cancelar</Button>
+          <Button
+            onClick={() => {
+              setDlgAtencion(false);
+              setAtencionEditId(null);
+            }}
+          >
+            Cancelar
+          </Button>
           <Button variant="contained" onClick={guardarAtencion}>
-            Guardar
+            {atencionEditId ? 'Guardar cambios' : 'Guardar'}
           </Button>
         </DialogActions>
       </Dialog>
 
       <Dialog
         open={dlgDer}
-        onClose={() => setDlgDer(false)}
+        onClose={() => {
+          setDlgDer(false);
+          setDerivacionEditId(null);
+          setDerForm(resetDerForm());
+        }}
         maxWidth="md"
         fullWidth
         PaperProps={{ className: 'psi-dialog-paper' }}
       >
-        <DialogTitle>Ficha de derivación psicológica</DialogTitle>
+        <DialogTitle>{derivacionEditId ? 'Editar ficha de derivación' : 'Ficha de derivación psicológica'}</DialogTitle>
         <DialogContent>
           <Alert severity="info" sx={{ mb: 2 }}>
             <strong>Cómo se usa aquí:</strong> en esta pantalla de <strong>administración / psicología</strong> usted registra la{' '}
@@ -950,9 +1127,17 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDlgDer(false)}>Cancelar</Button>
+          <Button
+            onClick={() => {
+              setDlgDer(false);
+              setDerivacionEditId(null);
+              setDerForm(resetDerForm());
+            }}
+          >
+            Cancelar
+          </Button>
           <Button variant="contained" onClick={guardarDerivacion}>
-            Registrar recepción
+            {derivacionEditId ? 'Guardar cambios' : 'Registrar recepción'}
           </Button>
         </DialogActions>
       </Dialog>
