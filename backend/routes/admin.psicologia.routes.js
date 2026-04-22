@@ -41,6 +41,11 @@ function ordenNivelEducativoNombre(nombre) {
   return 50;
 }
 
+/** Expresión SQL: nombre desde `personal` (misma convención que el resto del intranet: apellidos + nombres). */
+function sqlNombrePersonal(alias = 'p') {
+  return `TRIM(CONCAT(COALESCE(${alias}.apellidos,''), ' ', COALESCE(${alias}.nombres,'')))`;
+}
+
 /** Catálogos para buscador (no depende de /admin/academico/meta, restringido a administrador). */
 router.get('/meta', async (req, res) => {
   try {
@@ -89,20 +94,30 @@ router.get('/meta', async (req, res) => {
     }
     const sedes = await query('SELECT id, nombre FROM sedes WHERE colegio_id = ? ORDER BY id ASC', [cid]).catch(() => []);
     const docentes = await query(
-      `SELECT p.id,
-              TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre
+      `SELECT p.id, ${sqlNombrePersonal('p')} AS nombre
        FROM personal p
-       INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'
-       ORDER BY p.apellidos, p.nombres`,
-      [cid]
+       INNER JOIN (
+         SELECT u.personal_id
+         FROM usuarios u
+         WHERE u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'
+         GROUP BY u.personal_id
+       ) ux ON ux.personal_id = p.id
+       WHERE p.colegio_id = ?
+       ORDER BY nombre ASC`,
+      [cid, cid]
     ).catch(() => []);
     const personal = await query(
-      `SELECT DISTINCT p.id,
-              TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS nombre
+      `SELECT p.id, ${sqlNombrePersonal('p')} AS nombre
        FROM personal p
-       INNER JOIN usuarios u ON u.personal_id = p.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'
-       ORDER BY p.apellidos, p.nombres`,
-      [cid]
+       INNER JOIN (
+         SELECT u.personal_id
+         FROM usuarios u
+         WHERE u.colegio_id = ? AND u.estado = 'ACTIVO'
+         GROUP BY u.personal_id
+       ) ux ON ux.personal_id = p.id
+       WHERE p.colegio_id = ?
+       ORDER BY nombre ASC`,
+      [cid, cid]
     ).catch(() => []);
     res.json({
       anio_activo: anioActivo,
@@ -533,7 +548,7 @@ router.get('/alumnos/:alumnoId/derivaciones', async (req, res) => {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
     const rows = await query(
-      `SELECT d.*, TRIM(CONCAT(COALESCE(pd.apellidos,''), ' ', COALESCE(pd.nombres,''))) AS docente_nombre
+      `SELECT d.*, ${sqlNombrePersonal('pd')} AS docente_nombre
        FROM psicologia_derivaciones d
        LEFT JOIN personal pd ON pd.id = d.docente_personal_id
        WHERE d.colegio_id = ? AND d.alumno_id = ?
@@ -580,7 +595,7 @@ router.post('/alumnos/:alumnoId/derivaciones', async (req, res) => {
       `INSERT INTO psicologia_derivaciones
         (colegio_id, alumno_id, matricula_id, docente_personal_id, motivos_json, motivo_otro, descripcion_caso, estrategias_aula, urgencia, observaciones, estado,
          firma_docente_imagen, firma_docente_fecha, recepcion_psicologia_personal_id, recepcion_psicologia_fecha, creado_por_usuario_id)
-       VALUES (?,?,?,?,CAST(? AS JSON),?,?,?,?,?,?,?,?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         cid,
         alumnoId,
@@ -601,12 +616,16 @@ router.post('/alumnos/:alumnoId/derivaciones', async (req, res) => {
       ]
     );
 
-    await notificarDocenteDerivacion(req, {
-      colegio_id: cid,
-      docentePersonalId: Number.isFinite(docentePersonalId) ? docentePersonalId : null,
-      alumnoId,
-      derivacionId: r.insertId,
-    });
+    try {
+      await notificarDocenteDerivacion(req, {
+        colegio_id: cid,
+        docentePersonalId: Number.isFinite(docentePersonalId) ? docentePersonalId : null,
+        alumnoId,
+        derivacionId: r.insertId,
+      });
+    } catch (nErr) {
+      console.warn('[psicologia] notificación derivación omitida:', nErr.message);
+    }
 
     res.json({ id: r.insertId });
   } catch (e) {
@@ -642,8 +661,8 @@ router.put('/derivaciones/:id', async (req, res) => {
       }
     }
     if (b.motivos_json !== undefined) {
-      sets.push('motivos_json = CAST(? AS JSON)');
-      params.push(JSON.stringify(b.motivos_json));
+      sets.push('motivos_json = ?');
+      params.push(JSON.stringify(Array.isArray(b.motivos_json) ? b.motivos_json : []));
     }
     if (b.docente_personal_id !== undefined) {
       sets.push('docente_personal_id = ?');
@@ -672,7 +691,7 @@ router.get('/alumnos/:alumnoId/reuniones', async (req, res) => {
       return res.status(404).json({ error: 'Alumno no encontrado' });
     }
     const rows = await query(
-      `SELECT r.*, TRIM(CONCAT(COALESCE(p.apellidos,''), ' ', COALESCE(p.nombres,''))) AS facilitador_nombre
+      `SELECT r.*, ${sqlNombrePersonal('p')} AS facilitador_nombre
        FROM psicologia_reuniones_acta r
        LEFT JOIN personal p ON p.id = r.facilitador_personal_id
        WHERE r.colegio_id = ? AND r.alumno_id = ?
@@ -829,11 +848,11 @@ router.post('/alumnos/:alumnoId/piar', async (req, res) => {
     if (!(await assertMatriculaAlumno(cid, matriculaId, alumnoId))) {
       return res.status(400).json({ error: 'matricula_id inválida' });
     }
-    const [[mx]] = await query(
+    const verRows = await query(
       'SELECT COALESCE(MAX(numero_version),0)+1 AS nv FROM psicologia_piar WHERE colegio_id = ? AND alumno_id = ? AND anio = ?',
       [cid, alumnoId, anio]
     );
-    const nv = Number(mx?.nv || 1);
+    const nv = Number(verRows[0]?.nv || 1);
     const personalId = req.user.personal_id != null ? parseInt(req.user.personal_id, 10) : null;
 
     const estado = b.estado === 'ACTIVO' || b.estado === 'ARCHIVADO' ? b.estado : 'BORRADOR';
@@ -844,7 +863,7 @@ router.post('/alumnos/:alumnoId/piar', async (req, res) => {
          diagnostico, fortalezas, areas_dificultad, estilo_aprendizaje, observaciones_relevantes,
          ajustes_checklist_json, objetivos_json, estrategias_docentes, frecuencia_aplicacion, evaluacion_kpi_json,
          fecha_revision, avances_observados, ajustes_necesarios_revision, creado_por_personal_id)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CAST(? AS JSON),CAST(? AS JSON),?,?,CAST(? AS JSON),?,?,?,?)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         cid,
         alumnoId,
@@ -861,7 +880,7 @@ router.post('/alumnos/:alumnoId/piar', async (req, res) => {
         b.estilo_aprendizaje != null ? String(b.estilo_aprendizaje).slice(0, 255) : null,
         b.observaciones_relevantes != null ? String(b.observaciones_relevantes) : null,
         JSON.stringify(b.ajustes_checklist_json != null ? b.ajustes_checklist_json : {}),
-        JSON.stringify(b.objetivos_json != null ? b.objetivos_json : []),
+        JSON.stringify(Array.isArray(b.objetivos_json) ? b.objetivos_json : []),
         b.estrategias_docentes != null ? String(b.estrategias_docentes) : null,
         b.frecuencia_aplicacion != null ? String(b.frecuencia_aplicacion) : null,
         JSON.stringify(b.evaluacion_kpi_json != null ? b.evaluacion_kpi_json : {}),
@@ -937,16 +956,16 @@ router.put('/piar/:id', async (req, res) => {
       params.push(b.coordinador_personal_id != null ? parseInt(b.coordinador_personal_id, 10) : null);
     }
     if (b.ajustes_checklist_json !== undefined) {
-      sets.push('ajustes_checklist_json = CAST(? AS JSON)');
-      params.push(JSON.stringify(b.ajustes_checklist_json));
+      sets.push('ajustes_checklist_json = ?');
+      params.push(JSON.stringify(b.ajustes_checklist_json != null ? b.ajustes_checklist_json : {}));
     }
     if (b.objetivos_json !== undefined) {
-      sets.push('objetivos_json = CAST(? AS JSON)');
-      params.push(JSON.stringify(b.objetivos_json));
+      sets.push('objetivos_json = ?');
+      params.push(JSON.stringify(Array.isArray(b.objetivos_json) ? b.objetivos_json : []));
     }
     if (b.evaluacion_kpi_json !== undefined) {
-      sets.push('evaluacion_kpi_json = CAST(? AS JSON)');
-      params.push(JSON.stringify(b.evaluacion_kpi_json));
+      sets.push('evaluacion_kpi_json = ?');
+      params.push(JSON.stringify(b.evaluacion_kpi_json != null ? b.evaluacion_kpi_json : {}));
     }
     if (b.estado === 'BORRADOR' || b.estado === 'ACTIVO' || b.estado === 'ARCHIVADO') {
       sets.push('estado = ?');
@@ -988,6 +1007,21 @@ function parseJsonSafe(v, fallback) {
   }
 }
 
+/** Inserta imagen base64 (data URL) en PDFKit; devuelve false si no hay imagen válida. */
+function tryPdfImageFromDataUrl(doc, dataUrl, maxW = 220, maxH = 100) {
+  if (!dataUrl || typeof dataUrl !== 'string') return false;
+  const m = dataUrl.match(/^data:image\/(png|jpeg|jpg);base64,(.+)$/i);
+  if (!m) return false;
+  try {
+    const buf = Buffer.from(m[2], 'base64');
+    doc.image(buf, { fit: [maxW, maxH] });
+    return true;
+  } catch (imgErr) {
+    console.warn('[psicologia pdf] firma imagen:', imgErr.message);
+    return false;
+  }
+}
+
 /** PDF — Acta de reunión (texto; firmas digitalizadas en intranet). */
 router.get('/reuniones/:id/pdf', async (req, res) => {
   try {
@@ -1011,7 +1045,11 @@ router.get('/reuniones/:id/pdf', async (req, res) => {
     doc.moveDown(0.6);
     doc.fontSize(10).font('Helvetica');
     doc.text(`Alumno/a: ${r.alumno_nombre || '—'}`);
-    doc.text(`Fecha reunión: ${r.fecha_reunion || '—'}`);
+    const fechaReu =
+      r.fecha_reunion != null && String(r.fecha_reunion).trim() !== ''
+        ? fechaHoraMySQLLima(r.fecha_reunion)
+        : '—';
+    doc.text(`Fecha reunión (Lima): ${fechaReu}`);
     doc.text(`Estado documento: ${r.estado || '—'}`);
     doc.moveDown();
     const bloques = [
@@ -1026,9 +1064,26 @@ router.get('/reuniones/:id/pdf', async (req, res) => {
       doc.font('Helvetica').text(String(txt && String(txt).trim() ? txt : '—'), { align: 'left' });
       doc.moveDown(0.4);
     }
-    doc.moveDown();
-    doc.fontSize(9).fillColor('#555').text(
-      'Las firmas manuscritas digitalizadas y la versión completa del acta se conservan en el módulo de Psicología del intranet.',
+    doc.moveDown(0.5);
+    doc.fontSize(11).fillColor('#000').font('Helvetica-Bold').text('Firmas (registradas en intranet)', { underline: true });
+    doc.moveDown(0.35);
+    doc.fontSize(9).font('Helvetica');
+    const firmasPdf = [
+      ['Familia / apoderado', r.firma_padre_imagen],
+      ['Psicología', r.firma_psicologia_imagen],
+      ['Docente', r.firma_docente_imagen],
+    ];
+    for (const [etiq, img] of firmasPdf) {
+      doc.fillColor('#000').font('Helvetica-Bold').text(`${etiq}`);
+      doc.font('Helvetica').fillColor('#333');
+      if (!tryPdfImageFromDataUrl(doc, img)) {
+        doc.text('(Sin firma digital en este documento)');
+      }
+      doc.moveDown(0.5);
+    }
+    doc.moveDown(0.2);
+    doc.fontSize(8).fillColor('#555').font('Helvetica').text(
+      'Documento generado desde VanguardNet. Las firmas arriba corresponden a las capturadas en el expediente electrónico.',
       { align: 'left' }
     );
     doc.end();

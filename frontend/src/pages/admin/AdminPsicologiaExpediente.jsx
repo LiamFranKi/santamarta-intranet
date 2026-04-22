@@ -13,6 +13,7 @@ import {
   DialogTitle,
   FormControlLabel,
   FormGroup,
+  IconButton,
   MenuItem,
   Stack,
   Tab,
@@ -20,6 +21,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { useAuth } from '../../context/AuthContext';
@@ -62,9 +64,46 @@ function emptyAjustes() {
   return { metodologia: [], tiempo: [], evaluacion: [], ambiente: [] };
 }
 
+const LIMA_TZ = 'America/Lima';
+
+function formatLimaFechaHora(iso) {
+  if (iso == null || iso === '') return { fecha: '—', hora: '' };
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return { fecha: String(iso), hora: '' };
+  const fecha = d.toLocaleDateString('es-PE', {
+    timeZone: LIMA_TZ,
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+  const hora = d.toLocaleTimeString('es-PE', {
+    timeZone: LIMA_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return { fecha, hora };
+}
+
+const TIMELINE_TIPO_LABEL = {
+  atencion: 'Atención',
+  derivacion: 'Derivación',
+  reunion: 'Reunión / acta',
+  piar: 'PIAR',
+};
+
+function tabIndexPorTimelineTipo(tipo) {
+  const m = { atencion: 1, derivacion: 2, reunion: 3, piar: 4 };
+  return m[String(tipo)] ?? 0;
+}
+
 function TabPanel({ children, value, index }) {
   if (value !== index) return null;
-  return <Box sx={{ p: 2 }}>{children}</Box>;
+  return (
+    <Box className="psi-tab-panel-inner" sx={{ p: 2 }}>
+      {children}
+    </Box>
+  );
 }
 
 export default function AdminPsicologiaExpediente({ alumnoId }) {
@@ -112,6 +151,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
   });
 
   const [dlgPiar, setDlgPiar] = useState(false);
+  const [resumenVer, setResumenVer] = useState(null);
   const [piarEditing, setPiarEditing] = useState(null);
   const [piarForm, setPiarForm] = useState({
     anio: new Date().getFullYear(),
@@ -169,6 +209,17 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
   useEffect(() => {
     reloadAll();
   }, [reloadAll]);
+
+  /** Si el usuario logueado es personal docente, preseleccionar en la ficha de derivación. */
+  useEffect(() => {
+    if (!dlgDer || !meta?.docentes?.length) return;
+    const pid = user?.personal_id != null ? String(user.personal_id) : '';
+    if (!pid) return;
+    const existe = meta.docentes.some((d) => String(d.id) === pid);
+    if (existe) {
+      setDerForm((f) => ({ ...f, docente_personal_id: f.docente_personal_id || pid }));
+    }
+  }, [dlgDer, meta, user?.personal_id]);
 
   const guardarAtencion = async () => {
     try {
@@ -242,6 +293,15 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
   };
 
   const nuevaReunion = async () => {
+    const ok = await Swal.fire({
+      title: 'Nueva acta de reunión',
+      text: 'Se creará un borrador vacío en el servidor. ¿Desea continuar?',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, crear borrador',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!ok.isConfirmed) return;
     try {
       const { data } = await api.post(`/admin/psicologia/alumnos/${alumnoId}/reuniones`, {
         matricula_id: matriculaId || null,
@@ -259,6 +319,30 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
         firma_docente_imagen: '',
       });
       setDlgReu(true);
+      reloadAll();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error' });
+    }
+  };
+
+  const eliminarReunion = async (id) => {
+    const ok = await Swal.fire({
+      title: '¿Eliminar esta acta?',
+      text: 'Solo use esta opción para borradores que no necesite. No se puede deshacer.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#c62828',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/admin/psicologia/reuniones/${id}`);
+      if (reuEditingId === id) {
+        setDlgReu(false);
+        setReuEditingId(null);
+      }
+      Swal.fire({ icon: 'success', title: 'Acta eliminada', timer: 1200, showConfirmButton: false });
       reloadAll();
     } catch (e) {
       Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error' });
@@ -369,9 +453,15 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
         obj = [];
       }
     }
-    if (!Array.isArray(obj) || obj.length < 3) {
-      obj = [...(obj || []), { objetivo: '', indicador: '' }, { objetivo: '', indicador: '' }].slice(0, 3);
+    if (obj != null && typeof obj === 'object' && !Array.isArray(obj)) {
+      obj = Object.keys(obj)
+        .sort((a, b) => Number(a) - Number(b))
+        .map((k) => obj[k])
+        .filter(Boolean);
     }
+    if (!Array.isArray(obj)) obj = [];
+    while (obj.length < 3) obj.push({ objetivo: '', indicador: '' });
+    if (obj.length > 3) obj = obj.slice(0, 3);
     let kpi = row.evaluacion_kpi_json;
     if (typeof kpi === 'string') {
       try {
@@ -380,6 +470,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
         kpi = {};
       }
     }
+    if (kpi == null || typeof kpi !== 'object' || Array.isArray(kpi)) kpi = {};
     setPiarForm({
       anio: row.anio,
       diagnostico: row.diagnostico || '',
@@ -436,7 +527,9 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
         docente_responsable_personal_id: piarForm.docente_responsable_personal_id || null,
         coordinador_personal_id: piarForm.coordinador_personal_id || null,
         ajustes_checklist_json: piarForm.ajustes,
-        objetivos_json: piarForm.objetivos.filter((o) => o.objetivo || o.indicador),
+        objetivos_json: Array.isArray(piarForm.objetivos)
+          ? piarForm.objetivos.filter((o) => o && (o.objetivo || o.indicador))
+          : [],
         evaluacion_kpi_json: piarForm.evaluacion_kpi,
         estado: piarForm.estado,
         fecha_elaboracion: new Date().toISOString().slice(0, 10),
@@ -534,14 +627,38 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           <Typography variant="subtitle2" gutterBottom>
             Últimos movimientos
           </Typography>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
+            Fecha y hora en horario de Lima (Perú).
+          </Typography>
           <ul className="psi-timeline">
-            {(timeline || []).map((it) => (
-              <li key={`${it.tipo}-${it.id}`}>
-                <strong>{it.tipo}</strong> · {it.cuando ? String(it.cuando) : ''}{' '}
-                {it.titulo ? `— ${it.titulo}` : ''}
+            {(timeline || []).map((it) => {
+              const { fecha, hora } = formatLimaFechaHora(it.cuando);
+              return (
+                <li key={`${it.tipo}-${it.id}`}>
+                  <div className="psi-timeline-row">
+                    <div className="psi-timeline-meta">
+                      <strong>{TIMELINE_TIPO_LABEL[it.tipo] || it.tipo}</strong>
+                      <span className="psi-timeline-fecha">{fecha}</span>
+                      {hora ? <span className="psi-timeline-hora">{hora}</span> : null}
+                      {it.titulo ? <span> — {it.titulo}</span> : null}
+                    </div>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      className="psi-btn-ghost"
+                      onClick={() => setResumenVer(it)}
+                    >
+                      Ver
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+            {!timeline?.length && (
+              <li className="psi-muted" style={{ padding: '0.75rem 1rem' }}>
+                Sin registros aún.
               </li>
-            ))}
-            {!timeline?.length && <li className="psi-muted">Sin registros aún.</li>}
+            )}
           </ul>
         </TabPanel>
 
@@ -618,7 +735,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           </Stack>
           <Stack spacing={1}>
             {reuniones.map((r) => (
-              <Stack key={r.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="stretch">
+              <Stack key={r.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
                 <Button
                   variant="outlined"
                   sx={{ flex: 1, justifyContent: 'space-between', textAlign: 'left', py: 1.5 }}
@@ -630,14 +747,26 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
                   </span>
                   <span>✎</span>
                 </Button>
-                <Button
-                  variant="contained"
-                  color="secondary"
-                  sx={{ minWidth: 120 }}
-                  onClick={() => descargarPdf(`/admin/psicologia/reuniones/${r.id}/pdf`, `acta_reunion_${r.id}.pdf`)}
-                >
-                  PDF
-                </Button>
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  {r.estado === 'BORRADOR' && (
+                    <IconButton
+                      color="error"
+                      size="small"
+                      aria-label="Eliminar acta"
+                      onClick={() => eliminarReunion(r.id)}
+                    >
+                      <DeleteOutlineIcon />
+                    </IconButton>
+                  )}
+                  <Button
+                    variant="contained"
+                    color="secondary"
+                    sx={{ minWidth: 110 }}
+                    onClick={() => descargarPdf(`/admin/psicologia/reuniones/${r.id}/pdf`, `acta_reunion_${r.id}.pdf`)}
+                  >
+                    PDF
+                  </Button>
+                </Stack>
               </Stack>
             ))}
             {!reuniones.length && <Typography className="psi-muted">Sin reuniones registradas.</Typography>}
@@ -681,7 +810,13 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
         </TabPanel>
       </div>
 
-      <Dialog open={dlgAtencion} onClose={() => setDlgAtencion(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={dlgAtencion}
+        onClose={() => setDlgAtencion(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ className: 'psi-dialog-paper' }}
+      >
         <DialogTitle>Registrar atención</DialogTitle>
         <DialogContent>
           <TextField
@@ -723,9 +858,21 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={dlgDer} onClose={() => setDlgDer(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={dlgDer}
+        onClose={() => setDlgDer(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ className: 'psi-dialog-paper' }}
+      >
         <DialogTitle>Ficha de derivación psicológica</DialogTitle>
         <DialogContent>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <strong>Cómo se usa aquí:</strong> en esta pantalla de <strong>administración / psicología</strong> usted registra la{' '}
+            <strong>recepción</strong> de la derivación (caso que llega desde aula). Elija el <strong>docente que deriva</strong> en el
+            listado; si su usuario tiene ficha de personal docente, puede aparecer preseleccionado. Más adelante, si el docente completa
+            la ficha desde su propio perfil, allí figurará su nombre y firma automáticamente.
+          </Alert>
           <Typography variant="body2" color="text.secondary" gutterBottom>
             Motivos (marque los que correspondan)
           </Typography>
@@ -810,9 +957,16 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={dlgReu} onClose={() => setDlgReu(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={dlgReu}
+        onClose={() => setDlgReu(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ className: 'psi-dialog-paper' }}
+      >
         <DialogTitle>Acta de reunión con padres</DialogTitle>
         <DialogContent>
+          <Box className="psi-form-section">
           <TextField
             fullWidth
             multiline
@@ -858,6 +1012,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
             value={reuForm.compromisos_colegio}
             onChange={(e) => setReuForm((f) => ({ ...f, compromisos_colegio: e.target.value }))}
           />
+          </Box>
           <Typography variant="subtitle2" sx={{ mt: 2 }}>
             Firma padre/madre
           </Typography>
@@ -886,7 +1041,13 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={dlgPiar} onClose={() => setDlgPiar(false)} maxWidth="md" fullWidth>
+      <Dialog
+        open={dlgPiar}
+        onClose={() => setDlgPiar(false)}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{ className: 'psi-dialog-paper' }}
+      >
         <DialogTitle>{piarEditing ? 'Editar PIAR' : 'Nuevo PIAR'}</DialogTitle>
         <DialogContent>
           {!piarEditing && (
@@ -1000,6 +1161,71 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           <Button variant="contained" onClick={guardarPiar}>
             Guardar PIAR
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(resumenVer)}
+        onClose={() => setResumenVer(null)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ className: 'psi-dialog-paper' }}
+      >
+        <DialogTitle>Detalle del movimiento</DialogTitle>
+        <DialogContent>
+          {resumenVer && (
+            <Stack spacing={1.25}>
+              <div>
+                <Typography variant="caption" color="text.secondary">
+                  Tipo
+                </Typography>
+                <Typography variant="subtitle1">
+                  {TIMELINE_TIPO_LABEL[resumenVer.tipo] || resumenVer.tipo}
+                </Typography>
+              </div>
+              <div>
+                <Typography variant="caption" color="text.secondary">
+                  Fecha y hora (Lima)
+                </Typography>
+                <Typography variant="subtitle1">
+                  {formatLimaFechaHora(resumenVer.cuando).fecha}
+                  {formatLimaFechaHora(resumenVer.cuando).hora
+                    ? ` · ${formatLimaFechaHora(resumenVer.cuando).hora}`
+                    : ''}
+                </Typography>
+              </div>
+              {resumenVer.subtipo ? (
+                <div>
+                  <Typography variant="caption" color="text.secondary">
+                    Subtipo / estado
+                  </Typography>
+                  <Typography variant="body1">{resumenVer.subtipo}</Typography>
+                </div>
+              ) : null}
+              {resumenVer.titulo ? (
+                <div>
+                  <Typography variant="caption" color="text.secondary">
+                    Resumen
+                  </Typography>
+                  <Typography variant="body1">{resumenVer.titulo}</Typography>
+                </div>
+              ) : null}
+              {tabIndexPorTimelineTipo(resumenVer.tipo) > 0 ? (
+                <Button
+                  variant="contained"
+                  onClick={() => {
+                    setTab(tabIndexPorTimelineTipo(resumenVer.tipo));
+                    setResumenVer(null);
+                  }}
+                >
+                  Ir a la pestaña
+                </Button>
+              ) : null}
+            </Stack>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setResumenVer(null)}>Cerrar</Button>
         </DialogActions>
       </Dialog>
     </div>

@@ -270,11 +270,11 @@ export default function AdminPsicologiaLista() {
       )}
 
       <div className="psi-grid">
-        {matriculas.map((m) => (
+        {matriculas.map((m, idx) => (
           <button
             key={m.matricula_id}
             type="button"
-            className="psi-alumno-card"
+            className={`psi-alumno-card psi-tone-${idx % 6}`}
             onClick={() =>
               navigate(`/admin/psicologia/alumno/${m.alumno_id}?matricula_id=${m.matricula_id}`)
             }

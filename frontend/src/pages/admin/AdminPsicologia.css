@@ -25,12 +25,12 @@
 }
 
 .psi-filter-card {
-  background: #fff;
+  background: linear-gradient(145deg, #f0f7ff 0%, #fdf2ff 55%, #f0fdf9 100%);
   border-radius: 14px;
   padding: 1.25rem 1.5rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
-  border: 1px solid #e8ecf4;
+  border: 1px solid #e8e0f4;
 }
 
 .psi-filter-title {
@@ -47,10 +47,9 @@
 }
 
 .psi-alumno-card {
-  background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
   border-radius: 14px;
   padding: 1rem 1.15rem;
-  border: 1px solid #e2e8f0;
+  border: 1px solid rgba(15, 23, 42, 0.08);
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   cursor: pointer;
@@ -59,8 +58,33 @@
 
 .psi-alumno-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(91, 110, 232, 0.15);
-  border-color: #c7d2fe;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.1);
+}
+
+/* Tonos pastel alternados (listado por aula) */
+.psi-tone-0 {
+  background: linear-gradient(160deg, #fdecef 0%, #fff5f8 100%);
+  border-color: #f9d4e4;
+}
+.psi-tone-1 {
+  background: linear-gradient(160deg, #e8f4ff 0%, #f5fbff 100%);
+  border-color: #cfe8fc;
+}
+.psi-tone-2 {
+  background: linear-gradient(160deg, #ecfdf3 0%, #f6fff9 100%);
+  border-color: #c8ead6;
+}
+.psi-tone-3 {
+  background: linear-gradient(160deg, #fff7ed 0%, #fffbf5 100%);
+  border-color: #fde0c4;
+}
+.psi-tone-4 {
+  background: linear-gradient(160deg, #f3f0ff 0%, #faf8ff 100%);
+  border-color: #e4dcff;
+}
+.psi-tone-5 {
+  background: linear-gradient(160deg, #ecfeff 0%, #f5feff 100%);
+  border-color: #c5eef5;
 }
 
 .psi-alumno-card h3 {
@@ -121,32 +145,77 @@
 .psi-stat-card {
   border-radius: 12px;
   padding: 0.85rem 1rem;
-  color: #fff;
   font-weight: 700;
   font-size: 1.35rem;
   text-align: center;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.06);
 }
 
 .psi-stat-card span {
   display: block;
   font-size: 0.7rem;
   font-weight: 600;
-  opacity: 0.9;
   margin-top: 0.25rem;
+  opacity: 0.85;
 }
 
-.psi-stat-a { background: linear-gradient(135deg, #3b82f6, #2563eb); }
-.psi-stat-d { background: linear-gradient(135deg, #f59e0b, #d97706); }
-.psi-stat-r { background: linear-gradient(135deg, #10b981, #059669); }
-.psi-stat-p { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+.psi-stat-a {
+  background: linear-gradient(145deg, #dbeafe 0%, #eff6ff 100%);
+  color: #1e40af;
+}
+.psi-stat-d {
+  background: linear-gradient(145deg, #ffedd5 0%, #fff7ed 100%);
+  color: #9a3412;
+}
+.psi-stat-r {
+  background: linear-gradient(145deg, #d1fae5 0%, #ecfdf5 100%);
+  color: #166534;
+}
+.psi-stat-p {
+  background: linear-gradient(145deg, #ede9fe 0%, #f5f3ff 100%);
+  color: #5b21b6;
+}
 
 .psi-tabs-wrap {
-  background: #fff;
+  background: linear-gradient(180deg, #fafbff 0%, #ffffff 40%);
   border-radius: 14px;
   border: 1px solid #e8ecf4;
   overflow: hidden;
   box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+}
+
+.psi-tab-panel-inner {
+  background: linear-gradient(160deg, #f8fafc 0%, #fefcff 55%, #f5fffa 100%);
+  border-radius: 0 0 12px 12px;
+}
+
+/* Modales / formularios pastel */
+.psi-dialog-paper.MuiPaper-root {
+  background: linear-gradient(165deg, #fdf8ff 0%, #f5f9ff 45%, #f4fffb 100%) !important;
+  border: 1px solid #e8e0f0;
+  border-radius: 16px !important;
+}
+
+.psi-dialog-paper .MuiDialogTitle-root {
+  font-weight: 800;
+  color: #334155;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+  padding-bottom: 0.75rem;
+}
+
+.psi-dialog-paper .MuiDialogActions-root {
+  border-top: 1px solid rgba(148, 163, 184, 0.25);
+  padding: 12px 16px;
+  gap: 0.5rem;
+}
+
+.psi-form-section {
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid rgba(226, 232, 240, 0.9);
 }
 
 .psi-timeline {
@@ -156,14 +225,62 @@
 }
 
 .psi-timeline li {
-  padding: 0.65rem 1rem;
-  border-bottom: 1px solid #f1f5f9;
+  padding: 0;
+  border-bottom: 1px solid #e8edf5;
   font-size: 0.9rem;
   color: #334155;
 }
 
 .psi-timeline li:last-child {
   border-bottom: none;
+}
+
+.psi-timeline-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.psi-timeline-row:nth-child(4n + 1) {
+  background: linear-gradient(90deg, #fff5f7 0%, rgba(255, 255, 255, 0.5) 100%);
+}
+.psi-timeline-row:nth-child(4n + 2) {
+  background: linear-gradient(90deg, #f0f7ff 0%, rgba(255, 255, 255, 0.5) 100%);
+}
+.psi-timeline-row:nth-child(4n + 3) {
+  background: linear-gradient(90deg, #f0fdf6 0%, rgba(255, 255, 255, 0.5) 100%);
+}
+.psi-timeline-row:nth-child(4n + 4) {
+  background: linear-gradient(90deg, #faf5ff 0%, rgba(255, 255, 255, 0.5) 100%);
+}
+
+.psi-timeline-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.psi-timeline-fecha {
+  font-weight: 700;
+  color: #475569;
+}
+
+.psi-timeline-hora {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.psi-btn-ghost {
+  font-weight: 700;
+  text-transform: none;
+  border-radius: 10px !important;
 }
 
 .psi-sig-wrap {
