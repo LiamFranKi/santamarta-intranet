@@ -40,6 +40,12 @@
   font-size: 1rem;
 }
 
+/* Campo “Buscar aquí” junto al botón Buscar (Psicología lista) */
+.psi-filter-buscar-aqui .MuiInputBase-input::placeholder {
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
 .psi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -76,13 +76,14 @@ export default function AdminPsicologiaLista() {
   const [anio, setAnio] = useState('');
   const [matriculas, setMatriculas] = useState([]);
   const [ultimaBusqueda, setUltimaBusqueda] = useState('ninguna'); // 'grupo' | 'texto' | 'ninguna'
-  const [filtroTarjetas, setFiltroTarjetas] = useState('');
-  const [textoBuscarColegio, setTextoBuscarColegio] = useState('');
+  const [buscarAqui, setBuscarAqui] = useState('');
   const [loadingBuscar, setLoadingBuscar] = useState(false);
-  const [loadingBuscarTexto, setLoadingBuscarTexto] = useState(false);
+  const [loadingBuscarAqui, setLoadingBuscarAqui] = useState(false);
   const [buscarErr, setBuscarErr] = useState(null);
   const [sinGrupo, setSinGrupo] = useState(false);
   const defaultsAppliedRef = useRef(false);
+  /** Última lista cargada por aula (para volver al dejar vacío el campo y pulsar Enter). */
+  const matriculasPorGrupoRef = useRef([]);
   const [pendientes, setPendientes] = useState([]);
   const [loadingPendientes, setLoadingPendientes] = useState(true);
   const [pendientesErr, setPendientesErr] = useState(null);
@@ -174,7 +175,7 @@ export default function AdminPsicologiaLista() {
     setSinGrupo(false);
     setMatriculas([]);
     setUltimaBusqueda('ninguna');
-    setFiltroTarjetas('');
+    setBuscarAqui('');
     setLoadingBuscar(true);
     try {
       const params = {
@@ -188,33 +189,43 @@ export default function AdminPsicologiaLista() {
       const { data } = await api.get('/admin/psicologia/grupo', { params });
       if (!data.grupo?.id) {
         setSinGrupo(true);
+        matriculasPorGrupoRef.current = [];
         return;
       }
-      setMatriculas(data.matriculas || []);
+      const list = data.matriculas || [];
+      matriculasPorGrupoRef.current = list;
+      setMatriculas(list);
       setUltimaBusqueda('grupo');
     } catch (e) {
       const msg = e.response?.data?.error || e.message;
       setBuscarErr(msg);
+      matriculasPorGrupoRef.current = [];
     } finally {
       setLoadingBuscar(false);
     }
   }, [anio, nivelId, grado, seccion, turnoId, sedeId]);
 
-  const buscarPorTextoColegio = useCallback(async () => {
-    const q = String(textoBuscarColegio || '').trim();
-    if (q.length < 2) {
-      await Swal.fire({ icon: 'info', title: 'Escriba al menos 2 caracteres (apellido, nombre o DNI).' });
-      return;
-    }
+  /** Enter en el campo pequeño: ≥2 caracteres → búsqueda en el colegio; vacío → vuelve al listado del aula si existe. */
+  const ejecutarBuscarAqui = useCallback(async () => {
+    const q = String(buscarAqui || '').trim();
     const anioN = parseInt(anio, 10);
     if (!Number.isFinite(anioN)) {
-      await Swal.fire({ icon: 'warning', title: 'Indique un año escolar válido arriba.' });
+      await Swal.fire({ icon: 'warning', title: 'Indique un año escolar válido en el filtro.' });
       return;
     }
     setBuscarErr(null);
-    setSinGrupo(false);
-    setLoadingBuscarTexto(true);
-    setFiltroTarjetas('');
+    if (q.length < 2) {
+      const cached = matriculasPorGrupoRef.current;
+      if (cached.length) {
+        setMatriculas([...cached]);
+        setUltimaBusqueda('grupo');
+      } else {
+        setMatriculas([]);
+        setUltimaBusqueda('ninguna');
+      }
+      return;
+    }
+    setLoadingBuscarAqui(true);
     try {
       const { data } = await api.get('/admin/psicologia/alumnos-buscar', {
         params: { anio: anioN, q },
@@ -227,22 +238,9 @@ export default function AdminPsicologiaLista() {
       setMatriculas([]);
       setUltimaBusqueda('ninguna');
     } finally {
-      setLoadingBuscarTexto(false);
+      setLoadingBuscarAqui(false);
     }
-  }, [anio, textoBuscarColegio]);
-
-  const tarjetasVisibles = useMemo(() => {
-    const t = String(filtroTarjetas || '')
-      .trim()
-      .toLowerCase();
-    if (!t) return matriculas;
-    return matriculas.filter((m) => {
-      const nombre = String(m.nombre_completo || '').toLowerCase();
-      const doc = String(m.nro_documento || '').toLowerCase();
-      const gr = String(m.grupo_etiqueta || '').toLowerCase();
-      return nombre.includes(t) || doc.includes(t) || gr.includes(t);
-    });
-  }, [matriculas, filtroTarjetas]);
+  }, [anio, buscarAqui]);
 
   if (loadMetaErr) {
     return (
@@ -354,7 +352,7 @@ export default function AdminPsicologiaLista() {
 
       <div className="psi-filter-card">
         <div className="psi-filter-title">Buscar alumnos por grupo</div>
-        <Stack direction="row" flexWrap="wrap" gap={1.5} alignItems="center">
+        <Stack direction="row" flexWrap="wrap" gap={1.5} alignItems="center" useFlexGap>
           {meta.sedes?.length > 0 && (
             <TextField
               select
@@ -450,49 +448,31 @@ export default function AdminPsicologiaLista() {
             sx={{ width: 100 }}
             required
           />
-          <Button variant="contained" onClick={buscar} disabled={loadingBuscar} sx={{ height: 40 }}>
+          <Button variant="contained" onClick={buscar} disabled={loadingBuscar} sx={{ height: 40, flexShrink: 0 }}>
             {loadingBuscar ? <CircularProgress size={22} color="inherit" /> : 'Buscar'}
           </Button>
-        </Stack>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, mb: 0.75, fontWeight: 600 }}>
-          Buscar alumno por apellidos, nombres o DNI (todo el colegio, año indicado)
-        </Typography>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }}>
           <TextField
-            fullWidth
+            className="psi-filter-buscar-aqui"
             size="small"
-            label="Apellidos, nombres o documento"
-            placeholder="Ej. Lozano o 12345678"
-            value={textoBuscarColegio}
-            onChange={(e) => setTextoBuscarColegio(e.target.value)}
+            label="Buscar"
+            placeholder="Buscar aquí"
+            value={buscarAqui}
+            onChange={(e) => setBuscarAqui(e.target.value)}
+            disabled={loadingBuscarAqui}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') buscarPorTextoColegio();
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                ejecutarBuscarAqui();
+              }
+            }}
+            sx={{
+              flex: '1 1 100px',
+              minWidth: 100,
+              maxWidth: 220,
+              '& .MuiInputBase-root': { height: 40 },
             }}
           />
-          <Button
-            variant="outlined"
-            onClick={buscarPorTextoColegio}
-            disabled={loadingBuscarTexto}
-            sx={{ height: 40, flexShrink: 0, minWidth: 200 }}
-          >
-            {loadingBuscarTexto ? <CircularProgress size={22} /> : 'Buscar en el colegio'}
-          </Button>
         </Stack>
-        {matriculas.length > 0 && (
-          <>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, mb: 0.5, fontWeight: 600 }}>
-              Filtrar la lista mostrada
-            </Typography>
-            <TextField
-              fullWidth
-              size="small"
-              label="Filtrar tarjetas (opcional)"
-              placeholder="Reduce la lista actual sin volver a consultar"
-              value={filtroTarjetas}
-              onChange={(e) => setFiltroTarjetas(e.target.value)}
-            />
-          </>
-        )}
       </div>
 
       {buscarErr && (
@@ -507,7 +487,7 @@ export default function AdminPsicologiaLista() {
       )}
 
       <div className="psi-grid">
-        {tarjetasVisibles.map((m, idx) => {
+        {matriculas.map((m, idx) => {
           const fotoUrl = fotoAlumnoUrl(m.foto_alumno);
           return (
             <button
@@ -544,27 +524,22 @@ export default function AdminPsicologiaLista() {
         })}
       </div>
 
-      {matriculas.length > 0 && tarjetasVisibles.length === 0 && !loadingBuscar && !loadingBuscarTexto && (
-        <Typography className="psi-muted" align="center" sx={{ py: 3 }}>
-          Ningún alumno coincide con el filtro de tarjetas. Borre el texto del filtro o ajuste la búsqueda.
-        </Typography>
-      )}
-
       {matriculas.length === 0 && ultimaBusqueda === 'grupo' && !loadingBuscar && !sinGrupo && !buscarErr && (
         <Typography className="psi-muted" align="center" sx={{ py: 3 }}>
           El aula no tiene alumnos matriculados activos en ese año.
         </Typography>
       )}
 
-      {matriculas.length === 0 && ultimaBusqueda === 'texto' && !loadingBuscarTexto && !buscarErr && (
+      {matriculas.length === 0 && ultimaBusqueda === 'texto' && !loadingBuscarAqui && !buscarErr && (
         <Typography className="psi-muted" align="center" sx={{ py: 4 }}>
           No se encontraron alumnos con ese criterio en el año escolar indicado.
         </Typography>
       )}
 
-      {matriculas.length === 0 && !loadingBuscar && !loadingBuscarTexto && !sinGrupo && !buscarErr && ultimaBusqueda === 'ninguna' && (
+      {matriculas.length === 0 && !loadingBuscar && !loadingBuscarAqui && !sinGrupo && !buscarErr && ultimaBusqueda === 'ninguna' && (
         <Typography className="psi-muted" align="center" sx={{ py: 4 }}>
-          Use <strong>Buscar</strong> por aula o <strong>Buscar en el colegio</strong> por nombre o documento.
+          Pulse <strong>Buscar</strong> para listar el aula. En <strong>Buscar aquí</strong> puede escribir apellido, nombre o DNI y pulsar{' '}
+          <strong>Enter</strong> (deje vacío y Enter para volver al aula si ya la cargó).
         </Typography>
       )}
     </div>
