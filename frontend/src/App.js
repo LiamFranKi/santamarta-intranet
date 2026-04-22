@@ -14,6 +14,8 @@ import DocenteQR from './pages/DocenteQR';
 import DocenteGrupos from './pages/DocenteGrupos';
 import DocentePsicologiaMisDerivaciones from './pages/DocentePsicologiaMisDerivaciones';
 import DocentePsicologiaDerivar from './pages/DocentePsicologiaDerivar';
+import DocentePsicologiaMisPiar from './pages/DocentePsicologiaMisPiar';
+import DocentePsicologiaPiarDetalle from './pages/DocentePsicologiaPiarDetalle';
 import DocenteConexionesFamiliares from './pages/DocenteConexionesFamiliares';
 import DocenteCursos from './pages/DocenteCursos';
 import DocenteHorario from './pages/DocenteHorario';
@@ -609,6 +611,22 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredType="DOCENTE">
             <DocentePsicologiaDerivar />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/psicologia/piar"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <DocentePsicologiaMisPiar />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/psicologia/piar/:id"
+        element={
+          <PrivateRoute requiredType="DOCENTE">
+            <DocentePsicologiaPiarDetalle />
           </PrivateRoute>
         }
       />

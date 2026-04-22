@@ -19,10 +19,12 @@ import {
   Tab,
   Tabs,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditIcon from '@mui/icons-material/Edit';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { useAuth } from '../../context/AuthContext';
@@ -185,6 +187,41 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
     evaluacion_kpi: { participacion: false, comprension: false, autonomia: false, escala: 'en_proceso' },
     estado: 'BORRADOR',
   });
+
+  const [seguimientoItems, setSeguimientoItems] = useState([]);
+  const [seguimientoNuevo, setSeguimientoNuevo] = useState('');
+
+  useEffect(() => {
+    if (!dlgPiar || !piarEditing?.id) {
+      setSeguimientoItems([]);
+      setSeguimientoNuevo('');
+      return undefined;
+    }
+    let cancel = false;
+    api
+      .get(`/admin/psicologia/piar/${piarEditing.id}/seguimiento`)
+      .then(({ data }) => {
+        if (!cancel) setSeguimientoItems(data.items || []);
+      })
+      .catch(() => {
+        if (!cancel) setSeguimientoItems([]);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, [dlgPiar, piarEditing?.id]);
+
+  const agregarSeguimientoAdmin = async () => {
+    if (!piarEditing?.id || !String(seguimientoNuevo || '').trim()) return;
+    try {
+      await api.post(`/admin/psicologia/piar/${piarEditing.id}/seguimiento`, { contenido: seguimientoNuevo.trim() });
+      setSeguimientoNuevo('');
+      const { data } = await api.get(`/admin/psicologia/piar/${piarEditing.id}/seguimiento`);
+      setSeguimientoItems(data.items || []);
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error' });
+    }
+  };
 
   const reloadAll = useCallback(async () => {
     setLoadErr(null);
@@ -744,12 +781,19 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
       </div>
 
       <div className="psi-tabs-wrap">
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} variant="scrollable">
-          <Tab label="Resumen" />
-          <Tab label="Atenciones" />
-          <Tab label="Derivaciones" />
-          <Tab label="Reuniones / acta" />
-          <Tab label="PIAR" />
+        <Tabs
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+          className="psi-exp-tabs"
+        >
+          <Tab label="Resumen" disableRipple className="psi-exp-tab" />
+          <Tab label="Atenciones" disableRipple className="psi-exp-tab" />
+          <Tab label="Derivaciones" disableRipple className="psi-exp-tab" />
+          <Tab label="Reuniones / acta" disableRipple className="psi-exp-tab" />
+          <Tab label="PIAR" disableRipple className="psi-exp-tab" />
         </Tabs>
 
         <TabPanel value={tab} index={0}>
@@ -771,14 +815,17 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
                       {hora ? <span className="psi-timeline-hora">{hora}</span> : null}
                       {it.titulo ? <span> — {it.titulo}</span> : null}
                     </div>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      className="psi-btn-ghost"
-                      onClick={() => setResumenVer(it)}
-                    >
-                      Ver
-                    </Button>
+                    <Tooltip title="Ver detalle">
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        className="psi-timeline-ver-btn"
+                        aria-label="Ver detalle del movimiento"
+                        onClick={() => setResumenVer(it)}
+                      >
+                        <VisibilityOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </div>
                 </li>
               );
@@ -880,53 +927,63 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
               + Nueva reunión / acta
             </Button>
           </Stack>
-          <Stack spacing={1}>
+          <Stack spacing={1.5}>
             {reuniones.map((r) => (
-              <Stack key={r.id} direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems="center">
-                <Button
-                  variant="outlined"
-                  sx={{ flex: 1, justifyContent: 'space-between', textAlign: 'left', py: 1.5 }}
-                  onClick={() => abrirReunion(r)}
-                >
-                  <span>
-                    Acta #{r.id} — {r.estado}
-                    {r.facilitador_nombre ? ` · ${r.facilitador_nombre}` : ''}
-                    {r.created_at ? (
-                      <Typography component="span" variant="caption" color="text.secondary" display="block">
-                        {formatLimaLine(r.created_at)}
-                      </Typography>
-                    ) : null}
-                  </span>
-                  <span>✎</span>
-                </Button>
-                <Stack direction="row" spacing={0.5} alignItems="center">
-                  <IconButton color="primary" size="small" aria-label="Editar acta" onClick={() => abrirReunion(r)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    color="error"
-                    size="small"
-                    aria-label="Eliminar acta"
-                    onClick={() => eliminarReunion(r.id, r.estado)}
-                  >
-                    <DeleteOutlineIcon fontSize="small" />
-                  </IconButton>
+              <div key={r.id} className="psi-reu-card">
+                <button type="button" className="psi-reu-card-body" onClick={() => abrirReunion(r)}>
+                  <div className="psi-reu-card-badges">
+                    <span className={`psi-reu-badge ${String(r.estado) === 'CERRADA' ? 'cerrada' : 'borrador'}`}>{r.estado}</span>
+                    <span className="psi-reu-meta">{formatLimaLine(r.created_at)}</span>
+                  </div>
+                  <div className="psi-reu-card-title">Acta de reunión #{r.id}</div>
+                  {r.facilitador_nombre ? (
+                    <div className="psi-reu-card-sub">Facilita: {r.facilitador_nombre}</div>
+                  ) : (
+                    <div className="psi-reu-card-sub">Sin facilitador asignado</div>
+                  )}
+                </button>
+                <div className="psi-reu-card-actions">
+                  <Tooltip title="Editar acta">
+                    <IconButton color="primary" size="small" aria-label="Editar acta" onClick={() => abrirReunion(r)}>
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Eliminar acta">
+                    <IconButton
+                      color="error"
+                      size="small"
+                      aria-label="Eliminar acta"
+                      onClick={() => eliminarReunion(r.id, r.estado)}
+                    >
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
                   <Button
                     variant="contained"
-                    color="secondary"
-                    sx={{ minWidth: 110 }}
+                    className="psi-reu-btn-pdf"
+                    size="small"
                     onClick={() => descargarPdf(`/admin/psicologia/reuniones/${r.id}/pdf`, `acta_reunion_${r.id}.pdf`)}
                   >
                     PDF
                   </Button>
-                </Stack>
-              </Stack>
+                </div>
+              </div>
             ))}
             {!reuniones.length && <Typography className="psi-muted">Sin reuniones registradas.</Typography>}
           </Stack>
         </TabPanel>
 
         <TabPanel value={tab} index={4}>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <strong>Uso del PIAR y parte del docente:</strong> el plan se elabora y versiona desde esta pantalla (psicología /
+            administración). Los <strong>ajustes razonables</strong> y los <strong>compromisos de aula</strong> se consensúan con el docente
+            referente y se registran en el formulario (apartado &quot;Estrategias / seguimiento en aula&quot; y docente responsable).{' '}
+            Asigne <strong>docente responsable</strong> en el formulario del PIAR para que ese docente vea el plan en{' '}
+            <strong>Herramientas → PIAR a mi cargo</strong> y pueda registrar seguimiento y ajustes de aula. El <strong>seguimiento en
+            bitácora</strong> (fechas y notas) lo pueden ir cargando <strong>psicología y el docente asignado</strong>; más adelante se
+            podrá sumar el apoderado. <strong>Eliminar:</strong> solo <strong>BORRADOR</strong>; los activos se archivan o se versiona de
+            nuevo.
+          </Alert>
           <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}>
             <Button variant="contained" onClick={abrirNuevoPiar}>
               + Nuevo PIAR (nueva versión)
@@ -934,35 +991,44 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           </Stack>
           <Stack spacing={1.5}>
             {piarLista.map((p) => (
-              <Box key={p.id} sx={{ p: 2, borderRadius: 2, border: '1px solid #ddd6fe', bgcolor: '#faf5ff' }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
-                  <Typography fontWeight={700}>
-                    Año {p.anio} · Versión {p.numero_version} · {p.estado}
+              <Box key={p.id} className="psi-piar-list-card">
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1}>
+                  <Box>
+                    <Typography fontWeight={800} sx={{ color: '#5b21b6' }}>
+                      Año {p.anio} · Versión {p.numero_version}
+                    </Typography>
+                    <span className={`psi-piar-estado ${String(p.estado).toLowerCase()}`}>{p.estado}</span>
                     {p.created_at ? (
-                      <Typography component="span" variant="caption" color="text.secondary" display="block">
+                      <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
                         {formatLimaLine(p.created_at)}
                       </Typography>
                     ) : null}
-                  </Typography>
+                  </Box>
                   <Stack direction="row" spacing={0.5} alignItems="center">
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() => descargarPdf(`/admin/psicologia/piar/${p.id}/pdf`, `PIAR_${p.anio}_v${p.numero_version}.pdf`)}
-                    >
+                    <Button size="small" variant="outlined" className="psi-piar-btn-pdf" onClick={() => descargarPdf(`/admin/psicologia/piar/${p.id}/pdf`, `PIAR_${p.anio}_v${p.numero_version}.pdf`)}>
                       PDF
                     </Button>
-                    <IconButton size="small" color="primary" aria-label="Editar PIAR" onClick={() => abrirEditarPiar(p)}>
-                      <EditIcon fontSize="small" />
-                    </IconButton>
-                    {p.estado === 'BORRADOR' && (
-                      <IconButton size="small" color="error" aria-label="Eliminar PIAR" onClick={() => eliminarPiar(p.id)}>
-                        <DeleteOutlineIcon fontSize="small" />
+                    <Tooltip title="Editar PIAR">
+                      <IconButton size="small" color="primary" aria-label="Editar PIAR" onClick={() => abrirEditarPiar(p)}>
+                        <EditIcon fontSize="small" />
                       </IconButton>
-                    )}
+                    </Tooltip>
+                    <Tooltip title={p.estado === 'BORRADOR' ? 'Eliminar PIAR (solo borrador)' : 'Solo se eliminan PIAR en BORRADOR. Archivo o nueva versión si ya está activo.'}>
+                      <span>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          aria-label="Eliminar PIAR"
+                          disabled={p.estado !== 'BORRADOR'}
+                          onClick={() => eliminarPiar(p.id)}
+                        >
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
                   </Stack>
                 </Stack>
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                   {(p.diagnostico || '').slice(0, 120)}
                   {(p.diagnostico || '').length > 120 ? '…' : ''}
                 </Typography>
@@ -1228,7 +1294,11 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
 
       <Dialog
         open={dlgPiar}
-        onClose={() => setDlgPiar(false)}
+        onClose={() => {
+          setDlgPiar(false);
+          setSeguimientoItems([]);
+          setSeguimientoNuevo('');
+        }}
         maxWidth="md"
         fullWidth
         PaperProps={{ className: 'psi-dialog-paper' }}
@@ -1279,6 +1349,139 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
             value={piarForm.estilo_aprendizaje}
             onChange={(e) => setPiarForm((f) => ({ ...f, estilo_aprendizaje: e.target.value }))}
           />
+          <TextField
+            fullWidth
+            multiline
+            minRows={2}
+            label="Observaciones relevantes"
+            margin="normal"
+            value={piarForm.observaciones_relevantes}
+            onChange={(e) => setPiarForm((f) => ({ ...f, observaciones_relevantes: e.target.value }))}
+          />
+          <Alert severity="info" sx={{ my: 1.5 }}>
+            <strong>Parte del docente:</strong> puede consensuar aquí el texto y asignar al <strong>docente responsable</strong>; ese
+            docente completará y actualizará estrategias, avances y <strong>bitácora de seguimiento</strong> desde{' '}
+            <strong>Herramientas → PIAR a mi cargo</strong> en su intranet. Psicología también registra notas en la misma bitácora.
+          </Alert>
+          <TextField
+            fullWidth
+            multiline
+            minRows={3}
+            label="Estrategias y seguimiento en aula (compromiso docente)"
+            margin="normal"
+            value={piarForm.estrategias_docentes}
+            onChange={(e) => setPiarForm((f) => ({ ...f, estrategias_docentes: e.target.value }))}
+          />
+          <TextField
+            select
+            fullWidth
+            label="Docente responsable (aparece en su menú: PIAR a mi cargo)"
+            margin="normal"
+            value={piarForm.docente_responsable_personal_id != null ? String(piarForm.docente_responsable_personal_id) : ''}
+            onChange={(e) => setPiarForm((f) => ({ ...f, docente_responsable_personal_id: e.target.value }))}
+          >
+            <MenuItem value="">(No indicado)</MenuItem>
+            {(meta?.docentes || []).map((d) => (
+              <MenuItem key={d.id} value={String(d.id)}>
+                {d.nombre}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            fullWidth
+            label="Coordinador (seguimiento PIAR)"
+            margin="normal"
+            value={piarForm.coordinador_personal_id != null ? String(piarForm.coordinador_personal_id) : ''}
+            onChange={(e) => setPiarForm((f) => ({ ...f, coordinador_personal_id: e.target.value }))}
+          >
+            <MenuItem value="">(No indicado)</MenuItem>
+            {(meta?.personal || []).map((d) => (
+              <MenuItem key={d.id} value={String(d.id)}>
+                {d.nombre}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            fullWidth
+            multiline
+            minRows={2}
+            label="Frecuencia de aplicación / revisión en aula"
+            margin="normal"
+            value={piarForm.frecuencia_aplicacion}
+            onChange={(e) => setPiarForm((f) => ({ ...f, frecuencia_aplicacion: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            type="date"
+            label="Fecha de revisión programada"
+            margin="normal"
+            InputLabelProps={{ shrink: true }}
+            value={piarForm.fecha_revision ? String(piarForm.fecha_revision).slice(0, 10) : ''}
+            onChange={(e) => setPiarForm((f) => ({ ...f, fecha_revision: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            multiline
+            minRows={2}
+            label="Avances observados"
+            margin="normal"
+            value={piarForm.avances_observados}
+            onChange={(e) => setPiarForm((f) => ({ ...f, avances_observados: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            multiline
+            minRows={2}
+            label="Ajustes necesarios en revisión"
+            margin="normal"
+            value={piarForm.ajustes_necesarios_revision}
+            onChange={(e) => setPiarForm((f) => ({ ...f, ajustes_necesarios_revision: e.target.value }))}
+          />
+          <Typography variant="subtitle2" sx={{ mt: 2 }}>
+            Seguimiento (indicadores)
+          </Typography>
+          <FormGroup row sx={{ flexWrap: 'wrap' }}>
+            {[
+              ['participacion', 'Participación'],
+              ['comprension', 'Comprensión'],
+              ['autonomia', 'Autonomía'],
+            ].map(([key, label]) => (
+              <FormControlLabel
+                key={key}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={Boolean(piarForm.evaluacion_kpi[key])}
+                    onChange={() =>
+                      setPiarForm((f) => ({
+                        ...f,
+                        evaluacion_kpi: { ...f.evaluacion_kpi, [key]: !f.evaluacion_kpi[key] },
+                      }))
+                    }
+                  />
+                }
+                label={label}
+              />
+            ))}
+          </FormGroup>
+          <TextField
+            select
+            fullWidth
+            label="Escala de progreso"
+            margin="normal"
+            value={piarForm.evaluacion_kpi.escala || 'en_proceso'}
+            onChange={(e) =>
+              setPiarForm((f) => ({
+                ...f,
+                evaluacion_kpi: { ...f.evaluacion_kpi, escala: e.target.value },
+              }))
+            }
+          >
+            <MenuItem value="en_proceso">En proceso</MenuItem>
+            <MenuItem value="satisfactorio">Satisfactorio</MenuItem>
+            <MenuItem value="requiere_refuerzo">Requiere refuerzo</MenuItem>
+          </TextField>
           <Typography variant="subtitle2" sx={{ mt: 2 }}>
             Ajustes razonables (checklist)
           </Typography>
@@ -1340,9 +1543,56 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
             <MenuItem value="ACTIVO">Activo (archiva otros activos del mismo año)</MenuItem>
             <MenuItem value="ARCHIVADO">Archivado</MenuItem>
           </TextField>
+          {piarEditing?.id ? (
+            <Box className="psi-form-section" sx={{ mt: 2 }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.75, fontWeight: 800 }}>
+                Seguimiento (bitácora cronológica)
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                Cada nota queda fechada. Puede registrar psicología aquí; el docente asignado registra desde su intranet las suyas (mismo
+                historial).
+              </Typography>
+              <Stack spacing={1} sx={{ mb: 1.5, maxHeight: 220, overflow: 'auto' }}>
+                {seguimientoItems.map((s) => (
+                  <Box key={s.id} sx={{ p: 1, bgcolor: '#f8fafc', borderRadius: 1, border: '1px solid #e2e8f0' }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {s.autor_tipo === 'DOCENTE' ? 'Docente' : 'Psicología / admin'} · {formatLimaLine(s.created_at)}
+                    </Typography>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                      {s.contenido}
+                    </Typography>
+                  </Box>
+                ))}
+                {!seguimientoItems.length && (
+                  <Typography variant="body2" color="text.secondary">
+                    Aún no hay notas de seguimiento.
+                  </Typography>
+                )}
+              </Stack>
+              <TextField
+                fullWidth
+                multiline
+                minRows={2}
+                label="Nueva nota (psicología / admin)"
+                value={seguimientoNuevo}
+                onChange={(e) => setSeguimientoNuevo(e.target.value)}
+              />
+              <Button sx={{ mt: 1 }} variant="outlined" onClick={agregarSeguimientoAdmin} disabled={!String(seguimientoNuevo || '').trim()}>
+                Registrar nota
+              </Button>
+            </Box>
+          ) : null}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDlgPiar(false)}>Cancelar</Button>
+          <Button
+            onClick={() => {
+              setDlgPiar(false);
+              setSeguimientoItems([]);
+              setSeguimientoNuevo('');
+            }}
+          >
+            Cancelar
+          </Button>
           <Button variant="contained" onClick={guardarPiar}>
             Guardar PIAR
           </Button>

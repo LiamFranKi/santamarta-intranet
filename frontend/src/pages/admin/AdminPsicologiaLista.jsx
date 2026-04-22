@@ -11,6 +11,7 @@ import {
   Alert,
 } from '@mui/material';
 import api from '../../services/api';
+import Swal from 'sweetalert2';
 import './AdminPsicologia.css';
 
 /** Secciones habituales en el colegio (orden: UNICA primero). */
@@ -65,6 +66,19 @@ export default function AdminPsicologiaLista() {
   const [pendientes, setPendientes] = useState([]);
   const [loadingPendientes, setLoadingPendientes] = useState(true);
   const [pendientesErr, setPendientesErr] = useState(null);
+  const [marcandoLeidaId, setMarcandoLeidaId] = useState(null);
+
+  const cargarPendientes = useCallback(() => {
+    setLoadingPendientes(true);
+    setPendientesErr(null);
+    api
+      .get('/admin/psicologia/derivaciones/pendientes', { params: { limit: 100 } })
+      .then(({ data }) => {
+        setPendientes(data.derivaciones || []);
+      })
+      .catch((e) => setPendientesErr(e.response?.data?.error || 'No se pudieron cargar las derivaciones pendientes'))
+      .finally(() => setLoadingPendientes(false));
+  }, []);
 
   useEffect(() => {
     api
@@ -79,16 +93,29 @@ export default function AdminPsicologiaLista() {
   }, []);
 
   useEffect(() => {
-    setLoadingPendientes(true);
-    setPendientesErr(null);
-    api
-      .get('/admin/psicologia/derivaciones/pendientes', { params: { limit: 100 } })
-      .then(({ data }) => {
-        setPendientes(data.derivaciones || []);
-      })
-      .catch((e) => setPendientesErr(e.response?.data?.error || 'No se pudieron cargar las derivaciones pendientes'))
-      .finally(() => setLoadingPendientes(false));
-  }, []);
+    cargarPendientes();
+  }, [cargarPendientes]);
+
+  const marcarDerivacionLeida = async (id) => {
+    setMarcandoLeidaId(id);
+    try {
+      await api.post(`/admin/psicologia/derivaciones/${id}/marcar-leida`);
+      await Swal.fire({ icon: 'success', title: 'Marcada como vista', timer: 1200, showConfirmButton: false });
+      cargarPendientes();
+    } catch (e) {
+      const msg = e.response?.data?.error || 'Error';
+      await Swal.fire({
+        icon: 'error',
+        title: msg,
+        html:
+          msg.includes('Unknown column') || msg.includes('psicologia_leida')
+            ? 'Ejecute en el servidor la migración <code>036_psicologia_derivacion_leida_piar_seguimiento_mysql.sql</code>.'
+            : undefined,
+      });
+    } finally {
+      setMarcandoLeidaId(null);
+    }
+  };
 
   /** Valores por defecto: sede San Martín, turno Mañana, nivel Inicial (si existe), primer grado del nivel, sección UNICA. */
   useEffect(() => {
@@ -186,7 +213,9 @@ export default function AdminPsicologiaLista() {
       <div className="psi-pendientes-card">
         <div className="psi-pendientes-title">Derivaciones pendientes (RECIBIDA)</div>
         <p className="psi-pendientes-sub">
-          Fichas enviadas por docentes que aún no pasan a evaluación o cierre. Use “Abrir” para ir al expediente del alumno.
+          Listado de derivaciones <strong>RECIBIDA</strong> que el equipo aún no ha marcado como vistas. Pulse{' '}
+          <strong>Marcar vista</strong> cuando ya la revisó: dejará de aparecer aquí (sigue en el expediente del alumno). “Abrir” va al
+          expediente sin quitarla del listado.
         </p>
         {pendientesErr && (
           <Alert severity="warning" sx={{ mb: 1 }}>
@@ -211,7 +240,7 @@ export default function AdminPsicologiaLista() {
                   <th>Docente</th>
                   <th>Urgencia</th>
                   <th>Resumen</th>
-                  <th style={{ width: 90 }}> </th>
+                  <th style={{ minWidth: 200 }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -226,17 +255,27 @@ export default function AdminPsicologiaLista() {
                       {(p.descripcion_caso || '').length > 80 ? '…' : ''}
                     </td>
                     <td>
-                      <button
-                        type="button"
-                        className="psi-pend-btn-abrir"
-                        onClick={() =>
-                          navigate(
-                            `/admin/psicologia/alumno/${p.alumno_id}${p.matricula_id != null ? `?matricula_id=${p.matricula_id}` : ''}`
-                          )
-                        }
-                      >
-                        Abrir
-                      </button>
+                      <div className="psi-pend-actions">
+                        <button
+                          type="button"
+                          className="psi-pend-btn-vista"
+                          disabled={marcandoLeidaId === p.id}
+                          onClick={() => marcarDerivacionLeida(p.id)}
+                        >
+                          {marcandoLeidaId === p.id ? '…' : 'Marcar vista'}
+                        </button>
+                        <button
+                          type="button"
+                          className="psi-pend-btn-abrir"
+                          onClick={() =>
+                            navigate(
+                              `/admin/psicologia/alumno/${p.alumno_id}${p.matricula_id != null ? `?matricula_id=${p.matricula_id}` : ''}`
+                            )
+                          }
+                        >
+                          Abrir
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

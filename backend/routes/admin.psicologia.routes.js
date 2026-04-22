@@ -237,7 +237,7 @@ router.get('/derivaciones/pendientes', async (req, res) => {
        FROM psicologia_derivaciones d
        INNER JOIN alumnos a ON a.id = d.alumno_id AND a.colegio_id = d.colegio_id
        LEFT JOIN personal p ON p.id = d.docente_personal_id
-       WHERE d.colegio_id = ? AND d.estado = 'RECIBIDA'
+       WHERE d.colegio_id = ? AND d.estado = 'RECIBIDA' AND d.psicologia_leida_en IS NULL
        ORDER BY d.id DESC
        LIMIT ?`,
       [cid, lim]
@@ -245,6 +245,24 @@ router.get('/derivaciones/pendientes', async (req, res) => {
     res.json({ derivaciones: rows || [] });
   } catch (e) {
     console.error('[admin/psicologia/derivaciones/pendientes]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/** Marca derivación como vista por el equipo (deja de listarse en pendientes). */
+router.post('/derivaciones/:id/marcar-leida', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'id inválido' });
+    const r = await execute(
+      `UPDATE psicologia_derivaciones SET psicologia_leida_en = NOW() WHERE id = ? AND colegio_id = ?`,
+      [id, cid]
+    );
+    if (!r.affectedRows) return res.status(404).json({ error: 'No encontrado' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/psicologia/derivaciones/marcar-leida]', e);
     res.status(500).json({ error: e.message || 'Error' });
   }
 });
@@ -1057,6 +1075,50 @@ router.delete('/piar/:id', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/** Entradas de seguimiento del PIAR (cronológico). */
+router.get('/piar/:id/seguimiento', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const piarId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(piarId)) return res.status(400).json({ error: 'id inválido' });
+    const [p] = await query('SELECT id FROM psicologia_piar WHERE id = ? AND colegio_id = ? LIMIT 1', [piarId, cid]);
+    if (!p) return res.status(404).json({ error: 'No encontrado' });
+    const rows = await query(
+      `SELECT s.id, s.autor_tipo, s.contenido, s.created_at, s.creado_por_usuario_id
+       FROM psicologia_piar_seguimiento s
+       WHERE s.colegio_id = ? AND s.piar_id = ?
+       ORDER BY s.id ASC`,
+      [cid, piarId]
+    );
+    res.json({ items: rows || [] });
+  } catch (e) {
+    console.error('[admin/psicologia/piar/seguimiento GET]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.post('/piar/:id/seguimiento', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const uid = req.user.usuario_id != null ? parseInt(req.user.usuario_id, 10) : null;
+    const piarId = parseInt(req.params.id, 10);
+    const contenido = String((req.body || {}).contenido || '').trim();
+    if (!Number.isFinite(piarId)) return res.status(400).json({ error: 'id inválido' });
+    if (!contenido) return res.status(400).json({ error: 'contenido es obligatorio' });
+    const [p] = await query('SELECT id FROM psicologia_piar WHERE id = ? AND colegio_id = ? LIMIT 1', [piarId, cid]);
+    if (!p) return res.status(404).json({ error: 'No encontrado' });
+    await execute(
+      `INSERT INTO psicologia_piar_seguimiento (colegio_id, piar_id, autor_tipo, creado_por_usuario_id, contenido)
+       VALUES (?,?,?,?,?)`,
+      [cid, piarId, 'PSICOLOGIA', Number.isFinite(uid) ? uid : null, contenido.slice(0, 8000)]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[admin/psicologia/piar/seguimiento POST]', e);
     res.status(500).json({ error: e.message || 'Error' });
   }
 });

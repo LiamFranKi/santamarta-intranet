@@ -297,4 +297,141 @@ router.post('/alumnos/:alumnoId/derivaciones', async (req, res) => {
   }
 });
 
+async function assertDocenteAsignadoPiar(colegio_id, pid, piarId) {
+  if (!colegio_id || !pid || !Number.isFinite(piarId)) return null;
+  const rows = await query(
+    `SELECT p.id, p.alumno_id, p.anio, p.numero_version, p.estado, p.diagnostico, p.fortalezas, p.areas_dificultad,
+            p.estilo_aprendizaje, p.observaciones_relevantes, p.estrategias_docentes, p.frecuencia_aplicacion,
+            p.fecha_revision, p.avances_observados, p.ajustes_necesarios_revision, p.docente_responsable_personal_id,
+            p.ajustes_checklist_json, p.objetivos_json, p.evaluacion_kpi_json, p.firma_docente_imagen, p.firma_docente_fecha
+     FROM psicologia_piar p
+     WHERE p.id = ? AND p.colegio_id = ? AND p.docente_responsable_personal_id = ?
+       AND p.estado IN ('ACTIVO','BORRADOR')
+     LIMIT 1`,
+    [piarId, colegio_id, pid]
+  );
+  return rows[0] || null;
+}
+
+/** PIAR donde el docente es el responsable de aula (asignado en expediente). */
+router.get('/mis-piar', async (req, res) => {
+  try {
+    const colegio_id = cid(req);
+    const pid = personalId(req);
+    if (!colegio_id || !pid) return res.status(400).json({ error: 'Sesión incompleta.' });
+    const rows = await query(
+      `SELECT p.id, p.alumno_id, p.anio, p.numero_version, p.estado, p.created_at, p.updated_at,
+              TRIM(CONCAT(
+                COALESCE(a.apellido_paterno,''), ' ',
+                COALESCE(a.apellido_materno,''), ' ',
+                COALESCE(a.nombres,''))) AS alumno_nombre
+       FROM psicologia_piar p
+       INNER JOIN alumnos a ON a.id = p.alumno_id AND a.colegio_id = p.colegio_id
+       WHERE p.colegio_id = ? AND p.docente_responsable_personal_id = ? AND p.estado IN ('ACTIVO','BORRADOR')
+       ORDER BY p.id DESC
+       LIMIT 100`,
+      [colegio_id, pid]
+    );
+    res.json({ piar_lista: rows || [] });
+  } catch (e) {
+    console.error('[docente/psicologia/mis-piar]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.get('/piar/:id', async (req, res) => {
+  try {
+    const colegio_id = cid(req);
+    const pid = personalId(req);
+    const id = parseInt(req.params.id, 10);
+    if (!colegio_id || !pid || !Number.isFinite(id)) return res.status(400).json({ error: 'Parámetros inválidos' });
+    const row = await assertDocenteAsignadoPiar(colegio_id, pid, id);
+    if (!row) return res.status(404).json({ error: 'PIAR no encontrado o no está asignado a usted.' });
+    const [al] = await query(
+      `SELECT TRIM(CONCAT(
+          COALESCE(a.apellido_paterno,''), ' ',
+          COALESCE(a.apellido_materno,''), ' ',
+          COALESCE(a.nombres,''))) AS nombre
+       FROM alumnos a WHERE a.id = ? AND a.colegio_id = ? LIMIT 1`,
+      [row.alumno_id, colegio_id]
+    );
+    const items = await query(
+      `SELECT s.id, s.autor_tipo, s.contenido, s.created_at
+       FROM psicologia_piar_seguimiento s
+       WHERE s.colegio_id = ? AND s.piar_id = ?
+       ORDER BY s.id ASC`,
+      [colegio_id, id]
+    );
+    res.json({ piar: { ...row, alumno_nombre: al?.nombre || '' }, seguimiento: items || [] });
+  } catch (e) {
+    console.error('[docente/psicologia/piar GET]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/** Solo campos de aula / seguimiento acordados con psicología. */
+router.put('/piar/:id', async (req, res) => {
+  try {
+    const colegio_id = cid(req);
+    const pid = personalId(req);
+    const id = parseInt(req.params.id, 10);
+    const b = req.body || {};
+    if (!colegio_id || !pid || !Number.isFinite(id)) return res.status(400).json({ error: 'Parámetros inválidos' });
+    const row = await assertDocenteAsignadoPiar(colegio_id, pid, id);
+    if (!row) return res.status(404).json({ error: 'PIAR no encontrado o no está asignado a usted.' });
+    const sets = [];
+    const params = [];
+    if (b.estrategias_docentes !== undefined) {
+      sets.push('estrategias_docentes = ?');
+      params.push(b.estrategias_docentes != null ? String(b.estrategias_docentes) : null);
+    }
+    if (b.frecuencia_aplicacion !== undefined) {
+      sets.push('frecuencia_aplicacion = ?');
+      params.push(b.frecuencia_aplicacion != null ? String(b.frecuencia_aplicacion) : null);
+    }
+    if (b.avances_observados !== undefined) {
+      sets.push('avances_observados = ?');
+      params.push(b.avances_observados != null ? String(b.avances_observados) : null);
+    }
+    if (b.firma_docente_imagen !== undefined) {
+      sets.push('firma_docente_imagen = ?');
+      params.push(b.firma_docente_imagen != null ? String(b.firma_docente_imagen) : null);
+    }
+    if (b.firma_docente_fecha !== undefined) {
+      sets.push('firma_docente_fecha = ?');
+      params.push(b.firma_docente_fecha || null);
+    }
+    if (!sets.length) return res.status(400).json({ error: 'Nada que actualizar' });
+    params.push(id, colegio_id);
+    await execute(`UPDATE psicologia_piar SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, params);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[docente/psicologia/piar PUT]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.post('/piar/:id/seguimiento', async (req, res) => {
+  try {
+    const colegio_id = cid(req);
+    const pid = personalId(req);
+    const uid = req.user.usuario_id != null ? parseInt(req.user.usuario_id, 10) : null;
+    const id = parseInt(req.params.id, 10);
+    const contenido = String((req.body || {}).contenido || '').trim();
+    if (!colegio_id || !pid || !Number.isFinite(id)) return res.status(400).json({ error: 'Parámetros inválidos' });
+    if (!contenido) return res.status(400).json({ error: 'contenido es obligatorio' });
+    const row = await assertDocenteAsignadoPiar(colegio_id, pid, id);
+    if (!row) return res.status(404).json({ error: 'PIAR no encontrado o no está asignado a usted.' });
+    await execute(
+      `INSERT INTO psicologia_piar_seguimiento (colegio_id, piar_id, autor_tipo, creado_por_usuario_id, contenido)
+       VALUES (?,?,?,?,?)`,
+      [colegio_id, id, 'DOCENTE', Number.isFinite(uid) ? uid : null, contenido.slice(0, 8000)]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[docente/psicologia/piar/seguimiento POST]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
 module.exports = router;

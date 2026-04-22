@@ -469,6 +469,15 @@ export default function DashboardLayout({ children }) {
                     </span>
                     <span className="sidebar-label">Derivaciones</span>
                   </NavLink>
+                  <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/docente/psicologia/piar"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      📋
+                    </span>
+                    <span className="sidebar-label">PIAR a mi cargo</span>
+                  </NavLink>
                   {esSupervisorSupervision ? (
                     <NavLink
                       className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
