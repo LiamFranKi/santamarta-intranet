@@ -78,6 +78,7 @@ function AlumnoExamen() {
   const tiempoInicio = useRef(null);
   const tiempoExpiracion = useRef(null);
   const respuestasRef = useRef({});
+  const cierreForzadoPorSeguridadRef = useRef(false);
   /** Evita que un guardado en curso haga que otro salga sin enviar (p. ej. al finalizar justo tras el autosave). */
   const guardarRespuestasMutexRef = useRef(Promise.resolve());
 
@@ -243,27 +244,51 @@ function AlumnoExamen() {
 
   // Protección de examen
   const handleViolation = useCallback((violation) => {
+    if (cierreForzadoPorSeguridadRef.current) return;
+
     // Registrar violación en el backend (sin bloquear si falla)
     api.post(`/alumno/examenes/${examenId}/violaciones`, {
       tipo: violation.type,
       timestamp: violation.timestamp
+    }).then((response) => {
+      const data = response?.data || {};
+      if (data.action === 'AUTO_FINALIZED') {
+        cierreForzadoPorSeguridadRef.current = true;
+        Swal.fire({
+          icon: 'error',
+          title: 'Examen cerrado por seguridad',
+          html: `
+            <div style="text-align:left;">
+              <p>Se detectaron múltiples salidas de la pantalla/pestaña del examen.</p>
+              <p><strong>El examen fue finalizado automáticamente y este intento quedó cerrado.</strong></p>
+            </div>
+          `,
+          confirmButtonText: 'Entendido'
+        }).then(() => navigate(-1));
+        return;
+      }
+
+      // Solo mostrar advertencia en la primera violación
+      if ((data.violations || violation.count || 1) <= 1) {
+        Swal.fire({
+          icon: 'warning',
+          title: '⚠️ Advertencia',
+          html: `
+            <div style="text-align:left;">
+              <p>Saliste de la ventana/pantalla del examen.</p>
+              <p><strong>Si vuelve a ocurrir, el examen se cerrará automáticamente.</strong></p>
+            </div>
+          `,
+          timer: 3500,
+          showConfirmButton: false,
+          toast: true,
+          position: 'top-end'
+        });
+      }
     }).catch(() => {
       // Silenciar errores de violaciones para no saturar la consola
     });
-    
-    // Solo mostrar advertencia si no es un blur repetido
-    if (violation.count <= 3) {
-      Swal.fire({
-        icon: 'warning',
-        title: '⚠️ Advertencia',
-        text: 'Has salido de la ventana del examen. Por favor, mantén la ventana activa.',
-        timer: 3000,
-        showConfirmButton: false,
-        toast: true,
-        position: 'top-end'
-      });
-    }
-  }, [examenId]);
+  }, [examenId, navigate]);
 
   // Protección de examen (siempre activa, pero solo funciona cuando hay examen)
   // El hook debe estar siempre presente, pero el callback verifica si hay examen

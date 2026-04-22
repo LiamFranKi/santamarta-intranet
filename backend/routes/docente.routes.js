@@ -18755,6 +18755,8 @@ router.get('/aula-virtual/examenes/:examenId/resultados', async (req, res) => {
         aep.correctas as correctas,
         aep.incorrectas as incorrectas,
         COALESCE(aep.estado, NULL) as estado,
+        COALESCE(aep.finalizado_por_salida, 'NO') as finalizado_por_salida,
+        COALESCE(aep.motivo_cierre, NULL) as motivo_cierre,
         CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
         a.nombres,
         a.apellido_paterno,

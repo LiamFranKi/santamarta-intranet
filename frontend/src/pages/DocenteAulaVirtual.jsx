@@ -7244,6 +7244,7 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
                     <th style={{ padding: '0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.3)' }}>PUNTAJE</th>
                     <th style={{ padding: '0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.3)' }}>CORRECTAS</th>
                     <th style={{ padding: '0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.3)' }}>INCORRECTAS</th>
+                    <th style={{ padding: '0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.3)' }}>ESTADO</th>
                     {!esExamenPdf ? (
                       <th style={{ padding: '0.75rem', textAlign: 'center', border: '1px solid rgba(255,255,255,0.3)' }}></th>
                     ) : null}
@@ -7254,6 +7255,8 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
                     // Usar matricula_id como key para que todos tengan dropdown, incluso sin resultado
                     const uniqueKey = resultado.matricula_id || `alumno-${index}`;
                     const tieneResultado = resultado.resultado_id !== null && resultado.resultado_id !== undefined;
+                    const finalizadoPorSalida =
+                      resultado.finalizado_por_salida === 'SI' || resultado.motivo_cierre === 'SALIDA_DE_PANTALLA';
                     
                     return (
                       <tr key={uniqueKey} style={{ borderBottom: '1px solid #e5e7eb' }}>
@@ -7262,6 +7265,37 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
                         <td style={{ padding: '0.75rem', textAlign: 'center', fontWeight: '600' }}>{tieneResultado ? Math.min(20, Math.round(resultado.puntaje || 0)) : '-'}</td>
                         <td style={{ padding: '0.75rem', textAlign: 'center', color: tieneResultado ? '#10b981' : '#6b7280', fontWeight: '600' }}>{tieneResultado ? resultado.correctas : '-'}</td>
                         <td style={{ padding: '0.75rem', textAlign: 'center', color: tieneResultado ? '#ef4444' : '#6b7280', fontWeight: '600' }}>{tieneResultado ? resultado.incorrectas : '-'}</td>
+                        <td style={{ padding: '0.75rem', textAlign: 'center' }}>
+                          {!tieneResultado ? (
+                            <span style={{ color: '#6b7280' }}>-</span>
+                          ) : finalizadoPorSalida ? (
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '0.25rem 0.6rem',
+                              borderRadius: '999px',
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                              color: '#991b1b',
+                              background: '#fee2e2',
+                              border: '1px solid #fecaca'
+                            }}>
+                              Finalizado por salida
+                            </span>
+                          ) : (
+                            <span style={{
+                              display: 'inline-block',
+                              padding: '0.25rem 0.6rem',
+                              borderRadius: '999px',
+                              fontSize: '0.75rem',
+                              fontWeight: '700',
+                              color: '#065f46',
+                              background: '#d1fae5',
+                              border: '1px solid #a7f3d0'
+                            }}>
+                              Finalizado normal
+                            </span>
+                          )}
+                        </td>
                         {!esExamenPdf ? (
                         <td style={{ padding: '0.75rem', textAlign: 'center' }}>
                           <div className="btn-group-opciones" style={{ position: 'relative' }}>

@@ -4337,9 +4337,105 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
  */
 router.post('/examenes/:examenId/violaciones', async (req, res) => {
   try {
-    const { usuario_id, colegio_id } = req.user || {};
+    const { usuario_id, colegio_id, anio_activo, alumno_id } = req.user || {};
     const { examenId } = req.params;
     const { tipo, timestamp } = req.body;
+    const LIMITE_VIOLACIONES_CIERRE = 2;
+
+    const matricula = await query(
+      `SELECT m.id as matricula_id
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0 OR m.estado = 4)
+       LIMIT 1`,
+      [alumno_id, colegio_id, anio_activo]
+    );
+
+    if (matricula.length === 0) {
+      return res.status(404).json({ error: 'No se encontró la matrícula del alumno' });
+    }
+
+    const pruebasActivas = await query(
+      `SELECT id, examen_id, matricula_id, preguntas
+       FROM asignaturas_examenes_pruebas
+       WHERE examen_id = ? AND matricula_id = ? AND estado = 'ACTIVO'
+       ORDER BY fecha_hora DESC
+       LIMIT 1`,
+      [examenId, matricula[0].matricula_id]
+    );
+
+    if (pruebasActivas.length === 0) {
+      return res.json({
+        success: true,
+        warning: 'No hay prueba activa para registrar la violación'
+      });
+    }
+
+    const pruebaActiva = pruebasActivas[0];
+
+    await execute(
+      `UPDATE asignaturas_examenes_pruebas
+       SET violaciones_count = COALESCE(violaciones_count, 0) + 1,
+           ultima_violacion_tipo = ?,
+           ultima_violacion_fecha = NOW()
+       WHERE id = ?`,
+      [String(tipo || 'DESCONOCIDA').slice(0, 60), pruebaActiva.id]
+    );
+
+    const [pruebaActualizada] = await query(
+      `SELECT id, violaciones_count
+       FROM asignaturas_examenes_pruebas
+       WHERE id = ?
+       LIMIT 1`,
+      [pruebaActiva.id]
+    );
+
+    const violacionesCount = Number(pruebaActualizada?.violaciones_count || 0);
+    let accion = 'WARNING';
+    let mensajeAccion = 'Advertencia registrada';
+
+    if (violacionesCount >= LIMITE_VIOLACIONES_CIERRE) {
+      const parsePreguntaIdsVisibles = () => {
+        try {
+          if (!pruebaActiva.preguntas || String(pruebaActiva.preguntas).trim() === '') return [];
+          const decoded = Buffer.from(pruebaActiva.preguntas, 'base64').toString('utf-8');
+          const phpSerialize = require('php-serialize');
+          const ids = phpSerialize.unserialize(decoded) || [];
+          return Array.isArray(ids) ? ids.map((id) => parseInt(id, 10)).filter((n) => Number.isFinite(n)) : [];
+        } catch (e) {
+          return [];
+        }
+      };
+
+      const preguntaIdsVisibles = parsePreguntaIdsVisibles();
+      let totalPreguntas = preguntaIdsVisibles.length;
+      if (totalPreguntas === 0) {
+        const [rowTotal] = await query(
+          `SELECT COUNT(*) AS total
+           FROM asignaturas_examenes_preguntas
+           WHERE examen_id = ?`,
+          [examenId]
+        );
+        totalPreguntas = Number(rowTotal?.total || 0);
+      }
+
+      await execute(
+        `UPDATE asignaturas_examenes_pruebas
+         SET estado = 'FINALIZADA',
+             puntaje = 0,
+             correctas = 0,
+             incorrectas = ?,
+             finalizado_por_salida = 'SI',
+             motivo_cierre = 'SALIDA_DE_PANTALLA',
+             fecha_cierre_forzado = NOW()
+         WHERE id = ?`,
+        [totalPreguntas, pruebaActiva.id]
+      );
+
+      accion = 'AUTO_FINALIZED';
+      mensajeAccion = 'Examen finalizado por violaciones de seguridad';
+    }
 
     // Registrar en auditoría usando la estructura correcta
     try {
@@ -4357,8 +4453,8 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
           usuario_id || null, 
           colegio_id || null, 
           examenId, 
-          `Violación de examen: ${tipo}`, 
-          JSON.stringify({ tipo, timestamp }), 
+          `Violación de examen: ${tipo} (conteo: ${violacionesCount})`, 
+          JSON.stringify({ tipo, timestamp, violacionesCount, accion }), 
           fechaHoraStr, 
           fecha, 
           hora
@@ -4369,7 +4465,12 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
       console.warn('No se pudo registrar violación en auditoría:', auditError.message);
     }
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      action: accion,
+      violations: violacionesCount,
+      message: mensajeAccion
+    });
   } catch (error) {
     console.error('Error registrando violación:', error);
     // No devolver error 500, solo loguear

@@ -469,7 +469,16 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
           <p><strong>${examen.titulo}</strong></p>
           <p style="margin-top: 0.5rem;">Tiempo: ${examen.tiempo > 0 ? `${examen.tiempo} minutos` : 'Ilimitado'}</p>
           <p>Preguntas: ${examen.total_preguntas || 0}</p>
-          <p style="margin-top: 0.75rem; color: #dc2626;"><strong>⚠️ Una vez iniciado, no podrás salir del examen.</strong></p>
+          <p style="margin-top: 0.75rem; color: #dc2626;"><strong>⚠️ Regla de seguridad:</strong></p>
+          <ul style="margin: 0.35rem 0 0 1.1rem; color: #7f1d1d; padding: 0;">
+            <li>Primera salida de pestaña/pantalla: advertencia.</li>
+            <li>Segunda salida: el examen se cierra automáticamente.</li>
+            <li>Si se cierra por seguridad, el intento queda consumido.</li>
+          </ul>
+          <label style="display: flex; gap: 0.5rem; align-items: flex-start; margin-top: 0.9rem; color: #111827;">
+            <input id="acepto-regla-seguridad-examen" type="checkbox" style="margin-top: 0.2rem;" />
+            <span>Acepto que si salgo de la pantalla/pestaña del examen, se aplicará cierre automático según la política.</span>
+          </label>
         </div>
       `,
       icon: 'question',
@@ -477,7 +486,15 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
       confirmButtonColor: '#10b981',
       cancelButtonColor: '#6b7280',
       confirmButtonText: 'Sí, iniciar',
-      cancelButtonText: 'Cancelar'
+      cancelButtonText: 'Cancelar',
+      preConfirm: () => {
+        const checkbox = document.getElementById('acepto-regla-seguridad-examen');
+        if (!checkbox?.checked) {
+          Swal.showValidationMessage('Debes aceptar la política de seguridad para iniciar.');
+          return false;
+        }
+        return true;
+      }
     });
 
     if (result.isConfirmed) {
