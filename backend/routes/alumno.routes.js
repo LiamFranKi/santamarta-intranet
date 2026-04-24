@@ -14,6 +14,7 @@ const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente'
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
+const { etiquetaGradoGrupo } = require('../utils/notificacionExamenApoderadoTexto');
 
 /**
  * Lista de IDs de preguntas que el alumno vio (campo preguntas: base64 + PHP serialize).
@@ -4258,13 +4259,16 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
         const examenInfo = await query(
           `SELECT ae.*, a.grupo_id, c.nombre as curso_nombre,
                   CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
-                  CONCAT(a2.nombres, ' ', a2.apellido_paterno, ' ', COALESCE(a2.apellido_materno, '')) as alumno_nombre
+                  CONCAT(a2.nombres, ' ', a2.apellido_paterno, ' ', COALESCE(a2.apellido_materno, '')) as alumno_nombre,
+                  g.grado, g.seccion, COALESCE(nl.nombre, '') AS nivel_nombre
            FROM asignaturas_examenes ae
            INNER JOIN asignaturas a ON a.id = ae.asignatura_id
            INNER JOIN cursos c ON c.id = a.curso_id
            INNER JOIN personal p ON p.id = a.personal_id
            INNER JOIN matriculas m ON m.id = ?
            INNER JOIN alumnos a2 ON a2.id = m.alumno_id
+           INNER JOIN grupos g ON g.id = m.grupo_id
+           LEFT JOIN niveles nl ON nl.id = g.nivel_id
            WHERE ae.id = ?`,
           [matricula[0].matricula_id, examenId]
         );
@@ -4276,6 +4280,12 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
           const docente_nombre = examenData.docente_nombre;
           const alumno_nombre = examenData.alumno_nombre;
           const mostrar_nota = examenData.mostrar_nota; // Puede no existir en la tabla
+          const etiquetaGradoApod = etiquetaGradoGrupo({
+            grado: examenData.grado,
+            seccion: examenData.seccion,
+            nivel_nombre: examenData.nivel_nombre
+          });
+          const sufijoGradoApod = etiquetaGradoApod ? ` — ${etiquetaGradoApod}` : '';
           
           // Solo enviar notificación si el examen permite ver la nota
           // Si mostrar_nota no existe o es NULL o 'SI', se puede ver la nota
@@ -4302,7 +4312,7 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
               colegio_id: colegio_id,
               anio_activo: anio_activo,
               tituloNotificacion: 'Examen Finalizado',
-              mensajeNotificacion: `${alumno_nombre} finalizó el examen "${titulo}" con ${puntajeFinal} puntos (${correctas} correctas, ${incorrectas} incorrectas) - Curso: ${curso_nombre} - Docente: ${docente_nombre}`,
+              mensajeNotificacion: `${alumno_nombre} finalizó el examen "${titulo}" con ${puntajeFinal} puntos (${correctas} correctas, ${incorrectas} incorrectas) - Curso: ${curso_nombre} - Docente: ${docente_nombre}${sufijoGradoApod}`,
               tipoNotificacion: 'examen_finalizado',
               dataExtra: {
                 examen_id: parseInt(examenId),

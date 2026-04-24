@@ -37,6 +37,7 @@ const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../ut
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { assertDocentePuedeEditarContenidoExamenVirtual, examenBloqueaEdicionContenidoDocente } = require('../utils/examenBloqueoEdicionContenido');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
+const { lineaAlumnoGrado } = require('../utils/notificacionExamenApoderadoTexto');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
@@ -18629,22 +18630,107 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
             
             console.log(`📚 [EXAMEN ACTIVADO] Enviando notificaciones a ${todosDestinatarios.length} destinatarios (${alumnoUsuarioIds.length} alumnos, ${apoderadoUsuarioIds.length} apoderados incluyendo docentes)`);
             
-            // Preparar notificación
             const tituloNotificacion = 'Examen Activado';
-            const mensajeNotificacion = `Examen: "${titulo}" - Curso: ${curso_nombre} - Docente: ${docente_nombre_completo}`;
+            const mensajeBaseExamen = `Examen: "${titulo}" - Curso: ${curso_nombre} - Docente: ${docente_nombre_completo}`;
+            
+            const mapaPadreHijos = new Map();
+            const apoderadoUsuarioIdSet = new Set(
+              apoderadoUsuarioIds.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n))
+            );
+            const registrarHijoPadre = (padreId, alumnoId, rowDatos) => {
+              const uid = parseInt(padreId, 10);
+              const aid = parseInt(alumnoId, 10);
+              if (Number.isNaN(uid) || Number.isNaN(aid)) return;
+              if (!mapaPadreHijos.has(uid)) mapaPadreHijos.set(uid, new Map());
+              const inner = mapaPadreHijos.get(uid);
+              if (inner.has(aid)) return;
+              inner.set(aid, lineaAlumnoGrado(rowDatos));
+            };
+            
+            if (alumnoIds.length > 0 && apoderadoUsuarioIds.length > 0) {
+              const phAl = alumnoIds.map(() => '?').join(',');
+              try {
+                const rowsApod = await query(
+                  `SELECT u.id AS padre_usuario_id,
+                    a.id AS alumno_id,
+                    TRIM(CONCAT(COALESCE(a.nombres,''),' ',COALESCE(a.apellido_paterno,''),' ',COALESCE(a.apellido_materno,''))) AS alumno_nombre,
+                    g.grado, g.seccion, COALESCE(nl.nombre,'') AS nivel_nombre
+                   FROM matriculas m
+                   INNER JOIN alumnos a ON a.id = m.alumno_id
+                   INNER JOIN grupos g ON g.id = m.grupo_id
+                   LEFT JOIN niveles nl ON nl.id = g.nivel_id
+                   INNER JOIN familias f ON f.alumno_id = a.id
+                   INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
+                   INNER JOIN usuarios u ON u.apoderado_id = ap.id AND u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'APODERADO'
+                   WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+                     AND a.id IN (${phAl})`,
+                  [colegio_id, colegio_id, grupo_id, colegio_id, ...alumnoIds]
+                );
+                for (const r of rowsApod || []) {
+                  registrarHijoPadre(r.padre_usuario_id, r.alumno_id, r);
+                }
+                const rowsDocApod = await query(
+                  `SELECT DISTINCT u.id AS padre_usuario_id,
+                    a.id AS alumno_id,
+                    TRIM(CONCAT(COALESCE(a.nombres,''),' ',COALESCE(a.apellido_paterno,''),' ',COALESCE(a.apellido_materno,''))) AS alumno_nombre,
+                    g.grado, g.seccion, COALESCE(nl.nombre,'') AS nivel_nombre
+                   FROM matriculas m
+                   INNER JOIN alumnos a ON a.id = m.alumno_id
+                   INNER JOIN grupos g ON g.id = m.grupo_id
+                   LEFT JOIN niveles nl ON nl.id = g.nivel_id
+                   INNER JOIN familias f ON f.alumno_id = a.id
+                   INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
+                   INNER JOIN usuarios u ON u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'
+                   INNER JOIN personal p ON p.id = u.personal_id
+                   WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+                     AND a.id IN (${phAl})
+                     AND ap.nro_documento IS NOT NULL AND TRIM(ap.nro_documento) <> ''
+                     AND (p.nro_documento = ap.nro_documento OR TRIM(u.usuario) = TRIM(ap.nro_documento))`,
+                  [colegio_id, colegio_id, grupo_id, colegio_id, ...alumnoIds]
+                );
+                for (const r of rowsDocApod || []) {
+                  registrarHijoPadre(r.padre_usuario_id, r.alumno_id, r);
+                }
+              } catch (eMap) {
+                console.error('❌ [EXAMEN ACTIVADO] Error construyendo contexto apoderado/hijo:', eMap);
+              }
+            }
+            
+            const construirMensajeExamenActivado = (destinatarioIdNum, tipoUsuario) => {
+              if (tipoUsuario === 'ALUMNO') return mensajeBaseExamen;
+              if (!apoderadoUsuarioIdSet.has(destinatarioIdNum)) return mensajeBaseExamen;
+              const inner = mapaPadreHijos.get(destinatarioIdNum);
+              if (!inner || inner.size === 0) return mensajeBaseExamen;
+              const prefijo = Array.from(inner.values()).join(' · ');
+              return prefijo ? `${prefijo} — ${mensajeBaseExamen}` : mensajeBaseExamen;
+            };
+            
+            let tipoPorDestinatarioExamen = new Map();
+            if (todosDestinatarios.length > 0) {
+              const phDest = todosDestinatarios.map(() => '?').join(',');
+              const tiposRowsEx = await query(
+                `SELECT id, tipo, alumno_id FROM usuarios WHERE id IN (${phDest})`,
+                todosDestinatarios.map((id) => parseInt(id, 10))
+              );
+              tipoPorDestinatarioExamen = new Map(
+                (tiposRowsEx || []).map((r) => [parseInt(r.id, 10), { tipo: r.tipo, alumno_id: r.alumno_id }])
+              );
+            }
             
             const asignatura_id_ex = examenInfo[0].asignatura_id;
             // Crear notificaciones en la BD
             if (todosDestinatarios.length > 0) {
               for (const destinatarioId of todosDestinatarios) {
                 try {
+                  const destNum = parseInt(destinatarioId, 10);
                   const urlEx = await obtenerUrlExamenActivado(query, destinatarioId, {
                     asignatura_id: asignatura_id_ex,
                     grupo_id,
                     examen_id: parseInt(examenId, 10)
                   });
-                  const uRows = await query(`SELECT tipo, alumno_id FROM usuarios WHERE id = ? LIMIT 1`, [destinatarioId]);
-                  const u0 = uRows[0] || {};
+                  const uMeta = tipoPorDestinatarioExamen.get(destNum) || {};
+                  const u0 = { tipo: uMeta.tipo, alumno_id: uMeta.alumno_id };
+                  const mensajeNotificacion = construirMensajeExamenActivado(destNum, u0.tipo);
                   await insertNotificacionUsuario(execute, {
                     usuario_id,
                     destinatario_id: destinatarioId,
@@ -18683,6 +18769,9 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
                     grupo_id,
                     examen_id: parseInt(examenId, 10)
                   });
+                  const uidPush = parseInt(sub.usuario_id, 10);
+                  const tipoPush = (tipoPorDestinatarioExamen.get(uidPush) || {}).tipo;
+                  const bodyPush = construirMensajeExamenActivado(uidPush, tipoPush);
                   pushItems.push({
                     subscription: {
                       endpoint: sub.endpoint,
@@ -18690,7 +18779,7 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
                     },
                     payload: {
                       title: tituloNotificacion,
-                      body: mensajeNotificacion,
+                      body: bodyPush,
                       icon: '/icons/icon-192x192.png',
                       badge: '/icons/icon-192x192.png',
                       vibrate: [200, 100, 200],
