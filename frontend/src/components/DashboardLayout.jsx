@@ -75,9 +75,11 @@ export default function DashboardLayout({ children }) {
       ),
       ...(
         (
-          path.startsWith('/docente/comunicados')
-          || path.startsWith('/docente/actividades')
-        ) && { psicologaCom: true }
+          path.startsWith('/admin/comunicaciones')
+          || path.startsWith('/admin/vanguarcito')
+        ) && user?.tipo === 'PSICOLOGA'
+          ? { psicologaCom: true }
+          : {}
       ),
       ...(path.startsWith('/admin/usuarios/alumnos') || path.startsWith('/admin/usuarios/apoderados')
         ? { psicologaUsuarios: true }
@@ -1080,17 +1082,46 @@ export default function DashboardLayout({ children }) {
                   }}
                   className={`sidebar-submenu ${expandedMenus.psicologaCom ? 'expanded' : ''}`}
                 >
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/docente/comunicados">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/publicaciones">
                     <span className="sidebar-icon" aria-hidden>
-                      📢
+                      📰
                     </span>
-                    <span className="sidebar-label">Comunicados</span>
+                    <span className="sidebar-label">Publicaciones</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/docente/actividades">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/conexiones">
                     <span className="sidebar-icon" aria-hidden>
-                      📅
+                      🔗
                     </span>
-                    <span className="sidebar-label">Actividades</span>
+                    <span className="sidebar-label">Conexiones</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/incidencias">
+                    <span className="sidebar-icon" aria-hidden>
+                      ⚠️
+                    </span>
+                    <span className="sidebar-label">Incidencias</span>
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) =>
+                      `sidebar-sublink ${isActive || location.pathname === '/admin/vanguarcito' ? 'active' : ''}`
+                    }
+                    to="/admin/comunicaciones/chat-vanguard"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      💬
+                    </span>
+                    <span className="sidebar-label">Chat Vanguard</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/eventos">
+                    <span className="sidebar-icon" aria-hidden>
+                      🎪
+                    </span>
+                    <span className="sidebar-label">Eventos (Ver todo)</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/notificaciones">
+                    <span className="sidebar-icon" aria-hidden>
+                      🔔
+                    </span>
+                    <span className="sidebar-label">Notificaciones</span>
                   </NavLink>
                 </div>
               </div>
@@ -1276,7 +1307,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/eventos">
                     <span className="sidebar-icon" aria-hidden>🎪</span>
-                    <span className="sidebar-label">Eventos (ver todo)</span>
+                    <span className="sidebar-label">Eventos (Ver todo)</span>
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/notificaciones">
                     <span className="sidebar-icon" aria-hidden>🔔</span>

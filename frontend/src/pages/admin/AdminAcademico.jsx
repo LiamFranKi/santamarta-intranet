@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './AdminDocumentosGestion.css';
@@ -777,6 +778,15 @@ function NivelesPanel({ onRefreshMeta }) {
 }
 
 function GruposPanel({ meta }) {
+  const { user } = useAuth();
+  const vistaSoloLecturaGrados = user?.tipo === 'PSICOLOGA';
+  const opcionesGrupoMenuVisibles = useMemo(
+    () =>
+      vistaSoloLecturaGrados
+        ? OPCIONES_GRUPO_MENU.filter((op) => op.key !== 'editar' && op.key !== 'eliminar')
+        : OPCIONES_GRUPO_MENU,
+    [vistaSoloLecturaGrados]
+  );
   const anioDef = meta?.anio_activo || new Date().getFullYear();
   const anioActual = new Date().getFullYear();
   const [anio, setAnio] = useState(anioDef);
@@ -1016,15 +1026,21 @@ function GruposPanel({ meta }) {
             Ver todo
           </button>
         </div>
-        <button type="button" className="admin-academico-grupos-btn-nuevo" onClick={openNew}>
-          + Nuevo grado
-        </button>
+        {!vistaSoloLecturaGrados && (
+          <button type="button" className="admin-academico-grupos-btn-nuevo" onClick={openNew}>
+            + Nuevo grado
+          </button>
+        )}
       </div>
 
       {loading ? (
         <p className="admin-academico-grupos-loading">Cargando…</p>
       ) : rows.length === 0 ? (
-        <p className="admin-academico-niveles-empty">No hay grupos para este año y filtros. Use «+ Nuevo grado».</p>
+        <p className="admin-academico-niveles-empty">
+          {vistaSoloLecturaGrados
+            ? 'No hay grupos para este año y filtros.'
+            : 'No hay grupos para este año y filtros. Use «+ Nuevo grado».'}
+        </p>
       ) : (
         <div className="admin-academico-grupos-grid">
           {filasGruposOrdenadas.map((r, idx) => {
@@ -1076,7 +1092,7 @@ function GruposPanel({ meta }) {
                     </button>
                     {menuGrupoId === r.id && (
                       <div className="admin-academico-grupo-card__dropdown" role="menu">
-                        {OPCIONES_GRUPO_MENU.map((op) => (
+                        {opcionesGrupoMenuVisibles.map((op) => (
                           <button
                             key={op.key}
                             type="button"
