@@ -31,7 +31,11 @@ function NotificacionesWidget() {
         ruta = '/alumno/notificaciones';
       } else if (user?.tipo === 'APODERADO') {
         ruta = '/apoderado/notificaciones';
-      } else if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') {
+      } else if (
+        user?.tipo === 'ADMINISTRADOR'
+        || user?.tipo === 'PROMOTORIA'
+        || user?.tipo === 'PSICOLOGA'
+      ) {
         ruta = '/admin/notificaciones';
       } else {
         ruta = '/docente/notificaciones';

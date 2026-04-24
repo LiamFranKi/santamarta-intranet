@@ -171,6 +171,12 @@ router.use((req, res, next) => {
       return next();
     }
   }
+  if (req.user.tipo === 'PSICOLOGA') {
+    const p = req.path || '';
+    if (p === '/notificaciones' || p.startsWith('/notificaciones/')) {
+      return next();
+    }
+  }
   return res.status(403).json({
     error: 'No tienes permisos para acceder a este recurso'
   });
