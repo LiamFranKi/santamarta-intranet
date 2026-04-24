@@ -8,6 +8,10 @@ import DocentePerfil from '../DocentePerfil';
 export default function AdminPerfil() {
   const { user } = useAuth();
   const dashboardPath =
-    user?.tipo === 'PROMOTORIA' ? '/promotoria/dashboard' : '/admin/dashboard';
+    user?.tipo === 'PROMOTORIA'
+      ? '/promotoria/dashboard'
+      : user?.tipo === 'PSICOLOGA'
+        ? '/admin/psicologa-dashboard'
+        : '/admin/dashboard';
   return <DocentePerfil apiPrefix="/admin" dashboardPath={dashboardPath} />;
 }

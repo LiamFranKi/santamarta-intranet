@@ -173,7 +173,8 @@ router.use((req, res, next) => {
   }
   if (req.user.tipo === 'PSICOLOGA') {
     const p = req.path || '';
-    if (p === '/notificaciones' || p.startsWith('/notificaciones/')) {
+    const prefijosPsicologa = ['/notificaciones', '/perfil'];
+    if (prefijosPsicologa.some((prefix) => p === prefix || p.startsWith(`${prefix}/`))) {
       return next();
     }
   }
