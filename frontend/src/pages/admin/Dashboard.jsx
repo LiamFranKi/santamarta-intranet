@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, useSearchParams, useParams } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams, useParams, Navigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import BirthdayWidget from '../../components/BirthdayWidget';
@@ -18,6 +18,17 @@ import AdminMatriculasInscripcion from './AdminMatriculasInscripcion';
 import AdminAcademico from './AdminAcademico';
 import AdminPsicologiaLista from './AdminPsicologiaLista';
 import AdminPsicologiaExpediente from './AdminPsicologiaExpediente';
+
+const PSICOLOGA_RUTAS_ADMIN = [
+  '/admin/psicologia',
+  '/admin/usuarios/alumnos',
+  '/admin/usuarios/apoderados',
+  '/admin/academico/grados'
+];
+
+function rutaAdminPermitidaPsicologa(pathname) {
+  return PSICOLOGA_RUTAS_ADMIN.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
 
 const coloresPasteles = [
   'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',   // Verde menta
@@ -39,18 +50,29 @@ function Dashboard() {
   const [errorKpis, setErrorKpis] = useState(null);
 
   useEffect(() => {
+    if (user?.tipo === 'PSICOLOGA') {
+      setStats(null);
+      setLoadingStats(false);
+      return;
+    }
     api.get('/admin/dashboard').then(res => {
       setStats(res.data);
     }).catch(() => setStats(null)).finally(() => setLoadingStats(false));
-  }, []);
+  }, [user?.tipo]);
 
   // Cargar KPIs de pagos/pensiones para el cuadro por concepto
   useEffect(() => {
+    if (user?.tipo === 'PSICOLOGA') {
+      setKpis(null);
+      setErrorKpis(null);
+      setLoadingKpis(false);
+      return;
+    }
     api.get('/admin/estadisticas/kpis')
       .then((res) => setKpis(res.data))
       .catch((err) => setErrorKpis(err.response?.data?.error || 'Error al cargar estadísticas por concepto'))
       .finally(() => setLoadingKpis(false));
-  }, []);
+  }, [user?.tipo]);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -203,6 +225,11 @@ function Dashboard() {
       title: '🧠 Psicología',
       description: 'Búsqueda de alumnos y expediente (atenciones, derivaciones, actas, PIAR)',
       icon: '🧠'
+    },
+    '/admin/psicologa-dashboard': {
+      title: '🧠 Panel de psicología',
+      description: 'Resumen y accesos rápidos',
+      icon: '🧠'
     }
   };
   
@@ -219,6 +246,18 @@ function Dashboard() {
           description: 'Aquí tienes un resumen de tu sistema educativo',
           icon: '📊'
         });
+
+  if (user?.tipo === 'PSICOLOGA' && location.pathname.startsWith('/admin/academico/') && location.pathname !== '/admin/academico/grados') {
+    return <Navigate to="/admin/academico/grados" replace />;
+  }
+
+  if (
+    user?.tipo === 'PSICOLOGA'
+    && location.pathname.startsWith('/admin/')
+    && !rutaAdminPermitidaPsicologa(location.pathname)
+  ) {
+    return <Navigate to="/admin/psicologa-dashboard" replace />;
+  }
 
   // Si es una ruta específica de admin (pero NO el dashboard principal), mostrar contenido específico (placeholder)
   const isAdminRoute = location.pathname.startsWith('/admin/') && location.pathname !== '/admin/dashboard';

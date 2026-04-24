@@ -53,18 +53,33 @@ function sha1Password(plain) {
   return crypto.createHash('sha1').update(String(plain), 'utf8').digest('hex');
 }
 
-function requireAdmin(req, res, next) {
+/**
+ * Administrador: todo el módulo. PSICOLOGA: solo alumnos, apoderados y búsqueda personal por DNI (apoyo a fichas).
+ */
+function requireAdminOrPsicologaUsuarios(req, res, next) {
   if (!req.user) {
     return res.status(401).json({ error: 'Usuario no autenticado' });
   }
-  if (req.user.tipo !== 'ADMINISTRADOR') {
-    return res.status(403).json({ error: 'Solo administradores pueden gestionar usuarios' });
+  const tipo = req.user.tipo;
+  if (tipo === 'ADMINISTRADOR') {
+    return next();
   }
-  next();
+  if (tipo === 'PSICOLOGA') {
+    const rel = req.path || '';
+    if (
+      rel.startsWith('/alumnos')
+      || rel.startsWith('/apoderados')
+      || rel === '/personal-por-dni'
+    ) {
+      return next();
+    }
+    return res.status(403).json({ error: 'No autorizado' });
+  }
+  return res.status(403).json({ error: 'Solo administradores pueden gestionar usuarios' });
 }
 
 router.use(authenticateToken);
-router.use(requireAdmin);
+router.use(requireAdminOrPsicologaUsuarios);
 
 /**
  * Línea de matrícula pendiente legada: `fecha_hora` = 1970-01-01 o null → mostrar fecha de registro de matrícula.

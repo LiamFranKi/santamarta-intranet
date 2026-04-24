@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import DashboardLayout from '../components/DashboardLayout';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -67,8 +68,11 @@ const DOCENTE_PASTELS = [
 ];
 
 export default function VocabulariosPage({ variant = 'admin' }) {
+  const { user } = useAuth();
   const copy = VARIANT_COPY[variant] || VARIANT_COPY.admin;
-  const puedeGestionar = variant === 'admin' || variant === 'docente';
+  const puedeGestionar =
+    (variant === 'admin' || variant === 'docente') && user?.tipo !== 'PSICOLOGA';
+  const cargaOpcionesGrado = variant === 'admin' || variant === 'docente';
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
@@ -79,7 +83,7 @@ export default function VocabulariosPage({ variant = 'admin' }) {
   const [archivo, setArchivo] = useState(null);
 
   const cargarOpciones = useCallback(async () => {
-    if (!puedeGestionar) return;
+    if (!cargaOpcionesGrado) return;
     try {
       const res = await api.get('/vocabularios/opciones-grado');
       setOpciones(res.data.opciones || []);
@@ -87,7 +91,7 @@ export default function VocabulariosPage({ variant = 'admin' }) {
       console.error(e);
       setOpciones([]);
     }
-  }, [puedeGestionar]);
+  }, [cargaOpcionesGrado]);
 
   const cargarLista = useCallback(async () => {
     const res = await api.get('/vocabularios');

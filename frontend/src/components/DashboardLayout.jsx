@@ -38,7 +38,11 @@ export default function DashboardLayout({ children }) {
     comunicaciones: null,
     configuracion: null,
     docenteHerramientas: null,
-    alumnoHerramientas: null
+    alumnoHerramientas: null,
+    psicologaCom: null,
+    psicologaUsuarios: null,
+    psicologaAcademico: null,
+    psicologaHerramientas: null
   });
 
   // Mantener abierto el submenú que contiene la ruta actual (evita que se "bloquee" la navegación en Config, etc.)
@@ -71,6 +75,25 @@ export default function DashboardLayout({ children }) {
       ),
       ...(
         (
+          path.startsWith('/docente/comunicados')
+          || path.startsWith('/docente/actividades')
+        ) && { psicologaCom: true }
+      ),
+      ...(path.startsWith('/admin/usuarios/alumnos') || path.startsWith('/admin/usuarios/apoderados')
+        ? { psicologaUsuarios: true }
+        : {}),
+      ...(path.startsWith('/admin/academico/grados') ? { psicologaAcademico: true } : {}),
+      ...(
+        (
+          path.startsWith('/docente/herramientas')
+          || path.startsWith('/herramientas-examenes')
+          || path.startsWith('/encuestas')
+        ) && user?.tipo === 'PSICOLOGA'
+          ? { psicologaHerramientas: true }
+          : {}
+      ),
+      ...(
+        (
           path.startsWith('/alumno/herramientas') ||
           path.startsWith('/alumno/vocabularios') ||
           path.startsWith('/herramientas-examenes') ||
@@ -78,7 +101,7 @@ export default function DashboardLayout({ children }) {
         ) && { alumnoHerramientas: true }
       ),
     }));
-  }, [location.pathname]);
+  }, [location.pathname, user?.tipo]);
 
   // Al cambiar de ruta: cerrar sidebar en móvil y mantener visible el ítem activo (evitar que el menú “suba” al hacer clic en Mensajes, etc.)
   useEffect(() => {
@@ -323,7 +346,7 @@ export default function DashboardLayout({ children }) {
                     : role === 'APODERADO'
                       ? '/apoderado/dashboard'
                       : role === 'PSICOLOGA'
-                        ? '/admin/psicologia'
+                        ? '/admin/psicologa-dashboard'
                         : role === 'ADMINISTRADOR'
                           ? '/admin/dashboard'
                           : role === 'PROMOTORIA'
@@ -920,9 +943,9 @@ export default function DashboardLayout({ children }) {
           ) : role === 'PSICOLOGA' ? (
             <>
               <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia" end>
-                  <span className="sidebar-icon">🧠</span>
-                  <span className="sidebar-label">Psicología</span>
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologa-dashboard" end>
+                  <span className="sidebar-icon">📊</span>
+                  <span className="sidebar-label">Dashboard</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
@@ -930,6 +953,146 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-icon">👤</span>
                   <span className="sidebar-label">Mi Perfil</span>
                 </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia" end>
+                  <span className="sidebar-icon">🧠</span>
+                  <span className="sidebar-label">Psicología</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.psicologaUsuarios ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('psicologaUsuarios')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">👥</span>
+                    <span className="sidebar-label">Usuarios</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div
+                  ref={(el) => {
+                    submenuRefs.current.psicologaUsuarios = el;
+                  }}
+                  className={`sidebar-submenu ${expandedMenus.psicologaUsuarios ? 'expanded' : ''}`}
+                >
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/usuarios/alumnos">
+                    <span className="sidebar-icon" aria-hidden>
+                      🎓
+                    </span>
+                    <span className="sidebar-label">Alumnos</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/usuarios/apoderados">
+                    <span className="sidebar-icon" aria-hidden>
+                      👨‍👩‍👧
+                    </span>
+                    <span className="sidebar-label">Apoderados</span>
+                  </NavLink>
+                </div>
+              </div>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.psicologaAcademico ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('psicologaAcademico')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">🎓</span>
+                    <span className="sidebar-label">Académico</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div
+                  ref={(el) => {
+                    submenuRefs.current.psicologaAcademico = el;
+                  }}
+                  className={`sidebar-submenu ${expandedMenus.psicologaAcademico ? 'expanded' : ''}`}
+                >
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/academico/grados">
+                    <span className="sidebar-icon" aria-hidden>
+                      📑
+                    </span>
+                    <span className="sidebar-label">Grados</span>
+                  </NavLink>
+                </div>
+              </div>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.psicologaHerramientas ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('psicologaHerramientas')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">🧰</span>
+                    <span className="sidebar-label">Herramientas</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div
+                  ref={(el) => {
+                    submenuRefs.current.psicologaHerramientas = el;
+                  }}
+                  className={`sidebar-submenu ${expandedMenus.psicologaHerramientas ? 'expanded' : ''}`}
+                >
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/docente/herramientas/documentos">
+                    <span className="sidebar-icon" aria-hidden>
+                      📄
+                    </span>
+                    <span className="sidebar-label">Documentos</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/docente/herramientas/examenes">
+                    <span className="sidebar-icon" aria-hidden>
+                      🎯
+                    </span>
+                    <span className="sidebar-label">Exámenes</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/docente/herramientas/encuestas">
+                    <span className="sidebar-icon" aria-hidden>
+                      📋
+                    </span>
+                    <span className="sidebar-label">Encuestas</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/docente/herramientas/vocabularios">
+                    <span className="sidebar-icon" aria-hidden>
+                      📚
+                    </span>
+                    <span className="sidebar-label">Vocabularios</span>
+                  </NavLink>
+                </div>
+              </div>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.psicologaCom ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('psicologaCom')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">📣</span>
+                    <span className="sidebar-label">Comunicaciones</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div
+                  ref={(el) => {
+                    submenuRefs.current.psicologaCom = el;
+                  }}
+                  className={`sidebar-submenu ${expandedMenus.psicologaCom ? 'expanded' : ''}`}
+                >
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/docente/comunicados">
+                    <span className="sidebar-icon" aria-hidden>
+                      📢
+                    </span>
+                    <span className="sidebar-label">Comunicados</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/docente/actividades">
+                    <span className="sidebar-icon" aria-hidden>
+                      📅
+                    </span>
+                    <span className="sidebar-label">Actividades</span>
+                  </NavLink>
+                </div>
               </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/mensajes">

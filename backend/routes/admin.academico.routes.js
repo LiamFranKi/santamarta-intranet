@@ -1,6 +1,6 @@
 /**
  * Catálogo académico (alineado a tablas MySQL del sistema anterior: niveles, grupos, cursos, áreas, asignaturas).
- * Solo ADMINISTRADOR.
+ * ADMINISTRADOR: todo. PSICOLOGA: solo meta + grupos/grados (aulas del año activo).
  */
 const express = require('express');
 const fs = require('fs');
@@ -14,6 +14,13 @@ const { sqlMatriculaEstadoSoloRegular } = require('../utils/matriculaEstados');
 router.use(authenticateToken);
 router.use((req, res, next) => {
   if (req.user?.tipo === 'ADMINISTRADOR') return next();
+  if (req.user?.tipo === 'PSICOLOGA') {
+    const p = req.path || '';
+    if (p === '/meta' || p.startsWith('/grupos') || p.startsWith('/grados')) {
+      return next();
+    }
+    return res.status(403).json({ error: 'No autorizado para esta sección del catálogo académico.' });
+  }
   return res.status(403).json({ error: 'Solo el perfil Administrador puede gestionar el catálogo académico.' });
 });
 

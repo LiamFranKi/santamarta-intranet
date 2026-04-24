@@ -27,6 +27,7 @@ function usuarioCoincideAudiencia(user, audiencias) {
   if (!audiencias || audiencias.length === 0) return false;
   if (audiencias.some((a) => a.tipo === 'TODOS')) return true;
   if (audiencias.some((a) => a.tipo === user.tipo)) return true;
+  if (user.tipo === 'PSICOLOGA' && audiencias.some((a) => a.tipo === 'DOCENTE')) return true;
   return false;
 }
 

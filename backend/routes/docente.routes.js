@@ -44,6 +44,18 @@ function esAdminOPromotoria(tipo) {
   return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA';
 }
 
+/** PSICOLOGA: solo rutas de comunicación, agenda, mensajería y documentos de gestión (misma API que docente donde aplica). */
+function psicologaRutaDocentePermitida(path) {
+  const prefixes = [
+    '/comunicados',
+    '/actividades',
+    '/mensajes',
+    '/documentos-gestion',
+    '/roles-adicionales'
+  ];
+  return prefixes.some((pre) => path === pre || path.startsWith(`${pre}/`));
+}
+
 /** enrollment_incidents.assignment_id cuando el registro es del tutor (no hay asignatura) */
 const ASSIGNMENT_ID_TUTORIA = -102;
 
@@ -844,6 +856,9 @@ router.use((req, res, next) => {
     return res.status(401).json({ error: 'Usuario no autenticado' });
   }
   if (req.user.tipo !== 'DOCENTE' && !esAdminOPromotoria(req.user.tipo)) {
+    if (req.user.tipo === 'PSICOLOGA' && psicologaRutaDocentePermitida(req.path || '')) {
+      return next();
+    }
     if (req.path.includes('/hijos/') && req.path.includes('/aula-virtual')) {
       console.error(`❌ [MIDDLEWARE-GLOBAL] Tipo de usuario no permitido: ${req.user.tipo}`);
     }
@@ -8527,7 +8542,7 @@ router.get('/roles-adicionales', async (req, res) => {
 router.get('/documentos-gestion', async (req, res) => {
   try {
     const { colegio_id, tipo } = req.user;
-    const tipoUsuario = tipo || 'DOCENTE';
+    const tipoUsuario = tipo === 'PSICOLOGA' ? 'DOCENTE' : tipo || 'DOCENTE';
     const documentos = await query(
       `SELECT d.id, d.titulo, d.nombre_archivo_original, d.ruta_almacenamiento, d.perfil_destino,
               d.fecha_publicacion, d.created_at,

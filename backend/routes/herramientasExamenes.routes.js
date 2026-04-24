@@ -74,6 +74,18 @@ function requireDocente(req, res, next) {
   next();
 }
 
+/** Listado y detalle de exámenes “docente” también para psicología (solo lectura en UI). */
+function requireDocenteOPsicologa(req, res, next) {
+  if (!req.user) {
+    return res.status(403).json({ error: 'No autorizado' });
+  }
+  const t = String(req.user.tipo || '').toUpperCase();
+  if (t === 'DOCENTE' || t === 'PSICOLOGA') {
+    return next();
+  }
+  return res.status(403).json({ error: 'Solo docentes' });
+}
+
 function uid(req) {
   if (!req?.user) return undefined;
   return req.user.usuario_id ?? req.user.id;
@@ -945,13 +957,13 @@ router.delete('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (
 
 // ---------- Docente: deshabilitado (gestión solo administración) ----------
 
-router.get('/docente/lista', authenticateToken, requireDocente, (req, res) => {
+router.get('/docente/lista', authenticateToken, requireDocenteOPsicologa, (req, res) => {
   res.status(403).json({
     error: 'La creación y gestión de exámenes de herramientas es solo para administración.'
   });
 });
 
-router.get('/docente/:id', authenticateToken, requireDocente, (req, res) => {
+router.get('/docente/:id', authenticateToken, requireDocenteOPsicologa, (req, res) => {
   res.status(403).json({
     error: 'La creación y gestión de exámenes de herramientas es solo para administración.'
   });

@@ -34,6 +34,7 @@ const uploadPdf = multer({
 });
 
 const esAdminOPromo = (tipo) => tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA';
+const esPsicologa = (tipo) => tipo === 'PSICOLOGA';
 
 /** Grupos del año: id, nivel, grado, sección (para selects). */
 async function gruposAlcanceDocente(colegio_id, anio_activo, personal_id) {
@@ -121,6 +122,10 @@ router.get('/opciones-grado', async (req, res) => {
       const opciones = await gruposTodosColegio(colegio_id, anio);
       return res.json({ opciones });
     }
+    if (esPsicologa(tipo)) {
+      const opciones = await gruposTodosColegio(colegio_id, anio);
+      return res.json({ opciones });
+    }
     if (tipo === 'DOCENTE') {
       const opciones = await gruposAlcanceDocente(colegio_id, anio, personal_id);
       return res.json({ opciones });
@@ -165,6 +170,19 @@ router.get('/', async (req, res) => {
           archivo_url: `/uploads/${r.ruta_almacenamiento}`,
           es_mio: true,
           puede_editar: true
+        }))
+      });
+    }
+
+    if (esPsicologa(tipo)) {
+      sql += ' ORDER BY v.created_at DESC';
+      const list = await query(sql, params);
+      return res.json({
+        items: (list || []).map((r) => ({
+          ...r,
+          archivo_url: `/uploads/${r.ruta_almacenamiento}`,
+          es_mio: false,
+          puede_editar: false
         }))
       });
     }
@@ -229,7 +247,7 @@ router.get('/', async (req, res) => {
 router.post('/', uploadPdf.single('archivo'), async (req, res) => {
   try {
     const { colegio_id, anio_activo, tipo, personal_id, usuario_id } = req.user;
-    if (tipo === 'ALUMNO') {
+    if (tipo === 'ALUMNO' || esPsicologa(tipo)) {
       if (req.file?.path) fs.unlink(req.file.path, () => {});
       return res.status(403).json({ error: 'No autorizado' });
     }
@@ -370,7 +388,7 @@ router.post('/', uploadPdf.single('archivo'), async (req, res) => {
 router.put('/:id', uploadPdf.single('archivo'), async (req, res) => {
   try {
     const { colegio_id, anio_activo, tipo, personal_id, usuario_id } = req.user;
-    if (tipo === 'ALUMNO') {
+    if (tipo === 'ALUMNO' || esPsicologa(tipo)) {
       if (req.file?.path) fs.unlink(req.file.path, () => {});
       return res.status(403).json({ error: 'No autorizado' });
     }
@@ -471,6 +489,9 @@ router.put('/:id', uploadPdf.single('archivo'), async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { colegio_id, tipo, personal_id } = req.user;
+    if (esPsicologa(tipo)) {
+      return res.status(403).json({ error: 'No autorizado' });
+    }
     const id = parseInt(req.params.id, 10);
     const rows = await query(`SELECT * FROM vocabularios WHERE id = ? AND colegio_id = ?`, [id, colegio_id]);
     if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
