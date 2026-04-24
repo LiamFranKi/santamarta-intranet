@@ -13,6 +13,7 @@ const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlter
 const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
+const { esCompletarCorrecto } = require('../utils/examenCompletar');
 
 /**
  * Lista de IDs de preguntas que el alumno vio (campo preguntas: base64 + PHP serialize).
@@ -4022,43 +4023,16 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
           break;
 
         case 'COMPLETAR':
-          // La respuesta es un objeto con índices: {0: "lima", 1: "otro"}
+          // Objeto {0: "...", 1: "..."} alineado al orden de [[...]] ; [[a|b]] acepta varias formas por hueco
           if (respuestaAlumno && typeof respuestaAlumno === 'object') {
-            // Obtener todas las respuestas del alumno (normalizadas a minúsculas)
-            const respuestasCompletar = Object.values(respuestaAlumno)
-              .map(r => String(r).trim().toLowerCase())
-              .filter(r => r);
-            
-            // Obtener respuestas correctas desde los placeholders [[...]] de la descripción
-            const descripcionLimpia = pregunta.descripcion ? pregunta.descripcion.replace(/<[^>]*>/g, '') : '';
-            const respuestasCorrectas = [];
-            const regex = /\[\[([^\]]+)\]\]/g;
-            let match;
-            while ((match = regex.exec(descripcionLimpia)) !== null) {
-              const respuesta = match[1].trim().toLowerCase();
-              if (respuesta) {
-                respuestasCorrectas.push(respuesta);
-              }
-            }
-            
-            // Comparar cada respuesta del alumno con las correctas (sin importar el orden)
-            let todasCorrectas = false;
-            if (respuestasCompletar.length > 0 && respuestasCorrectas.length > 0) {
-              // Verificar que todas las respuestas del alumno estén en las correctas
-              // y que tengan la misma cantidad
-              if (respuestasCompletar.length === respuestasCorrectas.length) {
-                todasCorrectas = respuestasCompletar.every(resp => 
-                  respuestasCorrectas.includes(resp)
-                );
-              }
-            }
-            
+            const tieneAlgunaRespuesta = Object.keys(respuestaAlumno).length > 0;
+            const todasCorrectas = esCompletarCorrecto(respuestaAlumno, pregunta.descripcion);
             if (todasCorrectas) {
               esCorrecta = true;
               puntosPregunta = tipoPuntaje === 'GENERAL' 
                 ? puntosCorrecta
                 : (parseFloat(pregunta.puntos) || 0);
-            } else if (examen[0].penalizar_incorrecta === 'SI' && respuestasCompletar.length > 0) {
+            } else if (examen[0].penalizar_incorrecta === 'SI' && tieneAlgunaRespuesta) {
               puntosPregunta = -(parseFloat(examen[0].penalizacion_incorrecta) || 0);
             }
           }

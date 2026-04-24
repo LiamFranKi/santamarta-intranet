@@ -140,7 +140,8 @@ router.get('/documentos-gestion', async (req, res) => {
  *
  * Objetivo:
  * - Permitir consultar un año distinto al `anio_activo` del JWT mediante `anio_consulta` (query param).
- * - Solo permitir si el apoderado tiene hijos matriculados en ese año y NO tiene deuda de pensiones.
+ * - Solo permitir si el apoderado tiene hijos matriculados en ese año y NO tiene deuda de pensiones
+ *   (la deuda solo se evalúa si colegios.bloquear_deudores = SI).
  */
 
 async function apoderadoTieneDeudaParaAnio(apoderado_id, colegio_id, anioConsulta) {
@@ -159,6 +160,8 @@ async function apoderadoTieneDeudaParaAnio(apoderado_id, colegio_id, anioConsult
   }
 
   const colegio = colegios[0];
+  const bloquearDeudoresActivo =
+    String(colegio.bloquear_deudores || '').trim().toUpperCase() === 'SI';
   const diasTolerancia = colegio.dias_tolerancia || 0;
   const inicioPensiones = colegio.inicio_pensiones || 2;
 
@@ -232,6 +235,10 @@ async function apoderadoTieneDeudaParaAnio(apoderado_id, colegio_id, anioConsult
     return { tieneMatriculas: false, tieneDeuda: false };
   }
 
+  if (!bloquearDeudoresActivo) {
+    return { tieneMatriculas: true, tieneDeuda: false };
+  }
+
   const fechaActual = new Date();
   fechaActual.setHours(0, 0, 0, 0);
 
@@ -302,7 +309,9 @@ router.use(async (req, res, next) => {
 
     const estado = await apoderadoTieneDeudaParaAnio(apoderado_id, colegio_id, anioConsulta);
     if (!estado.tieneMatriculas || estado.tieneDeuda) {
-      return res.status(403).json({ error: 'Acceso histórico bloqueado por deuda de pensiones' });
+      return res.status(403).json({
+        error: 'Problemas con el servidor, se está solucionando.'
+      });
     }
 
     req.user.anio_activo = anioConsulta;

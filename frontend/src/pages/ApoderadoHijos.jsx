@@ -281,47 +281,13 @@ function ApoderadoHijos() {
       }
       
       const response = await api.get(`/auth/diagnostico-deudas/${dniHijo}`);
-      console.log('[FRONTEND] Resultado del diagnóstico:', response.data);
-      
-      // Mostrar resultado en un modal
       const resultado = response.data;
-      let mensaje = `<h3>Diagnóstico de Deudas - ${hijo.nombres} ${hijo.apellido_paterno}</h3>`;
-      mensaje += `<p><strong>DNI:</strong> ${resultado.alumno?.dni || 'N/A'}</p>`;
-      mensaje += `<p><strong>Configuración:</strong></p>`;
-      mensaje += `<ul>`;
-      mensaje += `<li>Bloquear Deudores: ${resultado.configuracion?.bloquear_deudores || 'N/A'}</li>`;
-      mensaje += `<li>Días Tolerancia: ${resultado.configuracion?.dias_tolerancia || 0}</li>`;
-      mensaje += `<li>Inicio Pensiones: ${resultado.configuracion?.inicio_pensiones || 'N/A'}</li>`;
-      mensaje += `</ul>`;
-      mensaje += `<p><strong>Resultado:</strong></p>`;
-      mensaje += `<ul>`;
-      mensaje += `<li>Tiene Deudas: ${resultado.resultado?.tiene_deudas ? '✅ SÍ' : '❌ NO'}</li>`;
-      mensaje += `<li>Debe Bloquear: ${resultado.resultado?.debe_bloquear ? '✅ SÍ' : '❌ NO'}</li>`;
-      mensaje += `</ul>`;
-      
-      if (resultado.pensiones && resultado.pensiones.length > 0) {
-        mensaje += `<p><strong>Detalles de Pensiones:</strong></p>`;
-        mensaje += `<table style="width: 100%; border-collapse: collapse; margin-top: 10px;">`;
-        mensaje += `<tr style="background: #f0f0f0;"><th style="padding: 8px; border: 1px solid #ddd;">Pensión</th><th style="padding: 8px; border: 1px solid #ddd;">Fecha Vencimiento</th><th style="padding: 8px; border: 1px solid #ddd;">Vencida</th><th style="padding: 8px; border: 1px solid #ddd;">Tiene Pago</th><th style="padding: 8px; border: 1px solid #ddd;">Tiene Deuda</th></tr>`;
-        resultado.pensiones.forEach(p => {
-          mensaje += `<tr>`;
-          mensaje += `<td style="padding: 8px; border: 1px solid #ddd;">${p.nro_pension}</td>`;
-          mensaje += `<td style="padding: 8px; border: 1px solid #ddd;">${p.fecha_vencimiento}</td>`;
-          mensaje += `<td style="padding: 8px; border: 1px solid #ddd;">${p.esta_vencida ? '✅ SÍ' : '❌ NO'}</td>`;
-          mensaje += `<td style="padding: 8px; border: 1px solid #ddd;">${p.tiene_pago ? '✅ SÍ' : '❌ NO'}</td>`;
-          mensaje += `<td style="padding: 8px; border: 1px solid #ddd; ${p.tiene_deuda ? 'background: #ffcccc;' : ''}">${p.tiene_deuda ? '🔴 SÍ' : '✅ NO'}</td>`;
-          mensaje += `</tr>`;
-        });
-        mensaje += `</table>`;
-      }
-      
-      mensaje += `<p style="margin-top: 20px;"><strong>Datos completos en consola (F12)</strong></p>`;
-      
+      console.log('[FRONTEND] Diagnóstico técnico (consola):', JSON.stringify(resultado, null, 2));
+
       Swal.fire({
-        icon: resultado.resultado?.tiene_deudas ? 'warning' : 'success',
-        title: resultado.resultado?.tiene_deudas ? 'Tiene Deudas' : 'Sin Deudas',
-        html: mensaje,
-        width: '800px',
+        icon: 'info',
+        title: 'Problemas con el servidor',
+        text: 'Se está solucionando. Si es personal de soporte, revise la consola del navegador (F12) para el informe técnico.',
         confirmButtonText: 'Entendido'
       });
     } catch (error) {
@@ -374,11 +340,11 @@ function ApoderadoHijos() {
       case 'notas-detalladas':
         console.log('[FRONTEND] handleOpcionClick - notas-detalladas, tieneDeudasBloqueadas:', tieneDeudasBloqueadas);
         if (tieneDeudasBloqueadas) {
-          console.log('[FRONTEND] BLOQUEANDO acceso a Notas Detalladas por deudas');
+          console.log('[FRONTEND] BLOQUEANDO acceso a Notas Detalladas (restricción interna)');
           Swal.fire({
-            icon: 'warning',
-            title: 'Acceso Bloqueado',
-            text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.',
+            icon: 'info',
+            title: 'Problemas con el servidor',
+            text: 'Se está solucionando.',
             confirmButtonText: 'Entendido'
           });
           return;
@@ -389,11 +355,11 @@ function ApoderadoHijos() {
       case 'imprimir-notas':
         console.log('[FRONTEND] handleOpcionClick - imprimir-notas, tieneDeudasBloqueadas:', tieneDeudasBloqueadas);
         if (tieneDeudasBloqueadas) {
-          console.log('[FRONTEND] BLOQUEANDO acceso a Ver Libreta por deudas');
+          console.log('[FRONTEND] BLOQUEANDO acceso a Ver Libreta (restricción interna)');
           Swal.fire({
-            icon: 'warning',
-            title: 'Acceso Bloqueado',
-            text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.',
+            icon: 'info',
+            title: 'Problemas con el servidor',
+            text: 'Se está solucionando.',
             confirmButtonText: 'Entendido'
           });
           return;
@@ -3931,7 +3897,7 @@ function ApoderadoHijos() {
                 <>
                   <p>
                     No se encontraron hijos en el año activo. Puedes consultar tu historial
-                    (solo años sin deuda de pensiones).
+                    (solo años habilitados para consulta).
                   </p>
                   <label style={{ display: 'block', textAlign: 'left', marginBottom: '0.25rem', fontWeight: 600 }}>
                     Año histórico:
@@ -4007,13 +3973,13 @@ function ApoderadoHijos() {
               <span className="dropdown-icon">🖨️</span><span>Imprimir QR</span>
             </button>
             <button className={`dropdown-item ${tieneDeudasBloqueadas ? 'disabled' : ''}`} type="button" disabled={tieneDeudasBloqueadas}
-              onClick={(e) => { e.stopPropagation(); if (tieneDeudasBloqueadas) { Swal.fire({ icon: 'warning', title: 'Acceso Bloqueado', text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.', confirmButtonText: 'Entendido' }); return; } handleOpcionClick('notas-detalladas', hijo); }}
-              title={tieneDeudasBloqueadas ? 'Bloqueado por deudas pendientes' : ''}>
+              onClick={(e) => { e.stopPropagation(); if (tieneDeudasBloqueadas) { Swal.fire({ icon: 'info', title: 'Problemas con el servidor', text: 'Se está solucionando.', confirmButtonText: 'Entendido' }); return; } handleOpcionClick('notas-detalladas', hijo); }}
+              title={tieneDeudasBloqueadas ? 'Temporalmente no disponible' : ''}>
               <span className="dropdown-icon">📊</span><span>Notas Detalladas</span>{tieneDeudasBloqueadas && <span className="bloqueado-badge">🔒</span>}
             </button>
             <button className={`dropdown-item ${tieneDeudasBloqueadas ? 'disabled' : ''}`} type="button" disabled={tieneDeudasBloqueadas}
-              onClick={(e) => { e.stopPropagation(); if (tieneDeudasBloqueadas) { Swal.fire({ icon: 'warning', title: 'Acceso Bloqueado', text: 'No puede acceder a esta opción debido a deudas pendientes de pensión. Por favor, cancele las pensiones vencidas.', confirmButtonText: 'Entendido' }); return; } handleOpcionClick('imprimir-notas', hijo); }}
-              title={tieneDeudasBloqueadas ? 'Bloqueado por deudas pendientes' : ''}>
+              onClick={(e) => { e.stopPropagation(); if (tieneDeudasBloqueadas) { Swal.fire({ icon: 'info', title: 'Problemas con el servidor', text: 'Se está solucionando.', confirmButtonText: 'Entendido' }); return; } handleOpcionClick('imprimir-notas', hijo); }}
+              title={tieneDeudasBloqueadas ? 'Temporalmente no disponible' : ''}>
               <span className="dropdown-icon">📄</span><span>Ver Libreta</span>{tieneDeudasBloqueadas && <span className="bloqueado-badge">🔒</span>}
             </button>
             <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('pagos-realizados', hijo); }}>

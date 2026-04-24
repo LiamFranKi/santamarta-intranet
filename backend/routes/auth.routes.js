@@ -70,9 +70,9 @@ router.post('/login', async (req, res) => {
     const tieneDeudas = await verificarDeudas(usuarioDB, anioActivo);
     
     if (tieneDeudas) {
-      return res.status(403).json({ 
-        error: 'Acceso bloqueado por deudas pendientes',
-        tieneDeudas: true
+      // Mensaje genérico: no revelar bloqueo por pensiones/deudas al usuario final
+      return res.status(403).json({
+        error: 'Problemas con el servidor, se está solucionando.'
       });
     }
 
@@ -334,8 +334,8 @@ router.get('/me', authenticateToken, async (req, res) => {
 });
 
 /**
- * Función auxiliar para verificar deudas
- * Considera: bloquear_deudores, dias_tolerancia, y fechas de vencimiento de pensiones
+ * Función auxiliar para verificar deudas (solo aplica si colegios.bloquear_deudores === 'SI').
+ * Con NO: no bloquea login ni submenús; con SI: usa dias_tolerancia y pensiones_vencimiento.
  */
 async function verificarDeudas(usuario, anioActivo) {
   try {
@@ -366,17 +366,23 @@ async function verificarDeudas(usuario, anioActivo) {
       inicio_pensiones: colegios.length > 0 ? colegios[0].inicio_pensiones : null
     });
 
-    // IMPORTANTE: No retornar false si bloquear_deudores === 'NO'
-    // El bloqueo de submenús (Notas Detalladas, Ver Libreta) debe funcionar
-    // independientemente del valor de "Bloquear Deudores"
-    // "Bloquear Deudores" solo controla el acceso completo al sistema,
-    // pero los submenús deben bloquearse si hay pensiones vencidas
     if (colegios.length === 0) {
       console.log(`[VERIFICAR DEUDAS] ⚠️ No se encontró configuración del colegio`);
       return false; // No hay configuración del colegio
     }
-    
-    console.log(`[VERIFICAR DEUDAS] Continuando verificación de deudas vencidas (bloquear_deudores: ${colegios[0].bloquear_deudores})`);
+
+    // Solo si "Bloquear deudores" = SI se aplica vencimientos + tolerancia (login y /verificar-deudas).
+    // Si es NO (u otro valor), no hay restricción por pensiones.
+    const bloquearDeudoresActivo =
+      String(colegios[0].bloquear_deudores || '').trim().toUpperCase() === 'SI';
+    if (!bloquearDeudoresActivo) {
+      console.log(
+        `[VERIFICAR DEUDAS] bloquear_deudores=${colegios[0].bloquear_deudores} → sin verificación de deuda por configuración`
+      );
+      return false;
+    }
+
+    console.log(`[VERIFICAR DEUDAS] Continuando verificación de deudas vencidas (bloquear_deudores: SI)`);
 
     // Verificar para ALUMNOS, APODERADOS y DOCENTES que también son APODERADOS
     if (usuario.tipo !== 'ALUMNO' && usuario.tipo !== 'APODERADO' && usuario.tipo !== 'DOCENTE') {
@@ -882,7 +888,11 @@ router.get('/verificar-deudas', authenticateToken, async (req, res) => {
     console.error('[ENDPOINT VERIFICAR-DEUDAS] Error message:', error.message);
     console.error('[ENDPOINT VERIFICAR-DEUDAS] Stack:', error.stack);
     console.error('[ENDPOINT VERIFICAR-DEUDAS] ===========================');
-    res.status(500).json({ error: 'Error al verificar deudas', tiene_deudas: false, bloqueado: false });
+    res.status(500).json({
+      error: 'Problemas con el servidor, se está solucionando.',
+      tiene_deudas: false,
+      bloqueado: false
+    });
   }
 });
 

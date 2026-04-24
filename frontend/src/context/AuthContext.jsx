@@ -2,6 +2,17 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
 import { suscribirNotificacionesPush } from '../services/pushNotificationService';
 
+/** Perfiles que registran Web Push al iniciar sesión (incluye staff que recibe derivaciones psicología, encuestas, etc.). */
+const TIPOS_CON_PUSH_AUTOMATICO = new Set([
+  'ALUMNO',
+  'APODERADO',
+  'DOCENTE',
+  'ADMINISTRADOR',
+  'PROMOTORIA',
+  'SECRETARIA',
+  'PSICOLOGA',
+]);
+
 const AuthContext = createContext();
 
 export const useAuth = () => {
@@ -42,11 +53,10 @@ export const AuthProvider = ({ children }) => {
           // Actualizar usuario guardado
           localStorage.setItem('user', JSON.stringify(response.data.user));
           
-          // Suscribir automáticamente a notificaciones push (para ALUMNO, APODERADO y DOCENTE)
-          if (response.data.user.tipo === 'ALUMNO' || response.data.user.tipo === 'APODERADO' || response.data.user.tipo === 'DOCENTE') {
-            // Esperar un poco para que el Service Worker esté listo
+          // Web Push: antes solo alumno/apoderado/docente; staff (admin, psicología…) también debe suscribirse o no llegan pushes.
+          if (TIPOS_CON_PUSH_AUTOMATICO.has(String(response.data.user.tipo || '').toUpperCase())) {
             setTimeout(() => {
-              suscribirNotificacionesPush().catch(err => {
+              suscribirNotificacionesPush().catch((err) => {
                 console.warn('No se pudo suscribir a notificaciones push:', err);
               });
             }, 2000);
@@ -89,11 +99,9 @@ export const AuthProvider = ({ children }) => {
         localStorage.removeItem('anio_consulta_apoderado');
       }
 
-      // Suscribir automáticamente a notificaciones push (para ALUMNO, APODERADO y DOCENTE)
-      if (userData.tipo === 'ALUMNO' || userData.tipo === 'APODERADO' || userData.tipo === 'DOCENTE') {
-        // Esperar un poco para que el Service Worker esté listo
+      if (TIPOS_CON_PUSH_AUTOMATICO.has(String(userData.tipo || '').toUpperCase())) {
         setTimeout(() => {
-          suscribirNotificacionesPush().catch(err => {
+          suscribirNotificacionesPush().catch((err) => {
             console.warn('No se pudo suscribir a notificaciones push:', err);
           });
         }, 2000);
@@ -101,6 +109,14 @@ export const AuthProvider = ({ children }) => {
 
       return { success: true, user: userData };
     } catch (error) {
+      const status = error.response?.status;
+      // 403 en login = política interna (p. ej. acceso restringido); nunca mostrar texto de deudas al usuario
+      if (status === 403) {
+        return {
+          success: false,
+          error: 'Problemas con el servidor, se está solucionando.'
+        };
+      }
       const message = error.response?.data?.error || 'Error al iniciar sesión';
       return { success: false, error: message };
     }

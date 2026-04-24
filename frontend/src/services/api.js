@@ -155,6 +155,8 @@ api.interceptors.response.use(
 
     const isHijosRoute = reqUrl.includes('/hijos/') && reqUrl.includes('/datos');
     const isApoderadoHijosRoute = reqUrl.includes('/apoderado/hijos');
+    /** 403 en login no debe cerrar sesión ni mostrar mensaje de “permisos” genérico por interceptor */
+    const isAuthLoginRoute = /\/auth\/login\b/.test(reqUrl);
     const isHijosProxyRoute =
       (reqUrl.includes('/docente/hijos/') || reqUrl.includes('docente/hijos/')) &&
       (reqUrl.includes('aula-virtual') || reqUrl.includes('/mensajes') || reqUrl.includes('/cursos'));
@@ -192,6 +194,7 @@ api.interceptors.response.use(
     if (
       status &&
       criticalErrors[status] &&
+      !isAuthLoginRoute &&
       !isHijosRoute &&
       !isApoderadoHijosRoute &&
       !isHijosProxyRoute &&

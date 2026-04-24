@@ -6,6 +6,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import './DocenteAulaVirtual-gamificado.css';
+import { huecosCompletarMetaPorDescripcion, esCompletarCorrecto } from '../utils/examenCompletar';
 
 function AlumnoExamenResultados() {
   const { examenId } = useParams();
@@ -421,37 +422,21 @@ function DetallesExamenModal({ resultado, detalles, examen, onClose }) {
                 </div>
               );
 
-              case 'COMPLETAR':
-                let respuestasCompletarAlumno = [];
-                if (respuestaAlumno && typeof respuestaAlumno === 'object') {
-                  respuestasCompletarAlumno = Object.entries(respuestaAlumno)
-                    .map(([index, valor]) => ({
-                      num: parseInt(index) + 1,
-                      valor: String(valor || '___').trim()
-                    }));
-                }
-                
-                const descripcionLimpia = pregunta.descripcion ? pregunta.descripcion.replace(/<[^>]*>/g, '') : '';
-                const respuestasCorrectasCompletar = [];
-                const regex = /\[\[([^\]]+)\]\]/g;
-                let match;
-                while ((match = regex.exec(descripcionLimpia)) !== null) {
-                  const respuesta = match[1].trim();
-                  if (respuesta) {
-                    respuestasCorrectasCompletar.push(respuesta);
-                  }
-                }
-                
-                let esCorrectaCompletar = false;
-                if (respuestasCompletarAlumno.length > 0) {
-                  const respuestasAlumnoArray = respuestasCompletarAlumno.map(r => r.valor.toLowerCase());
-                  if (respuestasAlumnoArray.length === respuestasCorrectasCompletar.length) {
-                    esCorrectaCompletar = respuestasAlumnoArray.every((resp) => 
-                      respuestasCorrectasCompletar.includes(resp)
-                    );
-                  }
-                }
-                
+              case 'COMPLETAR': {
+                const metaHuecosRes = huecosCompletarMetaPorDescripcion(pregunta.descripcion);
+                const entriesCompletarRes =
+                  respuestaAlumno && typeof respuestaAlumno === 'object'
+                    ? Object.entries(respuestaAlumno)
+                        .map(([k, v]) => ({ i: parseInt(k, 10), v: String(v ?? '').trim() }))
+                        .filter((x) => !Number.isNaN(x.i))
+                        .sort((a, b) => a.i - b.i)
+                    : [];
+                const respuestasCompletarAlumno = entriesCompletarRes.map((e) => ({
+                  num: e.i + 1,
+                  valor: e.v || '___'
+                }));
+                const esCorrectaCompletar = esCompletarCorrecto(respuestaAlumno, pregunta.descripcion);
+
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ 
@@ -485,10 +470,10 @@ function DetallesExamenModal({ resultado, detalles, examen, onClose }) {
                         Respuesta correcta:
                       </div>
                       <div style={{ fontSize: '0.95rem', color: '#1f2937' }}>
-                        {respuestasCorrectasCompletar.length > 0 ? (
-                          respuestasCorrectasCompletar.map((resp, idx) => (
+                        {metaHuecosRes.length > 0 ? (
+                          metaHuecosRes.map((h, idx) => (
                             <span key={idx} style={{ background: '#dbeafe', padding: '0.25rem 0.5rem', borderRadius: '4px', margin: '0.25rem', display: 'inline-block', border: '1px solid #3b82f6' }}>
-                              {idx + 1}. {resp}
+                              {idx + 1}. {h.display}
                             </span>
                           ))
                         ) : (
@@ -498,6 +483,7 @@ function DetallesExamenModal({ resultado, detalles, examen, onClose }) {
                     </div>
                   </div>
                 );
+              }
 
               case 'VERDADERO_FALSO':
                 const respuestaVFAlumno = respuestaAlumnoNum || respuestaAlumno;

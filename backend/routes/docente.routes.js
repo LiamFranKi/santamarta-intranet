@@ -36,6 +36,7 @@ const { tryInsertPushCronDedup, fechaLimaYmd } = require('../utils/pushCronDedup
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { assertDocentePuedeEditarContenidoExamenVirtual, examenBloqueaEdicionContenidoDocente } = require('../utils/examenBloqueoEdicionContenido');
+const { esCompletarCorrecto } = require('../utils/examenCompletar');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
@@ -19296,36 +19297,14 @@ router.post('/aula-virtual/examenes/:examenId/calificar', async (req, res) => {
 
             case 'COMPLETAR':
               if (respuestaAlumno && typeof respuestaAlumno === 'object') {
-                const respuestasCompletar = Object.values(respuestaAlumno)
-                  .map(r => String(r).trim().toLowerCase())
-                  .filter(r => r);
-                
-                const descripcionLimpia = pregunta.descripcion ? pregunta.descripcion.replace(/<[^>]*>/g, '') : '';
-                const respuestasCorrectas = [];
-                const regex = /\[\[([^\]]+)\]\]/g;
-                let match;
-                while ((match = regex.exec(descripcionLimpia)) !== null) {
-                  const respuesta = match[1].trim().toLowerCase();
-                  if (respuesta) {
-                    respuestasCorrectas.push(respuesta);
-                  }
-                }
-                
-                let todasCorrectas = false;
-                if (respuestasCompletar.length > 0 && respuestasCorrectas.length > 0) {
-                  if (respuestasCompletar.length === respuestasCorrectas.length) {
-                    todasCorrectas = respuestasCompletar.every(resp => 
-                      respuestasCorrectas.includes(resp)
-                    );
-                  }
-                }
-                
+                const tieneAlgunaRespuesta = Object.keys(respuestaAlumno).length > 0;
+                const todasCorrectas = esCompletarCorrecto(respuestaAlumno, pregunta.descripcion);
                 if (todasCorrectas) {
                   esCorrecta = true;
                   puntosPregunta = tipoPuntaje === 'GENERAL' 
                     ? puntosCorrecta
                     : (parseFloat(pregunta.puntos) || 0);
-                } else if (examenInfo.penalizar_incorrecta === 'SI' && respuestasCompletar.length > 0) {
+                } else if (examenInfo.penalizar_incorrecta === 'SI' && tieneAlgunaRespuesta) {
                   puntosPregunta = -(parseFloat(examenInfo.penalizacion_incorrecta) || 0);
                 }
               }
@@ -19498,10 +19477,10 @@ router.post('/aula-virtual/examenes/:examenId/calificar', async (req, res) => {
         // Limitar puntaje entre 0 y 20 (escala del sistema; si suma > 20 se capa a 20)
         const puntaje = Math.min(20, Math.max(0, Math.round(puntosObtenidos)));
 
-        // Actualizar la prueba
+        // Actualizar la prueba (estado FINALIZADA: sin esto, quedaba ACTIVO con nota y el alumno veía "Iniciar prueba")
         await execute(
           `UPDATE asignaturas_examenes_pruebas 
-           SET puntaje = ?, correctas = ?, incorrectas = ?
+           SET puntaje = ?, correctas = ?, incorrectas = ?, estado = 'FINALIZADA'
            WHERE id = ?`,
           [puntaje, correctas, incorrectas, prueba.id]
         );
@@ -19552,6 +19531,68 @@ router.post('/aula-virtual/examenes/:examenId/calificar', async (req, res) => {
   } catch (error) {
     console.error('Error recalificando examen:', error);
     res.status(500).json({ error: 'Error al recalificar el examen' });
+  }
+});
+
+/**
+ * POST /api/docente/aula-virtual/examenes/:examenId/reparar-estados-inconsistentes
+ * Pone estado FINALIZADA en pruebas que ya tienen puntaje pero siguen como ACTIVO (caso típico tras recalificar sin actualizar estado).
+ */
+router.post('/aula-virtual/examenes/:examenId/reparar-estados-inconsistentes', async (req, res) => {
+  try {
+    const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
+    const { examenId } = req.params;
+
+    const examen = await query(
+      `SELECT ae.id, ae.titulo FROM asignaturas_examenes ae
+       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [examenId, personal_id, colegio_id, anio_activo]
+    );
+
+    if (examen.length === 0) {
+      return res.status(403).json({ error: 'No tienes acceso a este examen' });
+    }
+
+    const result = await execute(
+      `UPDATE asignaturas_examenes_pruebas
+       SET estado = 'FINALIZADA'
+       WHERE examen_id = ? AND estado = 'ACTIVO' AND puntaje IS NOT NULL`,
+      [examenId]
+    );
+
+    const arreglados = result.affectedRows ?? 0;
+
+    req.skipAudit = true;
+    registrarAccion({
+      usuario_id,
+      colegio_id,
+      tipo_usuario: 'DOCENTE',
+      accion: 'REPARAR_ESTADOS_EXAMEN',
+      modulo: 'Aula Virtual',
+      entidad: 'Examen',
+      entidad_id: parseInt(examenId, 10),
+      descripcion: `Reparó estados inconsistentes en examen "${examen[0].titulo}" (${arreglados} fila(s)).`,
+      url: req.originalUrl,
+      metodo_http: req.method,
+      ip_address: req.ip,
+      user_agent: req.get('user-agent'),
+      datos_anteriores: null,
+      datos_nuevos: { examen_id: examenId, arreglados }
+    }).catch((err) => console.error('Error en auditoría reparar estados examen:', err));
+
+    return res.json({
+      success: true,
+      arreglados,
+      message:
+        arreglados === 0
+          ? 'No había pruebas con nota en estado ACTIVO. Nada que reparar.'
+          : `Se corrigieron ${arreglados} resultado(s). Los alumnos deberían ver su examen como finalizado.`
+    });
+  } catch (error) {
+    console.error('Error reparando estados de pruebas:', error);
+    return res.status(500).json({ error: 'Error al reparar estados del examen' });
   }
 });
 

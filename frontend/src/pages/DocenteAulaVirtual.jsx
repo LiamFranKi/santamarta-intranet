@@ -10,6 +10,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import './DocenteAulaVirtual-gamificado.css';
+import { huecosCompletarMetaPorDescripcion, esCompletarCorrecto } from '../utils/examenCompletar';
 
 /** Inserta imágenes en Quill vía URL (subida a servidor), no base64 — compatible con descripción larga en BD. */
 function attachQuillImageUploadHandler(quill) {
@@ -2641,6 +2642,56 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     }
   };
 
+  /** Pruebas con puntaje pero estado ACTIVO: el alumno no ve "resultado" y puede ver "Iniciar prueba". Un clic repara. */
+  const handleRepararEstadosInconsistentes = async () => {
+    if (!examenParaResultados) return;
+
+    const result = await Swal.fire({
+      title: '¿Reparar estados del examen?',
+      html:
+        'Se marcará como <strong>FINALIZADA</strong> toda prueba que tenga <strong>nota</strong> pero siga en estado <strong>ACTIVO</strong> (suele ocurrir tras recalificar).<br><br><span style="color:#6b7280;">No afecta a alumnos con examen todavía en curso (sin nota).</span>',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Sí, reparar',
+      cancelButtonText: 'Cancelar'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      Swal.fire({
+        title: 'Aplicando…',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      const response = await api.post(
+        `/docente/aula-virtual/examenes/${examenParaResultados.id}/reparar-estados-inconsistentes`
+      );
+
+      await Swal.fire({
+        icon: 'success',
+        title: 'Listo',
+        text: response.data.message || 'Operación completada',
+        confirmButtonText: 'Aceptar'
+      });
+
+      await handleVerResultados(examenParaResultados);
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo reparar',
+        confirmButtonText: 'Aceptar'
+      });
+    }
+  };
+
   // Funciones para manejar preguntas y alternativas
   const handlePreguntasAlternativas = async (examen) => {
     setExamenSeleccionado(examen);
@@ -5072,6 +5123,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
           onDescargarPDF={handleDescargarPDF}
           onVolverCalificar={handleVolverCalificar}
           onBorrarTodosResultados={handleBorrarTodosResultados}
+          onRepararEstadosInconsistentes={handleRepararEstadosInconsistentes}
         />,
         document.body
       )}
@@ -6271,19 +6323,8 @@ function VistaPreviaPreguntaModal({ pregunta, examen, onClose }) {
               </label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {(() => {
-                  // Extraer respuestas correctas de los placeholders [[...]]
-                  const descripcionLimpia = pregunta.descripcion ? pregunta.descripcion.replace(/<[^>]*>/g, '') : '';
-                  const respuestasCorrectas = [];
-                  const regex = /\[\[([^\]]+)\]\]/g;
-                  let match;
-                  while ((match = regex.exec(descripcionLimpia)) !== null) {
-                    const respuesta = match[1].trim();
-                    if (respuesta) {
-                      respuestasCorrectas.push(respuesta);
-                    }
-                  }
-                  
-                  if (respuestasCorrectas.length === 0) {
+                  const metaHuecos = huecosCompletarMetaPorDescripcion(pregunta.descripcion);
+                  if (metaHuecos.length === 0) {
                     return (
                       <div style={{ 
                         padding: '0.875rem', 
@@ -6298,7 +6339,7 @@ function VistaPreviaPreguntaModal({ pregunta, examen, onClose }) {
                     );
                   }
                   
-                  return respuestasCorrectas.map((respuesta, index) => (
+                  return metaHuecos.map((h, index) => (
                     <div
                       key={index}
                       style={{
@@ -6327,7 +6368,7 @@ function VistaPreviaPreguntaModal({ pregunta, examen, onClose }) {
                         ✓
                       </div>
                       <div style={{ flex: 1, fontWeight: '500', color: '#065f46' }}>
-                        {index + 1}. {respuesta}
+                        {index + 1}. {h.display}
                       </div>
                     </div>
                   ));
@@ -6787,7 +6828,8 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
               </div>
               {requiereCompletar && (
                 <small style={{ display: 'block', marginTop: '0.5rem', color: '#6b7280' }}>
-                  Coloque los campos a completar de la forma: [[respuesta]]. Ej: La capital del Perú es [[Lima]]
+                  Use [[respuesta]] por cada hueco. Varias respuestas válidas (con/sin tilde, etc.) sepárelas con | dentro
+                  del mismo hueco. Ej: Mi mamá se escribe [[mamá|mama]]. Ej. varios huecos: La capital del Perú es [[Lima]]
                 </small>
             )}
             </div>
@@ -7188,7 +7230,7 @@ function PreguntaFormModal({ examen, pregunta, formPregunta, setFormPregunta, al
 }
 
 // Componente Modal de Resultados de Examen
-function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLectura = false, onClose, onVerDetalles, onBorrarResultado, onDescargarPDF, onVolverCalificar, onBorrarTodosResultados }) {
+function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLectura = false, onClose, onVerDetalles, onBorrarResultado, onDescargarPDF, onVolverCalificar, onBorrarTodosResultados, onRepararEstadosInconsistentes }) {
   const [openDropdown, setOpenDropdown] = useState(null);
   const [dropdownPosition, setDropdownPosition] = useState(null);
   const buttonRef = useRef({});
@@ -7301,6 +7343,17 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
               >
                 ✏️ Volver a Calificar
               </button>
+              {typeof onRepararEstadosInconsistentes === 'function' && (
+                <button
+                  type="button"
+                  className="btn-cancelar"
+                  onClick={onRepararEstadosInconsistentes}
+                  title="Usar si un alumno tiene nota pero en su aula pide otra vez Iniciar prueba: suele deberse a nota con estado ACTIVO."
+                  style={{ borderColor: '#059669', color: '#047857' }}
+                >
+                  🔧 Reparar estados (alumnos)
+                </button>
+              )}
               <button 
                 className="btn-cancelar" 
                 onClick={onBorrarTodosResultados}
@@ -7659,43 +7712,21 @@ function DetallesResultadoModal({ resultado, detalles, cargando, onClose }) {
                           </div>
                         );
 
-                      case 'COMPLETAR':
-                        // Para COMPLETAR, la respuesta es un objeto con índices: {0: "lima", 1: "otro"}
-                        let respuestasCompletarAlumno = [];
-                        if (respuestaAlumno && typeof respuestaAlumno === 'object') {
-                          respuestasCompletarAlumno = Object.entries(respuestaAlumno)
-                            .map(([index, valor]) => ({
-                              num: parseInt(index) + 1,
-                              valor: String(valor || '___').trim()
-                            }));
-                        }
-                        
-                        // Obtener respuestas correctas para COMPLETAR
-                        // Para COMPLETAR, las respuestas correctas están en la descripción de la pregunta con formato [[respuesta]]
-                        // Extraer todas las respuestas de los placeholders [[...]]
-                        const descripcionLimpia = pregunta.descripcion ? pregunta.descripcion.replace(/<[^>]*>/g, '') : '';
-                        const respuestasCorrectasCompletar = [];
-                        const regex = /\[\[([^\]]+)\]\]/g;
-                        let match;
-                        while ((match = regex.exec(descripcionLimpia)) !== null) {
-                          const respuesta = match[1].trim();
-                          if (respuesta) {
-                            respuestasCorrectasCompletar.push(respuesta);
-                          }
-                        }
-                        
-                        // Verificar si es correcta (comparar cada respuesta - case insensitive)
-                        let esCorrectaCompletar = false;
-                        if (respuestasCompletarAlumno.length > 0) {
-                          const respuestasAlumnoArray = respuestasCompletarAlumno.map(r => r.valor.toLowerCase().trim());
-                          const respuestasCorrectasArray = respuestasCorrectasCompletar.map(r => r.toLowerCase().trim());
-                          if (respuestasAlumnoArray.length === respuestasCorrectasArray.length) {
-                            esCorrectaCompletar = respuestasAlumnoArray.every((resp) => 
-                              respuestasCorrectasArray.includes(resp)
-                            );
-                          }
-                        }
-                        
+                      case 'COMPLETAR': {
+                        const metaHuecosDet = huecosCompletarMetaPorDescripcion(pregunta.descripcion);
+                        const entriesCompletar =
+                          respuestaAlumno && typeof respuestaAlumno === 'object'
+                            ? Object.entries(respuestaAlumno)
+                                .map(([k, v]) => ({ i: parseInt(k, 10), v: String(v ?? '').trim() }))
+                                .filter((x) => !Number.isNaN(x.i))
+                                .sort((a, b) => a.i - b.i)
+                            : [];
+                        const respuestasCompletarAlumno = entriesCompletar.map((e) => ({
+                          num: e.i + 1,
+                          valor: e.v || '___'
+                        }));
+                        const esCorrectaCompletar = esCompletarCorrecto(respuestaAlumno, pregunta.descripcion);
+
                         return (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div style={{ 
@@ -7729,10 +7760,10 @@ function DetallesResultadoModal({ resultado, detalles, cargando, onClose }) {
                                 Respuesta correcta:
                               </div>
                               <div style={{ fontSize: '0.95rem', color: '#1f2937' }}>
-                                {respuestasCorrectasCompletar.length > 0 ? (
-                                  respuestasCorrectasCompletar.map((resp, idx) => (
+                                {metaHuecosDet.length > 0 ? (
+                                  metaHuecosDet.map((h, idx) => (
                                     <span key={idx} style={{ background: '#dbeafe', padding: '0.25rem 0.5rem', borderRadius: '4px', margin: '0.25rem', display: 'inline-block', border: '1px solid #3b82f6' }}>
-                                      {idx + 1}. {resp}
+                                      {idx + 1}. {h.display}
                                     </span>
                                   ))
                                 ) : (
@@ -7742,6 +7773,7 @@ function DetallesResultadoModal({ resultado, detalles, cargando, onClose }) {
                             </div>
                           </div>
                         );
+                      }
 
                       case 'VERDADERO_FALSO':
                         // Para VERDADERO_FALSO, la respuesta es un ID de alternativa o string 'VERDADERO'/'FALSO'
