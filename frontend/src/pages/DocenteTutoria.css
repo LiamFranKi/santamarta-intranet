@@ -2012,3 +2012,21 @@
 .orden-merito-table tbody tr:hover {
   background: #f9fafb;
 }
+
+/* Móvil / PWA: menú Opciones centrado en pantalla, cabe en el viewport y permite scroll a todos los ítems */
+.dropdown-menu.dropdown-menu--mobile-sheet {
+  top: 50% !important;
+  left: 50% !important;
+  right: auto !important;
+  transform: translate(-50%, -50%) !important;
+  width: calc(100vw - 2rem) !important;
+  max-width: min(100vw - 2rem, 520px) !important;
+  min-width: 0 !important;
+  max-height: min(85dvh, 85vh, 560px) !important;
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+  box-sizing: border-box !important;
+  grid-template-columns: 1fr !important;
+}

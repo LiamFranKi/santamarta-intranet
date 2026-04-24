@@ -15,21 +15,31 @@ import './AlumnoCursos.css';
 import './AlumnoHorario.css';
 import './DocenteHijos.css';
 
+/** Ancho máximo típico de “móvil” para menús anclados vs panel centrado */
+const VIEWPORT_MOBILE_MAX = 768;
+
+function getVisualViewportHeight() {
+  if (typeof window === 'undefined') return 800;
+  const vv = window.visualViewport;
+  return vv && vv.height > 0 ? vv.height : window.innerHeight;
+}
+
 function DocenteTutoria() {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [esTutor, setEsTutor] = useState(false);
   const [gruposTutor, setGruposTutor] = useState([]);
-  const [openDropdown, setOpenDropdown] = useState(null); // { grupoId, top, left }
+  const [openDropdown, setOpenDropdown] = useState(null); // { grupoId, layout:'sheet'|'anchor', top?, left? }
   const [selectedGrupo, setSelectedGrupo] = useState(null);
   const [grupoInfo, setGrupoInfo] = useState(null); // Información del grupo seleccionado
   const [alumnos, setAlumnos] = useState([]);
   const [loadingAlumnos, setLoadingAlumnos] = useState(false);
-  const [openDropdownAlumno, setOpenDropdownAlumno] = useState(null); // { id, top, left } o null
+  const [openDropdownAlumno, setOpenDropdownAlumno] = useState(null); // { id, layout:'sheet'|'anchor', top?, left? }
   const [alumnoInfo, setAlumnoInfo] = useState(null); // Información completa del alumno seleccionado
   const [loadingAlumnoInfo, setLoadingAlumnoInfo] = useState(false);
   const dropdownRef = useRef(null);
+  const alumnoDropdownRef = useRef(null);
   
   // Estados para Cursos Asignados
   const [mostrarCursos, setMostrarCursos] = useState(false);
@@ -152,12 +162,14 @@ function DocenteTutoria() {
     if (!openDropdown && !openDropdownAlumno) return;
     
     const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        const isDropdownButton = event.target.closest('.btn-opciones, .btn-opciones-dropdown');
-        if (!isDropdownButton) {
-          setOpenDropdown(null);
-          setOpenDropdownAlumno(null);
-        }
+      const t = event.target;
+      const inGrupo = dropdownRef.current?.contains(t);
+      const inAlumno = alumnoDropdownRef.current?.contains(t);
+      if (inGrupo || inAlumno) return;
+      const isDropdownButton = t.closest('.btn-opciones, .btn-opciones-dropdown');
+      if (!isDropdownButton) {
+        setOpenDropdown(null);
+        setOpenDropdownAlumno(null);
       }
     };
     
@@ -466,36 +478,72 @@ function DocenteTutoria() {
 
   const handleOpcionesClick = (e, grupoId) => {
     e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    const isMobile = window.innerWidth <= 768;
-    
-    let top = rect.bottom + 5;
-    let left = rect.left;
-    
-    if (isMobile) {
-      // En móvil, centrar el dropdown y ajustar la posición vertical
-      const dropdownHeight = 350; // Altura aproximada del dropdown
-      const viewportHeight = window.innerHeight;
-      const spaceBelow = viewportHeight - rect.bottom;
-      const spaceAbove = rect.top;
-      
-      // Si no hay suficiente espacio abajo, mostrar arriba
-      if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
-        top = rect.top - dropdownHeight - 5;
-      } else {
-        // Asegurar que no se corte al final
-        top = Math.min(rect.bottom + 5, viewportHeight - dropdownHeight - 10);
-      }
-      
-      // Centrar horizontalmente en móvil (16px = 1rem)
-      left = 16; // Usar el padding del contenedor en píxeles
+    setOpenDropdownAlumno(null);
+    if (openDropdown?.grupoId === grupoId && openDropdown?.layout === 'sheet') {
+      setOpenDropdown(null);
+      return;
     }
-    
-    setOpenDropdown({
-      grupoId,
-      top: Math.max(10, top), // Mínimo 10px desde arriba
-      left: isMobile ? left : rect.left
-    });
+    if (openDropdown?.grupoId === grupoId && openDropdown?.layout === 'anchor') {
+      setOpenDropdown(null);
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isMobile = window.innerWidth <= VIEWPORT_MOBILE_MAX;
+
+    if (isMobile) {
+      setOpenDropdown({ grupoId, layout: 'sheet' });
+      return;
+    }
+
+    const vh = getVisualViewportHeight();
+    const menuApproxHeight = 400;
+    const menuApproxWidth = 520;
+    let top = rect.bottom + 8;
+    const spaceBelow = vh - rect.bottom;
+    const spaceAbove = rect.top;
+    if (spaceBelow < menuApproxHeight && spaceAbove > spaceBelow) {
+      top = rect.top - menuApproxHeight - 8;
+    }
+    top = Math.max(8, Math.min(top, vh - menuApproxHeight - 12));
+    let left = rect.left;
+    if (left + menuApproxWidth > window.innerWidth - 12) {
+      left = window.innerWidth - menuApproxWidth - 12;
+    }
+    if (left < 8) left = 8;
+    setOpenDropdown({ grupoId, layout: 'anchor', top, left });
+  };
+
+  const handleToggleAlumnoOpciones = (e, alumno) => {
+    e.stopPropagation();
+    e.preventDefault();
+    if (openDropdownAlumno?.id === alumno.id) {
+      setOpenDropdownAlumno(null);
+      return;
+    }
+    setOpenDropdown(null);
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isMobile = window.innerWidth <= VIEWPORT_MOBILE_MAX;
+    if (isMobile) {
+      setOpenDropdownAlumno({ id: alumno.id, layout: 'sheet' });
+      return;
+    }
+
+    const vh = getVisualViewportHeight();
+    const dropdownWidth = Math.min(280, window.innerWidth - 24);
+    const menuApproxHeight = 300;
+    let left = rect.left;
+    let top = rect.bottom + 4;
+    if (left + dropdownWidth > window.innerWidth - 12) {
+      left = window.innerWidth - dropdownWidth - 12;
+    }
+    if (left < 12) left = 12;
+    if (top + menuApproxHeight > vh - 12) {
+      top = Math.max(12, rect.top - menuApproxHeight - 4);
+    }
+    top = Math.max(12, Math.min(top, vh - menuApproxHeight - 12));
+    setOpenDropdownAlumno({ id: alumno.id, layout: 'anchor', top, left });
   };
 
   const handleOpcionClick = async (opcion, grupo) => {
@@ -3310,13 +3358,17 @@ function DocenteTutoria() {
               {openDropdown && createPortal(
                 <div
                   ref={dropdownRef}
-                  className="dropdown-menu dropdown-menu-tutoria-grupo"
-                  style={{
-                    position: 'fixed',
-                    top: `${openDropdown.top}px`,
-                    left: `${openDropdown.left}px`,
-                    zIndex: 10000
-                  }}
+                  className={`dropdown-menu dropdown-menu-tutoria-grupo${openDropdown.layout === 'sheet' ? ' dropdown-menu--mobile-sheet' : ''}`}
+                  style={
+                    openDropdown.layout === 'sheet'
+                      ? { position: 'fixed', zIndex: 100000 }
+                      : {
+                          position: 'fixed',
+                          top: `${openDropdown.top}px`,
+                          left: `${openDropdown.left}px`,
+                          zIndex: 10000
+                        }
+                  }
                 >
                   {(() => {
                     const grupo = gruposTutor.find(g => g.id === openDropdown.grupoId);
@@ -3415,60 +3467,26 @@ function DocenteTutoria() {
                                 <button
                                   className="btn-opciones-dropdown"
                                   type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    e.preventDefault();
-                                    
-                                    // Cerrar otros dropdowns primero
-                                    if (openDropdownAlumno?.id !== alumno.id) {
-                                      setOpenDropdown(null);
-                                    }
-                                    
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    if (openDropdownAlumno?.id === alumno.id) {
-                                      setOpenDropdownAlumno(null);
-                                    } else {
-                                      // Calcular posición del dropdown
-                                      const dropdownWidth = 230;
-                                      const dropdownHeight = 170; // Aproximado (más opciones: Enviar + Información + Incidencias + Estrellas + Apoderados)
-                                      let left = rect.left;
-                                      let top = rect.bottom + 2;
-                                      
-                                      // Si el dropdown se sale por la derecha, ajustar
-                                      if (left + dropdownWidth > window.innerWidth - 10) {
-                                        left = window.innerWidth - dropdownWidth - 10;
-                                      }
-                                      // Asegurar que no se salga por la izquierda
-                                      if (left < 10) {
-                                        left = 10;
-                                      }
-                                      
-                                      // Si el dropdown se sale por abajo, mostrarlo arriba
-                                      if (top + dropdownHeight > window.innerHeight - 10) {
-                                        top = rect.top - dropdownHeight - 2;
-                                      }
-                                      
-                                      setOpenDropdownAlumno({ 
-                                        id: alumno.id, 
-                                        top: top, 
-                                        left: left
-                                      });
-                                    }
-                                  }}
+                                  onClick={(e) => handleToggleAlumnoOpciones(e, alumno)}
                                   title="Opciones"
                                 >
                                   Opciones {openDropdownAlumno?.id === alumno.id ? '▲' : '▼'}
                                 </button>
-                                {openDropdownAlumno?.id === alumno.id && openDropdownAlumno?.top && 
+                                {openDropdownAlumno?.id === alumno.id &&
                                   createPortal(
-                                    <div 
-                                      className="dropdown-menu dropdown-menu-alumno"
-                                      style={{
-                                        top: `${openDropdownAlumno.top}px`,
-                                        left: `${openDropdownAlumno.left}px`,
-                                        position: 'fixed',
-                                        zIndex: 99999
-                                      }}
+                                    <div
+                                      ref={alumnoDropdownRef}
+                                      className={`dropdown-menu dropdown-menu-alumno${openDropdownAlumno.layout === 'sheet' ? ' dropdown-menu--mobile-sheet' : ''}`}
+                                      style={
+                                        openDropdownAlumno.layout === 'sheet'
+                                          ? { position: 'fixed', zIndex: 100000 }
+                                          : {
+                                              top: `${openDropdownAlumno.top}px`,
+                                              left: `${openDropdownAlumno.left}px`,
+                                              position: 'fixed',
+                                              zIndex: 99999
+                                            }
+                                      }
                                       onClick={(e) => e.stopPropagation()}
                                     >
                               <button

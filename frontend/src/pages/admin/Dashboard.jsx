@@ -469,46 +469,49 @@ function Dashboard() {
         </div>`;
       }).join('');
 
-      Swal.fire({
-        title: titulo,
-        html: `<div class="admin-modal-deudas-body" data-tipo="${row.tipo}" data-anio="${anioResp}" data-concepto="${(conceptoNombre).replace(/"/g, '&quot;')}"><div class="admin-modal-deudas-desktop-table">${tablaHtml}</div><div class="admin-modal-deudas-aula-cards">${cardsAulasHtml}</div></div>`,
-        width: '92%',
-        padding: 0,
-        showCloseButton: true,
-        showConfirmButton: false,
-        customClass: { popup: 'admin-modal-deudas-aula', htmlContainer: 'admin-modal-deudas-html' },
-        didOpen: (container) => {
-          container.querySelectorAll('.admin-modal-ver-detalle-btn').forEach((btn) => {
-            btn.addEventListener('click', async () => {
-              const grupoId = btn.getAttribute('data-grupo-id');
-              const aula = btn.getAttribute('data-aula') || '';
-              const tipo = btn.getAttribute('data-tipo');
-              const anioVal = btn.getAttribute('data-anio');
-              const concepto = btn.getAttribute('data-concepto') || '';
-              if (!grupoId) return;
-              Swal.fire({ title: 'Cargando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
-              try {
-                const { data: res } = await api.get('/admin/estadisticas/deudas-por-aula/alumnos', {
-                  params: { tipo, anio: anioVal, grupo_id: grupoId }
-                });
-                Swal.close();
-                const alumnos = res.alumnos || [];
-                const monedaAl = res.moneda || moneda;
-                const fmtAl = (n) => n == null || n === '' ? '—' : `${monedaAl} ${parseFloat(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-                const filasAl = alumnos.map((al, idx) => {
-                  const par = idx % 2 === 0;
-                  const bg = par ? 'background:linear-gradient(135deg,#faf8fc 0%,#f5f0fa 100%)' : 'background:linear-gradient(135deg,#f5f0fa 0%,#efe8f5 100%)';
-                  return `<tr style="${bg}"><td style="text-align:center;padding:10px 14px;border-bottom:1px solid #e8e0e8">${al.nombre || '—'}</td><td style="text-align:center;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtAl(al.deuda_total)}</td><td style="text-align:center;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtAl(al.pagado)}</td><td style="text-align:center;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-weight:700;color:#c43e00;font-variant-numeric:tabular-nums">${fmtAl(al.saldo)}</td></tr>`;
-                }).join('');
-                const totalD = alumnos.reduce((s, al) => s + (parseFloat(al.deuda_total) || 0), 0);
-                const totalP = alumnos.reduce((s, al) => s + (parseFloat(al.pagado) || 0), 0);
-                const totalS = alumnos.reduce((s, al) => s + (parseFloat(al.saldo) || 0), 0);
-                const diffNeto = totalD - totalP;
-                const notaPie =
-                  Math.abs(diffNeto - totalS) > 0.009
-                    ? `<p class="admin-estadisticas-modal-hint admin-modal-deudas-nota-pie">La columna <strong>Saldo pendiente</strong> es la suma fila a fila (mínimo 0). Puede diferir de (Tarifa − Pagado) en ${fmtAl(Math.abs(diffNeto - totalS))} si hubo abonos por encima del monto tarifario en el mismo concepto.</p>`
-                    : '';
-                const tablaAl = `
+      const primeraCapaHtml = `<div class="admin-modal-deudas-body" data-tipo="${row.tipo}" data-anio="${anioResp}" data-concepto="${(conceptoNombre).replace(/"/g, '&quot;')}"><div class="admin-modal-deudas-desktop-table">${tablaHtml}</div><div class="admin-modal-deudas-aula-cards">${cardsAulasHtml}</div></div>`;
+
+      const abrirModalSaldoPorAula = () => {
+        Swal.fire({
+          title: titulo,
+          html: primeraCapaHtml,
+          width: '92%',
+          padding: 0,
+          showCloseButton: true,
+          showConfirmButton: false,
+          customClass: { popup: 'admin-modal-deudas-aula', htmlContainer: 'admin-modal-deudas-html' },
+          didOpen: (container) => {
+            container.querySelectorAll('.admin-modal-ver-detalle-btn').forEach((btn) => {
+              btn.addEventListener('click', async () => {
+                const grupoId = btn.getAttribute('data-grupo-id');
+                const aula = btn.getAttribute('data-aula') || '';
+                const tipo = btn.getAttribute('data-tipo');
+                const anioVal = btn.getAttribute('data-anio');
+                const concepto = btn.getAttribute('data-concepto') || '';
+                if (!grupoId) return;
+                Swal.fire({ title: 'Cargando...', allowOutsideClick: false, didOpen: () => { Swal.showLoading(); } });
+                try {
+                  const { data: res } = await api.get('/admin/estadisticas/deudas-por-aula/alumnos', {
+                    params: { tipo, anio: anioVal, grupo_id: grupoId }
+                  });
+                  Swal.close();
+                  const alumnos = res.alumnos || [];
+                  const monedaAl = res.moneda || moneda;
+                  const fmtAl = (n) => n == null || n === '' ? '—' : `${monedaAl} ${parseFloat(n).toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                  const filasAl = alumnos.map((al, idx) => {
+                    const par = idx % 2 === 0;
+                    const bg = par ? 'background:linear-gradient(135deg,#faf8fc 0%,#f5f0fa 100%)' : 'background:linear-gradient(135deg,#f5f0fa 0%,#efe8f5 100%)';
+                    return `<tr style="${bg}"><td style="text-align:center;padding:10px 14px;border-bottom:1px solid #e8e0e8">${al.nombre || '—'}</td><td style="text-align:center;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtAl(al.deuda_total)}</td><td style="text-align:center;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-variant-numeric:tabular-nums">${fmtAl(al.pagado)}</td><td style="text-align:center;padding:10px 14px;border-bottom:1px solid #e8e0e8;font-weight:700;color:#c43e00;font-variant-numeric:tabular-nums">${fmtAl(al.saldo)}</td></tr>`;
+                  }).join('');
+                  const totalD = alumnos.reduce((s, al) => s + (parseFloat(al.deuda_total) || 0), 0);
+                  const totalP = alumnos.reduce((s, al) => s + (parseFloat(al.pagado) || 0), 0);
+                  const totalS = alumnos.reduce((s, al) => s + (parseFloat(al.saldo) || 0), 0);
+                  const diffNeto = totalD - totalP;
+                  const notaPie =
+                    Math.abs(diffNeto - totalS) > 0.009
+                      ? `<p class="admin-estadisticas-modal-hint admin-modal-deudas-nota-pie">La columna <strong>Saldo pendiente</strong> es la suma fila a fila (mínimo 0). Puede diferir de (Tarifa − Pagado) en ${fmtAl(Math.abs(diffNeto - totalS))} si hubo abonos por encima del monto tarifario en el mismo concepto.</p>`
+                      : '';
+                  const tablaAl = `
                   <div class="admin-modal-deudas-alumno-desktop-table">
                   <div class="admin-modal-deudas-tabla-wrap">
                   <table class="admin-modal-deudas-tabla admin-modal-deudas-tabla-centrada">
@@ -519,10 +522,10 @@ function Dashboard() {
                   </div>
                   ${notaPie}
                   </div>`;
-                const cardsAlumnosHtml = alumnos.map((al, i) => {
-                  const color = coloresPasteles[i % coloresPasteles.length];
-                  const nombreEsc = (al.nombre || '—').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                  return `
+                  const cardsAlumnosHtml = alumnos.map((al, i) => {
+                    const color = coloresPasteles[i % coloresPasteles.length];
+                    const nombreEsc = (al.nombre || '—').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                    return `
                     <div class="admin-modal-alumno-card" style="background:${color}">
                       <div class="admin-modal-alumno-card-header">
                         <span class="admin-modal-alumno-card-title">${nombreEsc}</span>
@@ -533,27 +536,33 @@ function Dashboard() {
                         <div class="admin-modal-alumno-card-row"><span class="admin-modal-alumno-card-label">Saldo pendiente</span><span class="admin-modal-alumno-card-value admin-modal-alumno-card-saldo">${fmtAl(al.saldo)}</span></div>
                       </div>
                     </div>`;
-                }).join('');
-                const htmlAlumnos = `<div class="admin-modal-deudas-body"><div class="admin-modal-volver-wrap"><button type="button" class="admin-modal-volver-btn" title="Volver">← Volver</button></div>${tablaAl}<div class="admin-modal-deudas-alumno-cards">${cardsAlumnosHtml}</div></div>`;
-                Swal.fire({
-                  title: `Alumnos - ${aula.replace(/&quot;/g, '"')} (${concepto})`,
-                  html: htmlAlumnos,
-                  width: '92%',
-                  padding: 0,
-                  showCloseButton: true,
-                  showConfirmButton: false,
-                  customClass: { popup: 'admin-modal-deudas-aula admin-modal-deudas-alumnos', htmlContainer: 'admin-modal-deudas-html' },
-                  didOpen: (c) => {
-                    c.querySelector('.admin-modal-volver-btn')?.addEventListener('click', () => Swal.close());
-                  },
-                });
-              } catch (e) {
-                Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar el detalle de alumnos.', confirmButtonText: 'Cerrar' });
-              }
+                  }).join('');
+                  const htmlAlumnos = `<div class="admin-modal-deudas-body"><div class="admin-modal-volver-wrap"><button type="button" class="admin-modal-volver-btn" title="Volver">← Volver</button></div>${tablaAl}<div class="admin-modal-deudas-alumno-cards">${cardsAlumnosHtml}</div></div>`;
+                  Swal.fire({
+                    title: `Alumnos - ${aula.replace(/&quot;/g, '"')} (${concepto})`,
+                    html: htmlAlumnos,
+                    width: '92%',
+                    padding: 0,
+                    showCloseButton: true,
+                    showConfirmButton: false,
+                    customClass: { popup: 'admin-modal-deudas-aula admin-modal-deudas-alumnos', htmlContainer: 'admin-modal-deudas-html' },
+                    didOpen: (c) => {
+                      c.querySelector('.admin-modal-volver-btn')?.addEventListener('click', () => {
+                        Swal.close();
+                        setTimeout(() => abrirModalSaldoPorAula(), 10);
+                      });
+                    },
+                  });
+                } catch (e) {
+                  Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar el detalle de alumnos.', confirmButtonText: 'Cerrar' });
+                }
+              });
             });
-          });
-        },
-      });
+          },
+        });
+      };
+
+      abrirModalSaldoPorAula();
     } catch (err) {
       Swal.fire({
         icon: 'error',
