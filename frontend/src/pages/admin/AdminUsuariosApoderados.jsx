@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
@@ -61,6 +62,8 @@ function formatFechaNacimiento(val) {
 }
 
 export default function AdminUsuariosApoderados() {
+  const { user } = useAuth();
+  const vistaRestringidaPsicologa = user?.tipo === 'PSICOLOGA';
   const [searchParams] = useSearchParams();
   const vistaTabla = searchParams.get('vista') === 'tabla';
   const [items, setItems] = useState([]);
@@ -616,9 +619,11 @@ export default function AdminUsuariosApoderados() {
         <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={() => { setPage(1); cargar(); }}>
           Buscar
         </button>
-        <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={abrirCrear}>
-          + Registrar nuevo
-        </button>
+        {!vistaRestringidaPsicologa && (
+          <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={abrirCrear}>
+            + Registrar nuevo
+          </button>
+        )}
       </div>
 
       {vistaTabla ? (
@@ -748,28 +753,32 @@ export default function AdminUsuariosApoderados() {
             ℹ️ Ver Información
           </button>
           <button type="button" onClick={() => { abrirModalMensaje(menuRow); cerrarMenus(); }}>
-            ✉️ Enviar mensaje
+            ✉️ Enviar Mensaje
           </button>
-          <button type="button" onClick={() => { abrirInfoAcceso(menuRow); cerrarMenus(); }}>
-            🔐 Información de Acceso
-          </button>
-          {!menuRow.usuario_id && (
-            <button type="button" onClick={() => { crearAcceso(menuRow); cerrarMenus(); }}>
-              ➕ Crear acceso
-            </button>
+          {!vistaRestringidaPsicologa && (
+            <>
+              <button type="button" onClick={() => { abrirInfoAcceso(menuRow); cerrarMenus(); }}>
+                🔐 Información de Acceso
+              </button>
+              {!menuRow.usuario_id && (
+                <button type="button" onClick={() => { crearAcceso(menuRow); cerrarMenus(); }}>
+                  ➕ Crear acceso
+                </button>
+              )}
+              {menuRow.usuario_id && (
+                <button type="button" onClick={() => { resetPass(menuRow); cerrarMenus(); }}>
+                  🔑 Restablecer clave a DNI
+                </button>
+              )}
+              <hr />
+              <button type="button" onClick={() => { abrirEditar(menuRow); cerrarMenus(); }}>
+                ✏️ Editar apoderado
+              </button>
+              <button type="button" onClick={() => { eliminarApoderado(menuRow); cerrarMenus(); }}>
+                🗑️ Eliminar apoderado
+              </button>
+            </>
           )}
-          {menuRow.usuario_id && (
-            <button type="button" onClick={() => { resetPass(menuRow); cerrarMenus(); }}>
-              🔑 Restablecer clave a DNI
-            </button>
-          )}
-          <hr />
-          <button type="button" onClick={() => { abrirEditar(menuRow); cerrarMenus(); }}>
-            ✏️ Editar apoderado
-          </button>
-          <button type="button" onClick={() => { eliminarApoderado(menuRow); cerrarMenus(); }}>
-            🗑️ Eliminar apoderado
-          </button>
         </div>,
         document.body
       )}

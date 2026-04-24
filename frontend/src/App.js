@@ -259,7 +259,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/publicaciones"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
             <AdminPublicaciones />
           </PrivateRoute>
         }
@@ -267,7 +267,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/conexiones"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
             <AdminConexiones />
           </PrivateRoute>
         }
@@ -275,7 +275,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/incidencias"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
             <AdminIncidencias />
           </PrivateRoute>
         }
@@ -300,7 +300,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/eventos"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
             <AdminEventos />
           </PrivateRoute>
         }
@@ -308,7 +308,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/notificaciones"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
             <Dashboard />
           </PrivateRoute>
         }
@@ -1103,7 +1103,7 @@ function AppRoutes() {
       <Route
         path="/admin/vanguarcito"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
             <Dashboard />
           </PrivateRoute>
         }

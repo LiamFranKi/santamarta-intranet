@@ -1274,17 +1274,9 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>💬</span>
                     <span className="sidebar-label">Chat Vanguard</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/actividades">
-                    <span className="sidebar-icon" aria-hidden>📅</span>
-                    <span className="sidebar-label">Actividades</span>
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/comunicados">
-                    <span className="sidebar-icon" aria-hidden>📢</span>
-                    <span className="sidebar-label">Comunicados</span>
-                  </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/eventos">
                     <span className="sidebar-icon" aria-hidden>🎪</span>
-                    <span className="sidebar-label">Eventos</span>
+                    <span className="sidebar-label">Eventos (ver todo)</span>
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/notificaciones">
                     <span className="sidebar-icon" aria-hidden>🔔</span>

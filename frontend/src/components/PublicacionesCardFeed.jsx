@@ -32,7 +32,8 @@ function normalizeImageUrl(url) {
 function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
   const { user } = useAuth();
   const esAlumno = user?.tipo === 'ALUMNO';
-  const esAdmin = user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA';
+  const esAdmin =
+    user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'PSICOLOGA';
   const [publicaciones, setPublicaciones] = useState([]);
   const [publicacionesMostradas, setPublicacionesMostradas] = useState(20);
   const [imagenModal, setImagenModal] = useState(null);

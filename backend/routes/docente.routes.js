@@ -44,6 +44,11 @@ function esAdminOPromotoria(tipo) {
   return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA';
 }
 
+/** Admin, Promotoría o Psicóloga: listado de grupos del año y publicaciones con alcance de colegio (misma regla que admin en feed). */
+function esAdminPromotoriaOpsicologa(tipo) {
+  return esAdminOPromotoria(tipo) || tipo === 'PSICOLOGA';
+}
+
 /** PSICOLOGA: solo rutas de comunicación, agenda, mensajería y documentos de gestión (misma API que docente donde aplica). */
 function psicologaRutaDocentePermitida(path) {
   const prefixes = [
@@ -51,7 +56,9 @@ function psicologaRutaDocentePermitida(path) {
     '/actividades',
     '/mensajes',
     '/documentos-gestion',
-    '/roles-adicionales'
+    '/roles-adicionales',
+    '/publicaciones',
+    '/grupos'
   ];
   return prefixes.some((pre) => path === pre || path.startsWith(`${pre}/`));
 }
@@ -1760,8 +1767,8 @@ router.get('/grupos', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user;
 
-    // Administrador / Promotoría: todos los grupos del año (sin restricción)
-    if (esAdminOPromotoria(req.user.tipo)) {
+    // Administrador / Promotoría / Psicóloga: todos los grupos del año (sin restricción)
+    if (esAdminPromotoriaOpsicologa(req.user.tipo)) {
       const gruposTodos = await query(
         `SELECT DISTINCT g.*,
                 n.nombre as nivel_nombre,
@@ -15520,7 +15527,7 @@ router.get('/publicaciones', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
-    const esAdmin = esAdminOPromotoria(req.user.tipo);
+    const esAdmin = esAdminPromotoriaOpsicologa(req.user.tipo);
 
     let gruposIds = [];
     if (!esAdmin && personalId) {
@@ -15805,7 +15812,7 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
       gruposArrayParsed.length > 0 &&
       personalIdPub &&
       anioActivoPub &&
-      !esAdminOPromotoria(req.user.tipo)
+      !esAdminPromotoriaOpsicologa(req.user.tipo)
     ) {
       const permitidos = await obtenerGruposIdsAlcancePublicaciones(colegio_id, anioActivoPub, personalIdPub);
       const permitidosSet = new Set(permitidos.map((id) => Number(id)));
@@ -16218,7 +16225,7 @@ router.delete('/publicaciones/:publicacionId', async (req, res) => {
   try {
     const { usuario_id, colegio_id } = req.user;
     const { publicacionId } = req.params;
-    const esAdmin = esAdminOPromotoria(req.user.tipo);
+    const esAdmin = esAdminPromotoriaOpsicologa(req.user.tipo);
 
     // Verificar que la publicación existe y, si no es admin, que pertenece al usuario
     const publicaciones = await query(

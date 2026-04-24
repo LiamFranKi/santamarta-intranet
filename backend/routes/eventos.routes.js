@@ -304,7 +304,7 @@ publicRouter.post('/:token/visitante', async (req, res) => {
 /** --- Admin: mismo router con prefijo /api/admin/eventos --- */
 
 router.use(authenticateToken);
-router.use(requireUserType('ADMINISTRADOR', 'PROMOTORIA'));
+router.use(requireUserType('ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA'));
 
 /** Listar grupos del año (antes de /:id) */
 router.get('/grupos-disponibles', async (req, res) => {

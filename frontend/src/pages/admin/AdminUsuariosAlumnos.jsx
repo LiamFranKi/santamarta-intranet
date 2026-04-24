@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { fotoUsuarioAdmin } from '../../utils/adminUsuariosFoto';
@@ -60,6 +61,8 @@ const PARENTESCO_VINC_LABEL = {
 };
 
 export default function AdminUsuariosAlumnos() {
+  const { user } = useAuth();
+  const vistaRestringidaPsicologa = user?.tipo === 'PSICOLOGA';
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -648,9 +651,11 @@ export default function AdminUsuariosAlumnos() {
         <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={() => { setPage(1); cargar(); }}>
           Buscar
         </button>
-        <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={abrirCrear}>
-          + Registrar nuevo
-        </button>
+        {!vistaRestringidaPsicologa && (
+          <button type="button" className="admin-usu-btn admin-usu-btn-new" onClick={abrirCrear}>
+            + Registrar nuevo
+          </button>
+        )}
       </div>
 
       <div className="admin-usu-cards-wrap">
@@ -727,22 +732,26 @@ export default function AdminUsuariosAlumnos() {
           <button type="button" onClick={() => { abrirModalMensaje(menuRow); cerrarMenus(); }}>
             ✉️ Enviar Mensaje
           </button>
-          <button type="button" onClick={() => { historialMatriculas(menuRow); cerrarMenus(); }}>
-            📋 Historial de Matriculas
-          </button>
-          <button type="button" onClick={() => { historialPagos(menuRow); cerrarMenus(); }}>
-            💰 Historial de Pagos
-          </button>
-          <button type="button" onClick={() => { abrirInfoAcceso(menuRow); cerrarMenus(); }}>
-            🔐 Información de Acceso
-          </button>
-          <hr />
-          <button type="button" onClick={() => { abrirEditar(menuRow); cerrarMenus(); }}>
-            ✏️ Editar Alumno
-          </button>
-          <button type="button" onClick={() => { eliminarAlumno(menuRow); cerrarMenus(); }}>
-            🗑️ Eliminar Alumno
-          </button>
+          {!vistaRestringidaPsicologa && (
+            <>
+              <button type="button" onClick={() => { historialMatriculas(menuRow); cerrarMenus(); }}>
+                📋 Historial de Matriculas
+              </button>
+              <button type="button" onClick={() => { historialPagos(menuRow); cerrarMenus(); }}>
+                💰 Historial de Pagos
+              </button>
+              <button type="button" onClick={() => { abrirInfoAcceso(menuRow); cerrarMenus(); }}>
+                🔐 Información de Acceso
+              </button>
+              <hr />
+              <button type="button" onClick={() => { abrirEditar(menuRow); cerrarMenus(); }}>
+                ✏️ Editar Alumno
+              </button>
+              <button type="button" onClick={() => { eliminarAlumno(menuRow); cerrarMenus(); }}>
+                🗑️ Eliminar Alumno
+              </button>
+            </>
+          )}
         </div>,
         document.body
       )}
@@ -1266,17 +1275,19 @@ export default function AdminUsuariosAlumnos() {
             <div className="admin-usu-modal-body">
               <div className="admin-usu-matriculas-toolbar">
                 <p className="admin-usu-matriculas-nombre">{nombreAlumno(modalMatriculas.alumno)}</p>
-                <button
-                  type="button"
-                  className="admin-usu-btn admin-usu-btn-new"
-                  disabled={modalMatriculas.loading}
-                  onClick={() => {
-                    setEditMatriculaModal(null);
-                    setNuevaMatriculaModalOpen(true);
-                  }}
-                >
-                  + Registrar nuevo
-                </button>
+                {!vistaRestringidaPsicologa && (
+                  <button
+                    type="button"
+                    className="admin-usu-btn admin-usu-btn-new"
+                    disabled={modalMatriculas.loading}
+                    onClick={() => {
+                      setEditMatriculaModal(null);
+                      setNuevaMatriculaModalOpen(true);
+                    }}
+                  >
+                    + Registrar nuevo
+                  </button>
+                )}
               </div>
               {modalMatriculas.loading ? (
                 <p style={{ color: '#6b7280' }}>Cargando…</p>
