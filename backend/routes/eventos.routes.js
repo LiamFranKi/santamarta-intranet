@@ -91,7 +91,7 @@ publicRouter.get('/:token/grupos/:grupoId/alumnos', async (req, res) => {
       `SELECT DISTINCT a.id, a.nombres, a.apellido_paterno, a.apellido_materno, a.foto, a.nro_documento
        FROM matriculas m
        INNER JOIN alumnos a ON a.id = m.alumno_id
-       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
        ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
       [gid, ev[0].colegio_id]
     );
@@ -120,7 +120,7 @@ publicRouter.get('/:token/alumnos/:alumnoId/apoderados', async (req, res) => {
       `SELECT m.grupo_id
        FROM matriculas m
        INNER JOIN eventos_institucionales_grupos eg ON eg.grupo_id = m.grupo_id AND eg.evento_id = ?
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0)
        LIMIT 1`,
       [ev[0].id, aid, ev[0].colegio_id]
     );
@@ -175,7 +175,7 @@ publicRouter.post('/:token/asistencia', async (req, res) => {
       `SELECT 1 FROM familias f
        INNER JOIN matriculas m ON m.alumno_id = f.alumno_id
        INNER JOIN eventos_institucionales_grupos eg ON eg.grupo_id = m.grupo_id AND eg.evento_id = ?
-       WHERE f.alumno_id = ? AND f.apoderado_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+       WHERE f.alumno_id = ? AND f.apoderado_id = ? AND m.colegio_id = ? AND (m.estado = 0)
        LIMIT 1`,
       [eventoId, aid, apid, colegio_id]
     );
@@ -383,7 +383,7 @@ router.get('/:id/asistencias', async (req, res) => {
          SELECT m.alumno_id, eg.evento_id, MIN(m.grupo_id) AS grupo_id
          FROM matriculas m
          INNER JOIN eventos_institucionales_grupos eg ON eg.grupo_id = m.grupo_id
-         WHERE m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+         WHERE m.colegio_id = ? AND (m.estado = 0)
          GROUP BY m.alumno_id, eg.evento_id
        ) pick ON pick.alumno_id = ea.alumno_id AND pick.evento_id = ea.evento_id
        LEFT JOIN grupos g ON g.id = pick.grupo_id AND g.colegio_id = e.colegio_id
@@ -420,7 +420,7 @@ router.get('/:id/asistencias', async (req, res) => {
            SELECT m.alumno_id, eg.evento_id, MIN(m.grupo_id) AS grupo_id
            FROM matriculas m
            INNER JOIN eventos_institucionales_grupos eg ON eg.grupo_id = m.grupo_id
-           WHERE m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+           WHERE m.colegio_id = ? AND (m.estado = 0)
            GROUP BY m.alumno_id, eg.evento_id
          ) pick ON pick.alumno_id = v.alumno_id AND pick.evento_id = v.evento_id
          LEFT JOIN grupos g ON g.id = pick.grupo_id AND g.colegio_id = e.colegio_id

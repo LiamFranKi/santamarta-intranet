@@ -9,6 +9,7 @@ const multer = require('multer');
 const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
+const { sqlMatriculaEstadoSoloRegular } = require('../utils/matriculaEstados');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -296,7 +297,10 @@ async function listGrupos(req, res) {
     }
 
     let sql = `SELECT ${gFields.map((c) => `g.\`${c}\``).join(', ')}`;
-    sql += `, (SELECT COUNT(*) FROM matriculas m WHERE m.grupo_id = g.id) AS matriculas_count`;
+    // Solo matrícula **Regular** (estado = 0); ver `matriculaEstados.sqlMatriculaEstadoSoloRegular`.
+    sql += `, (SELECT COUNT(DISTINCT m.alumno_id) FROM matriculas m
+         WHERE m.grupo_id = g.id AND m.colegio_id = g.colegio_id
+           AND ${sqlMatriculaEstadoSoloRegular('m')}) AS matriculas_count`;
     if (gcols.has('nivel_id')) sql += `, n.nombre AS nivel_nombre`;
     if (gcols.has('turno_id')) sql += `, t.nombre AS turno_nombre`;
     if (gcols.has('sede_id')) sql += `, s.nombre AS sede_nombre`;

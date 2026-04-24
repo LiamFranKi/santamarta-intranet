@@ -142,7 +142,7 @@ router.get('/dashboard', async (req, res) => {
          INNER JOIN niveles n ON n.id = g.nivel_id
          INNER JOIN turnos t ON t.id = g.turno_id
          WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-         AND (m.estado = 0 OR m.estado = 4)
+         AND (m.estado = 0)
          LIMIT 1`,
         [alumnoData.id, colegio_id, anio_activo]
       );
@@ -374,7 +374,7 @@ router.get('/dashboard', async (req, res) => {
     const matriculasAlumno = await query(
       `SELECT m.id FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
       [alumnoData.id, colegio_id, anio_activo]
     );
     const matriculaIds = matriculasAlumno.map(m => m.id);
@@ -560,7 +560,7 @@ router.get('/cursos', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumnoData.id, colegio_id, anio_activo]
     );
@@ -713,7 +713,7 @@ router.get('/docentes', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumnoData.id, colegio_id, anio_activo]
     );
@@ -830,7 +830,7 @@ router.get('/horario', async (req, res) => {
       `SELECT m.grupo_id FROM matriculas m 
        INNER JOIN grupos g ON g.id = m.grupo_id 
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4) 
+       AND (m.estado = 0) 
        LIMIT 1`,
       [alumnoId, colegio_id, anio_activo]
     );
@@ -1028,7 +1028,7 @@ router.get('/avatares/resumen', async (req, res) => {
     const matriculas = await query(
       `SELECT m.id FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
       [alumnoId, colegio_id, anio_activo]
     );
     const matriculaIds = matriculas.map(m => m.id);
@@ -1128,7 +1128,7 @@ router.get('/avatares/tienda', async (req, res) => {
     const matriculas = await query(
       `SELECT m.id FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
       [alumnoId, colegio_id, anio_activo]
     );
     const matriculaIds = matriculas.map(m => m.id);
@@ -1275,7 +1275,7 @@ router.post('/avatares/comprar/:itemId', async (req, res) => {
     const matriculas = await query(
       `SELECT m.id FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
       [alumnoId, colegio_id, anio_activo]
     );
     const matriculaIds = matriculas.map(m => m.id);
@@ -1432,7 +1432,7 @@ const getTotalEstrellasAlumno = async (alumnoId, colegio_id, anio_activo) => {
   const matriculas = await query(
     `SELECT m.id FROM matriculas m
      INNER JOIN grupos g ON g.id = m.grupo_id
-     WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+     WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
     [alumnoId, colegio_id, anio_activo]
   );
   const matriculaIds = matriculas.map(m => m.id);
@@ -1756,7 +1756,7 @@ router.get('/publicaciones', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumnoId, colegio_id, anio_activo]
     );
@@ -3237,7 +3237,7 @@ router.get('/aula-virtual/archivos', async (req, res) => {
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [asignatura_id, alumno_id, colegio_id, anio_activo]
     );
@@ -3324,7 +3324,7 @@ router.get('/aula-virtual/tareas', async (req, res) => {
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [asignatura_id, alumno_id, colegio_id, anio_activo]
     );
@@ -3416,7 +3416,7 @@ router.get('/aula-virtual/examenes', async (req, res) => {
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [asignatura_id, alumno_id, colegio_id, anio_activo]
     );
@@ -3444,7 +3444,7 @@ router.get('/aula-virtual/examenes', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumno_id, colegio_id, anio_activo]
     );
@@ -3528,7 +3528,7 @@ router.get('/examenes/:examenId', async (req, res) => {
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE ae.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [examenId, alumno_id, colegio_id, anio_activo]
     );
@@ -3565,7 +3565,7 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE ae.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [examenId, alumno_id, colegio_id, anio_activo]
     );
@@ -3591,7 +3591,7 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumno_id, colegio_id, anio_activo]
     );
@@ -3683,7 +3683,7 @@ router.get('/examenes/:examenId/preguntas', async (req, res) => {
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE ae.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [examenId, alumno_id, colegio_id, anio_activo]
     );
@@ -3762,7 +3762,7 @@ router.post('/examenes/:examenId/guardar-preguntas', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumno_id, colegio_id, anio_activo]
     );
@@ -3820,7 +3820,7 @@ router.post('/examenes/:examenId/respuestas', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumno_id, colegio_id, anio_activo]
     );
@@ -3872,7 +3872,7 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumno_id, colegio_id, anio_activo]
     );
@@ -4361,7 +4361,7 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumno_id, colegio_id, anio_activo]
     );
@@ -4535,7 +4535,7 @@ router.get('/aula-virtual/videos', async (req, res) => {
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [asignatura_id, alumno_id, colegio_id, anio_activo]
     );
@@ -4581,7 +4581,7 @@ router.get('/aula-virtual/enlaces', async (req, res) => {
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE a.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [asignatura_id, alumno_id, colegio_id, anio_activo]
     );
@@ -4627,7 +4627,7 @@ router.get('/aula-virtual/tareas/:tareaId', async (req, res) => {
        INNER JOIN personal p ON p.id = a.personal_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE t.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [tareaId, alumno_id, colegio_id, anio_activo]
     );
@@ -4674,7 +4674,7 @@ router.get('/aula-virtual/tareas/:tareaId', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumno_id, colegio_id, anio_activo]
     );
@@ -4727,7 +4727,7 @@ router.get('/examenes/:examenId/resultado', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumno_id, colegio_id, anio_activo]
     );
@@ -4744,7 +4744,7 @@ router.get('/examenes/:examenId/resultado', async (req, res) => {
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE ae.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [examenId, alumno_id, colegio_id, anio_activo]
     );
@@ -4791,7 +4791,7 @@ router.get('/examenes/:examenId/resultado/detalles', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumno_id, colegio_id, anio_activo]
     );
@@ -4911,7 +4911,7 @@ router.post('/aula-virtual/tareas/:tareaId/entregar', async (req, res) => {
        INNER JOIN grupos g ON g.id = a.grupo_id
        INNER JOIN matriculas m ON m.grupo_id = g.id
        WHERE t.id = ? AND m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [tareaId, alumno_id, colegio_id, anio_activo]
     );
@@ -5047,7 +5047,7 @@ router.get('/cursos/:asignaturaId/horario', async (req, res) => {
       `SELECT m.grupo_id FROM matriculas m 
        INNER JOIN grupos g ON g.id = m.grupo_id 
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4) 
+       AND (m.estado = 0) 
        LIMIT 1`,
       [alumnoId, colegio_id, anio_activo]
     );
@@ -5173,7 +5173,7 @@ router.get('/cursos/:asignaturaId/notas-detalladas', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        LIMIT 1`,
       [alumnoId, colegio_id, anio_activo]
     );

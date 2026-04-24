@@ -62,7 +62,7 @@ async function getGradoSnapshot(alumnoId, colegioId, anio) {
      INNER JOIN grupos g ON g.id = m.grupo_id
      INNER JOIN niveles n ON n.id = g.nivel_id
      WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
      LIMIT 1`,
     [alumnoId, colegioId, anio]
   );

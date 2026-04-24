@@ -24,7 +24,7 @@ async function obtenerUrlAulaVirtual(query, destinatarioUsuarioId, ctx) {
     const hijos = await query(
       `SELECT DISTINCT a.id FROM alumnos a
        INNER JOIN familias f ON f.alumno_id = a.id AND f.apoderado_id = ?
-       INNER JOIN matriculas m ON m.alumno_id = a.id AND m.grupo_id = ? AND (m.estado = 0 OR m.estado = 4)
+       INNER JOIN matriculas m ON m.alumno_id = a.id AND m.grupo_id = ? AND (m.estado = 0)
        LIMIT 1`,
       [u.apoderado_id, grupo_id]
     );
@@ -40,7 +40,7 @@ async function obtenerUrlAulaVirtual(query, destinatarioUsuarioId, ctx) {
        INNER JOIN familias f ON f.alumno_id = a.id
        INNER JOIN apoderados ap ON ap.id = f.apoderado_id
        INNER JOIN personal pap ON pap.nro_documento = ap.nro_documento AND pap.id = ?
-       INNER JOIN matriculas m ON m.alumno_id = a.id AND m.grupo_id = ? AND (m.estado = 0 OR m.estado = 4)
+       INNER JOIN matriculas m ON m.alumno_id = a.id AND m.grupo_id = ? AND (m.estado = 0)
        LIMIT 1`,
       [u.personal_id, grupo_id]
     );
@@ -69,7 +69,7 @@ async function obtenerUrlExamenActivado(query, destinatarioUsuarioId, ctx) {
     const hijos = await query(
       `SELECT DISTINCT a.id FROM alumnos a
        INNER JOIN familias f ON f.alumno_id = a.id AND f.apoderado_id = ?
-       INNER JOIN matriculas m ON m.alumno_id = a.id AND m.grupo_id = ? AND (m.estado = 0 OR m.estado = 4)
+       INNER JOIN matriculas m ON m.alumno_id = a.id AND m.grupo_id = ? AND (m.estado = 0)
        LIMIT 1`,
       [u.apoderado_id, grupo_id]
     );
@@ -84,7 +84,7 @@ async function obtenerUrlExamenActivado(query, destinatarioUsuarioId, ctx) {
        INNER JOIN familias f ON f.alumno_id = a.id
        INNER JOIN apoderados ap ON ap.id = f.apoderado_id
        INNER JOIN personal pap ON pap.nro_documento = ap.nro_documento AND pap.id = ?
-       INNER JOIN matriculas m ON m.alumno_id = a.id AND m.grupo_id = ? AND (m.estado = 0 OR m.estado = 4)
+       INNER JOIN matriculas m ON m.alumno_id = a.id AND m.grupo_id = ? AND (m.estado = 0)
        LIMIT 1`,
       [u.personal_id, grupo_id]
     );

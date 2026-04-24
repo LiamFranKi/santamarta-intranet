@@ -326,7 +326,7 @@ router.get('/grupo', async (req, res) => {
        INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = m.colegio_id
        INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
        LEFT JOIN niveles n ON n.id = g.nivel_id
-       WHERE m.colegio_id = ? AND m.grupo_id = ? AND (m.estado = 0 OR m.estado = 4)
+       WHERE m.colegio_id = ? AND m.grupo_id = ? AND (m.estado = 0)
        ORDER BY a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC`,
       [cid, grupoId]
     );
@@ -371,7 +371,7 @@ router.get('/alumnos-buscar', async (req, res) => {
          INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = m.colegio_id
          INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
          LEFT JOIN niveles n ON n.id = g.nivel_id
-         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)
+         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)
            AND (
              a.nro_documento LIKE ?
              OR CONCAT_WS(' ', a.apellido_paterno, a.apellido_materno, a.nombres) LIKE ?
@@ -402,7 +402,7 @@ router.get('/alumnos-buscar', async (req, res) => {
            INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = m.colegio_id
            INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id
            LEFT JOIN niveles n ON n.id = g.nivel_id
-           WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)
+           WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)
              AND CONCAT_WS(' ', a.apellido_paterno, a.apellido_materno, a.nombres) LIKE ?
            ORDER BY a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC
            LIMIT 80`,
@@ -1328,7 +1328,7 @@ router.get('/piar/:id/pdf', async (req, res) => {
          FROM matriculas mv
          INNER JOIN grupos gv ON gv.id = mv.grupo_id AND gv.colegio_id = mv.colegio_id AND gv.anio = p.anio
          LEFT JOIN niveles nv ON nv.id = gv.nivel_id
-         WHERE mv.alumno_id = p.alumno_id AND mv.colegio_id = p.colegio_id AND (mv.estado = 0 OR mv.estado = 4)
+         WHERE mv.alumno_id = p.alumno_id AND mv.colegio_id = p.colegio_id AND (mv.estado = 0)
          ORDER BY mv.id DESC LIMIT 1) AS grupo_aula_etiqueta
        FROM psicologia_piar p
        INNER JOIN alumnos a ON a.id = p.alumno_id AND a.colegio_id = p.colegio_id

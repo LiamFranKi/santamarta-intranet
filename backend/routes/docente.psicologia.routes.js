@@ -38,7 +38,7 @@ async function assertDocentePuedeAlumno(req, alumnoId) {
     `SELECT 1
      FROM matriculas m
      INNER JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = m.colegio_id AND g.anio = ?
-     WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+     WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0)
        AND (
          EXISTS (
            SELECT 1 FROM asignaturas a
@@ -309,7 +309,7 @@ const sqlGrupoAulaPiar = `
    FROM matriculas mv
    INNER JOIN grupos gv ON gv.id = mv.grupo_id AND gv.colegio_id = mv.colegio_id AND gv.anio = p.anio
    LEFT JOIN niveles nv ON nv.id = gv.nivel_id
-   WHERE mv.alumno_id = p.alumno_id AND mv.colegio_id = p.colegio_id AND (mv.estado = 0 OR mv.estado = 4)
+   WHERE mv.alumno_id = p.alumno_id AND mv.colegio_id = p.colegio_id AND (mv.estado = 0)
    ORDER BY mv.id DESC LIMIT 1)`;
 
 async function assertDocenteAsignadoPiar(colegio_id, pid, piarId) {

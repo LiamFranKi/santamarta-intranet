@@ -94,7 +94,7 @@ router.get('/detalle/:id', async (req, res) => {
       const grupos = await query(
         `SELECT m.grupo_id as id FROM matriculas m
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+         WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
         [alumno_id, colegio_id, anio_activo]
       );
       grupoIds = grupos.map((g) => g.id);
@@ -103,7 +103,7 @@ router.get('/detalle/:id', async (req, res) => {
         `SELECT DISTINCT g.id FROM familias f
          INNER JOIN matriculas m ON m.alumno_id = f.alumno_id
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
         [apoderado_id, colegio_id, anio_activo]
       );
       grupoIds = grupos.map((g) => g.id);
@@ -171,7 +171,7 @@ router.get('/detalle/:id', async (req, res) => {
       if (grupoIds === null) {
         const m = await query(
           `SELECT 1 FROM matriculas m INNER JOIN grupos g ON g.id = m.grupo_id
-           WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4) LIMIT 1`,
+           WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0) LIMIT 1`,
           [entityId, colegio_id, anio_activo]
         );
         inScope = m && m.length > 0;
@@ -180,7 +180,7 @@ router.get('/detalle/:id', async (req, res) => {
       } else {
         const ph = grupoIds.map(() => '?').join(',');
         const m = await query(
-          `SELECT 1 FROM matriculas m WHERE m.alumno_id = ? AND m.colegio_id = ? AND m.grupo_id IN (${ph}) AND (m.estado = 0 OR m.estado = 4) LIMIT 1`,
+          `SELECT 1 FROM matriculas m WHERE m.alumno_id = ? AND m.colegio_id = ? AND m.grupo_id IN (${ph}) AND (m.estado = 0) LIMIT 1`,
           [entityId, colegio_id, ...grupoIds]
         );
         inScope = m && m.length > 0;
@@ -242,7 +242,7 @@ router.get('/detalle/:id', async (req, res) => {
         `SELECT 1 FROM familias f
          INNER JOIN matriculas m ON m.alumno_id = f.alumno_id
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4) LIMIT 1`,
+         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0) LIMIT 1`,
         [entityId, colegio_id, anio_activo]
       );
       inScopeAp = m && m.length > 0;
@@ -253,7 +253,7 @@ router.get('/detalle/:id', async (req, res) => {
       const m = await query(
         `SELECT 1 FROM familias f
          INNER JOIN matriculas m ON m.alumno_id = f.alumno_id
-         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND m.grupo_id IN (${ph}) AND (m.estado = 0 OR m.estado = 4) LIMIT 1`,
+         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND m.grupo_id IN (${ph}) AND (m.estado = 0) LIMIT 1`,
         [entityId, colegio_id, ...grupoIds]
       );
       inScopeAp = m && m.length > 0;
@@ -358,7 +358,7 @@ router.get('/', async (req, res) => {
       const grupos = await query(
         `SELECT m.grupo_id as id FROM matriculas m
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+         WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
         [alumno_id, colegio_id, anio_activo]
       );
       grupoIds = grupos.map(g => g.id);
@@ -367,7 +367,7 @@ router.get('/', async (req, res) => {
         `SELECT DISTINCT g.id FROM familias f
          INNER JOIN matriculas m ON m.alumno_id = f.alumno_id
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
         [apoderado_id, colegio_id, anio_activo]
       );
       grupoIds = grupos.map(g => g.id);
@@ -387,7 +387,7 @@ router.get('/', async (req, res) => {
           WHERE a.colegio_id = ? AND g.anio = ?
             AND a.fecha_nacimiento IS NOT NULL AND a.fecha_nacimiento != '0000-00-00'
             AND MONTH(a.fecha_nacimiento) = ?
-            AND (m.estado = 0 OR m.estado = 4)`;
+            AND (m.estado = 0)`;
         paramsAlumnos.splice(1, 0, anio_activo);
       } else {
         const placeholders = grupoIds.map(() => '?').join(',');
@@ -398,7 +398,7 @@ router.get('/', async (req, res) => {
           WHERE a.colegio_id = ? AND m.grupo_id IN (${placeholders})
             AND a.fecha_nacimiento IS NOT NULL AND a.fecha_nacimiento != '0000-00-00'
             AND MONTH(a.fecha_nacimiento) = ?
-            AND (m.estado = 0 OR m.estado = 4)`;
+            AND (m.estado = 0)`;
         paramsAlumnos.splice(1, 0, ...grupoIds);
       }
       const alumnos = await query(alumnosQuery, paramsAlumnos);
@@ -424,7 +424,7 @@ router.get('/', async (req, res) => {
           WHERE ap.colegio_id = ? AND g.anio = ?
             AND ap.fecha_nacimiento IS NOT NULL AND ap.fecha_nacimiento != '0000-00-00'
             AND MONTH(ap.fecha_nacimiento) = ?
-            AND (m.estado = 0 OR m.estado = 4)`;
+            AND (m.estado = 0)`;
         paramsApod.splice(1, 0, anio_activo);
       } else {
         const placeholders = grupoIds.map(() => '?').join(',');
@@ -436,7 +436,7 @@ router.get('/', async (req, res) => {
           WHERE ap.colegio_id = ? AND m.grupo_id IN (${placeholders})
             AND ap.fecha_nacimiento IS NOT NULL AND ap.fecha_nacimiento != '0000-00-00'
             AND MONTH(ap.fecha_nacimiento) = ?
-            AND (m.estado = 0 OR m.estado = 4)`;
+            AND (m.estado = 0)`;
         paramsApod.splice(1, 0, ...grupoIds);
       }
       const apoderados = await query(apoderadosQuery, paramsApod);

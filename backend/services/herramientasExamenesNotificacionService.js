@@ -63,7 +63,7 @@ async function obtenerDestinatariosHerramientasExamen(colegio_id, anio, audienci
       `SELECT DISTINCT u.id FROM usuarios u
        INNER JOIN matriculas m ON m.alumno_id = u.alumno_id AND m.colegio_id = ?
        INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ?
-       WHERE u.colegio_id = ? AND u.tipo = 'ALUMNO' AND (m.estado = 0 OR m.estado = 4)
+       WHERE u.colegio_id = ? AND u.tipo = 'ALUMNO' AND (m.estado = 0)
          AND m.grupo_id IN (${ph})`,
       [colegio_id, anio, colegio_id, ...gids]
     );
@@ -98,7 +98,7 @@ async function obtenerDestinatariosHerramientasExamen(colegio_id, anio, audienci
        INNER JOIN alumnos al ON al.id = f.alumno_id
        INNER JOIN matriculas m ON m.alumno_id = al.id AND m.colegio_id = ?
        INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ?
-       WHERE u.colegio_id = ? AND u.tipo = 'APODERADO' AND (m.estado = 0 OR m.estado = 4)
+       WHERE u.colegio_id = ? AND u.tipo = 'APODERADO' AND (m.estado = 0)
          AND m.grupo_id IN (${ph})`,
       [colegio_id, anio, colegio_id, ...gids]
     );

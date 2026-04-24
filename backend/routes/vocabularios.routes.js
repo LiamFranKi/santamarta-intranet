@@ -93,7 +93,7 @@ async function alumnoGrupoId(colegio_id, anio_activo, usuario_id) {
      INNER JOIN usuarios u ON u.alumno_id = al.id
      INNER JOIN grupos g ON g.id = m.grupo_id
      WHERE u.id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
      LIMIT 1`,
     [usuario_id, colegio_id, anio_activo]
   );

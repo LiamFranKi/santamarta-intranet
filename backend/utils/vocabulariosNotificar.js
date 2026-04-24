@@ -20,7 +20,7 @@ async function recolectarDestinatariosGrupo(query, colegio_id, grupo_id) {
      INNER JOIN usuarios u ON u.alumno_id = a.id
      WHERE m.grupo_id IN (${gruposArray.map(() => '?').join(',')})
        AND m.colegio_id = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
        AND u.colegio_id = ?
        AND u.estado = 'ACTIVO'`,
     [...gruposArray, colegio_id, colegio_id]

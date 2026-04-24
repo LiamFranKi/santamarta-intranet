@@ -21,7 +21,7 @@ async function contextoAlumnoGrado(colegio_id, alumnoId, matriculaId) {
   if (!mid) {
     const [mr] = await query(
       `SELECT m.id FROM matriculas m
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0)
        ORDER BY m.id DESC LIMIT 1`,
       [alumnoId, colegio_id]
     );

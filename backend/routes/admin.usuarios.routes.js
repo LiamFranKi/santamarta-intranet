@@ -20,6 +20,7 @@ const { ensureGrupoConn, insertCostoPersonalizado } = require('../utils/matricul
 const { DEFAULT_SEDE_ID } = require('../utils/defaultColegio');
 const { fechaMySQLLima } = require('../utils/fechaHoraLima');
 const { ensurePagosPendientesMatriculaConn, resolverPersonalIdPago } = require('../utils/pagoPendienteInsert');
+const { etiquetaEstadoMatricula } = require('../utils/matriculaEstados');
 
 /** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
 const TIPOS_ENUM_USUARIO = [
@@ -1320,21 +1321,6 @@ function formatoTextoLegible(val) {
 }
 
 /**
- * Etiqueta por índice `matriculas.estado` — alineado a sistema-anterior:
- * Main/Models/TraitConstants.php → $ESTADOS_MATRICULA =
- *   ['REGULAR','IRREGULAR','RETIRADO','TRASLADO','TEMPORAL'] (índices 0..4)
- */
-const ESTADOS_MATRICULA_LABELS = ['Regular', 'Irregular', 'Retirado', 'Traslado', 'Temporal'];
-
-function estadoMatriculaDesdeCodigo(estado) {
-  const e = Number(estado);
-  if (Number.isFinite(e) && e >= 0 && e < ESTADOS_MATRICULA_LABELS.length) {
-    return ESTADOS_MATRICULA_LABELS[e];
-  }
-  return `Cód. ${estado}`;
-}
-
-/**
  * Lista matrículas admin: `m.modalidad` (ENUM en BD, ver matriculas.modalidad).
  * Sin depender de columnas opcionales inexistentes.
  */
@@ -1373,7 +1359,7 @@ function mapMatriculaListAdminRows(rows) {
       grupo_texto: `${String(r.nivel_nombre || '').toUpperCase()} - ${r.grado || '—'}° ${r.seccion || ''} - ${r.anio || '—'}`
         .replace(/\s+/g, ' ')
         .trim(),
-      estado_display: estadoMatriculaDesdeCodigo(r.estado),
+      estado_display: etiquetaEstadoMatricula(r.estado),
       modalidad_texto: rawMod || null,
     };
   });
@@ -1732,7 +1718,7 @@ router.get('/equipo/:personalId', async (req, res) => {
              FROM matriculas m2
              INNER JOIN grupos g2 ON g2.id = m2.grupo_id AND g2.colegio_id = m2.colegio_id
              WHERE m2.alumno_id = a.id AND m2.colegio_id = a.colegio_id
-             ORDER BY (m2.estado = 0 OR m2.estado = 4) DESC, g2.anio DESC, m2.id DESC
+             ORDER BY (m2.estado = 0) DESC, g2.anio DESC, m2.id DESC
              LIMIT 1
            )
            LEFT JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = a.colegio_id
@@ -1746,7 +1732,7 @@ router.get('/equipo/:personalId', async (req, res) => {
             .replace(/\s+/g, ' ')
             .trim();
           const est = h.matricula_estado;
-          const vigente = est === 0 || est === 4;
+          const vigente = est === 0;
           return {
             alumno_id: h.alumno_id,
             nombres: h.nombres || '',
@@ -2990,7 +2976,7 @@ router.get('/alumnos/:id/hermanos', async (req, res) => {
          FROM matriculas m2
          INNER JOIN grupos g2 ON g2.id = m2.grupo_id AND g2.colegio_id = m2.colegio_id
          WHERE m2.alumno_id = s.id AND m2.colegio_id = s.colegio_id
-         ORDER BY (m2.estado = 0 OR m2.estado = 4) DESC, g2.anio DESC, m2.id DESC
+         ORDER BY (m2.estado = 0) DESC, g2.anio DESC, m2.id DESC
          LIMIT 1
        )
        LEFT JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = s.colegio_id
@@ -4185,7 +4171,7 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
     const personalIdPago = await resolverPersonalIdPago(colegio_id, req.user);
     const registrarLineaMat = b.registrar_linea_pago_matricula !== false;
 
-    if ((est === 0 || est === 4) && !personalIdPago) {
+    if (est === 0 && !personalIdPago) {
       return res.status(400).json({
         error:
           'No hay personal en el colegio para asociar los pagos. Registre al menos un trabajador en el equipo.',
@@ -4240,10 +4226,9 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
       );
 
       /**
-       * Irregular, Retirado, Traslado: sin cuotas pendientes en esta matrícula.
-       * Temporal (4) se trata como activo en aula/listas; conserva deuda pendiente.
+       * Cualquier estado distinto de Regular (0): sin cuotas pendientes en esta matrícula.
        */
-      if (est !== 0 && est !== 4) {
+      if (est !== 0) {
         await conn.execute(
           `DELETE FROM pagos
            WHERE matricula_id = ? AND colegio_id = ?
@@ -4254,9 +4239,9 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
       }
 
       /**
-       * Regular o Temporal: si no quedaron líneas (p. ej. volvió desde retiro), regenerar pensiones y línea de matrícula.
+       * Solo Regular: si no quedaron líneas (p. ej. volvió desde retiro), regenerar pensiones y línea de matrícula.
        */
-      if ((est === 0 || est === 4) && personalIdPago) {
+      if (est === 0 && personalIdPago) {
         await ensurePagosPendientesMatriculaConn(conn, {
           colegio_id,
           matriculaId,
@@ -4269,9 +4254,9 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
       }
 
       /**
-       * Regular (0) o Temporal (4): alinear montos de cuotas pendientes con el costo editado.
+       * Solo Regular (0): alinear montos de cuotas pendientes con el costo editado.
        */
-      if (est === 0 || est === 4) {
+      if (est === 0) {
         await conn.execute(
           `UPDATE pagos SET monto = ?
            WHERE matricula_id = ? AND colegio_id = ?
@@ -4291,7 +4276,7 @@ router.put('/alumnos/:id/matriculas/:matriculaId', async (req, res) => {
       }
 
       const [cntRegRows] = await conn.execute(
-        `SELECT COUNT(*) AS n FROM matriculas WHERE alumno_id = ? AND colegio_id = ? AND estado IN (0, 4)`,
+        `SELECT COUNT(*) AS n FROM matriculas WHERE alumno_id = ? AND colegio_id = ? AND estado = 0`,
         [alumnoId, colegio_id]
       );
       const tieneMatriculaActivaAula = Number(cntRegRows[0]?.n || 0) > 0;
@@ -4671,7 +4656,7 @@ router.get('/apoderados/:id/detalle', async (req, res) => {
          FROM matriculas m2
          INNER JOIN grupos g2 ON g2.id = m2.grupo_id AND g2.colegio_id = m2.colegio_id
          WHERE m2.alumno_id = a.id AND m2.colegio_id = a.colegio_id
-         ORDER BY (m2.estado = 0 OR m2.estado = 4) DESC, g2.anio DESC, m2.id DESC
+         ORDER BY (m2.estado = 0) DESC, g2.anio DESC, m2.id DESC
          LIMIT 1
        )
        LEFT JOIN grupos g ON g.id = m.grupo_id AND g.colegio_id = a.colegio_id
@@ -4686,7 +4671,7 @@ router.get('/apoderados/:id/detalle', async (req, res) => {
         .replace(/\s+/g, ' ')
         .trim();
       const est = h.matricula_estado;
-      const vigente = est === 0 || est === 4;
+      const vigente = est === 0;
       return {
         alumno_id: h.alumno_id,
         nombres: h.nombres || '',

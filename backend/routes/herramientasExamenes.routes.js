@@ -129,7 +129,7 @@ async function obtenerGruposUsuario(user, colegio_id, anio) {
       `SELECT m.grupo_id FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-         AND (m.estado = 0 OR m.estado = 4)`,
+         AND (m.estado = 0)`,
       [user.alumno_id, colegio_id, anio]
     );
     return { todos: false, ids: [...new Set((r || []).map((x) => Number(x.grupo_id)))] };
@@ -156,7 +156,7 @@ async function obtenerGruposUsuario(user, colegio_id, anio) {
        INNER JOIN alumnos al ON al.id = f.alumno_id
        INNER JOIN matriculas m ON m.alumno_id = al.id AND m.colegio_id = ?
        INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ?
-       WHERE f.apoderado_id = ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE f.apoderado_id = ? AND (m.estado = 0)`,
       [colegio_id, anio, user.apoderado_id]
     );
     return { todos: false, ids: [...new Set((r || []).map((x) => Number(x.grupo_id)))] };

@@ -500,7 +500,7 @@ async function verificarDeudas(usuario, anioActivo) {
         `SELECT m.id, m.grupo_id, g.anio
          FROM matriculas m
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4) AND g.anio = ?
+         WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0) AND g.anio = ?
          LIMIT 1`,
         [usuario.alumno_id, usuario.colegio_id, anioActivo]
       );
@@ -596,7 +596,7 @@ async function verificarDeudas(usuario, anioActivo) {
          INNER JOIN alumnos a ON a.id = m.alumno_id
          INNER JOIN familias f ON f.alumno_id = a.id
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4) AND g.anio = ?`,
+         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND (m.estado = 0) AND g.anio = ?`,
         [usuario.apoderado_id, usuario.colegio_id, anioActivo]
       );
 
@@ -741,7 +741,7 @@ async function verificarDeudas(usuario, anioActivo) {
          INNER JOIN alumnos a ON a.id = m.alumno_id
          INNER JOIN familias f ON f.alumno_id = a.id
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4) AND g.anio = ?`,
+         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND (m.estado = 0) AND g.anio = ?`,
         [apoderadoId, usuario.colegio_id, anioActivo]
       );
 
@@ -955,7 +955,7 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
       `SELECT m.id, m.grupo_id, g.anio
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4) AND g.anio = ?`,
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0) AND g.anio = ?`,
       [alumno.id, colegio_id, anio_activo]
     );
     

@@ -600,7 +600,8 @@ router.post('/inscripcion-matricula', async (req, res) => {
       }
     }
 
-    if (estadoMat !== 0 && estadoMat !== 4) {
+    // Solo Regular (0) mantiene cuotas pendientes de esta matrícula; cualquier otro estado limpia pendientes.
+    if (estadoMat !== 0) {
       await conn.execute(
         `DELETE FROM pagos
          WHERE matricula_id = ? AND colegio_id = ?
@@ -610,7 +611,7 @@ router.post('/inscripcion-matricula', async (req, res) => {
       );
     }
     const [cntRegRowsIns] = await conn.execute(
-      `SELECT COUNT(*) AS n FROM matriculas WHERE alumno_id = ? AND colegio_id = ? AND estado IN (0, 4)`,
+      `SELECT COUNT(*) AS n FROM matriculas WHERE alumno_id = ? AND colegio_id = ? AND estado = 0`,
       [alumnoId, colegio_id]
     );
     const tieneMatriculaActivaAulaIns = Number(cntRegRowsIns[0]?.n || 0) > 0;
@@ -890,8 +891,8 @@ router.post('/alumnos/:alumnoId/inscripcion-matricula', async (req, res) => {
       }
     }
 
-    /** Irregular / Retirado / Traslado: sin deuda pendiente en esta matrícula. Temporal conserva pagos pendientes. */
-    if (estadoMat !== 0 && estadoMat !== 4) {
+    /** Solo Regular (0): sin limpieza de pendientes. Cualquier otro estado elimina cuotas pendientes de esta matrícula. */
+    if (estadoMat !== 0) {
       await conn.execute(
         `DELETE FROM pagos
          WHERE matricula_id = ? AND colegio_id = ?
@@ -901,7 +902,7 @@ router.post('/alumnos/:alumnoId/inscripcion-matricula', async (req, res) => {
       );
     }
     const [cntRegRows] = await conn.execute(
-      `SELECT COUNT(*) AS n FROM matriculas WHERE alumno_id = ? AND colegio_id = ? AND estado IN (0, 4)`,
+      `SELECT COUNT(*) AS n FROM matriculas WHERE alumno_id = ? AND colegio_id = ? AND estado = 0`,
       [alumnoId, colegio_id]
     );
     const tieneMatriculaActivaAula = Number(cntRegRows[0]?.n || 0) > 0;

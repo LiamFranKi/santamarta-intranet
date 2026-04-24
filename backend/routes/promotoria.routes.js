@@ -24,14 +24,14 @@ router.get('/dashboard', async (req, res) => {
     const totalPensiones = parseInt(colegio?.total_pensiones || 10);
     const moneda = colegio?.moneda || 'S/';
 
-    // Matrículas del año activo, no retiradas (estado 0 o 4)
+    // Matrículas del año activo, solo Regular (estado = 0)
     const matriculasActivas = await query(
       `SELECT m.id, m.alumno_id, m.grupo_id, c.pension, c.matricula, g.grado, g.seccion, n.nombre as nivel_nombre
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN costos c ON c.id = m.costo_id
        LEFT JOIN niveles n ON n.id = g.nivel_id
-       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
       [colegio_id, anioActivo]
     );
 
@@ -115,7 +115,7 @@ router.get('/dashboard', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN costos c ON c.id = m.costo_id
-       WHERE m.colegio_id = ? AND g.anio >= 2025 AND g.anio < ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE m.colegio_id = ? AND g.anio >= 2025 AND g.anio < ? AND (m.estado = 0)`,
       [colegio_id, anioActivo]
     );
     let deudasAnteriores = 0;

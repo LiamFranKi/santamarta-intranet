@@ -106,7 +106,7 @@ async function getCumpleanosHoyParaUsuario(colegio_id, anio_activo, tipo, person
   } else if (tipo === 'ALUMNO' && alumno_id) {
     const grupos = await query(
       `SELECT m.grupo_id as id FROM matriculas m INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
       [alumno_id, colegio_id, anio_activo]
     );
     grupoIds = grupos.map(g => g.id);
@@ -114,7 +114,7 @@ async function getCumpleanosHoyParaUsuario(colegio_id, anio_activo, tipo, person
     const grupos = await query(
       `SELECT DISTINCT g.id FROM familias f INNER JOIN matriculas m ON m.alumno_id = f.alumno_id
        INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE f.apoderado_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE f.apoderado_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
       [apoderado_id, colegio_id, anio_activo]
     );
     grupoIds = grupos.map(g => g.id);
@@ -130,7 +130,7 @@ async function getCumpleanosHoyParaUsuario(colegio_id, anio_activo, tipo, person
          WHERE a.colegio_id = ? AND g.anio = ?
            AND a.fecha_nacimiento IS NOT NULL AND a.fecha_nacimiento != '0000-00-00'
            AND MONTH(a.fecha_nacimiento) = ? AND DAY(a.fecha_nacimiento) = ?
-           AND (m.estado = 0 OR m.estado = 4)`,
+           AND (m.estado = 0)`,
         [colegio_id, anio_activo, mesHoy, diaHoy]
       );
       alumnos.forEach(r => resultado.push({ nombre: r.nombre, perfil: 'Alumno' }));
@@ -142,7 +142,7 @@ async function getCumpleanosHoyParaUsuario(colegio_id, anio_activo, tipo, person
          WHERE ap.colegio_id = ? AND g.anio = ?
            AND ap.fecha_nacimiento IS NOT NULL AND ap.fecha_nacimiento != '0000-00-00'
            AND MONTH(ap.fecha_nacimiento) = ? AND DAY(ap.fecha_nacimiento) = ?
-           AND (m.estado = 0 OR m.estado = 4)`,
+           AND (m.estado = 0)`,
         [colegio_id, anio_activo, mesHoy, diaHoy]
       );
       apoderados.forEach(r => resultado.push({ nombre: r.nombre, perfil: 'Apoderado' }));
@@ -154,7 +154,7 @@ async function getCumpleanosHoyParaUsuario(colegio_id, anio_activo, tipo, person
          WHERE a.colegio_id = ? AND m.grupo_id IN (${placeholders})
            AND a.fecha_nacimiento IS NOT NULL AND a.fecha_nacimiento != '0000-00-00'
            AND MONTH(a.fecha_nacimiento) = ? AND DAY(a.fecha_nacimiento) = ?
-           AND (m.estado = 0 OR m.estado = 4)`,
+           AND (m.estado = 0)`,
         [colegio_id, ...grupoIds, mesHoy, diaHoy]
       );
       alumnos.forEach(r => resultado.push({ nombre: r.nombre, perfil: 'Alumno' }));
@@ -165,7 +165,7 @@ async function getCumpleanosHoyParaUsuario(colegio_id, anio_activo, tipo, person
          WHERE ap.colegio_id = ? AND m.grupo_id IN (${placeholders})
            AND ap.fecha_nacimiento IS NOT NULL AND ap.fecha_nacimiento != '0000-00-00'
            AND MONTH(ap.fecha_nacimiento) = ? AND DAY(ap.fecha_nacimiento) = ?
-           AND (m.estado = 0 OR m.estado = 4)`,
+           AND (m.estado = 0)`,
         [colegio_id, ...grupoIds, mesHoy, diaHoy]
       );
       apoderados.forEach(r => resultado.push({ nombre: r.nombre, perfil: 'Apoderado' }));

@@ -1,5 +1,5 @@
 /**
- * Matrícula "vigente" para portal apoderado/alumno: Regular (0) o Temporal (4).
+ * Matrícula "vigente" para portal apoderado/alumno: solo **Regular (0)**.
  * Se toma la de mayor año de grupo (desempate m.id DESC).
  */
 
@@ -18,7 +18,7 @@ async function fetchMatriculaVigenteMasReciente(query, alumnoId, colegio_id, sel
      INNER JOIN grupos g ON g.id = m.grupo_id
      INNER JOIN niveles n ON n.id = g.nivel_id
      WHERE m.alumno_id = ? AND m.colegio_id = ?
-       AND (m.estado = 0 OR m.estado = 4)
+       AND (m.estado = 0)
      ORDER BY g.anio DESC, m.id DESC
      LIMIT 1`,
     [alumnoId, colegio_id]
@@ -34,7 +34,7 @@ function sqlMatriculaIdMasRecientePorAlumno(aliasAlumno = 'a') {
     SELECT m2.id FROM matriculas m2
     INNER JOIN grupos g2 ON g2.id = m2.grupo_id
     WHERE m2.alumno_id = ${aliasAlumno}.id AND m2.colegio_id = ?
-      AND (m2.estado = 0 OR m2.estado = 4)
+      AND (m2.estado = 0)
     ORDER BY g2.anio DESC, m2.id DESC
     LIMIT 1
   )`;

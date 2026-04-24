@@ -250,7 +250,7 @@ async function obtenerAdjuntosPorRemitenteFecha(remitenteId, fechaHora, mensajeR
 /**
  * GET /api/admin/dashboard
  * Estadísticas para el administrador (año activo).
- * Matrículas Regular/Temporal: presupuesto = tarifa (matrícula + N pensiones); ingresos = SUM(monto) cobrado.
+ * Matrículas solo Regular (0): presupuesto = tarifa (matrícula + N pensiones); ingresos = SUM(monto) cobrado.
  * Si se pasa a Retirado/Traslado/Irregular, la matrícula sale del año y los totales se actualizan.
  */
 router.get('/dashboard', async (req, res) => {
@@ -265,13 +265,13 @@ router.get('/dashboard', async (req, res) => {
     const totalPensiones = parseInt(colegio?.total_pensiones || 10);
     const moneda = colegio?.moneda || 'S/';
 
-    // Matrículas del año activo con estado Regular o Temporal (incluye alumnos aún sin pagar matrícula)
+    // Matrículas del año activo con estado Regular (incluye alumnos aún sin pagar matrícula)
     const matriculasPagadas = await query(
       `SELECT m.id, m.alumno_id, c.pension, c.matricula
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN costos c ON c.id = m.costo_id
-       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
       [colegio_id, anioActivo]
     );
     const matIdsPagadas = (matriculasPagadas || []).map(m => m.id);
@@ -289,7 +289,7 @@ router.get('/dashboard', async (req, res) => {
       [colegio_id]
     );
 
-    // Total Alumnos: con matrícula Regular/Temporal en el año activo
+    // Total Alumnos: con matrícula Regular en el año activo
     const totalAlumnos = alumnoIdsPagados.length;
 
     // Total Apoderados: padres de esos alumnos
@@ -339,7 +339,7 @@ router.get('/dashboard', async (req, res) => {
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN costos c ON c.id = m.costo_id
-       WHERE m.colegio_id = ? AND g.anio >= 2025 AND g.anio < ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE m.colegio_id = ? AND g.anio >= 2025 AND g.anio < ? AND (m.estado = 0)`,
       [colegio_id, anioActivo]
     );
     let deudasAnteriores = 0;
@@ -393,13 +393,13 @@ router.get('/estadisticas/kpis', async (req, res) => {
     const totalPensiones = parseInt(colegio?.total_pensiones || 10);
     const moneda = colegio?.moneda || 'S/';
 
-    // Matrículas del año: Regular o Temporal
+    // Matrículas del año: solo Regular (0)
     const matriculasPagadas = await query(
       `SELECT m.id, m.alumno_id, c.pension, c.matricula
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN costos c ON c.id = m.costo_id
-       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)`,
+       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)`,
       [colegio_id, anio]
     );
     const matIdsPagadas = (matriculasPagadas || []).map(m => m.id);
@@ -656,7 +656,7 @@ router.get('/estadisticas/deudas-por-aula', async (req, res) => {
            WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO' AND p.tipo = 0
            GROUP BY p.matricula_id
          ) pg ON pg.matricula_id = m.id
-         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)
+         WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)
            AND EXISTS (
              SELECT 1 FROM pagos p2
              WHERE p2.matricula_id = m.id AND p2.colegio_id = ? AND p2.estado = 'ACTIVO'
@@ -706,7 +706,7 @@ router.get('/estadisticas/deudas-por-aula', async (req, res) => {
            AND p.tipo = 1 AND p.nro_pago = ? AND YEAR(p.fecha_hora) = ?
          GROUP BY p.matricula_id
        ) pg ON pg.matricula_id = m.id
-       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0 OR m.estado = 4)
+       WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)
          AND EXISTS (
            SELECT 1 FROM pagos p2
            WHERE p2.matricula_id = m.id AND p2.colegio_id = ? AND p2.estado = 'ACTIVO'
@@ -782,7 +782,7 @@ router.get('/estadisticas/deudas-por-aula/alumnos', async (req, res) => {
          FROM matriculas m
          INNER JOIN costos c ON c.id = m.costo_id
          INNER JOIN alumnos a ON a.id = m.alumno_id
-         WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+         WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
            AND EXISTS (
              SELECT 1 FROM pagos p
              WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
@@ -822,7 +822,7 @@ router.get('/estadisticas/deudas-por-aula/alumnos', async (req, res) => {
        FROM matriculas m
        INNER JOIN costos c ON c.id = m.costo_id
        INNER JOIN alumnos a ON a.id = m.alumno_id
-       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
          AND EXISTS (
            SELECT 1 FROM pagos p
            WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'

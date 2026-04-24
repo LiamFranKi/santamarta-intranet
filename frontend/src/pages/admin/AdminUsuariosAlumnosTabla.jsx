@@ -267,7 +267,7 @@ export default function AdminUsuariosAlumnosTabla() {
       const matriculas = matriculasRes.data?.data || [];
       const apoderados = apoderadosRes.data?.data || [];
       const hermanos = hermanosRes.data?.data || [];
-      const vigentes = matriculas.filter((m) => Number(m.estado) === 0 || Number(m.estado) === 4);
+      const vigentes = matriculas.filter((m) => Number(m.estado) === 0);
       vigentes.sort((a, b) => Number(b.anio || 0) - Number(a.anio || 0));
       setModalInfo({
         ...info,

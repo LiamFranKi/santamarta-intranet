@@ -11,7 +11,7 @@ async function obtenerContextoAlumnoGrupoParaMensaje(colegio_id, anio_activo, al
        g.seccion,
        n.nombre AS nivel_nombre
      FROM alumnos a
-     LEFT JOIN matriculas m ON m.alumno_id = a.id AND m.colegio_id = a.colegio_id AND (m.estado = 0 OR m.estado = 4)
+     LEFT JOIN matriculas m ON m.alumno_id = a.id AND m.colegio_id = a.colegio_id AND (m.estado = 0)
      LEFT JOIN grupos g ON g.id = m.grupo_id AND g.anio = ?
      LEFT JOIN niveles n ON n.id = g.nivel_id
      WHERE a.id = ? AND a.colegio_id = ?

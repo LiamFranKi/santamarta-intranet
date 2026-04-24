@@ -274,7 +274,7 @@ router.post('/registrar', async (req, res) => {
                INNER JOIN grupos g ON g.id = m.grupo_id
                WHERE m.alumno_id = (SELECT alumno_id FROM usuarios WHERE id = ?)
                  AND m.colegio_id = ? AND g.anio = ?
-                 AND (m.estado = 0 OR m.estado = 4)
+                 AND (m.estado = 0)
                LIMIT 1`,
               [usuario_id, colegio_id, anio_activo]
             );
@@ -328,7 +328,7 @@ router.post('/registrar', async (req, res) => {
                INNER JOIN grupos g ON g.id = m.grupo_id
                WHERE m.alumno_id = (SELECT alumno_id FROM usuarios WHERE id = ?)
                  AND m.colegio_id = ? AND g.anio = ?
-                 AND (m.estado = 0 OR m.estado = 4)
+                 AND (m.estado = 0)
                LIMIT 1`,
               [usuario_id, colegio_id, anio_activo]
             );

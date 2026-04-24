@@ -78,7 +78,7 @@ async function datosAlumnoGrupo(colegio_id, anio_activo, alumno_id, grupo_id_pre
      INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ? AND g.colegio_id = ?
      INNER JOIN alumnos a ON a.id = m.alumno_id AND a.colegio_id = ?
      LEFT JOIN niveles n ON n.id = g.nivel_id
-     WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)`;
+     WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0)`;
   const baseParams = [anio_activo, colegio_id, colegio_id, alumno_id, colegio_id];
 
   if (!isNaN(gid) && gid > 0) {
@@ -158,7 +158,7 @@ async function hijosApoderadoEnGrupos(apoderadoUsuarioId, colegio_id, anio_activ
      INNER JOIN apoderados ap ON ap.id = u.apoderado_id AND ap.colegio_id = ?
      INNER JOIN familias f ON f.apoderado_id = ap.id
      INNER JOIN alumnos a ON a.id = f.alumno_id AND a.colegio_id = ?
-     INNER JOIN matriculas m ON m.alumno_id = a.id AND m.colegio_id = ? AND (m.estado = 0 OR m.estado = 4)
+     INNER JOIN matriculas m ON m.alumno_id = a.id AND m.colegio_id = ? AND (m.estado = 0)
      INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ? AND g.colegio_id = ?
      WHERE u.id = ? AND u.colegio_id = ? AND g.id IN (${ph})`,
     [colegio_id, colegio_id, colegio_id, anio_activo, colegio_id, apoderadoUsuarioId, colegio_id, ...gruposIds]
