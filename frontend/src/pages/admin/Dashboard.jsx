@@ -18,6 +18,7 @@ import AdminMatriculasInscripcion from './AdminMatriculasInscripcion';
 import AdminAcademico from './AdminAcademico';
 import AdminPsicologiaLista from './AdminPsicologiaLista';
 import AdminPsicologiaExpediente from './AdminPsicologiaExpediente';
+import NotificacionesWidget from '../../components/NotificacionesWidget';
 
 const PSICOLOGA_RUTAS_ADMIN = [
   '/admin/psicologia',
@@ -26,7 +27,14 @@ const PSICOLOGA_RUTAS_ADMIN = [
   '/admin/academico/grados'
 ];
 
+/** Rutas /admin/* que la psicóloga puede abrir sin redirigir al panel (comunicaciones, perfil, bandeja, etc.). */
 function rutaAdminPermitidaPsicologa(pathname) {
+  if (pathname === '/admin/psicologa-dashboard') return true;
+  if (pathname === '/admin/perfil' || pathname.startsWith('/admin/perfil/')) return true;
+  if (pathname === '/admin/mensajes' || pathname.startsWith('/admin/mensajes/')) return true;
+  if (pathname.startsWith('/admin/comunicaciones/')) return true;
+  if (pathname === '/admin/vanguarcito' || pathname === '/admin/comunicaciones/chat-vanguard') return true;
+  if (pathname === '/admin/notificaciones' || pathname.startsWith('/admin/notificaciones/')) return true;
   return PSICOLOGA_RUTAS_ADMIN.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
@@ -191,6 +199,11 @@ function Dashboard() {
       description: 'Gestiona el módulo Vanguarcito',
       icon: '🌟'
     },
+    '/admin/comunicaciones/chat-vanguard': {
+      title: '💬 Chat Vanguard',
+      description: 'Asistente y módulo Vanguarcito',
+      icon: '💬'
+    },
     '/admin/reportes/asistencias': {
       title: '📊 Reportes de Asistencias',
       description: 'Genera reportes de asistencias',
@@ -354,6 +367,18 @@ function Dashboard() {
         <DashboardLayout>
           <div className="dashboard-container">
             <AdminAcademico />
+          </div>
+        </DashboardLayout>
+      );
+    }
+    if (
+      location.pathname === '/admin/comunicaciones/notificaciones'
+      || location.pathname === '/admin/notificaciones'
+    ) {
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <NotificacionesWidget variant="page" />
           </div>
         </DashboardLayout>
       );

@@ -280,7 +280,14 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
-      <Route path="/admin/comunicaciones/chat-vanguard" element={<Navigate to="/admin/vanguarcito" replace />} />
+      <Route
+        path="/admin/comunicaciones/chat-vanguard"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
+            <Dashboard />
+          </PrivateRoute>
+        }
+      />
       <Route
         path="/admin/comunicaciones/actividades"
         element={

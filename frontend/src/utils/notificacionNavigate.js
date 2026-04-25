@@ -9,6 +9,7 @@ export function dashboardPorTipoUsuario(tipo) {
   if (tipo === 'DOCENTE') return '/docente/dashboard';
   if (tipo === 'ADMINISTRADOR') return '/admin/dashboard';
   if (tipo === 'PROMOTORIA') return '/promotoria/dashboard';
+  if (tipo === 'PSICOLOGA') return '/admin/psicologa-dashboard';
   return '/';
 }
 
@@ -43,7 +44,7 @@ function reescribirUrlHerramientasExamen(url, tipoUsuario) {
   const base = '/herramientas-examenes';
   const suffix = url.length > base.length ? url.slice(base.length) : '';
   if (t === 'DOCENTE') return `/docente/herramientas/examenes${suffix}`;
-  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA') return `/admin/herramientas/examenes${suffix}`;
+  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA' || t === 'PSICOLOGA') return `/admin/herramientas/examenes${suffix}`;
   return url;
 }
 
@@ -94,7 +95,10 @@ export function normalizarUrlNotificacion(notif, user) {
   }
 
   // Publicación: administración va al menú Publicaciones (no al feed docente por error de url_destino legacy)
-  if (tipoAccion === 'publicacion' && (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA')) {
+  if (
+    tipoAccion === 'publicacion'
+    && (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'PSICOLOGA')
+  ) {
     if (
       !url ||
       url.includes('/docente/') ||
@@ -113,8 +117,9 @@ export function normalizarUrlNotificacion(notif, user) {
   ) {
     if (user?.tipo === 'ALUMNO') return '/alumno/dashboard#publicaciones';
     if (user?.tipo === 'APODERADO') return '/apoderado/dashboard#publicaciones';
-    if (user?.tipo === 'ADMINISTRADOR') return '/admin/comunicaciones/publicaciones';
-    if (user?.tipo === 'PROMOTORIA') return '/admin/comunicaciones/publicaciones';
+    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'PSICOLOGA') {
+      return '/admin/comunicaciones/publicaciones';
+    }
     return '/docente/dashboard#publicaciones';
   }
 
@@ -179,13 +184,18 @@ export function normalizarUrlNotificacion(notif, user) {
   if (tipoAccion === 'publicacion') {
     if (user?.tipo === 'ALUMNO') return '/alumno/dashboard#publicaciones';
     if (user?.tipo === 'APODERADO') return '/apoderado/dashboard#publicaciones';
-    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA') return '/admin/comunicaciones/publicaciones';
+    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'PSICOLOGA') {
+      return '/admin/comunicaciones/publicaciones';
+    }
     return '/docente/dashboard#publicaciones';
   }
 
   if (tipoAccion === 'mensajes_conexiones' || tipoAccion.includes('mensaje')) {
     if (user?.tipo === 'APODERADO') return '/apoderado/mensajes';
     if (user?.tipo === 'DOCENTE') return '/docente/mensajes';
+    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'PSICOLOGA') {
+      return '/admin/mensajes';
+    }
     return '/alumno/mensajes';
   }
 

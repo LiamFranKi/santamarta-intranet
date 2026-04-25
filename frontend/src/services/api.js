@@ -173,6 +173,8 @@ api.interceptors.response.use(
     const isPublicacionesRoute = error.config?.url?.includes('/publicaciones');
     const isPushRoute = error.config?.url?.includes('/push/');
     const isNotificacionesRoute = error.config?.url?.includes('/notificaciones');
+    /** Eventos institucionales (/api/admin/eventos): 403 por rol desactualizado no debe cerrar la sesión. */
+    const isAdminEventosRoute = /\/admin\/eventos/.test(reqUrl);
     const isActividadesRoute = error.config?.url?.includes('/actividades');
     const isGruposRoute = error.config?.url?.includes('/grupos');
     /** Catálogo académico admin: errores 500 no deben cerrar sesión (bug de API ≠ sesión inválida). */
@@ -203,6 +205,7 @@ api.interceptors.response.use(
       !isPublicacionesRoute &&
       !isPushRoute &&
       !isNotificacionesRoute &&
+      !isAdminEventosRoute &&
       !isActividadesRoute &&
       !isGruposRoute &&
       !skipLogoutMensajesApi &&
