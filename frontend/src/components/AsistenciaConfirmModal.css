@@ -1,0 +1,239 @@
+/* Modal confirmación asistencia + presentación escolar — táctil (móvil / tablet) */
+
+.asistencia-confirm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+@media (min-width: 600px) {
+  .asistencia-confirm-modal-overlay {
+    align-items: center;
+    padding: 1rem;
+  }
+}
+
+.asistencia-confirm-modal {
+  width: 100%;
+  max-width: 440px;
+  max-height: min(92vh, 720px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (min-width: 600px) {
+  .asistencia-confirm-modal {
+    border-radius: 20px;
+    max-height: min(90vh, 680px);
+  }
+}
+
+.asistencia-confirm-modal__header {
+  padding: 1.25rem 1.25rem 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.asistencia-confirm-modal__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.asistencia-confirm-modal__body {
+  padding: 1rem 1.25rem 1.25rem;
+  flex: 1;
+  min-height: 0;
+}
+
+.asistencia-confirm-modal__datos {
+  text-align: left;
+  font-size: 0.95rem;
+  color: #374151;
+  line-height: 1.5;
+}
+
+.asistencia-confirm-modal__datos p {
+  margin: 0.35rem 0;
+}
+
+.asistencia-confirm-modal__presentacion {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f3f4f6;
+}
+
+.asistencia-confirm-modal__presentacion-title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #111827;
+  text-align: center;
+}
+
+.asistencia-confirm-modal__presentacion-hint {
+  margin: 0 0 1rem;
+  font-size: 0.82rem;
+  color: #6b7280;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.asistencia-confirm-modal__botones-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: max(12px, 2.5vw);
+  width: 100%;
+}
+
+.asistencia-confirm-modal__btn-moto {
+  aspect-ratio: 1;
+  max-height: 180px;
+  min-height: 120px;
+  border: none;
+  border-radius: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+  color: #fff;
+  padding: 12px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.asistencia-confirm-modal__btn-moto:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.asistencia-confirm-modal__btn-moto:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.asistencia-confirm-modal__btn--uniforme {
+  background: linear-gradient(145deg, #7c3aed, #6d28d9);
+  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.45);
+}
+
+.asistencia-confirm-modal__btn--uniforme.is-active {
+  box-shadow: 0 0 0 4px #fff, 0 0 0 8px rgba(124, 58, 237, 0.55);
+  filter: brightness(1.08);
+}
+
+.asistencia-confirm-modal__btn--cabello {
+  background: linear-gradient(145deg, #db2777, #be185d);
+  box-shadow: 0 6px 20px rgba(219, 39, 119, 0.45);
+}
+
+.asistencia-confirm-modal__btn--cabello.is-active {
+  box-shadow: 0 0 0 4px #fff, 0 0 0 8px rgba(219, 39, 119, 0.5);
+  filter: brightness(1.08);
+}
+
+.asistencia-confirm-modal__btn-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(72%, 100px);
+  height: min(72%, 100px);
+}
+
+.asistencia-confirm-modal__svg {
+  width: 100%;
+  height: 100%;
+  color: #fff;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+}
+
+.asistencia-confirm-modal__labels-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 0.65rem;
+}
+
+.asistencia-confirm-modal__label-text {
+  text-align: center;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.asistencia-confirm-modal__footer {
+  display: flex;
+  gap: 12px;
+  padding: 1rem 1.25rem 1.25rem;
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  border-top: 1px solid #e5e7eb;
+  background: #fafafa;
+  border-radius: 0 0 20px 20px;
+}
+
+.asistencia-confirm-modal__btn-secondary {
+  flex: 1;
+  min-height: 52px;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  background: #fff;
+  border: 2px solid #e5e7eb;
+  border-radius: 14px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.asistencia-confirm-modal__btn-secondary:disabled {
+  opacity: 0.5;
+}
+
+.asistencia-confirm-modal__btn-primary {
+  flex: 1.2;
+  min-height: 52px;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.asistencia-confirm-modal__btn-primary--entrada {
+  background: linear-gradient(180deg, #10b981, #059669);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+}
+
+.asistencia-confirm-modal__btn-primary--salida {
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+}
+
+.asistencia-confirm-modal__btn-primary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+@media (max-width: 380px) {
+  .asistencia-confirm-modal__title {
+    font-size: 1.2rem;
+  }
+  .asistencia-confirm-modal__btn-moto {
+    min-height: 108px;
+  }
+}

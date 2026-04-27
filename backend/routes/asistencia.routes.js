@@ -9,14 +9,29 @@ const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { urlPortalHijoPorTipoUsuario } = require('../utils/notificacionUrls');
 const mensajesConfig = require('../config/mensajes.json');
 
-// Todas las rutas requieren autenticación y ser ASISTENCIA o ADMINISTRADOR
+// Todas las rutas requieren autenticación: ASISTENCIA, ADMINISTRADOR o DOCENTE con al menos un grupo como tutor
 router.use(authenticateToken);
 
-router.use((req, res, next) => {
-  if (req.user.tipo !== 'ASISTENCIA' && req.user.tipo !== 'ADMINISTRADOR') {
-    return res.status(403).json({ error: 'Acceso denegado. Solo usuarios ASISTENCIA pueden acceder.' });
+router.use(async (req, res, next) => {
+  try {
+    const t = req.user.tipo;
+    if (t === 'ASISTENCIA' || t === 'ADMINISTRADOR') return next();
+    if (t === 'DOCENTE' && req.user.personal_id) {
+      const ok = await query(
+        `SELECT 1 AS ok FROM grupos g
+         WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?
+         LIMIT 1`,
+        [req.user.personal_id, req.user.colegio_id, req.user.anio_activo]
+      );
+      if (ok.length > 0) return next();
+    }
+    return res.status(403).json({
+      error: 'Acceso denegado. Solo personal de asistencia o tutores con grupo a cargo pueden usar el escáner.'
+    });
+  } catch (e) {
+    console.error('Error verificando permisos asistencia:', e);
+    return res.status(500).json({ error: 'Error verificando permisos' });
   }
-  next();
 });
 
 /**
@@ -198,10 +213,24 @@ router.post('/escaneo', async (req, res) => {
  * POST /api/asistencia/registrar
  * Registrar asistencia (entrada o salida)
  */
+const MOTIVOS_PRESENTACION = new Set(['UNIFORME', 'CABELLO']);
+
 router.post('/registrar', async (req, res) => {
   try {
-    const { usuario_id, tipo_usuario, tipo_registro, fecha_dispositivo, hora_dispositivo } = req.body;
+    const {
+      usuario_id,
+      tipo_usuario,
+      tipo_registro,
+      fecha_dispositivo,
+      hora_dispositivo,
+      descuentos_presentacion: rawDescuentos
+    } = req.body;
     const { colegio_id, anio_activo, usuario_id: asistencia_usuario_id } = req.user;
+
+    let descuentosPresentacion = [];
+    if (Array.isArray(rawDescuentos)) {
+      descuentosPresentacion = [...new Set(rawDescuentos.filter((d) => MOTIVOS_PRESENTACION.has(d)))];
+    }
 
     if (!usuario_id || !tipo_usuario || !tipo_registro) {
       return res.status(400).json({ error: 'Datos incompletos' });
@@ -865,6 +894,41 @@ router.post('/registrar', async (req, res) => {
     // Si no es ALUMNO ni DOCENTE, no enviar notificaciones
     if (tipo_usuario !== 'ALUMNO' && tipo_usuario !== 'DOCENTE') {
       console.log(`⚠️ [ASISTENCIA] No se enviarán notificaciones: tipo_usuario=${tipo_usuario}, datosUsuario=${datosUsuario ? 'existe' : 'null'}`);
+    }
+
+    // Descuentos por presentación escolar (solo alumnos, solo al registrar ENTRADA nueva vinculada a un id de asistencia)
+    if (
+      tipo_usuario === 'ALUMNO' &&
+      tipo_registro === 'ENTRADA' &&
+      descuentosPresentacion.length > 0 &&
+      resultado &&
+      resultado.tipo === 'ENTRADA' &&
+      resultado.id
+    ) {
+      try {
+        for (const motivo of descuentosPresentacion) {
+          await execute(
+            `INSERT INTO presentacion_escolar_descuentos
+             (colegio_id, anio, alumno_usuario_id, asistencia_registro_id, motivo, puntos, fecha, hora, registrado_por_usuario_id, created_at)
+             VALUES (?, ?, ?, ?, ?, -1, ?, ?, ?, NOW())`,
+            [
+              colegio_id,
+              anio_activo,
+              usuario_id,
+              resultado.id,
+              motivo,
+              fechaHoy,
+              horaActual,
+              asistencia_usuario_id
+            ]
+          );
+        }
+        console.log(
+          `✅ [ASISTENCIA] Registrados ${descuentosPresentacion.length} descuento(s) presentación escolar para usuario ${usuario_id}`
+        );
+      } catch (errDesc) {
+        console.error('❌ [ASISTENCIA] Error guardando descuentos presentación escolar:', errDesc);
+      }
     }
 
     // Responder INMEDIATAMENTE sin esperar las notificaciones

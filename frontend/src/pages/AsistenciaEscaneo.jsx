@@ -4,17 +4,21 @@ import { Html5Qrcode } from 'html5-qrcode';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
+import AsistenciaConfirmModal from '../components/AsistenciaConfirmModal';
 import './AsistenciaEscaneo.css';
 
 function AsistenciaEscaneo() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user, loading: authLoading } = useAuth();
+  const [accesoVerificado, setAccesoVerificado] = useState(false);
+  const [docentePuedeEscanear, setDocentePuedeEscanear] = useState(true);
+  const [modalConfirmacion, setModalConfirmacion] = useState(null);
+  const modalBloqueaScanRef = useRef(false);
   const [modo, setModo] = useState('continuo'); // 'continuo' o 'manual'
   const [escaneando, setEscaneando] = useState(false);
   const [mostrarBusqueda, setMostrarBusqueda] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [resultadosBusqueda, setResultadosBusqueda] = useState([]);
-  const [usuarioSeleccionado, setUsuarioSeleccionado] = useState(null);
   const [procesando, setProcesando] = useState(false);
   const [historial, setHistorial] = useState([]);
   const [buscando, setBuscando] = useState(false);
@@ -29,6 +33,48 @@ function AsistenciaEscaneo() {
   const registroCompletoThrottleUntil = useRef(0);
   const registroCompletoQR = useRef(null); // QR que dio "registro completo" (throttle 5s)
   const cambiandoCamara = useRef(false); // Prevenir múltiples cambios de cámara simultáneos
+
+  // Solo docentes con al menos un grupo como tutor acceden; ASISTENCIA/ADMIN entran directo
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      setAccesoVerificado(true);
+      return;
+    }
+    if (user.tipo !== 'DOCENTE') {
+      setDocentePuedeEscanear(true);
+      setAccesoVerificado(true);
+      return;
+    }
+    let cancel = false;
+    (async () => {
+      try {
+        const { data } = await api.get('/docente/tutoria');
+        if (cancel) return;
+        if (!data.es_tutor) {
+          setDocentePuedeEscanear(false);
+          Swal.fire({
+            icon: 'info',
+            title: 'Sin acceso al escáner',
+            text: 'Solo los docentes con grupo de tutoría a cargo pueden escanear asistencia.',
+            confirmButtonText: 'Volver al panel'
+          }).then(() => {
+            navigate('/docente/tutoria', { replace: true });
+          });
+        } else {
+          setDocentePuedeEscanear(true);
+        }
+      } catch (e) {
+        if (cancel) return;
+        console.error(e);
+        Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo verificar el acceso al escáner.' });
+        navigate('/docente/tutoria', { replace: true });
+      } finally {
+        if (!cancel) setAccesoVerificado(true);
+      }
+    })();
+    return () => { cancel = true; };
+  }, [user, authLoading, navigate]);
 
   useEffect(() => {
     // Limpiar al desmontar
@@ -255,8 +301,7 @@ function AsistenciaEscaneo() {
         registroCompletoQR.current = qrData;
         registroCompletoThrottleUntil.current = ahora + 5000;
       } else if (response.data.success) {
-        setUsuarioSeleccionado(response.data.usuario);
-        mostrarModalConfirmacion(response.data);
+        abrirModalConfirmacion(response.data);
       } else {
         Swal.fire({
           title: 'Error',
@@ -285,51 +330,28 @@ function AsistenciaEscaneo() {
     } finally {
       setProcesando(false);
       
-      // Reanudar escaneo si es modo continuo y no hay usuario seleccionado
-      if (modo === 'continuo' && !usuarioSeleccionado) {
-        // Esperar un poco más antes de reanudar para evitar escaneos múltiples
+      // Reanudar escaneo si el modal de confirmación no está abierto
+      if (modo === 'continuo' && !modalBloqueaScanRef.current) {
         setTimeout(() => {
-          if (!procesando && !usuarioSeleccionado) {
+          if (!modalBloqueaScanRef.current) {
             iniciarEscaneo();
           }
-        }, 1500); // Aumentado a 1.5 segundos
+        }, 1500);
       }
     }
   };
 
-  const mostrarModalConfirmacion = (data) => {
-    const { usuario, tipo_registro } = data;
-    const tipoTexto = tipo_registro === 'ENTRADA' ? 'Entrada' : 'Salida';
-    const icono = tipo_registro === 'ENTRADA' ? '✅' : '👋';
-    
-    Swal.fire({
-      title: `${icono} ${tipoTexto}`,
-      html: `
-        <div style="text-align: left; margin-top: 20px;">
-          <p><strong>Nombre:</strong> ${usuario.nombres} ${usuario.apellidos}</p>
-          <p><strong>Tipo:</strong> ${usuario.tipo}</p>
-          <p><strong>DNI:</strong> ${usuario.nro_documento || 'N/A'}</p>
-        </div>
-      `,
-      icon: 'info',
-      showCancelButton: true,
-      confirmButtonText: `Registrar ${tipoTexto}`,
-      cancelButtonText: 'Cancelar',
-      confirmButtonColor: tipo_registro === 'ENTRADA' ? '#10b981' : '#3b82f6',
-      reverseButtons: true
-    }).then(async (result) => {
-      if (result.isConfirmed) {
-        await registrarAsistencia(usuario.usuario_id, usuario.tipo, tipo_registro);
-      } else {
-        setUsuarioSeleccionado(null);
-        if (modo === 'continuo') {
-          iniciarEscaneo();
-        }
-      }
-    });
+  const abrirModalConfirmacion = (data) => {
+    modalBloqueaScanRef.current = true;
+    setModalConfirmacion({ usuario: data.usuario, tipo_registro: data.tipo_registro });
   };
 
-  const registrarAsistencia = async (usuarioId, tipoUsuario, tipoRegistro) => {
+  const cerrarModalConfirmacion = () => {
+    modalBloqueaScanRef.current = false;
+    setModalConfirmacion(null);
+  };
+
+  const registrarAsistencia = async (usuarioId, tipoUsuario, tipoRegistro, descuentosPresentacion = []) => {
     // Prevenir múltiples registros simultáneos
     if (procesando) {
       console.log('⚠️ Ya hay un registro en proceso, ignorando...');
@@ -343,13 +365,17 @@ function AsistenciaEscaneo() {
       const now = new Date();
       const fecha_dispositivo = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       const hora_dispositivo = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-      const response = await api.post('/asistencia/registrar', {
+      const body = {
         usuario_id: usuarioId,
         tipo_usuario: tipoUsuario,
         tipo_registro: tipoRegistro,
         fecha_dispositivo,
         hora_dispositivo
-      });
+      };
+      if (Array.isArray(descuentosPresentacion) && descuentosPresentacion.length > 0) {
+        body.descuentos_presentacion = descuentosPresentacion;
+      }
+      const response = await api.post('/asistencia/registrar', body);
 
       if (response.data.success) {
         const { usuario, mensaje } = response.data;
@@ -371,18 +397,18 @@ function AsistenciaEscaneo() {
           showConfirmButton: false
         });
 
-        // Limpiar estado
-        setUsuarioSeleccionado(null);
+        modalBloqueaScanRef.current = false;
+        setModalConfirmacion(null);
         ultimoQRProcesado.current = null;
         tiempoUltimoQR.current = 0;
         
         // Reanudar escaneo si es modo continuo (con delay para evitar escaneos inmediatos)
         if (modo === 'continuo') {
           setTimeout(() => {
-            if (!procesando && !usuarioSeleccionado) {
+            if (!modalBloqueaScanRef.current) {
               iniciarEscaneo();
             }
-          }, 1500); // Aumentado a 1.5 segundos
+          }, 1500);
         }
       }
     } catch (error) {
@@ -397,17 +423,17 @@ function AsistenciaEscaneo() {
       });
       
       // Limpiar estado para permitir nuevo intento
-      setUsuarioSeleccionado(null);
+      modalBloqueaScanRef.current = false;
+      setModalConfirmacion(null);
       ultimoQRProcesado.current = null;
       tiempoUltimoQR.current = 0;
       
-      // Reanudar escaneo si es modo continuo (solo si no es error de duplicado)
       if (modo === 'continuo' && !errorMessage.includes('Ya existe un registro')) {
         setTimeout(() => {
-          if (!procesando && !usuarioSeleccionado) {
+          if (!modalBloqueaScanRef.current) {
             iniciarEscaneo();
           }
-        }, 2000); // Esperar más tiempo después de un error
+        }, 2000);
       }
     } finally {
       setProcesando(false);
@@ -463,14 +489,12 @@ function AsistenciaEscaneo() {
   }, [busqueda]);
 
   const seleccionarUsuarioManual = (usuario) => {
-    setUsuarioSeleccionado(usuario);
     setMostrarBusqueda(false);
     setBusqueda('');
     setResultadosBusqueda([]);
-    
-    // Determinar tipo de registro
-    const tipoRegistro = 'ENTRADA'; // Por defecto entrada, se puede mejorar
-    mostrarModalConfirmacion({
+
+    const tipoRegistro = 'ENTRADA';
+    abrirModalConfirmacion({
       usuario,
       tipo_registro: tipoRegistro
     });
@@ -493,12 +517,43 @@ function AsistenciaEscaneo() {
     }
   };
 
+  if (authLoading || !accesoVerificado || !docentePuedeEscanear) {
+    return (
+      <div className="asistencia-escaneo asistencia-escaneo--cargando">
+        <div className="asistencia-escaneo-cargando-inner">
+          <div className="spinner" style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff' }} />
+          <p>{authLoading ? 'Cargando sesión…' : 'Verificando acceso…'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  const tituloEscaneo =
+    user?.tipo === 'DOCENTE' ? '📱 Escanear asistencia (tutoría)' : '📱 Escáner de Asistencia';
+
   return (
     <div className="asistencia-escaneo">
+      <AsistenciaConfirmModal
+        open={!!modalConfirmacion}
+        usuario={modalConfirmacion?.usuario}
+        tipoRegistro={modalConfirmacion?.tipo_registro}
+        processing={procesando}
+        onCancel={() => {
+          cerrarModalConfirmacion();
+          if (modo === 'continuo') {
+            setTimeout(() => iniciarEscaneo(), 400);
+          }
+        }}
+        onConfirm={async (descuentos) => {
+          if (!modalConfirmacion) return;
+          const { usuario, tipo_registro } = modalConfirmacion;
+          await registrarAsistencia(usuario.usuario_id, usuario.tipo, tipo_registro, descuentos);
+        }}
+      />
       {/* Header */}
       <div className="escaneo-header">
         <div className="header-left">
-          <h1>📱 Escáner de Asistencia</h1>
+          <h1>{tituloEscaneo}</h1>
         </div>
         <div className="header-right">
           <button

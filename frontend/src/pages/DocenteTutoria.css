@@ -56,6 +56,77 @@
   font-weight: 700;
 }
 
+/* CTA escáner de asistencia (tutores) */
+.tutoria-escaneo-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%);
+  border: 2px solid #c7d2fe;
+  border-radius: 14px;
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.12);
+}
+
+.tutoria-escaneo-cta__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.tutoria-escaneo-cta__title {
+  font-weight: 800;
+  font-size: 1.05rem;
+  color: #312e81;
+}
+
+.tutoria-escaneo-cta__sub {
+  font-size: 0.88rem;
+  color: #5b5e7a;
+  line-height: 1.4;
+}
+
+.tutoria-escaneo-cta__btn {
+  flex: 0 0 auto;
+  min-height: 48px;
+  padding: 0.75rem 1.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  background: linear-gradient(135deg, #6366f1 0%, #7c3aed 100%);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.45);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tutoria-escaneo-cta__btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.5);
+}
+
+.tutoria-escaneo-cta__btn:active {
+  transform: scale(0.98);
+}
+
+@media (max-width: 520px) {
+  .tutoria-escaneo-cta {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .tutoria-escaneo-cta__btn {
+    width: 100%;
+  }
+}
+
 /* Cards de Grupos */
 .grupos-cards-container {
   display: grid;

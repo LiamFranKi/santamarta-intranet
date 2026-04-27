@@ -3346,6 +3346,24 @@ function DocenteTutoria() {
 
             <div className="tutoria-content mundo-card">
               <h2>Grupos a Cargo</h2>
+
+              {gruposTutor.length > 0 && (
+                <div className="tutoria-escaneo-cta" role="region" aria-label="Escanear asistencia">
+                  <div className="tutoria-escaneo-cta__text">
+                    <span className="tutoria-escaneo-cta__title">Escanear asistencia</span>
+                    <span className="tutoria-escaneo-cta__sub">
+                      Misma pantalla que usa el personal de asistencia: QR de alumnos y personal.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    className="tutoria-escaneo-cta__btn"
+                    onClick={() => navigate('/asistencia/escaneo')}
+                  >
+                    Escanear asistencia
+                  </button>
+                </div>
+              )}
               
               {gruposTutor.length > 0 ? (
                 <div className="grupos-cards-container">

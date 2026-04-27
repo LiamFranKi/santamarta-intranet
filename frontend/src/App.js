@@ -503,7 +503,7 @@ function AppRoutes() {
       <Route
         path="/asistencia/escaneo"
         element={
-          <PrivateRoute>
+          <PrivateRoute requiredTypes={['ASISTENCIA', 'ADMINISTRADOR', 'DOCENTE']}>
             <AsistenciaEscaneo />
           </PrivateRoute>
         }
