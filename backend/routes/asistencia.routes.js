@@ -215,6 +215,20 @@ router.post('/escaneo', async (req, res) => {
  */
 const MOTIVOS_PRESENTACION = new Set(['UNIFORME', 'CABELLO']);
 
+/** Fragmento para push / notificación in-app / coherencia con correo (solo apoderados, entrada). */
+function textoDescuentosPresentacionApoderado(descuentosPresentacion) {
+  if (!Array.isArray(descuentosPresentacion) || descuentosPresentacion.length === 0) return '';
+  const frases = [];
+  if (descuentosPresentacion.includes('UNIFORME')) {
+    frases.push('Se le descontó 1 punto por uniforme.');
+  }
+  if (descuentosPresentacion.includes('CABELLO')) {
+    frases.push('Se le descontó 1 punto por cabello.');
+  }
+  if (!frases.length) return '';
+  return ' ' + frases.join(' ');
+}
+
 router.post('/registrar', async (req, res) => {
   try {
     const {
@@ -588,6 +602,10 @@ router.post('/registrar', async (req, res) => {
           const tipoTexto = tipoAsistenciaParaNotificacion === 'PRESENTE' ? 'Presente' : 'Tardanza';
           mensajeNotificacion += ` Estado: ${tipoTexto}.`;
         }
+
+        if (tipo_registro === 'ENTRADA') {
+          mensajeNotificacion += textoDescuentosPresentacionApoderado(descuentosPresentacion);
+        }
         
         console.log(`📧 [ASISTENCIA] Título notificación: ${tituloNotificacion}`);
         console.log(`📧 [ASISTENCIA] Mensaje notificación: ${mensajeNotificacion}`);
@@ -664,7 +682,10 @@ router.post('/registrar', async (req, res) => {
                   accion_tipo: 'asistencia_alumno',
                   accion_payload: {
                     alumno_id: datosUsuario.id,
-                    tipo_registro
+                    tipo_registro,
+                    ...(descuentosPresentacion.length > 0
+                      ? { descuentos_presentacion: descuentosPresentacion }
+                      : {})
                   },
                   url_destino: urlDestinoAsist
                 });
@@ -701,7 +722,9 @@ router.post('/registrar', async (req, res) => {
                     tipo: tipo_registro,
                     colegioNombre,
                     esDocente: false,
-                    tipoAsistencia: tipo_registro === 'ENTRADA' ? tipoAsistenciaParaNotificacion : null
+                    tipoAsistencia: tipo_registro === 'ENTRADA' ? tipoAsistenciaParaNotificacion : null,
+                    descuentosPresentacion:
+                      tipo_registro === 'ENTRADA' ? descuentosPresentacion : []
                   });
                   if (resultadoCorreo.success) {
                     console.log(`✅ [ASISTENCIA] Correo enviado a ${email}`);

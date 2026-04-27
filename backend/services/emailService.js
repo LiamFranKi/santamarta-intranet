@@ -152,7 +152,7 @@ setTimeout(() => {
  * Generar template HTML para correo de asistencia
  */
 function generarTemplateAsistencia(datos) {
-  const { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia } = datos;
+  const { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia, descuentosPresentacion } = datos;
   
   const icono = tipo === 'ENTRADA' ? '✅' : '👋';
   const titulo = esDocente 
@@ -167,6 +167,31 @@ function generarTemplateAsistencia(datos) {
         : `Tu hijo(a) <strong>${nombreAlumno}</strong> ha salido del colegio.`);
   
   const colorPrincipal = tipo === 'ENTRADA' ? '#10b981' : '#3b82f6';
+
+  const tieneDescPresentacion =
+    tipo === 'ENTRADA' &&
+    !esDocente &&
+    Array.isArray(descuentosPresentacion) &&
+    descuentosPresentacion.length > 0;
+  const lineasPresentacion = [];
+  if (tieneDescPresentacion) {
+    if (descuentosPresentacion.includes('UNIFORME')) {
+      lineasPresentacion.push('Se le descontó 1 punto por uniforme.');
+    }
+    if (descuentosPresentacion.includes('CABELLO')) {
+      lineasPresentacion.push('Se le descontó 1 punto por cabello.');
+    }
+  }
+  const htmlBloquePresentacion =
+    lineasPresentacion.length > 0
+      ? `
+              <div style="background-color: #fef3c7; border-left: 4px solid #d97706; padding: 16px 18px; margin: 20px 0 0 0; border-radius: 8px;">
+                <p style="margin: 0; font-size: 15px; color: #78350f; line-height: 1.55;">
+                  <strong>Presentación escolar</strong><br/>
+                  ${lineasPresentacion.map((t) => `<span style="display:block;margin-top:6px;">${t}</span>`).join('')}
+                </p>
+              </div>`
+      : '';
   
   return `
 <!DOCTYPE html>
@@ -237,6 +262,7 @@ function generarTemplateAsistencia(datos) {
                 Comuníquese con su tutora para poder justificar su Falta o Tardanza.
               </p>
               ` : ''}
+              ${htmlBloquePresentacion}
               
               <p style="margin: 25px 0 0 0; font-size: 14px; color: #6b7280; line-height: 1.6;">
                 Este es un mensaje automático del sistema de asistencia. Por favor, no responda a este correo.
@@ -415,10 +441,10 @@ async function enviarCorreoAsistencia(destinatario, datos) {
       return { success: false, error: 'Destinatario inválido' };
     }
 
-    const { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia } = datos;
+    const { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia, descuentosPresentacion } = datos;
     
     console.log(`📧 [EMAIL] Enviando correo de asistencia a: ${emailDestino}`);
-    console.log(`📧 [EMAIL] Datos:`, { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia });
+    console.log(`📧 [EMAIL] Datos:`, { nombreAlumno, hora, fecha, tipo, colegioNombre, esDocente, tipoAsistencia, descuentosPresentacion });
     
     const template = generarTemplateAsistencia({
       nombreAlumno,
@@ -427,7 +453,8 @@ async function enviarCorreoAsistencia(destinatario, datos) {
       tipo,
       colegioNombre: colegioNombre || 'Vanguard Schools',
       esDocente: esDocente || false,
-      tipoAsistencia: tipoAsistencia || null
+      tipoAsistencia: tipoAsistencia || null,
+      descuentosPresentacion: Array.isArray(descuentosPresentacion) ? descuentosPresentacion : []
     });
 
     // Asunto con palabra clave al inicio: ASISTIÓ, TARDANZA, SALIDA (para apoderados)
