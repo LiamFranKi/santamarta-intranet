@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Alert, Box, Card, CardContent, CircularProgress, Stack, Typography } from '@mui/material';
+import { Alert, Box, CircularProgress, Typography } from '@mui/material';
 import DashboardLayout from '../components/DashboardLayout';
 import ApoderadoPsicologaMensajeModal from '../components/ApoderadoPsicologaMensajeModal';
 import api from '../services/api';
@@ -96,105 +96,120 @@ export default function ApoderadoPsicologia() {
       const piar = vista.piar_activo;
       const objs = parseJson(piar?.objetivos_json, []);
       const adj = parseJson(piar?.ajustes_checklist_json, {});
+      const actas = vista.actas_cerradas || [];
       return (
-        <div className="psi-page">
+        <div className="psi-page psi-apod-detalle">
           <button type="button" className="psi-exp-back" onClick={() => navigate('/apoderado/psicologia')}>
             ← Volver a mis hijos
           </button>
-          <Typography variant="h5" sx={{ mt: 2, fontWeight: 800, color: '#1e293b' }}>
-            {vista.alumno?.nombre || 'Estudiante'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Documentación compartida con la familia (actas cerradas y plan PIAR activo). No incluye notas clínicas de
-            sesiones internas.
-          </Typography>
 
-          <Typography variant="h6" sx={{ mt: 2, mb: 1, fontWeight: 700 }}>
-            Actas de reunión (cerradas)
-          </Typography>
-          {(vista.actas_cerradas || []).length === 0 && (
-            <Typography color="text.secondary">No hay actas cerradas registradas.</Typography>
-          )}
-          <Stack spacing={1.5}>
-            {(vista.actas_cerradas || []).map((a) => (
-              <Card key={a.id} variant="outlined" sx={{ borderRadius: 2, borderColor: '#c7d2fe' }}>
-                <CardContent>
-                  <Typography variant="subtitle2" color="primary">
-                    Acta #{a.id} · {a.fecha_reunion || 'Sin fecha'}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    <strong>Participantes:</strong> {a.participantes || '—'}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Temas:</strong> {a.temas_tratados || '—'}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Acuerdos:</strong> {a.acuerdos || '—'}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Compromisos familia:</strong> {a.compromisos_familia || '—'}
-                  </Typography>
-                  <Typography variant="body2">
-                    <strong>Compromisos colegio:</strong> {a.compromisos_colegio || '—'}
-                  </Typography>
-                </CardContent>
-              </Card>
-            ))}
-          </Stack>
+          <header className="psi-apod-hero-card">
+            <div className="psi-apod-hero-card__icon" aria-hidden>
+              👤
+            </div>
+            <div>
+              <h1 className="psi-apod-hero-card__name">{vista.alumno?.nombre || 'Estudiante'}</h1>
+              <p className="psi-apod-hero-card__hint">
+                Documentación compartida con la familia (actas cerradas y plan PIAR activo). No incluye notas clínicas
+                de sesiones internas.
+              </p>
+            </div>
+          </header>
 
-          <Typography variant="h6" sx={{ mt: 3, mb: 1, fontWeight: 700 }}>
-            PIAR activo
-          </Typography>
-          {!piar && <Typography color="text.secondary">No hay un PIAR activo publicado para este año.</Typography>}
-          {piar && (
-            <Card variant="outlined" sx={{ borderRadius: 2, borderColor: '#ddd6fe', bgcolor: '#faf5ff' }}>
-              <CardContent>
-                <Typography variant="subtitle2">
-                  Año {piar.anio} · Versión {piar.numero_version}
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  <strong>Fortalezas:</strong> {piar.fortalezas || '—'}
-                </Typography>
-                <Typography variant="body2">
-                  <strong>Áreas de apoyo:</strong> {piar.areas_dificultad || '—'}
-                </Typography>
-                <Typography variant="body2">
-                  <strong>Estilo de aprendizaje:</strong> {piar.estilo_aprendizaje || '—'}
-                </Typography>
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  <strong>Objetivos:</strong>
-                </Typography>
-                <ul style={{ margin: '0.25rem 0 0 1.1rem' }}>
-                  {Array.isArray(objs) &&
-                    objs.map((o, i) => (
-                      <li key={i}>
-                        {o.objetivo || '—'} — <em>{o.indicador || '—'}</em>
-                      </li>
+          <section className="psi-apod-section psi-apod-section--actas" aria-labelledby="psi-apod-actas-title">
+            <div className="psi-apod-section__head" id="psi-apod-actas-title">
+              <span className="psi-apod-section__emoji" aria-hidden>
+                📋
+              </span>
+              Actas de reunión (cerradas)
+            </div>
+            <div className="psi-apod-section__body">
+              {actas.length === 0 ? (
+                <div className="psi-apod-empty">No hay actas cerradas registradas para mostrar.</div>
+              ) : (
+                actas.map((a) => (
+                  <article key={a.id} className="psi-apod-acta-card">
+                    <div className="psi-apod-acta-card__meta">
+                      Acta #{a.id} · {a.fecha_reunion || 'Sin fecha'}
+                    </div>
+                    <p className="psi-apod-acta-card__row">
+                      <strong>Participantes:</strong> {a.participantes || '—'}
+                    </p>
+                    <p className="psi-apod-acta-card__row">
+                      <strong>Temas:</strong> {a.temas_tratados || '—'}
+                    </p>
+                    <p className="psi-apod-acta-card__row">
+                      <strong>Acuerdos:</strong> {a.acuerdos || '—'}
+                    </p>
+                    <p className="psi-apod-acta-card__row">
+                      <strong>Compromisos familia:</strong> {a.compromisos_familia || '—'}
+                    </p>
+                    <p className="psi-apod-acta-card__row">
+                      <strong>Compromisos colegio:</strong> {a.compromisos_colegio || '—'}
+                    </p>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="psi-apod-section psi-apod-section--piar" aria-labelledby="psi-apod-piar-title">
+            <div className="psi-apod-section__head" id="psi-apod-piar-title">
+              <span className="psi-apod-section__emoji" aria-hidden>
+                🌿
+              </span>
+              PIAR activo
+            </div>
+            <div className="psi-apod-section__body">
+              {!piar ? (
+                <div className="psi-apod-empty">No hay un PIAR activo publicado para este año.</div>
+              ) : (
+                <div className="psi-apod-piar-card">
+                  <div className="psi-apod-piar-card__meta">
+                    Año {piar.anio} · Versión {piar.numero_version}
+                  </div>
+                  <p className="psi-apod-piar-card__row">
+                    <strong>Fortalezas:</strong> {piar.fortalezas || '—'}
+                  </p>
+                  <p className="psi-apod-piar-card__row">
+                    <strong>Áreas de apoyo:</strong> {piar.areas_dificultad || '—'}
+                  </p>
+                  <p className="psi-apod-piar-card__row">
+                    <strong>Estilo de aprendizaje:</strong> {piar.estilo_aprendizaje || '—'}
+                  </p>
+                  <p className="psi-apod-piar-card__row">
+                    <strong>Objetivos:</strong>
+                  </p>
+                  <ul>
+                    {Array.isArray(objs) &&
+                      objs.map((o, i) => (
+                        <li key={i}>
+                          {o.objetivo || '—'} — <em>{o.indicador || '—'}</em>
+                        </li>
+                      ))}
+                  </ul>
+                  <p className="psi-apod-piar-card__row">
+                    <strong>Ajustes (resumen):</strong>
+                  </p>
+                  <div className="psi-apod-piar-card__caption">
+                    {Object.keys(adj).map((k) => (
+                      <span key={k}>
+                        {k}: {(Array.isArray(adj[k]) ? adj[k] : []).join(', ') || '—'};{' '}
+                      </span>
                     ))}
-                </ul>
-                <Typography variant="body2" sx={{ mt: 1 }}>
-                  <strong>Ajustes (resumen):</strong>
-                </Typography>
-                <Typography variant="caption" component="div" color="text.secondary">
-                  {Object.keys(adj).map((k) => (
-                    <span key={k}>
-                      {k}: {(Array.isArray(adj[k]) ? adj[k] : []).join(', ') || '—'};{' '}
-                    </span>
-                  ))}
-                </Typography>
-                {piar.fecha_revision && (
-                  <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-                    Próxima revisión: {piar.fecha_revision}
-                  </Typography>
-                )}
-                {piar.avances_observados && (
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    <strong>Avances:</strong> {piar.avances_observados}
-                  </Typography>
-                )}
-              </CardContent>
-            </Card>
-          )}
+                  </div>
+                  {piar.fecha_revision && (
+                    <p className="psi-apod-piar-card__caption">Próxima revisión: {piar.fecha_revision}</p>
+                  )}
+                  {piar.avances_observados && (
+                    <p className="psi-apod-piar-card__row">
+                      <strong>Avances:</strong> {piar.avances_observados}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
         </div>
       );
     }
@@ -263,7 +278,7 @@ export default function ApoderadoPsicologia() {
             <button
               key={h.alumno_id}
               type="button"
-              className={`psi-alumno-card psi-alumno-card--familia psi-tone-${i % 6}`}
+              className={`psi-alumno-card psi-alumno-card--familia psi-fam-hijo-${i % 6}`}
               onClick={() => navigate(`/apoderado/psicologia/${h.alumno_id}`)}
             >
               <h3>{h.nombre}</h3>
