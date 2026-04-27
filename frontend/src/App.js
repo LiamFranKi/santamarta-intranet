@@ -299,7 +299,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/comunicados"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
             <AdminComunicados />
           </PrivateRoute>
         }

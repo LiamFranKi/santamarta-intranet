@@ -12,6 +12,8 @@ import Swal from 'sweetalert2';
 
 function AdminComunicados() {
   const { user } = useAuth();
+  const puedeGestionarComunicados =
+    user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA';
   const [loading, setLoading] = useState(true);
   const [comunicados, setComunicados] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -447,22 +449,24 @@ function AdminComunicados() {
             <h1>Comunicados</h1>
             <p>Comunicados y anuncios oficiales del colegio</p>
           </div>
-          <button 
-            onClick={abrirModalCrear}
-            style={{
-              padding: '0.75rem 1.5rem',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              fontSize: '1rem',
-              fontWeight: '600',
-              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
-            }}
-          >
-            ➕ Crear Comunicado
-          </button>
+          {puedeGestionarComunicados && (
+            <button
+              onClick={abrirModalCrear}
+              style={{
+                padding: '0.75rem 1.5rem',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                fontSize: '1rem',
+                fontWeight: '600',
+                boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+              }}
+            >
+              ➕ Crear Comunicado
+            </button>
+          )}
         </div>
 
         <div className="comunicados-search-bar">
@@ -535,64 +539,68 @@ function AdminComunicados() {
                         📎 Archivo
                       </button>
                     )}
-                    <button
-                      onClick={() => abrirModalEditar(comunicado)}
-                      style={{
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '0.5rem 0.75rem',
-                        cursor: 'pointer',
-                        fontSize: '0.9rem',
-                        color: 'white',
-                        fontWeight: '600',
-                        boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.3rem'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.transform = 'scale(1.05)';
-                        e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.transform = 'scale(1)';
-                        e.target.style.boxShadow = '0 2px 6px rgba(16, 185, 129, 0.3)';
-                      }}
-                      title="Editar"
-                    >
-                      ✏️ Editar
-                    </button>
-                    <button
-                      onClick={() => handleEliminarComunicado(comunicado)}
-                      style={{
-                        background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                        border: 'none',
-                        borderRadius: '8px',
-                        padding: '0.5rem 0.75rem',
-                        cursor: 'pointer',
-                        fontSize: '0.9rem',
-                        color: 'white',
-                        fontWeight: '600',
-                        boxShadow: '0 2px 6px rgba(239, 68, 68, 0.3)',
-                        transition: 'all 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.3rem'
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.transform = 'scale(1.05)';
-                        e.target.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.transform = 'scale(1)';
-                        e.target.style.boxShadow = '0 2px 6px rgba(239, 68, 68, 0.3)';
-                      }}
-                      title="Eliminar"
-                    >
-                      🗑️ Eliminar
-                    </button>
+                    {puedeGestionarComunicados && (
+                      <>
+                        <button
+                          onClick={() => abrirModalEditar(comunicado)}
+                          style={{
+                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '0.5rem 0.75rem',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            color: 'white',
+                            fontWeight: '600',
+                            boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.transform = 'scale(1.05)';
+                            e.target.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.4)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.transform = 'scale(1)';
+                            e.target.style.boxShadow = '0 2px 6px rgba(16, 185, 129, 0.3)';
+                          }}
+                          title="Editar"
+                        >
+                          ✏️ Editar
+                        </button>
+                        <button
+                          onClick={() => handleEliminarComunicado(comunicado)}
+                          style={{
+                            background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                            border: 'none',
+                            borderRadius: '8px',
+                            padding: '0.5rem 0.75rem',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem',
+                            color: 'white',
+                            fontWeight: '600',
+                            boxShadow: '0 2px 6px rgba(239, 68, 68, 0.3)',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.3rem'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.transform = 'scale(1.05)';
+                            e.target.style.boxShadow = '0 4px 12px rgba(239, 68, 68, 0.4)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.transform = 'scale(1)';
+                            e.target.style.boxShadow = '0 2px 6px rgba(239, 68, 68, 0.3)';
+                          }}
+                          title="Eliminar"
+                        >
+                          🗑️ Eliminar
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
                 );
@@ -616,7 +624,7 @@ function AdminComunicados() {
       </div>
 
       {/* Modal de Crear/Editar Comunicado */}
-      {mostrarModal && createPortal(
+      {mostrarModal && puedeGestionarComunicados && createPortal(
         <div 
           className="modal-mensaje-overlay" 
           onClick={cerrarModal}
