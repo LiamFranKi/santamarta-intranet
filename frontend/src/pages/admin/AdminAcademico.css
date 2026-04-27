@@ -731,6 +731,10 @@ body.admin-academico-page .swal2-container {
   cursor: pointer;
 }
 
+.admin-academico-grupo-card__dropdown--psicologa .admin-academico-grupo-card__dropdown-item {
+  font-weight: 400;
+}
+
 .admin-academico-grupo-card__dropdown-icon {
   width: 1.1rem;
   display: inline-flex;

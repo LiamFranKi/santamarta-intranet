@@ -524,6 +524,9 @@ const OPCIONES_GRUPO_MENU = [
   { key: 'eliminar', label: 'Eliminar', icon: '🗑️', danger: true }
 ];
 
+/** Ítems del menú Opciones en tarjetas de grupo para perfil PSICOLOGA (solo lectura académica). */
+const KEYS_OPCIONES_GRUPO_PSICOLOGA = new Set(['lista_alumnos', 'ver_horario']);
+
 function NivelesPanel({ onRefreshMeta }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -783,7 +786,7 @@ function GruposPanel({ meta }) {
   const opcionesGrupoMenuVisibles = useMemo(
     () =>
       vistaSoloLecturaGrados
-        ? OPCIONES_GRUPO_MENU.filter((op) => op.key !== 'editar' && op.key !== 'eliminar')
+        ? OPCIONES_GRUPO_MENU.filter((op) => KEYS_OPCIONES_GRUPO_PSICOLOGA.has(op.key))
         : OPCIONES_GRUPO_MENU,
     [vistaSoloLecturaGrados]
   );
@@ -1091,7 +1094,10 @@ function GruposPanel({ meta }) {
                       Opciones
                     </button>
                     {menuGrupoId === r.id && (
-                      <div className="admin-academico-grupo-card__dropdown" role="menu">
+                      <div
+                        className={`admin-academico-grupo-card__dropdown${vistaSoloLecturaGrados ? ' admin-academico-grupo-card__dropdown--psicologa' : ''}`}
+                        role="menu"
+                      >
                         {opcionesGrupoMenuVisibles.map((op) => (
                           <button
                             key={op.key}
