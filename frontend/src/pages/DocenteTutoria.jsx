@@ -24,6 +24,30 @@ function getVisualViewportHeight() {
   return vv && vv.height > 0 ? vv.height : window.innerHeight;
 }
 
+function calcularPosicionMenuAnclado(rect, menuWidth, menuHeight) {
+  const gap = 8;
+  const edge = 12;
+  const viewportH = getVisualViewportHeight();
+  const viewportW = window.innerWidth;
+
+  const spaceBelow = viewportH - rect.bottom;
+  const spaceAbove = rect.top;
+
+  let top = rect.bottom + gap;
+  if (spaceBelow < menuHeight && spaceAbove > spaceBelow) {
+    top = rect.top - menuHeight - gap;
+  }
+  top = Math.max(edge, Math.min(top, viewportH - menuHeight - edge));
+
+  let left = rect.left;
+  if (left + menuWidth > viewportW - edge) {
+    left = viewportW - menuWidth - edge;
+  }
+  if (left < edge) left = edge;
+
+  return { top, left };
+}
+
 function DocenteTutoria() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -496,22 +520,20 @@ function DocenteTutoria() {
       return;
     }
 
-    const vh = getVisualViewportHeight();
     const menuApproxHeight = 400;
     const menuApproxWidth = 520;
-    let top = rect.bottom + 8;
-    const spaceBelow = vh - rect.bottom;
-    const spaceAbove = rect.top;
-    if (spaceBelow < menuApproxHeight && spaceAbove > spaceBelow) {
-      top = rect.top - menuApproxHeight - 8;
-    }
-    top = Math.max(8, Math.min(top, vh - menuApproxHeight - 12));
-    let left = rect.left;
-    if (left + menuApproxWidth > window.innerWidth - 12) {
-      left = window.innerWidth - menuApproxWidth - 12;
-    }
-    if (left < 8) left = 8;
-    setOpenDropdown({ grupoId, layout: 'anchor', top, left });
+    const { top, left } = calcularPosicionMenuAnclado(rect, menuApproxWidth, menuApproxHeight);
+    setOpenDropdown({
+      grupoId,
+      layout: 'anchor',
+      top,
+      left,
+      anchorRect: {
+        top: rect.top,
+        bottom: rect.bottom,
+        left: rect.left
+      }
+    });
   };
 
   const handleToggleAlumnoOpciones = (e, alumno) => {
@@ -530,21 +552,46 @@ function DocenteTutoria() {
       return;
     }
 
-    const vh = getVisualViewportHeight();
     const dropdownWidth = Math.min(280, window.innerWidth - 24);
     const menuApproxHeight = 300;
-    let left = rect.left;
-    let top = rect.bottom + 4;
-    if (left + dropdownWidth > window.innerWidth - 12) {
-      left = window.innerWidth - dropdownWidth - 12;
-    }
-    if (left < 12) left = 12;
-    if (top + menuApproxHeight > vh - 12) {
-      top = Math.max(12, rect.top - menuApproxHeight - 4);
-    }
-    top = Math.max(12, Math.min(top, vh - menuApproxHeight - 12));
-    setOpenDropdownAlumno({ id: alumno.id, layout: 'anchor', top, left });
+    const { top, left } = calcularPosicionMenuAnclado(rect, dropdownWidth, menuApproxHeight);
+    setOpenDropdownAlumno({
+      id: alumno.id,
+      layout: 'anchor',
+      top,
+      left,
+      anchorRect: {
+        top: rect.top,
+        bottom: rect.bottom,
+        left: rect.left
+      }
+    });
   };
+
+  // Desktop: segunda pasada con tamaño real del menú para evitar que quede "muy arriba".
+  useEffect(() => {
+    if (!openDropdown || openDropdown.layout !== 'anchor' || !openDropdown.anchorRect || !dropdownRef.current) return;
+    const menuRect = dropdownRef.current.getBoundingClientRect();
+    if (!menuRect.width || !menuRect.height) return;
+    const { top, left } = calcularPosicionMenuAnclado(openDropdown.anchorRect, menuRect.width, menuRect.height);
+    if (Math.abs((openDropdown.top ?? 0) - top) < 1 && Math.abs((openDropdown.left ?? 0) - left) < 1) return;
+    setOpenDropdown((prev) => {
+      if (!prev || prev.layout !== 'anchor') return prev;
+      return { ...prev, top, left };
+    });
+  }, [openDropdown]);
+
+  useEffect(() => {
+    if (!openDropdownAlumno || openDropdownAlumno.layout !== 'anchor' || !openDropdownAlumno.anchorRect || !alumnoDropdownRef.current) return;
+    const menuRect = alumnoDropdownRef.current.getBoundingClientRect();
+    if (!menuRect.width || !menuRect.height) return;
+    const { top, left } = calcularPosicionMenuAnclado(openDropdownAlumno.anchorRect, menuRect.width, menuRect.height);
+    if (Math.abs((openDropdownAlumno.top ?? 0) - top) < 1 && Math.abs((openDropdownAlumno.left ?? 0) - left) < 1) return;
+    setOpenDropdownAlumno((prev) => {
+      if (!prev || prev.layout !== 'anchor') return prev;
+      return { ...prev, top, left };
+    });
+  }, [openDropdownAlumno]);
 
   const handleOpcionClick = async (opcion, grupo) => {
     setOpenDropdown(null);
