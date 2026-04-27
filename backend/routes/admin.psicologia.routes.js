@@ -222,6 +222,86 @@ async function notificarDocenteDerivacion(req, { colegio_id, docentePersonalId, 
   }
 }
 
+/** Notificar creación/activación de PIAR a psicología, docente responsable y apoderados del alumno. */
+async function notificarAltaPiar(req, { colegio_id, alumnoId, piarId, estadoPiar, docenteResponsablePersonalId }) {
+  const remitenteId = req.user?.usuario_id != null ? Number(req.user.usuario_id) : null;
+  if (!Number.isFinite(remitenteId)) return;
+  const [alRow] = await query(
+    `SELECT TRIM(CONCAT(COALESCE(a.apellido_paterno,''),' ',COALESCE(a.apellido_materno,''),' ',COALESCE(a.nombres,''))) AS nombre
+     FROM alumnos a WHERE a.id = ? AND a.colegio_id = ? LIMIT 1`,
+    [alumnoId, colegio_id]
+  );
+  const nombreAl = (alRow && alRow.nombre) || `Alumno ${alumnoId}`;
+  const asunto = estadoPiar === 'ACTIVO' ? 'PIAR activo publicado' : 'PIAR registrado';
+  const contenido = `Se registró un PIAR para ${nombreAl}. Estado: ${estadoPiar || 'BORRADOR'}.`;
+
+  const destinatarios = new Set();
+
+  // Psicología/staff administrativo.
+  const staffRows = await query(
+    `SELECT u.id
+     FROM usuarios u
+     WHERE u.colegio_id = ? AND u.estado = 'ACTIVO'
+       AND u.tipo IN ('PSICOLOGA', 'ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA')`,
+    [colegio_id]
+  );
+  for (const r of staffRows || []) {
+    const id = Number(r.id);
+    if (Number.isFinite(id) && id !== remitenteId) destinatarios.add(id);
+  }
+
+  // Docente responsable asignado en PIAR (si existe).
+  if (Number.isFinite(Number(docenteResponsablePersonalId))) {
+    const docRows = await query(
+      `SELECT u.id FROM usuarios u
+       WHERE u.personal_id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE' LIMIT 1`,
+      [Number(docenteResponsablePersonalId), colegio_id]
+    );
+    const uid = Number(docRows?.[0]?.id);
+    if (Number.isFinite(uid) && uid !== remitenteId) destinatarios.add(uid);
+  }
+
+  // Apoderados del alumno.
+  const apRows = await query(
+    `SELECT DISTINCT u.id
+     FROM familias f
+     INNER JOIN apoderados ap ON ap.id = f.apoderado_id
+     INNER JOIN usuarios u ON u.apoderado_id = ap.id
+     WHERE f.alumno_id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'APODERADO'`,
+    [alumnoId, colegio_id]
+  );
+  for (const r of apRows || []) {
+    const id = Number(r.id);
+    if (Number.isFinite(id) && id !== remitenteId) destinatarios.add(id);
+  }
+
+  for (const destinatarioId of destinatarios) {
+    try {
+      const dup = await notificacionMensajeDuplicadaReciente(query, {
+        usuario_id: remitenteId,
+        destinatario_id: destinatarioId,
+        accion_tipo: 'PSICOLOGIA_PIAR',
+        contenido: `piar#${piarId}`,
+        ventanaSegundos: 90,
+      });
+      if (dup) continue;
+      await insertNotificacionUsuario(execute, {
+        para: 'USUARIO',
+        usuario_id: remitenteId,
+        destinatario_id: destinatarioId,
+        asunto,
+        contenido,
+        estado: 'NO ENVIADO',
+        accion_tipo: 'PSICOLOGIA_PIAR',
+        accion_payload: { piar_id: piarId, alumno_id: alumnoId },
+        url_destino: '/admin/psicologia',
+      });
+    } catch (nErr) {
+      console.warn('[psicologia] notificación PIAR:', nErr.message);
+    }
+  }
+}
+
 /** Derivaciones pendientes de atención (RECIBIDA), más recientes primero. */
 router.get('/derivaciones/pendientes', async (req, res) => {
   try {
@@ -972,6 +1052,28 @@ router.delete('/reuniones/:id', async (req, res) => {
 });
 
 // ——— PIAR ———
+router.get('/piar/lista', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const rows = await query(
+      `SELECT p.id, p.alumno_id, p.anio, p.numero_version, p.estado, p.updated_at, p.docente_responsable_personal_id,
+              TRIM(CONCAT(COALESCE(a.apellido_paterno,''), ' ', COALESCE(a.apellido_materno,''), ' ', COALESCE(a.nombres,''))) AS alumno_nombre,
+              ${sqlNombrePersonal('pd')} AS docente_responsable_nombre
+       FROM psicologia_piar p
+       INNER JOIN alumnos a ON a.id = p.alumno_id AND a.colegio_id = p.colegio_id
+       LEFT JOIN personal pd ON pd.id = p.docente_responsable_personal_id
+       WHERE p.colegio_id = ?
+       ORDER BY p.updated_at DESC, p.id DESC
+       LIMIT 400`,
+      [cid]
+    );
+    res.json({ piar_lista: rows || [] });
+  } catch (e) {
+    console.error('[admin/psicologia/piar/lista]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
 router.get('/alumnos/:alumnoId/piar', async (req, res) => {
   try {
     const cid = colegioId(req);
@@ -1053,6 +1155,18 @@ router.post('/alumnos/:alumnoId/piar', async (req, res) => {
          WHERE colegio_id = ? AND alumno_id = ? AND anio = ? AND id != ? AND estado = 'ACTIVO'`,
         [cid, alumnoId, anio, ins.insertId]
       );
+    }
+
+    try {
+      await notificarAltaPiar(req, {
+        colegio_id: cid,
+        alumnoId,
+        piarId: ins.insertId,
+        estadoPiar: estado,
+        docenteResponsablePersonalId: b.docente_responsable_personal_id != null ? parseInt(b.docente_responsable_personal_id, 10) : null,
+      });
+    } catch (nErr) {
+      console.warn('[psicologia] notificación alta PIAR omitida:', nErr.message);
     }
 
     res.json({ id: ins.insertId, numero_version: nv });

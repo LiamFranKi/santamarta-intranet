@@ -88,6 +88,9 @@ export default function AdminPsicologiaLista() {
   const [loadingPendientes, setLoadingPendientes] = useState(true);
   const [pendientesErr, setPendientesErr] = useState(null);
   const [marcandoLeidaId, setMarcandoLeidaId] = useState(null);
+  const [piarLista, setPiarLista] = useState([]);
+  const [loadingPiarLista, setLoadingPiarLista] = useState(true);
+  const [piarListaErr, setPiarListaErr] = useState(null);
 
   const cargarPendientes = useCallback(() => {
     setLoadingPendientes(true);
@@ -116,6 +119,20 @@ export default function AdminPsicologiaLista() {
   useEffect(() => {
     cargarPendientes();
   }, [cargarPendientes]);
+
+  const cargarPiarLista = useCallback(() => {
+    setLoadingPiarLista(true);
+    setPiarListaErr(null);
+    api
+      .get('/admin/psicologia/piar/lista')
+      .then(({ data }) => setPiarLista(data.piar_lista || []))
+      .catch((e) => setPiarListaErr(e.response?.data?.error || 'No se pudo cargar la lista PIAR'))
+      .finally(() => setLoadingPiarLista(false));
+  }, []);
+
+  useEffect(() => {
+    cargarPiarLista();
+  }, [cargarPiarLista]);
 
   const marcarDerivacionLeida = async (id) => {
     setMarcandoLeidaId(id);
@@ -337,6 +354,66 @@ export default function AdminPsicologiaLista() {
                               `/admin/psicologia/alumno/${p.alumno_id}${p.matricula_id != null ? `?matricula_id=${p.matricula_id}` : ''}`
                             )
                           }
+                        >
+                          Abrir
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="psi-pendientes-card">
+        <div className="psi-pendientes-title">Lista de alumnos con PIAR</div>
+        <p className="psi-pendientes-sub">
+          Consulta rápida de planes PIAR registrados por Psicología (incluye versiones y estado actual).
+        </p>
+        {piarListaErr && (
+          <Alert severity="warning" sx={{ mb: 1 }}>
+            {piarListaErr}
+          </Alert>
+        )}
+        {loadingPiarLista ? (
+          <Box display="flex" justifyContent="center" py={2}>
+            <CircularProgress size={28} />
+          </Box>
+        ) : piarLista.length === 0 ? (
+          <p className="psi-muted" style={{ margin: 0 }}>
+            No hay PIAR registrados todavía.
+          </p>
+        ) : (
+          <div className="psi-pendientes-table-wrap">
+            <table className="psi-pendientes-table">
+              <thead>
+                <tr>
+                  <th>Alumno</th>
+                  <th>Año</th>
+                  <th>Versión</th>
+                  <th>Estado</th>
+                  <th>Docente responsable</th>
+                  <th>Actualización</th>
+                  <th style={{ minWidth: 120 }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {piarLista.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.alumno_nombre || `Alumno ${p.alumno_id}`}</td>
+                    <td>{p.anio}</td>
+                    <td>{p.numero_version}</td>
+                    <td>{p.estado}</td>
+                    <td>{p.docente_responsable_nombre || '—'}</td>
+                    <td>{formatLimaSoloFecha(p.updated_at)}</td>
+                    <td>
+                      <div className="psi-pend-actions">
+                        <button
+                          type="button"
+                          className="psi-pend-btn-abrir"
+                          onClick={() => navigate(`/admin/psicologia/alumno/${p.alumno_id}`)}
                         >
                           Abrir
                         </button>

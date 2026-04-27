@@ -58,12 +58,6 @@ export default function PsicologaDashboard() {
   return (
     <DashboardLayout>
       <div className="dashboard-container psicologa-dashboard">
-        <header className="psicologa-dashboard__header">
-          <h1>Panel de psicología</h1>
-          <p className="psicologa-dashboard__sub">
-            Accesos rápidos a psicología, familias, aulas y comunicación. Use el menú lateral para navegar.
-          </p>
-        </header>
         <div className="psicologa-dashboard__manual-card-wrap">
           {manualUrl ? (
             <a

@@ -44,10 +44,10 @@ export default function DocentePsicologiaMisPiar() {
     <DashboardLayout>
       <div className="psi-doc-page">
         <div className="psi-doc-hero">
-          <h1>PIAR a mi cargo</h1>
+          <h1>Lista de PIAR (consulta docente)</h1>
           <p>
-            Solo aparecen planes donde psicología o administración lo asignaron como <strong>docente responsable</strong> del seguimiento en
-            aula. Complete estrategias, avances y la bitácora desde <strong>Abrir</strong>.
+            Visualiza los PIAR de estudiantes vinculados a tus grupos/tutorías. Esta vista es <strong>solo lectura</strong> para
+            seguimiento y consulta.
           </p>
         </div>
         {loading && <p className="psi-doc-muted">Cargando…</p>}
@@ -88,7 +88,7 @@ export default function DocentePsicologiaMisPiar() {
                 {rows.length === 0 && (
                   <tr>
                     <td colSpan={6} style={{ textAlign: 'center', padding: '1.5rem' }} className="psi-doc-muted">
-                      No tiene PIAR asignados. El equipo debe elegirlo en el expediente del alumno (campo docente responsable).
+                      No hay PIAR disponibles para tus grupos/tutorías en este momento.
                     </td>
                   </tr>
                 )}

@@ -3,8 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import { Box, CircularProgress, Stack, TextField, Typography } from '@mui/material';
 import api from '../services/api';
-import Swal from 'sweetalert2';
-import PsicologiaSignaturePad from '../components/PsicologiaSignaturePad';
 import './DocentePsicologia.css';
 
 const LIMA_TZ = 'America/Lima';
@@ -31,8 +29,6 @@ export default function DocentePsicologiaPiarDetalle() {
     avances_observados: '',
     firma_docente_imagen: '',
   });
-  const [nuevaNota, setNuevaNota] = useState('');
-  const [saving, setSaving] = useState(false);
 
   const cargar = useCallback(() => {
     if (!id) return;
@@ -58,39 +54,6 @@ export default function DocentePsicologiaPiarDetalle() {
   useEffect(() => {
     cargar();
   }, [cargar]);
-
-  const guardar = async () => {
-    setSaving(true);
-    try {
-      await api.put(`/docente/psicologia/piar/${id}`, {
-        estrategias_docentes: form.estrategias_docentes,
-        frecuencia_aplicacion: form.frecuencia_aplicacion,
-        avances_observados: form.avances_observados,
-        firma_docente_imagen: form.firma_docente_imagen || null,
-        firma_docente_fecha: form.firma_docente_imagen
-          ? new Date().toISOString().slice(0, 19).replace('T', ' ')
-          : null,
-      });
-      await Swal.fire({ icon: 'success', title: 'Guardado', timer: 1200, showConfirmButton: false });
-      cargar();
-    } catch (e) {
-      Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const agregarNota = async () => {
-    if (!String(nuevaNota || '').trim()) return;
-    try {
-      await api.post(`/docente/psicologia/piar/${id}/seguimiento`, { contenido: nuevaNota.trim() });
-      setNuevaNota('');
-      const { data } = await api.get(`/docente/psicologia/piar/${id}`);
-      setSeguimiento(data.seguimiento || []);
-    } catch (e) {
-      Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error' });
-    }
-  };
 
   if (loading && !piar) {
     return (
@@ -135,9 +98,7 @@ export default function DocentePsicologiaPiarDetalle() {
           ← Volver al listado
         </button>
         <div className="psi-doc-alert" style={{ marginBottom: 16 }}>
-          Los campos de diagnóstico y ajustes generales los completa el equipo de psicología en el expediente. Aquí solo actualice lo
-          acordado para <strong>su práctica en aula</strong> y registre <strong>notas de seguimiento</strong> (también las verá
-          psicología).
+          Vista de <strong>solo lectura</strong>. Aquí puede consultar lo registrado por Psicología y el historial de seguimiento.
         </div>
         <TextField
           fullWidth
@@ -146,7 +107,7 @@ export default function DocentePsicologiaPiarDetalle() {
           label="Estrategias y seguimiento en aula"
           margin="normal"
           value={form.estrategias_docentes}
-          onChange={(e) => setForm((f) => ({ ...f, estrategias_docentes: e.target.value }))}
+          InputProps={{ readOnly: true }}
         />
         <TextField
           fullWidth
@@ -155,7 +116,7 @@ export default function DocentePsicologiaPiarDetalle() {
           label="Frecuencia de aplicación / revisión"
           margin="normal"
           value={form.frecuencia_aplicacion}
-          onChange={(e) => setForm((f) => ({ ...f, frecuencia_aplicacion: e.target.value }))}
+          InputProps={{ readOnly: true }}
         />
         <TextField
           fullWidth
@@ -164,17 +125,8 @@ export default function DocentePsicologiaPiarDetalle() {
           label="Avances observados (síntesis en aula)"
           margin="normal"
           value={form.avances_observados}
-          onChange={(e) => setForm((f) => ({ ...f, avances_observados: e.target.value }))}
+          InputProps={{ readOnly: true }}
         />
-        <Typography variant="subtitle2" sx={{ mt: 2 }}>
-          Firma docente (opcional)
-        </Typography>
-        <PsicologiaSignaturePad onChange={(dataUrl) => setForm((f) => ({ ...f, firma_docente_imagen: dataUrl }))} />
-        <div className="psi-doc-btn-row">
-          <button type="button" className="psi-doc-btn psi-doc-btn-primary" onClick={guardar} disabled={saving}>
-            {saving ? <CircularProgress size={22} color="inherit" /> : 'Guardar cambios'}
-          </button>
-        </div>
 
         <Typography variant="h6" sx={{ mt: 3, mb: 1, fontWeight: 800 }}>
           Bitácora de seguimiento
@@ -192,17 +144,6 @@ export default function DocentePsicologiaPiarDetalle() {
           ))}
           {!seguimiento.length && <Typography className="psi-doc-muted">Sin notas aún.</Typography>}
         </Stack>
-        <TextField
-          fullWidth
-          multiline
-          minRows={2}
-          label="Nueva nota de seguimiento"
-          value={nuevaNota}
-          onChange={(e) => setNuevaNota(e.target.value)}
-        />
-        <button type="button" className="psi-doc-btn psi-doc-btn-secondary" style={{ marginTop: 8 }} onClick={agregarNota} disabled={!String(nuevaNota || '').trim()}>
-          Registrar nota
-        </button>
       </div>
     </DashboardLayout>
   );
