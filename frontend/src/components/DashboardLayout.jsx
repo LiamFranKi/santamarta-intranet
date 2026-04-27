@@ -501,7 +501,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>
                       📋
                     </span>
-                    <span className="sidebar-label">PIAR a mi cargo</span>
+                    <span className="sidebar-label">PIAR</span>
                   </NavLink>
                   {esSupervisorSupervision ? (
                     <NavLink

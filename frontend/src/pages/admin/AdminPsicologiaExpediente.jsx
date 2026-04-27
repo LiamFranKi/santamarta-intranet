@@ -188,7 +188,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
     estado: 'BORRADOR',
   });
 
-  /** Evita que un guardado desde este modal pise texto que el docente guardó en PIAR a mi cargo sin reabrir el modal. */
+  /** Evita que un guardado desde este modal pise texto que el docente guardó en Herramientas → PIAR sin reabrir el modal. */
   const piarDocenteCamposSnapshotRef = useRef({
     estrategias_docentes: '',
     frecuencia_aplicacion: '',
@@ -1014,7 +1014,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
             administración). Los <strong>ajustes razonables</strong> y los <strong>compromisos de aula</strong> se consensúan con el docente
             referente y se registran en el formulario (apartado &quot;Estrategias / seguimiento en aula&quot; y docente responsable).{' '}
             Asigne <strong>docente responsable</strong> en el formulario del PIAR para que ese docente vea el plan en{' '}
-            <strong>Herramientas → PIAR a mi cargo</strong> y pueda registrar seguimiento y ajustes de aula. El <strong>seguimiento en
+            <strong>Herramientas → PIAR</strong> y pueda registrar seguimiento y ajustes de aula. El <strong>seguimiento en
             bitácora</strong> (fechas y notas) lo pueden ir cargando <strong>psicología y el docente asignado</strong>; más adelante se
             podrá sumar el apoderado. <strong>Eliminar:</strong> solo <strong>BORRADOR</strong>; los activos se archivan o se versiona de
             nuevo.
@@ -1409,7 +1409,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           <TextField
             select
             fullWidth
-            label="Docente responsable (aparece en su menú: PIAR a mi cargo)"
+            label="Docente responsable (aparece en su menú: Herramientas → PIAR)"
             margin="normal"
             value={piarForm.docente_responsable_personal_id != null ? String(piarForm.docente_responsable_personal_id) : ''}
             onChange={(e) => setPiarForm((f) => ({ ...f, docente_responsable_personal_id: e.target.value }))}
@@ -1614,7 +1614,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
               Seguimiento en aula — Docente
             </Typography>
             <Alert severity="success" sx={{ mb: 1.5, bgcolor: 'rgba(255,255,255,0.85)' }}>
-              <strong>Solo el docente</strong> completa habitualmente estos tres campos desde <strong>Herramientas → PIAR a mi cargo</strong>.
+              <strong>Solo el docente</strong> completa habitualmente estos tres campos desde <strong>Herramientas → PIAR</strong>.
               Aquí puede consensuar borradores o dejarlos vacíos; el color <strong>verde / turquesa</strong> distingue esta zona del plan de
               psicología (violeta arriba). La <strong>bitácora</strong> queda en la sección violeta: docente y psicología comparten el mismo
               historial.
