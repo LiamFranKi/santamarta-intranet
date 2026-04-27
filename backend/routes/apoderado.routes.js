@@ -5093,6 +5093,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               let urlDest = '/docente/mensajes';
               if (td === 'APODERADO') urlDest = '/apoderado/mensajes';
               else if (td === 'ALUMNO') urlDest = '/alumno/mensajes';
+              else if (td === 'PSICOLOGA') urlDest = '/docente/mensajes';
               try {
                 if (
                   await notificacionMensajeDuplicadaReciente(query, {
@@ -5141,6 +5142,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                 let urlPush = '/docente/mensajes';
                 if (td === 'APODERADO') urlPush = '/apoderado/mensajes';
                 else if (td === 'ALUMNO') urlPush = '/alumno/mensajes';
+                else if (td === 'PSICOLOGA') urlPush = '/docente/mensajes';
                 return {
                   subscription: {
                     endpoint: sub.endpoint,
@@ -5758,6 +5760,49 @@ router.get('/psicologia/mis-hijos', async (req, res) => {
         hint: 'Ejecute database/migrations/035_psicologia_modulo_mysql.sql',
       });
     }
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/**
+ * GET /api/apoderado/psicologia/psicologa-contacto
+ * Primera usuaria con perfil PSICOLOGA del colegio (contacto familia en pantalla Psicología).
+ */
+router.get('/psicologia/psicologa-contacto', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const rows = await query(
+      `SELECT u.id AS usuario_id,
+              TRIM(CONCAT(COALESCE(p.nombres,''),' ',COALESCE(p.apellidos,''))) AS nombre_completo,
+              p.foto AS foto_filename
+       FROM usuarios u
+       INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = u.colegio_id
+       WHERE u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'PSICOLOGA'
+       ORDER BY u.id ASC
+       LIMIT 1`,
+      [colegio_id]
+    ).catch(() => []);
+    if (!rows || !rows.length) {
+      return res.json({ psicologa: null });
+    }
+    const row = rows[0];
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isProduction = process.env.NODE_ENV === 'production';
+    let foto_url = null;
+    if (row.foto_filename && String(row.foto_filename).trim()) {
+      foto_url = isProduction
+        ? `${phpSystemUrl}/Static/Image/Fotos/${row.foto_filename}`
+        : `http://localhost:5000/Static/Image/Fotos/${row.foto_filename}`;
+    }
+    res.json({
+      psicologa: {
+        usuario_id: row.usuario_id,
+        nombre_completo: (row.nombre_completo || 'Psicología').trim(),
+        foto_url,
+      },
+    });
+  } catch (e) {
+    console.error('[apoderado/psicologia/psicologa-contacto]', e);
     res.status(500).json({ error: e.message || 'Error' });
   }
 });

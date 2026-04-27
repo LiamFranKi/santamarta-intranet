@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Alert, Box, Button, Card, CardContent, CircularProgress, Stack, Typography } from '@mui/material';
+import { Alert, Box, Card, CardContent, CircularProgress, Stack, Typography } from '@mui/material';
 import DashboardLayout from '../components/DashboardLayout';
+import ApoderadoPsicologaMensajeModal from '../components/ApoderadoPsicologaMensajeModal';
 import api from '../services/api';
 import './admin/AdminPsicologia.css';
 
@@ -15,6 +16,16 @@ function parseJson(v, fb) {
   }
 }
 
+function inicialesNombre(nombreCompleto) {
+  const p = String(nombreCompleto || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (p.length === 0) return '—';
+  if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
+  return (p[0][0] + p[p.length - 1][0]).toUpperCase();
+}
+
 export default function ApoderadoPsicologia() {
   const { alumnoId } = useParams();
   const navigate = useNavigate();
@@ -22,6 +33,8 @@ export default function ApoderadoPsicologia() {
   const [vista, setVista] = useState(null);
   const [err, setErr] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [psicologa, setPsicologa] = useState(null);
+  const [modalMensajeAbierto, setModalMensajeAbierto] = useState(false);
 
   const loadHijos = useCallback(async () => {
     setLoading(true);
@@ -33,6 +46,15 @@ export default function ApoderadoPsicologia() {
       setErr(e.response?.data?.error || e.message);
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  const loadPsicologa = useCallback(async () => {
+    try {
+      const { data } = await api.get('/apoderado/psicologia/psicologa-contacto');
+      setPsicologa(data.psicologa || null);
+    } catch {
+      setPsicologa(null);
     }
   }, []);
 
@@ -55,8 +77,9 @@ export default function ApoderadoPsicologia() {
     } else {
       setVista(null);
       loadHijos();
+      loadPsicologa();
     }
-  }, [alumnoId, loadHijos, loadVista]);
+  }, [alumnoId, loadHijos, loadVista, loadPsicologa]);
 
   const inner = () => {
     if (loading && !vista && !hijos.length && !err) {
@@ -179,15 +202,68 @@ export default function ApoderadoPsicologia() {
     return (
       <div className="psi-page">
         <div className="psi-hero" style={{ marginBottom: '1.25rem' }}>
-          <h1>Psicología y familia</h1>
-          <p>Consulte actas de reuniones ya cerradas y el PIAR activo de cada hijo. Para dudas, use Mensajes con el colegio.</p>
+          <h1>Psicología</h1>
+          <p>
+            Consulte actas de reuniones ya cerradas y el PIAR activo de cada hijo. Puede escribir a la psicóloga del
+            colegio desde aquí; para otros temas use también <strong>Mensajes</strong>.
+          </p>
         </div>
+
+        <section className="psi-psicologa-contact-card" aria-label="Contacto psicología">
+          <div className="psi-psicologa-contact-card__avatar" aria-hidden="true">
+            {psicologa?.foto_url ? (
+              <img src={psicologa.foto_url} alt={psicologa.nombre_completo || 'Psicóloga'} />
+            ) : (
+              <div className="psi-psicologa-contact-card__avatar-fallback">
+                {psicologa ? inicialesNombre(psicologa.nombre_completo) : '🧠'}
+              </div>
+            )}
+          </div>
+          <div className="psi-psicologa-contact-card__text">
+            {psicologa ? (
+              <>
+                <h2 className="psi-psicologa-contact-card__name">{psicologa.nombre_completo}</h2>
+                <p className="psi-psicologa-contact-card__rol">Psicóloga</p>
+                <p className="psi-psicologa-contact-card__hint">
+                  Mensaje privado solo para ella: texto enriquecido, fotos en el mensaje y archivos adjuntos (igual que
+                  en Mensajes).
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="psi-psicologa-contact-card__name">Psicología</h2>
+                <p className="psi-psicologa-contact-card__rol">Contacto</p>
+                <p className="psi-psicologa-contact-card__hint">
+                  Aún no hay una cuenta de psicóloga activa en el colegio. Para consultas use el módulo{' '}
+                  <strong>Mensajes</strong> o secretaría.
+                </p>
+              </>
+            )}
+          </div>
+          <div className="psi-psicologa-contact-card__actions">
+            <button
+              type="button"
+              className="psi-btn-mensaje-psicologa"
+              disabled={!psicologa?.usuario_id}
+              onClick={() => psicologa?.usuario_id && setModalMensajeAbierto(true)}
+            >
+              Enviar mensaje
+            </button>
+          </div>
+        </section>
+
+        <ApoderadoPsicologaMensajeModal
+          open={modalMensajeAbierto}
+          onClose={() => setModalMensajeAbierto(false)}
+          psicologa={psicologa}
+        />
+
         <div className="psi-grid">
-          {hijos.map((h) => (
+          {hijos.map((h, i) => (
             <button
               key={h.alumno_id}
               type="button"
-              className="psi-alumno-card"
+              className={`psi-alumno-card psi-alumno-card--familia psi-tone-${i % 6}`}
               onClick={() => navigate(`/apoderado/psicologia/${h.alumno_id}`)}
             >
               <h3>{h.nombre}</h3>

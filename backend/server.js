@@ -257,6 +257,7 @@ const adminRoutes = require('./routes/admin.routes');
 const adminAcademicoRoutes = require('./routes/admin.academico.routes');
 const adminUsuariosRoutes = require('./routes/admin.usuarios.routes');
 const adminPsicologiaRoutes = require('./routes/admin.psicologia.routes');
+const eventosRoutes = require('./routes/eventos.routes');
 
 // Rutas de apoderado
 const apoderadoRoutes = require('./routes/apoderado.routes');
@@ -282,6 +283,9 @@ const adminInscripcionMatriculaRoutes = require('./routes/admin.inscripcion-matr
 app.use('/api/admin/usuarios', adminInscripcionMatriculaRoutes);
 app.use('/api/admin/academico', adminAcademicoRoutes);
 app.use('/api/admin/psicologia', adminPsicologiaRoutes);
+/* Eventos antes que /api/admin: si no, admin.routes bloquea PSICOLOGA/Promotoría antes de llegar a eventos.routes */
+app.use('/api/public/eventos', eventosRoutes.publicEventosRouter);
+app.use('/api/admin/eventos', eventosRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/apoderado', apoderadoRoutes);
 app.use('/api/promotoria', promotoriaRoutes);
@@ -290,10 +294,6 @@ app.use('/api/supervision', supervisionRoutes);
 app.use('/api/encuestas', encuestasRoutes);
 app.use('/api/herramientas-examenes', herramientasExamenesRoutes);
 app.use('/api/vocabularios', vocabulariosRoutes);
-
-const eventosRoutes = require('./routes/eventos.routes');
-app.use('/api/public/eventos', eventosRoutes.publicEventosRouter);
-app.use('/api/admin/eventos', eventosRoutes);
 
 // Rutas de prueba (solo desarrollo)
 if (process.env.NODE_ENV === 'development') {

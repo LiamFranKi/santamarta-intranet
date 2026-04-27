@@ -2,11 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import './AsistenciaConfirmModal.css';
 
-/** Polo — cuello, mangas cortas, tapeta con botones y bolsillo (referencia visual clara). */
+/** Polo — cuello, mangas cortas, tapeta con botones y bolsillo; estirado en Y para llenar el cuadrado como el icono de cabello. */
 function IconShirt() {
   return (
-    <svg className="asistencia-confirm-modal__svg" viewBox="0 0 100 100" aria-hidden="true">
-      <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      className="asistencia-confirm-modal__svg asistencia-confirm-modal__svg--shirt"
+      viewBox="0 0 100 100"
+      overflow="visible"
+      aria-hidden="true"
+    >
+      <g
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        transform="translate(50 58) scale(1 1.3) translate(-50 -58)"
+      >
         <path d="M20 36 L10 42 L10 90 L90 90 L90 42 L80 36" />
         <path d="M36 36 L50 54 L64 36" />
         <path d="M30 36 Q50 26 70 36" />

@@ -874,7 +874,7 @@ export default function DashboardLayout({ children }) {
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/psicologia">
                   <span className="sidebar-icon">🧠</span>
-                  <span className="sidebar-label">Psicología y familia</span>
+                  <span className="sidebar-label">Psicología</span>
                 </NavLink>
               </div>
               <div className="sidebar-section-divider" />

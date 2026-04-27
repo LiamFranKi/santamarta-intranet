@@ -163,7 +163,7 @@ router.use((req, res, next) => {
       '/estadisticas/deudas-por-aula',
       '/estadisticas/deudas-por-aula/alumnos'
     ];
-    const permitidasPorPrefijo = ['/notificaciones', '/perfil', '/conexiones'];
+    const permitidasPorPrefijo = ['/notificaciones', '/perfil', '/conexiones', '/eventos'];
     if (
       permitidasPromotoria.includes(p) ||
       permitidasPorPrefijo.some((prefix) => p === prefix || p.startsWith(`${prefix}/`))
@@ -173,7 +173,7 @@ router.use((req, res, next) => {
   }
   if (req.user.tipo === 'PSICOLOGA') {
     const p = req.path || '';
-    const prefijosPsicologa = ['/notificaciones', '/perfil', '/conexiones'];
+    const prefijosPsicologa = ['/notificaciones', '/perfil', '/conexiones', '/eventos'];
     if (prefijosPsicologa.some((prefix) => p === prefix || p.startsWith(`${prefix}/`))) {
       return next();
     }
