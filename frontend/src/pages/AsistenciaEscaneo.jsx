@@ -554,6 +554,18 @@ function AsistenciaEscaneo() {
       <div className="escaneo-header">
         <div className="header-left">
           <h1>{tituloEscaneo}</h1>
+          {user?.tipo === 'DOCENTE' && (
+            <button
+              type="button"
+              className="btn-volver-tutoria"
+              onClick={async () => {
+                await detenerEscaneo();
+                navigate('/docente/tutoria');
+              }}
+            >
+              ← Volver a Tutoría
+            </button>
+          )}
         </div>
         <div className="header-right">
           <button

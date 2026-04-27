@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Alert, Box, Button, CircularProgress, Stack, TextField, Typography } from '@mui/material';
 import DashboardLayout from '../components/DashboardLayout';
-import { Box, CircularProgress, Stack, TextField, Typography } from '@mui/material';
 import api from '../services/api';
+import Swal from 'sweetalert2';
 import './DocentePsicologia.css';
 
 const LIMA_TZ = 'America/Lima';
@@ -23,12 +24,17 @@ export default function DocentePsicologiaPiarDetalle() {
   const [err, setErr] = useState(null);
   const [piar, setPiar] = useState(null);
   const [seguimiento, setSeguimiento] = useState([]);
+  const [puedeEditar, setPuedeEditar] = useState(false);
+  const [soloLecturaMotivo, setSoloLecturaMotivo] = useState(null);
   const [form, setForm] = useState({
     estrategias_docentes: '',
     frecuencia_aplicacion: '',
     avances_observados: '',
     firma_docente_imagen: '',
   });
+  const [bitNueva, setBitNueva] = useState('');
+  const [guardandoAula, setGuardandoAula] = useState(false);
+  const [guardandoBit, setGuardandoBit] = useState(false);
 
   const cargar = useCallback(() => {
     if (!id) return;
@@ -39,6 +45,8 @@ export default function DocentePsicologiaPiarDetalle() {
         const p = data.piar;
         setPiar(p);
         setSeguimiento(data.seguimiento || []);
+        setPuedeEditar(data.puede_editar_aula === true);
+        setSoloLecturaMotivo(data.solo_lectura_motivo || null);
         setForm({
           estrategias_docentes: p.estrategias_docentes || '',
           frecuencia_aplicacion: p.frecuencia_aplicacion || '',
@@ -54,6 +62,40 @@ export default function DocentePsicologiaPiarDetalle() {
   useEffect(() => {
     cargar();
   }, [cargar]);
+
+  const guardarAula = async () => {
+    if (!id || !puedeEditar) return;
+    setGuardandoAula(true);
+    try {
+      await api.put(`/docente/psicologia/piar/${id}`, {
+        estrategias_docentes: form.estrategias_docentes,
+        frecuencia_aplicacion: form.frecuencia_aplicacion,
+        avances_observados: form.avances_observados,
+      });
+      await Swal.fire({ icon: 'success', title: 'Cambios guardados', timer: 1400, showConfirmButton: false });
+      cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'No se pudo guardar', text: e.response?.data?.error || e.message });
+    } finally {
+      setGuardandoAula(false);
+    }
+  };
+
+  const agregarBitacora = async () => {
+    const t = String(bitNueva || '').trim();
+    if (!id || !puedeEditar || !t) return;
+    setGuardandoBit(true);
+    try {
+      await api.post(`/docente/psicologia/piar/${id}/seguimiento`, { contenido: t });
+      setBitNueva('');
+      await Swal.fire({ icon: 'success', title: 'Nota registrada', timer: 1200, showConfirmButton: false });
+      cargar();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'No se pudo registrar', text: e.response?.data?.error || e.message });
+    } finally {
+      setGuardandoBit(false);
+    }
+  };
 
   if (loading && !piar) {
     return (
@@ -80,6 +122,13 @@ export default function DocentePsicologiaPiarDetalle() {
     );
   }
 
+  const lecturaMsg =
+    soloLecturaMotivo === 'archivado'
+      ? 'Este PIAR está archivado: solo puede consultar el contenido.'
+      : soloLecturaMotivo === 'otro_docente_responsable'
+        ? 'Otro docente figura como responsable de este PIAR: solo puede consultar. Si debe ser usted, pida a Psicología que actualice el docente responsable.'
+        : 'Solo puede consultar este formulario.';
+
   return (
     <DashboardLayout>
       <div className="psi-doc-page" style={{ maxWidth: 720 }}>
@@ -97,53 +146,118 @@ export default function DocentePsicologiaPiarDetalle() {
         <button type="button" className="psi-doc-btn psi-doc-btn-secondary" style={{ marginBottom: 12 }} onClick={() => navigate('/docente/psicologia/piar')}>
           ← Volver al listado
         </button>
-        <div className="psi-doc-alert" style={{ marginBottom: 16 }}>
-          Vista de <strong>solo lectura</strong>. Aquí puede consultar lo registrado por Psicología y el historial de seguimiento.
-        </div>
-        <TextField
-          fullWidth
-          multiline
-          minRows={4}
-          label="Estrategias y seguimiento en aula"
-          margin="normal"
-          value={form.estrategias_docentes}
-          InputProps={{ readOnly: true }}
-        />
-        <TextField
-          fullWidth
-          multiline
-          minRows={2}
-          label="Frecuencia de aplicación / revisión"
-          margin="normal"
-          value={form.frecuencia_aplicacion}
-          InputProps={{ readOnly: true }}
-        />
-        <TextField
-          fullWidth
-          multiline
-          minRows={3}
-          label="Avances observados (síntesis en aula)"
-          margin="normal"
-          value={form.avances_observados}
-          InputProps={{ readOnly: true }}
-        />
 
-        <Typography variant="h6" sx={{ mt: 3, mb: 1, fontWeight: 800 }}>
-          Bitácora de seguimiento
-        </Typography>
-        <Stack spacing={1} sx={{ mb: 2, maxHeight: 280, overflow: 'auto' }}>
-          {seguimiento.map((s) => (
-            <Box key={s.id} sx={{ p: 1.25, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e2e8f0' }}>
-              <Typography variant="caption" color="text.secondary">
-                {s.autor_tipo === 'DOCENTE' ? 'Usted (docente)' : 'Psicología / admin'} · {formatLimaLine(s.created_at)}
-              </Typography>
-              <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.5 }}>
-                {s.contenido}
-              </Typography>
-            </Box>
-          ))}
-          {!seguimiento.length && <Typography className="psi-doc-muted">Sin notas aún.</Typography>}
-        </Stack>
+        {puedeEditar ? (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            Puede <strong>editar su parte del aula</strong> (estrategias, frecuencia, avances) y <strong>agregar notas en la bitácora</strong>.
+          </Alert>
+        ) : (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            <strong>Solo lectura.</strong> {lecturaMsg}
+          </Alert>
+        )}
+
+        <Box
+          sx={{
+            p: 2,
+            mb: 2,
+            borderRadius: 2,
+            border: puedeEditar ? '2px solid #14b8a6' : '2px solid #cbd5e1',
+            background: puedeEditar ? 'linear-gradient(180deg,#f0fdfa 0%,#ccfbf1 100%)' : '#f8fafc',
+          }}
+        >
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: puedeEditar ? '#0f766e' : '#64748b', mb: 1 }}>
+            Su parte — seguimiento en aula (docente)
+          </Typography>
+          <TextField
+            fullWidth
+            multiline
+            minRows={4}
+            label="Estrategias y seguimiento en aula"
+            margin="dense"
+            value={form.estrategias_docentes}
+            onChange={(e) => setForm((f) => ({ ...f, estrategias_docentes: e.target.value }))}
+            InputProps={{ readOnly: !puedeEditar }}
+          />
+          <TextField
+            fullWidth
+            multiline
+            minRows={2}
+            label="Frecuencia de aplicación / revisión"
+            margin="dense"
+            value={form.frecuencia_aplicacion}
+            onChange={(e) => setForm((f) => ({ ...f, frecuencia_aplicacion: e.target.value }))}
+            InputProps={{ readOnly: !puedeEditar }}
+          />
+          <TextField
+            fullWidth
+            multiline
+            minRows={3}
+            label="Avances observados (síntesis en aula)"
+            margin="dense"
+            value={form.avances_observados}
+            onChange={(e) => setForm((f) => ({ ...f, avances_observados: e.target.value }))}
+            InputProps={{ readOnly: !puedeEditar }}
+          />
+          {puedeEditar && (
+            <Button variant="contained" sx={{ mt: 1.5 }} onClick={guardarAula} disabled={guardandoAula}>
+              {guardandoAula ? 'Guardando…' : 'Guardar cambios del aula'}
+            </Button>
+          )}
+        </Box>
+
+        <Box
+          sx={{
+            p: 2,
+            mb: 1,
+            borderRadius: 2,
+            border: '2px solid #a78bfa',
+            background: 'linear-gradient(180deg,#faf5ff 0%,#ede9fe 100%)',
+          }}
+        >
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#5b21b6', mb: 1 }}>
+            Bitácora de seguimiento (Psicología + docente)
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+            Mismo historial que ve el equipo de Psicología. Las notas de docente aparecen con su etiqueta.
+          </Typography>
+          <Stack spacing={1} sx={{ mb: 1.5, maxHeight: 280, overflow: 'auto' }}>
+            {seguimiento.map((s) => (
+              <Box
+                key={s.id}
+                sx={{
+                  p: 1.25,
+                  borderRadius: 2,
+                  border: s.autor_tipo === 'DOCENTE' ? '1px solid #5eead4' : '1px solid #c4b5fd',
+                  bgcolor: s.autor_tipo === 'DOCENTE' ? 'rgba(204,251,241,0.6)' : 'rgba(237,233,254,0.7)',
+                }}
+              >
+                <Typography variant="caption" color="text.secondary">
+                  {s.autor_tipo === 'DOCENTE' ? 'Usted (docente)' : 'Psicología / admin'} · {formatLimaLine(s.created_at)}
+                </Typography>
+                <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', mt: 0.5 }}>
+                  {s.contenido}
+                </Typography>
+              </Box>
+            ))}
+            {!seguimiento.length && <Typography className="psi-doc-muted">Sin notas aún.</Typography>}
+          </Stack>
+          <TextField
+            fullWidth
+            multiline
+            minRows={2}
+            label="Nueva nota en bitácora"
+            value={bitNueva}
+            onChange={(e) => setBitNueva(e.target.value)}
+            disabled={!puedeEditar}
+            placeholder={puedeEditar ? 'Escriba aquí y pulse Registrar…' : ''}
+          />
+          {puedeEditar && (
+            <Button variant="outlined" sx={{ mt: 1 }} onClick={agregarBitacora} disabled={guardandoBit || !String(bitNueva || '').trim()}>
+              {guardandoBit ? 'Registrando…' : 'Registrar nota'}
+            </Button>
+          )}
+        </Box>
       </div>
     </DashboardLayout>
   );

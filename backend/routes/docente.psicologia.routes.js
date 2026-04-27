@@ -405,20 +405,95 @@ router.get('/piar/:id', async (req, res) => {
        ORDER BY s.id ASC`,
       [colegio_id, id]
     );
-    res.json({ piar: { ...row, alumno_nombre: al?.nombre || '' }, seguimiento: items || [] });
+    const respPid =
+      row.docente_responsable_personal_id != null ? Number(row.docente_responsable_personal_id) : null;
+    const puedeEditarAula =
+      row.estado !== 'ARCHIVADO' && (respPid == null || respPid === pid);
+
+    res.json({
+      piar: { ...row, alumno_nombre: al?.nombre || '' },
+      seguimiento: items || [],
+      puede_editar_aula: puedeEditarAula,
+      solo_lectura_motivo: puedeEditarAula
+        ? null
+        : row.estado === 'ARCHIVADO'
+          ? 'archivado'
+          : 'otro_docente_responsable',
+    });
   } catch (e) {
     console.error('[docente/psicologia/piar GET]', e);
     res.status(500).json({ error: e.message || 'Error' });
   }
 });
 
-/** Solo lectura para docente (consulta de PIAR y seguimiento). */
+/** Docente: actualiza solo estrategias / frecuencia / avances (aula). */
 router.put('/piar/:id', async (req, res) => {
-  return res.status(403).json({ error: 'PIAR en modo consulta para docentes (solo lectura).' });
+  try {
+    const colegio_id = cid(req);
+    const pid = personalId(req);
+    const id = parseInt(req.params.id, 10);
+    if (!colegio_id || !pid || !Number.isFinite(id)) return res.status(400).json({ error: 'Parámetros inválidos' });
+    const row = await assertDocentePuedeVerPiar(colegio_id, pid, id);
+    if (!row) return res.status(404).json({ error: 'PIAR no encontrado o sin acceso para usted.' });
+    if (row.estado === 'ARCHIVADO') {
+      return res.status(403).json({ error: 'Este PIAR está archivado y no admite cambios del aula.' });
+    }
+    const respPid =
+      row.docente_responsable_personal_id != null ? Number(row.docente_responsable_personal_id) : null;
+    if (respPid != null && respPid !== pid) {
+      return res.status(403).json({
+        error: 'Solo el docente responsable asignado en el PIAR puede editar estrategias, frecuencia y avances.',
+      });
+    }
+    const body = req.body || {};
+    const estr = String(body.estrategias_docentes ?? '').slice(0, 65000);
+    const freq = String(body.frecuencia_aplicacion ?? '').slice(0, 65000);
+    const ava = String(body.avances_observados ?? '').slice(0, 65000);
+    await execute(
+      `UPDATE psicologia_piar
+       SET estrategias_docentes = ?, frecuencia_aplicacion = ?, avances_observados = ?, updated_at = NOW()
+       WHERE id = ? AND colegio_id = ?`,
+      [estr, freq, ava, id, colegio_id]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[docente/psicologia/piar PUT]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
 });
 
+/** Docente: nueva entrada en bitácora (mismo historial que ve psicología). */
 router.post('/piar/:id/seguimiento', async (req, res) => {
-  return res.status(403).json({ error: 'Seguimiento PIAR en modo consulta para docentes (solo lectura).' });
+  try {
+    const colegio_id = cid(req);
+    const pid = personalId(req);
+    const uid = req.user.usuario_id != null ? parseInt(req.user.usuario_id, 10) : null;
+    const id = parseInt(req.params.id, 10);
+    const contenido = String((req.body || {}).contenido || '').trim();
+    if (!colegio_id || !pid || !Number.isFinite(id)) return res.status(400).json({ error: 'Parámetros inválidos' });
+    if (!contenido) return res.status(400).json({ error: 'contenido es obligatorio' });
+    const row = await assertDocentePuedeVerPiar(colegio_id, pid, id);
+    if (!row) return res.status(404).json({ error: 'PIAR no encontrado o sin acceso para usted.' });
+    if (row.estado === 'ARCHIVADO') {
+      return res.status(403).json({ error: 'Este PIAR está archivado y no admite nuevas notas.' });
+    }
+    const respPid =
+      row.docente_responsable_personal_id != null ? Number(row.docente_responsable_personal_id) : null;
+    if (respPid != null && respPid !== pid) {
+      return res.status(403).json({
+        error: 'Solo el docente responsable puede registrar notas en la bitácora de este PIAR.',
+      });
+    }
+    await execute(
+      `INSERT INTO psicologia_piar_seguimiento (colegio_id, piar_id, autor_tipo, creado_por_usuario_id, contenido)
+       VALUES (?,?,?,?,?)`,
+      [colegio_id, id, 'DOCENTE', Number.isFinite(uid) ? uid : null, contenido.slice(0, 8000)]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[docente/psicologia/piar seguimiento POST]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
 });
 
 module.exports = router;

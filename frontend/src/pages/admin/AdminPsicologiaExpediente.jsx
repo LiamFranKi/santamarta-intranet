@@ -1340,6 +1340,19 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
       >
         <DialogTitle>{piarEditing ? 'Editar PIAR' : 'Nuevo PIAR'}</DialogTitle>
         <DialogContent>
+          <Box
+            className="psi-piar-modal-section-psicologo"
+            sx={{
+              mb: 2,
+              p: 2,
+              borderRadius: 2,
+              border: '2px solid #a78bfa',
+              background: 'linear-gradient(180deg,#faf5ff 0%,#ede9fe 100%)',
+            }}
+          >
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#5b21b6', mb: 1.5 }}>
+              Plan PIAR — Psicología / equipo educativo
+            </Typography>
           {!piarEditing && (
             <TextField
               fullWidth
@@ -1393,20 +1406,6 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
             value={piarForm.observaciones_relevantes}
             onChange={(e) => setPiarForm((f) => ({ ...f, observaciones_relevantes: e.target.value }))}
           />
-          <Alert severity="info" sx={{ my: 1.5 }}>
-            <strong>Parte del docente:</strong> puede consensuar aquí el texto y asignar al <strong>docente responsable</strong>; ese
-            docente completará y actualizará estrategias, avances y <strong>bitácora de seguimiento</strong> desde{' '}
-            <strong>Herramientas → PIAR a mi cargo</strong> en su intranet. Psicología también registra notas en la misma bitácora.
-          </Alert>
-          <TextField
-            fullWidth
-            multiline
-            minRows={3}
-            label="Estrategias y seguimiento en aula (compromiso docente)"
-            margin="normal"
-            value={piarForm.estrategias_docentes}
-            onChange={(e) => setPiarForm((f) => ({ ...f, estrategias_docentes: e.target.value }))}
-          />
           <TextField
             select
             fullWidth
@@ -1439,30 +1438,12 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           </TextField>
           <TextField
             fullWidth
-            multiline
-            minRows={2}
-            label="Frecuencia de aplicación / revisión en aula"
-            margin="normal"
-            value={piarForm.frecuencia_aplicacion}
-            onChange={(e) => setPiarForm((f) => ({ ...f, frecuencia_aplicacion: e.target.value }))}
-          />
-          <TextField
-            fullWidth
             type="date"
             label="Fecha de revisión programada"
             margin="normal"
             InputLabelProps={{ shrink: true }}
             value={piarForm.fecha_revision ? String(piarForm.fecha_revision).slice(0, 10) : ''}
             onChange={(e) => setPiarForm((f) => ({ ...f, fecha_revision: e.target.value }))}
-          />
-          <TextField
-            fullWidth
-            multiline
-            minRows={2}
-            label="Avances observados"
-            margin="normal"
-            value={piarForm.avances_observados}
-            onChange={(e) => setPiarForm((f) => ({ ...f, avances_observados: e.target.value }))}
           />
           <TextField
             fullWidth
@@ -1617,6 +1598,55 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
               </Button>
             </Box>
           ) : null}
+          </Box>
+
+          <Box
+            className="psi-piar-modal-section-docente"
+            sx={{
+              mb: 1,
+              p: 2,
+              borderRadius: 2,
+              border: '2px solid #14b8a6',
+              background: 'linear-gradient(180deg,#f0fdfa 0%,#ccfbf1 100%)',
+            }}
+          >
+            <Typography variant="subtitle1" sx={{ fontWeight: 800, color: '#0f766e', mb: 1 }}>
+              Seguimiento en aula — Docente
+            </Typography>
+            <Alert severity="success" sx={{ mb: 1.5, bgcolor: 'rgba(255,255,255,0.85)' }}>
+              <strong>Solo el docente</strong> completa habitualmente estos tres campos desde <strong>Herramientas → PIAR a mi cargo</strong>.
+              Aquí puede consensuar borradores o dejarlos vacíos; el color <strong>verde / turquesa</strong> distingue esta zona del plan de
+              psicología (violeta arriba). La <strong>bitácora</strong> queda en la sección violeta: docente y psicología comparten el mismo
+              historial.
+            </Alert>
+            <TextField
+              fullWidth
+              multiline
+              minRows={3}
+              label="Estrategias y seguimiento en aula (compromiso docente)"
+              margin="dense"
+              value={piarForm.estrategias_docentes}
+              onChange={(e) => setPiarForm((f) => ({ ...f, estrategias_docentes: e.target.value }))}
+            />
+            <TextField
+              fullWidth
+              multiline
+              minRows={2}
+              label="Frecuencia de aplicación / revisión en aula"
+              margin="dense"
+              value={piarForm.frecuencia_aplicacion}
+              onChange={(e) => setPiarForm((f) => ({ ...f, frecuencia_aplicacion: e.target.value }))}
+            />
+            <TextField
+              fullWidth
+              multiline
+              minRows={2}
+              label="Avances observados"
+              margin="dense"
+              value={piarForm.avances_observados}
+              onChange={(e) => setPiarForm((f) => ({ ...f, avances_observados: e.target.value }))}
+            />
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button
