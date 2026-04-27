@@ -2,32 +2,43 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import './AsistenciaConfirmModal.css';
 
+/** Polo — cuello, mangas cortas, tapeta con botones y bolsillo (referencia visual clara). */
 function IconShirt() {
   return (
-    <svg className="asistencia-confirm-modal__svg" viewBox="0 0 64 64" aria-hidden="true">
-      <path
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M18 24l6-8h16l6 8v4l-4 2v20H22V30l-4-2v-4z M26 20h12 M40 32h6v6h-6"
-      />
+    <svg className="asistencia-confirm-modal__svg" viewBox="0 0 100 100" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 36 L10 42 L10 90 L90 90 L90 42 L80 36" />
+        <path d="M36 36 L50 54 L64 36" />
+        <path d="M30 36 Q50 26 70 36" />
+        <path d="M20 36 L6 40 L6 58 L20 54" />
+        <path d="M80 36 L94 40 L94 58 L80 54" />
+        <path d="M50 54 L50 82" />
+        <circle cx="50" cy="64" r="2.5" fill="currentColor" stroke="none" />
+        <circle cx="50" cy="74" r="2.5" fill="currentColor" stroke="none" />
+        <rect x="58" y="56" width="22" height="16" rx="3" ry="3" />
+      </g>
     </svg>
   );
 }
 
+/** Cabeza + orejas + pelo en capas (silueta reconocible “cabello / presentación”). */
 function IconHair() {
   return (
-    <svg className="asistencia-confirm-modal__svg" viewBox="0 0 64 64" aria-hidden="true">
-      <path
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M32 28c-8 0-14-5-14-12 0-6 5-11 14-14 9 3 14 8 14 14 0 7-6 12-14 12z M20 40c0 10 5 16 12 16s12-6 12-16"
-      />
+    <svg className="asistencia-confirm-modal__svg" viewBox="0 0 100 100" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+        {/* Orejas */}
+        <path d="M18 50 Q10 46 10 56 Q10 66 20 70" />
+        <path d="M82 50 Q90 46 90 56 Q90 66 80 70" />
+        {/* Cara / barbilla (interior vacío) */}
+        <path d="M20 50 Q18 70 28 78 Q50 86 72 78 Q82 70 80 50" />
+        {/* Cuello y hombros */}
+        <path d="M32 78 L32 88 M68 78 L68 88 M26 92 H74" />
+        {/* Pelo: contorno superior amplio */}
+        <path d="M12 48 Q12 18 32 10 Q50 4 68 10 Q88 18 88 48" />
+        {/* Mechón / volumen frontal */}
+        <path d="M24 38 Q34 20 50 16 Q66 20 76 38" />
+        <path d="M30 32 Q42 14 50 12 Q58 14 70 32" />
+      </g>
     </svg>
   );
 }

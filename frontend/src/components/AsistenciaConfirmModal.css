@@ -100,8 +100,8 @@
 
 .asistencia-confirm-modal__btn-moto {
   aspect-ratio: 1;
-  max-height: 180px;
-  min-height: 120px;
+  max-height: 220px;
+  min-height: 140px;
   border: none;
   border-radius: 18px;
   cursor: pointer;
@@ -110,7 +110,7 @@
   justify-content: center;
   transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
   color: #fff;
-  padding: 12px;
+  padding: 10px 14px 14px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
@@ -148,15 +148,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: min(72%, 100px);
-  height: min(72%, 100px);
+  width: min(92%, 150px);
+  height: min(92%, 150px);
+  max-height: 85%;
 }
 
 .asistencia-confirm-modal__svg {
   width: 100%;
   height: 100%;
+  max-width: 150px;
+  max-height: 150px;
   color: #fff;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+  filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.2));
 }
 
 .asistencia-confirm-modal__labels-row {
@@ -234,6 +237,11 @@
     font-size: 1.2rem;
   }
   .asistencia-confirm-modal__btn-moto {
-    min-height: 108px;
+    min-height: 128px;
+    max-height: 200px;
+  }
+  .asistencia-confirm-modal__btn-icon-wrap {
+    width: min(94%, 132px);
+    height: min(94%, 132px);
   }
 }
