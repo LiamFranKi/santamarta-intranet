@@ -4,7 +4,7 @@ import { Box, CircularProgress } from '@mui/material';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import './DocentePsicologia.css';
-import '../admin/AdminPsicologia.css';
+import './admin/AdminPsicologia.css';
 
 const LIMA_TZ = 'America/Lima';
 
