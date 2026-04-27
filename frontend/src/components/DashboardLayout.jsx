@@ -826,19 +826,6 @@ export default function DashboardLayout({ children }) {
             </>
           ) : role === 'APODERADO' ? (
             <>
-              <div
-                className="sidebar-section-label"
-                style={{
-                  fontSize: '0.75rem',
-                  color: '#9ca3af',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  padding: '0.75rem 1.5rem 0.35rem 1.5rem',
-                }}
-              >
-                Inicio
-              </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/dashboard" end>
                   <span className="sidebar-icon">📊</span>
@@ -850,20 +837,6 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-icon">👤</span>
                   <span className="sidebar-label">Mi perfil</span>
                 </NavLink>
-              </div>
-              <div className="sidebar-section-divider" />
-              <div
-                className="sidebar-section-label"
-                style={{
-                  fontSize: '0.75rem',
-                  color: '#9ca3af',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  padding: '0.75rem 1.5rem 0.35rem 1.5rem',
-                }}
-              >
-                Familia e hijos
               </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/hijos">
@@ -877,20 +850,6 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Psicología</span>
                 </NavLink>
               </div>
-              <div className="sidebar-section-divider" />
-              <div
-                className="sidebar-section-label"
-                style={{
-                  fontSize: '0.75rem',
-                  color: '#9ca3af',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  padding: '0.75rem 1.5rem 0.35rem 1.5rem',
-                }}
-              >
-                Comunicación y agenda
-              </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/comunicados">
                   <span className="sidebar-icon">📢</span>
@@ -902,26 +861,6 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-icon">📆</span>
                   <span className="sidebar-label">Actividades</span>
                 </NavLink>
-              </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/mensajes">
-                  <span className="sidebar-icon">✉️</span>
-                  <span className="sidebar-label">Mensajes</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-section-divider" />
-              <div
-                className="sidebar-section-label"
-                style={{
-                  fontSize: '0.75rem',
-                  color: '#9ca3af',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  padding: '0.75rem 1.5rem 0.35rem 1.5rem',
-                }}
-              >
-                Documentos y herramientas
               </div>
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/documentos">
@@ -939,6 +878,12 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/herramientas-examenes">
                   <span className="sidebar-icon">📝</span>
                   <span className="sidebar-label">Exámenes</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/apoderado/mensajes">
+                  <span className="sidebar-icon">✉️</span>
+                  <span className="sidebar-label">Mensajes</span>
                 </NavLink>
               </div>
             </>
