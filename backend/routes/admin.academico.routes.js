@@ -365,6 +365,94 @@ async function listGrupos(req, res) {
 router.get('/grupos', listGrupos);
 router.get('/grados', listGrupos);
 
+/**
+ * GET /api/admin/academico/grupos/:grupoId/horario
+ * Horario completo del aula (misma lógica que tutoría / alumno). Query opcional ?anio= (por defecto año del grupo).
+ */
+router.get('/grupos/:grupoId/horario', async (req, res) => {
+  try {
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const cid = colegio(req);
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'ID de grupo inválido' });
+    }
+
+    const grupoRows = await query(
+      `SELECT g.*, n.nombre AS nivel_nombre
+       FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.id = ? AND g.colegio_id = ?
+       LIMIT 1`,
+      [grupoId, cid]
+    );
+    if (!grupoRows || grupoRows.length === 0) {
+      return res.status(404).json({ error: 'Grupo no encontrado' });
+    }
+    const grupo = grupoRows[0];
+    const anioParam = parseInt(req.query.anio, 10);
+    const anioHorario = Number.isFinite(anioParam) ? anioParam : parseInt(grupo.anio, 10);
+    if (!Number.isFinite(anioHorario)) {
+      return res.status(400).json({ error: 'Año académico no válido' });
+    }
+
+    const horarioCrudo = await query(
+      `SELECT 
+         gh.id,
+         gh.dia,
+         gh.hora_inicio,
+         gh.hora_final,
+         gh.anio,
+         c.nombre AS curso_nombre,
+         gh.descripcion AS descripcion,
+         g.grado,
+         g.seccion,
+         n.nombre AS nivel_nombre,
+         CONCAT(p.nombres, ' ', p.apellidos) AS docente_nombre
+       FROM grupos_horarios gh
+       LEFT JOIN asignaturas a ON a.id = gh.asignatura_id AND a.colegio_id = ?
+       LEFT JOIN grupos g ON g.id = COALESCE(a.grupo_id, gh.grupo_id)
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       LEFT JOIN cursos c ON c.id = a.curso_id
+       LEFT JOIN personal p ON p.id = COALESCE(a.personal_id, gh.personal_id)
+       WHERE gh.anio = ?
+         AND (
+           (a.grupo_id = ? AND a.colegio_id = ?)
+           OR
+           (gh.grupo_id = ? AND a.id IS NULL)
+         )
+       ORDER BY gh.dia,
+         TIME(STR_TO_DATE(gh.hora_inicio, '%l:%i %p')),
+         COALESCE(TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i:%s')), TIME(STR_TO_DATE(gh.hora_inicio, '%H:%i')))`,
+      [cid, anioHorario, grupoId, cid, grupoId]
+    );
+
+    const horario = (horarioCrudo || []).map((row) => {
+      let grupoTexto = '';
+      if (row.nivel_nombre || row.grado || row.seccion) {
+        const gradoTexto = row.grado ? `${row.grado}°` : '';
+        grupoTexto = `${row.nivel_nombre || ''} ${gradoTexto} ${row.seccion || ''}`.trim();
+        if (row.anio) grupoTexto = `${grupoTexto} - ${row.anio}`;
+      }
+      const titulo = row.curso_nombre || row.descripcion || '';
+      return {
+        id: row.id,
+        dia: typeof row.dia === 'number' ? row.dia : parseInt(row.dia || 0, 10),
+        inicio: row.hora_inicio,
+        fin: row.hora_final,
+        anio: row.anio,
+        titulo,
+        grupo: grupoTexto,
+        docente_nombre: row.docente_nombre || ''
+      };
+    });
+
+    res.json({ horario, grupo });
+  } catch (e) {
+    console.error('[admin/academico/grupos/:grupoId/horario]', e);
+    res.status(500).json({ error: 'Error al obtener horario' });
+  }
+});
+
 router.post('/grupos', async (req, res) => {
   try {
     const cid = colegio(req);

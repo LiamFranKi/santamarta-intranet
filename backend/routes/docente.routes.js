@@ -58,7 +58,8 @@ function psicologaRutaDocentePermitida(path) {
     '/documentos-gestion',
     '/roles-adicionales',
     '/publicaciones',
-    '/grupos'
+    '/grupos',
+    '/alumnos'
   ];
   return prefixes.some((pre) => path === pre || path.startsWith(`${pre}/`));
 }
@@ -1859,7 +1860,7 @@ router.get('/grupos', async (req, res) => {
 router.get('/grupos/:grupoId/alumnos', async (req, res) => {
   try {
     const { grupoId } = req.params;
-    const { colegio_id, anio_activo } = req.user;
+    const { colegio_id, anio_activo, tipo } = req.user;
 
     // Validar parámetros
     if (!grupoId) {
@@ -1872,23 +1873,36 @@ router.get('/grupos/:grupoId/alumnos', async (req, res) => {
       return res.status(400).json({ error: 'Año académico es requerido' });
     }
 
-    // Verificar que el docente tiene acceso a este grupo
-    const personalId = req.user.personal_id;
-    
-    if (!personalId) {
-      return res.status(404).json({ error: 'Docente no encontrado' });
-    }
+    const esStaffColegio =
+      esAdminOPromotoria(tipo) || tipo === 'PSICOLOGA' || tipo === 'SECRETARIA';
 
-    const tieneAcceso = await query(
-      `SELECT COUNT(*) as count
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.personal_id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [personalId, grupoId, colegio_id, anio_activo]
-    );
+    if (esStaffColegio) {
+      const gRow = await query(
+        `SELECT g.id FROM grupos g WHERE g.id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+        [grupoId, colegio_id, anio_activo]
+      );
+      if (!gRow || gRow.length === 0) {
+        return res.status(403).json({ error: 'No tienes acceso a este grupo' });
+      }
+    } else {
+      // Docente: solo grupos con asignatura propia
+      const personalId = req.user.personal_id;
 
-    if (!tieneAcceso || tieneAcceso.length === 0 || tieneAcceso[0].count === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este grupo' });
+      if (!personalId) {
+        return res.status(404).json({ error: 'Docente no encontrado' });
+      }
+
+      const tieneAcceso = await query(
+        `SELECT COUNT(*) as count
+         FROM asignaturas a
+         INNER JOIN grupos g ON g.id = a.grupo_id
+         WHERE a.personal_id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+        [personalId, grupoId, colegio_id, anio_activo]
+      );
+
+      if (!tieneAcceso || tieneAcceso.length === 0 || tieneAcceso[0].count === 0) {
+        return res.status(403).json({ error: 'No tienes acceso a este grupo' });
+      }
     }
 
     // Obtener alumnos del grupo con fecha de nacimiento y teléfono (del alumno o apoderado)

@@ -4,6 +4,8 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
+import GrupoAlumnosListaView from '../../components/grupoAlumnos/GrupoAlumnosListaView';
+import GrupoHorarioCompletoModal from '../../components/grupoHorario/GrupoHorarioCompletoModal';
 import './AdminDocumentosGestion.css';
 import './AdminAcademico.css';
 
@@ -799,6 +801,8 @@ function GruposPanel({ meta }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [menuGrupoId, setMenuGrupoId] = useState(null);
+  const [listaAlumnosGrupoRow, setListaAlumnosGrupoRow] = useState(null);
+  const [horarioModalGrupo, setHorarioModalGrupo] = useState(null);
   const [subiendoHorario, setSubiendoHorario] = useState(false);
 
   const personalLista = useMemo(() => {
@@ -985,6 +989,17 @@ function GruposPanel({ meta }) {
       await eliminar(row);
       return;
     }
+    if (accion === 'lista_alumnos') {
+      setMenuGrupoId(null);
+      setHorarioModalGrupo(null);
+      setListaAlumnosGrupoRow(row);
+      return;
+    }
+    if (accion === 'ver_horario') {
+      setMenuGrupoId(null);
+      setHorarioModalGrupo(row);
+      return;
+    }
     const titulos = {
       lista_alumnos: 'Lista de Alumnos',
       ver_horario: 'Ver Horario',
@@ -999,6 +1014,26 @@ function GruposPanel({ meta }) {
       text: `Esta opción para ${row.nivel_nombre} ${row.grado}° ${etiquetaSeccionGrupo(row.seccion)} se activará en el siguiente paso.`
     });
   };
+
+  if (listaAlumnosGrupoRow) {
+    return (
+      <section className="dg-section admin-academico-grupos-section">
+        <GrupoAlumnosListaView
+          grupoId={listaAlumnosGrupoRow.id}
+          grupoInfo={{
+            id: listaAlumnosGrupoRow.id,
+            grado: listaAlumnosGrupoRow.grado,
+            seccion: listaAlumnosGrupoRow.seccion,
+            nivel_nombre: listaAlumnosGrupoRow.nivel_nombre,
+            turno_nombre: listaAlumnosGrupoRow.turno_nombre,
+            total_alumnos: listaAlumnosGrupoRow.matriculas_count,
+          }}
+          onVolver={() => setListaAlumnosGrupoRow(null)}
+          psicologiaLinkMode="admin"
+        />
+      </section>
+    );
+  }
 
   return (
     <section className="dg-section admin-academico-grupos-section">
@@ -1288,6 +1323,18 @@ function GruposPanel({ meta }) {
           </div>
         </div>
       </ModalRoot>
+      {horarioModalGrupo ? (
+        <GrupoHorarioCompletoModal
+          grupo={{
+            id: horarioModalGrupo.id,
+            grado: horarioModalGrupo.grado,
+            seccion: horarioModalGrupo.seccion,
+            nivel_nombre: horarioModalGrupo.nivel_nombre,
+            anio: horarioModalGrupo.anio
+          }}
+          onClose={() => setHorarioModalGrupo(null)}
+        />
+      ) : null}
     </section>
   );
 }
