@@ -173,6 +173,8 @@ api.interceptors.response.use(
     const isPublicacionesRoute = error.config?.url?.includes('/publicaciones');
     const isPushRoute = error.config?.url?.includes('/push/');
     const isNotificacionesRoute = error.config?.url?.includes('/notificaciones');
+    // Exámenes de alumno: errores 403/5xx pueden ser cierre concurrente o validación de intento, no sesión inválida.
+    const isAlumnoExamenRoute = /\/alumno\/examenes\//.test(reqUrl);
     /** Eventos institucionales (/api/admin/eventos): 403 por rol desactualizado no debe cerrar la sesión. */
     const isAdminEventosRoute = /\/admin\/eventos/.test(reqUrl);
     const isActividadesRoute = error.config?.url?.includes('/actividades');
@@ -192,6 +194,8 @@ api.interceptors.response.use(
     const skipLogoutAdminAcademico500 = status === 500 && isAdminAcademicoRoute;
     const skipLogoutAdminPsicologiaCritical =
       isAdminPsicologiaRoute && (status === 500 || status === 503);
+    const skipLogoutAlumnoExamen =
+      isAlumnoExamenRoute && (status === 403 || status === 500 || status === 502 || status === 503);
 
     if (
       status &&
@@ -212,6 +216,7 @@ api.interceptors.response.use(
       !skipLogoutAdminImpresiones &&
       !skipLogoutAdminAcademico500 &&
       !skipLogoutAdminPsicologiaCritical &&
+      !skipLogoutAlumnoExamen &&
       !isPublicEventosRoute
     ) {
       const errorInfo = criticalErrors[status];

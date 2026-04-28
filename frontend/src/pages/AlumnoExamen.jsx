@@ -93,6 +93,7 @@ function AlumnoExamen() {
   const tiempoExpiracion = useRef(null);
   const respuestasRef = useRef({});
   const cierreForzadoPorSeguridadRef = useRef(false);
+  const finalizacionEnCursoRef = useRef(false);
   useEffect(() => {
     const syncPendientes = async () => {
       try {
@@ -290,21 +291,6 @@ function AlumnoExamen() {
     if (cierreForzadoPorSeguridadRef.current) return;
     const esInternet = violation?.type === 'INTERNET_LOSS';
 
-    if (esInternet) {
-      cierreForzadoPorSeguridadRef.current = true;
-      Swal.fire({
-        icon: 'error',
-        title: 'Examen cerrado por internet',
-        html: `
-          <div style="text-align:left;">
-            <p>Se cerró el examen por pérdida de internet.</p>
-            <p><strong>Tu intento quedó cerrado y no puedes continuar respondiendo.</strong></p>
-          </div>
-        `,
-        confirmButtonText: 'Entendido'
-      }).then(() => navigate(-1));
-    }
-
     // Registrar violación en el backend (sin bloquear si falla)
     api.post(`/alumno/examenes/${examenId}/violaciones`, {
       tipo: violation.type,
@@ -335,13 +321,14 @@ function AlumnoExamen() {
 
       // Solo mostrar advertencia cuando backend la devuelve explícitamente
       if (data.action === 'WARNING' && (data.violations || violation.count || 1) <= 1) {
+        const esWarningInternet = violation?.type === 'INTERNET_LOSS';
         Swal.fire({
           icon: 'warning',
-          title: '⚠️ Advertencia',
+          title: esWarningInternet ? '⚠️ Conexión inestable' : '⚠️ Advertencia',
           html: `
             <div style="text-align:left;">
-              <p>Saliste de la ventana/pantalla del examen.</p>
-              <p><strong>Si vuelve a ocurrir, el examen se cerrará automáticamente.</strong></p>
+              <p>${esWarningInternet ? 'Se detectó pérdida de conexión a internet.' : 'Saliste de la ventana/pantalla del examen.'}</p>
+              <p><strong>${esWarningInternet ? 'Verifica tu conexión para evitar el cierre automático del examen.' : 'Si vuelve a ocurrir, el examen se cerrará automáticamente.'}</strong></p>
             </div>
           `,
           timer: 3500,
@@ -406,10 +393,14 @@ function AlumnoExamen() {
 
   // Función para finalizar examen automáticamente
   const finalizarExamenAutomatico = useCallback(async () => {
+    if (finalizacionEnCursoRef.current) return;
+    finalizacionEnCursoRef.current = true;
+    if (intervaloReloj.current) clearInterval(intervaloReloj.current);
+    if (intervaloGuardado.current) clearInterval(intervaloGuardado.current);
     await persistirRespuestasParaFinalizar();
     
     try {
-      const response = await api.post(`/alumno/examenes/${examenId}/finalizar`);
+      await api.post(`/alumno/examenes/${examenId}/finalizar`);
       
         Swal.fire({
           icon: 'info',
@@ -422,6 +413,17 @@ function AlumnoExamen() {
         });
     } catch (error) {
       console.error('Error finalizando examen:', error);
+      const status = error?.response?.status;
+      if (status === 404) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Examen ya cerrado',
+          text: 'Este intento ya no está activo. Tus respuestas guardadas fueron conservadas.',
+          confirmButtonText: 'Entendido'
+        }).then(() => navigate(-1));
+      }
+    } finally {
+      finalizacionEnCursoRef.current = false;
     }
   }, [examenId, navigate, persistirRespuestasParaFinalizar]);
 
@@ -529,16 +531,23 @@ function AlumnoExamen() {
   };
 
   const handleConfirmarFinalizar = async () => {
+    if (finalizacionEnCursoRef.current) return;
+    finalizacionEnCursoRef.current = true;
     setMostrarResumen(false);
+    if (intervaloReloj.current) clearInterval(intervaloReloj.current);
+    if (intervaloGuardado.current) clearInterval(intervaloGuardado.current);
     await persistirRespuestasParaFinalizar();
     
     try {
-      await api.post(`/alumno/examenes/${examenId}/finalizar`);
+      const response = await api.post(`/alumno/examenes/${examenId}/finalizar`);
+      const yaFinalizado = Boolean(response?.data?.already_finalized);
       
       Swal.fire({
-        icon: 'success',
-        title: 'Examen finalizado',
-        text: 'Tu examen ha sido enviado correctamente. Podrás ver tus resultados cuando el docente los publique.',
+        icon: yaFinalizado ? 'info' : 'success',
+        title: yaFinalizado ? 'Examen ya finalizado' : 'Examen finalizado',
+        text: yaFinalizado
+          ? 'Tu examen ya había sido cerrado previamente. Tus respuestas guardadas se mantuvieron.'
+          : 'Tu examen ha sido enviado correctamente. Podrás ver tus resultados cuando el docente los publique.',
         confirmButtonText: 'Entendido'
       }).then(() => {
         // Volver al aula virtual
@@ -546,11 +555,23 @@ function AlumnoExamen() {
       });
     } catch (error) {
       console.error('Error finalizando examen:', error);
+      const status = error?.response?.status;
+      if (status === 404) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Examen ya cerrado',
+          text: 'Este intento ya no está activo. Se conservaron tus respuestas registradas.',
+          confirmButtonText: 'Entendido'
+        }).then(() => navigate(-1));
+        return;
+      }
       Swal.fire({
         icon: 'error',
         title: 'Error',
         text: 'No se pudo finalizar el examen'
       });
+    } finally {
+      finalizacionEnCursoRef.current = false;
     }
   };
 

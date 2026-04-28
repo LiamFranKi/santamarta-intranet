@@ -4003,6 +4003,25 @@ router.post('/examenes/:examenId/respuestas', async (req, res) => {
     );
 
     if (prueba.length === 0) {
+      // Idempotencia: si el intento ya fue finalizado (por tiempo/seguridad/manual),
+      // responder éxito para evitar falso error en frontend por doble submit.
+      const ultimaPrueba = await query(
+        `SELECT id, estado, puntaje, correctas, incorrectas
+         FROM asignaturas_examenes_pruebas
+         WHERE examen_id = ? AND matricula_id = ?
+         ORDER BY fecha_hora DESC
+         LIMIT 1`,
+        [examenId, matricula[0].matricula_id]
+      );
+      if (ultimaPrueba.length > 0 && String(ultimaPrueba[0].estado) === 'FINALIZADA') {
+        return res.json({
+          success: true,
+          already_finalized: true,
+          puntaje: Number(ultimaPrueba[0].puntaje || 0),
+          correctas: Number(ultimaPrueba[0].correctas || 0),
+          incorrectas: Number(ultimaPrueba[0].incorrectas || 0)
+        });
+      }
       return res.status(404).json({ error: 'No hay una prueba en progreso' });
     }
 
@@ -4055,6 +4074,24 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
     );
 
     if (prueba.length === 0) {
+      // Idempotencia: si ya se finalizó el intento, devolver éxito para que el front no muestre error.
+      const ultimaPrueba = await query(
+        `SELECT id, estado, puntaje, correctas, incorrectas
+         FROM asignaturas_examenes_pruebas
+         WHERE examen_id = ? AND matricula_id = ?
+         ORDER BY fecha_hora DESC
+         LIMIT 1`,
+        [examenId, matricula[0].matricula_id]
+      );
+      if (ultimaPrueba.length > 0 && String(ultimaPrueba[0].estado) === 'FINALIZADA') {
+        return res.json({
+          success: true,
+          already_finalized: true,
+          puntaje: Number(ultimaPrueba[0].puntaje || 0),
+          correctas: Number(ultimaPrueba[0].correctas || 0),
+          incorrectas: Number(ultimaPrueba[0].incorrectas || 0)
+        });
+      }
       return res.status(404).json({ error: 'No hay una prueba en progreso' });
     }
 
@@ -4626,8 +4663,8 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
     const pruebaActiva = pruebasActivas[0];
     const tipoNormalizado = String(tipo || 'DESCONOCIDA').slice(0, 60);
     const esCierreInmediatoPorFoco = tipoNormalizado === 'OUT_OF_FOCUS_7S';
-    const esCierreInmediatoPorInternet = tipoNormalizado === 'INTERNET_LOSS';
-    const cierreInmediato = esCierreInmediatoPorFoco || esCierreInmediatoPorInternet;
+    const esEventoInternet = tipoNormalizado === 'INTERNET_LOSS';
+    const cierreInmediato = esCierreInmediatoPorFoco;
 
     const [estadoActualViolaciones] = await query(
       `SELECT id, violaciones_count, ultima_violacion_tipo,
@@ -4695,7 +4732,7 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
         totalPreguntas = Number(rowTotal?.total || 0);
       }
 
-      const motivoCierre = esCierreInmediatoPorInternet
+      const motivoCierre = esEventoInternet
         ? 'CERRADO_POR_INTERNET'
         : esCierreInmediatoPorFoco
           ? 'FUERA_DE_FOCO'
@@ -4715,7 +4752,7 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
       );
 
       accion = 'AUTO_FINALIZED';
-      mensajeAccion = esCierreInmediatoPorInternet
+      mensajeAccion = esEventoInternet
         ? 'Examen finalizado por pérdida de internet'
         : esCierreInmediatoPorFoco
           ? 'Examen finalizado por estar fuera de foco'
@@ -4756,7 +4793,7 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
       violations: violacionesCount,
       message: mensajeAccion,
       reason: accion === 'AUTO_FINALIZED'
-        ? (esCierreInmediatoPorInternet
+        ? (esEventoInternet
             ? 'CERRADO_POR_INTERNET'
             : esCierreInmediatoPorFoco
               ? 'FUERA_DE_FOCO'

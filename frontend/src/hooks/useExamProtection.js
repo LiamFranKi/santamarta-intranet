@@ -148,14 +148,14 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
       }
     };
 
-    // 3b. Detectar pérdida de internet sostenida (2 segundos)
+    // 3b. Detectar pérdida de internet sostenida (10 segundos)
     const handleOffline = () => {
       limpiarTimerOffline();
       offlineTimerRef.current = setTimeout(() => {
         if (navigator.onLine === false) {
           registrarViolacion('INTERNET_LOSS', { skipCooldown: true });
         }
-      }, 2000);
+      }, 10000);
     };
 
     const handleOnline = () => {
