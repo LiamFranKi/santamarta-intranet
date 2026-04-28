@@ -633,6 +633,63 @@ ${bloque}
   }
 }
 
+/**
+ * Enviar correo HTML personalizado con categoría opcional (EXAMEN, etc.).
+ * Útil cuando el módulo necesita un diseño propio más rico que la plantilla genérica.
+ */
+async function enviarCorreoHtml(destinatario, asunto, htmlBody, colegioNombre = 'Vanguard Schools', categoria = 'GENERAL') {
+  try {
+    const { transporter: trans, fromUser } = getTransporterPorCategoria(categoria || 'GENERAL');
+    if (!fromUser) {
+      console.error(`❌ [EMAIL HTML] No hay cuenta configurada para categoría ${categoria}`);
+      return { success: false, error: 'Configuración de email incompleta' };
+    }
+    if (!destinatario || !asunto || !htmlBody) {
+      return { success: false, error: 'Parámetros incompletos' };
+    }
+    if (cuentaEnCooldown(fromUser)) {
+      return { success: false, error: 'Cuenta de correo en cooldown por límite diario de Gmail' };
+    }
+
+    const emailDestino = String(destinatario).trim();
+    if (!esEmailValido(emailDestino)) {
+      return { success: false, error: 'Email inválido' };
+    }
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+${htmlBody}
+</body>
+</html>`;
+
+    const mailOptions = {
+      from: `"${colegioNombre || 'Vanguard Schools'}" <${fromUser}>`,
+      to: emailDestino,
+      subject: String(asunto).trim(),
+      html,
+      headers: {
+        'Return-Path': fromUser,
+        'X-Auto-Response-Suppress': 'All',
+        Precedence: 'bulk'
+      },
+      envelope: { from: fromUser, to: emailDestino }
+    };
+
+    const info = await trans.sendMail(mailOptions);
+    console.log(`✅ [EMAIL HTML] Enviado a ${emailDestino} MessageId: ${info.messageId}`);
+    return { success: true, messageId: info.messageId };
+  } catch (error) {
+    if (esErrorLimiteDiarioGmail(error)) {
+      activarCooldownCuenta(getTransporterPorCategoria(categoria || 'GENERAL').fromUser, 60 * 60 * 1000);
+      return { success: false, error: 'Límite diario de Gmail alcanzado (cooldown 60 min)' };
+    }
+    console.error(`❌ [EMAIL HTML] Error enviando correo:`, error.message);
+    return { success: false, error: error.message };
+  }
+}
+
 module.exports = {
   enviarCorreoAsistencia,
   generarTemplateAsistencia,
@@ -640,5 +697,6 @@ module.exports = {
   generarTemplateNotificacion,
   obtenerIconoYColor,
   enviarCorreoCumpleanosHtml,
+  enviarCorreoHtml,
 };
 
