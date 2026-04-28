@@ -1130,7 +1130,7 @@ function GruposPanel({ meta }) {
                     </button>
                     {menuGrupoId === r.id && (
                       <div
-                        className={`admin-academico-grupo-card__dropdown${vistaSoloLecturaGrados ? ' admin-academico-grupo-card__dropdown--psicologa' : ''}`}
+                        className="admin-academico-grupo-card__dropdown"
                         role="menu"
                       >
                         {opcionesGrupoMenuVisibles.map((op) => (

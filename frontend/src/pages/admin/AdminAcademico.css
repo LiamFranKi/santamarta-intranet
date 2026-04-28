@@ -726,13 +726,9 @@ body.admin-academico-page .swal2-container {
   border-radius: 8px;
   background: transparent;
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: 400;
   color: #1e3a5f;
   cursor: pointer;
-}
-
-.admin-academico-grupo-card__dropdown--psicologa .admin-academico-grupo-card__dropdown-item {
-  font-weight: 400;
 }
 
 .admin-academico-grupo-card__dropdown-icon {
