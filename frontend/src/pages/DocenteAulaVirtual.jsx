@@ -7404,8 +7404,16 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
                     // Usar matricula_id como key para que todos tengan dropdown, incluso sin resultado
                     const uniqueKey = resultado.matricula_id || `alumno-${index}`;
                     const tieneResultado = resultado.resultado_id !== null && resultado.resultado_id !== undefined;
+                    const motivoCierre = String(resultado.motivo_cierre || '').toUpperCase();
                     const finalizadoPorSalida =
-                      resultado.finalizado_por_salida === 'SI' || resultado.motivo_cierre === 'SALIDA_DE_PANTALLA';
+                      resultado.finalizado_por_salida === 'SI' ||
+                      ['SALIDA_DE_PANTALLA', 'FUERA_DE_FOCO', 'CERRADO_POR_INTERNET'].includes(motivoCierre);
+                    const textoEstadoCierre =
+                      motivoCierre === 'CERRADO_POR_INTERNET'
+                        ? 'Cerrado por Internet'
+                        : motivoCierre === 'FUERA_DE_FOCO'
+                          ? 'Cerrado por fuera de foco'
+                          : 'Finalizado por salida';
                     
                     return (
                       <tr key={uniqueKey} style={{ borderBottom: '1px solid #e5e7eb' }}>
@@ -7428,7 +7436,7 @@ function ResultadosExamenModal({ examen, resultados, cargandoResultados, soloLec
                               background: '#fee2e2',
                               border: '1px solid #fecaca'
                             }}>
-                              Finalizado por salida
+                              {textoEstadoCierre}
                             </span>
                           ) : (
                             <span style={{

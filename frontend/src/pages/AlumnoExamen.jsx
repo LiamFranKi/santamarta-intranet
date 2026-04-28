@@ -53,6 +53,20 @@ function sanitizarRespuestasExamen(raw) {
   return out;
 }
 
+const PENDING_EXAM_SECURITY_KEY = 'pending_exam_security_events';
+
+function pushPendingSecurityEvent(evento) {
+  try {
+    const raw = localStorage.getItem(PENDING_EXAM_SECURITY_KEY);
+    const prev = raw ? JSON.parse(raw) : [];
+    const next = Array.isArray(prev) ? prev : [];
+    next.push(evento);
+    localStorage.setItem(PENDING_EXAM_SECURITY_KEY, JSON.stringify(next.slice(-20)));
+  } catch (_) {
+    // Ignorar fallas de almacenamiento local
+  }
+}
+
 function AlumnoExamen() {
   const { examenId } = useParams();
   const navigate = useNavigate();
@@ -79,6 +93,35 @@ function AlumnoExamen() {
   const tiempoExpiracion = useRef(null);
   const respuestasRef = useRef({});
   const cierreForzadoPorSeguridadRef = useRef(false);
+  useEffect(() => {
+    const syncPendientes = async () => {
+      try {
+        const raw = localStorage.getItem(PENDING_EXAM_SECURITY_KEY);
+        const eventos = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(eventos) || eventos.length === 0) return;
+        const restantes = [];
+        for (const ev of eventos) {
+          if (!ev || Number(ev.examenId) !== Number(examenId)) {
+            restantes.push(ev);
+            continue;
+          }
+          try {
+            await api.post(`/alumno/examenes/${ev.examenId}/violaciones`, {
+              tipo: ev.tipo,
+              timestamp: ev.timestamp
+            });
+          } catch (_) {
+            restantes.push(ev);
+          }
+        }
+        localStorage.setItem(PENDING_EXAM_SECURITY_KEY, JSON.stringify(restantes));
+      } catch (_) {
+        // Ignorar si no se puede sincronizar pendientes
+      }
+    };
+    syncPendientes();
+  }, [examenId]);
+
   /** Evita que un guardado en curso haga que otro salga sin enviar (p. ej. al finalizar justo tras el autosave). */
   const guardarRespuestasMutexRef = useRef(Promise.resolve());
 
@@ -245,6 +288,22 @@ function AlumnoExamen() {
   // Protección de examen
   const handleViolation = useCallback((violation) => {
     if (cierreForzadoPorSeguridadRef.current) return;
+    const esInternet = violation?.type === 'INTERNET_LOSS';
+
+    if (esInternet) {
+      cierreForzadoPorSeguridadRef.current = true;
+      Swal.fire({
+        icon: 'error',
+        title: 'Examen cerrado por internet',
+        html: `
+          <div style="text-align:left;">
+            <p>Se cerró el examen por pérdida de internet.</p>
+            <p><strong>Tu intento quedó cerrado y no puedes continuar respondiendo.</strong></p>
+          </div>
+        `,
+        confirmButtonText: 'Entendido'
+      }).then(() => navigate(-1));
+    }
 
     // Registrar violación en el backend (sin bloquear si falla)
     api.post(`/alumno/examenes/${examenId}/violaciones`, {
@@ -253,13 +312,19 @@ function AlumnoExamen() {
     }).then((response) => {
       const data = response?.data || {};
       if (data.action === 'AUTO_FINALIZED') {
+        const motivo = data.reason || 'SALIDA_DE_PANTALLA';
+        const esInternet = motivo === 'CERRADO_POR_INTERNET';
+        const titulo = esInternet ? 'Examen cerrado por internet' : 'Examen cerrado por seguridad';
+        const mensaje = esInternet
+          ? 'Se cerró el examen por pérdida de internet.'
+          : 'Se cerró por estar fuera de foco.';
         cierreForzadoPorSeguridadRef.current = true;
         Swal.fire({
           icon: 'error',
-          title: 'Examen cerrado por seguridad',
+          title: titulo,
           html: `
             <div style="text-align:left;">
-              <p>Se detectaron múltiples salidas de la pantalla/pestaña del examen.</p>
+              <p>${mensaje}</p>
               <p><strong>El examen fue finalizado automáticamente y este intento quedó cerrado.</strong></p>
             </div>
           `,
@@ -268,8 +333,8 @@ function AlumnoExamen() {
         return;
       }
 
-      // Solo mostrar advertencia en la primera violación
-      if ((data.violations || violation.count || 1) <= 1) {
+      // Solo mostrar advertencia cuando backend la devuelve explícitamente
+      if (data.action === 'WARNING' && (data.violations || violation.count || 1) <= 1) {
         Swal.fire({
           icon: 'warning',
           title: '⚠️ Advertencia',
@@ -286,7 +351,13 @@ function AlumnoExamen() {
         });
       }
     }).catch(() => {
-      // Silenciar errores de violaciones para no saturar la consola
+      if (esInternet) {
+        pushPendingSecurityEvent({
+          examenId,
+          tipo: violation.type,
+          timestamp: violation.timestamp
+        });
+      }
     });
   }, [examenId, navigate]);
 
@@ -443,45 +514,43 @@ function AlumnoExamen() {
   }, [guardarRespuestas, examen, esExamenPdf]);
 
   const handleFinalizarExamen = async () => {
-    // Mostrar resumen primero
-    setMostrarResumen(true);
+    const result = await Swal.fire({
+      title: 'Revisa bien tus respuestas antes de terminar',
+      text: 'Puedes volver al examen para revisar o terminar ahora.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Terminar',
+      cancelButtonText: 'Revisar',
+      reverseButtons: true
+    });
+    if (result.isConfirmed) {
+      await handleConfirmarFinalizar();
+    }
   };
 
   const handleConfirmarFinalizar = async () => {
     setMostrarResumen(false);
+    await persistirRespuestasParaFinalizar();
     
-    const result = await Swal.fire({
-      title: '¿Finalizar examen?',
-      text: '¿Estás seguro de que deseas finalizar el examen? No podrás modificarlo después.',
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonText: 'Sí, finalizar',
-      cancelButtonText: 'No, volver al examen'
-    });
-
-    if (result.isConfirmed) {
-      await persistirRespuestasParaFinalizar();
+    try {
+      await api.post(`/alumno/examenes/${examenId}/finalizar`);
       
-      try {
-        await api.post(`/alumno/examenes/${examenId}/finalizar`);
-        
-        Swal.fire({
-          icon: 'success',
-          title: 'Examen finalizado',
-          text: 'Tu examen ha sido enviado correctamente. Podrás ver tus resultados cuando el docente los publique.',
-          confirmButtonText: 'Entendido'
-        }).then(() => {
-          // Volver al aula virtual
-          navigate(-1);
-        });
-      } catch (error) {
-        console.error('Error finalizando examen:', error);
-        Swal.fire({
-          icon: 'error',
-          title: 'Error',
-          text: 'No se pudo finalizar el examen'
-        });
-      }
+      Swal.fire({
+        icon: 'success',
+        title: 'Examen finalizado',
+        text: 'Tu examen ha sido enviado correctamente. Podrás ver tus resultados cuando el docente los publique.',
+        confirmButtonText: 'Entendido'
+      }).then(() => {
+        // Volver al aula virtual
+        navigate(-1);
+      });
+    } catch (error) {
+      console.error('Error finalizando examen:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: 'No se pudo finalizar el examen'
+      });
     }
   };
 

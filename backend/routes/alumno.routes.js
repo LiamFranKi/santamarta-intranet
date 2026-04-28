@@ -4388,6 +4388,9 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
 
     const pruebaActiva = pruebasActivas[0];
     const tipoNormalizado = String(tipo || 'DESCONOCIDA').slice(0, 60);
+    const esCierreInmediatoPorFoco = tipoNormalizado === 'OUT_OF_FOCUS_7S';
+    const esCierreInmediatoPorInternet = tipoNormalizado === 'INTERNET_LOSS';
+    const cierreInmediato = esCierreInmediatoPorFoco || esCierreInmediatoPorInternet;
 
     const [estadoActualViolaciones] = await query(
       `SELECT id, violaciones_count, ultima_violacion_tipo,
@@ -4430,7 +4433,7 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
     let accion = 'WARNING';
     let mensajeAccion = 'Advertencia registrada';
 
-    if (violacionesCount >= LIMITE_VIOLACIONES_CIERRE) {
+    if (cierreInmediato || violacionesCount >= LIMITE_VIOLACIONES_CIERRE) {
       const parsePreguntaIdsVisibles = () => {
         try {
           if (!pruebaActiva.preguntas || String(pruebaActiva.preguntas).trim() === '') return [];
@@ -4455,6 +4458,12 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
         totalPreguntas = Number(rowTotal?.total || 0);
       }
 
+      const motivoCierre = esCierreInmediatoPorInternet
+        ? 'CERRADO_POR_INTERNET'
+        : esCierreInmediatoPorFoco
+          ? 'FUERA_DE_FOCO'
+          : 'SALIDA_DE_PANTALLA';
+
       await execute(
         `UPDATE asignaturas_examenes_pruebas
          SET estado = 'FINALIZADA',
@@ -4462,14 +4471,18 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
              correctas = 0,
              incorrectas = ?,
              finalizado_por_salida = 'SI',
-             motivo_cierre = 'SALIDA_DE_PANTALLA',
+             motivo_cierre = ?,
              fecha_cierre_forzado = NOW()
          WHERE id = ?`,
-        [totalPreguntas, pruebaActiva.id]
+        [totalPreguntas, motivoCierre, pruebaActiva.id]
       );
 
       accion = 'AUTO_FINALIZED';
-      mensajeAccion = 'Examen finalizado por violaciones de seguridad';
+      mensajeAccion = esCierreInmediatoPorInternet
+        ? 'Examen finalizado por pérdida de internet'
+        : esCierreInmediatoPorFoco
+          ? 'Examen finalizado por estar fuera de foco'
+          : 'Examen finalizado por violaciones de seguridad';
     }
 
     // Registrar en auditoría usando la estructura correcta
@@ -4504,7 +4517,14 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
       success: true,
       action: accion,
       violations: violacionesCount,
-      message: mensajeAccion
+      message: mensajeAccion,
+      reason: accion === 'AUTO_FINALIZED'
+        ? (esCierreInmediatoPorInternet
+            ? 'CERRADO_POR_INTERNET'
+            : esCierreInmediatoPorFoco
+              ? 'FUERA_DE_FOCO'
+              : 'SALIDA_DE_PANTALLA')
+        : null
     });
   } catch (error) {
     console.error('Error registrando violación:', error);

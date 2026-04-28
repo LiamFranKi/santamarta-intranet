@@ -11,6 +11,9 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
   const violationCountRef = useRef(0);
   const fullscreenEnabled = useRef(false);
   const lastViolationRef = useRef({ type: null, timestampMs: 0 });
+  const focusLossTimerRef = useRef(null);
+  const isFocusLostRef = useRef(false);
+  const offlineTimerRef = useRef(null);
 
   useEffect(() => {
     if (!enabled) {
@@ -51,20 +54,37 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
 
     enableFullscreen();
 
-    const registrarViolacion = (type) => {
+    const limpiarTimerFoco = () => {
+      if (focusLossTimerRef.current) {
+        clearTimeout(focusLossTimerRef.current);
+        focusLossTimerRef.current = null;
+      }
+    };
+
+    const limpiarTimerOffline = () => {
+      if (offlineTimerRef.current) {
+        clearTimeout(offlineTimerRef.current);
+        offlineTimerRef.current = null;
+      }
+    };
+
+    const registrarViolacion = (type, options = {}) => {
       const ahora = Date.now();
       const ultima = lastViolationRef.current;
+      const skipCooldown = options.skipCooldown === true;
       const COOLDOWN_GENERAL_MS = 2500;
       const COOLDOWN_MISMO_TIPO_MS = 5000;
 
-      // Evitar que una sola acción del sistema dispare múltiples eventos consecutivos.
-      if (ahora - ultima.timestampMs < COOLDOWN_GENERAL_MS) {
-        return;
-      }
+      if (!skipCooldown) {
+        // Evitar que una sola acción del sistema dispare múltiples eventos consecutivos.
+        if (ahora - ultima.timestampMs < COOLDOWN_GENERAL_MS) {
+          return;
+        }
 
-      // Evitar duplicados repetitivos del mismo evento (ej. EDGE_SWIPE continuo).
-      if (ultima.type === type && ahora - ultima.timestampMs < COOLDOWN_MISMO_TIPO_MS) {
-        return;
+        // Evitar duplicados repetitivos del mismo evento (ej. EDGE_SWIPE continuo).
+        if (ultima.type === type && ahora - ultima.timestampMs < COOLDOWN_MISMO_TIPO_MS) {
+          return;
+        }
       }
 
       lastViolationRef.current = { type, timestampMs: ahora };
@@ -92,19 +112,54 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
       }
     };
 
+    const iniciarTimerFueraDeFoco = () => {
+      if (isFocusLostRef.current) return;
+      isFocusLostRef.current = true;
+      limpiarTimerFoco();
+      focusLossTimerRef.current = setTimeout(() => {
+        if (isFocusLostRef.current) {
+          registrarViolacion('OUT_OF_FOCUS_7S', { skipCooldown: true });
+        }
+      }, 7000);
+    };
+
+    const finalizarFueraDeFoco = () => {
+      isFocusLostRef.current = false;
+      limpiarTimerFoco();
+    };
+
     // 2. Detectar cambio de pestaña/ventana (Page Visibility API)
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        registrarViolacion('TAB_CHANGE');
+        iniciarTimerFueraDeFoco();
+      } else if (document.hasFocus()) {
+        finalizarFueraDeFoco();
       }
     };
 
     // 3. Detectar pérdida de foco de la ventana (solo si está visible)
     const handleBlur = () => {
-      // Solo registrar si la ventana está visible (no oculta)
+      iniciarTimerFueraDeFoco();
+    };
+
+    const handleFocus = () => {
       if (!document.hidden) {
-        registrarViolacion('WINDOW_BLUR');
+        finalizarFueraDeFoco();
       }
+    };
+
+    // 3b. Detectar pérdida de internet sostenida (2 segundos)
+    const handleOffline = () => {
+      limpiarTimerOffline();
+      offlineTimerRef.current = setTimeout(() => {
+        if (navigator.onLine === false) {
+          registrarViolacion('INTERNET_LOSS', { skipCooldown: true });
+        }
+      }, 2000);
+    };
+
+    const handleOnline = () => {
+      limpiarTimerOffline();
     };
 
     // 4. Prevenir cierre accidental del navegador
@@ -179,6 +234,9 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
     // Registrar event listeners
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleBlur);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
     window.addEventListener('beforeunload', handleBeforeUnload);
     document.addEventListener('keydown', handleKeyDown);
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -220,6 +278,9 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
@@ -232,6 +293,8 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
       document.removeEventListener('paste', handlePaste);
       document.removeEventListener('touchstart', handleTouchStart);
       document.removeEventListener('touchmove', handleTouchMove);
+      limpiarTimerFoco();
+      limpiarTimerOffline();
 
       // Salir de pantalla completa al desmontar (solo si está activa)
       if (fullscreenEnabled.current) {
