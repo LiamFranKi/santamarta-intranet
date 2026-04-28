@@ -175,11 +175,8 @@ function generarTemplateAsistencia(datos) {
     descuentosPresentacion.length > 0;
   const lineasPresentacion = [];
   if (tieneDescPresentacion) {
-    if (descuentosPresentacion.includes('UNIFORME')) {
-      lineasPresentacion.push('Se le descontó 1 punto por uniforme.');
-    }
-    if (descuentosPresentacion.includes('CABELLO')) {
-      lineasPresentacion.push('Se le descontó 1 punto por cabello.');
+    if (descuentosPresentacion.includes('PRESENTACION')) {
+      lineasPresentacion.push('Se le descontó 1 punto por presentación escolar.');
     }
   }
   const htmlBloquePresentacion =

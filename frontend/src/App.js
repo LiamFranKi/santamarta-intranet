@@ -291,7 +291,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/actividades"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
             <AdminActividades />
           </PrivateRoute>
         }
@@ -307,7 +307,7 @@ function AppRoutes() {
       <Route
         path="/admin/comunicaciones/eventos"
         element={
-          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
             <AdminEventos />
           </PrivateRoute>
         }

@@ -2,37 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import './AsistenciaConfirmModal.css';
 
-/** Polo — cuello, mangas cortas, tapeta con botones y bolsillo; estirado en Y para llenar el cuadrado como el icono de cabello. */
-function IconShirt() {
-  return (
-    <svg
-      className="asistencia-confirm-modal__svg asistencia-confirm-modal__svg--shirt"
-      viewBox="0 0 100 100"
-      overflow="visible"
-      aria-hidden="true"
-    >
-      <g
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        transform="translate(50 58) scale(1 1.3) translate(-50 -58)"
-      >
-        <path d="M20 36 L10 42 L10 90 L90 90 L90 42 L80 36" />
-        <path d="M36 36 L50 54 L64 36" />
-        <path d="M30 36 Q50 26 70 36" />
-        <path d="M20 36 L6 40 L6 58 L20 54" />
-        <path d="M80 36 L94 40 L94 58 L80 54" />
-        <path d="M50 54 L50 82" />
-        <circle cx="50" cy="64" r="2.5" fill="currentColor" stroke="none" />
-        <circle cx="50" cy="74" r="2.5" fill="currentColor" stroke="none" />
-        <rect x="58" y="56" width="22" height="16" rx="3" ry="3" />
-      </g>
-    </svg>
-  );
-}
-
 /** Cabeza + orejas + pelo en capas (silueta reconocible “cabello / presentación”). */
 function IconHair() {
   return (
@@ -66,13 +35,11 @@ export default function AsistenciaConfirmModal({
   onCancel,
   onConfirm
 }) {
-  const [uniforme, setUniforme] = useState(false);
-  const [cabello, setCabello] = useState(false);
+  const [presentacion, setPresentacion] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setUniforme(false);
-      setCabello(false);
+      setPresentacion(false);
     }
   }, [open, usuario?.usuario_id]);
 
@@ -85,16 +52,10 @@ export default function AsistenciaConfirmModal({
   const tipoTexto = tipoRegistro === 'ENTRADA' ? 'Entrada' : 'Salida';
   const tituloIcono = tipoRegistro === 'ENTRADA' ? '✅' : '👋';
 
-  const toggle = (key) => {
-    if (key === 'UNIFORME') setUniforme((v) => !v);
-    if (key === 'CABELLO') setCabello((v) => !v);
-  };
-
   const handleConfirm = () => {
     const descuentos = [];
     if (mostrarPresentacion) {
-      if (uniforme) descuentos.push('UNIFORME');
-      if (cabello) descuentos.push('CABELLO');
+      if (presentacion) descuentos.push('PRESENTACION');
     }
     onConfirm(descuentos);
   };
@@ -133,26 +94,15 @@ export default function AsistenciaConfirmModal({
             <div className="asistencia-confirm-modal__presentacion">
               <p className="asistencia-confirm-modal__presentacion-title">Descontar por presentación escolar</p>
               <p className="asistencia-confirm-modal__presentacion-hint">
-                Opcional: toca solo si aplica. Puedes elegir uno o ambos antes de registrar.
+                Opcional: toca solo si aplica.
               </p>
               <div className="asistencia-confirm-modal__botones-grid">
                 <button
                   type="button"
-                  className={`asistencia-confirm-modal__btn-moto asistencia-confirm-modal__btn--uniforme ${uniforme ? 'is-active' : ''}`}
-                  onClick={() => toggle('UNIFORME')}
+                  className={`asistencia-confirm-modal__btn-moto asistencia-confirm-modal__btn--cabello ${presentacion ? 'is-active' : ''}`}
+                  onClick={() => setPresentacion((v) => !v)}
                   disabled={processing}
-                  aria-pressed={uniforme}
-                >
-                  <span className="asistencia-confirm-modal__btn-icon-wrap" aria-hidden="true">
-                    <IconShirt />
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`asistencia-confirm-modal__btn-moto asistencia-confirm-modal__btn--cabello ${cabello ? 'is-active' : ''}`}
-                  onClick={() => toggle('CABELLO')}
-                  disabled={processing}
-                  aria-pressed={cabello}
+                  aria-pressed={presentacion}
                 >
                   <span className="asistencia-confirm-modal__btn-icon-wrap" aria-hidden="true">
                     <IconHair />
@@ -160,8 +110,7 @@ export default function AsistenciaConfirmModal({
                 </button>
               </div>
               <div className="asistencia-confirm-modal__labels-row">
-                <span className="asistencia-confirm-modal__label-text">Uniforme −1</span>
-                <span className="asistencia-confirm-modal__label-text">Cabello −1</span>
+                <span className="asistencia-confirm-modal__label-text">Presentación −1</span>
               </div>
             </div>
           )}

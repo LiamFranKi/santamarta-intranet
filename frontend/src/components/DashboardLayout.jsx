@@ -1027,6 +1027,12 @@ export default function DashboardLayout({ children }) {
                   }}
                   className={`sidebar-submenu ${expandedMenus.psicologaCom ? 'expanded' : ''}`}
                 >
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/actividades">
+                    <span className="sidebar-icon" aria-hidden>
+                      📅
+                    </span>
+                    <span className="sidebar-label">Actividades</span>
+                  </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/publicaciones">
                     <span className="sidebar-icon" aria-hidden>
                       📰
@@ -1061,12 +1067,6 @@ export default function DashboardLayout({ children }) {
                       📢
                     </span>
                     <span className="sidebar-label">Comunicados</span>
-                  </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/eventos">
-                    <span className="sidebar-icon" aria-hidden>
-                      🎪
-                    </span>
-                    <span className="sidebar-label">Eventos</span>
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/notificaciones">
                     <span className="sidebar-icon" aria-hidden>

@@ -213,20 +213,15 @@ router.post('/escaneo', async (req, res) => {
  * POST /api/asistencia/registrar
  * Registrar asistencia (entrada o salida)
  */
-const MOTIVOS_PRESENTACION = new Set(['UNIFORME', 'CABELLO']);
+const MOTIVOS_PRESENTACION = new Set(['PRESENTACION']);
 
 /** Fragmento para push / notificación in-app / coherencia con correo (solo apoderados, entrada). */
 function textoDescuentosPresentacionApoderado(descuentosPresentacion) {
   if (!Array.isArray(descuentosPresentacion) || descuentosPresentacion.length === 0) return '';
-  const frases = [];
-  if (descuentosPresentacion.includes('UNIFORME')) {
-    frases.push('Se le descontó 1 punto por uniforme.');
+  if (descuentosPresentacion.includes('PRESENTACION')) {
+    return ' Se le descontó 1 punto por presentación escolar.';
   }
-  if (descuentosPresentacion.includes('CABELLO')) {
-    frases.push('Se le descontó 1 punto por cabello.');
-  }
-  if (!frases.length) return '';
-  return ' ' + frases.join(' ');
+  return '';
 }
 
 router.post('/registrar', async (req, res) => {

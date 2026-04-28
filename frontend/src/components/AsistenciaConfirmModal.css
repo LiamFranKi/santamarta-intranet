@@ -92,9 +92,10 @@
 }
 
 .asistencia-confirm-modal__botones-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: max(12px, 2.5vw);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
   width: 100%;
 }
 
@@ -124,19 +125,11 @@
   cursor: not-allowed;
 }
 
-.asistencia-confirm-modal__btn--uniforme {
-  background: linear-gradient(145deg, #7c3aed, #6d28d9);
-  box-shadow: 0 6px 20px rgba(124, 58, 237, 0.45);
-}
-
-.asistencia-confirm-modal__btn--uniforme.is-active {
-  box-shadow: 0 0 0 4px #fff, 0 0 0 8px rgba(124, 58, 237, 0.55);
-  filter: brightness(1.08);
-}
-
 .asistencia-confirm-modal__btn--cabello {
   background: linear-gradient(145deg, #db2777, #be185d);
   box-shadow: 0 6px 20px rgba(219, 39, 119, 0.45);
+  max-width: 220px;
+  width: min(70vw, 220px);
 }
 
 .asistencia-confirm-modal__btn--cabello.is-active {
@@ -163,9 +156,10 @@
 }
 
 .asistencia-confirm-modal__labels-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
   margin-top: 0.65rem;
 }
 
