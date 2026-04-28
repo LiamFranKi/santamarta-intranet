@@ -54,6 +54,19 @@ function sanitizarRespuestasExamen(raw) {
 }
 
 const PENDING_EXAM_SECURITY_KEY = 'pending_exam_security_events';
+const EXAM_DEVICE_ID_KEY = 'exam_device_id_v1';
+
+function getExamDeviceId() {
+  try {
+    const existente = localStorage.getItem(EXAM_DEVICE_ID_KEY);
+    if (existente && String(existente).trim() !== '') return String(existente);
+    const nuevo = `dev_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`.slice(0, 100);
+    localStorage.setItem(EXAM_DEVICE_ID_KEY, nuevo);
+    return nuevo;
+  } catch (_) {
+    return `dev_fallback_${Date.now().toString(36)}`;
+  }
+}
 
 function pushPendingSecurityEvent(evento) {
   try {
@@ -94,6 +107,14 @@ function AlumnoExamen() {
   const respuestasRef = useRef({});
   const cierreForzadoPorSeguridadRef = useRef(false);
   const finalizacionEnCursoRef = useRef(false);
+  const examSessionTokenRef = useRef('');
+  const examDeviceIdRef = useRef(getExamDeviceId());
+  const getExamHeaders = useCallback(() => {
+    const headers = { 'x-exam-device-id': examDeviceIdRef.current };
+    const token = String(examSessionTokenRef.current || '').trim();
+    if (token) headers['x-exam-session-token'] = token;
+    return { headers };
+  }, []);
   useEffect(() => {
     const syncPendientes = async () => {
       try {
@@ -110,7 +131,7 @@ function AlumnoExamen() {
             await api.post(`/alumno/examenes/${ev.examenId}/violaciones`, {
               tipo: ev.tipo,
               timestamp: ev.timestamp
-            });
+            }, getExamHeaders());
           } catch (_) {
             restantes.push(ev);
           }
@@ -121,7 +142,7 @@ function AlumnoExamen() {
       }
     };
     syncPendientes();
-  }, [examenId]);
+  }, [examenId, getExamHeaders]);
 
   /** Evita que un guardado en curso haga que otro salga sin enviar (p. ej. al finalizar justo tras el autosave). */
   const guardarRespuestasMutexRef = useRef(Promise.resolve());
@@ -165,8 +186,9 @@ function AlumnoExamen() {
 
       // Iniciar examen (crear prueba) — solo exámenes VIRTUAL u otros no-PDF
       console.log('📝 Llamando a /alumno/examenes/' + examenId + '/iniciar');
-      const iniciarRes = await api.post(`/alumno/examenes/${examenId}/iniciar`);
+      const iniciarRes = await api.post(`/alumno/examenes/${examenId}/iniciar`, {}, getExamHeaders());
       console.log('📝 Respuesta iniciar:', iniciarRes.data);
+      examSessionTokenRef.current = String(iniciarRes.data?.session_token || '').trim();
       const fechaInicio = new Date(iniciarRes.data.fecha_inicio);
       tiempoInicio.current = fechaInicio;
       
@@ -249,17 +271,23 @@ function AlumnoExamen() {
     } catch (error) {
       console.error('Error cargando examen:', error);
       setLoading(false);
-      setError(error.response?.data?.error || 'No se pudo cargar el examen');
+      const status = error?.response?.status;
+      const code = error?.response?.data?.code;
+      const isExamInProgress = status === 409 && code === 'EXAM_ALREADY_IN_PROGRESS';
+      const msg = isExamInProgress
+        ? 'El examen ya se está dando en otro dispositivo.'
+        : (error.response?.data?.error || 'No se pudo cargar el examen');
+      setError(msg);
       Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: error.response?.data?.error || 'No se pudo cargar el examen',
+        icon: isExamInProgress ? 'warning' : 'error',
+        title: isExamInProgress ? 'Examen en curso' : 'Error',
+        text: msg,
         confirmButtonText: 'Volver'
       }).then(() => {
         navigate(-1);
       });
     }
-  }, [examenId, navigate]);
+  }, [examenId, navigate, getExamHeaders]);
 
   // Cargar examen al montar
   useEffect(() => {
@@ -295,7 +323,7 @@ function AlumnoExamen() {
     api.post(`/alumno/examenes/${examenId}/violaciones`, {
       tipo: violation.type,
       timestamp: violation.timestamp
-    }).then((response) => {
+    }, getExamHeaders()).then((response) => {
       const data = response?.data || {};
       if (data.action === 'AUTO_FINALIZED') {
         const motivo = data.reason || 'SALIDA_DE_PANTALLA';
@@ -346,7 +374,7 @@ function AlumnoExamen() {
         });
       }
     });
-  }, [examenId, navigate]);
+  }, [examenId, navigate, getExamHeaders]);
 
   // Protección de examen (siempre activa, pero solo funciona cuando hay examen)
   // El hook debe estar siempre presente, pero el callback verifica si hay examen
@@ -368,7 +396,7 @@ function AlumnoExamen() {
         const limpio = sanitizarRespuestasExamen(respuestasRef.current);
         await api.post(`/alumno/examenes/${examenId}/respuestas`, {
           respuestas: limpio
-        });
+        }, getExamHeaders());
         // Tras el POST, el ref puede tener texto más reciente que `limpio` (red lenta).
         // Sincronizar siempre con el ref actual para no rebobinar el teclado.
         const actual = sanitizarRespuestasExamen(respuestasRef.current);
@@ -383,7 +411,7 @@ function AlumnoExamen() {
     const encadenado = guardarRespuestasMutexRef.current.then(ejecutar, ejecutar);
     guardarRespuestasMutexRef.current = encadenado.catch(() => {});
     return encadenado;
-  }, [examenId]);
+  }, [examenId, getExamHeaders]);
 
   /** Tras una operación crítica, segunda pasada para cubrir cambios al `ref` durante el POST anterior. */
   const persistirRespuestasParaFinalizar = useCallback(async () => {
@@ -400,7 +428,7 @@ function AlumnoExamen() {
     await persistirRespuestasParaFinalizar();
     
     try {
-      await api.post(`/alumno/examenes/${examenId}/finalizar`);
+      await api.post(`/alumno/examenes/${examenId}/finalizar`, {}, getExamHeaders());
       
         Swal.fire({
           icon: 'info',
@@ -414,6 +442,16 @@ function AlumnoExamen() {
     } catch (error) {
       console.error('Error finalizando examen:', error);
       const status = error?.response?.status;
+      const code = error?.response?.data?.code;
+      if (status === 409 && code === 'EXAM_ALREADY_IN_PROGRESS') {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Examen en curso',
+          text: 'El examen ya se está dando en otro dispositivo.',
+          confirmButtonText: 'Entendido'
+        }).then(() => navigate(-1));
+        return;
+      }
       if (status === 404) {
         Swal.fire({
           icon: 'info',
@@ -425,7 +463,7 @@ function AlumnoExamen() {
     } finally {
       finalizacionEnCursoRef.current = false;
     }
-  }, [examenId, navigate, persistirRespuestasParaFinalizar]);
+  }, [examenId, navigate, persistirRespuestasParaFinalizar, getExamHeaders]);
 
   // Temporizador
   useEffect(() => {
@@ -539,7 +577,7 @@ function AlumnoExamen() {
     await persistirRespuestasParaFinalizar();
     
     try {
-      const response = await api.post(`/alumno/examenes/${examenId}/finalizar`);
+      const response = await api.post(`/alumno/examenes/${examenId}/finalizar`, {}, getExamHeaders());
       const yaFinalizado = Boolean(response?.data?.already_finalized);
       
       Swal.fire({
@@ -547,7 +585,7 @@ function AlumnoExamen() {
         title: yaFinalizado ? 'Examen ya finalizado' : 'Examen finalizado',
         text: yaFinalizado
           ? 'Tu examen ya había sido cerrado previamente. Tus respuestas guardadas se mantuvieron.'
-          : 'Tu examen ha sido enviado correctamente. Podrás ver tus resultados cuando el docente los publique.',
+          : 'Tu examen ha sido enviado correctamente. Las respuestas fueron enviadas a tu correo interno.',
         confirmButtonText: 'Entendido'
       }).then(() => {
         // Volver al aula virtual
@@ -556,6 +594,16 @@ function AlumnoExamen() {
     } catch (error) {
       console.error('Error finalizando examen:', error);
       const status = error?.response?.status;
+      const code = error?.response?.data?.code;
+      if (status === 409 && code === 'EXAM_ALREADY_IN_PROGRESS') {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Examen en curso',
+          text: 'El examen ya se está dando en otro dispositivo.',
+          confirmButtonText: 'Entendido'
+        }).then(() => navigate(-1));
+        return;
+      }
       if (status === 404) {
         Swal.fire({
           icon: 'info',

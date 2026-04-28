@@ -3,6 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
@@ -32,6 +33,60 @@ function parsePreguntaIdsVisiblesDesdePrueba(pruebaRow) {
     return ids.length > 0 ? ids : null;
   } catch (e) {
     return null;
+  }
+}
+
+const EXAM_SESSION_STALE_SECONDS = 120;
+
+function generarExamSessionToken() {
+  return crypto.randomBytes(24).toString('hex');
+}
+
+function normalizarExamDeviceId(raw) {
+  const str = String(raw || '').trim();
+  if (!str) return '';
+  return str.slice(0, 120);
+}
+
+function tieneCamposSesionExamen(row) {
+  if (!row || typeof row !== 'object') return false;
+  return (
+    Object.prototype.hasOwnProperty.call(row, 'exam_session_token') ||
+    Object.prototype.hasOwnProperty.call(row, 'exam_session_device_id') ||
+    Object.prototype.hasOwnProperty.call(row, 'exam_session_last_seen')
+  );
+}
+
+function construirErrorSesionExamen() {
+  return {
+    error: 'El examen ya se está dando en otro dispositivo. Cierra el otro dispositivo para continuar.',
+    code: 'EXAM_ALREADY_IN_PROGRESS'
+  };
+}
+
+function segundosIdleSesionExamen(row) {
+  const raw = row?.exam_session_last_seen;
+  if (!raw) return Number.POSITIVE_INFINITY;
+  const t = new Date(raw).getTime();
+  if (!Number.isFinite(t) || t <= 0) return Number.POSITIVE_INFINITY;
+  return Math.max(0, Math.floor((Date.now() - t) / 1000));
+}
+
+async function actualizarSesionExamenPrueba(pruebaId, token, deviceId) {
+  if (!pruebaId || !token) return;
+  try {
+    await execute(
+      `UPDATE asignaturas_examenes_pruebas
+       SET exam_session_token = ?,
+           exam_session_device_id = ?,
+           exam_session_last_seen = NOW()
+       WHERE id = ?`,
+      [String(token), deviceId ? String(deviceId) : null, pruebaId]
+    );
+  } catch (err) {
+    // Compatibilidad: si aún no existen columnas en BD, no romper flujo de examen.
+    if (err && (err.code === 'ER_BAD_FIELD_ERROR' || err.code === 'ER_NO_SUCH_TABLE')) return;
+    throw err;
   }
 }
 
@@ -3720,6 +3775,7 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
   try {
     const { usuario_id, colegio_id, anio_activo, alumno_id } = req.user;
     const { examenId } = req.params;
+    const deviceIdHeader = normalizarExamDeviceId(req.headers['x-exam-device-id']);
 
     // Verificar acceso y que el examen esté activo
     const examen = await query(
@@ -3786,6 +3842,20 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
 
     if (pruebaEnProgreso.length > 0) {
       const row = pruebaEnProgreso[0];
+      if (tieneCamposSesionExamen(row)) {
+        const tokenGuardado = String(row.exam_session_token || '').trim();
+        const deviceGuardado = String(row.exam_session_device_id || '').trim();
+        const idleSegundos = segundosIdleSesionExamen(row);
+        const otroDispositivoActivo =
+          !!tokenGuardado &&
+          !!deviceGuardado &&
+          !!deviceIdHeader &&
+          deviceGuardado !== deviceIdHeader &&
+          idleSegundos <= EXAM_SESSION_STALE_SECONDS;
+        if (otroDispositivoActivo) {
+          return res.status(409).json(construirErrorSesionExamen());
+        }
+      }
       // Para que el front no re-aleatorice ni sobrescriba guardar-preguntas al recargar
       const pregunta_ids = parsePreguntaIdsVisiblesDesdePrueba(row);
       let respuestasJson = {};
@@ -3796,12 +3866,19 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
           console.warn('[iniciar examen] respuestas JSON inválidas, usando vacío:', row.id);
         }
       }
+      const sessionToken = String(row.exam_session_token || '').trim() || generarExamSessionToken();
+      await actualizarSesionExamenPrueba(
+        row.id,
+        sessionToken,
+        deviceIdHeader || String(row.exam_session_device_id || '').trim() || null
+      );
       return res.json({
         prueba_id: row.id,
         fecha_inicio: row.fecha_hora,
         fecha_expiracion: row.expiracion,
         respuestas: respuestasJson,
-        pregunta_ids
+        pregunta_ids,
+        session_token: sessionToken
       });
     }
 
@@ -3817,13 +3894,16 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
        VALUES (?, ?, ?, ?, 'ACTIVO', '{}', '')`,
       [examenId, matricula[0].matricula_id, fechaInicio, fechaExpiracion]
     );
+    const sessionToken = generarExamSessionToken();
+    await actualizarSesionExamenPrueba(resultado.insertId, sessionToken, deviceIdHeader || null);
 
     res.json({
       prueba_id: resultado.insertId,
       fecha_inicio: fechaInicio,
       fecha_expiracion: fechaExpiracion,
       respuestas: {},
-      pregunta_ids: null
+      pregunta_ids: null,
+      session_token: sessionToken
     });
   } catch (error) {
     console.error('Error iniciando examen:', error);
@@ -3977,6 +4057,8 @@ router.post('/examenes/:examenId/respuestas', async (req, res) => {
     const { usuario_id, colegio_id, anio_activo, alumno_id } = req.user;
     const { examenId } = req.params;
     const { respuestas } = req.body;
+    const tokenSesionHeader = String(req.headers['x-exam-session-token'] || '').trim();
+    const deviceIdHeader = normalizarExamDeviceId(req.headers['x-exam-device-id']);
 
     // Obtener matrícula del alumno
     const matricula = await query(
@@ -4025,6 +4107,21 @@ router.post('/examenes/:examenId/respuestas', async (req, res) => {
       return res.status(404).json({ error: 'No hay una prueba en progreso' });
     }
 
+    if (tieneCamposSesionExamen(prueba[0])) {
+      const tokenGuardado = String(prueba[0].exam_session_token || '').trim();
+      if (tokenGuardado && tokenSesionHeader && tokenGuardado !== tokenSesionHeader) {
+        return res.status(409).json(construirErrorSesionExamen());
+      }
+      if (tokenGuardado && !tokenSesionHeader) {
+        return res.status(409).json(construirErrorSesionExamen());
+      }
+      await actualizarSesionExamenPrueba(
+        prueba[0].id,
+        tokenGuardado || tokenSesionHeader || generarExamSessionToken(),
+        deviceIdHeader || String(prueba[0].exam_session_device_id || '').trim() || null
+      );
+    }
+
     // Actualizar respuestas
     await execute(
       `UPDATE asignaturas_examenes_pruebas
@@ -4048,6 +4145,8 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
   try {
     const { usuario_id, colegio_id, anio_activo, alumno_id } = req.user;
     const { examenId } = req.params;
+    const tokenSesionHeader = String(req.headers['x-exam-session-token'] || '').trim();
+    const deviceIdHeader = normalizarExamDeviceId(req.headers['x-exam-device-id']);
 
     // Obtener matrícula del alumno
     const matricula = await query(
@@ -4093,6 +4192,21 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
         });
       }
       return res.status(404).json({ error: 'No hay una prueba en progreso' });
+    }
+
+    if (tieneCamposSesionExamen(prueba[0])) {
+      const tokenGuardado = String(prueba[0].exam_session_token || '').trim();
+      if (tokenGuardado && tokenSesionHeader && tokenGuardado !== tokenSesionHeader) {
+        return res.status(409).json(construirErrorSesionExamen());
+      }
+      if (tokenGuardado && !tokenSesionHeader) {
+        return res.status(409).json(construirErrorSesionExamen());
+      }
+      await actualizarSesionExamenPrueba(
+        prueba[0].id,
+        tokenGuardado || tokenSesionHeader || generarExamSessionToken(),
+        deviceIdHeader || String(prueba[0].exam_session_device_id || '').trim() || null
+      );
     }
 
     // Obtener examen y preguntas
@@ -4628,6 +4742,8 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
     const { usuario_id, colegio_id, anio_activo, alumno_id } = req.user || {};
     const { examenId } = req.params;
     const { tipo, timestamp } = req.body;
+    const tokenSesionHeader = String(req.headers['x-exam-session-token'] || '').trim();
+    const deviceIdHeader = normalizarExamDeviceId(req.headers['x-exam-device-id']);
     const LIMITE_VIOLACIONES_CIERRE = 2;
 
     const matricula = await query(
@@ -4661,6 +4777,20 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
     }
 
     const pruebaActiva = pruebasActivas[0];
+    if (tieneCamposSesionExamen(pruebaActiva)) {
+      const tokenGuardado = String(pruebaActiva.exam_session_token || '').trim();
+      if (tokenGuardado && tokenSesionHeader && tokenGuardado !== tokenSesionHeader) {
+        return res.status(409).json(construirErrorSesionExamen());
+      }
+      if (tokenGuardado && !tokenSesionHeader) {
+        return res.status(409).json(construirErrorSesionExamen());
+      }
+      await actualizarSesionExamenPrueba(
+        pruebaActiva.id,
+        tokenGuardado || tokenSesionHeader || generarExamSessionToken(),
+        deviceIdHeader || String(pruebaActiva.exam_session_device_id || '').trim() || null
+      );
+    }
     const tipoNormalizado = String(tipo || 'DESCONOCIDA').slice(0, 60);
     const esCierreInmediatoPorFoco = tipoNormalizado === 'OUT_OF_FOCUS_7S';
     const esEventoInternet = tipoNormalizado === 'INTERNET_LOSS';
