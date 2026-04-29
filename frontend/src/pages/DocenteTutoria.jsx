@@ -2183,8 +2183,10 @@ function DocenteTutoria() {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 14;
+    const rowH = 7;
+    const footerReserve = 14;
+    const yContentMax = pageHeight - footerReserve;
     const grupoNombre = grupoParaConducta ? `${grupoParaConducta.grado}° ${grupoParaConducta.seccion} - ${grupoParaConducta.nivel_nombre}` : '';
-    let yPos = 0;
     const colorPrimario = [102, 126, 234];
     const colorBlanco = [255, 255, 255];
 
@@ -2192,50 +2194,80 @@ function DocenteTutoria() {
       const logoRes = await fetch('/icons/logoboleta.png');
       if (logoRes.ok) {
         const blob = await logoRes.blob();
-        const dataUrl = await new Promise((res) => { const r = new FileReader(); r.onloadend = () => res(r.result); r.readAsDataURL(blob); });
+        const dataUrl = await new Promise((res) => {
+          const r = new FileReader();
+          r.onloadend = () => res(r.result);
+          r.readAsDataURL(blob);
+        });
         doc.addImage(dataUrl, 'PNG', margin, 4, 24, 24);
       }
     } catch (e) { /* ignore */ }
 
-    doc.setFillColor(...colorPrimario);
-    doc.rect(0, 0, pageWidth, 32, 'F');
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...colorBlanco);
-    doc.text('REGISTRO DE CONDUCTA', margin + 30, 14);
-    doc.setFontSize(10);
-    doc.setTextColor(240, 240, 240);
-    doc.text(`Grupo: ${grupoNombre}  |  Bimestre: ${conductaCiclo}  |  Año: ${grupoParaConducta?.anio || ''}`, margin + 30, 22);
-    yPos = 38;
+    const dibujarBannerConducta = (esContinuacion) => {
+      doc.setFillColor(...colorPrimario);
+      doc.rect(0, 0, pageWidth, esContinuacion ? 22 : 32, 'F');
+      doc.setFontSize(esContinuacion ? 11 : 14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colorBlanco);
+      doc.text(esContinuacion ? 'REGISTRO DE CONDUCTA (continúa)' : 'REGISTRO DE CONDUCTA', margin + (esContinuacion ? 4 : 30), esContinuacion ? 10 : 14);
+      if (!esContinuacion) {
+        doc.setFontSize(10);
+        doc.setTextColor(240, 240, 240);
+        doc.text(`Grupo: ${grupoNombre}  |  Bimestre: ${conductaCiclo}  |  Año: ${grupoParaConducta?.anio || ''}`, margin + 30, 22);
+      }
+    };
 
-    doc.setDrawColor(200, 200, 200);
-    doc.setFillColor(234, 234, 234);
-    doc.rect(margin, yPos, 25, 8, 'FD');
-    doc.rect(margin + 25, yPos, pageWidth - 2 * margin - 60, 8, 'FD');
-    doc.rect(pageWidth - margin - 35, yPos, 35, 8, 'FD');
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(55, 65, 81);
-    doc.text('N°', margin + 12.5, yPos + 5.5, { align: 'center' });
-    doc.text('APELLIDOS Y NOMBRES', margin + (pageWidth - 2 * margin - 60) / 2 + 25, yPos + 5.5, { align: 'center' });
-    doc.text('NOTA', pageWidth - margin - 17.5, yPos + 5.5, { align: 'center' });
-    yPos += 8;
+    const dibujarCabeceraTablaConducta = (yStart) => {
+      let y = yStart;
+      doc.setDrawColor(200, 200, 200);
+      doc.setFillColor(234, 234, 234);
+      doc.rect(margin, y, 25, 8, 'FD');
+      doc.rect(margin + 25, y, pageWidth - 2 * margin - 60, 8, 'FD');
+      doc.rect(pageWidth - margin - 35, y, 35, 8, 'FD');
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(55, 65, 81);
+      doc.text('N°', margin + 12.5, y + 5.5, { align: 'center' });
+      doc.text('APELLIDOS Y NOMBRES', margin + (pageWidth - 2 * margin - 60) / 2 + 25, y + 5.5, { align: 'center' });
+      doc.text('NOTA', pageWidth - margin - 17.5, y + 5.5, { align: 'center' });
+      y += 8;
+      return y;
+    };
+
+    dibujarBannerConducta(false);
+    let yPos = dibujarCabeceraTablaConducta(38);
 
     doc.setFont('helvetica', 'normal');
     conductaAlumnos.forEach((a, i) => {
+      if (yPos + rowH > yContentMax) {
+        doc.addPage();
+        dibujarBannerConducta(true);
+        yPos = dibujarCabeceraTablaConducta(26);
+      }
+      const zebra = i % 2 === 0 ? [248, 250, 252] : [255, 255, 255];
+      doc.setFillColor(...zebra);
       doc.setDrawColor(220, 220, 220);
-      doc.rect(margin, yPos, 25, 7, 'S');
-      doc.rect(margin + 25, yPos, pageWidth - 2 * margin - 60, 7, 'S');
-      doc.rect(pageWidth - margin - 35, yPos, 35, 7, 'S');
+      doc.rect(margin, yPos, 25, rowH, 'FD');
+      doc.rect(margin + 25, yPos, pageWidth - 2 * margin - 60, rowH, 'FD');
+      doc.rect(pageWidth - margin - 35, yPos, 35, rowH, 'FD');
+      doc.setTextColor(30, 41, 59);
       doc.text(String(i + 1), margin + 12.5, yPos + 4.5, { align: 'center' });
-      doc.text((a.nombre_completo || '').slice(0, 70), margin + 28, yPos + 4.5);
+      doc.text((a.nombre_completo || '').slice(0, 78), margin + 28, yPos + 4.5);
       doc.text(a.nota_conducta || '20', pageWidth - margin - 17.5, yPos + 4.5, { align: 'center' });
-      yPos += 7;
+      yPos += rowH;
     });
 
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Generado: ${new Date().toLocaleString('es-PE')}`, margin, pageHeight - 8);
+    const totalP = doc.internal.getNumberOfPages();
+    const genTxt = `Generado: ${new Date().toLocaleString('es-PE')}`;
+    for (let p = 1; p <= totalP; p += 1) {
+      doc.setPage(p);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(genTxt, margin, pageHeight - 6);
+      doc.text(`Pág. ${p} / ${totalP}`, pageWidth - margin - 28, pageHeight - 6, { align: 'right' });
+    }
+
     doc.save(`Conducta_${grupoNombre.replace(/\s+/g, '_')}_B${conductaCiclo}.pdf`);
     Swal.fire({ icon: 'success', title: 'PDF generado', text: 'El reporte se descargó correctamente', timer: 2000, showConfirmButton: false });
   };
@@ -2313,52 +2345,121 @@ function DocenteTutoria() {
     const pw = doc.internal.pageSize.getWidth();
     const ph = doc.internal.pageSize.getHeight();
     const mm = 14;
-    let y = mm;
+    const innerW = pw - 2 * mm;
+    const footerReserve = 12;
+    const yBottom = () => ph - footerReserve;
+    const lineStep = 4.1;
     const tituloGrupo = `${grupoParaConducta.grado}° ${grupoParaConducta.seccion} - ${grupoParaConducta.nivel_nombre}`;
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Descuentos por presentación (asistencia / QR)', mm, y);
-    y += 8;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${tituloGrupo} · Año ${grupoParaConducta.anio || ''}`, mm, y);
-    y += 6;
-    doc.text(
-      `Periodo: ${formatearSoloFecha(fechaDescuentosDesde)} → ${formatearSoloFecha(fechaDescuentosHasta)}`,
-      mm,
-      y
-    );
-    y += 10;
 
-    dataDescuentosPorAlumno.forEach((al) => {
-      if (y > ph - 40) {
-        doc.addPage();
-        y = mm;
-      }
+    const paletasDesc = [
+      { f: [255, 247, 237], b: [253, 186, 116], t: [154, 52, 18] },
+      { f: [239, 246, 255], b: [147, 197, 253], t: [30, 64, 175] },
+      { f: [240, 253, 244], b: [134, 239, 172], t: [22, 101, 52] },
+      { f: [253, 244, 255], b: [232, 121, 249], t: [134, 25, 143] },
+      { f: [236, 254, 255], b: [34, 211, 238], t: [14, 116, 144] },
+      { f: [254, 252, 232], b: [234, 179, 8], t: [133, 77, 14] },
+    ];
+
+    let y = 0;
+    const pintarCabeceraPrincipalDesc = () => {
+      doc.setFillColor(254, 243, 199);
+      doc.rect(0, 0, pw, 28, 'F');
+      doc.setDrawColor(251, 191, 36);
+      doc.setLineWidth(0.4);
+      doc.rect(0, 0, pw, 28, 'S');
+      doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.text(`${al.alumno_nombre || 'Alumno'} — Total puntos (suma): ${al.suma_puntos ?? 0}`, mm, y);
-      y += 6;
-      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(146, 64, 14);
+      doc.text('Descuentos por presentación (asistencia / QR)', mm + 2, 11);
       doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(120, 53, 15);
+      doc.text(`${tituloGrupo} · Año ${grupoParaConducta.anio || ''}`, mm + 2, 18);
+      doc.setTextColor(71, 85, 105);
+      doc.text(
+        `Periodo: ${formatearSoloFecha(fechaDescuentosDesde)} → ${formatearSoloFecha(fechaDescuentosHasta)}`,
+        mm + 2,
+        24
+      );
+      y = 34;
+    };
+
+    const nuevaPaginaDesc = () => {
+      doc.addPage();
+      doc.setFillColor(254, 243, 199);
+      doc.rect(0, 0, pw, 16, 'F');
+      doc.setDrawColor(251, 191, 36);
+      doc.rect(0, 0, pw, 16, 'S');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(146, 64, 14);
+      doc.text('Descuentos por presentación (continúa)', mm + 2, 9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(71, 85, 105);
+      doc.setFontSize(8);
+      doc.text(
+        `Periodo: ${formatearSoloFecha(fechaDescuentosDesde)} → ${formatearSoloFecha(fechaDescuentosHasta)}`,
+        mm + 2,
+        14
+      );
+      y = 20;
+    };
+
+    pintarCabeceraPrincipalDesc();
+
+    dataDescuentosPorAlumno.forEach((al, idxAl) => {
+      const pal = paletasDesc[idxAl % paletasDesc.length];
+      const lineas = [];
       (al.registros || []).forEach((r) => {
         const linea = `${formatearSoloFecha(r.fecha)} ${String(r.hora || '').slice(0, 8)} · ${r.puntos ?? ''} pts · ${r.motivo || ''} · Reg.: ${r.registrado_por_nombre || '—'}`;
-        const wrapped = doc.splitTextToSize(linea, pw - 2 * mm);
-        wrapped.forEach((ln) => {
-          if (y > ph - 15) {
-            doc.addPage();
-            y = mm;
-          }
-          doc.text(ln, mm, y);
-          y += 4;
-        });
+        lineas.push(...doc.splitTextToSize(linea, innerW - 8));
       });
-      y += 6;
+      const tituloCard = `${al.alumno_nombre || 'Alumno'}  ·  Σ puntos: ${al.suma_puntos ?? 0}`;
+      const alturaTitulo = 7;
+      const alturaLineas = Math.max(lineas.length, 1) * lineStep;
+      const pad = 5;
+      const bloqueH = pad + alturaTitulo + 2 + alturaLineas + pad;
+
+      if (y + bloqueH > yBottom()) {
+        nuevaPaginaDesc();
+      }
+
+      const y0 = y;
+      doc.setFillColor(...pal.f);
+      doc.setDrawColor(...pal.b);
+      doc.setLineWidth(0.25);
+      doc.rect(mm, y0, innerW, bloqueH, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...pal.t);
+      doc.text(tituloCard, mm + pad, y0 + pad + 5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(51, 65, 85);
+      let yLine = y0 + pad + alturaTitulo + 3;
+      lineas.forEach((ln) => {
+        if (yLine + lineStep > y0 + bloqueH - 2) return;
+        doc.text(ln, mm + pad + 2, yLine);
+        yLine += lineStep;
+      });
+
+      y = y0 + bloqueH + 4;
     });
-    doc.setFontSize(8);
-    doc.setTextColor(120, 120, 120);
-    doc.text(`Generado ${new Date().toLocaleString('es-PE')}`, mm, ph - 8);
-    const safeNombre = `${tituloGrupo.replace(/\s+/g, '_')}_descuentos_presentacion`;
-    doc.save(`${safeNombre}.pdf`);
+
+    const genTxt = `Generado: ${new Date().toLocaleString('es-PE')}`;
+    const totalP = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= totalP; p += 1) {
+      doc.setPage(p);
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(genTxt, mm, ph - 5);
+      doc.text(`Pág. ${p} / ${totalP}`, pw - mm, ph - 5, { align: 'right' });
+    }
+
+    doc.save(`${tituloGrupo.replace(/\s+/g, '_')}_descuentos_presentacion.pdf`);
     Swal.fire({ icon: 'success', title: 'PDF generado', timer: 1800, showConfirmButton: false });
   };
 
@@ -2371,46 +2472,126 @@ function DocenteTutoria() {
     const pw = doc.internal.pageSize.getWidth();
     const ph = doc.internal.pageSize.getHeight();
     const mm = 14;
-    let y = mm;
+    const innerW = pw - 2 * mm;
+    const footerReserve = 12;
+    const yBottom = () => ph - footerReserve;
+    const lineStep = 4;
     const tituloGrupo = `${grupoParaConducta.grado}° ${grupoParaConducta.seccion} - ${grupoParaConducta.nivel_nombre}`;
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Incidencias del grupo (tutoría)', mm, y);
-    y += 8;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`${tituloGrupo} · Año ${grupoParaConducta.anio || ''}`, mm, y);
-    y += 6;
-    doc.text(`Periodo: ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`, mm, y);
-    y += 10;
 
-    dataIncidenciasPorAlumno.forEach((al) => {
-      if (y > ph - 35) {
-        doc.addPage();
-        y = mm;
-      }
+    const paletasInc = [
+      { f: [250, 245, 255], b: [216, 180, 254], t: [107, 33, 168] },
+      { f: [239, 246, 255], b: [165, 180, 252], t: [67, 56, 202] },
+      { f: [255, 247, 237], b: [251, 207, 232], t: [157, 23, 77] },
+      { f: [240, 253, 250], b: [153, 246, 228], t: [15, 118, 110] },
+      { f: [254, 252, 232], b: [253, 224, 71], t: [113, 63, 18] },
+      { f: [248, 250, 252], b: [203, 213, 225], t: [51, 65, 85] },
+    ];
+
+    let y = 0;
+    const pintarCabeceraPrincipalInc = () => {
+      doc.setFillColor(243, 232, 255);
+      doc.rect(0, 0, pw, 28, 'F');
+      doc.setDrawColor(192, 132, 252);
+      doc.setLineWidth(0.4);
+      doc.rect(0, 0, pw, 28, 'S');
+      doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
-      doc.text(String(al.alumno_nombre || 'Alumno'), mm, y);
-      y += 7;
-      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(91, 33, 182);
+      doc.text('Incidencias del grupo (tutoría)', mm + 2, 11);
       doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(88, 28, 135);
+      doc.text(`${tituloGrupo} · Año ${grupoParaConducta.anio || ''}`, mm + 2, 18);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Periodo: ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`, mm + 2, 24);
+      y = 34;
+    };
+
+    const nuevaPaginaInc = () => {
+      doc.addPage();
+      doc.setFillColor(243, 232, 255);
+      doc.rect(0, 0, pw, 16, 'F');
+      doc.setDrawColor(192, 132, 252);
+      doc.rect(0, 0, pw, 16, 'S');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(91, 33, 182);
+      doc.text('Incidencias del grupo (continúa)', mm + 2, 9);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Periodo: ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`, mm + 2, 14);
+      y = 20;
+    };
+
+    pintarCabeceraPrincipalInc();
+
+    dataIncidenciasPorAlumno.forEach((al, idxAl) => {
+      const pal = paletasInc[idxAl % paletasInc.length];
+      const bloques = [];
       (al.incidencias || []).forEach((inc) => {
-        const linea = `${formatearFechaHoraPeru(inc.created_at)} · ${inc.docente_nombre || '—'} · ${inc.curso_nombre || '—'}\n${(inc.description || '').trim()}`;
-        doc.splitTextToSize(linea, pw - 2 * mm).forEach((ln) => {
-          if (y > ph - 12) {
-            doc.addPage();
-            y = mm;
-          }
-          doc.text(ln, mm + 4, y);
-          y += 4;
-        });
-        y += 3;
+        const cab = `${formatearFechaHoraPeru(inc.created_at)}  ·  ${inc.docente_nombre || '—'}  ·  ${inc.curso_nombre || '—'}`;
+        const det = (inc.description || '').trim();
+        const lineasCab = doc.splitTextToSize(cab, innerW - 10);
+        const lineasDet = det ? doc.splitTextToSize(det, innerW - 10) : [];
+        bloques.push({ lineasCab, lineasDet });
       });
-      y += 5;
+
+      let alturaEst = 7;
+      bloques.forEach((b) => {
+        alturaEst += b.lineasCab.length * lineStep + 1 + b.lineasDet.length * lineStep + 3;
+      });
+      const pad = 5;
+      const bloqueH = pad + alturaEst + pad;
+
+      if (y + bloqueH > yBottom()) {
+        nuevaPaginaInc();
+      }
+
+      const y0 = y;
+      doc.setFillColor(...pal.f);
+      doc.setDrawColor(...pal.b);
+      doc.setLineWidth(0.25);
+      doc.rect(mm, y0, innerW, bloqueH, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(...pal.t);
+      doc.text(String(al.alumno_nombre || 'Alumno'), mm + pad, y0 + pad + 5);
+
+      let yLine = y0 + pad + 8;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.3);
+      bloques.forEach((b) => {
+        doc.setTextColor(30, 41, 59);
+        b.lineasCab.forEach((ln) => {
+          if (yLine > y0 + bloqueH - pad) return;
+          doc.text(ln, mm + pad + 2, yLine);
+          yLine += lineStep;
+        });
+        doc.setTextColor(71, 85, 105);
+        b.lineasDet.forEach((ln) => {
+          if (yLine > y0 + bloqueH - pad) return;
+          doc.text(ln, mm + pad + 3, yLine);
+          yLine += lineStep;
+        });
+        yLine += 2;
+      });
+
+      y = y0 + bloqueH + 4;
     });
-    doc.setFontSize(8);
-    doc.setTextColor(120, 120, 120);
-    doc.text(`Generado ${new Date().toLocaleString('es-PE')}`, mm, ph - 8);
+
+    const genTxt = `Generado: ${new Date().toLocaleString('es-PE')}`;
+    const totalP = doc.internal.getNumberOfPages();
+    for (let p = 1; p <= totalP; p += 1) {
+      doc.setPage(p);
+      doc.setFontSize(7.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text(genTxt, mm, ph - 5);
+      doc.text(`Pág. ${p} / ${totalP}`, pw - mm, ph - 5, { align: 'right' });
+    }
+
     doc.save(`${tituloGrupo.replace(/\s+/g, '_')}_incidencias_grupo.pdf`);
     Swal.fire({ icon: 'success', title: 'PDF generado', timer: 1800, showConfirmButton: false });
   };
