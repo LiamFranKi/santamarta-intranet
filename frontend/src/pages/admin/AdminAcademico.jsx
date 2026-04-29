@@ -1027,7 +1027,9 @@ function GruposPanel({ meta }) {
             nivel_nombre: listaAlumnosGrupoRow.nivel_nombre,
             turno_nombre: listaAlumnosGrupoRow.turno_nombre,
             total_alumnos: listaAlumnosGrupoRow.matriculas_count,
+            anio: listaAlumnosGrupoRow.anio,
           }}
+          anioEscolarActivo={anio}
           onVolver={() => setListaAlumnosGrupoRow(null)}
           psicologiaLinkMode="admin"
         />

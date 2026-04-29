@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useGrupoReportesConducta } from '../components/grupoReportes/useGrupoReportesConducta';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
@@ -14,6 +15,7 @@ function DocenteGrupos() {
   const [selectedGrupo, setSelectedGrupo] = useState(null);
   const [grupoInfo, setGrupoInfo] = useState(null);
   const [openDropdownGrupo, setOpenDropdownGrupo] = useState(null);
+  const reportesConducta = useGrupoReportesConducta({ apiPathPrefix: 'docente/grupos' });
 
   useEffect(() => {
     cargarGrupos();
@@ -252,6 +254,32 @@ function DocenteGrupos() {
                                   <span className="dropdown-icon">👨‍👩‍👧‍👦</span>
                                   <span>Conexiones Familiares</span>
                                 </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    setOpenDropdownGrupo(null);
+                                    reportesConducta.openIncidenciasGrupo(grupo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">📌</span>
+                                  <span>Incidencia</span>
+                                </button>
+                                <button
+                                  className="dropdown-item"
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    e.preventDefault();
+                                    setOpenDropdownGrupo(null);
+                                    reportesConducta.openDescuentosPresentacion(grupo);
+                                  }}
+                                >
+                                  <span className="dropdown-icon">📉</span>
+                                  <span>Presentación</span>
+                                </button>
                               </div>,
                               document.body
                             )
@@ -277,6 +305,7 @@ function DocenteGrupos() {
             psicologiaLinkMode="docente"
           />
         )}
+        {reportesConducta.ReportesModals}
       </div>
 
     </DashboardLayout>

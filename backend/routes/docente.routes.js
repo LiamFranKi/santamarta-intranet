@@ -68,6 +68,54 @@ function psicologaRutaDocentePermitida(path) {
 const ASSIGNMENT_ID_TUTORIA = -102;
 
 /**
+ * Staff de colegio o docente con asignatura en el grupo o tutor del grupo (misma idea que mensajes-historial).
+ * @returns {Promise<{ ok: true, anioEsc: number } | { ok: false, status: number, error: string }>}
+ */
+async function assertAccesoReporteGrupoGeneral(req, grupoId) {
+  const { colegio_id, anio_activo, tipo } = req.user;
+  if (!grupoId || !colegio_id || !anio_activo) {
+    return { ok: false, status: 400, error: 'Parámetros requeridos' };
+  }
+  const esStaffColegio =
+    esAdminOPromotoria(tipo) || tipo === 'PSICOLOGA' || tipo === 'SECRETARIA';
+
+  if (esStaffColegio) {
+    const gRow = await query(
+      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+      [grupoId, colegio_id, anio_activo]
+    );
+    if (!gRow.length) return { ok: false, status: 403, error: 'No tienes acceso a este grupo' };
+    return { ok: true, anioEsc: Number(gRow[0].anio) };
+  }
+
+  const personalId = req.user.personal_id;
+  if (!personalId) return { ok: false, status: 404, error: 'Docente no encontrado' };
+
+  const tieneAccesoAsignatura = await query(
+    `SELECT 1 FROM asignaturas a
+     INNER JOIN grupos g ON g.id = a.grupo_id
+     WHERE a.personal_id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ? LIMIT 1`,
+    [personalId, grupoId, colegio_id, anio_activo]
+  );
+  const esTutorDelGrupo = await query(
+    `SELECT 1 FROM grupos g
+     WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+    [grupoId, personalId, colegio_id, anio_activo]
+  );
+
+  if (!tieneAccesoAsignatura?.length && !esTutorDelGrupo?.length) {
+    return { ok: false, status: 403, error: 'No tienes acceso a este grupo' };
+  }
+
+  const gRow = await query(
+    `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+    [grupoId, colegio_id, anio_activo]
+  );
+  if (!gRow.length) return { ok: false, status: 403, error: 'No tienes acceso a este grupo' };
+  return { ok: true, anioEsc: Number(gRow[0].anio) };
+}
+
+/**
  * IDs de grupos para publicaciones: unión de grupos con asignatura + grupos donde es tutor (sin duplicar id).
  */
 async function obtenerGruposIdsAlcancePublicaciones(colegio_id, anio_activo, personalId) {
@@ -1930,22 +1978,26 @@ router.get('/grupos/:grupoId/alumnos', async (req, res) => {
         return res.status(403).json({ error: 'No tienes acceso a este grupo' });
       }
     } else {
-      // Docente: solo grupos con asignatura propia
+      // Docente: asignatura en el grupo o tutor del grupo (alineado con reportes y mensajes-historial)
       const personalId = req.user.personal_id;
 
       if (!personalId) {
         return res.status(404).json({ error: 'Docente no encontrado' });
       }
 
-      const tieneAcceso = await query(
-        `SELECT COUNT(*) as count
-         FROM asignaturas a
+      const tieneAccesoAsignatura = await query(
+        `SELECT 1 FROM asignaturas a
          INNER JOIN grupos g ON g.id = a.grupo_id
-         WHERE a.personal_id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+         WHERE a.personal_id = ? AND a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ? LIMIT 1`,
         [personalId, grupoId, colegio_id, anio_activo]
       );
+      const esTutorDelGrupo = await query(
+        `SELECT 1 FROM grupos g
+         WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+        [grupoId, personalId, colegio_id, anio_activo]
+      );
 
-      if (!tieneAcceso || tieneAcceso.length === 0 || tieneAcceso[0].count === 0) {
+      if (!tieneAccesoAsignatura?.length && !esTutorDelGrupo?.length) {
         return res.status(403).json({ error: 'No tienes acceso a este grupo' });
       }
     }
@@ -1988,6 +2040,168 @@ router.get('/grupos/:grupoId/alumnos', async (req, res) => {
   } catch (error) {
     console.error('Error obteniendo alumnos:', error);
     res.status(500).json({ error: 'Error al obtener alumnos' });
+  }
+});
+
+/**
+ * GET /api/docente/grupos/:grupoId/reporte-descuentos-presentacion
+ * Igual que tutoria pero para staff del colegio o docente con acceso al grupo (asignatura o tutoría).
+ */
+router.get('/grupos/:grupoId/reporte-descuentos-presentacion', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id } = req.user;
+    const acc = await assertAccesoReporteGrupoGeneral(req, grupoId);
+    if (!acc.ok) return res.status(acc.status).json({ error: acc.error });
+
+    const anioEsc = acc.anioEsc;
+    const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
+      || new Date().toISOString().slice(0, 10);
+    let fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
+    let fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
+    if (fechaDesde > fechaHasta) {
+      const t = fechaDesde;
+      fechaDesde = fechaHasta;
+      fechaHasta = t;
+    }
+    if (hoyStr < fechaHasta) fechaHasta = hoyStr;
+
+    let rows = [];
+    try {
+      rows = await query(
+        `SELECT ped.id, ped.fecha, ped.hora, ped.puntos, ped.motivo,
+                ua.alumno_id,
+                TRIM(CONCAT(COALESCE(al.apellido_paterno,''),' ', COALESCE(al.apellido_materno,''),' ', COALESCE(al.nombres,''))) AS alumno_nombre,
+                CASE
+                  WHEN rpp.id IS NOT NULL THEN TRIM(CONCAT(COALESCE(rpp.nombres,''), ' ', COALESCE(rpp.apellidos,'')))
+                  WHEN alrp.id IS NOT NULL THEN TRIM(CONCAT(
+                    COALESCE(alrp.apellido_paterno,''),' ', COALESCE(alrp.apellido_materno,''),' ', COALESCE(alrp.nombres,'')))
+                  ELSE '—'
+                END AS registrado_por_nombre
+         FROM presentacion_escolar_descuentos ped
+         INNER JOIN usuarios ua ON ua.id = ped.alumno_usuario_id AND ua.colegio_id = ped.colegio_id
+         INNER JOIN alumnos al ON al.id = ua.alumno_id
+         INNER JOIN matriculas m ON m.alumno_id = ua.alumno_id AND m.grupo_id = ? AND m.colegio_id = ped.colegio_id AND (m.estado = 0)
+         INNER JOIN grupos gx ON gx.id = m.grupo_id AND gx.anio = ped.anio
+         LEFT JOIN usuarios ur ON ur.id = ped.registrado_por_usuario_id
+         LEFT JOIN personal rpp ON rpp.id = ur.personal_id
+         LEFT JOIN alumnos alrp ON alrp.id = ur.alumno_id
+         WHERE ped.colegio_id = ? AND ped.anio = ?
+           AND DATE(ped.fecha) BETWEEN ? AND ?
+         ORDER BY al.apellido_paterno, al.apellido_materno, al.nombres, ped.fecha DESC, ped.hora DESC`,
+        [grupoId, colegio_id, anioEsc, fechaDesde, fechaHasta]
+      );
+    } catch (ePd) {
+      if (String(ePd.message || '').includes("doesn't exist") || ePd.code === 'ER_NO_SUCH_TABLE') rows = [];
+      else throw ePd;
+    }
+
+    const porAlumno = new Map();
+    (rows || []).forEach((r) => {
+      const aid = r.alumno_id;
+      if (!porAlumno.has(aid)) {
+        porAlumno.set(aid, {
+          alumno_id: aid,
+          alumno_nombre: r.alumno_nombre,
+          suma_puntos: 0,
+          registros: [],
+        });
+      }
+      const b = porAlumno.get(aid);
+      const pts = Number(r.puntos) || 0;
+      b.suma_puntos += pts;
+      b.registros.push({
+        id: r.id,
+        fecha: r.fecha,
+        hora: r.hora,
+        puntos: r.puntos,
+        motivo: r.motivo,
+        registrado_por_nombre: r.registrado_por_nombre,
+      });
+    });
+
+    res.json({
+      fecha_desde: fechaDesde,
+      fecha_hasta: fechaHasta,
+      alumnos: Array.from(porAlumno.values()),
+    });
+  } catch (e) {
+    console.error('[grupos/reporte-descuentos-presentacion]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/**
+ * GET /api/docente/grupos/:grupoId/reporte-incidencias-grupo
+ * Incidencias del aula (sin exigir ser tutor del grupo en el WHERE).
+ */
+router.get('/grupos/:grupoId/reporte-incidencias-grupo', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id } = req.user;
+    const acc = await assertAccesoReporteGrupoGeneral(req, grupoId);
+    if (!acc.ok) return res.status(acc.status).json({ error: acc.error });
+
+    const anioEsc = acc.anioEsc;
+    const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
+      || new Date().toISOString().slice(0, 10);
+    let fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
+    let fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
+    if (fechaDesde > fechaHasta) {
+      const t = fechaDesde;
+      fechaDesde = fechaHasta;
+      fechaHasta = t;
+    }
+    if (hoyStr < fechaHasta) fechaHasta = hoyStr;
+
+    const rows = await query(
+      `SELECT ei.id, ei.description, ei.created_at,
+              CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) AS docente_nombre,
+              CASE WHEN ei.assignment_id = ? THEN 'Tutoría' ELSE COALESCE(c.nombre, '—') END AS curso_nombre,
+              m.alumno_id,
+              TRIM(CONCAT(COALESCE(al.apellido_paterno,''),' ', COALESCE(al.apellido_materno,''),' ', COALESCE(al.nombres,''))) AS alumno_nombre
+       FROM enrollment_incidents ei
+       INNER JOIN matriculas m ON m.id = ei.enrollment_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN alumnos al ON al.id = m.alumno_id
+       LEFT JOIN personal p ON p.id = ei.worker_id
+       LEFT JOIN asignaturas a ON a.id = ei.assignment_id
+       LEFT JOIN cursos c ON c.id = a.curso_id
+       WHERE g.id = ? AND g.colegio_id = ?
+         AND ei.type = 1 AND g.anio = ?
+         AND DATE(ei.created_at) BETWEEN ? AND ?
+       ORDER BY alumno_nombre ASC, ei.created_at DESC`,
+      [ASSIGNMENT_ID_TUTORIA, grupoId, colegio_id, anioEsc, fechaDesde, fechaHasta]
+    );
+
+    const porAlumno = new Map();
+    (rows || []).forEach((r) => {
+      const aid = r.alumno_id;
+      if (!porAlumno.has(aid)) {
+        porAlumno.set(aid, {
+          alumno_id: aid,
+          alumno_nombre: r.alumno_nombre,
+          incidencias: [],
+        });
+      }
+      porAlumno.get(aid).incidencias.push({
+        id: r.id,
+        description: r.description,
+        created_at: r.created_at,
+        docente_nombre: r.docente_nombre,
+        curso_nombre: r.curso_nombre,
+      });
+    });
+
+    res.json({
+      fecha_desde: fechaDesde,
+      fecha_hasta: fechaHasta,
+      total: (rows || []).length,
+      alumnos: Array.from(porAlumno.values()),
+    });
+  } catch (e) {
+    console.error('[grupos/reporte-incidencias-grupo]', e);
+    res.status(500).json({ error: e.message || 'Error' });
   }
 });
 
