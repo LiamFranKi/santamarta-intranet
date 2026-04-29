@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import GrupoAlumnosListaView from '../../components/grupoAlumnos/GrupoAlumnosListaView';
+import { useGrupoReportesConducta } from '../../components/grupoReportes/useGrupoReportesConducta';
 import GrupoHorarioCompletoModal from '../../components/grupoHorario/GrupoHorarioCompletoModal';
 import './AdminDocumentosGestion.css';
 import './AdminAcademico.css';
@@ -517,6 +518,8 @@ function IconoPapelera() {
 
 const OPCIONES_GRUPO_MENU = [
   { key: 'lista_alumnos', label: 'Lista de Alumnos', icon: '👥' },
+  { key: 'reporte_incidencias', label: 'Incidencia', icon: '📌' },
+  { key: 'reporte_presentacion', label: 'Presentación', icon: '📉' },
   { key: 'ver_horario', label: 'Ver Horario', icon: '🗓️' },
   { key: 'registro_asistencia', label: 'Registro de Asistencia', icon: '📝' },
   { key: 'imprimir_qr', label: 'Imprimir QR', icon: '🧾' },
@@ -527,7 +530,12 @@ const OPCIONES_GRUPO_MENU = [
 ];
 
 /** Ítems del menú Opciones en tarjetas de grupo para perfil PSICOLOGA (solo lectura académica). */
-const KEYS_OPCIONES_GRUPO_PSICOLOGA = new Set(['lista_alumnos', 'ver_horario']);
+const KEYS_OPCIONES_GRUPO_PSICOLOGA = new Set([
+  'lista_alumnos',
+  'reporte_incidencias',
+  'reporte_presentacion',
+  'ver_horario',
+]);
 
 function NivelesPanel({ onRefreshMeta }) {
   const [rows, setRows] = useState([]);
@@ -805,6 +813,11 @@ function GruposPanel({ meta }) {
   const [horarioModalGrupo, setHorarioModalGrupo] = useState(null);
   const [subiendoHorario, setSubiendoHorario] = useState(false);
 
+  const reportesConducta = useGrupoReportesConducta({
+    apiPathPrefix: 'docente/grupos',
+    anioFallback: anio,
+  });
+
   const personalLista = useMemo(() => {
     const base = meta?.personal?.length ? meta.personal : meta?.docentes || [];
     const byId = new Map();
@@ -995,6 +1008,30 @@ function GruposPanel({ meta }) {
       setListaAlumnosGrupoRow(row);
       return;
     }
+    if (accion === 'reporte_incidencias') {
+      const meta = {
+        id: row.id,
+        grado: row.grado,
+        seccion: row.seccion,
+        nivel_nombre: row.nivel_nombre,
+        turno_nombre: row.turno_nombre,
+        anio: row.anio != null ? row.anio : anio,
+      };
+      reportesConducta.openIncidenciasGrupo(meta);
+      return;
+    }
+    if (accion === 'reporte_presentacion') {
+      const meta = {
+        id: row.id,
+        grado: row.grado,
+        seccion: row.seccion,
+        nivel_nombre: row.nivel_nombre,
+        turno_nombre: row.turno_nombre,
+        anio: row.anio != null ? row.anio : anio,
+      };
+      reportesConducta.openDescuentosPresentacion(meta);
+      return;
+    }
     if (accion === 'ver_horario') {
       setMenuGrupoId(null);
       setHorarioModalGrupo(row);
@@ -1017,27 +1054,30 @@ function GruposPanel({ meta }) {
 
   if (listaAlumnosGrupoRow) {
     return (
-      <section className="dg-section admin-academico-grupos-section">
-        <GrupoAlumnosListaView
-          grupoId={listaAlumnosGrupoRow.id}
-          grupoInfo={{
-            id: listaAlumnosGrupoRow.id,
-            grado: listaAlumnosGrupoRow.grado,
-            seccion: listaAlumnosGrupoRow.seccion,
-            nivel_nombre: listaAlumnosGrupoRow.nivel_nombre,
-            turno_nombre: listaAlumnosGrupoRow.turno_nombre,
-            total_alumnos: listaAlumnosGrupoRow.matriculas_count,
-            anio: listaAlumnosGrupoRow.anio,
-          }}
-          anioEscolarActivo={anio}
-          onVolver={() => setListaAlumnosGrupoRow(null)}
-          psicologiaLinkMode="admin"
-        />
-      </section>
+      <>
+        <section className="dg-section admin-academico-grupos-section">
+          <GrupoAlumnosListaView
+            grupoId={listaAlumnosGrupoRow.id}
+            grupoInfo={{
+              id: listaAlumnosGrupoRow.id,
+              grado: listaAlumnosGrupoRow.grado,
+              seccion: listaAlumnosGrupoRow.seccion,
+              nivel_nombre: listaAlumnosGrupoRow.nivel_nombre,
+              turno_nombre: listaAlumnosGrupoRow.turno_nombre,
+              total_alumnos: listaAlumnosGrupoRow.matriculas_count,
+              anio: listaAlumnosGrupoRow.anio,
+            }}
+            onVolver={() => setListaAlumnosGrupoRow(null)}
+            psicologiaLinkMode="admin"
+          />
+        </section>
+        {reportesConducta.ReportesModals}
+      </>
     );
   }
 
   return (
+    <>
     <section className="dg-section admin-academico-grupos-section">
       <div className="admin-academico-grupos-toolbar">
         <div className="admin-academico-grupos-filters">
@@ -1338,6 +1378,8 @@ function GruposPanel({ meta }) {
         />
       ) : null}
     </section>
+    {reportesConducta.ReportesModals}
+    </>
   );
 }
 

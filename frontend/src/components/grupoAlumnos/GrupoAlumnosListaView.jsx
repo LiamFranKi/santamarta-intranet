@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
@@ -7,7 +7,6 @@ import Swal from 'sweetalert2';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import '../../pages/DocenteGrupos.css';
-import { useGrupoReportesConducta } from '../grupoReportes/useGrupoReportesConducta';
 
 /**
  * Lista de alumnos de un grupo (misma UX que Docente → Grupos → Lista de alumnos).
@@ -18,27 +17,8 @@ export default function GrupoAlumnosListaView({
   grupoInfo,
   onVolver,
   psicologiaLinkMode = 'admin',
-  /** Año lectivo del listado (admin académico); refuerza defaults de fechas en reportes */
-  anioEscolarActivo,
 }) {
   const navigate = useNavigate();
-  const reportesConducta = useGrupoReportesConducta({
-    apiPathPrefix: 'docente/grupos',
-    anioFallback: anioEscolarActivo,
-  });
-
-  const metaGrupoParaReportes = useCallback(
-    () => ({
-      id: grupoId,
-      grado: grupoInfo?.grado,
-      seccion: grupoInfo?.seccion,
-      nivel_nombre: grupoInfo?.nivel_nombre,
-      turno_nombre: grupoInfo?.turno_nombre,
-      anio: grupoInfo?.anio ?? anioEscolarActivo,
-    }),
-    [grupoId, grupoInfo, anioEscolarActivo]
-  );
-
   const [alumnos, setAlumnos] = useState([]);
   const [loadingAlumnos, setLoadingAlumnos] = useState(false);
   const [openDropdownAlumno, setOpenDropdownAlumno] = useState(null); // { id, top, left } o null
@@ -550,7 +530,7 @@ export default function GrupoAlumnosListaView({
                                   } else {
                                     // Calcular posición del dropdown
                                     const dropdownWidth = 250;
-                                    const dropdownHeight = 300; // ítems + reportes grupo
+                                    const dropdownHeight = 200; // ítems incl. derivación psicológica
                                     let left = rect.left;
                                     let top = rect.bottom + 2;
                                     
@@ -632,32 +612,6 @@ export default function GrupoAlumnosListaView({
                                     >
                                       <span className="dropdown-icon">ℹ️</span>
                                       <span>Ver Información</span>
-                                    </button>
-                                    <button
-                                      className="dropdown-item"
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setOpenDropdownAlumno(null);
-                                        reportesConducta.openIncidenciasGrupo(metaGrupoParaReportes());
-                                      }}
-                                    >
-                                      <span className="dropdown-icon">📌</span>
-                                      <span>Incidencia</span>
-                                    </button>
-                                    <button
-                                      className="dropdown-item"
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        e.preventDefault();
-                                        setOpenDropdownAlumno(null);
-                                        reportesConducta.openDescuentosPresentacion(metaGrupoParaReportes());
-                                      }}
-                                    >
-                                      <span className="dropdown-icon">📉</span>
-                                      <span>Presentación</span>
                                     </button>
                                     <button
                                       className="dropdown-item"
@@ -1282,7 +1236,6 @@ export default function GrupoAlumnosListaView({
         </div>,
         document.body
       )}
-      {reportesConducta.ReportesModals}
     </div>
   );
 }
