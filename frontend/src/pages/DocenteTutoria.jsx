@@ -15,6 +15,49 @@ import './AlumnoCursos.css';
 import './AlumnoHorario.css';
 import './DocenteHijos.css';
 
+/** Rango inicial (año calendario del año lectivo hasta hoy) para reportes tutor evidencias */
+function rangoFechasReporteGrupo(anioEscolar) {
+  const a = Number(anioEscolar) || new Date().getFullYear();
+  const desde = `${a}-01-01`;
+  const hasta = new Date().toISOString().slice(0, 10);
+  return { desde, hasta };
+}
+
+function formatearSoloFecha(f) {
+  if (f == null || f === '') return '—';
+  if (typeof f === 'string' && /^\d{4}-\d{2}-\d{2}/.test(f)) {
+    const [y, m, d] = f.slice(0, 10).split('-');
+    return `${d}/${m}/${y}`;
+  }
+  try {
+    return new Date(f).toLocaleDateString('es-PE');
+  } catch {
+    return String(f);
+  }
+}
+
+function formatearFechaHoraPeru(iso) {
+  if (iso == null || iso === '') return '—';
+  try {
+    return new Date(iso).toLocaleString('es-PE', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+  } catch {
+    return String(iso);
+  }
+}
+
+/** Fondos pastel alternados por tarjeta (alumnos tutor reportes). */
+const PASTEL_TUTOR_EVIDENCIA = [
+  { bg: 'linear-gradient(145deg,#fff7ed 0%, #ffedd5 100%)', border: '#fdba74', accent: '#9a3412' },
+  { bg: 'linear-gradient(145deg,#eff6ff 0%, #dbeafe 100%)', border: '#93c5fd', accent: '#1e40af' },
+  { bg: 'linear-gradient(145deg,#f0fdf4 0%, #dcfce7 100%)', border: '#86efac', accent: '#166534' },
+  { bg: 'linear-gradient(145deg,#fdf4ff 0%, #fae8ff 100%)', border: '#e879f9', accent: '#86198f' },
+  { bg: 'linear-gradient(145deg,#ecfeff 0%, #cffafe 100%)', border: '#22d3ee', accent: '#0e7490' },
+  { bg: 'linear-gradient(145deg,#fefce8 0%,#fef08a 65%)', border: '#eab308', accent: '#854d0e' },
+];
+
 /** Ancho máximo típico de “móvil” para menús anclados vs panel centrado */
 const VIEWPORT_MOBILE_MAX = 768;
 
@@ -113,6 +156,17 @@ function DocenteTutoria() {
   const [conductaAlumnos, setConductaAlumnos] = useState([]);
   const [loadingConducta, setLoadingConducta] = useState(false);
   const [guardandoConducta, setGuardandoConducta] = useState(false);
+
+  const [fechaDescuentosDesde, setFechaDescuentosDesde] = useState('');
+  const [fechaDescuentosHasta, setFechaDescuentosHasta] = useState('');
+  const [fechaIncDesde, setFechaIncDesde] = useState('');
+  const [fechaIncHasta, setFechaIncHasta] = useState('');
+  const [modalDescuentosPresentacionAbierto, setModalDescuentosPresentacionAbierto] = useState(false);
+  const [modalIncidenciasGrupoAbierto, setModalIncidenciasGrupoAbierto] = useState(false);
+  const [dataDescuentosPorAlumno, setDataDescuentosPorAlumno] = useState([]);
+  const [dataIncidenciasPorAlumno, setDataIncidenciasPorAlumno] = useState([]);
+  const [loadingDescuentosRep, setLoadingDescuentosRep] = useState(false);
+  const [loadingIncidenciasRep, setLoadingIncidenciasRep] = useState(false);
 
   // Estados para modal Ver Horario (del grupo, como lo ve el alumno)
   const [mostrarModalHorario, setMostrarModalHorario] = useState(false);
@@ -1578,11 +1632,20 @@ function DocenteTutoria() {
     Swal.fire({ icon: 'success', title: 'PDF generado', text: 'El reporte se descargó correctamente', timer: 2000, showConfirmButton: false });
   };
 
-  // Conducta
+  // Conducta (+ modales evidencias: descuentos presentación / incidencias)
   const handleAbrirConducta = async (grupo) => {
+    const rango = rangoFechasReporteGrupo(grupo.anio);
+    setFechaDescuentosDesde(rango.desde);
+    setFechaDescuentosHasta(rango.hasta);
+    setFechaIncDesde(rango.desde);
+    setFechaIncHasta(rango.hasta);
     setGrupoParaConducta(grupo);
     setMostrarModalConducta(true);
     setConductaCiclo(1);
+    setModalDescuentosPresentacionAbierto(false);
+    setModalIncidenciasGrupoAbierto(false);
+    setDataDescuentosPorAlumno([]);
+    setDataIncidenciasPorAlumno([]);
     await cargarConducta(grupo.id, 1);
   };
 
@@ -2175,6 +2238,181 @@ function DocenteTutoria() {
     doc.text(`Generado: ${new Date().toLocaleString('es-PE')}`, margin, pageHeight - 8);
     doc.save(`Conducta_${grupoNombre.replace(/\s+/g, '_')}_B${conductaCiclo}.pdf`);
     Swal.fire({ icon: 'success', title: 'PDF generado', text: 'El reporte se descargó correctamente', timer: 2000, showConfirmButton: false });
+  };
+
+  /** Reportes evidencias tutor: descuentos presentación QR / incidencias grupo — PDF mismos filtros fecha */
+  const cerrarConductaLimpiando = () => {
+    setMostrarModalConducta(false);
+    setGrupoParaConducta(null);
+    setConductaAlumnos([]);
+    setModalDescuentosPresentacionAbierto(false);
+    setModalIncidenciasGrupoAbierto(false);
+    setDataDescuentosPorAlumno([]);
+    setDataIncidenciasPorAlumno([]);
+  };
+
+  const cargarReporteDescuentosPresentacion = async () => {
+    if (!grupoParaConducta) return;
+    setLoadingDescuentosRep(true);
+    try {
+      const { data } = await api.get(
+        `/docente/tutoria/grupos/${grupoParaConducta.id}/reporte-descuentos-presentacion`,
+        { params: { fecha_desde: fechaDescuentosDesde, fecha_hasta: fechaDescuentosHasta } }
+      );
+      setDataDescuentosPorAlumno(data.alumnos || []);
+      return data;
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar descuentos' });
+      setDataDescuentosPorAlumno([]);
+    } finally {
+      setLoadingDescuentosRep(false);
+    }
+  };
+
+  const abrirModalDescuentosPresentacion = async () => {
+    setModalDescuentosPresentacionAbierto(true);
+    await cargarReporteDescuentosPresentacion();
+  };
+
+  const cargarReporteIncidenciasGrupo = async () => {
+    if (!grupoParaConducta) return;
+    setLoadingIncidenciasRep(true);
+    try {
+      const { data } = await api.get(`/docente/tutoria/grupos/${grupoParaConducta.id}/reporte-incidencias-grupo`, {
+        params: { fecha_desde: fechaIncDesde, fecha_hasta: fechaIncHasta },
+      });
+      setDataIncidenciasPorAlumno(data.alumnos || []);
+      return data;
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudieron cargar incidencias' });
+      setDataIncidenciasPorAlumno([]);
+    } finally {
+      setLoadingIncidenciasRep(false);
+    }
+  };
+
+  const abrirModalIncidenciasGrupo = async () => {
+    setModalIncidenciasGrupoAbierto(true);
+    await cargarReporteIncidenciasGrupo();
+  };
+
+  const aplicarFiltrosDescuentosYResumen = async () => {
+    await cargarReporteDescuentosPresentacion();
+  };
+
+  const aplicarFiltrosIncidenciasYResumen = async () => {
+    await cargarReporteIncidenciasGrupo();
+  };
+
+  const exportPdfDescuentosPresentacion = () => {
+    if (!grupoParaConducta || !dataDescuentosPorAlumno?.length) {
+      Swal.fire({ icon: 'info', title: 'No hay Descuentos', text: 'No hay registros en el rango de fechas seleccionado.' });
+      return;
+    }
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+    const mm = 14;
+    let y = mm;
+    const tituloGrupo = `${grupoParaConducta.grado}° ${grupoParaConducta.seccion} - ${grupoParaConducta.nivel_nombre}`;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Descuentos por presentación (asistencia / QR)', mm, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${tituloGrupo} · Año ${grupoParaConducta.anio || ''}`, mm, y);
+    y += 6;
+    doc.text(
+      `Periodo: ${formatearSoloFecha(fechaDescuentosDesde)} → ${formatearSoloFecha(fechaDescuentosHasta)}`,
+      mm,
+      y
+    );
+    y += 10;
+
+    dataDescuentosPorAlumno.forEach((al) => {
+      if (y > ph - 40) {
+        doc.addPage();
+        y = mm;
+      }
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${al.alumno_nombre || 'Alumno'} — Total puntos (suma): ${al.suma_puntos ?? 0}`, mm, y);
+      y += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      (al.registros || []).forEach((r) => {
+        const linea = `${formatearSoloFecha(r.fecha)} ${String(r.hora || '').slice(0, 8)} · ${r.puntos ?? ''} pts · ${r.motivo || ''} · Reg.: ${r.registrado_por_nombre || '—'}`;
+        const wrapped = doc.splitTextToSize(linea, pw - 2 * mm);
+        wrapped.forEach((ln) => {
+          if (y > ph - 15) {
+            doc.addPage();
+            y = mm;
+          }
+          doc.text(ln, mm, y);
+          y += 4;
+        });
+      });
+      y += 6;
+    });
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text(`Generado ${new Date().toLocaleString('es-PE')}`, mm, ph - 8);
+    const safeNombre = `${tituloGrupo.replace(/\s+/g, '_')}_descuentos_presentacion`;
+    doc.save(`${safeNombre}.pdf`);
+    Swal.fire({ icon: 'success', title: 'PDF generado', timer: 1800, showConfirmButton: false });
+  };
+
+  const exportPdfIncidenciasGrupoReporte = () => {
+    if (!grupoParaConducta || !dataIncidenciasPorAlumno?.length) {
+      Swal.fire({ icon: 'info', title: 'No hay Incidencias', text: 'No hay registros en el rango de fechas seleccionado.' });
+      return;
+    }
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+    const mm = 14;
+    let y = mm;
+    const tituloGrupo = `${grupoParaConducta.grado}° ${grupoParaConducta.seccion} - ${grupoParaConducta.nivel_nombre}`;
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Incidencias del grupo (tutoría)', mm, y);
+    y += 8;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`${tituloGrupo} · Año ${grupoParaConducta.anio || ''}`, mm, y);
+    y += 6;
+    doc.text(`Periodo: ${formatearSoloFecha(fechaIncDesde)} → ${formatearSoloFecha(fechaIncHasta)}`, mm, y);
+    y += 10;
+
+    dataIncidenciasPorAlumno.forEach((al) => {
+      if (y > ph - 35) {
+        doc.addPage();
+        y = mm;
+      }
+      doc.setFont('helvetica', 'bold');
+      doc.text(String(al.alumno_nombre || 'Alumno'), mm, y);
+      y += 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      (al.incidencias || []).forEach((inc) => {
+        const linea = `${formatearFechaHoraPeru(inc.created_at)} · ${inc.docente_nombre || '—'} · ${inc.curso_nombre || '—'}\n${(inc.description || '').trim()}`;
+        doc.splitTextToSize(linea, pw - 2 * mm).forEach((ln) => {
+          if (y > ph - 12) {
+            doc.addPage();
+            y = mm;
+          }
+          doc.text(ln, mm + 4, y);
+          y += 4;
+        });
+        y += 3;
+      });
+      y += 5;
+    });
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text(`Generado ${new Date().toLocaleString('es-PE')}`, mm, ph - 8);
+    doc.save(`${tituloGrupo.replace(/\s+/g, '_')}_incidencias_grupo.pdf`);
+    Swal.fire({ icon: 'success', title: 'PDF generado', timer: 1800, showConfirmButton: false });
   };
 
   const exportarPDFAsistencia = async () => {
@@ -3199,18 +3437,24 @@ function DocenteTutoria() {
 
       {/* Modal Conducta */}
       {mostrarModalConducta && grupoParaConducta && createPortal(
-        <div className="modal-registro-asistencia-overlay" onClick={() => { setMostrarModalConducta(false); setGrupoParaConducta(null); setConductaAlumnos([]); }}>
+        <div className="modal-registro-asistencia-overlay" onClick={cerrarConductaLimpiando}>
           <div className="modal-registro-asistencia-container" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
             <div className="modal-registro-asistencia-header">
               <h2>📝 Registrar Conducta</h2>
-              <button className="modal-registro-asistencia-close" onClick={() => { setMostrarModalConducta(false); setGrupoParaConducta(null); setConductaAlumnos([]); }} type="button">✕</button>
+              <button className="modal-registro-asistencia-close" onClick={cerrarConductaLimpiando} type="button">✕</button>
             </div>
-            <div className="modal-registro-asistencia-filters">
+            <div className="modal-registro-asistencia-filters modal-registro-asistencia-filters--wrap">
               <label>Bimestre:</label>
               <select value={conductaCiclo} onChange={(e) => handleCambiarCicloConducta(parseInt(e.target.value))} disabled={loadingConducta} style={{ padding: '0.5rem 1rem', border: '2px solid #e5e7eb', borderRadius: 8, fontSize: '1rem', background: 'white', minWidth: 100 }}>
                 {[1, 2, 3, 4].map(b => <option key={b} value={b}>Bimestre {b}</option>)}
               </select>
               <button type="button" className="btn-imprimir-asistencia" onClick={exportarPDFConducta} disabled={loadingConducta || !conductaAlumnos.length}>🖨️ Exportar PDF</button>
+              <button type="button" className="btn-tutor-evid-descuentos" onClick={abrirModalDescuentosPresentacion}>
+                📉 Ver descuentos (presentación)
+              </button>
+              <button type="button" className="btn-tutor-evid-incidencias" onClick={abrirModalIncidenciasGrupo}>
+                📌 Ver incidencias
+              </button>
             </div>
             <div className="modal-registro-asistencia-table-wrap">
               {loadingConducta ? (
@@ -3237,6 +3481,201 @@ function DocenteTutoria() {
         </div>,
         document.body
       )}
+
+      {/* Modal: descuentos presentación escolar por alumno (tutor grupo) */}
+      {modalDescuentosPresentacionAbierto && grupoParaConducta &&
+        createPortal(
+          <div
+            className="tutor-evidencias-overlay"
+            onClick={() => setModalDescuentosPresentacionAbierto(false)}
+            role="presentation"
+          >
+            <div className="tutor-evidencias-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="titulo-desc-evid">
+              <header className="tutor-evidencias-panel-header tutor-evidencias-panel-header--descuentos">
+                <div>
+                  <h2 id="titulo-desc-evid">Descuentos por presentación</h2>
+                  <p className="tutor-evidencias-panel-sub">
+                    Grupo{' '}
+                    <strong>
+                      {grupoParaConducta.grado}° {grupoParaConducta.seccion} — {grupoParaConducta.nivel_nombre}
+                    </strong>{' '}
+                    · puntos aplicados al marcar asistencia (uniforme/presentación)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="tutor-evidencias-close"
+                  onClick={() => setModalDescuentosPresentacionAbierto(false)}
+                  aria-label="Cerrar"
+                >
+                  ✕
+                </button>
+              </header>
+              <div className="tutor-evidencias-toolbar">
+                <label className="tutor-evidencias-date">
+                  Desde{' '}
+                  <input
+                    type="date"
+                    value={fechaDescuentosDesde}
+                    onChange={(e) => setFechaDescuentosDesde(e.target.value)}
+                  />
+                </label>
+                <label className="tutor-evidencias-date">
+                  Hasta{' '}
+                  <input
+                    type="date"
+                    value={fechaDescuentosHasta}
+                    onChange={(e) => setFechaDescuentosHasta(e.target.value)}
+                  />
+                </label>
+                <button type="button" className="tutor-evidencias-btn aplicar" onClick={aplicarFiltrosDescuentosYResumen}>
+                  Aplicar filtros
+                </button>
+                <button type="button" className="tutor-evidencias-btn pdf" onClick={exportPdfDescuentosPresentacion}>
+                  📄 Exportar PDF
+                </button>
+              </div>
+              <div className="tutor-evidencias-body">
+                {loadingDescuentosRep ? (
+                  <div className="modal-registro-asistencia-loading">
+                    <div className="loading-spinner" />
+                    <p>Cargando…</p>
+                  </div>
+                ) : !dataDescuentosPorAlumno.length ? (
+                  <p className="tutor-evidencias-empty tutor-evidencias-empty--destacado">No hay Descuentos</p>
+                ) : (
+                  <div className="tutor-evidencia-cards-scroll">
+                    {dataDescuentosPorAlumno.map((alu, idx) => {
+                      const pastel = PASTEL_TUTOR_EVIDENCIA[idx % PASTEL_TUTOR_EVIDENCIA.length];
+                      return (
+                        <article
+                          key={alu.alumno_id || idx}
+                          className="tutor-evidencia-alumno-card"
+                          style={{
+                            border: `1px solid ${pastel.border}`,
+                            background: pastel.bg,
+                          }}
+                        >
+                          <div className="tutor-evidencia-alumno-card-head" style={{ color: pastel.accent }}>
+                            <span className="tutor-evidencia-alumno-nombre">{alu.alumno_nombre}</span>
+                            <span className="tutor-evidencia-alumno-total" title="Suma de puntos (negativo descontado)">
+                              Σ puntos: <strong>{alu.suma_puntos ?? 0}</strong>
+                            </span>
+                          </div>
+                          <ul className="tutor-evidencia-lineas">
+                            {(alu.registros || []).map((r) => (
+                              <li key={r.id}>
+                                <span className="tutor-evidencia-linea-fecha">
+                                  {formatearSoloFecha(r.fecha)} · {String(r.hora || '').slice(0, 8)}
+                                </span>
+                                <span className="tutor-evidencia-linea-pts">{r.puntos} pts · {r.motivo || '—'}</span>
+                                <span className="tutor-evidencia-linea-autor">Por: {r.registrado_por_nombre || '—'}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Modal: incidencias del grupo agrupadas por alumno */}
+      {modalIncidenciasGrupoAbierto &&
+        grupoParaConducta &&
+        createPortal(
+          <div className="tutor-evidencias-overlay" onClick={() => setModalIncidenciasGrupoAbierto(false)} role="presentation">
+            <div className="tutor-evidencias-panel tutor-evidencias-panel--inci" onClick={(e) => e.stopPropagation()} role="dialog" aria-labelledby="titulo-inci-evid">
+              <header className="tutor-evidencias-panel-header tutor-evidencias-panel-header--incidencias">
+                <div>
+                  <h2 id="titulo-inci-evid">Incidencias del grupo</h2>
+                  <p className="tutor-evidencias-panel-sub">
+                    <strong>
+                      {grupoParaConducta.grado}° {grupoParaConducta.seccion}
+                    </strong>{' '}
+                    — detalle registrado por docentes (solo incidencias)
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="tutor-evidencias-close"
+                  onClick={() => setModalIncidenciasGrupoAbierto(false)}
+                  aria-label="Cerrar"
+                >
+                  ✕
+                </button>
+              </header>
+              <div className="tutor-evidencias-toolbar">
+                <label className="tutor-evidencias-date">
+                  Desde{' '}
+                  <input type="date" value={fechaIncDesde} onChange={(e) => setFechaIncDesde(e.target.value)} />
+                </label>
+                <label className="tutor-evidencias-date">
+                  Hasta{' '}
+                  <input type="date" value={fechaIncHasta} onChange={(e) => setFechaIncHasta(e.target.value)} />
+                </label>
+                <button type="button" className="tutor-evidencias-btn aplicar" onClick={aplicarFiltrosIncidenciasYResumen}>
+                  Aplicar filtros
+                </button>
+                <button type="button" className="tutor-evidencias-btn pdf" onClick={exportPdfIncidenciasGrupoReporte}>
+                  📄 Exportar PDF
+                </button>
+              </div>
+              <div className="tutor-evidencias-body">
+                {loadingIncidenciasRep ? (
+                  <div className="modal-registro-asistencia-loading">
+                    <div className="loading-spinner" />
+                    <p>Cargando…</p>
+                  </div>
+                ) : !dataIncidenciasPorAlumno.length ? (
+                  <p className="tutor-evidencias-empty tutor-evidencias-empty--destacado">No hay Incidencias</p>
+                ) : (
+                  <div className="tutor-evidencia-cards-scroll">
+                    {dataIncidenciasPorAlumno.map((alu, idx) => {
+                      const pastel = PASTEL_TUTOR_EVIDENCIA[(idx + 2) % PASTEL_TUTOR_EVIDENCIA.length];
+                      return (
+                        <article
+                          key={alu.alumno_id || idx}
+                          className="tutor-evidencia-alumno-card tutor-evidencia-alumno-card--inci"
+                          style={{
+                            border: `1px solid ${pastel.border}`,
+                            background: pastel.bg,
+                          }}
+                        >
+                          <div className="tutor-evidencia-alumno-card-head" style={{ color: pastel.accent }}>
+                            <span className="tutor-evidencia-alumno-nombre">{alu.alumno_nombre}</span>
+                            <span className="tutor-evidencia-alumno-meta">
+                              {(alu.incidencias || []).length} registro{(alu.incidencias || []).length !== 1 ? 's' : ''}
+                            </span>
+                          </div>
+                          <ul className="tutor-evidencia-lineas tutor-evidencia-lineas--inci">
+                            {(alu.incidencias || []).map((inc) => (
+                              <li key={inc.id}>
+                                <div className="tutor-inc-fila-super">
+                                  <span>{formatearFechaHoraPeru(inc.created_at)}</span>
+                                  <span className="tutor-inc-doc">{inc.docente_nombre || '—'}</span>
+                                  <span className="tutor-inc-cur">{inc.curso_nombre || '—'}</span>
+                                </div>
+                                {(inc.description || '').trim() ? (
+                                  <p className="tutor-inc-detalle">{inc.description}</p>
+                                ) : null}
+                              </li>
+                            ))}
+                          </ul>
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Modal Ver Horario (igual diseño que Mi Horario del alumno) */}
       {mostrarModalHorario && grupoParaHorario && createPortal(

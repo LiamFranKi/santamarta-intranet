@@ -2,6 +2,9 @@
  * Módulo Psicología — administración (tablas psicologia_*).
  * Perfiles: ADMINISTRADOR, PROMOTORIA, SECRETARIA.
  */
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
 const express = require('express');
 const PDFDocument = require('pdfkit');
 const router = express.Router();
@@ -157,6 +160,36 @@ async function assertMatriculaAlumno(cid, matriculaId, alumnoId) {
   );
   return rows.length > 0;
 }
+
+function dirPsicologiaArchivos(cid) {
+  return path.join(__dirname, '..', 'uploads', 'psicologia-archivos', String(cid));
+}
+
+const uploadPsicologiaArchivo = multer({
+  storage: multer.diskStorage({
+    destination: (req, _file, cb) => {
+      const cid = colegioId(req);
+      const dir = dirPsicologiaArchivos(cid);
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+      } catch (e) {
+        return cb(e);
+      }
+      cb(null, dir);
+    },
+    filename: (_req, file, cb) => {
+      const stamp = Date.now();
+      const base = String(file.originalname || 'archivo').replace(/[^a-zA-Z0-9._-]/g, '_');
+      cb(null, `${stamp}_${base}`);
+    },
+  }),
+  limits: { fileSize: 30 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok = /^image\//i.test(file.mimetype) || file.mimetype === 'application/pdf';
+    if (!ok) return cb(new Error('Solo se permiten imágenes o archivos PDF.'));
+    cb(null, true);
+  },
+});
 
 /** Mensaje interno + notificación al docente referente cuando se registra una derivación. */
 async function notificarDocenteDerivacion(req, { colegio_id, docentePersonalId, alumnoId, derivacionId }) {
@@ -519,7 +552,7 @@ router.get('/alumnos/:alumnoId/resumen', async (req, res) => {
       [alumnoId, cid]
     );
 
-    const [atnRows, derRows, reuRows, piarRows] = await Promise.all([
+    const [atnRows, derRows, reuRows, piarRows, arcRows] = await Promise.all([
       query(
         `SELECT COUNT(*) AS c FROM psicologia_atenciones WHERE colegio_id = ? AND alumno_id = ?`,
         [cid, alumnoId]
@@ -536,11 +569,16 @@ router.get('/alumnos/:alumnoId/resumen', async (req, res) => {
         `SELECT COUNT(*) AS c FROM psicologia_piar WHERE colegio_id = ? AND alumno_id = ? AND estado = 'ACTIVO'`,
         [cid, alumnoId]
       ),
+      query(
+        `SELECT COUNT(*) AS c FROM psicologia_alumno_archivos WHERE colegio_id = ? AND alumno_id = ?`,
+        [cid, alumnoId]
+      ).catch(() => [{ c: 0 }]),
     ]);
     const atn = atnRows[0];
     const der = derRows[0];
     const reu = reuRows[0];
     const piar = piarRows[0];
+    const arc = arcRows[0];
 
     const ultima = await query(
       `SELECT tipo, id, cuando FROM (
@@ -552,8 +590,10 @@ router.get('/alumnos/:alumnoId/resumen', async (req, res) => {
          SELECT 'reunion', r.id, COALESCE(r.updated_at, r.created_at) FROM psicologia_reuniones_acta r WHERE r.colegio_id = ? AND r.alumno_id = ?
          UNION ALL
          SELECT 'piar', p.id, COALESCE(p.updated_at, p.created_at) FROM psicologia_piar p WHERE p.colegio_id = ? AND p.alumno_id = ?
+         UNION ALL
+         SELECT 'archivo', x.id, x.created_at FROM psicologia_alumno_archivos x WHERE x.colegio_id = ? AND x.alumno_id = ?
        ) u ORDER BY u.cuando DESC LIMIT 5`,
-      [cid, alumnoId, cid, alumnoId, cid, alumnoId, cid, alumnoId]
+      [cid, alumnoId, cid, alumnoId, cid, alumnoId, cid, alumnoId, cid, alumnoId]
     ).catch(() => []);
 
     res.json({
@@ -563,6 +603,7 @@ router.get('/alumnos/:alumnoId/resumen', async (req, res) => {
         derivaciones_abiertas: Number(der?.c || 0),
         reuniones_borrador: Number(reu?.c || 0),
         piar_activos: Number(piar?.c || 0),
+        archivos: Number(arc?.c || 0),
       },
       ultimas_lineas: ultima || [],
     });
@@ -613,10 +654,19 @@ router.get('/alumnos/:alumnoId/timeline', async (req, res) => {
                 NULL
          FROM psicologia_piar p
          WHERE p.colegio_id = ? AND p.alumno_id = ?
+         UNION ALL
+         SELECT 'archivo', x.id, x.created_at, COALESCE(NULLIF(LEFT(x.mime_type, 120), ''), 'archivo'),
+                LEFT(TRIM(CONCAT(x.nombre_archivo, CASE WHEN x.fecha_documento IS NOT NULL
+                  THEN CONCAT(' (doc. ', DATE_FORMAT(x.fecha_documento, '%d-%m-%Y'), ')') ELSE '' END)), 160),
+                TRIM(CONCAT(COALESCE(pp.apellidos, ''), ' ', COALESCE(pp.nombres, '')))
+         FROM psicologia_alumno_archivos x
+         LEFT JOIN usuarios ux ON ux.id = x.subido_por_usuario_id
+         LEFT JOIN personal pp ON pp.id = ux.personal_id
+         WHERE x.colegio_id = ? AND x.alumno_id = ?
        ) u
        ORDER BY u.cuando DESC
        LIMIT ${lim}`,
-      [cid, alumnoId, cid, alumnoId, cid, alumnoId, cid, alumnoId]
+      [cid, alumnoId, cid, alumnoId, cid, alumnoId, cid, alumnoId, cid, alumnoId]
     );
     res.json({ items: rows || [] });
   } catch (e) {
@@ -1047,6 +1097,175 @@ router.delete('/reuniones/:id', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+// ——— Archivos / evidencias (imágenes, PDF) ———
+function usuarioIdPsicologia(req) {
+  const u = req.user?.usuario_id != null ? parseInt(req.user.usuario_id, 10) : null;
+  return Number.isFinite(u) ? u : null;
+}
+
+router.get('/alumnos/:alumnoId/archivos', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const alumnoId = parseInt(req.params.alumnoId, 10);
+    if (!Number.isFinite(alumnoId) || !(await assertAlumnoEnColegio(cid, alumnoId))) {
+      return res.status(404).json({ error: 'Alumno no encontrado' });
+    }
+    const rows = await query(
+      `SELECT a.id, a.matricula_id, a.nombre_archivo, a.detalle, a.archivo_servidor, a.mime_type, a.tamano_bytes,
+              a.fecha_documento, a.subido_por_usuario_id, a.created_at, a.updated_at,
+              TRIM(CONCAT(COALESCE(p.apellidos, ''), ' ', COALESCE(p.nombres, ''))) AS subido_por_nombre
+       FROM psicologia_alumno_archivos a
+       LEFT JOIN usuarios u ON u.id = a.subido_por_usuario_id
+       LEFT JOIN personal p ON p.id = u.personal_id
+       WHERE a.colegio_id = ? AND a.alumno_id = ?
+       ORDER BY COALESCE(a.fecha_documento, DATE(a.created_at)) DESC, a.created_at DESC`,
+      [cid, alumnoId]
+    );
+    res.json({ archivos: rows || [] });
+  } catch (e) {
+    console.error('[admin/psicologia/archivos]', e);
+    if (String(e.message || '').includes("doesn't exist") || e.code === 'ER_NO_SUCH_TABLE') {
+      return res.status(503).json({
+        error: 'Tabla de archivos de psicología no instalada.',
+        hint: 'Ejecute database/migrations/040_psicologia_alumno_archivos_mysql.sql',
+      });
+    }
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.post(
+  '/alumnos/:alumnoId/archivos',
+  (req, res, next) => {
+    uploadPsicologiaArchivo.single('archivo')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message || 'Archivo no válido' });
+      next();
+    });
+  },
+  async (req, res) => {
+    try {
+      const cid = colegioId(req);
+      const alumnoId = parseInt(req.params.alumnoId, 10);
+      if (!req.file) return res.status(400).json({ error: 'Debe adjuntar un archivo (imagen o PDF).' });
+      const unlinkSafe = () => {
+        try {
+          if (req.file?.path) fs.unlinkSync(req.file.path);
+        } catch (_) {
+          /* no-op */
+        }
+      };
+      if (!Number.isFinite(alumnoId) || !(await assertAlumnoEnColegio(cid, alumnoId))) {
+        unlinkSafe();
+        return res.status(404).json({ error: 'Alumno no encontrado' });
+      }
+      const body = req.body || {};
+      const nombreArchivo = String(body.nombre_archivo || '').trim();
+      if (!nombreArchivo) {
+        unlinkSafe();
+        return res.status(400).json({ error: 'El nombre del archivo (título visible) es obligatorio.' });
+      }
+      const detalle = body.detalle != null ? String(body.detalle).trim() : '';
+      const fechaDoc =
+        body.fecha_documento != null && String(body.fecha_documento).trim() !== ''
+          ? String(body.fecha_documento).trim().slice(0, 10)
+          : null;
+      const matriculaId = body.matricula_id != null ? parseInt(body.matricula_id, 10) : null;
+      if (!(await assertMatriculaAlumno(cid, matriculaId, alumnoId))) {
+        unlinkSafe();
+        return res.status(400).json({ error: 'matricula_id no pertenece al alumno' });
+      }
+      const r = await execute(
+        `INSERT INTO psicologia_alumno_archivos
+           (colegio_id, alumno_id, matricula_id, nombre_archivo, detalle, archivo_servidor, mime_type, tamano_bytes, fecha_documento, subido_por_usuario_id)
+         VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [
+          cid,
+          alumnoId,
+          Number.isFinite(matriculaId) ? matriculaId : null,
+          nombreArchivo,
+          detalle || null,
+          req.file.filename,
+          req.file.mimetype || null,
+          req.file.size != null ? parseInt(req.file.size, 10) : null,
+          fechaDoc || null,
+          usuarioIdPsicologia(req),
+        ]
+      );
+      res.json({ id: r.insertId });
+    } catch (e) {
+      try {
+        if (req.file?.path) fs.unlinkSync(req.file.path);
+      } catch (_) {
+        /* no-op */
+      }
+      console.error('[admin/psicologia/archivos POST]', e);
+      if (String(e.message || '').includes("doesn't exist") || e.code === 'ER_NO_SUCH_TABLE') {
+        return res.status(503).json({
+          error: 'Tabla de archivos no instalada.',
+          hint: '040_psicologia_alumno_archivos_mysql.sql',
+        });
+      }
+      res.status(500).json({ error: e.message || 'Error' });
+    }
+  }
+);
+
+router.delete('/archivos/:id', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'id inválido' });
+    const rows = await query(
+      `SELECT archivo_servidor FROM psicologia_alumno_archivos WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [id, cid]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
+    await execute(`DELETE FROM psicologia_alumno_archivos WHERE id = ? AND colegio_id = ?`, [id, cid]);
+    const fp = path.join(dirPsicologiaArchivos(cid), rows[0].archivo_servidor);
+    try {
+      if (fp && fs.existsSync(fp)) fs.unlinkSync(fp);
+    } catch (eFs) {
+      console.warn('[admin/psicologia/archivos DELETE unlink]', eFs.message);
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.get('/archivos/:id/descarga', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'id inválido' });
+    const rows = await query(
+      `SELECT nombre_archivo, archivo_servidor, mime_type
+       FROM psicologia_alumno_archivos WHERE id = ? AND colegio_id = ? LIMIT 1`,
+      [id, cid]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
+    const row = rows[0];
+    const abs = path.resolve(path.join(dirPsicologiaArchivos(cid), row.archivo_servidor));
+    const dirBase = path.resolve(dirPsicologiaArchivos(cid));
+    if (!abs.startsWith(dirBase)) return res.status(400).json({ error: 'Ruta inválida' });
+    if (!fs.existsSync(abs)) return res.status(404).json({ error: 'Archivo no encontrado en el servidor' });
+    let descarga = String(row.nombre_archivo || 'documento').replace(/[\\/]/g, ' ');
+    if (/\.(pdf|png|jpe?g|gif|webp)$/i.test(descarga) === false) {
+      const m = String(row.mime_type || '');
+      if (m.includes('pdf')) descarga += '.pdf';
+      else if (m.includes('jpeg') || m.includes('jpg')) descarga += '.jpg';
+      else if (m.includes('png')) descarga += '.png';
+      else if (m.includes('gif')) descarga += '.gif';
+      else if (m.includes('webp')) descarga += '.webp';
+    }
+    res.download(abs, descarga);
+  } catch (e) {
+    console.error('[admin/psicologia/archivos descarga]', e);
     res.status(500).json({ error: e.message || 'Error' });
   }
 });

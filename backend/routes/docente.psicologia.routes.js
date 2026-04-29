@@ -232,7 +232,12 @@ router.post('/alumnos/:alumnoId/derivaciones', async (req, res) => {
   try {
     const colegio_id = cid(req);
     const pid = personalId(req);
-    const uid = req.user.usuario_id != null ? parseInt(req.user.usuario_id, 10) : null;
+    const uidRaw =
+      req.user.usuario_id != null && req.user.usuario_id !== ''
+        ? req.user.usuario_id
+        : req.user.id;
+    const uidParsed = uidRaw != null && uidRaw !== '' ? parseInt(uidRaw, 10) : NaN;
+    const uid = Number.isFinite(uidParsed) ? uidParsed : null;
     const alumnoId = parseInt(req.params.alumnoId, 10);
     if (!colegio_id || !pid) return res.status(400).json({ error: 'Sesión incompleta.' });
     if (!Number.isFinite(alumnoId) || !(await assertAlumnoEnColegio(colegio_id, alumnoId))) {
@@ -274,7 +279,7 @@ router.post('/alumnos/:alumnoId/derivaciones', async (req, res) => {
         b.firma_docente_fecha || null,
         null,
         null,
-        Number.isFinite(uid) ? uid : null,
+        Number.isFinite(uid) ? uid : null
       ]
     );
     const newId = r.insertId;

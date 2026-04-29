@@ -53,6 +53,59 @@ function sanitizarRespuestasExamen(raw) {
   return out;
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** 409 del examen: token incorrecto o sesión en otro dispositivo (mismo código en ambos casos). */
+function errorEsConflictoSesionExamen(error) {
+  return error?.response?.status === 409 && error?.response?.data?.code === 'EXAM_ALREADY_IN_PROGRESS';
+}
+
+/** Fallos que suelen resolverse reintentando (internet inestable, servidor ocupado, timeout). */
+function errorRedTransitoria(error) {
+  if (!error) return false;
+  if (error.code === 'ECONNABORTED') return true;
+  if (!error.response) return true;
+  const s = error.response.status;
+  return s === 408 || s === 429 || s === 502 || s === 503 || s === 504;
+}
+
+function examSessionTokenStorageKey(examenId) {
+  return `exam_sess_tok_v1_${examenId}`;
+}
+
+function persistExamSessionToken(examenId, token) {
+  try {
+    const t = String(token || '').trim();
+    if (!t || !examenId) return;
+    sessionStorage.setItem(examSessionTokenStorageKey(examenId), t);
+  } catch (_) {
+    // Ignorar (modo privado estricto, cuota, etc.)
+  }
+}
+
+function readStoredExamSessionToken(examenId) {
+  try {
+    return String(sessionStorage.getItem(examSessionTokenStorageKey(examenId)) || '').trim();
+  } catch (_) {
+    return '';
+  }
+}
+
+function clearStoredExamSessionToken(examenId) {
+  try {
+    sessionStorage.removeItem(examSessionTokenStorageKey(examenId));
+  } catch (_) {
+    // Ignorar
+  }
+}
+
+/** Aulas WiFi: guardado más frecuente; timeout más alto que el global (30s) por latencia / cola de AP */
+const EXAM_AUTOSAVE_INTERVAL_MS = 18000;
+const EXAM_SESSION_PING_MS = 42000;
+const EXAM_HTTP_TIMEOUT_MS = 55000;
+
 const PENDING_EXAM_SECURITY_KEY = 'pending_exam_security_events';
 const EXAM_DEVICE_ID_KEY = 'exam_device_id_v1';
 
@@ -109,12 +162,35 @@ function AlumnoExamen() {
   const finalizacionEnCursoRef = useRef(false);
   const examSessionTokenRef = useRef('');
   const examDeviceIdRef = useRef(getExamDeviceId());
+
+  const getExamDeviceOnlyHeaders = useCallback(() => ({
+    headers: { 'x-exam-device-id': examDeviceIdRef.current }
+  }), []);
+
   const getExamHeaders = useCallback(() => {
     const headers = { 'x-exam-device-id': examDeviceIdRef.current };
-    const token = String(examSessionTokenRef.current || '').trim();
-    if (token) headers['x-exam-session-token'] = token;
+    const token =
+      String(examSessionTokenRef.current || '').trim() ||
+      readStoredExamSessionToken(examenId);
+    if (token) {
+      headers['x-exam-session-token'] = token;
+      if (!String(examSessionTokenRef.current || '').trim()) {
+        examSessionTokenRef.current = token;
+      }
+    }
     return { headers };
-  }, []);
+  }, [examenId]);
+
+  const aplicarTokenSesionDesdeIniciar = useCallback(
+    (data) => {
+      const tok = String(data?.session_token || '').trim();
+      if (tok) {
+        examSessionTokenRef.current = tok;
+        persistExamSessionToken(examenId, tok);
+      }
+    },
+    [examenId]
+  );
   useEffect(() => {
     const syncPendientes = async () => {
       try {
@@ -128,10 +204,14 @@ function AlumnoExamen() {
             continue;
           }
           try {
-            await api.post(`/alumno/examenes/${ev.examenId}/violaciones`, {
-              tipo: ev.tipo,
-              timestamp: ev.timestamp
-            }, getExamHeaders());
+            await api.post(
+              `/alumno/examenes/${ev.examenId}/violaciones`,
+              {
+                tipo: ev.tipo,
+                timestamp: ev.timestamp
+              },
+              { ...getExamHeaders(), timeout: EXAM_HTTP_TIMEOUT_MS }
+            );
           } catch (_) {
             restantes.push(ev);
           }
@@ -155,7 +235,9 @@ function AlumnoExamen() {
       setError(null);
       setEsExamenPdf(false);
 
-      const examenResPrimero = await api.get(`/alumno/examenes/${examenId}`);
+      const examenResPrimero = await api.get(`/alumno/examenes/${examenId}`, {
+        timeout: EXAM_HTTP_TIMEOUT_MS
+      });
       const datosMeta = examenResPrimero.data;
       if (String(datosMeta.tipo || '').toUpperCase().trim() === 'PDF') {
         if (datosMeta.estado !== 'ACTIVO') {
@@ -186,9 +268,12 @@ function AlumnoExamen() {
 
       // Iniciar examen (crear prueba) — solo exámenes VIRTUAL u otros no-PDF
       console.log('📝 Llamando a /alumno/examenes/' + examenId + '/iniciar');
-      const iniciarRes = await api.post(`/alumno/examenes/${examenId}/iniciar`, {}, getExamHeaders());
+      const iniciarRes = await api.post(`/alumno/examenes/${examenId}/iniciar`, {}, {
+        ...getExamHeaders(),
+        timeout: EXAM_HTTP_TIMEOUT_MS
+      });
       console.log('📝 Respuesta iniciar:', iniciarRes.data);
-      examSessionTokenRef.current = String(iniciarRes.data?.session_token || '').trim();
+      aplicarTokenSesionDesdeIniciar(iniciarRes.data);
       const fechaInicio = new Date(iniciarRes.data.fecha_inicio);
       tiempoInicio.current = fechaInicio;
       
@@ -200,7 +285,7 @@ function AlumnoExamen() {
       console.log('📝 Cargando datos del examen y preguntas');
       const [examenRes, preguntasRes] = await Promise.all([
         Promise.resolve(examenResPrimero),
-        api.get(`/alumno/examenes/${examenId}/preguntas`)
+        api.get(`/alumno/examenes/${examenId}/preguntas`, { timeout: EXAM_HTTP_TIMEOUT_MS })
       ]);
 
       console.log('📝 Examen cargado:', examenRes.data);
@@ -248,9 +333,11 @@ function AlumnoExamen() {
       if (!recuperandoSesion) {
         const preguntaIds = preguntasOrdenadas.map((p) => p.id);
         try {
-          await api.post(`/alumno/examenes/${examenId}/guardar-preguntas`, {
-            pregunta_ids: preguntaIds
-          });
+          await api.post(
+            `/alumno/examenes/${examenId}/guardar-preguntas`,
+            { pregunta_ids: preguntaIds },
+            { ...getExamHeaders(), timeout: EXAM_HTTP_TIMEOUT_MS }
+          );
         } catch (error) {
           console.warn('No se pudieron guardar las preguntas:', error);
         }
@@ -287,7 +374,7 @@ function AlumnoExamen() {
         navigate(-1);
       });
     }
-  }, [examenId, navigate, getExamHeaders]);
+  }, [examenId, navigate, getExamHeaders, aplicarTokenSesionDesdeIniciar]);
 
   // Cargar examen al montar
   useEffect(() => {
@@ -320,10 +407,16 @@ function AlumnoExamen() {
     const esInternet = violation?.type === 'INTERNET_LOSS';
 
     // Registrar violación en el backend (sin bloquear si falla)
-    api.post(`/alumno/examenes/${examenId}/violaciones`, {
-      tipo: violation.type,
-      timestamp: violation.timestamp
-    }, getExamHeaders()).then((response) => {
+    api
+      .post(
+        `/alumno/examenes/${examenId}/violaciones`,
+        {
+          tipo: violation.type,
+          timestamp: violation.timestamp
+        },
+        { ...getExamHeaders(), timeout: EXAM_HTTP_TIMEOUT_MS }
+      )
+      .then((response) => {
       const data = response?.data || {};
       if (data.action === 'AUTO_FINALIZED') {
         const motivo = data.reason || 'SALIDA_DE_PANTALLA';
@@ -388,35 +481,115 @@ function AlumnoExamen() {
     !esExamenPdf && !!examen && !loading && Array.isArray(preguntas) && preguntas.length > 0;
   useExamProtection(safeHandleViolation, false, proteccionActiva);
 
-  // Función para guardar respuestas (debe estar antes de las funciones que la usan)
-  const guardarRespuestas = useCallback(() => {
-    const ejecutar = async () => {
-      setGuardando(true);
-      try {
-        const limpio = sanitizarRespuestasExamen(respuestasRef.current);
-        await api.post(`/alumno/examenes/${examenId}/respuestas`, {
-          respuestas: limpio
-        }, getExamHeaders());
-        // Tras el POST, el ref puede tener texto más reciente que `limpio` (red lenta).
-        // Sincronizar siempre con el ref actual para no rebobinar el teclado.
-        const actual = sanitizarRespuestasExamen(respuestasRef.current);
-        setRespuestas(actual);
-        respuestasRef.current = actual;
-      } catch (error) {
-        console.error('Error guardando respuestas:', error);
-      } finally {
-        setGuardando(false);
+  /**
+   * POST respuestas con reintentos por red y recuperación de token vía /iniciar
+   * (el backend no exige token en iniciar para reanudar; devuelve el token vigente).
+   */
+  const postRespuestasConResiliencia = useCallback(
+    async (limpio) => {
+      const postOnce = () =>
+        api.post(
+          `/alumno/examenes/${examenId}/respuestas`,
+          { respuestas: limpio },
+          { ...getExamHeaders(), timeout: EXAM_HTTP_TIMEOUT_MS }
+        );
+
+      let recuperoSesion = false;
+      for (let intento = 0; intento < 8; intento++) {
+        try {
+          await postOnce();
+          return;
+        } catch (error) {
+          if (errorEsConflictoSesionExamen(error) && !recuperoSesion) {
+            recuperoSesion = true;
+            const res = await api.post(
+              `/alumno/examenes/${examenId}/iniciar`,
+              {},
+              { ...getExamDeviceOnlyHeaders(), timeout: EXAM_HTTP_TIMEOUT_MS }
+            );
+            aplicarTokenSesionDesdeIniciar(res.data);
+            continue;
+          }
+          if (errorEsConflictoSesionExamen(error) && recuperoSesion) {
+            throw error;
+          }
+          if (errorRedTransitoria(error) && intento < 7) {
+            await sleep(450 * Math.pow(2, Math.min(intento, 4)));
+            continue;
+          }
+          throw error;
+        }
       }
-    };
-    const encadenado = guardarRespuestasMutexRef.current.then(ejecutar, ejecutar);
-    guardarRespuestasMutexRef.current = encadenado.catch(() => {});
-    return encadenado;
-  }, [examenId, getExamHeaders]);
+    },
+    [examenId, getExamHeaders, getExamDeviceOnlyHeaders, aplicarTokenSesionDesdeIniciar]
+  );
+
+  const postFinalizarConResiliencia = useCallback(async () => {
+    const finOnce = () =>
+      api.post(`/alumno/examenes/${examenId}/finalizar`, {}, {
+        ...getExamHeaders(),
+        timeout: EXAM_HTTP_TIMEOUT_MS
+      });
+
+    let recuperoSesion = false;
+    for (let intento = 0; intento < 8; intento++) {
+      try {
+        const res = await finOnce();
+        return res;
+      } catch (error) {
+        if (errorEsConflictoSesionExamen(error) && !recuperoSesion) {
+          recuperoSesion = true;
+          const res = await api.post(
+            `/alumno/examenes/${examenId}/iniciar`,
+            {},
+            { ...getExamDeviceOnlyHeaders(), timeout: EXAM_HTTP_TIMEOUT_MS }
+          );
+          aplicarTokenSesionDesdeIniciar(res.data);
+          continue;
+        }
+        if (errorEsConflictoSesionExamen(error) && recuperoSesion) {
+          throw error;
+        }
+        if (errorRedTransitoria(error) && intento < 7) {
+          await sleep(450 * Math.pow(2, Math.min(intento, 4)));
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw new Error('No se pudo finalizar el examen tras varios intentos');
+  }, [examenId, getExamHeaders, getExamDeviceOnlyHeaders, aplicarTokenSesionDesdeIniciar]);
+
+  // Función para guardar respuestas (debe estar antes de las funciones que la usan)
+  const guardarRespuestas = useCallback(
+    (opciones = {}) => {
+      const exigirExito = opciones.exigirExito === true;
+      const ejecutar = async () => {
+        setGuardando(true);
+        try {
+          const limpio = sanitizarRespuestasExamen(respuestasRef.current);
+          await postRespuestasConResiliencia(limpio);
+          const actual = sanitizarRespuestasExamen(respuestasRef.current);
+          setRespuestas(actual);
+          respuestasRef.current = actual;
+        } catch (error) {
+          console.error('Error guardando respuestas:', error);
+          if (exigirExito) throw error;
+        } finally {
+          setGuardando(false);
+        }
+      };
+      const encadenado = guardarRespuestasMutexRef.current.then(ejecutar, ejecutar);
+      guardarRespuestasMutexRef.current = encadenado.catch(() => {});
+      return encadenado;
+    },
+    [postRespuestasConResiliencia]
+  );
 
   /** Tras una operación crítica, segunda pasada para cubrir cambios al `ref` durante el POST anterior. */
   const persistirRespuestasParaFinalizar = useCallback(async () => {
-    await guardarRespuestas();
-    await guardarRespuestas();
+    await guardarRespuestas({ exigirExito: true });
+    await guardarRespuestas({ exigirExito: true });
   }, [guardarRespuestas]);
 
   // Función para finalizar examen automáticamente
@@ -425,20 +598,41 @@ function AlumnoExamen() {
     finalizacionEnCursoRef.current = true;
     if (intervaloReloj.current) clearInterval(intervaloReloj.current);
     if (intervaloGuardado.current) clearInterval(intervaloGuardado.current);
-    await persistirRespuestasParaFinalizar();
-    
+
+    let persistido = false;
+    while (!persistido) {
+      for (let ola = 0; ola < 20; ola++) {
+        try {
+          await persistirRespuestasParaFinalizar();
+          persistido = true;
+          break;
+        } catch {
+          await sleep(1000);
+        }
+      }
+      if (persistido) break;
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Sin conexión',
+        html:
+          '<p>Se acabó el tiempo y <strong>no pudimos guardar</strong> tus respuestas en el servidor.</p><p>No cierres esta ventana. Recupera internet y pulsa <strong>Reintentar</strong>.</p>',
+        confirmButtonText: 'Reintentar',
+        allowOutsideClick: false
+      });
+    }
+
     try {
-      await api.post(`/alumno/examenes/${examenId}/finalizar`, {}, getExamHeaders());
-      
-        Swal.fire({
-          icon: 'info',
-          title: 'Tiempo agotado',
-          text: 'El examen se ha finalizado automáticamente. Podrás ver tus resultados cuando el docente los publique.',
-          confirmButtonText: 'Entendido'
-        }).then(() => {
-          // Volver al aula virtual
-          navigate(-1);
-        });
+      await postFinalizarConResiliencia();
+      clearStoredExamSessionToken(examenId);
+
+      Swal.fire({
+        icon: 'info',
+        title: 'Tiempo agotado',
+        text: 'El examen se ha finalizado automáticamente. Podrás ver tus resultados cuando el docente los publique.',
+        confirmButtonText: 'Entendido'
+      }).then(() => {
+        navigate(-1);
+      });
     } catch (error) {
       console.error('Error finalizando examen:', error);
       const status = error?.response?.status;
@@ -459,11 +653,18 @@ function AlumnoExamen() {
           text: 'Este intento ya no está activo. Tus respuestas guardadas fueron conservadas.',
           confirmButtonText: 'Entendido'
         }).then(() => navigate(-1));
+        return;
       }
+      Swal.fire({
+        icon: 'error',
+        title: 'Error al cerrar',
+        text: error?.response?.data?.error || 'No se pudo finalizar. Si el problema continúa, avisa al docente.',
+        confirmButtonText: 'Entendido'
+      }).then(() => navigate(-1));
     } finally {
       finalizacionEnCursoRef.current = false;
     }
-  }, [examenId, navigate, persistirRespuestasParaFinalizar, getExamHeaders]);
+  }, [examenId, navigate, persistirRespuestasParaFinalizar, postFinalizarConResiliencia]);
 
   // Temporizador
   useEffect(() => {
@@ -537,14 +738,14 @@ function AlumnoExamen() {
     respuestasRef.current = respuestas;
   }, [respuestas]);
 
-  // Guardado automático cada 30 segundos
+  /** Autosave más seguido en WiFi congestionado */
   useEffect(() => {
     if (!examen || esExamenPdf) {
       return undefined;
     }
     intervaloGuardado.current = setInterval(() => {
       guardarRespuestas();
-    }, 30000); // Cada 30 segundos
+    }, EXAM_AUTOSAVE_INTERVAL_MS);
 
     return () => {
       if (intervaloGuardado.current) {
@@ -552,6 +753,35 @@ function AlumnoExamen() {
       }
     };
   }, [guardarRespuestas, examen, esExamenPdf]);
+
+  /** Mantiene viva la sesión en servidor con poco peso entre autosaves largos */
+  useEffect(() => {
+    if (!examen || esExamenPdf) return undefined;
+    const ping = () => {
+      api
+        .post(`/alumno/examenes/${examenId}/sesion-ping`, {}, { ...getExamHeaders(), timeout: 18000 })
+        .catch(() => {});
+    };
+    const id = window.setInterval(ping, EXAM_SESSION_PING_MS);
+    return () => clearInterval(id);
+  }, [examen, esExamenPdf, examenId, getExamHeaders]);
+
+  // Tras recuperar internet, intentar sincronizar respuestas en segundo plano
+  useEffect(() => {
+    if (!examen || esExamenPdf) return undefined;
+    let timeoutId;
+    const onOnline = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        guardarRespuestas();
+      }, 400);
+    };
+    window.addEventListener('online', onOnline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      clearTimeout(timeoutId);
+    };
+  }, [examen, esExamenPdf, guardarRespuestas]);
 
   const handleFinalizarExamen = async () => {
     const result = await Swal.fire({
@@ -574,12 +804,33 @@ function AlumnoExamen() {
     setMostrarResumen(false);
     if (intervaloReloj.current) clearInterval(intervaloReloj.current);
     if (intervaloGuardado.current) clearInterval(intervaloGuardado.current);
-    await persistirRespuestasParaFinalizar();
-    
+
+    for (;;) {
+      try {
+        await persistirRespuestasParaFinalizar();
+        break;
+      } catch {
+        const r = await Swal.fire({
+          icon: 'warning',
+          title: 'No se pudo guardar en el servidor',
+          html:
+            '<p>Revisa tu conexión a internet. <strong>Tus respuestas siguen en esta pantalla.</strong></p><p>Sin guardar no podemos enviar el examen correctamente.</p>',
+          confirmButtonText: 'Reintentar',
+          showCancelButton: true,
+          cancelButtonText: 'Volver al examen'
+        });
+        if (!r.isConfirmed) {
+          finalizacionEnCursoRef.current = false;
+          return;
+        }
+      }
+    }
+
     try {
-      const response = await api.post(`/alumno/examenes/${examenId}/finalizar`, {}, getExamHeaders());
+      const response = await postFinalizarConResiliencia();
+      clearStoredExamSessionToken(examenId);
       const yaFinalizado = Boolean(response?.data?.already_finalized);
-      
+
       Swal.fire({
         icon: yaFinalizado ? 'info' : 'success',
         title: yaFinalizado ? 'Examen ya finalizado' : 'Examen finalizado',
@@ -588,7 +839,6 @@ function AlumnoExamen() {
           : 'Tu examen ha sido enviado correctamente. Las respuestas fueron enviadas a tu correo interno.',
         confirmButtonText: 'Entendido'
       }).then(() => {
-        // Volver al aula virtual
         navigate(-1);
       });
     } catch (error) {
@@ -616,7 +866,7 @@ function AlumnoExamen() {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'No se pudo finalizar el examen'
+        text: error?.response?.data?.error || 'No se pudo finalizar el examen'
       });
     } finally {
       finalizacionEnCursoRef.current = false;

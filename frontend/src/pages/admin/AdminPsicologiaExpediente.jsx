@@ -17,11 +17,18 @@ import {
   MenuItem,
   Stack,
   Tab,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Tabs,
   TextField,
   Tooltip,
   Typography,
 } from '@mui/material';
+import AttachFileOutlinedIcon from '@mui/icons-material/AttachFileOutlined';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import EditIcon from '@mui/icons-material/Edit';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -99,11 +106,28 @@ const TIMELINE_TIPO_LABEL = {
   derivacion: 'Derivación',
   reunion: 'Reunión / acta',
   piar: 'PIAR',
+  archivo: 'Archivo / evidencia',
 };
 
 function tabIndexPorTimelineTipo(tipo) {
-  const m = { atencion: 1, derivacion: 2, reunion: 3, piar: 4 };
+  const m = { atencion: 1, derivacion: 2, reunion: 3, archivo: 4, piar: 5 };
   return m[String(tipo)] ?? 0;
+}
+
+function formatFechaDocPe(d) {
+  if (d == null || d === '') return '—';
+  const s = String(d).slice(0, 10);
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return s;
+}
+
+function formatBytesPsi(n) {
+  if (n == null || !Number.isFinite(Number(n))) return '—';
+  const v = Number(n);
+  if (v < 1024) return `${v} B`;
+  if (v < 1024 * 1024) return `${(v / 1024).toFixed(1)} KB`;
+  return `${(v / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function TabPanel({ children, value, index }) {
@@ -129,6 +153,11 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
   const [derivaciones, setDerivaciones] = useState([]);
   const [reuniones, setReuniones] = useState([]);
   const [piarLista, setPiarLista] = useState([]);
+  const [archivos, setArchivos] = useState([]);
+  const [dlgArchivo, setDlgArchivo] = useState(false);
+  const [arcForm, setArcForm] = useState({ nombre_archivo: '', detalle: '', fecha_documento: '' });
+  const [arcFile, setArcFile] = useState(null);
+  const archivoInputRef = useRef(null);
   const [loadErr, setLoadErr] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -234,14 +263,15 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
     setLoadErr(null);
     setLoading(true);
     try {
-      const [m, r, t, a, d, re, p] = await Promise.all([
+      const [m, r, t, a, d, re, p, ar] = await Promise.all([
         api.get('/admin/psicologia/meta').catch(() => ({ data: {} })),
         api.get(`/admin/psicologia/alumnos/${alumnoId}/resumen`),
-        api.get(`/admin/psicologia/alumnos/${alumnoId}/timeline`),
+        api.get(`/admin/psicologia/alumnos/${alumnoId}/timeline`).catch(() => ({ data: { items: [] } })),
         api.get(`/admin/psicologia/alumnos/${alumnoId}/atenciones`),
         api.get(`/admin/psicologia/alumnos/${alumnoId}/derivaciones`),
         api.get(`/admin/psicologia/alumnos/${alumnoId}/reuniones`),
         api.get(`/admin/psicologia/alumnos/${alumnoId}/piar`),
+        api.get(`/admin/psicologia/alumnos/${alumnoId}/archivos`).catch(() => ({ data: { archivos: [] } })),
       ]);
       setMeta(m.data);
       setResumen(r.data);
@@ -250,6 +280,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
       setDerivaciones(d.data?.derivaciones || []);
       setReuniones(re.data?.reuniones || []);
       setPiarLista(p.data?.piar_lista || []);
+      setArchivos(ar.data?.archivos || []);
     } catch (e) {
       const msg = e.response?.data?.error || e.message;
       const hint = e.response?.data?.hint;
@@ -693,6 +724,79 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
     }
   };
 
+  const descargarArchivoEvidencia = async (id, nombreSugerido) => {
+    try {
+      const res = await api.get(`/admin/psicologia/archivos/${id}/descarga`, { responseType: 'blob' });
+      const ct = res.headers['content-type'] || 'application/octet-stream';
+      const blob = new Blob([res.data], { type: ct });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombreSugerido || `documento_${id}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      const msg = e.response?.data?.error;
+      Swal.fire({
+        icon: 'error',
+        title: typeof msg === 'string' ? msg : 'No se pudo descargar el archivo',
+      });
+    }
+  };
+
+  const resetDlgArchivo = () => {
+    setDlgArchivo(false);
+    setArcForm({ nombre_archivo: '', detalle: '', fecha_documento: '' });
+    setArcFile(null);
+    if (archivoInputRef.current) archivoInputRef.current.value = '';
+  };
+
+  const guardarArchivoPsi = async () => {
+    const nombre = String(arcForm.nombre_archivo || '').trim();
+    if (!nombre || !arcFile) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Complete el nombre del archivo y adjunte un archivo (imagen o PDF).',
+      });
+      return;
+    }
+    try {
+      const fd = new FormData();
+      fd.append('nombre_archivo', nombre);
+      fd.append('detalle', String(arcForm.detalle || '').trim());
+      if (arcForm.fecha_documento) fd.append('fecha_documento', arcForm.fecha_documento);
+      if (matriculaId) fd.append('matricula_id', matriculaId);
+      fd.append('archivo', arcFile);
+      await api.post(`/admin/psicologia/alumnos/${alumnoId}/archivos`, fd);
+      Swal.fire({ icon: 'success', title: 'Archivo guardado', timer: 1400, showConfirmButton: false });
+      resetDlgArchivo();
+      reloadAll();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error al subir' });
+    }
+  };
+
+  const eliminarArchivoPsi = async (id) => {
+    const ok = await Swal.fire({
+      title: '¿Eliminar archivo?',
+      text: 'Se borrará el registro y el archivo en el servidor.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/admin/psicologia/archivos/${id}`);
+      reloadAll();
+      Swal.fire({ icon: 'success', title: 'Eliminado', timer: 1200, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: e.response?.data?.error || 'Error' });
+    }
+  };
+
   const guardarPiar = async () => {
     try {
       const body = {
@@ -813,6 +917,10 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           {c.piar_activos ?? 0}
           <span>PIAR activos</span>
         </div>
+        <div className="psi-stat-card psi-stat-f">
+          {c.archivos ?? 0}
+          <span>Archivos evidencia</span>
+        </div>
       </div>
 
       <div className="psi-tabs-wrap">
@@ -828,6 +936,7 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           <Tab label="Atenciones" disableRipple className="psi-exp-tab" />
           <Tab label="Derivaciones" disableRipple className="psi-exp-tab" />
           <Tab label="Reuniones / acta" disableRipple className="psi-exp-tab" />
+          <Tab label="Archivos" disableRipple className="psi-exp-tab" />
           <Tab label="PIAR" disableRipple className="psi-exp-tab" />
         </Tabs>
 
@@ -1009,6 +1118,83 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
         </TabPanel>
 
         <TabPanel value={tab} index={4}>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <strong>Archivos y evidencias:</strong> utilice esta tabla para registrar material con{' '}
+            <strong>nombre</strong>, <strong>detalle</strong>, archivo (imagen o PDF), <strong>fecha del documento o hecho</strong> cuando
+            corresponda, y un registro de <strong>cuándo se subió</strong> y por quién.
+          </Alert>
+          <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<AttachFileOutlinedIcon />}
+              onClick={() => {
+                setArcForm({ nombre_archivo: '', detalle: '', fecha_documento: '' });
+                setArcFile(null);
+                if (archivoInputRef.current) archivoInputRef.current.value = '';
+                setDlgArchivo(true);
+              }}
+            >
+              Subir archivo
+            </Button>
+          </Stack>
+          <TableContainer sx={{ borderRadius: 2, border: '1px solid #e2e8f0', bgcolor: '#fff' }}>
+            <Table size="small" sx={{ minWidth: 760 }}>
+              <TableHead sx={{ bgcolor: '#f8fafc' }}>
+                <TableRow>
+                  <TableCell>Nombre del archivo</TableCell>
+                  <TableCell>Detalle</TableCell>
+                  <TableCell>Fecha documento</TableCell>
+                  <TableCell>Fecha de subida</TableCell>
+                  <TableCell>Tipo / tamaño</TableCell>
+                  <TableCell>Subido por</TableCell>
+                  <TableCell align="right">Acciones</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {archivos.map((row) => (
+                  <TableRow key={row.id} hover>
+                    <TableCell sx={{ fontWeight: 700 }}>{row.nombre_archivo}</TableCell>
+                    <TableCell sx={{ maxWidth: 280 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        {(row.detalle || '').trim() || '—'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{formatFechaDocPe(row.fecha_documento)}</TableCell>
+                    <TableCell>{formatLimaLine(row.created_at)}</TableCell>
+                    <TableCell>
+                      <Typography variant="caption" display="block" sx={{ wordBreak: 'break-word' }}>
+                        {row.mime_type || '—'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {formatBytesPsi(row.tamano_bytes)}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>{row.subido_por_nombre || '—'}</TableCell>
+                    <TableCell align="right">
+                      <Button size="small" onClick={() => descargarArchivoEvidencia(row.id, row.nombre_archivo)}>
+                        Descargar
+                      </Button>
+                      <IconButton size="small" color="error" aria-label="Eliminar archivo" onClick={() => eliminarArchivoPsi(row.id)}>
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+                {!archivos.length && (
+                  <TableRow>
+                    <TableCell colSpan={7}>
+                      <Typography className="psi-muted" sx={{ py: 2 }}>
+                        No hay archivos registrados todavía.
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </TabPanel>
+
+        <TabPanel value={tab} index={5}>
           <Alert severity="info" sx={{ mb: 2 }}>
             <strong>Uso del PIAR y parte del docente:</strong> el plan se elabora y versiona desde esta pantalla (psicología /
             administración). Los <strong>ajustes razonables</strong> y los <strong>compromisos de aula</strong> se consensúan con el docente
@@ -1660,6 +1846,65 @@ export default function AdminPsicologiaExpediente({ alumnoId }) {
           </Button>
           <Button variant="contained" onClick={guardarPiar}>
             Guardar PIAR
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={dlgArchivo}
+        onClose={resetDlgArchivo}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ className: 'psi-dialog-paper' }}
+      >
+        <DialogTitle>Subir archivo de evidencia</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            margin="normal"
+            label="Nombre del archivo (título visible)"
+            required
+            value={arcForm.nombre_archivo}
+            onChange={(e) => setArcForm((f) => ({ ...f, nombre_archivo: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            multiline
+            minRows={3}
+            margin="normal"
+            label="Detalle / descripción"
+            value={arcForm.detalle}
+            onChange={(e) => setArcForm((f) => ({ ...f, detalle: e.target.value }))}
+          />
+          <TextField
+            fullWidth
+            type="date"
+            margin="normal"
+            label="Fecha del documento o del hecho (opcional)"
+            InputLabelProps={{ shrink: true }}
+            value={arcForm.fecha_documento || ''}
+            onChange={(e) => setArcForm((f) => ({ ...f, fecha_documento: e.target.value }))}
+          />
+          <input
+            ref={archivoInputRef}
+            type="file"
+            accept="image/*,.pdf,application/pdf"
+            style={{ display: 'none' }}
+            onChange={(e) => setArcFile(e.target.files?.[0] || null)}
+          />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} alignItems={{ sm: 'center' }} sx={{ mt: 2 }}>
+            <Button variant="outlined" onClick={() => archivoInputRef.current?.click()}>
+              Seleccionar archivo…
+            </Button>
+            <Typography variant="body2" color={arcFile ? 'text.primary' : 'text.secondary'} sx={{ wordBreak: 'break-word' }}>
+              {arcFile ? arcFile.name : 'Imagen o PDF (obligatorio)'}
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={resetDlgArchivo}>Cancelar</Button>
+          <Button variant="contained" onClick={guardarArchivoPsi}>
+            Subir
           </Button>
         </DialogActions>
       </Dialog>

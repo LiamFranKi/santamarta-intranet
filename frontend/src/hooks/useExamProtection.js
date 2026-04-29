@@ -148,14 +148,16 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
       }
     };
 
-    // 3b. Detectar pérdida de internet sostenida (10 segundos)
+    /** Cortes Wi‑Fi típicos revierten antes ; tiempo alto para no crear INTERNET_LOSS en jitter/red congestionado */
+    const OFFLINE_MS_ANTES_VIOLACION_INTERNET = 28000;
+
     const handleOffline = () => {
       limpiarTimerOffline();
       offlineTimerRef.current = setTimeout(() => {
         if (navigator.onLine === false) {
           registrarViolacion('INTERNET_LOSS', { skipCooldown: true });
         }
-      }, 10000);
+      }, OFFLINE_MS_ANTES_VIOLACION_INTERNET);
     };
 
     const handleOnline = () => {

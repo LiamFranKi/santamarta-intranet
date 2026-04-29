@@ -6,7 +6,8 @@ const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = requ
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { enviarCorreoNotificacion } = require('../services/emailService');
 
-const TIPOS_STAFF = ['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA'];
+/** Incluir PSICOLOGO por datos históricos; PSICOLOGA es el valor estándar en usuarios.tipo */
+const TIPOS_STAFF = ['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA', 'PSICOLOGO'];
 
 async function contextoAlumnoGrado(colegio_id, alumnoId, matriculaId) {
   const [al] = await query(
@@ -116,13 +117,22 @@ async function notificarStaffNuevaDerivacionDocente(opts) {
     return;
   }
 
-  const remId = remitenteUsuarioId != null && Number.isFinite(Number(remitenteUsuarioId)) ? Number(remitenteUsuarioId) : null;
+  const usuarioOrigen =
+    remitenteUsuarioId != null && Number.isFinite(Number(remitenteUsuarioId))
+      ? Number(remitenteUsuarioId)
+      : null;
+  if (usuarioOrigen == null) {
+    console.warn(
+      '[psicologia] derivación docente: remitenteUsuarioId ausente; no se insertan notificaciones (JWT debe incluir usuario_id/id)'
+    );
+  }
 
   for (const row of staffRows) {
     const destId = row.id;
     try {
+      if (usuarioOrigen == null || destId == null) continue;
       const dup = await notificacionMensajeDuplicadaReciente(query, {
-        usuario_id: remId || destId,
+        usuario_id: usuarioOrigen,
         destinatario_id: destId,
         accion_tipo: 'PSICOLOGIA_DERIVACION_DOCENTE',
         contenido: `der-doc#${derivacionId}`,
@@ -131,7 +141,7 @@ async function notificarStaffNuevaDerivacionDocente(opts) {
       if (!dup) {
         await insertNotificacionUsuario(execute, {
           para: 'USUARIO',
-          usuario_id: remId || destId,
+          usuario_id: usuarioOrigen,
           destinatario_id: destId,
           asunto: tituloPush,
           contenido: mensajeLargo,

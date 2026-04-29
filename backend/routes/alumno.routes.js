@@ -36,7 +36,20 @@ function parsePreguntaIdsVisiblesDesdePrueba(pruebaRow) {
   }
 }
 
-const EXAM_SESSION_STALE_SECONDS = 120;
+/** Ventana (s) donde otro device_id distinto bloquea reanudar; configurable en despliegue (WiFi congestionado suele retardar pings). Clamp 60–900. */
+const EXAM_SESSION_STALE_SECONDS = (() => {
+  const raw = parseInt(process.env.EXAM_SESSION_STALE_SECONDS || '180', 10);
+  if (!Number.isFinite(raw)) return 180;
+  return Math.min(900, Math.max(60, raw));
+})();
+
+/** Pérdidas INTERNET_LOSS antes de poder cerrar el examen (otras violaciones usan umbral más bajo). */
+const EXAM_VIOLACION_INTERNET_CIERRE = Math.max(
+  2,
+  parseInt(process.env.EXAM_VIOLACION_INTERNET_CIERRE || '4', 10) || 4
+);
+
+const EXAM_VIOLACION_GENERAL_CIERRE = 2;
 
 function generarExamSessionToken() {
   return crypto.randomBytes(24).toString('hex');
@@ -159,6 +172,40 @@ function resolverTextoRespuesta(pregunta, respuestaAlumno) {
   }
 
   return htmlToPlain(String(respuestaAlumno));
+}
+
+/** Texto para bandeja Mensajes (apoderados y docentes–apoderado), mismo detalle que el correo HTML. */
+function construirTextoPlanoComprobanteExamen({
+  tituloExamen,
+  alumnoNombre,
+  cursoNombre,
+  docenteNombre,
+  etiquetaGrado,
+  puntajeFinal,
+  correctas,
+  incorrectas,
+  permiteMostrarNota,
+  filasResumen
+}) {
+  const nl = '\n';
+  const pts = permiteMostrarNota
+    ? String(puntajeFinal)
+    : 'Pendiente (el docente publicará la nota según la configuración del examen)';
+  const cor = permiteMostrarNota ? String(correctas) : '-';
+  const inc = permiteMostrarNota ? String(incorrectas) : '-';
+  let t = '';
+  t += `Comprobante de examen — ${tituloExamen}${nl}`;
+  t += `Alumno: ${alumnoNombre}${nl}`;
+  if (etiquetaGrado) t += `${etiquetaGrado}${nl}`;
+  t += `Curso: ${cursoNombre}${nl}`;
+  t += `Docente: ${docenteNombre}${nl}`;
+  t += `Puntaje: ${pts}${nl}`;
+  t += `Correctas: ${cor} · Incorrectas: ${inc}${nl}${nl}`;
+  t += `Detalle de respuestas:${nl}`;
+  for (const f of filasResumen || []) {
+    t += `${f.nro}. ${f.pregunta}${nl}   → ${f.respuesta}${nl}`;
+  }
+  return t;
 }
 
 function construirHtmlResumenExamenCorreo(params) {
@@ -4601,44 +4648,62 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
             nivel_nombre: examenData.nivel_nombre
           });
           const sufijoGradoApod = etiquetaGradoApod ? ` — ${etiquetaGradoApod}` : '';
-          
-          // Solo enviar notificación si el examen permite ver la nota
-          // Si mostrar_nota no existe o es NULL o 'SI', se puede ver la nota
-          if (mostrar_nota === undefined || mostrar_nota === null || mostrar_nota === 'SI') {
-            // Obtener apoderados del alumno (mismo patrón que en docente.routes.js)
-            const apoderados = await query(
-              `SELECT DISTINCT u.id as usuario_id, ap.nro_documento
-               FROM apoderados ap
-               INNER JOIN familias f ON f.apoderado_id = ap.id
-               INNER JOIN usuarios u ON u.apoderado_id = ap.id
-               WHERE f.alumno_id = ?
-                 AND ap.colegio_id = ?
-                 AND u.colegio_id = ?
-                 AND u.estado = 'ACTIVO'`,
-              [alumno_id, colegio_id, colegio_id]
-            );
-            
-            // Usar la función helper de docente.routes.js para crear notificaciones
+
+          const filasResumen = (preguntas || []).map((pregunta, idx) => {
+            const respuestaAlumno = respuestas[pregunta.id.toString()] ?? respuestas[pregunta.id] ?? null;
+            const preguntaTexto = htmlToPlain(pregunta.descripcion || `Pregunta ${idx + 1}`);
+            const respuestaTexto = resolverTextoRespuesta(pregunta, respuestaAlumno);
+            return {
+              nro: idx + 1,
+              pregunta: preguntaTexto || `Pregunta ${idx + 1}`,
+              respuesta: respuestaTexto || 'Sin responder',
+              sinResponder: !respuestaTexto || respuestaTexto === 'Sin responder'
+            };
+          });
+          const permiteNota =
+            mostrar_nota === undefined || mostrar_nota === null || mostrar_nota === 'SI';
+          const puedeMostrarNotaEnCampanitas = permiteNota;
+
+          const textoComprobanteInterno = construirTextoPlanoComprobanteExamen({
+            tituloExamen: titulo || 'Examen',
+            alumnoNombre: alumno_nombre || 'Alumno',
+            cursoNombre: curso_nombre || 'Curso',
+            docenteNombre: docente_nombre || 'Docente',
+            etiquetaGrado: etiquetaGradoApod ? `Grado / aula: ${etiquetaGradoApod}` : '',
+            puntajeFinal,
+            correctas,
+            incorrectas,
+            permiteMostrarNota: permiteNota,
+            filasResumen
+          });
+
+          try {
             const { crearNotificacionesApoderados } = require('./docente.routes');
-            
             await crearNotificacionesApoderados({
               alumno_id: parseInt(alumno_id),
               usuario_id: usuario_id,
               colegio_id: colegio_id,
               anio_activo: anio_activo,
               tituloNotificacion: 'Examen Finalizado',
-              mensajeNotificacion: `${alumno_nombre} finalizó el examen "${titulo}" con ${puntajeFinal} puntos (${correctas} correctas, ${incorrectas} incorrectas) - Curso: ${curso_nombre} - Docente: ${docente_nombre}${sufijoGradoApod}`,
+              mensajeNotificacion: puedeMostrarNotaEnCampanitas
+                ? `${alumno_nombre} finalizó el examen "${titulo}" con ${puntajeFinal} puntos (${correctas} correctas, ${incorrectas} incorrectas) - Curso: ${curso_nombre} - Docente: ${docente_nombre}${sufijoGradoApod}`
+                : `[Comprobante] ${alumno_nombre} terminó "${titulo}". Revise Mensajes para el detalle (nota puede estar pendiente según el docente).`,
               tipoNotificacion: 'examen_finalizado',
+              soloMensajesInternos: !puedeMostrarNotaEnCampanitas,
               dataExtra: {
                 examen_id: parseInt(examenId),
                 puntaje: puntajeFinal,
                 puntos_total: puntosTotal,
                 correctas: correctas,
                 incorrectas: incorrectas
+              },
+              mensajeInterno: {
+                asunto: `Comprobante de examen: ${titulo || 'Examen'} – ${alumno_nombre || 'Alumno'}`,
+                texto: textoComprobanteInterno
               }
             });
-          } else {
-            console.log(`📝 [EXAMEN FINALIZADO] Examen no permite ver nota inmediatamente, no se enviará notificación`);
+          } catch (notifExErr) {
+            console.error('[EXAMEN FINALIZADO] Error notificaciones/mensajes familiares:', notifExErr);
           }
 
           // Enviar comprobante por correo al alumno y apoderados con respuestas marcadas
@@ -4672,21 +4737,10 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
             (apoderadosEmailRows || []).forEach((r) => agregarCorreo(r.email));
 
             if (correosUnicos.size > 0) {
-              const filasResumen = (preguntas || []).map((pregunta, idx) => {
-                const respuestaAlumno = respuestas[pregunta.id.toString()] ?? respuestas[pregunta.id] ?? null;
-                const preguntaTexto = htmlToPlain(pregunta.descripcion || `Pregunta ${idx + 1}`);
-                const respuestaTexto = resolverTextoRespuesta(pregunta, respuestaAlumno);
-                return {
-                  nro: idx + 1,
-                  pregunta: preguntaTexto || `Pregunta ${idx + 1}`,
-                  respuesta: respuestaTexto || 'Sin responder',
-                  sinResponder: !respuestaTexto || respuestaTexto === 'Sin responder'
-                };
-              });
-              const permiteNota = mostrar_nota === undefined || mostrar_nota === null || mostrar_nota === 'SI';
-              const puntajeLabel = permiteNota ? String(puntajeFinal) : 'No disponible aún';
-              const correctasLabel = permiteNota ? String(correctas) : '-';
-              const incorrectasLabel = permiteNota ? String(incorrectas) : '-';
+              const permiteNotaMail = permiteNota;
+              const puntajeLabel = permiteNotaMail ? String(puntajeFinal) : 'No disponible aún';
+              const correctasLabel = permiteNotaMail ? String(correctas) : '-';
+              const incorrectasLabel = permiteNotaMail ? String(incorrectas) : '-';
               const htmlCorreo = construirHtmlResumenExamenCorreo({
                 colegioNombre: 'Vanguard Schools',
                 alumnoNombre: alumno_nombre || 'Alumno',
@@ -4734,6 +4788,65 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
 });
 
 /**
+ * POST /api/alumno/examenes/:examenId/sesion-ping
+ * Mantiene exam_session_last_seen sin reenviar respuestas (aulas WiFi: menos carga que autosave largo).
+ */
+router.post('/examenes/:examenId/sesion-ping', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, alumno_id } = req.user || {};
+    const { examenId } = req.params;
+    const tokenSesionHeader = String(req.headers['x-exam-session-token'] || '').trim();
+    const deviceIdHeader = normalizarExamDeviceId(req.headers['x-exam-device-id']);
+
+    const matricula = await query(
+      `SELECT m.id as matricula_id
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0)
+       LIMIT 1`,
+      [alumno_id, colegio_id, anio_activo]
+    );
+
+    if (matricula.length === 0) {
+      return res.status(404).json({ error: 'No se encontró la matrícula del alumno' });
+    }
+
+    const prueba = await query(
+      `SELECT * FROM asignaturas_examenes_pruebas
+       WHERE examen_id = ? AND matricula_id = ? AND estado = 'ACTIVO'
+       ORDER BY fecha_hora DESC
+       LIMIT 1`,
+      [examenId, matricula[0].matricula_id]
+    );
+
+    if (prueba.length === 0) {
+      return res.status(404).json({ error: 'No hay una prueba en progreso' });
+    }
+
+    if (tieneCamposSesionExamen(prueba[0])) {
+      const tokenGuardado = String(prueba[0].exam_session_token || '').trim();
+      if (tokenGuardado && tokenSesionHeader && tokenGuardado !== tokenSesionHeader) {
+        return res.status(409).json(construirErrorSesionExamen());
+      }
+      if (tokenGuardado && !tokenSesionHeader) {
+        return res.status(409).json(construirErrorSesionExamen());
+      }
+      await actualizarSesionExamenPrueba(
+        prueba[0].id,
+        tokenGuardado || tokenSesionHeader || generarExamSessionToken(),
+        deviceIdHeader || String(prueba[0].exam_session_device_id || '').trim() || null
+      );
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[sesion-ping examen]', error);
+    res.status(500).json({ error: 'Error al registrar actividad de sesión' });
+  }
+});
+
+/**
  * POST /api/alumno/examenes/:examenId/violaciones
  * Registrar violación (salir de ventana)
  */
@@ -4744,7 +4857,6 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
     const { tipo, timestamp } = req.body;
     const tokenSesionHeader = String(req.headers['x-exam-session-token'] || '').trim();
     const deviceIdHeader = normalizarExamDeviceId(req.headers['x-exam-device-id']);
-    const LIMITE_VIOLACIONES_CIERRE = 2;
 
     const matricula = await query(
       `SELECT m.id as matricula_id
@@ -4837,7 +4949,9 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
     let accion = 'WARNING';
     let mensajeAccion = 'Advertencia registrada';
 
-    if (cierreInmediato || violacionesCount >= LIMITE_VIOLACIONES_CIERRE) {
+    const umbralParaCerrar =
+      esEventoInternet ? EXAM_VIOLACION_INTERNET_CIERRE : EXAM_VIOLACION_GENERAL_CIERRE;
+    if (cierreInmediato || violacionesCount >= umbralParaCerrar) {
       const parsePreguntaIdsVisibles = () => {
         try {
           if (!pruebaActiva.preguntas || String(pruebaActiva.preguntas).trim() === '') return [];

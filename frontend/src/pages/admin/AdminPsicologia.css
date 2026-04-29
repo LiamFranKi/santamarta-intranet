@@ -232,6 +232,11 @@
   color: #5b21b6;
 }
 
+.psi-stat-f {
+  background: linear-gradient(145deg, #e0f2fe 0%, #f0f9ff 100%);
+  color: #0369a1;
+}
+
 .psi-tabs-wrap {
   background: linear-gradient(180deg, #fafbff 0%, #ffffff 40%);
   border-radius: 14px;

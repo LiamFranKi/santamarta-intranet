@@ -380,7 +380,11 @@ async function crearNotificacionesApoderados(params) {
     mensajeNotificacion,
     tipoNotificacion,
     dataExtra = {},
-    url_destino: urlDestinoParam = null
+    url_destino: urlDestinoParam = null,
+    /** Solo inserta Mensajes internos (`mensajes`) sin campanitas/push/email (p. ej. si el examen aún no publica nota en campanita). */
+    soloMensajesInternos = false,
+    /** Comprobante en bandeja Mensajes para apoderados y docentes–apoderado (dos filas por destinatario: ENVIADO/RECIBIDO). */
+    mensajeInterno = null
   } = params;
   
   try {
@@ -516,6 +520,7 @@ async function crearNotificacionesApoderados(params) {
         (destTiposRows || []).map((r) => [parseInt(r.id, 10), r.tipo])
       );
 
+      if (!soloMensajesInternos) {
       console.log(`📝 [NOTIFICACIONES APODERADOS] Creando ${todosDestinatarios.length} notificaciones en BD...`);
       for (const destinatarioId of todosDestinatarios) {
         try {
@@ -554,7 +559,9 @@ async function crearNotificacionesApoderados(params) {
       }
       
       console.log(`✅ [NOTIFICACIONES APODERADOS] ${todosDestinatarios.length} notificaciones creadas en BD`);
+      }
       
+      if (!soloMensajesInternos) {
       // Enviar push notifications
       try {
         const placeholdersDestinatarios = todosDestinatarios.map(() => '?').join(',');
@@ -658,6 +665,44 @@ async function crearNotificacionesApoderados(params) {
       } catch (error) {
         console.error(`❌ [NOTIFICACIONES APODERADOS] Error obteniendo suscripciones push:`, error);
         console.error(`❌ [NOTIFICACIONES APODERADOS] Error details:`, error.message);
+      }
+      }
+
+      if (
+        mensajeInterno &&
+        String(mensajeInterno.asunto || '').trim() &&
+        String(mensajeInterno.texto || '').trim()
+      ) {
+        const fh = fechaHoraMySQLLima();
+        const remitenteNum = parseInt(usuario_id, 10);
+        const asuntoMI = String(mensajeInterno.asunto).slice(0, 500);
+        const textoMI = String(mensajeInterno.texto);
+        if (!isNaN(remitenteNum)) {
+          for (const destinatarioId of todosDestinatarios) {
+            const did = parseInt(destinatarioId, 10);
+            if (isNaN(did) || did === remitenteNum) continue;
+            try {
+              await execute(
+                `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
+                 VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'ENVIADO', 'NO', 'NO')`,
+                [remitenteNum, did, asuntoMI, textoMI, fh]
+              );
+              await execute(
+                `INSERT INTO mensajes (remitente_id, destinatario_id, asunto, mensaje, fecha_hora, estado, tipo, borrado, favorito)
+                 VALUES (?, ?, ?, ?, ?, 'NO_LEIDO', 'RECIBIDO', 'NO', 'NO')`,
+                [remitenteNum, did, asuntoMI, textoMI, fh]
+              );
+            } catch (miErr) {
+              console.error(
+                `[NOTIFICACIONES APODERADOS] Error mensaje interno examen/familia → usuario ${did}:`,
+                miErr.message
+              );
+            }
+          }
+          console.log(
+            `📬 [NOTIFICACIONES APODERADOS] Mensajes internos (bandeja) enviados a ${todosDestinatarios.length} destinatario(s)`
+          );
+        }
       }
     } else {
       console.log('⚠️ [NOTIFICACIONES APODERADOS] No se encontraron destinatarios para notificar');
@@ -8398,6 +8443,265 @@ router.post('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
   } catch (error) {
     console.error('Error guardando conducta:', error);
     res.status(500).json({ error: 'Error al guardar conducta' });
+  }
+});
+
+/** Rango fecha YYYY-MM-DD o null si inválido */
+function fechaQueryValida(val) {
+  if (val == null || String(val).trim() === '') return null;
+  const s = String(val).trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  return s;
+}
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/evidencias-tutor/resumen?fecha_desde=&fecha_hasta=
+ * Totales para mostrar/ocultar botones (descuentos presentación escolar / incidencias del grupo).
+ */
+router.get('/tutoria/grupos/:grupoId/evidencias-tutor/resumen', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    const gRow = await query(
+      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const anioEsc = Number(gRow[0].anio);
+    const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
+      || new Date().toISOString().slice(0, 10);
+    let fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
+    let fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
+    if (fechaDesde > fechaHasta) {
+      const t = fechaDesde;
+      fechaDesde = fechaHasta;
+      fechaHasta = t;
+    }
+    if (hoyStr < fechaHasta) fechaHasta = hoyStr;
+
+    let cuentaDescuentos = 0;
+    try {
+      const [d] = await query(
+        `SELECT COUNT(*) AS c
+         FROM presentacion_escolar_descuentos ped
+         INNER JOIN usuarios ua ON ua.id = ped.alumno_usuario_id AND ua.colegio_id = ?
+         INNER JOIN matriculas m ON m.alumno_id = ua.alumno_id AND m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
+         INNER JOIN grupos gx ON gx.id = m.grupo_id AND gx.anio = ped.anio
+         WHERE ped.colegio_id = ? AND ped.anio = ?
+           AND DATE(ped.fecha) BETWEEN ? AND ?`,
+        [colegio_id, grupoId, colegio_id, colegio_id, anioEsc, fechaDesde, fechaHasta]
+      );
+      cuentaDescuentos = Number(d?.c || 0);
+    } catch (ePd) {
+      if (String(ePd.message || '').includes("doesn't exist") || ePd.code === 'ER_NO_SUCH_TABLE') cuentaDescuentos = 0;
+      else throw ePd;
+    }
+
+    let cuentaIncidencias = 0;
+    try {
+      const [ir] = await query(
+        `SELECT COUNT(*) AS c
+         FROM enrollment_incidents ei
+         INNER JOIN matriculas m ON m.id = ei.enrollment_id
+         INNER JOIN grupos g ON g.id = m.grupo_id
+         WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?
+           AND ei.type = 1 AND g.anio = ?
+           AND DATE(ei.created_at) BETWEEN ? AND ?`,
+        [grupoId, personalId, colegio_id, anioEsc, fechaDesde, fechaHasta]
+      );
+      cuentaIncidencias = Number(ir?.c || 0);
+    } catch (eInc) {
+      console.error('[tutoria/evidencias-tutor/resumen incidencias]', eInc.message);
+      cuentaIncidencias = 0;
+    }
+
+    res.json({
+      fecha_desde: fechaDesde,
+      fecha_hasta: fechaHasta,
+      cuenta_descuentos_presentacion: cuentaDescuentos,
+      cuenta_incidencias: cuentaIncidencias,
+    });
+  } catch (e) {
+    console.error('[tutoria/evidencias-tutor/resumen]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/reporte-descuentos-presentacion
+ * Descuentos por presentación escolar (asistencia/QR): detalle agrupado en front por alumno.
+ */
+router.get('/tutoria/grupos/:grupoId/reporte-descuentos-presentacion', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    const gRow = await query(
+      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const anioEsc = Number(gRow[0].anio);
+    const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
+      || new Date().toISOString().slice(0, 10);
+    let fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
+    let fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
+    if (fechaDesde > fechaHasta) {
+      const t = fechaDesde;
+      fechaDesde = fechaHasta;
+      fechaHasta = t;
+    }
+    if (hoyStr < fechaHasta) fechaHasta = hoyStr;
+
+    let rows = [];
+    try {
+      rows = await query(
+        `SELECT ped.id, ped.fecha, ped.hora, ped.puntos, ped.motivo,
+                ua.alumno_id,
+                TRIM(CONCAT(COALESCE(al.apellido_paterno,''),' ', COALESCE(al.apellido_materno,''),' ', COALESCE(al.nombres,''))) AS alumno_nombre,
+                CASE
+                  WHEN rpp.id IS NOT NULL THEN TRIM(CONCAT(COALESCE(rpp.nombres,''), ' ', COALESCE(rpp.apellidos,'')))
+                  WHEN alrp.id IS NOT NULL THEN TRIM(CONCAT(
+                    COALESCE(alrp.apellido_paterno,''),' ', COALESCE(alrp.apellido_materno,''),' ', COALESCE(alrp.nombres,'')))
+                  ELSE '—'
+                END AS registrado_por_nombre
+         FROM presentacion_escolar_descuentos ped
+         INNER JOIN usuarios ua ON ua.id = ped.alumno_usuario_id AND ua.colegio_id = ped.colegio_id
+         INNER JOIN alumnos al ON al.id = ua.alumno_id
+         INNER JOIN matriculas m ON m.alumno_id = ua.alumno_id AND m.grupo_id = ? AND m.colegio_id = ped.colegio_id AND (m.estado = 0)
+         INNER JOIN grupos gx ON gx.id = m.grupo_id AND gx.anio = ped.anio
+         LEFT JOIN usuarios ur ON ur.id = ped.registrado_por_usuario_id
+         LEFT JOIN personal rpp ON rpp.id = ur.personal_id
+         LEFT JOIN alumnos alrp ON alrp.id = ur.alumno_id
+         WHERE ped.colegio_id = ? AND ped.anio = ?
+           AND DATE(ped.fecha) BETWEEN ? AND ?
+         ORDER BY al.apellido_paterno, al.apellido_materno, al.nombres, ped.fecha DESC, ped.hora DESC`,
+        [grupoId, colegio_id, anioEsc, fechaDesde, fechaHasta]
+      );
+    } catch (ePd) {
+      if (String(ePd.message || '').includes("doesn't exist") || ePd.code === 'ER_NO_SUCH_TABLE') rows = [];
+      else throw ePd;
+    }
+
+    const porAlumno = new Map();
+    (rows || []).forEach((r) => {
+      const aid = r.alumno_id;
+      if (!porAlumno.has(aid)) {
+        porAlumno.set(aid, {
+          alumno_id: aid,
+          alumno_nombre: r.alumno_nombre,
+          suma_puntos: 0,
+          registros: [],
+        });
+      }
+      const b = porAlumno.get(aid);
+      const pts = Number(r.puntos) || 0;
+      b.suma_puntos += pts;
+      b.registros.push({
+        id: r.id,
+        fecha: r.fecha,
+        hora: r.hora,
+        puntos: r.puntos,
+        motivo: r.motivo,
+        registrado_por_nombre: r.registrado_por_nombre,
+      });
+    });
+
+    res.json({
+      fecha_desde: fechaDesde,
+      fecha_hasta: fechaHasta,
+      alumnos: Array.from(porAlumno.values()),
+    });
+  } catch (e) {
+    console.error('[tutoria/reporte-descuentos-presentacion]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/reporte-incidencias-grupo
+ * Todas las incidencias tipo disciplinarias del año del grupo para alumnos de esta aula.
+ */
+router.get('/tutoria/grupos/:grupoId/reporte-incidencias-grupo', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+
+    const gRow = await query(
+      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const anioEsc = Number(gRow[0].anio);
+    const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
+      || new Date().toISOString().slice(0, 10);
+    let fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
+    let fechaHasta = fechaQueryValida(req.query.fecha_hasta) || `${anioEsc + 1}-02-28`;
+    if (fechaDesde > fechaHasta) {
+      const t = fechaDesde;
+      fechaDesde = fechaHasta;
+      fechaHasta = t;
+    }
+    if (hoyStr < fechaHasta) fechaHasta = hoyStr;
+
+    const rows = await query(
+      `SELECT ei.id, ei.description, ei.created_at,
+              CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,'')) AS docente_nombre,
+              CASE WHEN ei.assignment_id = ? THEN 'Tutoría' ELSE COALESCE(c.nombre, '—') END AS curso_nombre,
+              m.alumno_id,
+              TRIM(CONCAT(COALESCE(al.apellido_paterno,''),' ', COALESCE(al.apellido_materno,''),' ', COALESCE(al.nombres,''))) AS alumno_nombre
+       FROM enrollment_incidents ei
+       INNER JOIN matriculas m ON m.id = ei.enrollment_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       INNER JOIN alumnos al ON al.id = m.alumno_id
+       LEFT JOIN personal p ON p.id = ei.worker_id
+       LEFT JOIN asignaturas a ON a.id = ei.assignment_id
+       LEFT JOIN cursos c ON c.id = a.curso_id
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?
+         AND ei.type = 1 AND g.anio = ?
+         AND DATE(ei.created_at) BETWEEN ? AND ?
+       ORDER BY alumno_nombre ASC, ei.created_at DESC`,
+      [ASSIGNMENT_ID_TUTORIA, grupoId, personalId, colegio_id, anioEsc, fechaDesde, fechaHasta]
+    );
+
+    const porAlumno = new Map();
+    (rows || []).forEach((r) => {
+      const aid = r.alumno_id;
+      if (!porAlumno.has(aid)) {
+        porAlumno.set(aid, {
+          alumno_id: aid,
+          alumno_nombre: r.alumno_nombre,
+          incidencias: [],
+        });
+      }
+      porAlumno.get(aid).incidencias.push({
+        id: r.id,
+        description: r.description,
+        created_at: r.created_at,
+        docente_nombre: r.docente_nombre,
+        curso_nombre: r.curso_nombre,
+      });
+    });
+
+    res.json({
+      fecha_desde: fechaDesde,
+      fecha_hasta: fechaHasta,
+      total: (rows || []).length,
+      alumnos: Array.from(porAlumno.values()),
+    });
+  } catch (e) {
+    console.error('[tutoria/reporte-incidencias-grupo]', e);
+    res.status(500).json({ error: e.message || 'Error' });
   }
 });
 
