@@ -1,0 +1,157 @@
+.tutoria-modal-deudores-panel {
+  max-width: min(1120px, 96vw);
+  width: 100%;
+}
+
+.tutoria-modal-deudores-sub {
+  margin: -0.25rem 1.25rem 0.75rem;
+  font-size: 0.95rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.tutoria-modal-deudores-filters {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.tutoria-modal-deudores-input-anio {
+  width: 4.5rem;
+  padding: 0.45rem 0.5rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 0.95rem;
+}
+
+.tutoria-modal-deudores-select {
+  min-width: 12rem;
+  padding: 0.45rem 0.6rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: #fff;
+}
+
+.tutoria-deudores-headline {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 1.25rem 0;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.tutoria-modal-deudores-table-wrap {
+  max-height: min(58vh, 520px);
+  overflow: auto;
+}
+
+.tutoria-modal-deudores-vacio {
+  padding: 2rem 1.5rem;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.tutoria-deudores-table thead th {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  color: #fff;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.55rem 0.35rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.tutoria-deudores-table tbody td {
+  vertical-align: top;
+  padding: 0.45rem 0.35rem;
+  font-size: 0.86rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.tut-deudores-col-nombre {
+  font-weight: 600;
+  color: #1e293b;
+  max-width: 11rem;
+  line-height: 1.25;
+}
+
+.tut-deudores-col-grado {
+  white-space: normal;
+  max-width: 6.5rem;
+}
+
+.tut-deudores-grado-line {
+  display: block;
+  font-weight: 600;
+  color: #334155;
+}
+
+.tut-deudores-nivel-sub {
+  display: block;
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+.tut-deudores-monto {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+}
+
+.tut-deudores-tel {
+  font-size: 0.82rem;
+  max-width: 7rem;
+  word-break: break-word;
+}
+
+.tut-deudores-col-obs {
+  min-width: 12rem;
+}
+
+.tut-deudores-textarea {
+  width: 100%;
+  min-height: 3.2rem;
+  max-height: 6rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.tut-deudores-textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+}
+
+.tutoria-modal-deudores-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+
+.tutoria-btn-export-pdf {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+  color: #fff !important;
+  border: none !important;
+  font-weight: 700;
+}
+
+.tutoria-btn-export-pdf:hover:not(:disabled) {
+  filter: brightness(1.05);
+}

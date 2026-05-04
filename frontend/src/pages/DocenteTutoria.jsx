@@ -14,6 +14,7 @@ import './DocenteCursos.css';
 import './AlumnoCursos.css';
 import './AlumnoHorario.css';
 import './DocenteHijos.css';
+import TutoriaModalDeudores from '../components/tutoria/TutoriaModalDeudores';
 
 /** Rango inicial (año calendario del año lectivo hasta hoy) para reportes tutor evidencias */
 function rangoFechasReporteGrupo(anioEscolar) {
@@ -148,6 +149,10 @@ function DocenteTutoria() {
   const [recomendacionesAlumnos, setRecomendacionesAlumnos] = useState([]);
   const [loadingRecomendaciones, setLoadingRecomendaciones] = useState(false);
   const [guardandoRecomendaciones, setGuardandoRecomendaciones] = useState(false);
+
+  // Modal Deudores (tutoría)
+  const [mostrarModalDeudores, setMostrarModalDeudores] = useState(false);
+  const [grupoParaDeudores, setGrupoParaDeudores] = useState(null);
 
   // Estados para modal Conducta
   const [mostrarModalConducta, setMostrarModalConducta] = useState(false);
@@ -687,6 +692,10 @@ function DocenteTutoria() {
         break;
       case 'orden-merito':
         await handleOrdenMeritoPDF(grupo);
+        break;
+      case 'deudores':
+        setGrupoParaDeudores(grupo);
+        setMostrarModalDeudores(true);
         break;
       default:
         break;
@@ -3575,6 +3584,15 @@ function DocenteTutoria() {
         document.body
       )}
 
+      <TutoriaModalDeudores
+        open={mostrarModalDeudores}
+        grupo={grupoParaDeudores}
+        onClose={() => {
+          setMostrarModalDeudores(false);
+          setGrupoParaDeudores(null);
+        }}
+      />
+
       {/* Modal Recomendaciones */}
       {mostrarModalRecomendaciones && grupoParaRecomendaciones && createPortal(
         <div className="modal-registro-asistencia-overlay" onClick={() => { setMostrarModalRecomendaciones(false); setGrupoParaRecomendaciones(null); setRecomendacionesAlumnos([]); }}>
@@ -4069,7 +4087,8 @@ function DocenteTutoria() {
                       { id: 'conexiones-familiares', label: 'Conexiones Familiares', icon: '✉️' },
                       { id: 'registrar-asistencia', label: 'Asistencias', icon: '✅' },
                       { id: 'apreciaciones-recomendaciones', label: 'Recomendaciones', icon: '💬' },
-                      { id: 'registrar-conducta', label: 'Registrar Conducta', icon: '📝' }
+                      { id: 'registrar-conducta', label: 'Registrar Conducta', icon: '📝' },
+                      { id: 'deudores', label: 'Deudores', icon: '💰' }
                     ];
 
                     return opciones.map((opcion) => (

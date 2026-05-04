@@ -38,6 +38,7 @@ const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoP
 const { assertDocentePuedeEditarContenidoExamenVirtual, examenBloqueaEdicionContenidoDocente } = require('../utils/examenBloqueoEdicionContenido');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { lineaAlumnoGrado } = require('../utils/notificacionExamenApoderadoTexto');
+const { listarDeudoresGrupo, mergeObservacionesTutor } = require('../utils/tutorDeudoresService');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
@@ -5931,6 +5932,221 @@ router.get('/tutoria', async (req, res) => {
   } catch (error) {
     console.error('Error verificando tutoría:', error);
     res.status(500).json({ error: 'Error al verificar tutoría' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/deudores/conceptos
+ * Opciones de filtro (misma convención que reporte admin: todos, 0=matrícula, 1..N=pensión).
+ */
+router.get('/tutoria/grupos/:grupoId/deudores/conceptos', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    if (!personalId) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+    const ok = await query(
+      `SELECT g.id FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!ok || ok.length === 0) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+    const anioParam = parseInt(req.query.anio, 10);
+    const [colegio] = await query(
+      'SELECT anio_activo, total_pensiones, moneda FROM colegios WHERE id = ? LIMIT 1',
+      [colegio_id]
+    );
+    const anio =
+      !isNaN(anioParam) && anioParam > 0
+        ? anioParam
+        : parseInt(colegio?.anio_activo || new Date().getFullYear(), 10);
+    const totalPensiones = parseInt(colegio?.total_pensiones || 10);
+    const moneda = colegio?.moneda || 'S/';
+    const nombresMes = [
+      '',
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre'
+    ];
+    const opciones = [
+      { value: 'todos', label: 'Todos (saldo pendiente)' },
+      { value: '0', label: 'Matrícula' }
+    ];
+    for (let i = 1; i <= totalPensiones; i += 1) {
+      const indiceMes = 2 + i;
+      if (indiceMes > 12) continue;
+      opciones.push({
+        value: String(i),
+        label: `Mensualidad ${nombresMes[indiceMes] || `Mes ${i}`}`
+      });
+    }
+    res.json({ anio, moneda, opciones });
+  } catch (e) {
+    console.error('[tutoria/deudores/conceptos]', e);
+    res.status(500).json({ error: 'Error al cargar conceptos' });
+  }
+});
+
+/**
+ * GET /api/docente/tutoria/grupos/:grupoId/deudores?anio=&tipo=
+ */
+router.get('/tutoria/grupos/:grupoId/deudores', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo } = req.user;
+    const personalId = req.user.personal_id;
+    if (!personalId) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+    const grupoTutor = await query(
+      `SELECT g.*, n.nombre AS nivel_nombre, t.nombre AS turno_nombre
+       FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN turnos t ON t.id = g.turno_id
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!grupoTutor.length) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+    const anioParam = parseInt(req.query.anio, 10);
+    const tipoRaw = req.query.tipo;
+    const [colegio] = await query(
+      `SELECT anio_activo, total_pensiones, moneda, titulo_intranet, razon_social
+       FROM colegios WHERE id = ? LIMIT 1`,
+      [colegio_id]
+    );
+    const anio =
+      !isNaN(anioParam) && anioParam > 0
+        ? anioParam
+        : parseInt(colegio?.anio_activo || new Date().getFullYear(), 10);
+    const totalPensiones = parseInt(colegio?.total_pensiones || 10);
+    const moneda = colegio?.moneda || 'S/';
+    const colegioNombre = (colegio?.razon_social || colegio?.titulo_intranet || 'Colegio').trim();
+    const g = grupoTutor[0];
+    const grupoEtiqueta = `${g.grado}° ${g.seccion || ''} — ${g.nivel_nombre || ''}`.trim();
+
+    let payload;
+    try {
+      payload = await listarDeudoresGrupo(query, {
+        colegio_id,
+        grupo_id: parseInt(grupoId, 10),
+        anio,
+        tipoRaw,
+        totalPensiones
+      });
+    } catch (err) {
+      if (err.code === 'INVALID_TIPO') {
+        return res.status(400).json({
+          error: 'Parámetro tipo inválido (0=matrícula, 1..N=pensión, o todos)'
+        });
+      }
+      throw err;
+    }
+
+    const filasConObs = await mergeObservacionesTutor(query, colegio_id, payload.filas);
+
+    res.json({
+      colegio_nombre: colegioNombre,
+      grupo_etiqueta: grupoEtiqueta,
+      anio,
+      moneda,
+      concepto: payload.concepto,
+      total_alumnos_unicos: payload.total_alumnos_unicos,
+      filas: filasConObs
+    });
+  } catch (e) {
+    console.error('[tutoria/deudores]', e);
+    res.status(500).json({ error: 'Error al obtener deudores del grupo' });
+  }
+});
+
+/**
+ * PUT /api/docente/tutoria/grupos/:grupoId/deudores/observaciones
+ * Body: { items: [{ matricula_id, tipo_concepto, nro_concepto, observaciones }] }
+ */
+router.put('/tutoria/grupos/:grupoId/deudores/observaciones', async (req, res) => {
+  try {
+    const { grupoId } = req.params;
+    const { colegio_id, anio_activo, usuario_id } = req.user;
+    const uid = usuario_id || req.user.id;
+    const personalId = req.user.personal_id;
+    if (!personalId || !uid) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+    const grupoTutor = await query(
+      `SELECT g.id FROM grupos g
+       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, colegio_id, anio_activo]
+    );
+    if (!grupoTutor.length) {
+      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    }
+    const gid = parseInt(grupoId, 10);
+    const items = Array.isArray(req.body?.items) ? req.body.items : [];
+    if (items.length === 0) {
+      return res.json({ ok: true, guardados: 0 });
+    }
+    const matIds = [...new Set(items.map((it) => parseInt(it.matricula_id, 10)).filter((n) => !isNaN(n)))];
+    if (matIds.length === 0) {
+      return res.status(400).json({ error: 'No hay matrículas válidas' });
+    }
+    const ph = matIds.map(() => '?').join(',');
+    const mats = await query(
+      `SELECT id FROM matriculas
+       WHERE colegio_id = ? AND grupo_id = ? AND id IN (${ph}) AND (estado = 0)`,
+      [colegio_id, gid, ...matIds]
+    );
+    const permitidas = new Set((mats || []).map((m) => m.id));
+    let guardados = 0;
+    for (const it of items) {
+      const mid = parseInt(it.matricula_id, 10);
+      if (!permitidas.has(mid)) continue;
+      const tc = parseInt(it.tipo_concepto, 10);
+      const nc = parseInt(it.nro_concepto, 10);
+      if (tc !== 0 && tc !== 1) continue;
+      if (nc < 0 || Number.isNaN(nc)) continue;
+      const obs = it.observaciones != null ? String(it.observaciones).slice(0, 65000) : '';
+      try {
+        await execute(
+          `INSERT INTO tutor_deuda_seguimiento
+            (colegio_id, grupo_id, matricula_id, tipo_concepto, nro_concepto, observaciones, usuario_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE
+             observaciones = VALUES(observaciones),
+             usuario_id = VALUES(usuario_id),
+             grupo_id = VALUES(grupo_id),
+             updated_at = CURRENT_TIMESTAMP`,
+          [colegio_id, gid, mid, tc, nc, obs || null, uid]
+        );
+        guardados += 1;
+      } catch (err) {
+        if (err.code === 'ER_NO_SUCH_TABLE') {
+          return res.status(503).json({
+            error:
+              'La tabla de seguimiento no existe en el servidor. Ejecute la migración 041_tutor_deuda_seguimiento_mysql.sql.'
+          });
+        }
+        throw err;
+      }
+    }
+    res.json({ ok: true, guardados });
+  } catch (e) {
+    console.error('[tutoria/deudores/observaciones]', e);
+    res.status(500).json({ error: 'Error al guardar observaciones' });
   }
 });
 

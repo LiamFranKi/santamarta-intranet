@@ -135,7 +135,7 @@ export default function AdminReportesDeudores() {
         <div className="admin-estadisticas-header">
           <h1 className="admin-estadisticas-title">Deudores</h1>
           <p className="admin-estadisticas-desc">
-            Lista con teléfono del apoderado y columna de observaciones para el tutor.
+            Lista con teléfono del apoderado. La columna Detalle muestra lo registrado por el tutor en su seguimiento de deudores por concepto.
           </p>
         </div>
 
@@ -205,7 +205,7 @@ export default function AdminReportesDeudores() {
           )}
 
           <p className="admin-deudores-hint">
-            En PDF se incluye columna de observaciones en blanco para apuntes a mano; la tabla en pantalla muestra solo los datos útiles.
+            El PDF replica la misma tabla: grado con nivel debajo, teléfono y columna Detalle (tutor) cuando exista texto guardado.
           </p>
 
           {!!filas.length && meta && (
@@ -223,11 +223,11 @@ export default function AdminReportesDeudores() {
                   <thead>
                     <tr>
                       <th className="col-alumno">Alumno</th>
-                      <th className="col-nivel">Nivel</th>
-                      <th className="col-grado">Grado</th>
+                      <th className="col-grado-nivel">Grado / Nivel</th>
                       <th className="col-concepto">Concepto</th>
                       <th className="col-monto">Monto</th>
                       <th className="col-tel">Tel. apoderado</th>
+                      <th className="col-detalle">Detalle</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -236,11 +236,16 @@ export default function AdminReportesDeudores() {
                         <td className="col-alumno">
                           <span className="admin-deudores-alumno-cell">{r.nombre}</span>
                         </td>
-                        <td className="col-nivel">{r.nivel_nombre || '—'}</td>
-                        <td className="col-grado">{r.grado_etiqueta}</td>
+                        <td className="col-grado-nivel">
+                          <span className="admin-deudores-grado-line">{r.grado_etiqueta}</span>
+                          <span className="admin-deudores-nivel-sub">{r.nivel_nombre || '—'}</span>
+                        </td>
                         <td className="col-concepto">{r.concepto || '—'}</td>
                         <td className="col-monto">{fmtMonto(r.monto, meta.moneda)}</td>
                         <td className="col-tel">{r.telefono_apoderado || '—'}</td>
+                        <td className="col-detalle">
+                          <span className="admin-deudores-detalle-cell">{r.detalle || '—'}</span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

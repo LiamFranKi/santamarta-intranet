@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { query, execute } = require('../utils/mysql');
+const { mergeObservacionesTutor } = require('../utils/tutorDeudoresService');
 const { authenticateToken } = require('../middleware/auth');
 const { registrarAccion } = require('../utils/auditoria');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
@@ -1038,6 +1039,8 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
             monto: Math.round(saldoMat * 100) / 100,
             concepto: 'Matrícula',
             concepto_orden: 0,
+            tipo_concepto: 0,
+            nro_concepto: 0,
             apellido_paterno: mr.apellido_paterno,
             apellido_materno: mr.apellido_materno,
             nombres: mr.nombres
@@ -1062,6 +1065,8 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
               monto: Math.round(saldoP * 100) / 100,
               concepto: etiquetaConceptoPension(i),
               concepto_orden: i,
+              tipo_concepto: 1,
+              nro_concepto: i,
               apellido_paterno: mr.apellido_paterno,
               apellido_materno: mr.apellido_materno,
               nombres: mr.nombres
@@ -1071,13 +1076,18 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
       }
       filasRaw.sort(sortFilasLuegoConcepto);
       const telMap = await telefonosPorAlumno(filasRaw.map((f) => f.alumno_id));
-      const filas = filasRaw.map((f) => {
+      let filas = filasRaw.map((f) => {
         const { concepto_orden, ...rest } = f;
         return {
           ...rest,
           telefono_apoderado: telMap[f.alumno_id] || ''
         };
       });
+      const merged = await mergeObservacionesTutor(query, colegio_id, filas);
+      filas = merged.map(({ tipo_concepto: _tc, nro_concepto: _nc, observaciones, ...r }) => ({
+        ...r,
+        detalle: observaciones != null ? String(observaciones) : ''
+      }));
       const idsAlumno = new Set((filasRaw || []).map((f) => f.alumno_id));
       return res.json({
         colegio_nombre: colegioNombre,
@@ -1179,6 +1189,8 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
           seccion: r.seccion,
           monto: Math.round(saldo * 100) / 100,
           concepto: etiquetaFilaUnica,
+          tipo_concepto: tipoParam === 0 ? 0 : 1,
+          nro_concepto: tipoParam === 0 ? 0 : tipoParam,
           apellido_paterno: r.apellido_paterno,
           apellido_materno: r.apellido_materno,
           nombres: r.nombres,
@@ -1188,9 +1200,14 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
       .filter((f) => f._saldo > 0.004);
     filasRaw.sort(sortFilas);
     const telMap = await telefonosPorAlumno(filasRaw.map((f) => f.alumno_id));
-    const filas = filasRaw.map(({ _saldo, ...f }) => ({
+    let filas = filasRaw.map(({ _saldo, ...f }) => ({
       ...f,
       telefono_apoderado: telMap[f.alumno_id] || ''
+    }));
+    const merged = await mergeObservacionesTutor(query, colegio_id, filas);
+    filas = merged.map(({ tipo_concepto: _tc, nro_concepto: _nc, observaciones, ...r }) => ({
+      ...r,
+      detalle: observaciones != null ? String(observaciones) : ''
     }));
     const idsAlumno = new Set(filas.map((f) => f.alumno_id));
 

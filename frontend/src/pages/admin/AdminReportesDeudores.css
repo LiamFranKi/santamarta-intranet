@@ -216,7 +216,7 @@
 }
 
 .admin-deudores-preview-table .col-alumno {
-  width: 22%;
+  width: 20%;
   text-align: left;
 }
 
@@ -229,28 +229,66 @@
   word-break: break-word;
 }
 
-.admin-deudores-preview-table .col-nivel {
-  width: 11%;
-  font-size: 0.82rem;
+.admin-deudores-preview-table .col-grado-nivel {
+  width: 12%;
+  text-align: center;
+  vertical-align: middle;
 }
 
-.admin-deudores-preview-table .col-grado {
-  width: 10%;
+.admin-deudores-preview-table thead th.col-grado-nivel {
+  text-align: center;
+}
+
+.admin-deudores-grado-line {
+  display: block;
+  font-weight: 600;
+  color: #334155;
+  line-height: 1.2;
+}
+
+.admin-deudores-nivel-sub {
+  display: block;
+  font-size: 0.78rem;
+  color: #64748b;
+  margin-top: 0.2rem;
+  line-height: 1.2;
 }
 
 .admin-deudores-preview-table .col-concepto {
-  width: 14%;
+  width: 13%;
   font-size: 0.8rem;
 }
 
 .admin-deudores-preview-table .col-monto {
-  width: 13%;
+  width: 11%;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 
 .admin-deudores-preview-table .col-tel {
-  width: 30%;
+  width: 12%;
+  font-size: 0.8rem;
+}
+
+.admin-deudores-preview-table .col-detalle {
+  width: 32%;
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin-deudores-preview-table thead th.col-detalle {
+  text-align: center;
+}
+
+.admin-deudores-detalle-cell {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: #334155;
+  word-break: break-word;
 }
 
 .admin-deudores-preview-headline {
