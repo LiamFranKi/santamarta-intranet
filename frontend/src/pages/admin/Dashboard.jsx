@@ -18,6 +18,7 @@ import AdminMatriculasInscripcion from './AdminMatriculasInscripcion';
 import AdminAcademico from './AdminAcademico';
 import AdminPsicologiaLista from './AdminPsicologiaLista';
 import AdminPsicologiaExpediente from './AdminPsicologiaExpediente';
+import AdminReportesDeudores from './AdminReportesDeudores';
 import NotificacionesWidget from '../../components/NotificacionesWidget';
 
 const PSICOLOGA_RUTAS_ADMIN = [
@@ -219,6 +220,11 @@ function Dashboard() {
       description: 'Visualiza estadísticas generales del sistema',
       icon: '📈'
     },
+    '/admin/reportes/deudores': {
+      title: '📋 Deudores',
+      description: 'Lista de deudores y exportación a PDF',
+      icon: '📋'
+    },
     '/admin/config': {
       title: '⚙️ Configuración general',
       description: 'Datos del colegio, recaudo, notas y archivos',
@@ -382,6 +388,9 @@ function Dashboard() {
           </div>
         </DashboardLayout>
       );
+    }
+    if (location.pathname === '/admin/reportes/deudores') {
+      return <AdminReportesDeudores />;
     }
 
     return (

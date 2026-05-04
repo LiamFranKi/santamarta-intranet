@@ -1140,6 +1140,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/reportes/deudores"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/admin/config"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">

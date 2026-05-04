@@ -161,7 +161,8 @@ router.use((req, res, next) => {
       '/dashboard',
       '/estadisticas/kpis',
       '/estadisticas/deudas-por-aula',
-      '/estadisticas/deudas-por-aula/alumnos'
+      '/estadisticas/deudas-por-aula/alumnos',
+      '/estadisticas/deudores-lista'
     ];
     const permitidasPorPrefijo = ['/notificaciones', '/perfil', '/conexiones', '/eventos'];
     if (
@@ -856,6 +857,286 @@ router.get('/estadisticas/deudas-por-aula/alumnos', async (req, res) => {
   } catch (error) {
     console.error('Error deudas por aula alumnos:', error);
     res.status(500).json({ error: 'Error al obtener alumnos del grupo' });
+  }
+});
+
+/**
+ * GET /api/admin/estadisticas/deudores-lista
+ * Lista de deudores del colegio (año + concepto) con grado y teléfono de apoderado, para reporte/PDF.
+ * Query: anio (opcional), tipo: 0=matrícula, 1..N=nro pensión, todos=saldo total pendiente (todos los conceptos).
+ */
+router.get('/estadisticas/deudores-lista', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const anioParam = parseInt(req.query.anio, 10);
+    const tipoRaw = req.query.tipo;
+
+    const [colegio] = await query(
+      `SELECT anio_activo, total_pensiones, moneda, titulo_intranet, razon_social
+       FROM colegios WHERE id = ? LIMIT 1`,
+      [colegio_id]
+    );
+    const anio = !isNaN(anioParam) && anioParam > 0 ? anioParam : parseInt(colegio?.anio_activo || new Date().getFullYear(), 10);
+    const totalPensiones = parseInt(colegio?.total_pensiones || 10);
+    const moneda = colegio?.moneda || 'S/';
+    const colegioNombre = (colegio?.razon_social || colegio?.titulo_intranet || 'Colegio').trim();
+
+    const nombreAlumno = (r) =>
+      [r.apellido_paterno, r.apellido_materno, r.nombres].filter(Boolean).join(' ').trim() || '—';
+    const etiquetaGrado = (r) => {
+      const sec = (r.seccion || '').toString().trim();
+      const g = r.grado != null && r.grado !== '' ? `${r.grado}°` : '';
+      return [g, sec].filter(Boolean).join(' ') || '—';
+    };
+    const tituloAgrupacion = (r) =>
+      `${String(r.nivel_nombre || '').toUpperCase()} — ${r.grado}° grado`;
+
+    const sortFilas = (a, b) => {
+      const nid = (parseInt(a.nivel_id, 10) || 0) - (parseInt(b.nivel_id, 10) || 0);
+      if (nid !== 0) return nid;
+      const gd = (parseInt(a.grado, 10) || 0) - (parseInt(b.grado, 10) || 0);
+      if (gd !== 0) return gd;
+      const sec = String(a.seccion || '').localeCompare(String(b.seccion || ''), 'es', { sensitivity: 'base' });
+      if (sec !== 0) return sec;
+      const ap = String(a.apellido_paterno || '').localeCompare(String(b.apellido_paterno || ''), 'es', { sensitivity: 'base' });
+      if (ap !== 0) return ap;
+      const am = String(a.apellido_materno || '').localeCompare(String(b.apellido_materno || ''), 'es', { sensitivity: 'base' });
+      if (am !== 0) return am;
+      return String(a.nombres || '').localeCompare(String(b.nombres || ''), 'es', { sensitivity: 'base' });
+    };
+
+    const telefonosPorAlumno = async (alumnoIds) => {
+      const map = {};
+      const uniq = [...new Set((alumnoIds || []).filter((id) => id != null))];
+      if (uniq.length === 0) return map;
+      const ph = uniq.map(() => '?').join(',');
+      const trows = await query(
+        `SELECT f.alumno_id, f.id AS familia_id,
+            COALESCE(NULLIF(TRIM(ap.telefono_celular), ''), NULLIF(TRIM(ap.telefono_fijo), ''), '') AS telefono
+         FROM familias f
+         INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
+         WHERE f.alumno_id IN (${ph})
+         ORDER BY f.alumno_id ASC, f.id ASC`,
+        [colegio_id, ...uniq]
+      );
+      for (const tr of trows || []) {
+        const aid = tr.alumno_id;
+        const tel = String(tr.telefono || '').trim();
+        if (map[aid] == null || map[aid] === '') map[aid] = tel;
+      }
+      return map;
+    };
+
+    const baseMatriculasSql = `
+      FROM matriculas m
+      INNER JOIN grupos g ON g.id = m.grupo_id
+      INNER JOIN niveles n ON n.id = g.nivel_id
+      INNER JOIN costos c ON c.id = m.costo_id
+      INNER JOIN alumnos a ON a.id = m.alumno_id
+      WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)
+        AND EXISTS (
+          SELECT 1 FROM pagos p
+          WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
+            AND p.tipo = 0 AND p.estado_pago = 'CANCELADO'
+        )`;
+
+    const todos = String(tipoRaw || '').toLowerCase() === 'todos';
+
+    if (todos) {
+      const nombreConcepto = 'Todos los conceptos (saldo total pendiente)';
+      const matRows = await query(
+        `SELECT m.id AS matricula_id, m.alumno_id, m.grupo_id,
+            a.nombres, a.apellido_paterno, a.apellido_materno,
+            g.grado, g.seccion, n.nombre AS nivel_nombre, n.id AS nivel_id,
+            c.matricula AS costo_matricula, c.pension AS costo_pension
+         ${baseMatriculasSql}`,
+        [colegio_id, anio, colegio_id]
+      );
+      if (!matRows || matRows.length === 0) {
+        return res.json({
+          colegio_nombre: colegioNombre,
+          anio,
+          moneda,
+          concepto: nombreConcepto,
+          filas: []
+        });
+      }
+      const matIds = matRows.map((r) => r.matricula_id);
+      const ph = matIds.map(() => '?').join(',');
+      const detRows = await query(
+        `SELECT p.matricula_id, p.tipo, COALESCE(p.nro_pago, 0) AS nro_pago,
+            COALESCE(SUM(p.monto), 0) AS total
+         FROM pagos p
+         WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
+           AND p.matricula_id IN (${ph})
+           AND (p.tipo = 0 OR (p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND YEAR(p.fecha_hora) = ?))
+         GROUP BY p.matricula_id, p.tipo, p.nro_pago`,
+        [colegio_id, ...matIds, totalPensiones, anio]
+      );
+      const pagosPorMatricula = {};
+      for (const row of detRows || []) {
+        const mid = row.matricula_id;
+        if (!pagosPorMatricula[mid]) pagosPorMatricula[mid] = { t0: 0, pens: {} };
+        const t = parseInt(row.tipo, 10);
+        const tot = parseFloat(row.total || 0);
+        if (t === 0) pagosPorMatricula[mid].t0 = tot;
+        else if (t === 1) {
+          const np = parseInt(row.nro_pago, 10);
+          if (np >= 1 && np <= totalPensiones) pagosPorMatricula[mid].pens[np] = tot;
+        }
+      }
+
+      const filasRaw = [];
+      for (const mr of matRows) {
+        const pm = pagosPorMatricula[mr.matricula_id] || { t0: 0, pens: {} };
+        const costoMat = parseFloat(mr.costo_matricula) || 0;
+        const costoPens = parseFloat(mr.costo_pension) || 0;
+        let saldoTotal = Math.max(0, costoMat - pm.t0);
+        for (let i = 1; i <= totalPensiones; i += 1) {
+          const pag = pm.pens[i] || 0;
+          saldoTotal += Math.max(0, costoPens - pag);
+        }
+        if (saldoTotal > 0.004) {
+          filasRaw.push({
+            matricula_id: mr.matricula_id,
+            alumno_id: mr.alumno_id,
+            nombre: nombreAlumno(mr),
+            grado_etiqueta: etiquetaGrado(mr),
+            grado_agrupacion_key: `${mr.nivel_id}|${mr.grado}`,
+            grado_agrupacion_titulo: tituloAgrupacion(mr),
+            nivel_id: mr.nivel_id,
+            grado: mr.grado,
+            seccion: mr.seccion,
+            monto: Math.round(saldoTotal * 100) / 100,
+            apellido_paterno: mr.apellido_paterno,
+            apellido_materno: mr.apellido_materno,
+            nombres: mr.nombres
+          });
+        }
+      }
+      filasRaw.sort(sortFilas);
+      const telMap = await telefonosPorAlumno(filasRaw.map((f) => f.alumno_id));
+      const filas = filasRaw.map((f) => ({
+        ...f,
+        telefono_apoderado: telMap[f.alumno_id] || ''
+      }));
+      return res.json({
+        colegio_nombre: colegioNombre,
+        anio,
+        moneda,
+        concepto: nombreConcepto,
+        filas
+      });
+    }
+
+    const tipoParam = parseInt(tipoRaw, 10);
+    if (isNaN(tipoParam) || tipoParam < 0) {
+      return res.status(400).json({
+        error: 'Parámetro tipo inválido (0=matrícula, 1..N=pensión, o todos)'
+      });
+    }
+
+    let conceptoNombre = 'Matrícula';
+    let rows;
+
+    if (tipoParam === 0) {
+      rows = await query(
+        `SELECT m.id AS matricula_id, m.alumno_id, m.grupo_id,
+            a.nombres, a.apellido_paterno, a.apellido_materno,
+            g.grado, g.seccion, n.nombre AS nivel_nombre, n.id AS nivel_id,
+            c.matricula AS tarifa,
+            COALESCE((
+              SELECT SUM(p.monto) FROM pagos p
+              WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
+                AND p.estado_pago = 'CANCELADO' AND p.tipo = 0
+            ), 0) AS pagado
+         ${baseMatriculasSql}`,
+        [colegio_id, colegio_id, anio, colegio_id]
+      );
+    } else {
+      const nroPago = tipoParam;
+      if (nroPago < 1 || nroPago > totalPensiones) {
+        return res.json({
+          colegio_nombre: colegioNombre,
+          anio,
+          moneda,
+          concepto: `Mes ${nroPago}`,
+          filas: []
+        });
+      }
+      const nombresMes = [
+        '',
+        'Enero',
+        'Febrero',
+        'Marzo',
+        'Abril',
+        'Mayo',
+        'Junio',
+        'Julio',
+        'Agosto',
+        'Septiembre',
+        'Octubre',
+        'Noviembre',
+        'Diciembre'
+      ];
+      const indiceMes = 2 + nroPago;
+      conceptoNombre =
+        indiceMes <= 12 ? nombresMes[indiceMes] || `Mes ${nroPago}` : `Mes ${nroPago}`;
+      rows = await query(
+        `SELECT m.id AS matricula_id, m.alumno_id, m.grupo_id,
+            a.nombres, a.apellido_paterno, a.apellido_materno,
+            g.grado, g.seccion, n.nombre AS nivel_nombre, n.id AS nivel_id,
+            c.pension AS tarifa,
+            COALESCE((
+              SELECT SUM(p.monto) FROM pagos p
+              WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
+                AND p.estado_pago = 'CANCELADO' AND p.tipo = 1 AND p.nro_pago = ? AND YEAR(p.fecha_hora) = ?
+            ), 0) AS pagado
+         ${baseMatriculasSql}`,
+        [colegio_id, nroPago, anio, colegio_id, anio, colegio_id]
+      );
+    }
+
+    const filasRaw = (rows || [])
+      .map((r) => {
+        const tarifa = parseFloat(r.tarifa) || 0;
+        const pagado = parseFloat(r.pagado) || 0;
+        const saldo = Math.max(0, tarifa - pagado);
+        return {
+          matricula_id: r.matricula_id,
+          alumno_id: r.alumno_id,
+          nombre: nombreAlumno(r),
+          grado_etiqueta: etiquetaGrado(r),
+          grado_agrupacion_key: `${r.nivel_id}|${r.grado}`,
+          grado_agrupacion_titulo: tituloAgrupacion(r),
+          nivel_id: r.nivel_id,
+          grado: r.grado,
+          seccion: r.seccion,
+          monto: Math.round(saldo * 100) / 100,
+          apellido_paterno: r.apellido_paterno,
+          apellido_materno: r.apellido_materno,
+          nombres: r.nombres,
+          _saldo: saldo
+        };
+      })
+      .filter((f) => f._saldo > 0.004);
+    filasRaw.sort(sortFilas);
+    const telMap = await telefonosPorAlumno(filasRaw.map((f) => f.alumno_id));
+    const filas = filasRaw.map(({ _saldo, ...f }) => ({
+      ...f,
+      telefono_apoderado: telMap[f.alumno_id] || ''
+    }));
+
+    return res.json({
+      colegio_nombre: colegioNombre,
+      anio,
+      moneda,
+      concepto: tipoParam === 0 ? 'Matrícula' : conceptoNombre,
+      filas
+    });
+  } catch (error) {
+    console.error('Error lista deudores:', error);
+    res.status(500).json({ error: 'Error al obtener la lista de deudores' });
   }
 });
 

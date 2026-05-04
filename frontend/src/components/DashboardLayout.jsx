@@ -790,6 +790,10 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📈</span>
                     <span className="sidebar-label">Estadísticas</span>
                   </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/deudores">
+                    <span className="sidebar-icon" aria-hidden>📋</span>
+                    <span className="sidebar-label">Deudores</span>
+                  </NavLink>
                 </div>
               </div>
               {rolesAdicionales.es_apoderado && (
@@ -1324,6 +1328,10 @@ export default function DashboardLayout({ children }) {
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/estadisticas">
                     <span className="sidebar-icon" aria-hidden>📈</span>
                     <span className="sidebar-label">Estadísticas</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/deudores">
+                    <span className="sidebar-icon" aria-hidden>📋</span>
+                    <span className="sidebar-label">Deudores</span>
                   </NavLink>
                 </div>
               </div>
