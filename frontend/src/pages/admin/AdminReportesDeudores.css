@@ -211,36 +211,53 @@
 }
 
 .admin-deudores-preview-table .col-num {
-  width: 3.5%;
+  width: 4%;
 }
 
 .admin-deudores-preview-table .col-alumno {
-  width: 26%;
+  width: 30%;
 }
 
 .admin-deudores-preview-table .col-nivel {
-  width: 11%;
+  width: 13%;
   font-size: 0.82rem;
 }
 
 .admin-deudores-preview-table .col-grado {
-  width: 10%;
+  width: 12%;
 }
 
 .admin-deudores-preview-table .col-monto {
-  width: 12%;
+  width: 15%;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 
 .admin-deudores-preview-table .col-tel {
-  width: 15%;
+  width: 26%;
 }
 
-.admin-deudores-preview-table .col-obs {
-  width: 22.5%;
-  min-height: 2.75rem;
-  background: #fafafa;
+.admin-deudores-preview-headline {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 1rem 0 0.5rem;
+  font-family: var(--deudores-font);
+}
+
+.admin-deudores-preview-headline-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-deudores-preview-headline-right {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .admin-deudores-preview-table tfoot td {
@@ -271,10 +288,3 @@
   font-family: var(--deudores-font);
 }
 
-.admin-deudores-preview-title {
-  font-size: 1.05rem;
-  font-weight: 700;
-  color: #0f172a;
-  margin: 1rem 0 0.5rem;
-  font-family: var(--deudores-font);
-}

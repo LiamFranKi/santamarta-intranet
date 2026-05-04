@@ -200,14 +200,19 @@ export default function AdminReportesDeudores() {
           )}
 
           <p className="admin-deudores-hint">
-            PDF: mismas columnas, observaciones en blanco con altura para apuntes a mano. Pie: total alumnos y total deuda.
+            En PDF se incluye columna de observaciones en blanco para apuntes a mano; la tabla en pantalla muestra solo los datos útiles.
           </p>
 
           {!!filas.length && meta && (
             <div>
-              <h2 className="admin-deudores-preview-title">
-                Vista previa ({filas.length} alumno{filas.length === 1 ? '' : 's'})
-              </h2>
+              <div className="admin-deudores-preview-headline">
+                <span className="admin-deudores-preview-headline-left">
+                  Total alumnos ({filas.length})
+                </span>
+                <span className="admin-deudores-preview-headline-right">
+                  Monto total {fmtMonto(totales.totalDeuda, meta.moneda)}
+                </span>
+              </div>
               <div className="admin-deudores-preview-wrap">
                 <table className="admin-deudores-preview-table">
                   <thead>
@@ -218,7 +223,6 @@ export default function AdminReportesDeudores() {
                       <th className="col-grado">Grado</th>
                       <th className="col-monto">Monto</th>
                       <th className="col-tel">Tel. apoderado</th>
-                      <th className="col-obs">Observaciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -230,13 +234,12 @@ export default function AdminReportesDeudores() {
                         <td className="col-grado">{r.grado_etiqueta}</td>
                         <td className="col-monto">{fmtMonto(r.monto, meta.moneda)}</td>
                         <td className="col-tel">{r.telefono_apoderado || '—'}</td>
-                        <td className="col-obs" aria-label="Observaciones" />
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={4} className="deudores-tfoot-label">
+                      <td colSpan={3} className="deudores-tfoot-label">
                         Total alumnos
                       </td>
                       <td colSpan={3} className="deudores-tfoot-value">
@@ -244,7 +247,7 @@ export default function AdminReportesDeudores() {
                       </td>
                     </tr>
                     <tr>
-                      <td colSpan={4} className="deudores-tfoot-label">
+                      <td colSpan={3} className="deudores-tfoot-label">
                         Total deuda
                       </td>
                       <td colSpan={3} className="deudores-tfoot-value">
