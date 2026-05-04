@@ -158,8 +158,9 @@
 .admin-deudores-preview-wrap {
   border-radius: 10px;
   border: 1px solid #e2e8f0;
-  overflow: auto;
-  max-height: min(52vh, 520px);
+  overflow-x: auto;
+  overflow-y: visible;
+  max-height: none;
   background: #fff;
   width: 100%;
 }
@@ -210,29 +211,34 @@
 }
 
 .admin-deudores-preview-table .col-num {
-  width: 4%;
+  width: 3.5%;
 }
 
 .admin-deudores-preview-table .col-alumno {
-  width: 30%;
+  width: 26%;
+}
+
+.admin-deudores-preview-table .col-nivel {
+  width: 11%;
+  font-size: 0.82rem;
 }
 
 .admin-deudores-preview-table .col-grado {
-  width: 12%;
+  width: 10%;
 }
 
 .admin-deudores-preview-table .col-monto {
-  width: 14%;
+  width: 12%;
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
 
 .admin-deudores-preview-table .col-tel {
-  width: 18%;
+  width: 15%;
 }
 
 .admin-deudores-preview-table .col-obs {
-  width: 22%;
+  width: 22.5%;
   min-height: 2.75rem;
   background: #fafafa;
 }

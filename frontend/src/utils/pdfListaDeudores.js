@@ -6,9 +6,11 @@ const HEADER_TEXT = [255, 255, 255];
 const BORDER = [190, 200, 220];
 const FOOTER_BG = [224, 231, 255];
 const FOOTER_TEXT = [30, 27, 75];
-const ROW_H_MM = 13;
+const ROW_H_MM = 14;
 const HEADER_BAND_MM = 9;
-const TABLE_HEAD_H = 7.5;
+const TABLE_HEAD_H = 8;
+/** Altura aproximada por línea de texto (8 pt) para centrar en vertical */
+const CELL_LINE_MM = 3.2;
 
 function fmtMonto(n, moneda) {
   if (n == null || n === '') return '—';
@@ -20,6 +22,30 @@ function fmtMonto(n, moneda) {
 function safeTxt(s) {
   if (s == null) return '';
   return String(s).replace(/\r?\n/g, ' ').trim();
+}
+
+/**
+ * Texto centrado horizontal y verticalmente en la celda (1–2 líneas).
+ * @param {string|string[]} lines — string único o líneas ya partidas
+ * @param {{ bold?: boolean }} [opts]
+ */
+function drawTextCellVCentered(doc, lines, cx, yTop, rowH, maxW, opts = {}) {
+  doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
+  let wrapped;
+  if (Array.isArray(lines)) {
+    wrapped = lines.map((l) => safeTxt(l)).filter(Boolean).slice(0, 2);
+  } else {
+    wrapped = doc.splitTextToSize(safeTxt(lines), maxW).slice(0, 2);
+  }
+  if (!wrapped.length) return;
+  const n = wrapped.length;
+  const blockH = n * CELL_LINE_MM;
+  const y0 = yTop + (rowH - blockH) / 2 + CELL_LINE_MM * 0.78;
+  if (n === 1) {
+    doc.text(wrapped[0], cx, yTop + rowH / 2 + 2.5, { align: 'center', maxWidth: maxW });
+  } else {
+    doc.text(wrapped, cx, y0, { align: 'center', lineHeightFactor: 1.06, maxWidth: maxW });
+  }
 }
 
 /** Anchos en mm; la última columna absorbe el remanente para sumar exactamente innerW. */
@@ -117,7 +143,7 @@ export function generarPdfListaDeudores(opts) {
     const positioned = colStarts(margin, cols);
     for (let i = 0; i < positioned.length; i += 1) {
       const c = positioned[i];
-      doc.text(labels[i], c.x0 + c.w / 2, y + TABLE_HEAD_H / 2 + 2.2, { align: 'center' });
+      doc.text(labels[i], c.x0 + c.w / 2, y + TABLE_HEAD_H / 2 + 2.35, { align: 'center' });
     }
     doc.setTextColor(0, 0, 0);
     return y + TABLE_HEAD_H;
@@ -136,40 +162,57 @@ export function generarPdfListaDeudores(opts) {
 
   function drawDataRow(y, idx, row) {
     strokeRowFrame(y);
-    doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(35, 35, 35);
     const positioned = colStarts(margin, cols);
 
-    doc.text(String(idx), positioned[0].x0 + positioned[0].w / 2, y + ROW_H_MM / 2 + 2.6, {
-      align: 'center'
-    });
+    doc.setFont('helvetica', 'normal');
+    drawTextCellVCentered(doc, [String(idx)], positioned[0].x0 + positioned[0].w / 2, y, ROW_H_MM, positioned[0].w - 1);
 
     const nombre = safeTxt(row.nombre);
-    const nameLines = doc.splitTextToSize(nombre, positioned[1].w - 2).slice(0, 2);
-    doc.text(nameLines, positioned[1].x0 + positioned[1].w / 2, y + 4.8, {
-      align: 'center',
-      lineHeightFactor: 1.05
-    });
+    const nameWrapped = doc.splitTextToSize(nombre, positioned[1].w - 2).slice(0, 2);
+    drawTextCellVCentered(
+      doc,
+      nameWrapped,
+      positioned[1].x0 + positioned[1].w / 2,
+      y,
+      ROW_H_MM,
+      positioned[1].w - 2
+    );
 
-    const gr = safeTxt(row.grado_etiqueta);
-    const grLines = doc.splitTextToSize(gr, positioned[2].w - 2).slice(0, 2);
-    doc.text(grLines, positioned[2].x0 + positioned[2].w / 2, y + 4.8, {
-      align: 'center',
-      lineHeightFactor: 1.05
-    });
+    const gradoTxt = safeTxt(row.grado_etiqueta);
+    const nivelTxt = safeTxt(row.nivel_nombre).toUpperCase();
+    const wGr = positioned[2].w - 2;
+    const primeraLineaGrado = (doc.splitTextToSize(gradoTxt, wGr)[0] || gradoTxt).trim();
+    const lineasGrado = nivelTxt ? [primeraLineaGrado, nivelTxt] : [primeraLineaGrado];
+    drawTextCellVCentered(
+      doc,
+      lineasGrado,
+      positioned[2].x0 + positioned[2].w / 2,
+      y,
+      ROW_H_MM,
+      wGr
+    );
 
-    doc.setFont('helvetica', 'bold');
-    doc.text(fmtMonto(row.monto, moneda), positioned[3].x0 + positioned[3].w / 2, y + ROW_H_MM / 2 + 2.5, {
-      align: 'center'
-    });
-    doc.setFont('helvetica', 'normal');
+    drawTextCellVCentered(
+      doc,
+      [fmtMonto(row.monto, moneda)],
+      positioned[3].x0 + positioned[3].w / 2,
+      y,
+      ROW_H_MM,
+      positioned[3].w - 1,
+      { bold: true }
+    );
     const tel = safeTxt(row.telefono_apoderado) || '—';
-    const telLines = doc.splitTextToSize(tel, positioned[4].w - 2).slice(0, 2);
-    doc.text(telLines, positioned[4].x0 + positioned[4].w / 2, y + 4.8, {
-      align: 'center',
-      lineHeightFactor: 1.05
-    });
+    const telWrapped = doc.splitTextToSize(tel, positioned[4].w - 2).slice(0, 2);
+    drawTextCellVCentered(
+      doc,
+      telWrapped,
+      positioned[4].x0 + positioned[4].w / 2,
+      y,
+      ROW_H_MM,
+      positioned[4].w - 2
+    );
     return y + ROW_H_MM;
   }
 

@@ -214,6 +214,7 @@ export default function AdminReportesDeudores() {
                     <tr>
                       <th className="col-num">N°</th>
                       <th className="col-alumno">Alumno</th>
+                      <th className="col-nivel">Nivel</th>
                       <th className="col-grado">Grado</th>
                       <th className="col-monto">Monto</th>
                       <th className="col-tel">Tel. apoderado</th>
@@ -225,6 +226,7 @@ export default function AdminReportesDeudores() {
                       <tr key={`${r.matricula_id}-${i}`}>
                         <td className="col-num">{i + 1}</td>
                         <td className="col-alumno">{r.nombre}</td>
+                        <td className="col-nivel">{r.nivel_nombre || '—'}</td>
                         <td className="col-grado">{r.grado_etiqueta}</td>
                         <td className="col-monto">{fmtMonto(r.monto, meta.moneda)}</td>
                         <td className="col-tel">{r.telefono_apoderado || '—'}</td>
@@ -234,7 +236,7 @@ export default function AdminReportesDeudores() {
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={3} className="deudores-tfoot-label">
+                      <td colSpan={4} className="deudores-tfoot-label">
                         Total alumnos
                       </td>
                       <td colSpan={3} className="deudores-tfoot-value">
@@ -242,7 +244,7 @@ export default function AdminReportesDeudores() {
                       </td>
                     </tr>
                     <tr>
-                      <td colSpan={3} className="deudores-tfoot-label">
+                      <td colSpan={4} className="deudores-tfoot-label">
                         Total deuda
                       </td>
                       <td colSpan={3} className="deudores-tfoot-value">
