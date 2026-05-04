@@ -134,14 +134,6 @@ export default function AdminReportesDeudores() {
         total_alumnos_unicos: data.total_alumnos_unicos
       });
       setFilas(data.filas || []);
-      if (!(data.filas || []).length) {
-        Swal.fire({
-          icon: 'info',
-          title: 'Sin deudores',
-          text: 'No hay alumnos con saldo pendiente para los filtros elegidos.',
-          confirmButtonText: 'Aceptar'
-        });
-      }
     } catch (e) {
       Swal.fire({
         icon: 'error',
@@ -269,7 +261,7 @@ export default function AdminReportesDeudores() {
             El PDF replica la misma tabla: grado con nivel debajo, teléfono y columna Detalle (tutor) cuando exista texto guardado.
           </p>
 
-          {!!filas.length && meta && (
+          {meta && (
             <div>
               <div className="admin-deudores-preview-headline">
                 <span className="admin-deudores-preview-headline-left">

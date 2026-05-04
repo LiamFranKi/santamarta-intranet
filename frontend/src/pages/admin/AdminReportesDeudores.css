@@ -81,9 +81,10 @@
   flex-shrink: 0;
 }
 
+/* ~20% más angosto que la versión anterior para que la barra de filtros entre mejor */
 .admin-deudores-toolbar select.admin-deudores-select-grado {
-  min-width: min(22rem, 55vw);
-  max-width: min(28rem, 70vw);
+  min-width: min(17.5rem, 44vw);
+  max-width: min(22.5rem, 56vw);
 }
 
 .admin-deudores-segment {
