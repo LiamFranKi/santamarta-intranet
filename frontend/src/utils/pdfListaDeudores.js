@@ -43,19 +43,23 @@ function drawTextCellVCentered(doc, lines, cx, yTop, rowH, maxW, opts = {}) {
   }
 }
 
-/** Observaciones: alineado izquierda, varias líneas dentro de la celda */
-function drawObsCell(doc, text, x0, yTop, w, h) {
+/** Detalle / observaciones: centrado horizontal y vertical en la celda */
+function drawObsCellCentered(doc, text, x0, yTop, w, h) {
   const t = safeTxt(text);
-  if (!t) return;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.3);
   doc.setTextColor(35, 35, 35);
-  const lines = doc.splitTextToSize(t, w - 2.5).slice(0, 14);
-  let yy = yTop + 2.8;
+  if (!t) return;
+  const lines = doc.splitTextToSize(t, w - 3).slice(0, 14);
+  if (!lines.length) return;
+  const lineH = 2.55;
+  const blockH = lines.length * lineH * 1.05;
+  let yy = yTop + Math.max((h - blockH) / 2 + lineH * 0.85, 2.6);
+  const cx = x0 + w / 2;
   for (const line of lines) {
-    if (yy > yTop + h - 1.5) break;
-    doc.text(line, x0 + 1.2, yy);
-    yy += 2.55;
+    if (yy > yTop + h - 1) break;
+    doc.text(line, cx, yy, { align: 'center', maxWidth: w - 3 });
+    yy += lineH;
   }
 }
 
@@ -92,7 +96,7 @@ function computeRowHeight(doc, row, wObs) {
   const obs = textoObservacionRow(row);
   if (!obs) return ROW_H_BASE_MM;
   doc.setFontSize(6.3);
-  const n = doc.splitTextToSize(obs, wObs - 2.5).length;
+  const n = doc.splitTextToSize(obs, wObs - 3).length;
   return Math.min(42, Math.max(ROW_H_BASE_MM, 5.5 + Math.min(n, 14) * 2.55));
 }
 
@@ -245,7 +249,7 @@ export function generarPdfListaDeudores(opts) {
       positioned[4].w - 2
     );
 
-    drawObsCell(doc, textoObservacionRow(row), positioned[5].x0, y, wObs, rowH);
+    drawObsCellCentered(doc, textoObservacionRow(row), positioned[5].x0, y, wObs, rowH);
 
     return y + rowH;
   }

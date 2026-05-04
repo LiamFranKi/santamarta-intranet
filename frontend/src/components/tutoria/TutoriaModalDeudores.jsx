@@ -5,6 +5,15 @@ import Swal from 'sweetalert2';
 import { generarPdfListaDeudores } from '../../utils/pdfListaDeudores';
 import './TutoriaModalDeudores.css';
 
+/** SweetAlert por encima del overlay del modal (z-index 100000 en DocenteTutoria.css) */
+const swalSobreModal = {
+  customClass: { container: 'tutoria-deudores-swal-container' },
+  didOpen: (popup) => {
+    const root = popup?.closest?.('.swal2-container');
+    if (root) root.style.zIndex = '250000';
+  }
+};
+
 function fmtMonto(n, moneda) {
   if (n == null || n === '') return '—';
   return `${moneda || 'S/'} ${parseFloat(n).toLocaleString('es-PE', {
@@ -49,10 +58,10 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
     } catch (e) {
       console.error(e);
       Swal.fire({
+        ...swalSobreModal,
         icon: 'error',
         title: 'Error',
-        text: e.response?.data?.error || 'No se pudieron cargar los conceptos.',
-        zIndex: 100001
+        text: e.response?.data?.error || 'No se pudieron cargar los conceptos.'
       });
     } finally {
       setLoadingConceptos(false);
@@ -77,10 +86,10 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
     } catch (e) {
       console.error(e);
       Swal.fire({
+        ...swalSobreModal,
         icon: 'error',
         title: 'Error',
-        text: e.response?.data?.error || 'No se pudo cargar la lista de deudores.',
-        zIndex: 100001
+        text: e.response?.data?.error || 'No se pudo cargar la lista de deudores.'
       });
       setFilas([]);
     } finally {
@@ -113,7 +122,7 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
 
   const handleGuardar = async () => {
     if (!grupo?.id || !filas.length) {
-      Swal.fire({ icon: 'info', title: 'Nada que guardar', zIndex: 100001 });
+      Swal.fire({ ...swalSobreModal, icon: 'info', title: 'Nada que guardar' });
       return;
     }
     setGuardando(true);
@@ -128,18 +137,18 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
         items
       });
       Swal.fire({
+        ...swalSobreModal,
         icon: 'success',
         title: 'Guardado',
-        text: `Se actualizaron ${data.guardados ?? items.length} registro(s).`,
-        zIndex: 100001
+        text: `Se actualizaron ${data.guardados ?? items.length} registro(s).`
       });
     } catch (e) {
       console.error(e);
       Swal.fire({
+        ...swalSobreModal,
         icon: 'error',
         title: 'Error',
-        text: e.response?.data?.error || 'No se pudieron guardar las observaciones.',
-        zIndex: 100001
+        text: e.response?.data?.error || 'No se pudieron guardar las observaciones.'
       });
     } finally {
       setGuardando(false);
@@ -148,7 +157,12 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
 
   const handleExportar = () => {
     if (!meta || !filas.length) {
-      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay filas para exportar.', zIndex: 100001 });
+      Swal.fire({
+        ...swalSobreModal,
+        icon: 'info',
+        title: 'Sin datos',
+        text: 'No hay filas para exportar.'
+      });
       return;
     }
     try {
@@ -168,7 +182,7 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
       });
     } catch (e) {
       console.error(e);
-      Swal.fire({ icon: 'error', title: 'PDF', text: 'No se pudo generar el PDF.', zIndex: 100001 });
+      Swal.fire({ ...swalSobreModal, icon: 'error', title: 'PDF', text: 'No se pudo generar el PDF.' });
     }
   };
 
@@ -198,41 +212,45 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
             ✕
           </button>
         </div>
-        <p className="tutoria-modal-deudores-sub">{tituloGrupo}</p>
 
-        <div className="modal-registro-asistencia-filters tutoria-modal-deudores-filters">
-          <label htmlFor="tut-deudores-anio">Año</label>
-          <input
-            id="tut-deudores-anio"
-            type="number"
-            min={2000}
-            max={2100}
-            value={anio}
-            onChange={(e) => setAnio(e.target.value)}
-            className="tutoria-modal-deudores-input-anio"
-          />
-          <label htmlFor="tut-deudores-concepto">Concepto</label>
-          <select
-            id="tut-deudores-concepto"
-            value={tipoConcepto}
-            onChange={(e) => setTipoConcepto(e.target.value)}
-            disabled={loadingConceptos}
-            className="tutoria-modal-deudores-select"
-          >
-            {opcionesConcepto.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="btn-imprimir-asistencia"
-            onClick={cargarLista}
-            disabled={loadingLista || loadingConceptos}
-          >
-            🔄 Actualizar
-          </button>
+        <div className="tutoria-modal-deudores-toolbar-row">
+          <div className="tutoria-modal-deudores-filters tutoria-modal-deudores-filters--inline">
+            <label htmlFor="tut-deudores-anio">Año</label>
+            <input
+              id="tut-deudores-anio"
+              type="number"
+              min={2000}
+              max={2100}
+              value={anio}
+              onChange={(e) => setAnio(e.target.value)}
+              className="tutoria-modal-deudores-input-anio"
+            />
+            <label htmlFor="tut-deudores-concepto">Concepto</label>
+            <select
+              id="tut-deudores-concepto"
+              value={tipoConcepto}
+              onChange={(e) => setTipoConcepto(e.target.value)}
+              disabled={loadingConceptos}
+              className="tutoria-modal-deudores-select"
+            >
+              {opcionesConcepto.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="tutoria-modal-deudores-btn-actualizar"
+              onClick={cargarLista}
+              disabled={loadingLista || loadingConceptos}
+            >
+              🔄 Actualizar
+            </button>
+          </div>
+          <div className="tutoria-modal-deudores-grupo-etiqueta" title="Grupo">
+            {tituloGrupo}
+          </div>
         </div>
 
         {!!filas.length && meta && (
@@ -255,7 +273,6 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
               <thead>
                 <tr>
                   <th>Alumno</th>
-                  <th>Grado</th>
                   <th>Concepto</th>
                   <th>Monto</th>
                   <th>Tel. apoderado</th>
@@ -266,10 +283,6 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
                 {filas.map((r) => (
                   <tr key={filaKey(r)}>
                     <td className="tut-deudores-col-nombre">{r.nombre}</td>
-                    <td className="tut-deudores-col-grado">
-                      <span className="tut-deudores-grado-line">{r.grado_etiqueta}</span>
-                      <span className="tut-deudores-nivel-sub">{r.nivel_nombre || '—'}</span>
-                    </td>
                     <td>{r.concepto}</td>
                     <td className="tut-deudores-monto">{fmtMonto(r.monto, moneda)}</td>
                     <td className="tut-deudores-tel">{r.telefono_apoderado || '—'}</td>

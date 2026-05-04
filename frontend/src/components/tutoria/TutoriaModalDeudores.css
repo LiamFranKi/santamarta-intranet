@@ -1,19 +1,52 @@
+/* Alertas SweetAlert2 por encima del modal (overlay tutoría ~100000) */
+body .swal2-container.tutoria-deudores-swal-container {
+  z-index: 250000 !important;
+}
+
 .tutoria-modal-deudores-panel {
   max-width: min(1120px, 96vw);
   width: 100%;
 }
 
-.tutoria-modal-deudores-sub {
-  margin: -0.25rem 1.25rem 0.75rem;
-  font-size: 0.95rem;
-  color: #475569;
-  font-weight: 600;
+/* Fila: filtros a la izquierda, grado/nivel del grupo a la derecha (más grande) */
+.tutoria-modal-deudores-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  padding: 0.65rem 1.25rem 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.tutoria-modal-deudores-filters {
+.tutoria-modal-deudores-filters--inline {
+  flex: 1;
+  min-width: 0;
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem 0.75rem;
+}
+
+.tutoria-modal-deudores-grupo-etiqueta {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #1e3a8a;
+  letter-spacing: 0.02em;
+  text-align: right;
+  line-height: 1.25;
+  max-width: min(22rem, 100%);
+}
+
+@media (max-width: 640px) {
+  .tutoria-modal-deudores-toolbar-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .tutoria-modal-deudores-grupo-etiqueta {
+    text-align: left;
+    max-width: none;
+  }
 }
 
 .tutoria-modal-deudores-input-anio {
@@ -32,6 +65,33 @@
   border-radius: 8px;
   font-size: 0.9rem;
   background: #fff;
+}
+
+/* Mismo criterio que cabeceras azules del reporte (VanguardNet) */
+.tutoria-modal-deudores-btn-actualizar {
+  padding: 0.48rem 1rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  color: #fff;
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.35);
+  transition: filter 0.2s ease, transform 0.15s ease;
+}
+
+.tutoria-modal-deudores-btn-actualizar:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+.tutoria-modal-deudores-btn-actualizar:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .tutoria-deudores-headline {
@@ -80,26 +140,8 @@
 .tut-deudores-col-nombre {
   font-weight: 600;
   color: #1e293b;
-  max-width: 11rem;
+  max-width: 16rem;
   line-height: 1.25;
-}
-
-.tut-deudores-col-grado {
-  white-space: normal;
-  max-width: 6.5rem;
-}
-
-.tut-deudores-grado-line {
-  display: block;
-  font-weight: 600;
-  color: #334155;
-}
-
-.tut-deudores-nivel-sub {
-  display: block;
-  font-size: 0.78rem;
-  color: #64748b;
-  margin-top: 0.15rem;
 }
 
 .tut-deudores-monto {
@@ -111,12 +153,12 @@
 
 .tut-deudores-tel {
   font-size: 0.82rem;
-  max-width: 7rem;
+  max-width: 9rem;
   word-break: break-word;
 }
 
 .tut-deudores-col-obs {
-  min-width: 12rem;
+  min-width: 14rem;
 }
 
 .tut-deudores-textarea {
@@ -134,8 +176,8 @@
 
 .tut-deudores-textarea:focus {
   outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 
 .tutoria-modal-deudores-footer {
