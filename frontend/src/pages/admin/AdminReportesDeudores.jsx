@@ -25,10 +25,14 @@ export default function AdminReportesDeudores() {
   const [loadingLista, setLoadingLista] = useState(false);
 
   const totales = useMemo(() => {
-    const n = filas.length;
     const suma = filas.reduce((s, r) => s + (parseFloat(r.monto) || 0), 0);
-    return { totalAlumnos: n, totalDeuda: Math.round(suma * 100) / 100 };
+    return { totalDeuda: Math.round(suma * 100) / 100 };
   }, [filas]);
+
+  const totalAlumnosUnicos = useMemo(() => {
+    if (typeof meta?.total_alumnos_unicos === 'number') return meta.total_alumnos_unicos;
+    return new Set(filas.map((r) => r.alumno_id)).size;
+  }, [meta, filas]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +84,8 @@ export default function AdminReportesDeudores() {
         colegio_nombre: data.colegio_nombre,
         anio: data.anio,
         moneda: data.moneda,
-        concepto: data.concepto
+        concepto: data.concepto,
+        total_alumnos_unicos: data.total_alumnos_unicos
       });
       setFilas(data.filas || []);
       if (!(data.filas || []).length) {
@@ -115,7 +120,7 @@ export default function AdminReportesDeudores() {
         concepto: meta.concepto,
         modoAgrupacion: modoAgrupacion === 'por_grado' ? 'por_grado' : 'todo',
         filas,
-        totalAlumnos: totales.totalAlumnos,
+        totalAlumnosUnicos,
         totalDeuda: totales.totalDeuda
       });
     } catch (e) {
@@ -207,7 +212,7 @@ export default function AdminReportesDeudores() {
             <div>
               <div className="admin-deudores-preview-headline">
                 <span className="admin-deudores-preview-headline-left">
-                  Total alumnos ({filas.length})
+                  Total alumnos ({totalAlumnosUnicos})
                 </span>
                 <span className="admin-deudores-preview-headline-right">
                   Monto total {fmtMonto(totales.totalDeuda, meta.moneda)}
@@ -217,45 +222,37 @@ export default function AdminReportesDeudores() {
                 <table className="admin-deudores-preview-table">
                   <thead>
                     <tr>
-                      <th className="col-num">N°</th>
                       <th className="col-alumno">Alumno</th>
                       <th className="col-nivel">Nivel</th>
                       <th className="col-grado">Grado</th>
+                      <th className="col-concepto">Concepto</th>
                       <th className="col-monto">Monto</th>
                       <th className="col-tel">Tel. apoderado</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filas.map((r, i) => (
-                      <tr key={`${r.matricula_id}-${i}`}>
-                        <td className="col-num">{i + 1}</td>
-                        <td className="col-alumno">{r.nombre}</td>
+                      <tr key={`${r.matricula_id}-${r.concepto || 'x'}-${i}`}>
+                        <td className="col-alumno">
+                          <span className="admin-deudores-alumno-cell">{r.nombre}</span>
+                        </td>
                         <td className="col-nivel">{r.nivel_nombre || '—'}</td>
                         <td className="col-grado">{r.grado_etiqueta}</td>
+                        <td className="col-concepto">{r.concepto || '—'}</td>
                         <td className="col-monto">{fmtMonto(r.monto, meta.moneda)}</td>
                         <td className="col-tel">{r.telefono_apoderado || '—'}</td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={3} className="deudores-tfoot-label">
-                        Total alumnos
-                      </td>
-                      <td colSpan={3} className="deudores-tfoot-value">
-                        {totales.totalAlumnos}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td colSpan={3} className="deudores-tfoot-label">
-                        Total deuda
-                      </td>
-                      <td colSpan={3} className="deudores-tfoot-value">
-                        {fmtMonto(totales.totalDeuda, meta.moneda)}
-                      </td>
-                    </tr>
-                  </tfoot>
                 </table>
+              </div>
+              <div className="admin-deudores-preview-headline admin-deudores-preview-summary-below">
+                <span className="admin-deudores-preview-headline-left">
+                  Total alumnos ({totalAlumnosUnicos})
+                </span>
+                <span className="admin-deudores-preview-headline-right">
+                  Monto total {fmtMonto(totales.totalDeuda, meta.moneda)}
+                </span>
               </div>
             </div>
           )}

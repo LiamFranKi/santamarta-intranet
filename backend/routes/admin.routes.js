@@ -905,6 +905,35 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
       return String(a.nombres || '').localeCompare(String(b.nombres || ''), 'es', { sensitivity: 'base' });
     };
 
+    const sortFilasLuegoConcepto = (a, b) => {
+      const base = sortFilas(a, b);
+      if (base !== 0) return base;
+      return (parseInt(a.concepto_orden, 10) || 0) - (parseInt(b.concepto_orden, 10) || 0);
+    };
+
+    const nombresMesPension = [
+      '',
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre'
+    ];
+
+    const etiquetaConceptoPension = (nroPago) => {
+      const indiceMes = 2 + nroPago;
+      const nom =
+        indiceMes <= 12 ? nombresMesPension[indiceMes] || `Mes ${nroPago}` : `Mes ${nroPago}`;
+      return `Mensualidad ${nom}`;
+    };
+
     const telefonosPorAlumno = async (alumnoIds) => {
       const map = {};
       const uniq = [...new Set((alumnoIds || []).filter((id) => id != null))];
@@ -958,6 +987,7 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
           anio,
           moneda,
           concepto: nombreConcepto,
+          total_alumnos_unicos: 0,
           filas: []
         });
       }
@@ -991,12 +1021,9 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
         const pm = pagosPorMatricula[mr.matricula_id] || { t0: 0, pens: {} };
         const costoMat = parseFloat(mr.costo_matricula) || 0;
         const costoPens = parseFloat(mr.costo_pension) || 0;
-        let saldoTotal = Math.max(0, costoMat - pm.t0);
-        for (let i = 1; i <= totalPensiones; i += 1) {
-          const pag = pm.pens[i] || 0;
-          saldoTotal += Math.max(0, costoPens - pag);
-        }
-        if (saldoTotal > 0.004) {
+
+        const saldoMat = Math.max(0, costoMat - pm.t0);
+        if (saldoMat > 0.004) {
           filasRaw.push({
             matricula_id: mr.matricula_id,
             alumno_id: mr.alumno_id,
@@ -1008,24 +1035,56 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
             nivel_id: mr.nivel_id,
             grado: mr.grado,
             seccion: mr.seccion,
-            monto: Math.round(saldoTotal * 100) / 100,
+            monto: Math.round(saldoMat * 100) / 100,
+            concepto: 'Matrícula',
+            concepto_orden: 0,
             apellido_paterno: mr.apellido_paterno,
             apellido_materno: mr.apellido_materno,
             nombres: mr.nombres
           });
         }
+
+        for (let i = 1; i <= totalPensiones; i += 1) {
+          const pag = pm.pens[i] || 0;
+          const saldoP = Math.max(0, costoPens - pag);
+          if (saldoP > 0.004) {
+            filasRaw.push({
+              matricula_id: mr.matricula_id,
+              alumno_id: mr.alumno_id,
+              nombre: nombreAlumno(mr),
+              grado_etiqueta: etiquetaGrado(mr),
+              nivel_nombre: mr.nivel_nombre || '',
+              grado_agrupacion_key: `${mr.nivel_id}|${mr.grado}`,
+              grado_agrupacion_titulo: tituloAgrupacion(mr),
+              nivel_id: mr.nivel_id,
+              grado: mr.grado,
+              seccion: mr.seccion,
+              monto: Math.round(saldoP * 100) / 100,
+              concepto: etiquetaConceptoPension(i),
+              concepto_orden: i,
+              apellido_paterno: mr.apellido_paterno,
+              apellido_materno: mr.apellido_materno,
+              nombres: mr.nombres
+            });
+          }
+        }
       }
-      filasRaw.sort(sortFilas);
+      filasRaw.sort(sortFilasLuegoConcepto);
       const telMap = await telefonosPorAlumno(filasRaw.map((f) => f.alumno_id));
-      const filas = filasRaw.map((f) => ({
-        ...f,
-        telefono_apoderado: telMap[f.alumno_id] || ''
-      }));
+      const filas = filasRaw.map((f) => {
+        const { concepto_orden, ...rest } = f;
+        return {
+          ...rest,
+          telefono_apoderado: telMap[f.alumno_id] || ''
+        };
+      });
+      const idsAlumno = new Set((filasRaw || []).map((f) => f.alumno_id));
       return res.json({
         colegio_nombre: colegioNombre,
         anio,
         moneda,
         concepto: nombreConcepto,
+        total_alumnos_unicos: idsAlumno.size,
         filas
       });
     }
@@ -1062,6 +1121,7 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
           anio,
           moneda,
           concepto: `Mes ${nroPago}`,
+          total_alumnos_unicos: 0,
           filas: []
         });
       }
@@ -1098,6 +1158,9 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
       );
     }
 
+    const etiquetaFilaUnica =
+      tipoParam === 0 ? 'Matrícula' : `Mensualidad ${conceptoNombre}`;
+
     const filasRaw = (rows || [])
       .map((r) => {
         const tarifa = parseFloat(r.tarifa) || 0;
@@ -1115,6 +1178,7 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
           grado: r.grado,
           seccion: r.seccion,
           monto: Math.round(saldo * 100) / 100,
+          concepto: etiquetaFilaUnica,
           apellido_paterno: r.apellido_paterno,
           apellido_materno: r.apellido_materno,
           nombres: r.nombres,
@@ -1128,12 +1192,14 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
       ...f,
       telefono_apoderado: telMap[f.alumno_id] || ''
     }));
+    const idsAlumno = new Set(filas.map((f) => f.alumno_id));
 
     return res.json({
       colegio_nombre: colegioNombre,
       anio,
       moneda,
       concepto: tipoParam === 0 ? 'Matrícula' : conceptoNombre,
+      total_alumnos_unicos: idsAlumno.size,
       filas
     });
   } catch (error) {

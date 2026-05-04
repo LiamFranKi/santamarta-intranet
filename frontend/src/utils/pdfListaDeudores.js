@@ -1,15 +1,11 @@
 import { jsPDF } from 'jspdf';
 
-/** Azul uniforme (sin gradiente) para cabeceras */
 const HEADER_BLUE = [30, 64, 175];
 const HEADER_TEXT = [255, 255, 255];
 const BORDER = [190, 200, 220];
-const FOOTER_BG = [224, 231, 255];
-const FOOTER_TEXT = [30, 27, 75];
 const ROW_H_MM = 14;
 const HEADER_BAND_MM = 9;
 const TABLE_HEAD_H = 8;
-/** Altura aproximada por línea de texto (8 pt) para centrar en vertical */
 const CELL_LINE_MM = 3.2;
 
 function fmtMonto(n, moneda) {
@@ -24,11 +20,6 @@ function safeTxt(s) {
   return String(s).replace(/\r?\n/g, ' ').trim();
 }
 
-/**
- * Texto centrado horizontal y verticalmente en la celda (1–2 líneas).
- * @param {string|string[]} lines — string único o líneas ya partidas
- * @param {{ bold?: boolean }} [opts]
- */
 function drawTextCellVCentered(doc, lines, cx, yTop, rowH, maxW, opts = {}) {
   doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
   let wrapped;
@@ -48,19 +39,21 @@ function drawTextCellVCentered(doc, lines, cx, yTop, rowH, maxW, opts = {}) {
   }
 }
 
-/** Anchos en mm; la última columna absorbe el remanente para sumar exactamente innerW. */
+/** 7 columnas: sin N°; OBS absorbe el ancho restante */
 function buildColumns(innerW) {
-  const wN = innerW * 0.055;
-  const wAl = innerW * 0.31;
-  const wGr = innerW * 0.12;
-  const wMo = innerW * 0.135;
-  const wTe = innerW * 0.175;
-  const sum5 = wN + wAl + wGr + wMo + wTe;
-  const wOb = innerW - sum5;
+  const wAl = innerW * 0.22;
+  const wNi = innerW * 0.09;
+  const wGr = innerW * 0.1;
+  const wCo = innerW * 0.14;
+  const wMo = innerW * 0.11;
+  const wTe = innerW * 0.13;
+  const sum6 = wAl + wNi + wGr + wCo + wMo + wTe;
+  const wOb = innerW - sum6;
   return [
-    { key: 'n', w: wN },
     { key: 'alumno', w: wAl },
+    { key: 'nivel', w: wNi },
     { key: 'grado', w: wGr },
+    { key: 'concepto', w: wCo },
     { key: 'monto', w: wMo },
     { key: 'tel', w: wTe },
     { key: 'obs', w: wOb }
@@ -85,8 +78,8 @@ function colStarts(margin, cols) {
  * @param {string} [opts.concepto]
  * @param {'todo'|'por_grado'} [opts.modoAgrupacion]
  * @param {Array<object>} opts.filas
- * @param {number} [opts.totalAlumnos]
  * @param {number} [opts.totalDeuda]
+ * @param {number} [opts.totalAlumnosUnicos]
  */
 export function generarPdfListaDeudores(opts) {
   const {
@@ -98,21 +91,22 @@ export function generarPdfListaDeudores(opts) {
     filas = []
   } = opts;
 
-  const totalAlumnos =
-    typeof opts.totalAlumnos === 'number'
-      ? opts.totalAlumnos
-      : filas.length;
   const totalDeuda =
     typeof opts.totalDeuda === 'number'
       ? opts.totalDeuda
       : Math.round(filas.reduce((s, r) => s + (parseFloat(r.monto) || 0), 0) * 100) / 100;
+
+  const totalAlumnosUnicos =
+    typeof opts.totalAlumnosUnicos === 'number'
+      ? opts.totalAlumnosUnicos
+      : new Set(filas.map((r) => r.alumno_id)).size;
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 12;
   const innerW = pageW - margin * 2;
-  const bottomSafe = 18;
+  const bottomSafe = 20;
   const cols = buildColumns(innerW);
 
   function drawMainHeader(yStart) {
@@ -136,9 +130,17 @@ export function generarPdfListaDeudores(opts) {
     doc.rect(margin, y, innerW, TABLE_HEAD_H, 'F');
     doc.setDrawColor(...BORDER);
     doc.setLineWidth(0.15);
-    const labels = ['N°', 'ALUMNO', 'GRADO', 'MONTO', 'TEL. APODERADO', 'OBSERVACIONES'];
+    const labels = [
+      'ALUMNO',
+      'NIVEL',
+      'GRADO',
+      'CONCEPTO',
+      'MONTO',
+      'TEL. APODERADO',
+      'OBSERVACIONES'
+    ];
     doc.setTextColor(...HEADER_TEXT);
-    doc.setFontSize(7);
+    doc.setFontSize(6.5);
     doc.setFont('helvetica', 'bold');
     const positioned = colStarts(margin, cols);
     for (let i = 0; i < positioned.length; i += 1) {
@@ -160,88 +162,96 @@ export function generarPdfListaDeudores(opts) {
     }
   }
 
-  function drawDataRow(y, idx, row) {
+  function drawDataRow(y, row) {
     strokeRowFrame(y);
     doc.setFontSize(8);
     doc.setTextColor(35, 35, 35);
     const positioned = colStarts(margin, cols);
 
-    doc.setFont('helvetica', 'normal');
-    drawTextCellVCentered(doc, [String(idx)], positioned[0].x0 + positioned[0].w / 2, y, ROW_H_MM, positioned[0].w - 1);
-
     const nombre = safeTxt(row.nombre);
-    const nameWrapped = doc.splitTextToSize(nombre, positioned[1].w - 2).slice(0, 2);
+    const nameWrapped = doc.splitTextToSize(nombre, positioned[0].w - 2).slice(0, 2);
     drawTextCellVCentered(
       doc,
       nameWrapped,
+      positioned[0].x0 + positioned[0].w / 2,
+      y,
+      ROW_H_MM,
+      positioned[0].w - 2
+    );
+
+    drawTextCellVCentered(
+      doc,
+      [safeTxt(row.nivel_nombre) || '—'],
       positioned[1].x0 + positioned[1].w / 2,
       y,
       ROW_H_MM,
-      positioned[1].w - 2
+      positioned[1].w - 1
     );
 
     const gradoTxt = safeTxt(row.grado_etiqueta);
-    const nivelTxt = safeTxt(row.nivel_nombre).toUpperCase();
-    const wGr = positioned[2].w - 2;
-    const primeraLineaGrado = (doc.splitTextToSize(gradoTxt, wGr)[0] || gradoTxt).trim();
-    const lineasGrado = nivelTxt ? [primeraLineaGrado, nivelTxt] : [primeraLineaGrado];
     drawTextCellVCentered(
       doc,
-      lineasGrado,
+      [gradoTxt],
       positioned[2].x0 + positioned[2].w / 2,
       y,
       ROW_H_MM,
-      wGr
+      positioned[2].w - 2
+    );
+
+    const con = safeTxt(row.concepto) || '—';
+    const conWrapped = doc.splitTextToSize(con, positioned[3].w - 2).slice(0, 2);
+    drawTextCellVCentered(
+      doc,
+      conWrapped,
+      positioned[3].x0 + positioned[3].w / 2,
+      y,
+      ROW_H_MM,
+      positioned[3].w - 2
     );
 
     drawTextCellVCentered(
       doc,
       [fmtMonto(row.monto, moneda)],
-      positioned[3].x0 + positioned[3].w / 2,
-      y,
-      ROW_H_MM,
-      positioned[3].w - 1,
-      { bold: true }
-    );
-    const tel = safeTxt(row.telefono_apoderado) || '—';
-    const telWrapped = doc.splitTextToSize(tel, positioned[4].w - 2).slice(0, 2);
-    drawTextCellVCentered(
-      doc,
-      telWrapped,
       positioned[4].x0 + positioned[4].w / 2,
       y,
       ROW_H_MM,
-      positioned[4].w - 2
+      positioned[4].w - 1,
+      { bold: true }
+    );
+
+    const tel = safeTxt(row.telefono_apoderado) || '—';
+    const telWrapped = doc.splitTextToSize(tel, positioned[5].w - 2).slice(0, 2);
+    drawTextCellVCentered(
+      doc,
+      telWrapped,
+      positioned[5].x0 + positioned[5].w / 2,
+      y,
+      ROW_H_MM,
+      positioned[5].w - 2
     );
     return y + ROW_H_MM;
   }
 
-  function drawFooterTotals(y) {
-    const rowH = 6.5;
-    const need = rowH * 2 + 2;
-    if (y + need > pageH - bottomSafe) {
+  /** Pie estilo resumen: una línea, mismo criterio que la vista web (imagen 01) */
+  function drawSummaryLineFooter(y) {
+    const bandH = 9;
+    if (y + bandH > pageH - bottomSafe) {
       doc.addPage();
       y = margin;
     }
+    doc.setDrawColor(...HEADER_BLUE);
+    doc.setLineWidth(0.45);
+    doc.line(margin, y, margin + innerW, y);
+    y += 1.2;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(...FOOTER_TEXT);
-
-    doc.setFillColor(...FOOTER_BG);
-    doc.rect(margin, y, innerW, rowH, 'F');
-    doc.setDrawColor(...BORDER);
-    doc.rect(margin, y, innerW, rowH, 'S');
-    doc.text('Total alumnos', margin + 3, y + rowH / 2 + 2.8);
-    doc.text(String(totalAlumnos), margin + innerW - 3, y + rowH / 2 + 2.8, { align: 'right' });
-    y += rowH;
-
-    doc.setFillColor(...FOOTER_BG);
-    doc.rect(margin, y, innerW, rowH, 'F');
-    doc.rect(margin, y, innerW, rowH, 'S');
-    doc.text('Total deuda', margin + 3, y + rowH / 2 + 2.8);
-    doc.text(fmtMonto(totalDeuda, moneda), margin + innerW - 3, y + rowH / 2 + 2.8, { align: 'right' });
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    const left = `Total alumnos (${totalAlumnosUnicos})`;
+    const right = `Monto total ${fmtMonto(totalDeuda, moneda)}`;
+    doc.text(left, margin + 1, y + 6);
+    doc.text(right, margin + innerW - 1, y + 6, { align: 'right' });
     doc.setTextColor(0, 0, 0);
-    return y + rowH;
+    return y + bandH;
   }
 
   function agruparPorGrado(list) {
@@ -289,7 +299,6 @@ export function generarPdfListaDeudores(opts) {
 
     y = drawTableHeader(y);
 
-    let num = 1;
     for (const row of sec.filas) {
       if (y + ROW_H_MM > pageH - bottomSafe) {
         doc.addPage();
@@ -307,12 +316,11 @@ export function generarPdfListaDeudores(opts) {
         }
         y = drawTableHeader(y);
       }
-      y = drawDataRow(y, num, row);
-      num += 1;
+      y = drawDataRow(y, row);
     }
   }
 
-  y = drawFooterTotals(y);
+  y = drawSummaryLineFooter(y);
 
   const totalPages = doc.internal.getNumberOfPages();
   for (let p = 1; p <= totalPages; p += 1) {
