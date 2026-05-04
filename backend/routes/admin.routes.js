@@ -865,12 +865,17 @@ router.get('/estadisticas/deudas-por-aula/alumnos', async (req, res) => {
  * GET /api/admin/estadisticas/deudores-lista
  * Lista de deudores del colegio (año + concepto) con grado y teléfono de apoderado, para reporte/PDF.
  * Query: anio (opcional), tipo: 0=matrícula, 1..N=nro pensión, todos=saldo total pendiente (todos los conceptos).
+ * Query opcional: grupo_id (id de aula/grupo del año lectivo) para filtrar solo ese grado.
  */
 router.get('/estadisticas/deudores-lista', async (req, res) => {
   try {
     const { colegio_id } = req.user;
     const anioParam = parseInt(req.query.anio, 10);
     const tipoRaw = req.query.tipo;
+    const grupoIdQ =
+      req.query.grupo_id != null && String(req.query.grupo_id).trim() !== ''
+        ? parseInt(req.query.grupo_id, 10)
+        : null;
 
     const [colegio] = await query(
       `SELECT anio_activo, total_pensiones, moneda, titulo_intranet, razon_social
@@ -881,6 +886,27 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
     const totalPensiones = parseInt(colegio?.total_pensiones || 10);
     const moneda = colegio?.moneda || 'S/';
     const colegioNombre = (colegio?.razon_social || colegio?.titulo_intranet || 'Colegio').trim();
+
+    const useGrupoFilter = Number.isFinite(grupoIdQ) && grupoIdQ > 0;
+    if (useGrupoFilter) {
+      const gRows = await query(
+        `SELECT id FROM grupos WHERE id = ? AND colegio_id = ? AND anio = ? LIMIT 1`,
+        [grupoIdQ, colegio_id, anio]
+      );
+      if (!gRows || gRows.length === 0) {
+        return res.status(400).json({
+          error: 'El grado seleccionado no es válido para el año lectivo o no pertenece a este colegio.'
+        });
+      }
+    }
+
+    const grupoAndSql = useGrupoFilter ? ' AND g.id = ?' : '';
+    const baseMatriculaParams = () => {
+      const p = [colegio_id, anio];
+      if (useGrupoFilter) p.push(grupoIdQ);
+      p.push(colegio_id);
+      return p;
+    };
 
     const nombreAlumno = (r) =>
       [r.apellido_paterno, r.apellido_materno, r.nombres].filter(Boolean).join(' ').trim() || '—';
@@ -963,7 +989,7 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
       INNER JOIN niveles n ON n.id = g.nivel_id
       INNER JOIN costos c ON c.id = m.costo_id
       INNER JOIN alumnos a ON a.id = m.alumno_id
-      WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)
+      WHERE m.colegio_id = ? AND g.anio = ?${grupoAndSql} AND (m.estado = 0)
         AND EXISTS (
           SELECT 1 FROM pagos p
           WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
@@ -980,7 +1006,7 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
             g.grado, g.seccion, n.nombre AS nivel_nombre, n.id AS nivel_id,
             c.matricula AS costo_matricula, c.pension AS costo_pension
          ${baseMatriculasSql}`,
-        [colegio_id, anio, colegio_id]
+        baseMatriculaParams()
       );
       if (!matRows || matRows.length === 0) {
         return res.json({
@@ -1121,7 +1147,7 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
                 AND p.estado_pago = 'CANCELADO' AND p.tipo = 0
             ), 0) AS pagado
          ${baseMatriculasSql}`,
-        [colegio_id, colegio_id, anio, colegio_id]
+        [colegio_id, ...baseMatriculaParams()]
       );
     } else {
       const nroPago = tipoParam;
@@ -1164,7 +1190,7 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
                 AND p.estado_pago = 'CANCELADO' AND p.tipo = 1 AND p.nro_pago = ? AND YEAR(p.fecha_hora) = ?
             ), 0) AS pagado
          ${baseMatriculasSql}`,
-        [colegio_id, nroPago, anio, colegio_id, anio, colegio_id]
+        [colegio_id, nroPago, anio, ...baseMatriculaParams()]
       );
     }
 

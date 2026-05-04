@@ -118,8 +118,14 @@ body .swal2-container.tutoria-deudores-swal-container {
   font-size: 0.95rem;
 }
 
+/* Sobrescribe thead morado de .tabla-registro-asistencia: cabecera azul uniforme */
+.tutoria-deudores-table.tabla-registro-asistencia thead {
+  background: #1e40af;
+}
+
+.tutoria-deudores-table.tabla-registro-asistencia thead th,
 .tutoria-deudores-table thead th {
-  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  background: #1e40af;
   color: #fff;
   font-size: 0.72rem;
   text-transform: uppercase;
@@ -128,10 +134,15 @@ body .swal2-container.tutoria-deudores-swal-container {
   position: sticky;
   top: 0;
   z-index: 1;
+  text-align: center;
+  vertical-align: middle;
+  border: none;
 }
 
+.tutoria-deudores-table.tabla-registro-asistencia tbody td,
 .tutoria-deudores-table tbody td {
-  vertical-align: top;
+  vertical-align: middle;
+  text-align: center;
   padding: 0.45rem 0.35rem;
   font-size: 0.86rem;
   border-bottom: 1px solid #e2e8f0;
@@ -142,6 +153,7 @@ body .swal2-container.tutoria-deudores-swal-container {
   color: #1e293b;
   max-width: 16rem;
   line-height: 1.25;
+  text-align: center;
 }
 
 .tut-deudores-monto {
@@ -159,10 +171,12 @@ body .swal2-container.tutoria-deudores-swal-container {
 
 .tut-deudores-col-obs {
   min-width: 14rem;
+  text-align: center;
 }
 
 .tut-deudores-textarea {
   width: 100%;
+  max-width: 100%;
   min-height: 3.2rem;
   max-height: 6rem;
   padding: 0.4rem 0.5rem;
@@ -172,6 +186,7 @@ body .swal2-container.tutoria-deudores-swal-container {
   font-family: inherit;
   resize: vertical;
   box-sizing: border-box;
+  text-align: center;
 }
 
 .tut-deudores-textarea:focus {

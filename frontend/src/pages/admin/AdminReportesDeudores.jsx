@@ -23,6 +23,21 @@ export default function AdminReportesDeudores() {
   const [filas, setFilas] = useState([]);
   const [meta, setMeta] = useState(null);
   const [loadingLista, setLoadingLista] = useState(false);
+  const [grupoId, setGrupoId] = useState('');
+  const [gruposOpciones, setGruposOpciones] = useState([]);
+
+  const etiquetaGrupoOpcion = (g) => {
+    const nivel = (g.nivel_nombre || '').trim() || '—';
+    const grRaw = g.grado != null && g.grado !== '' ? String(g.grado).trim() : '';
+    const gr =
+      grRaw === ''
+        ? '—'
+        : /^\d+$/.test(grRaw)
+          ? `${grRaw}°`
+          : grRaw;
+    const sec = (g.seccion || '').toString().trim() || '—';
+    return `${nivel} - ${gr} - ${sec}`;
+  };
 
   const totales = useMemo(() => {
     const suma = filas.reduce((s, r) => s + (parseFloat(r.monto) || 0), 0);
@@ -57,6 +72,33 @@ export default function AdminReportesDeudores() {
     };
   }, []);
 
+  useEffect(() => {
+    if (loadingKpis) return;
+    const anioNum = parseInt(anio, 10);
+    if (!anioNum) {
+      setGruposOpciones([]);
+      setGrupoId('');
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get('/admin/academico/grupos', { params: { anio: anioNum } });
+        if (cancelled) return;
+        setGruposOpciones(Array.isArray(data?.grupos) ? data.grupos : []);
+        setGrupoId('');
+      } catch {
+        if (!cancelled) {
+          setGruposOpciones([]);
+          setGrupoId('');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [anio, loadingKpis]);
+
   const opcionesConcepto = useMemo(() => {
     const list = [];
     list.push({ value: 'todos', label: 'Todos (saldo total)' });
@@ -77,8 +119,12 @@ export default function AdminReportesDeudores() {
     const tipoParam = tipoConcepto === 'todos' ? 'todos' : tipoConcepto;
     setLoadingLista(true);
     try {
+      const params = { anio: anioNum, tipo: tipoParam };
+      const gid = parseInt(grupoId, 10);
+      if (Number.isFinite(gid) && gid > 0) params.grupo_id = gid;
+
       const { data } = await api.get('/admin/estadisticas/deudores-lista', {
-        params: { anio: anioNum, tipo: tipoParam }
+        params
       });
       setMeta({
         colegio_nombre: data.colegio_nombre,
@@ -164,6 +210,21 @@ export default function AdminReportesDeudores() {
                   {opcionesConcepto.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
+                    </option>
+                  ))}
+                </select>
+                <label htmlFor="deudores-grado">Grado</label>
+                <select
+                  id="deudores-grado"
+                  className="admin-deudores-select-grado"
+                  value={grupoId}
+                  onChange={(e) => setGrupoId(e.target.value)}
+                  aria-label="Filtrar por aula o grado"
+                >
+                  <option value="">Todos los grados</option>
+                  {gruposOpciones.map((g) => (
+                    <option key={g.id} value={String(g.id)}>
+                      {etiquetaGrupoOpcion(g)}
                     </option>
                   ))}
                 </select>
