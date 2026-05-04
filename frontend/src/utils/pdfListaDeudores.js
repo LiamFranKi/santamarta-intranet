@@ -1,10 +1,14 @@
 import { jsPDF } from 'jspdf';
 
+/** Azul uniforme (sin gradiente) para cabeceras */
 const HEADER_BLUE = [30, 64, 175];
 const HEADER_TEXT = [255, 255, 255];
-const BORDER = [200, 210, 230];
+const BORDER = [190, 200, 220];
+const FOOTER_BG = [224, 231, 255];
+const FOOTER_TEXT = [30, 27, 75];
 const ROW_H_MM = 13;
 const HEADER_BAND_MM = 9;
+const TABLE_HEAD_H = 7.5;
 
 function fmtMonto(n, moneda) {
   if (n == null || n === '') return '—';
@@ -18,14 +22,45 @@ function safeTxt(s) {
   return String(s).replace(/\r?\n/g, ' ').trim();
 }
 
+/** Anchos en mm; la última columna absorbe el remanente para sumar exactamente innerW. */
+function buildColumns(innerW) {
+  const wN = innerW * 0.055;
+  const wAl = innerW * 0.31;
+  const wGr = innerW * 0.12;
+  const wMo = innerW * 0.135;
+  const wTe = innerW * 0.175;
+  const sum5 = wN + wAl + wGr + wMo + wTe;
+  const wOb = innerW - sum5;
+  return [
+    { key: 'n', w: wN },
+    { key: 'alumno', w: wAl },
+    { key: 'grado', w: wGr },
+    { key: 'monto', w: wMo },
+    { key: 'tel', w: wTe },
+    { key: 'obs', w: wOb }
+  ];
+}
+
+function colStarts(margin, cols) {
+  const out = [];
+  let x = margin;
+  for (const c of cols) {
+    out.push({ ...c, x0: x });
+    x += c.w;
+  }
+  return out;
+}
+
 /**
  * @param {object} opts
- * @param {string} opts.colegioNombre
+ * @param {string} [opts.colegioNombre]
  * @param {number} opts.anio
- * @param {string} opts.moneda
- * @param {string} opts.concepto
- * @param {'todo'|'por_grado'} opts.modoAgrupacion
- * @param {Array<object>} opts.filas — cada fila: nombre, grado_etiqueta, monto, telefono_apoderado, grado_agrupacion_titulo, grado_agrupacion_key
+ * @param {string} [opts.moneda]
+ * @param {string} [opts.concepto]
+ * @param {'todo'|'por_grado'} [opts.modoAgrupacion]
+ * @param {Array<object>} opts.filas
+ * @param {number} [opts.totalAlumnos]
+ * @param {number} [opts.totalDeuda]
  */
 export function generarPdfListaDeudores(opts) {
   const {
@@ -37,23 +72,22 @@ export function generarPdfListaDeudores(opts) {
     filas = []
   } = opts;
 
+  const totalAlumnos =
+    typeof opts.totalAlumnos === 'number'
+      ? opts.totalAlumnos
+      : filas.length;
+  const totalDeuda =
+    typeof opts.totalDeuda === 'number'
+      ? opts.totalDeuda
+      : Math.round(filas.reduce((s, r) => s + (parseFloat(r.monto) || 0), 0) * 100) / 100;
+
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const margin = 12;
   const innerW = pageW - margin * 2;
-  const bottomSafe = 16;
-
-  const cols = {
-    n: { x: 0, w: 10 },
-    alumno: { x: 10, w: 58 },
-    grado: { x: 68, w: 20 },
-    monto: { x: 88, w: 26 },
-    tel: { x: 114, w: 32 },
-    obs: { x: 146, w: innerW - 146 }
-  };
-
-  const colXs = (base) => margin + base;
+  const bottomSafe = 18;
+  const cols = buildColumns(innerW);
 
   function drawMainHeader(yStart) {
     doc.setFillColor(...HEADER_BLUE);
@@ -61,40 +95,41 @@ export function generarPdfListaDeudores(opts) {
     doc.setTextColor(...HEADER_TEXT);
     doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text('LISTA DE DEUDORES', margin + 3, yStart + 6.2);
+    doc.text('LISTA DE DEUDORES', margin + innerW / 2, yStart + 6.2, { align: 'center' });
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
     const sub = `${safeTxt(colegioNombre)} · Año ${anio} · Concepto: ${safeTxt(concepto)}`;
     const subLines = doc.splitTextToSize(sub, innerW - 6);
-    doc.text(subLines, margin + 3, yStart + HEADER_BAND_MM + 5);
+    doc.text(subLines, margin + innerW / 2, yStart + HEADER_BAND_MM + 4.8, { align: 'center' });
     doc.setTextColor(0, 0, 0);
-    return yStart + HEADER_BAND_MM + 5 + subLines.length * 4.2 + 3;
+    return yStart + HEADER_BAND_MM + 4.5 + subLines.length * 4.1 + 2;
   }
 
   function drawTableHeader(y) {
     doc.setFillColor(...HEADER_BLUE);
-    doc.rect(margin, y, innerW, 8, 'F');
+    doc.rect(margin, y, innerW, TABLE_HEAD_H, 'F');
     doc.setDrawColor(...BORDER);
+    doc.setLineWidth(0.15);
+    const labels = ['N°', 'ALUMNO', 'GRADO', 'MONTO', 'TEL. APODERADO', 'OBSERVACIONES'];
     doc.setTextColor(...HEADER_TEXT);
-    doc.setFontSize(7.5);
+    doc.setFontSize(7);
     doc.setFont('helvetica', 'bold');
-    doc.text('N°', colXs(cols.n.x) + 1, y + 5.2);
-    doc.text('ALUMNO', colXs(cols.alumno.x) + 1, y + 5.2);
-    doc.text('GRADO', colXs(cols.grado.x) + 1, y + 5.2);
-    doc.text('MONTO', colXs(cols.monto.x) + 1, y + 5.2);
-    doc.text('TEL. APODERADO', colXs(cols.tel.x) + 1, y + 5.2);
-    doc.text('OBSERVACIONES', colXs(cols.obs.x) + 1, y + 5.2);
+    const positioned = colStarts(margin, cols);
+    for (let i = 0; i < positioned.length; i += 1) {
+      const c = positioned[i];
+      doc.text(labels[i], c.x0 + c.w / 2, y + TABLE_HEAD_H / 2 + 2.2, { align: 'center' });
+    }
     doc.setTextColor(0, 0, 0);
-    return y + 8;
+    return y + TABLE_HEAD_H;
   }
 
   function strokeRowFrame(y) {
     doc.setDrawColor(...BORDER);
     doc.setLineWidth(0.2);
     doc.rect(margin, y, innerW, ROW_H_MM);
-    let x = margin;
-    for (const key of ['n', 'alumno', 'grado', 'monto', 'tel']) {
-      x += cols[key].w;
+    const positioned = colStarts(margin, cols);
+    for (let i = 1; i < positioned.length; i += 1) {
+      const x = positioned[i].x0;
       doc.line(x, y, x, y + ROW_H_MM);
     }
   }
@@ -103,22 +138,67 @@ export function generarPdfListaDeudores(opts) {
     strokeRowFrame(y);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
-    doc.setTextColor(30, 30, 30);
-    doc.text(String(idx), colXs(cols.n.x) + cols.n.w / 2, y + 5.5, { align: 'center' });
+    doc.setTextColor(35, 35, 35);
+    const positioned = colStarts(margin, cols);
+
+    doc.text(String(idx), positioned[0].x0 + positioned[0].w / 2, y + ROW_H_MM / 2 + 2.6, {
+      align: 'center'
+    });
 
     const nombre = safeTxt(row.nombre);
-    const nameLines = doc.splitTextToSize(nombre, cols.alumno.w - 2);
-    doc.text(nameLines.slice(0, 2), colXs(cols.alumno.x) + 1, y + 4.8);
+    const nameLines = doc.splitTextToSize(nombre, positioned[1].w - 2).slice(0, 2);
+    doc.text(nameLines, positioned[1].x0 + positioned[1].w / 2, y + 4.8, {
+      align: 'center',
+      lineHeightFactor: 1.05
+    });
 
     const gr = safeTxt(row.grado_etiqueta);
-    doc.text(doc.splitTextToSize(gr, cols.grado.w - 2).slice(0, 2), colXs(cols.grado.x) + 1, y + 5.5);
+    const grLines = doc.splitTextToSize(gr, positioned[2].w - 2).slice(0, 2);
+    doc.text(grLines, positioned[2].x0 + positioned[2].w / 2, y + 4.8, {
+      align: 'center',
+      lineHeightFactor: 1.05
+    });
 
     doc.setFont('helvetica', 'bold');
-    doc.text(fmtMonto(row.monto, moneda), colXs(cols.monto.x) + 1, y + 5.5);
+    doc.text(fmtMonto(row.monto, moneda), positioned[3].x0 + positioned[3].w / 2, y + ROW_H_MM / 2 + 2.5, {
+      align: 'center'
+    });
     doc.setFont('helvetica', 'normal');
     const tel = safeTxt(row.telefono_apoderado) || '—';
-    doc.text(doc.splitTextToSize(tel, cols.tel.w - 2).slice(0, 2), colXs(cols.tel.x) + 1, y + 5.5);
+    const telLines = doc.splitTextToSize(tel, positioned[4].w - 2).slice(0, 2);
+    doc.text(telLines, positioned[4].x0 + positioned[4].w / 2, y + 4.8, {
+      align: 'center',
+      lineHeightFactor: 1.05
+    });
     return y + ROW_H_MM;
+  }
+
+  function drawFooterTotals(y) {
+    const rowH = 6.5;
+    const need = rowH * 2 + 2;
+    if (y + need > pageH - bottomSafe) {
+      doc.addPage();
+      y = margin;
+    }
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...FOOTER_TEXT);
+
+    doc.setFillColor(...FOOTER_BG);
+    doc.rect(margin, y, innerW, rowH, 'F');
+    doc.setDrawColor(...BORDER);
+    doc.rect(margin, y, innerW, rowH, 'S');
+    doc.text('Total alumnos', margin + 3, y + rowH / 2 + 2.8);
+    doc.text(String(totalAlumnos), margin + innerW - 3, y + rowH / 2 + 2.8, { align: 'right' });
+    y += rowH;
+
+    doc.setFillColor(...FOOTER_BG);
+    doc.rect(margin, y, innerW, rowH, 'F');
+    doc.rect(margin, y, innerW, rowH, 'S');
+    doc.text('Total deuda', margin + 3, y + rowH / 2 + 2.8);
+    doc.text(fmtMonto(totalDeuda, moneda), margin + innerW - 3, y + rowH / 2 + 2.8, { align: 'right' });
+    doc.setTextColor(0, 0, 0);
+    return y + rowH;
   }
 
   function agruparPorGrado(list) {
@@ -159,7 +239,7 @@ export function generarPdfListaDeudores(opts) {
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(30, 50, 100);
-      doc.text(sec.titulo, margin + 2, y + 5);
+      doc.text(sec.titulo, margin + innerW / 2, y + 4.8, { align: 'center' });
       doc.setTextColor(0, 0, 0);
       y += 9;
     }
@@ -178,7 +258,7 @@ export function generarPdfListaDeudores(opts) {
           doc.setFont('helvetica', 'bold');
           doc.setFontSize(9);
           doc.setTextColor(30, 50, 100);
-          doc.text(`${sec.titulo} (continúa)`, margin + 2, y + 5);
+          doc.text(`${sec.titulo} (continúa)`, margin + innerW / 2, y + 4.8, { align: 'center' });
           doc.setTextColor(0, 0, 0);
           y += 9;
         }
@@ -189,15 +269,17 @@ export function generarPdfListaDeudores(opts) {
     }
   }
 
+  y = drawFooterTotals(y);
+
   const totalPages = doc.internal.getNumberOfPages();
   for (let p = 1; p <= totalPages; p += 1) {
     doc.setPage(p);
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(120, 120, 120);
-    doc.text(`Página ${p} de ${totalPages}`, pageW - margin - 28, pageH - 8);
+    doc.text(`Página ${p} de ${totalPages}`, pageW - margin - 26, pageH - 7);
     doc.setTextColor(0, 0, 0);
   }
 
-  const safeColegio = safeTxt(colegioNombre).replace(/[^\w\-]+/g, '_').slice(0, 40) || 'colegio';
+  const safeColegio = safeTxt(colegioNombre).replace(/[^\w-]+/g, '_').slice(0, 40) || 'colegio';
   doc.save(`deudores_${safeColegio}_${anio}.pdf`);
 }

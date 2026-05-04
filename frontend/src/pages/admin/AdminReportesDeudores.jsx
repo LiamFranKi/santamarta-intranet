@@ -24,6 +24,12 @@ export default function AdminReportesDeudores() {
   const [meta, setMeta] = useState(null);
   const [loadingLista, setLoadingLista] = useState(false);
 
+  const totales = useMemo(() => {
+    const n = filas.length;
+    const suma = filas.reduce((s, r) => s + (parseFloat(r.monto) || 0), 0);
+    return { totalAlumnos: n, totalDeuda: Math.round(suma * 100) / 100 };
+  }, [filas]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -49,7 +55,7 @@ export default function AdminReportesDeudores() {
 
   const opcionesConcepto = useMemo(() => {
     const list = [];
-    list.push({ value: 'todos', label: '-- TODOS (saldo total pendiente) --' });
+    list.push({ value: 'todos', label: 'Todos (saldo total)' });
     const conceptos = kpis?.conceptos || [];
     for (const c of conceptos) {
       if (Number(c.tipo) === 0) list.push({ value: '0', label: 'Matrícula' });
@@ -98,7 +104,7 @@ export default function AdminReportesDeudores() {
 
   const descargarPdf = () => {
     if (!meta || !filas.length) {
-      Swal.fire({ icon: 'info', title: 'Primero genere la lista', text: 'Pulse «Ver reporte».' });
+      Swal.fire({ icon: 'info', title: 'Primero genere la lista', text: 'Pulse «Ver».' });
       return;
     }
     try {
@@ -108,7 +114,9 @@ export default function AdminReportesDeudores() {
         moneda: meta.moneda,
         concepto: meta.concepto,
         modoAgrupacion: modoAgrupacion === 'por_grado' ? 'por_grado' : 'todo',
-        filas
+        filas,
+        totalAlumnos: totales.totalAlumnos,
+        totalDeuda: totales.totalDeuda
       });
     } catch (e) {
       console.error(e);
@@ -122,7 +130,7 @@ export default function AdminReportesDeudores() {
         <div className="admin-estadisticas-header">
           <h1 className="admin-estadisticas-title">Deudores</h1>
           <p className="admin-estadisticas-desc">
-            Lista imprimible con teléfono del apoderado y columna de observaciones para uso del tutor.
+            Lista con teléfono del apoderado y columna de observaciones para el tutor.
           </p>
         </div>
 
@@ -132,85 +140,72 @@ export default function AdminReportesDeudores() {
           ) : (
             <div className="admin-deudores-card">
               <div className="admin-deudores-card-header">Alumnos deudores</div>
-              <div className="admin-deudores-card-body">
-                <div className="admin-deudores-field admin-deudores-field--anio">
-                  <label htmlFor="deudores-anio">Mostrar deudores de</label>
-                  <input
-                    id="deudores-anio"
-                    type="number"
-                    min={2000}
-                    max={2100}
-                    value={anio}
-                    onChange={(e) => setAnio(e.target.value)}
-                  />
-                </div>
-                <div className="admin-deudores-field admin-deudores-field--concepto">
-                  <label htmlFor="deudores-concepto">Concepto</label>
-                  <select
-                    id="deudores-concepto"
-                    value={tipoConcepto}
-                    onChange={(e) => setTipoConcepto(e.target.value)}
+              <div className="admin-deudores-toolbar" role="toolbar" aria-label="Filtros de deudores">
+                <label htmlFor="deudores-anio">Año</label>
+                <input
+                  id="deudores-anio"
+                  type="number"
+                  min={2000}
+                  max={2100}
+                  value={anio}
+                  onChange={(e) => setAnio(e.target.value)}
+                />
+                <label htmlFor="deudores-concepto">Concepto</label>
+                <select
+                  id="deudores-concepto"
+                  value={tipoConcepto}
+                  onChange={(e) => setTipoConcepto(e.target.value)}
+                >
+                  {opcionesConcepto.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="admin-deudores-segment" role="group" aria-label="Formato PDF">
+                  <button
+                    type="button"
+                    className={modoAgrupacion === 'todo' ? 'is-active' : ''}
+                    onClick={() => setModoAgrupacion('todo')}
                   >
-                    {opcionesConcepto.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    Todos
+                  </button>
+                  <button
+                    type="button"
+                    className={modoAgrupacion === 'por_grado' ? 'is-active' : ''}
+                    onClick={() => setModoAgrupacion('por_grado')}
+                  >
+                    Separados
+                  </button>
                 </div>
-
-                <div className="admin-deudores-agrupacion">
-                  <span>Impresión PDF</span>
-                  <label className="admin-deudores-radio">
-                    <input
-                      type="radio"
-                      name="agrup-deudores"
-                      checked={modoAgrupacion === 'todo'}
-                      onChange={() => setModoAgrupacion('todo')}
-                    />
-                    Todo junto (una lista)
-                  </label>
-                  <label className="admin-deudores-radio">
-                    <input
-                      type="radio"
-                      name="agrup-deudores"
-                      checked={modoAgrupacion === 'por_grado'}
-                      onChange={() => setModoAgrupacion('por_grado')}
-                    />
-                    Separado por grados (cada grado en hoja distinta)
-                  </label>
-
-                  <div className="admin-deudores-actions">
-                    <button
-                      type="button"
-                      className="admin-deudores-btn"
-                      disabled={loadingLista}
-                      onClick={cargarLista}
-                    >
-                      {loadingLista ? 'Cargando…' : 'Ver reporte'}
-                    </button>
-                    <button
-                      type="button"
-                      className="admin-deudores-btn admin-deudores-btn-secondary"
-                      disabled={!filas.length}
-                      onClick={descargarPdf}
-                    >
-                      Descargar PDF
-                    </button>
-                  </div>
-                </div>
+                <span className="admin-deudores-toolbar-spacer" aria-hidden />
+                <button
+                  type="button"
+                  className="admin-deudores-btn-compact admin-deudores-btn-compact--primary"
+                  disabled={loadingLista}
+                  onClick={cargarLista}
+                >
+                  {loadingLista ? '…' : 'Ver'}
+                </button>
+                <button
+                  type="button"
+                  className="admin-deudores-btn-compact admin-deudores-btn-compact--ghost"
+                  disabled={!filas.length}
+                  onClick={descargarPdf}
+                >
+                  PDF
+                </button>
               </div>
             </div>
           )}
 
           <p className="admin-deudores-hint">
-            El PDF incluye columnas N°, alumno, grado, monto, teléfono del apoderado y observaciones en blanco con altura
-            amplia para apuntes a mano.
+            PDF: mismas columnas, observaciones en blanco con altura para apuntes a mano. Pie: total alumnos y total deuda.
           </p>
 
           {!!filas.length && meta && (
-            <div style={{ marginTop: '1rem' }}>
-              <h2 className="admin-estadisticas-subtitle" style={{ fontSize: '1.05rem' }}>
+            <div>
+              <h2 className="admin-deudores-preview-title">
                 Vista previa ({filas.length} alumno{filas.length === 1 ? '' : 's'})
               </h2>
               <div className="admin-deudores-preview-wrap">
@@ -218,10 +213,10 @@ export default function AdminReportesDeudores() {
                   <thead>
                     <tr>
                       <th className="col-num">N°</th>
-                      <th>Alumno</th>
-                      <th>Grado</th>
+                      <th className="col-alumno">Alumno</th>
+                      <th className="col-grado">Grado</th>
                       <th className="col-monto">Monto</th>
-                      <th>Tel. apoderado</th>
+                      <th className="col-tel">Tel. apoderado</th>
                       <th className="col-obs">Observaciones</th>
                     </tr>
                   </thead>
@@ -229,14 +224,32 @@ export default function AdminReportesDeudores() {
                     {filas.map((r, i) => (
                       <tr key={`${r.matricula_id}-${i}`}>
                         <td className="col-num">{i + 1}</td>
-                        <td>{r.nombre}</td>
-                        <td>{r.grado_etiqueta}</td>
+                        <td className="col-alumno">{r.nombre}</td>
+                        <td className="col-grado">{r.grado_etiqueta}</td>
                         <td className="col-monto">{fmtMonto(r.monto, meta.moneda)}</td>
-                        <td>{r.telefono_apoderado || '—'}</td>
-                        <td className="col-obs" aria-label="Espacio para observaciones" />
+                        <td className="col-tel">{r.telefono_apoderado || '—'}</td>
+                        <td className="col-obs" aria-label="Observaciones" />
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={3} className="deudores-tfoot-label">
+                        Total alumnos
+                      </td>
+                      <td colSpan={3} className="deudores-tfoot-value">
+                        {totales.totalAlumnos}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td colSpan={3} className="deudores-tfoot-label">
+                        Total deuda
+                      </td>
+                      <td colSpan={3} className="deudores-tfoot-value">
+                        {fmtMonto(totales.totalDeuda, meta.moneda)}
+                      </td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
