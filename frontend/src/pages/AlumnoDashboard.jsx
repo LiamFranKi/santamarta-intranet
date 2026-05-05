@@ -9,6 +9,7 @@ import 'react-quill/dist/quill.snow.css';
 import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import BirthdayWidget from '../components/BirthdayWidget';
+import EleccionesCampanaBanner from '../components/EleccionesCampanaBanner';
 import { useAvatarWidget } from '../context/AvatarWidgetContext';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './AlumnoDashboard.css';
@@ -791,6 +792,8 @@ function AlumnoDashboard() {
             </div>,
             document.body
           )}
+
+        <EleccionesCampanaBanner />
 
         {/* Tarjetas de estadísticas - 4 columnas */}
         <div className="stats-grid-4">

@@ -6,6 +6,7 @@ import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import BirthdayWidget from '../components/BirthdayWidget';
+import EleccionesCampanaBanner from '../components/EleccionesCampanaBanner';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './AlumnoDashboard.css';
 import './DocenteGrupos.css';
@@ -333,6 +334,8 @@ function ApoderadoDashboard() {
   return (
     <DashboardLayout>
       <div className="alumno-dashboard">
+        <EleccionesCampanaBanner />
+
         {/* Tarjetas de estadísticas */}
         <div className="stats-grid-4">
           <div className="stat-card mundo-card" onClick={irAHijos} style={{ cursor: 'pointer', background: coloresPastelesDashboard[0] }}>

@@ -1,0 +1,181 @@
+.admin-elcc-wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 1rem 2rem;
+}
+
+.admin-elcc-hero h1 {
+  font-size: 1.65rem;
+  margin-bottom: 0.5rem;
+  color: #1e1b4b;
+}
+
+.admin-elcc-hero p {
+  color: #64748b;
+  line-height: 1.55;
+  max-width: 52rem;
+}
+
+.admin-elcc-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.admin-elcc-badge-borrador {
+  background: #f1f5f9;
+  color: #475569;
+}
+.admin-elcc-badge-campana {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.admin-elcc-badge-votacion {
+  background: #dcfce7;
+  color: #15803d;
+}
+.admin-elcc-badge-cerrada {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+
+.admin-elcc-table-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+  margin-top: 1.25rem;
+}
+
+.admin-elcc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.admin-elcc-table th,
+.admin-elcc-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-elcc-table th {
+  background: #f8fafc;
+  font-weight: 600;
+  color: #475569;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-elcc-table tr:hover td {
+  background: #fafbfc;
+}
+
+.admin-elcc-detalle-layout {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem 2.5rem;
+}
+
+.admin-elcc-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-elcc-panel h2 {
+  font-size: 1.05rem;
+  margin: 0 0 1rem;
+  color: #0f172a;
+}
+
+.admin-elcc-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.85rem 1rem;
+}
+
+.admin-elcc-form-grid.full {
+  grid-column: 1 / -1;
+}
+
+.admin-elcc-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.admin-elcc-input,
+.admin-elcc-select,
+.admin-elcc-textarea {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  font-family: inherit;
+}
+
+.admin-elcc-textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.admin-elcc-btn {
+  cursor: pointer;
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 1rem;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.admin-elcc-btn-primary {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+}
+
+.admin-elcc-btn-ghost {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.admin-elcc-btn-danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.admin-elcc-lista-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(180deg, #fafbff 0%, #fff 40%);
+}
+
+.admin-elcc-mini-img {
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-elcc-grupos-box {
+  max-height: 180px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  background: #f8fafc;
+}

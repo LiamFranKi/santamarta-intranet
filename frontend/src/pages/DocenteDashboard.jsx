@@ -7,6 +7,7 @@ import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionFormCard from '../components/PublicacionFormCard';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
 import BirthdayWidget from '../components/BirthdayWidget';
+import EleccionesCampanaBanner from '../components/EleccionesCampanaBanner';
 import DocenteDocumentosGestionSection from '../components/DocenteDocumentosGestionSection';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
 import './DocenteDashboard.css';
@@ -431,6 +432,8 @@ function DocenteDashboard() {
   return (
     <DashboardLayout>
       <div className="docente-dashboard">
+        <EleccionesCampanaBanner />
+
         {/* Tarjetas de estadísticas */}
         <div className="stats-grid">
           {/* Card Grupos Asignados - Solo mostrar si tiene grupos */}

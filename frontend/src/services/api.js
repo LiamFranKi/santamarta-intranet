@@ -196,6 +196,10 @@ api.interceptors.response.use(
       isAdminPsicologiaRoute && (status === 500 || status === 503);
     const skipLogoutAlumnoExamen =
       isAlumnoExamenRoute && (status === 403 || status === 500 || status === 502 || status === 503);
+    /** Elecciones (alumno / portal intranet): 403/409 por convocatoria, horario o voto duplicado no debe cerrar sesión. */
+    const isEleccionesIntranetRoute = /\/elecciones\/(alumno|portal)\//.test(reqUrl);
+    const skipLogoutEleccionesIntranet =
+      isEleccionesIntranetRoute && (status === 403 || status === 409);
 
     if (
       status &&
@@ -217,6 +221,7 @@ api.interceptors.response.use(
       !skipLogoutAdminAcademico500 &&
       !skipLogoutAdminPsicologiaCritical &&
       !skipLogoutAlumnoExamen &&
+      !skipLogoutEleccionesIntranet &&
       !isPublicEventosRoute
     ) {
       const errorInfo = criticalErrors[status];

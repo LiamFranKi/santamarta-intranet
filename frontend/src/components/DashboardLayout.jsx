@@ -71,6 +71,7 @@ export default function DashboardLayout({ children }) {
           path.startsWith('/docente/herramientas')
           || path === '/docente/supervision'
           || path.startsWith('/docente/psicologia')
+          || path.startsWith('/elecciones-campana')
         ) && { docenteHerramientas: true }
       ),
       ...(
@@ -98,6 +99,8 @@ export default function DashboardLayout({ children }) {
         (
           path.startsWith('/alumno/herramientas') ||
           path.startsWith('/alumno/vocabularios') ||
+          path.startsWith('/alumno/elecciones') ||
+          path.startsWith('/elecciones-campana') ||
           path.startsWith('/herramientas-examenes') ||
           path.startsWith('/encuestas')
         ) && { alumnoHerramientas: true }
@@ -514,6 +517,17 @@ export default function DashboardLayout({ children }) {
                       <span className="sidebar-label">Supervisión</span>
                     </NavLink>
                   ) : null}
+                  <NavLink
+                    className={({ isActive }) =>
+                      `sidebar-sublink ${isActive || location.pathname.startsWith('/elecciones-campana') ? 'active' : ''}`
+                    }
+                    to="/elecciones-campana"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      🏛️
+                    </span>
+                    <span className="sidebar-label">Jornada electoral</span>
+                  </NavLink>
                 </div>
               </div>
 
@@ -673,6 +687,23 @@ export default function DashboardLayout({ children }) {
                     </span>
                     <span className="sidebar-label">Vocabularios</span>
                   </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/alumno/elecciones">
+                    <span className="sidebar-icon" aria-hidden>
+                      🗳️
+                    </span>
+                    <span className="sidebar-label">Elecciones escolares</span>
+                  </NavLink>
+                  <NavLink
+                    className={({ isActive }) =>
+                      `sidebar-sublink ${isActive || location.pathname.startsWith('/elecciones-campana') ? 'active' : ''}`
+                    }
+                    to="/elecciones-campana"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      🏛️
+                    </span>
+                    <span className="sidebar-label">Jornada electoral</span>
+                  </NavLink>
                   <NavLink
                     className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
                     to="/alumno/herramientas/documentos"
@@ -757,6 +788,12 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/herramientas/encuestas">
                   <span className="sidebar-icon">📋</span>
                   <span className="sidebar-label">Encuestas</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/herramientas/elecciones">
+                  <span className="sidebar-icon">🗳️</span>
+                  <span className="sidebar-label">Elecciones escolares</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
@@ -882,6 +919,17 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/herramientas-examenes">
                   <span className="sidebar-icon">📝</span>
                   <span className="sidebar-label">Exámenes</span>
+                </NavLink>
+              </div>
+              <div className="sidebar-item">
+                <NavLink
+                  className={({ isActive }) =>
+                    `sidebar-link ${isActive || location.pathname.startsWith('/elecciones-campana') ? 'active' : ''}`
+                  }
+                  to="/elecciones-campana"
+                >
+                  <span className="sidebar-icon">🗳️</span>
+                  <span className="sidebar-label">Jornada electoral</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
@@ -1215,6 +1263,10 @@ export default function DashboardLayout({ children }) {
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/encuestas">
                     <span className="sidebar-icon" aria-hidden>📋</span>
                     <span className="sidebar-label">Encuestas</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/elecciones">
+                    <span className="sidebar-icon" aria-hidden>🗳️</span>
+                    <span className="sidebar-label">Elecciones escolares</span>
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/vocabularios">
                     <span className="sidebar-icon" aria-hidden>📚</span>

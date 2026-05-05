@@ -42,6 +42,10 @@ import AdminVocabularios from './pages/admin/AdminVocabularios';
 import DocenteVocabularios from './pages/DocenteVocabularios';
 import AlumnoVocabularios from './pages/AlumnoVocabularios';
 import AlumnoHerramientasDocumentos from './pages/AlumnoHerramientasDocumentos';
+import AlumnoElecciones from './pages/AlumnoElecciones';
+import AlumnoEleccionProceso from './pages/AlumnoEleccionProceso';
+import AlumnoEleccionLanding from './pages/AlumnoEleccionLanding';
+import AlumnoEleccionVotar from './pages/AlumnoEleccionVotar';
 import AdminIncidencias from './pages/admin/AdminIncidencias';
 import HerramientasExamenesLista from './pages/herramientas/HerramientasExamenesLista';
 import HerramientasExamenEditor from './pages/herramientas/HerramientasExamenEditor';
@@ -54,6 +58,8 @@ import AdminEncuestas from './pages/admin/AdminEncuestas';
 import AdminEncuestaEditor from './pages/admin/AdminEncuestaEditor';
 import AdminEncuestaEstadisticas from './pages/admin/AdminEncuestaEstadisticas';
 import AdminEncuestaHistorial from './pages/admin/AdminEncuestaHistorial';
+import AdminElecciones from './pages/admin/AdminElecciones';
+import AdminEleccionProceso from './pages/admin/AdminEleccionProceso';
 import AdminEventos from './pages/admin/AdminEventos';
 import MisEncuestas from './pages/MisEncuestas';
 import EncuestaResponder from './pages/EncuestaResponder';
@@ -471,6 +477,22 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/herramientas/elecciones"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA']}>
+            <AdminElecciones />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/elecciones/:procesoId"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA']}>
+            <AdminEleccionProceso />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/admin/herramientas/supervision"
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
@@ -861,6 +883,70 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredType="ALUMNO">
             <AlumnoHerramientasDocumentos />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/alumno/elecciones"
+        element={
+          <PrivateRoute requiredType="ALUMNO">
+            <AlumnoElecciones />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/alumno/elecciones/:procesoId"
+        element={
+          <PrivateRoute requiredType="ALUMNO">
+            <AlumnoEleccionProceso />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/alumno/elecciones/:procesoId/lista/:listaId"
+        element={
+          <PrivateRoute requiredType="ALUMNO">
+            <AlumnoEleccionLanding />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/alumno/elecciones/:procesoId/votar"
+        element={
+          <PrivateRoute requiredType="ALUMNO">
+            <AlumnoEleccionVotar />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/elecciones-campana"
+        element={
+          <PrivateRoute requiredTypes={['ALUMNO', 'APODERADO', 'DOCENTE']}>
+            <AlumnoElecciones />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/elecciones-campana/:procesoId"
+        element={
+          <PrivateRoute requiredTypes={['ALUMNO', 'APODERADO', 'DOCENTE']}>
+            <AlumnoEleccionProceso />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/elecciones-campana/:procesoId/lista/:listaId"
+        element={
+          <PrivateRoute requiredTypes={['ALUMNO', 'APODERADO', 'DOCENTE']}>
+            <AlumnoEleccionLanding />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/elecciones-campana/:procesoId/votar"
+        element={
+          <PrivateRoute requiredTypes={['ALUMNO', 'APODERADO', 'DOCENTE']}>
+            <AlumnoEleccionVotar />
           </PrivateRoute>
         }
       />
