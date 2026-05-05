@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
+import EleccionesCampanaBanner from '../../components/EleccionesCampanaBanner';
 import api from '../../services/api';
 import './PsicologaDashboard.css';
 
@@ -57,6 +58,7 @@ export default function PsicologaDashboard() {
 
   return (
     <DashboardLayout>
+      <EleccionesCampanaBanner />
       <div className="dashboard-container psicologa-dashboard">
         <div className="psicologa-dashboard__manual-card-wrap">
           {manualUrl ? (

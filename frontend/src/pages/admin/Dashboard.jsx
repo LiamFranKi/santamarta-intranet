@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useSearchParams, useParams, Navigate } from '
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import BirthdayWidget from '../../components/BirthdayWidget';
+import EleccionesCampanaBanner from '../../components/EleccionesCampanaBanner';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './Dashboard.css';
@@ -692,6 +693,7 @@ function Dashboard() {
   return (
     <DashboardLayout>
       <BirthdayWidget comunicadoAbierto={false} />
+      <EleccionesCampanaBanner />
       <div className="dashboard-container">
         <div className="admin-stats-grid">
           {cards.map((card) => (

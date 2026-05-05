@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { CircularProgress } from '@mui/material';
 import DashboardLayout from '../components/DashboardLayout';
 import EleccionCampanaLayout from '../components/elecciones/EleccionCampanaLayout';
+import EleccionVotoCelebracion from '../components/elecciones/EleccionVotoCelebracion';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import { useEleccionPortalPaths } from './elecciones/useEleccionPortalPaths';
@@ -18,6 +19,7 @@ export default function AlumnoEleccionVotar() {
   const [seleccion, setSeleccion] = useState(null);
   const [modalListaId, setModalListaId] = useState(null);
   const [modalData, setModalData] = useState(null);
+  const [celebracion, setCelebracion] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,8 +69,7 @@ export default function AlumnoEleccionVotar() {
     if (!r.isConfirmed) return;
     try {
       await api.post(`${apiPrefix}/procesos/${pid}/voto`, { lista_id: seleccion });
-      await Swal.fire('¡Gracias!', 'Tu voto quedó registrado.', 'success');
-      navigate(`${routeBase}/${pid}`);
+      setCelebracion(true);
     } catch (e) {
       Swal.fire('No se registró el voto', e.response?.data?.error || 'Intenta nuevamente', 'error');
     }
@@ -98,6 +99,14 @@ export default function AlumnoEleccionVotar() {
 
   const inner = (
     <>
+      <EleccionVotoCelebracion
+        open={celebracion}
+        tituloProceso={urna?.proceso?.titulo}
+        onContinuar={() => {
+          setCelebracion(false);
+          navigate(`${routeBase}/${pid}`);
+        }}
+      />
       <div className="elcc-alum-hub">
         <button type="button" className="elcc-alum-btn elcc-alum-btn-secondary" style={{ marginBottom: '1rem' }} onClick={() => navigate(`${routeBase}/${pid}`)}>
           ← Atrás

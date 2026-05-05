@@ -1,0 +1,112 @@
+.elcc-urna-aviso {
+  border-radius: 14px;
+  padding: 0.85rem 1.1rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.elcc-urna-aviso--cuenta {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.1));
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  color: #1e1b4b;
+}
+
+.elcc-urna-aviso__lbl {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #4338ca;
+  margin-bottom: 0.35rem;
+}
+
+.elcc-urna-aviso__num {
+  display: block;
+  font-size: clamp(1rem, 2.8vw, 1.25rem);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.elcc-urna-aviso__sub {
+  display: block;
+  font-size: 0.72rem;
+  color: #64748b;
+  margin-top: 0.35rem;
+}
+
+.elcc-urna-aviso--vota {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  box-shadow: 0 12px 32px rgba(79, 70, 229, 0.35);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.elcc-urna-vota-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.75rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #4f46e5;
+  font-weight: 900;
+  font-size: 1.05rem;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.elcc-urna-vota-btn:hover {
+  transform: scale(1.03);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
+  color: #4338ca;
+}
+
+.elcc-urna-aviso__hint {
+  font-size: 0.78rem;
+  opacity: 0.92;
+}
+
+.elcc-urna-aviso--ok {
+  background: #ecfdf5;
+  border: 1px solid #6ee7b7;
+  color: #065f46;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  font-weight: 600;
+}
+
+.elcc-urna-aviso__check {
+  font-size: 1.25rem;
+  font-weight: 900;
+}
+
+.elcc-urna-aviso--compact {
+  padding: 0.65rem 0.85rem;
+  margin-bottom: 0.65rem;
+}
+
+.elcc-urna-aviso--compact .elcc-urna-vota-btn {
+  padding: 0.5rem 1.25rem;
+  font-size: 0.92rem;
+}
+
+.elcc-urna-aviso--compact .elcc-urna-aviso__num {
+  font-size: 0.95rem;
+}
+
+.elcc-urna-aviso--warn {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  font-size: 0.88rem;
+  font-weight: 600;
+}

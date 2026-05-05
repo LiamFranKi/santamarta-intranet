@@ -94,16 +94,73 @@ function ahoraEnMs() {
   return Date.now();
 }
 
+/**
+ * DATETIME en BD = reloj de Lima (America/Lima, UTC−05, sin DST).
+ * Acepta también ISO con zona al guardar desde el admin.
+ */
+function limaMysqlOrInputToUtcMs(v) {
+  if (v == null || v === '') return null;
+  if (v instanceof Date) {
+    const t = v.getTime();
+    return Number.isNaN(t) ? null : t;
+  }
+  const str = String(v).trim();
+  const m = str.match(/^(\d{4})-(\d{2})-(\d{2})[\sT](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) {
+    const iso = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6] || '00'}-05:00`;
+    const t = new Date(iso).getTime();
+    return Number.isNaN(t) ? null : t;
+  }
+  const t = new Date(str).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
+function utcMsToMysqlLimaWall(ms) {
+  if (ms == null || Number.isNaN(ms)) return null;
+  const d = new Date(ms);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Lima',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  }).formatToParts(d);
+  const g = (ty) => parts.find((p) => p.type === ty)?.value || '00';
+  const sec = String(g('second') || '00').padStart(2, '0');
+  return `${g('year')}-${g('month')}-${g('day')} ${g('hour')}:${g('minute')}:${sec}`;
+}
+
+/** Normaliza body del admin (ISO o datetime-local sin TZ) a DATETIME MySQL en hora Lima. */
+function normalizeVotacionBodyToMysql(input) {
+  if (input == null || input === '') return null;
+  const s = String(input).trim();
+  let isoCandidate = s;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(s)) {
+    isoCandidate = `${s.replace(' ', 'T')}-05:00`;
+  } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) {
+    isoCandidate = `${s}:00-05:00`;
+  } else if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(s)) {
+    const hasTz = /[zZ]$/.test(s) || /[+-]\d{2}:\d{2}$/.test(s);
+    if (!hasTz) isoCandidate = `${s}-05:00`;
+  }
+  const t = new Date(isoCandidate).getTime();
+  if (Number.isNaN(t)) return null;
+  return utcMsToMysqlLimaWall(t);
+}
+
 function votacionAbiertaPorFechas(row) {
   if (!row.votacion_inicio && !row.votacion_fin) return true;
   const now = ahoraEnMs();
   if (row.votacion_inicio) {
-    const t = new Date(row.votacion_inicio).getTime();
-    if (now < t) return false;
+    const t = limaMysqlOrInputToUtcMs(row.votacion_inicio);
+    if (t != null && now < t) return false;
   }
   if (row.votacion_fin) {
-    const t = new Date(row.votacion_fin).getTime();
-    if (now > t) return false;
+    const t = limaMysqlOrInputToUtcMs(row.votacion_fin);
+    if (t != null && now > t) return false;
   }
   return true;
 }
@@ -113,21 +170,21 @@ function payloadCountdownUrna(procesoRow) {
   const now = Date.now();
   let ms_hasta_apertura = null;
   let ms_hasta_cierre = null;
-  if (procesoRow.votacion_inicio) {
-    const t = new Date(procesoRow.votacion_inicio).getTime();
-    ms_hasta_apertura = now < t ? t - now : 0;
+  const tIni = limaMysqlOrInputToUtcMs(procesoRow.votacion_inicio);
+  const tFin = limaMysqlOrInputToUtcMs(procesoRow.votacion_fin);
+  if (tIni != null) {
+    ms_hasta_apertura = now < tIni ? tIni - now : 0;
   }
-  if (procesoRow.votacion_fin) {
-    const t = new Date(procesoRow.votacion_fin).getTime();
-    ms_hasta_cierre = now < t ? t - now : 0;
+  if (tFin != null) {
+    ms_hasta_cierre = now < tFin ? tFin - now : 0;
   }
   const ventanaAbierta = votacionAbiertaPorFechas(procesoRow);
   return {
     ventana_horaria_abierta: ventanaAbierta,
     ms_hasta_apertura: ms_hasta_apertura,
     ms_hasta_cierre: ms_hasta_cierre,
-    votacion_iso_inicio: procesoRow.votacion_inicio ? new Date(procesoRow.votacion_inicio).toISOString() : null,
-    votacion_iso_fin: procesoRow.votacion_fin ? new Date(procesoRow.votacion_fin).toISOString() : null
+    votacion_iso_inicio: tIni != null ? new Date(tIni).toISOString() : null,
+    votacion_iso_fin: tFin != null ? new Date(tFin).toISOString() : null
   };
 }
 
@@ -517,8 +574,8 @@ router.post('/admin/procesos', authenticateToken, requireStaff, async (req, res)
         gj,
         pj,
         gvj,
-        votacion_inicio || null,
-        votacion_fin || null
+        normalizeVotacionBodyToMysql(votacion_inicio),
+        normalizeVotacionBodyToMysql(votacion_fin)
       ]
     );
     const id = r.insertId;
@@ -594,8 +651,8 @@ router.put('/admin/procesos/:id', authenticateToken, requireStaff, async (req, r
         gj !== undefined ? gj : row.grupo_ids,
         pjFinal,
         gvFinal,
-        votacion_inicio !== undefined ? votacion_inicio || null : row.votacion_inicio,
-        votacion_fin !== undefined ? votacion_fin || null : row.votacion_fin,
+        votacion_inicio !== undefined ? normalizeVotacionBodyToMysql(votacion_inicio) : row.votacion_inicio,
+        votacion_fin !== undefined ? normalizeVotacionBodyToMysql(votacion_fin) : row.votacion_fin,
         procesoId,
         req.user.colegio_id
       ]
@@ -1388,7 +1445,7 @@ async function handlerEleccionesProcesosLista(req, res) {
     const colegioId = req.user.colegio_id;
     const rows = await query(
       `SELECT * FROM elecciones_proceso
-       WHERE colegio_id = ? AND estado IN ('CAMPAÑA','VOTACION','CERRADA')
+       WHERE colegio_id = ? AND estado IN ('CAMPAÑA','VOTACION')
        ORDER BY id DESC`,
       [colegioId]
     );

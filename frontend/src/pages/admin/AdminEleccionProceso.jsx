@@ -13,6 +13,7 @@ import DOMPurify from 'dompurify';
 import './AdminUsuarios.css';
 import './AdminElecciones.css';
 import { attachQuillImageUploadHandler } from '../herramientas/hexExamenEditorHelpers';
+import { apiVotacionToLimaDatetimeLocal, limaDatetimeLocalToApiIso } from '../elecciones/eleccionesLimaTime';
 
 /** Tras subir logo/foto sin guardar identidad, el GET devuelve servidor; preservamos borrador local de la lista en edición. */
 function mergeListasPreservandoBorrador(freshListas, prevListas, editingListaId) {
@@ -118,8 +119,8 @@ export default function AdminEleccionProceso() {
         modalidad: pr.modalidad || 'VIRTUAL',
         grado_min: pr.grado_min ?? '',
         grado_max: pr.grado_max ?? '',
-        votacion_inicio: pr.votacion_inicio ? String(pr.votacion_inicio).slice(0, 16) : '',
-        votacion_fin: pr.votacion_fin ? String(pr.votacion_fin).slice(0, 16) : '',
+        votacion_inicio: apiVotacionToLimaDatetimeLocal(pr.votacion_inicio),
+        votacion_fin: apiVotacionToLimaDatetimeLocal(pr.votacion_fin),
         perfiles_voto: perfilArr,
         grados_voto_arr: gvArr
       });
@@ -204,8 +205,8 @@ export default function AdminEleccionProceso() {
         grado_min: form.grado_min === '' ? null : form.grado_min,
         grado_max: form.grado_max === '' ? null : form.grado_max,
         grupo_ids: grupoSeleccion.length ? grupoSeleccion : [],
-        votacion_inicio: form.votacion_inicio || null,
-        votacion_fin: form.votacion_fin || null,
+        votacion_inicio: limaDatetimeLocalToApiIso(form.votacion_inicio),
+        votacion_fin: limaDatetimeLocalToApiIso(form.votacion_fin),
         perfiles_voto: Array.isArray(form.perfiles_voto) && form.perfiles_voto.length ? form.perfiles_voto : ['ALUMNO'],
         grados_voto: gv.length ? gv : []
       });
@@ -402,12 +403,14 @@ export default function AdminEleccionProceso() {
                 </select>
               </label>
               <label className="admin-elcc-label">
-                Inicio votación (opc.)
+                Inicio votación — fecha y hora (Lima, Perú)
                 <input type="datetime-local" className="admin-elcc-input" value={form.votacion_inicio || ''} onChange={(e) => setForm((f) => ({ ...f, votacion_inicio: e.target.value }))} />
+                <small className="admin-elcc-muted">Se interpreta siempre en hora oficial de Lima, no la del servidor ni la de tu PC.</small>
               </label>
               <label className="admin-elcc-label">
-                Fin votación (opc.)
+                Fin votación — fecha y hora (Lima, Perú)
                 <input type="datetime-local" className="admin-elcc-input" value={form.votacion_fin || ''} onChange={(e) => setForm((f) => ({ ...f, votacion_fin: e.target.value }))} />
+                <small className="admin-elcc-muted">Misma referencia: Lima (UTC−05).</small>
               </label>
               <label className="admin-elcc-label">
                 Descripción

@@ -3,10 +3,11 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { CircularProgress } from '@mui/material';
 import DashboardLayout from '../components/DashboardLayout';
 import EleccionCampanaLayout from '../components/elecciones/EleccionCampanaLayout';
+import EleccionUrnaAviso from '../components/elecciones/EleccionUrnaAviso';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import { useEleccionPortalPaths } from './elecciones/useEleccionPortalPaths';
-import { formatearDuracion, msRestantesHasta, votacionHorarioAbiertoCliente } from './elecciones/eleccionCountdownUtils';
+import { msRestantesHasta, votacionHorarioAbiertoCliente } from './elecciones/eleccionCountdownUtils';
 import './AlumnoElecciones.css';
 
 function useTickMs() {
@@ -63,9 +64,8 @@ export default function AlumnoEleccionProceso() {
   if (proceso.estado === 'VOTACION') {
     if (!puede_participar) bloqueoUrnaTxt = motivo_bloqueo || 'No estás convocado/a para votar en este proceso.';
     else if (ya_voto) bloqueoUrnaTxt = null;
-    else if (!horarioOk && msApertura != null && msApertura > 0) {
-      bloqueoUrnaTxt = `La urna abre en ${formatearDuracion(msApertura)}`;
-    } else if (!horarioOk) bloqueoUrnaTxt = 'Fuera del horario de votación.';
+    else if (!horarioOk && msApertura != null && msApertura > 0) bloqueoUrnaTxt = null;
+    else if (!horarioOk) bloqueoUrnaTxt = 'Fuera del horario de votación.';
   }
 
   const inner = (
@@ -83,27 +83,16 @@ export default function AlumnoEleccionProceso() {
         {proceso.estado === 'CERRADA' && <p>Este proceso está cerrado. Puedes revisar las listas solo como archivo.</p>}
       </header>
 
-      {proceso.estado === 'VOTACION' && (
-        <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
-          {ya_voto ? (
-            <p className="elcc-alum-muted">Tu voto ya fue registrado.</p>
-          ) : puede_votar_ahora ? (
-            <Link
-              className="elcc-alum-btn elcc-alum-btn-primary"
-              style={{ textDecoration: 'none', display: 'inline-block' }}
-              to={`${routeBase}/${pid}/votar`}
-            >
-              Ir a la urna (votar por alcalde)
-            </Link>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-              <button type="button" className="elcc-alum-btn elcc-alum-btn-primary" disabled style={{ opacity: 0.55, cursor: 'not-allowed' }}>
-                Votar (no disponible aún)
-              </button>
-              {bloqueoUrnaTxt && <p className="elcc-alum-muted" style={{ margin: 0, maxWidth: 420 }}>{bloqueoUrnaTxt}</p>}
-            </div>
-          )}
-        </div>
+      {(proceso.estado === 'CAMPAÑA' || proceso.estado === 'VOTACION') && (
+        <EleccionUrnaAviso
+          countdown_urna={cd}
+          procesoEstado={proceso.estado}
+          puedeVotarAhora={!!puede_votar_ahora}
+          yaVoto={!!ya_voto}
+          routeVotar={`${routeBase}/${pid}/votar`}
+          now={now}
+          mensajeAlterno={bloqueoUrnaTxt}
+        />
       )}
 
       <h2 style={{ fontSize: '1.08rem', color: '#0f172a', marginBottom: '0.75rem' }}>Candidatos y propuestas</h2>

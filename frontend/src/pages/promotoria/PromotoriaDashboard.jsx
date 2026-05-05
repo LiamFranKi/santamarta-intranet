@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
+import EleccionesCampanaBanner from '../../components/EleccionesCampanaBanner';
 import api from '../../services/api';
 import './PromotoriaDashboard.css';
 
@@ -38,6 +39,7 @@ function PromotoriaDashboard() {
 
   return (
     <DashboardLayout>
+      <EleccionesCampanaBanner />
       <div className="promotoria-dashboard">
         <header className="promotoria-header">
           <h1 className="promotoria-title">Panel de Promotoría</h1>

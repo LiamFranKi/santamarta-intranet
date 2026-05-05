@@ -53,3 +53,43 @@
   white-space: nowrap;
   opacity: 0.95;
 }
+
+.elcc-dash-banner-count {
+  font-weight: 800;
+  font-size: 1.02rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.elcc-dash-banner-sub {
+  font-size: 0.78rem;
+  opacity: 0.9;
+  line-height: 1.35;
+}
+
+.elcc-dash-banner--vota {
+  cursor: default;
+}
+
+.elcc-dash-banner--vota:hover {
+  transform: none;
+}
+
+.elcc-dash-banner-vota-btn {
+  flex-shrink: 0;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #1d4ed8;
+  font-weight: 900;
+  font-size: 0.88rem;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.elcc-dash-banner-vota-btn:hover {
+  transform: scale(1.04);
+  color: #1e40af;
+}

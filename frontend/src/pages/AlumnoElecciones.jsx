@@ -5,7 +5,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import EleccionCampanaLayout from '../components/elecciones/EleccionCampanaLayout';
 import api from '../services/api';
 import { useEleccionPortalPaths } from './elecciones/useEleccionPortalPaths';
-import { formatearDuracion, msRestantesHasta, votacionHorarioAbiertoCliente } from './elecciones/eleccionCountdownUtils';
+import { msRestantesHasta, textoCuentaRegresivaUrna, votacionHorarioAbiertoCliente } from './elecciones/eleccionCountdownUtils';
 import './AlumnoElecciones.css';
 
 function useTickMs() {
@@ -66,12 +66,13 @@ export default function AlumnoElecciones() {
               p.puede_participar !== undefined && p.puede_participar !== null ? !!p.puede_participar : !!p.puede_ver;
             const msApertura = msRestantesHasta(cd?.votacion_iso_inicio, now);
             const horarioOk = votacionHorarioAbiertoCliente(cd);
+            const cuenta =
+              (p.estado === 'VOTACION' || p.estado === 'CAMPAÑA') && msApertura != null && msApertura > 0
+                ? textoCuentaRegresivaUrna(msApertura)
+                : null;
             const etiquetaCuenta =
-              p.estado === 'VOTACION' && !horarioOk && msApertura != null && msApertura > 0
-                ? `La urna abre en ${formatearDuracion(msApertura)}`
-                : p.estado === 'VOTACION' && !horarioOk
-                  ? 'Fuera del horario de votación'
-                  : null;
+              cuenta?.linea ||
+              (p.estado === 'VOTACION' && !horarioOk && (msApertura == null || msApertura <= 0) ? 'Fuera del horario de votación' : null);
             return (
               <article key={p.id} className="elcc-alum-proc-card">
                 <div>
@@ -84,9 +85,16 @@ export default function AlumnoElecciones() {
                   {convocado && p.estado === 'VOTACION' && p.ya_voto && (
                     <p className="elcc-alum-muted">Ya registraste tu voto. ¡Gracias!</p>
                   )}
-                  {convocado && p.estado === 'VOTACION' && !p.ya_voto && !p.puede_votar_ahora && etiquetaCuenta && (
+                  {etiquetaCuenta && (
                     <p className="elcc-alum-muted" style={{ fontWeight: 600 }}>
-                      {etiquetaCuenta}
+                      {cuenta ? <>Para la urna (Lima): {etiquetaCuenta}</> : etiquetaCuenta}
+                    </p>
+                  )}
+                  {convocado && p.estado === 'VOTACION' && p.puede_votar_ahora && !p.ya_voto && (
+                    <p style={{ margin: '0.5rem 0 0' }}>
+                      <Link className="elcc-alum-btn elcc-alum-btn-primary" style={{ textDecoration: 'none', display: 'inline-block' }} to={`${routeBase}/${p.id}/votar`}>
+                        VOTA AQUÍ
+                      </Link>
                     </p>
                   )}
                 </div>
