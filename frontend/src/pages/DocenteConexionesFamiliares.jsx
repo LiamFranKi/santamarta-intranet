@@ -8,6 +8,14 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './DocenteGrupos.css';
 
+const cfSwalSobreModal = {
+  customClass: { container: 'cf-swal-over-modal' },
+  didOpen: (popup) => {
+    const root = popup?.closest?.('.swal2-container');
+    if (root) root.style.zIndex = '250000';
+  }
+};
+
 function DocenteConexionesFamiliares() {
   const { grupoId } = useParams();
   const navigate = useNavigate();
@@ -91,11 +99,21 @@ function DocenteConexionesFamiliares() {
           const file = input.files[0];
           if (!file) return;
           if (file.size > 5 * 1024 * 1024) {
-            Swal.fire('Error', 'La imagen no puede ser mayor a 5MB', 'error');
+            Swal.fire({
+              ...cfSwalSobreModal,
+              title: 'Error',
+              text: 'La imagen no puede ser mayor a 5MB',
+              icon: 'error'
+            });
             return;
           }
           if (!file.type.startsWith('image/')) {
-            Swal.fire('Error', 'Solo se permiten archivos de imagen', 'error');
+            Swal.fire({
+              ...cfSwalSobreModal,
+              title: 'Error',
+              text: 'Solo se permiten archivos de imagen',
+              icon: 'error'
+            });
             return;
           }
           try {
@@ -108,7 +126,12 @@ function DocenteConexionesFamiliares() {
             quill.setSelection(range.index + 1);
           } catch (error) {
             console.error('Error subiendo imagen:', error);
-            Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+            Swal.fire({
+              ...cfSwalSobreModal,
+              title: 'Error',
+              text: 'No se pudo subir la imagen',
+              icon: 'error'
+            });
           }
         };
       };
@@ -130,12 +153,12 @@ function DocenteConexionesFamiliares() {
   const enviarMensaje = async () => {
     if (!grupo) return;
     if (!asuntoMensaje.trim()) {
-      Swal.fire('Error', 'El asunto es requerido', 'error');
+      Swal.fire({ ...cfSwalSobreModal, title: 'Error', text: 'El asunto es requerido', icon: 'error' });
       return;
     }
     const contenidoLimpio = contenidoMensaje.replace(/<[^>]*>/g, '').trim();
     if (!contenidoLimpio) {
-      Swal.fire('Error', 'El mensaje es requerido', 'error');
+      Swal.fire({ ...cfSwalSobreModal, title: 'Error', text: 'El mensaje es requerido', icon: 'error' });
       return;
     }
     if (enviandoMensaje) return;
@@ -156,6 +179,7 @@ function DocenteConexionesFamiliares() {
       });
 
       Swal.fire({
+        ...cfSwalSobreModal,
         title: '¡Mensaje Enviado!',
         text: 'El mensaje se ha enviado correctamente al grupo',
         icon: 'success',
@@ -170,7 +194,12 @@ function DocenteConexionesFamiliares() {
       setTimeout(() => cargarHistorial(), 900);
     } catch (error) {
       console.error('Error enviando mensaje:', error);
-      Swal.fire('Error', error.response?.data?.error || 'Error al enviar el mensaje', 'error');
+      Swal.fire({
+        ...cfSwalSobreModal,
+        title: 'Error',
+        text: error.response?.data?.error || 'Error al enviar el mensaje',
+        icon: 'error'
+      });
     } finally {
       setEnviandoMensaje(false);
     }
@@ -202,6 +231,7 @@ function DocenteConexionesFamiliares() {
 
   const handleEliminarMensaje = async (m) => {
     const confirmado = await Swal.fire({
+      ...cfSwalSobreModal,
       title: '¿Eliminar mensaje del historial?',
       text: 'Esta acción no se puede deshacer. El mensaje se quitará solo de este historial.',
       icon: 'warning',
@@ -215,9 +245,21 @@ function DocenteConexionesFamiliares() {
     try {
       await api.delete(`/docente/grupos/${grupoId}/mensajes-historial/${m.id}`);
       setHistorial(prev => prev.filter(item => item.id !== m.id));
-      Swal.fire({ title: 'Eliminado', text: 'El mensaje fue eliminado del historial.', icon: 'success', confirmButtonText: 'Aceptar' });
+      Swal.fire({
+        ...cfSwalSobreModal,
+        title: 'Eliminado',
+        text: 'El mensaje fue eliminado del historial.',
+        icon: 'success',
+        confirmButtonText: 'Aceptar'
+      });
     } catch (err) {
-      Swal.fire({ title: 'Error', text: err.response?.data?.error || 'No se pudo eliminar.', icon: 'error', confirmButtonText: 'Aceptar' });
+      Swal.fire({
+        ...cfSwalSobreModal,
+        title: 'Error',
+        text: err.response?.data?.error || 'No se pudo eliminar.',
+        icon: 'error',
+        confirmButtonText: 'Aceptar'
+      });
     }
   };
 

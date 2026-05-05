@@ -63,8 +63,8 @@ function drawObsCellCentered(doc, text, x0, yTop, w, h) {
   }
 }
 
-/** 6 columnas: grado arriba + nivel abajo; tel algo más angosto; última absorbe resto (DETALLE / obs. tutor) */
-function buildColumnsListaDeudores(innerW) {
+/** 6 columnas (admin): grado arriba + nivel abajo; tel algo más angosto; última absorbe resto */
+function buildColumnsListaDeudoresAdmin(innerW) {
   const wAl = innerW * 0.22;
   const wGr = innerW * 0.14;
   const wCo = innerW * 0.14;
@@ -77,6 +77,23 @@ function buildColumnsListaDeudores(innerW) {
     { key: 'grado', w: wGr },
     { key: 'concepto', w: wCo },
     { key: 'monto', w: wMo },
+    { key: 'tel', w: wTe },
+    { key: 'obs', w: wOb }
+  ];
+}
+
+/** 5 columnas (tutor): sin MONTO, más espacio para observaciones */
+function buildColumnsListaDeudoresTutor(innerW) {
+  const wAl = innerW * 0.27;
+  const wGr = innerW * 0.16;
+  const wCo = innerW * 0.2;
+  const wTe = innerW * 0.13;
+  const sum = wAl + wGr + wCo + wTe;
+  const wOb = innerW - sum;
+  return [
+    { key: 'alumno', w: wAl },
+    { key: 'grado', w: wGr },
+    { key: 'concepto', w: wCo },
     { key: 'tel', w: wTe },
     { key: 'obs', w: wOb }
   ];
@@ -135,9 +152,11 @@ export function generarPdfListaDeudores(opts) {
   const innerW = pageW - margin * 2;
   const bottomSafe = 20;
   const isTutor = variant === 'tutor';
-  const cols = buildColumnsListaDeudores(innerW);
+  const cols = isTutor
+    ? buildColumnsListaDeudoresTutor(innerW)
+    : buildColumnsListaDeudoresAdmin(innerW);
   const tableLabels = isTutor
-    ? ['ALUMNO', 'GRADO / NIVEL', 'CONCEPTO', 'MONTO', 'TEL. APODERADO', 'OBSERVACIONES']
+    ? ['ALUMNO', 'GRADO / NIVEL', 'CONCEPTO', 'TEL. APODERADO', 'OBSERVACIONES']
     : ['ALUMNO', 'GRADO / NIVEL', 'CONCEPTO', 'MONTO', 'TEL. APODERADO', 'DETALLE'];
 
   function drawMainHeader(yStart) {
@@ -228,28 +247,32 @@ export function generarPdfListaDeudores(opts) {
       positioned[2].w - 2
     );
 
-    drawTextCellVCentered(
-      doc,
-      [fmtMonto(row.monto, moneda)],
-      positioned[3].x0 + positioned[3].w / 2,
-      y,
-      rowH,
-      positioned[3].w - 1,
-      { bold: true }
-    );
+    const telIdx = isTutor ? 3 : 4;
+    const obsIdx = isTutor ? 4 : 5;
+    if (!isTutor) {
+      drawTextCellVCentered(
+        doc,
+        [fmtMonto(row.monto, moneda)],
+        positioned[3].x0 + positioned[3].w / 2,
+        y,
+        rowH,
+        positioned[3].w - 1,
+        { bold: true }
+      );
+    }
 
     const tel = safeTxt(row.telefono_apoderado) || '—';
-    const telWrapped = doc.splitTextToSize(tel, positioned[4].w - 2).slice(0, 2);
+    const telWrapped = doc.splitTextToSize(tel, positioned[telIdx].w - 2).slice(0, 2);
     drawTextCellVCentered(
       doc,
       telWrapped,
-      positioned[4].x0 + positioned[4].w / 2,
+      positioned[telIdx].x0 + positioned[telIdx].w / 2,
       y,
       rowH,
-      positioned[4].w - 2
+      positioned[telIdx].w - 2
     );
 
-    drawObsCellCentered(doc, textoObservacionRow(row), positioned[5].x0, y, wObs, rowH);
+    drawObsCellCentered(doc, textoObservacionRow(row), positioned[obsIdx].x0, y, wObs, rowH);
 
     return y + rowH;
   }
@@ -268,9 +291,11 @@ export function generarPdfListaDeudores(opts) {
     doc.setFontSize(10);
     doc.setTextColor(15, 23, 42);
     const left = `Total alumnos (${totalAlumnosUnicos})`;
-    const right = `Monto total ${fmtMonto(totalDeuda, moneda)}`;
     doc.text(left, margin + 1, y + 6);
-    doc.text(right, margin + innerW - 1, y + 6, { align: 'right' });
+    if (!isTutor) {
+      const right = `Monto total ${fmtMonto(totalDeuda, moneda)}`;
+      doc.text(right, margin + innerW - 1, y + 6, { align: 'right' });
+    }
     doc.setTextColor(0, 0, 0);
     return y + bandH;
   }

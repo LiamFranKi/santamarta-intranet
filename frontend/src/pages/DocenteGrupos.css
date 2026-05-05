@@ -1227,6 +1227,11 @@
   backdrop-filter: blur(4px);
 }
 
+/* SweetAlert2 por encima de modales de Conexiones Familiares (admin/docente) */
+.swal2-container.cf-swal-over-modal {
+  z-index: 250000 !important;
+}
+
 .modal-mensaje-container {
   background: white;
   border-radius: 16px;

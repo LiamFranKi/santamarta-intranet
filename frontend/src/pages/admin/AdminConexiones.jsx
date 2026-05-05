@@ -8,6 +8,14 @@ import 'react-quill/dist/quill.snow.css';
 import '../DocenteGrupos.css';
 import './AdminConexiones.css';
 
+const cfSwalSobreModal = {
+  customClass: { container: 'cf-swal-over-modal' },
+  didOpen: (popup) => {
+    const root = popup?.closest?.('.swal2-container');
+    if (root) root.style.zIndex = '250000';
+  }
+};
+
 function formatFechaHora(value) {
   if (!value) return { fecha: '—', hora: '—' };
   const d = new Date(value);
@@ -126,7 +134,7 @@ export default function AdminConexiones() {
           const file = input.files?.[0];
           if (!file) return;
           if (!file.type.startsWith('image/')) {
-            Swal.fire('Error', 'Solo se permiten imágenes', 'error');
+            Swal.fire({ ...cfSwalSobreModal, title: 'Error', text: 'Solo se permiten imágenes', icon: 'error' });
             return;
           }
           try {
@@ -141,7 +149,7 @@ export default function AdminConexiones() {
             quill.insertEmbed(range.index, 'image', url);
             quill.setSelection(range.index + 1);
           } catch (err) {
-            Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+            Swal.fire({ ...cfSwalSobreModal, title: 'Error', text: 'No se pudo subir la imagen', icon: 'error' });
           }
         };
       });
@@ -191,11 +199,21 @@ export default function AdminConexiones() {
   const enviarConexion = async () => {
     const textoPlano = String(mensaje || '').replace(/<(.|\n)*?>/g, '').trim();
     if (!asunto.trim() || !textoPlano) {
-      Swal.fire('Falta información', 'Asunto y mensaje son requeridos.', 'warning');
+      Swal.fire({
+        ...cfSwalSobreModal,
+        title: 'Falta información',
+        text: 'Asunto y mensaje son requeridos.',
+        icon: 'warning'
+      });
       return;
     }
     if (alcance === 'grupos' && gruposSeleccionados.length === 0) {
-      Swal.fire('Falta información', 'Debes seleccionar al menos un grupo.', 'warning');
+      Swal.fire({
+        ...cfSwalSobreModal,
+        title: 'Falta información',
+        text: 'Debes seleccionar al menos un grupo.',
+        icon: 'warning'
+      });
       return;
     }
     try {
@@ -213,11 +231,21 @@ export default function AdminConexiones() {
       await api.post('/docente/mensajes/enviar', fd, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      Swal.fire('Listo', 'Conexión enviada correctamente.', 'success');
+      Swal.fire({
+        ...cfSwalSobreModal,
+        title: 'Listo',
+        text: 'Conexión enviada correctamente.',
+        icon: 'success'
+      });
       setMostrarModalNuevo(false);
       await cargarConexiones();
     } catch (err) {
-      Swal.fire('Error', err?.response?.data?.error || 'No se pudo enviar la conexión.', 'error');
+      Swal.fire({
+        ...cfSwalSobreModal,
+        title: 'Error',
+        text: err?.response?.data?.error || 'No se pudo enviar la conexión.',
+        icon: 'error'
+      });
     } finally {
       setEnviando(false);
     }

@@ -14,14 +14,6 @@ const swalSobreModal = {
   }
 };
 
-function fmtMonto(n, moneda) {
-  if (n == null || n === '') return '—';
-  return `${moneda || 'S/'} ${parseFloat(n).toLocaleString('es-PE', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`;
-}
-
 function filaKey(r) {
   return `${r.matricula_id}-${r.tipo_concepto}-${r.nro_concepto}`;
 }
@@ -114,7 +106,6 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
     );
   };
 
-  const totalDeuda = filas.reduce((s, r) => s + (parseFloat(r.monto) || 0), 0);
   const totalAlumnosUnicos =
     typeof meta?.total_alumnos_unicos === 'number'
       ? meta.total_alumnos_unicos
@@ -176,7 +167,6 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
         concepto: meta.concepto,
         modoAgrupacion: 'todo',
         filas,
-        totalDeuda: Math.round(totalDeuda * 100) / 100,
         totalAlumnosUnicos,
         nombreArchivo: `deudores_tutoria_${slugGrupo}_${anio}.pdf`
       });
@@ -256,7 +246,6 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
         {!!filas.length && meta && (
           <div className="tutoria-deudores-headline">
             <span>Total alumnos ({totalAlumnosUnicos})</span>
-            <span>Monto total {fmtMonto(Math.round(totalDeuda * 100) / 100, moneda)}</span>
           </div>
         )}
 
@@ -274,7 +263,6 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
                 <tr>
                   <th>Alumno</th>
                   <th>Concepto</th>
-                  <th>Monto</th>
                   <th>Tel. apoderado</th>
                   <th>Observaciones (contacto con apoderado)</th>
                 </tr>
@@ -284,7 +272,6 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
                   <tr key={filaKey(r)}>
                     <td className="tut-deudores-col-nombre">{r.nombre}</td>
                     <td>{r.concepto}</td>
-                    <td className="tut-deudores-monto">{fmtMonto(r.monto, moneda)}</td>
                     <td className="tut-deudores-tel">{r.telefono_apoderado || '—'}</td>
                     <td className="tut-deudores-col-obs">
                       <textarea
