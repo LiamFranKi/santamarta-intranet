@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { CircularProgress } from '@mui/material';
@@ -12,6 +12,7 @@ import Swal from 'sweetalert2';
 import DOMPurify from 'dompurify';
 import './AdminUsuarios.css';
 import './AdminElecciones.css';
+import { attachQuillImageUploadHandler } from '../herramientas/hexExamenEditorHelpers';
 
 /** Tras subir logo/foto sin guardar identidad, el GET devuelve servidor; preservamos borrador local de la lista en edición. */
 function mergeListasPreservandoBorrador(freshListas, prevListas, editingListaId) {
@@ -41,10 +42,12 @@ const QUILL_MODULES = {
     [{ header: [1, 2, 3, false] }],
     ['bold', 'italic', 'underline', 'strike'],
     [{ list: 'ordered' }, { list: 'bullet' }],
-    ['link'],
+    ['link', 'image'],
     ['clean']
   ]
 };
+
+const QUILL_FORMATS = ['header', 'bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link', 'image'];
 
 function Modal({ title, children, onClose, wide, stack }) {
   const node = (
@@ -641,6 +644,10 @@ function ListaEditor({
           Lo que verá el electorado es la página de campaña con logo, alcalde, propuestas y enlaces. La lista debe estar en estado{' '}
           <strong>PUBLICADA</strong> y el proceso en <strong>CAMPAÑA</strong> o posterior para que los alumnos la vean en su menú de elecciones.
         </p>
+        <p className="admin-elcc-muted admin-elcc-vista-desc" style={{ marginTop: 8 }}>
+          <strong>Ruta alumno</strong>: mismo menú y marco que el alumno en la intranet.{' '}
+          <strong>Elecciones-campaña</strong>: vista pensada para familia y docentes (menú distinto, mismo contenido de campaña y urna).
+        </p>
         <div className="admin-elcc-vista-links">
           <a className="admin-elcc-btn admin-elcc-btn-primary admin-elcc-btn-sm" href={landingAlumno} target="_blank" rel="noreferrer">
             Abrir vista (ruta alumno)
@@ -754,6 +761,8 @@ function ListaDetalleEditor({
   const [propT, setPropT] = useState('');
   const [propC, setPropC] = useState('');
   const [propEdit, setPropEdit] = useState(null);
+  const propQuillRef = useRef(null);
+  const propEditQuillRef = useRef(null);
   const [redTipo, setRedTipo] = useState('YOUTUBE');
   const [redTitulo, setRedTitulo] = useState('');
   const [redUrl, setRedUrl] = useState('');
@@ -790,6 +799,26 @@ function ListaDetalleEditor({
     }, 300);
     return () => window.clearTimeout(t);
   }, [busq, anio]);
+
+  useEffect(() => {
+    if (!listaId) return undefined;
+    const url = `/elecciones/admin/listas/${listaId}/propuestas/subir-imagen`;
+    const t = window.setTimeout(() => {
+      const q = propQuillRef.current?.getEditor?.();
+      if (q) attachQuillImageUploadHandler(q, api, url);
+    }, 200);
+    return () => window.clearTimeout(t);
+  }, [listaId]);
+
+  useEffect(() => {
+    if (!propEdit || !listaId) return undefined;
+    const url = `/elecciones/admin/listas/${listaId}/propuestas/subir-imagen`;
+    const t = window.setTimeout(() => {
+      const q = propEditQuillRef.current?.getEditor?.();
+      if (q) attachQuillImageUploadHandler(q, api, url);
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [propEdit?.id, listaId]);
 
   const agregarPlanchaDesdeAlumno = async (alu) => {
     if (!mCargoId) {
@@ -1071,7 +1100,15 @@ function ListaDetalleEditor({
           <input className="admin-elcc-input" value={propT} onChange={(e) => setPropT(e.target.value)} />
         </label>
         <div className="admin-elcc-quill-wrap">
-          <ReactQuill theme="snow" value={propC} onChange={setPropC} modules={QUILL_MODULES} placeholder="Detalle con formato, listas y enlaces…" />
+          <ReactQuill
+            ref={propQuillRef}
+            theme="snow"
+            value={propC}
+            onChange={setPropC}
+            modules={QUILL_MODULES}
+            formats={QUILL_FORMATS}
+            placeholder="Detalle con formato, listas, enlaces e imágenes…"
+          />
         </div>
         <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" style={{ marginTop: 8 }} onClick={agregarProp}>
           Añadir propuesta
@@ -1111,11 +1148,13 @@ function ListaDetalleEditor({
           <p className="admin-elcc-muted">Detalle (formato enriquecido)</p>
           <div className="admin-elcc-quill-wrap">
             <ReactQuill
+              ref={propEditQuillRef}
               key={propEdit.id}
               theme="snow"
               value={propEdit.cuerpo}
               onChange={(html) => setPropEdit((x) => ({ ...x, cuerpo: html }))}
               modules={QUILL_MODULES}
+              formats={QUILL_FORMATS}
             />
           </div>
           <div className="admin-elcc-row-btns" style={{ marginTop: 12 }}>

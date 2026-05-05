@@ -105,6 +105,11 @@ const theme = createTheme({
   },
 });
 
+/** Personal intranet que puede previsualizar campañas con la misma URL que alumno (usa API portal en cliente). */
+const ELECCIONES_PORTAL_STAFF_TIPOS = ['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA'];
+const ELECCIONES_ALUMNO_RUTA_TIPOS = ['ALUMNO', ...ELECCIONES_PORTAL_STAFF_TIPOS];
+const ELECCIONES_CAMPANA_RUTA_TIPOS = ['ALUMNO', 'APODERADO', 'DOCENTE', ...ELECCIONES_PORTAL_STAFF_TIPOS];
+
 // Componente para rutas protegidas
 // `requiredTypes` (array): el usuario debe ser uno de esos tipos (p. ej. admin + promotoría comparten rutas).
 // `requiredType` (string): un solo tipo; si no se pasa `requiredTypes`, se interpreta como [requiredType].
@@ -889,7 +894,7 @@ function AppRoutes() {
       <Route
         path="/alumno/elecciones"
         element={
-          <PrivateRoute requiredType="ALUMNO">
+          <PrivateRoute requiredTypes={ELECCIONES_ALUMNO_RUTA_TIPOS}>
             <AlumnoElecciones />
           </PrivateRoute>
         }
@@ -897,7 +902,7 @@ function AppRoutes() {
       <Route
         path="/alumno/elecciones/:procesoId"
         element={
-          <PrivateRoute requiredType="ALUMNO">
+          <PrivateRoute requiredTypes={ELECCIONES_ALUMNO_RUTA_TIPOS}>
             <AlumnoEleccionProceso />
           </PrivateRoute>
         }
@@ -905,7 +910,7 @@ function AppRoutes() {
       <Route
         path="/alumno/elecciones/:procesoId/lista/:listaId"
         element={
-          <PrivateRoute requiredType="ALUMNO">
+          <PrivateRoute requiredTypes={ELECCIONES_ALUMNO_RUTA_TIPOS}>
             <AlumnoEleccionLanding />
           </PrivateRoute>
         }
@@ -921,7 +926,7 @@ function AppRoutes() {
       <Route
         path="/elecciones-campana"
         element={
-          <PrivateRoute requiredTypes={['ALUMNO', 'APODERADO', 'DOCENTE']}>
+          <PrivateRoute requiredTypes={ELECCIONES_CAMPANA_RUTA_TIPOS}>
             <AlumnoElecciones />
           </PrivateRoute>
         }
@@ -929,7 +934,7 @@ function AppRoutes() {
       <Route
         path="/elecciones-campana/:procesoId"
         element={
-          <PrivateRoute requiredTypes={['ALUMNO', 'APODERADO', 'DOCENTE']}>
+          <PrivateRoute requiredTypes={ELECCIONES_CAMPANA_RUTA_TIPOS}>
             <AlumnoEleccionProceso />
           </PrivateRoute>
         }
@@ -937,7 +942,7 @@ function AppRoutes() {
       <Route
         path="/elecciones-campana/:procesoId/lista/:listaId"
         element={
-          <PrivateRoute requiredTypes={['ALUMNO', 'APODERADO', 'DOCENTE']}>
+          <PrivateRoute requiredTypes={ELECCIONES_CAMPANA_RUTA_TIPOS}>
             <AlumnoEleccionLanding />
           </PrivateRoute>
         }
@@ -945,7 +950,7 @@ function AppRoutes() {
       <Route
         path="/elecciones-campana/:procesoId/votar"
         element={
-          <PrivateRoute requiredTypes={['ALUMNO', 'APODERADO', 'DOCENTE']}>
+          <PrivateRoute requiredTypes={ELECCIONES_CAMPANA_RUTA_TIPOS}>
             <AlumnoEleccionVotar />
           </PrivateRoute>
         }

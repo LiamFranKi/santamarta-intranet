@@ -5,6 +5,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import EleccionCampanaLayout from '../components/elecciones/EleccionCampanaLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
+import DOMPurify from 'dompurify';
 import { useEleccionPortalPaths } from './elecciones/useEleccionPortalPaths';
 import './AlumnoElecciones.css';
 
@@ -110,7 +111,10 @@ export default function AlumnoEleccionLanding() {
             propuestas.map((p) => (
               <div key={p.id} className="elcc-alum-prop">
                 <strong style={{ color: '#1e293b', display: 'block', marginBottom: 6 }}>{p.titulo}</strong>
-                <span style={{ color: '#475569', whiteSpace: 'pre-wrap' }}>{p.cuerpo}</span>
+                <div
+                  className="elcc-alum-prop-body"
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.cuerpo || '') }}
+                />
               </div>
             ))
           )}

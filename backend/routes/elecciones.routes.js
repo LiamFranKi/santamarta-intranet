@@ -1178,6 +1178,32 @@ router.get('/admin/listas/:listaId/propuestas', authenticateToken, requireStaff,
   }
 });
 
+/** Imagen embebida en el cuerpo HTML de una propuesta (Quill); misma carpeta que logos. */
+router.post(
+  '/admin/listas/:listaId/propuestas/subir-imagen',
+  authenticateToken,
+  requireStaff,
+  uploadImg.single('imagen'),
+  async (req, res) => {
+    try {
+      const listaId = parseInt(req.params.listaId, 10);
+      const ok = await query(
+        `SELECT l.id FROM elecciones_lista l
+         INNER JOIN elecciones_proceso p ON p.id = l.proceso_id
+         WHERE l.id = ? AND p.colegio_id = ? LIMIT 1`,
+        [listaId, req.user.colegio_id]
+      );
+      if (!ok.length) return res.status(404).json({ error: 'Lista no encontrada' });
+      if (!req.file) return res.status(400).json({ error: 'Archivo requerido' });
+      const rel = `elecciones/${req.file.filename}`;
+      res.json({ url: diskUrl(req, rel) });
+    } catch (e) {
+      console.error('[elecciones] propuesta imagen:', e);
+      res.status(500).json({ error: 'Error al subir imagen' });
+    }
+  }
+);
+
 router.post('/admin/listas/:listaId/propuestas', authenticateToken, requireStaff, async (req, res) => {
   try {
     const listaId = parseInt(req.params.listaId, 10);
