@@ -200,6 +200,9 @@ api.interceptors.response.use(
     const isEleccionesIntranetRoute = /\/elecciones\/(alumno|portal)\//.test(reqUrl);
     const skipLogoutEleccionesIntranet =
       isEleccionesIntranetRoute && (status === 403 || status === 409);
+    /** Elecciones admin: 403 por rol, token edge o reglas del servidor no debe desloguear (mostrar error en pantalla). */
+    const isEleccionesAdminRoute = /\/elecciones\/admin\//.test(reqUrl);
+    const skipLogoutEleccionesAdmin403 = isEleccionesAdminRoute && status === 403;
 
     if (
       status &&
@@ -222,6 +225,7 @@ api.interceptors.response.use(
       !skipLogoutAdminPsicologiaCritical &&
       !skipLogoutAlumnoExamen &&
       !skipLogoutEleccionesIntranet &&
+      !skipLogoutEleccionesAdmin403 &&
       !isPublicEventosRoute
     ) {
       const errorInfo = criticalErrors[status];

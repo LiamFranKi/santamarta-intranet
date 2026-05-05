@@ -10,7 +10,7 @@ const multer = require('multer');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 
-const STAFF_TYPES = new Set(['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA']);
+const STAFF_TYPES = new Set(['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA']);
 
 function requireStaff(req, res, next) {
   if (!req.user || !STAFF_TYPES.has(req.user.tipo)) {
@@ -971,7 +971,11 @@ router.get('/admin/listas/:listaId/miembros', authenticateToken, requireStaff, a
        ORDER BY m.orden_sort ASC, m.id ASC`,
       [req.user.colegio_id, listaId]
     );
-    res.json({ miembros });
+    const mapped = (miembros || []).map((m) => ({
+      ...m,
+      foto_display_url: mapMiembroPublic(req, m).foto_url
+    }));
+    res.json({ miembros: mapped });
   } catch (e) {
     console.error('[elecciones] miembros:', e);
     res.status(500).json({ error: 'Error al cargar miembros' });

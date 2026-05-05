@@ -202,8 +202,6 @@
 }
 
 .admin-elcc-proceso-card {
-  background: linear-gradient(165deg, #fdf8ff 0%, #fff 42%, #f0f9ff 100%);
-  border: 1px solid #e9d5ff;
   border-radius: 16px;
   padding: 1.15rem 1.2rem;
   box-shadow: 0 4px 18px rgba(99, 102, 241, 0.06);
@@ -211,6 +209,21 @@
   flex-direction: column;
   gap: 0.6rem;
   min-height: 168px;
+}
+
+.admin-elcc-proceso-grid .admin-elcc-proceso-card:nth-child(3n + 1) {
+  background: linear-gradient(165deg, #ecfdf5 0%, #fff 48%, #f0fdfa 100%);
+  border: 1px solid #a7f3d0;
+}
+
+.admin-elcc-proceso-grid .admin-elcc-proceso-card:nth-child(3n + 2) {
+  background: linear-gradient(165deg, #faf5ff 0%, #fff 48%, #f5f3ff 100%);
+  border: 1px solid #ddd6fe;
+}
+
+.admin-elcc-proceso-grid .admin-elcc-proceso-card:nth-child(3n) {
+  background: linear-gradient(165deg, #fff7ed 0%, #fff 48%, #fffbeb 100%);
+  border: 1px solid #fcd34d;
 }
 
 .admin-elcc-proceso-card-top {
@@ -322,7 +335,7 @@
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
-  z-index: 1000;
+  z-index: 12000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -832,6 +845,303 @@
   gap: 0.45rem;
   align-items: center;
   margin-top: 0.5rem;
+}
+
+/* Detalle proceso: apilado pastel */
+.admin-elcc-proceso-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-elcc-grid-proceso-3x2 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+@media (max-width: 900px) {
+  .admin-elcc-grid-proceso-3x2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-elcc-grid-proceso-3x2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-elcc-card-surface {
+  border-radius: 14px;
+  border-width: 1px;
+  border-style: solid;
+}
+
+.admin-elcc-surf-mint {
+  background: linear-gradient(145deg, #ecfdf5 0%, #fff 55%);
+  border-color: #6ee7b7;
+}
+
+.admin-elcc-surf-lavender {
+  background: linear-gradient(145deg, #f5f3ff 0%, #fff 55%);
+  border-color: #c4b5fd;
+}
+
+.admin-elcc-surf-peach {
+  background: linear-gradient(145deg, #fff7ed 0%, #fff 55%);
+  border-color: #fdba74;
+}
+
+.admin-elcc-perfil-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  color: #3730a3;
+}
+
+.admin-elcc-perfil-desc {
+  margin: 0 0 0.85rem;
+  font-size: 0.88rem;
+  color: #475569;
+  line-height: 1.5;
+  max-width: 48rem;
+}
+
+.admin-elcc-perfil-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.admin-elcc-perfil-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid #e9d5ff;
+  background: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #5b21b6;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-elcc-perfil-pill input {
+  accent-color: #7c3aed;
+}
+
+.admin-elcc-perfil-pill.on {
+  background: #ede9fe;
+  border-color: #a78bfa;
+}
+
+.admin-elcc-convoc-intro {
+  margin: 0 0 0.65rem;
+  line-height: 1.5;
+  font-size: 0.88rem;
+}
+
+.admin-elcc-convoc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.45rem 0.65rem;
+}
+
+@media (max-width: 768px) {
+  .admin-elcc-convoc-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-elcc-convoc-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-elcc-convoc-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid #fed7aa;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  cursor: pointer;
+}
+
+.admin-elcc-save-bar {
+  margin-top: 0.25rem;
+}
+
+/* Identidad lista */
+.admin-elcc-identidad-layout {
+  display: grid;
+  grid-template-columns: 1fr minmax(140px, 180px);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .admin-elcc-identidad-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-elcc-identidad-row1 {
+  display: grid;
+  grid-template-columns: minmax(120px, 1.4fr) minmax(72px, 0.55fr) minmax(100px, 0.85fr) auto;
+  gap: 0.55rem 0.65rem;
+  align-items: end;
+}
+
+@media (max-width: 640px) {
+  .admin-elcc-identidad-row1 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.admin-elcc-color-pair {
+  display: flex;
+  gap: 0.45rem;
+  align-items: end;
+}
+
+.admin-elcc-color-inp {
+  height: 38px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.admin-elcc-identidad-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.admin-elcc-logo-preview-wrap {
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+  background: #fff;
+  aspect-ratio: 1;
+  max-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.admin-elcc-logo-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.admin-elcc-logo-preview-ph {
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.admin-elcc-btn-block {
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+}
+
+/* Plancha tabla */
+.admin-elcc-row-cargo-search {
+  align-items: flex-end;
+}
+
+.admin-elcc-search-inline {
+  list-style: none;
+  margin: 0.35rem 0 0.65rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-elcc-pick-row {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e9d5ff;
+  background: #faf5ff;
+  border-radius: 10px;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.admin-elcc-pick-row:hover {
+  background: #f3e8ff;
+}
+
+.admin-elcc-table-scroll {
+  overflow-x: auto;
+  margin-top: 0.35rem;
+  border-radius: 12px;
+  border: 1px solid #e9d5ff;
+}
+
+.admin-elcc-plancha-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.admin-elcc-plancha-table th,
+.admin-elcc-plancha-table td {
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.admin-elcc-plancha-table th {
+  background: #faf5ff;
+  font-weight: 600;
+  color: #5b21b6;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-elcc-plancha-face {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-elcc-file-mini {
+  font-size: 0.76rem;
+  color: #6366f1;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.admin-elcc-red-list {
+  list-style: none;
+  margin: 0.55rem 0 0;
+  padding: 0;
+}
+
+.admin-elcc-red-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.86rem;
 }
 
 @media (max-width: 520px) {

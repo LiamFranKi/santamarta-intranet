@@ -1,4 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { CircularProgress } from '@mui/material';
 import ReactQuill from 'react-quill';
@@ -22,7 +23,7 @@ const QUILL_MODULES = {
 };
 
 function Modal({ title, children, onClose, wide }) {
-  return (
+  const node = (
     <div className="admin-elcc-modal-backdrop" role="presentation" onClick={onClose}>
       <div
         className={`admin-elcc-modal ${wide ? 'admin-elcc-modal-wide' : ''}`}
@@ -40,70 +41,7 @@ function Modal({ title, children, onClose, wide }) {
       </div>
     </div>
   );
-}
-
-/** Búsqueda de alumno vía /elecciones/admin/meta-alumnos */
-function AlumnoSearch({
-  anio,
-  onElegir,
-  label,
-  hint
-}) {
-  const [q, setQ] = useState('');
-  const [results, setResults] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const tref = useRef(null);
-
-  useEffect(() => {
-    if (!q || q.trim().length < 2) {
-      setResults([]);
-      return undefined;
-    }
-    const t = window.setTimeout(async () => {
-      setLoading(true);
-      try {
-        const { data } = await api.get('/elecciones/admin/meta-alumnos', {
-          params: { q: q.trim(), anio, limit: 20 }
-        });
-        setResults(data.alumnos || []);
-      } catch {
-        setResults([]);
-      } finally {
-        setLoading(false);
-      }
-    }, 320);
-    return () => window.clearTimeout(t);
-  }, [q, anio]);
-
-  return (
-    <div className="admin-elcc-alu-search">
-      <label className="admin-elcc-label">
-        {label}
-        <input
-          className="admin-elcc-input"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="DNI o apellidos / nombre (mín. 2 caracteres)"
-          autoComplete="off"
-        />
-      </label>
-      {hint && <p className="admin-elcc-hint">{hint}</p>}
-      {loading && <span className="admin-elcc-muted">Buscando…</span>}
-      {results.length > 0 && (
-        <ul className="admin-elcc-alu-results" ref={tref}>
-          {results.map((a) => (
-            <li key={a.id}>
-              <button type="button" className="admin-elcc-alu-pick" onClick={() => onElegir(a)}>
-                <strong>{a.nombre_completo}</strong>
-                <span className="admin-elcc-muted"> DNI {a.dni || '—'}</span>
-                {a.etiqueta_grupo && <span className="admin-elcc-tag">{a.etiqueta_grupo}</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
+  return typeof document !== 'undefined' ? createPortal(node, document.body) : node;
 }
 
 export default function AdminEleccionProceso() {
@@ -129,14 +67,6 @@ export default function AdminEleccionProceso() {
 
   const idNum = parseInt(procesoId, 10);
   const anio = user?.anio_activo;
-
-  const gradosNumericosUnicos = useMemo(() => {
-    const s = new Set();
-    (gruposOpciones || []).forEach((g) => {
-      if (g.grado != null && g.grado !== '') s.add(Number(g.grado));
-    });
-    return [...s].filter((n) => !Number.isNaN(n)).sort((a, b) => a - b);
-  }, [gruposOpciones]);
 
   const cargarTodo = useCallback(async () => {
     if (!idNum || Number.isNaN(idNum)) return;
@@ -301,7 +231,8 @@ export default function AdminEleccionProceso() {
     }
   };
 
-  const actualizarLista = async (lista, patch = {}) => {
+  const actualizarLista = async (lista, patch = {}, opts = {}) => {
+    const silent = Boolean(opts.silent);
     try {
       await api.put(`/elecciones/admin/listas/${lista.id}`, {
         nombre_lista: lista.nombre_lista,
@@ -315,7 +246,7 @@ export default function AdminEleccionProceso() {
         orden_sort: lista.orden_sort,
         ...patch
       });
-      await Swal.fire('Lista guardada', '', 'success');
+      if (!silent) await Swal.fire('Lista guardada', '', 'success');
       const r = await api.get(`/elecciones/admin/procesos/${idNum}/listas`);
       setListas(r.data.listas || []);
     } catch (e) {
@@ -379,16 +310,6 @@ export default function AdminEleccionProceso() {
     });
   };
 
-  const toggleGradoVoto = (num) => {
-    setForm((f) => {
-      const arr = Array.isArray(f.grados_voto_arr) ? [...f.grados_voto_arr] : [];
-      const i = arr.indexOf(num);
-      if (i >= 0) arr.splice(i, 1);
-      else arr.push(num);
-      return { ...f, grados_voto_arr: arr.sort((a, b) => a - b) };
-    });
-  };
-
   const listaEnEdicion = useMemo(() => listas.find((l) => l.id === listaEditId) || null, [listas, listaEditId]);
 
   if (loading && !proceso) {
@@ -410,104 +331,86 @@ export default function AdminEleccionProceso() {
           </button>
         </div>
 
-        <section className="admin-elcc-panel admin-elcc-panel-hero">
-          <h2>Datos del proceso</h2>
-          <p className="admin-elcc-muted admin-elcc-lead">
-            Aquí defines título, estado, ventana de votación y reglas de <strong>quién puede votar</strong>. Los demás apartados (resultados, cargos, listas) están en los botones de abajo para no saturar la pantalla.
-          </p>
-
-          <div className="admin-elcc-form-grid">
-            <label className="admin-elcc-label">
-              Título
-              <input className="admin-elcc-input" value={form.titulo || ''} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} />
-            </label>
-            <label className="admin-elcc-label">
-              Estado
-              <select className="admin-elcc-select" value={form.estado || ''} onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}>
-                <option value="BORRADOR">BORRADOR (solo admin)</option>
-                <option value="CAMPAÑA">CAMPAÑA (propuestas y planchas)</option>
-                <option value="VOTACION">VOTACIÓN (urna disponible si cumple fecha)</option>
-                <option value="CERRADA">CERRADA</option>
-              </select>
-            </label>
-            <label className="admin-elcc-label">
-              Modalidad
-              <select className="admin-elcc-select" value={form.modalidad || 'VIRTUAL'} onChange={(e) => setForm((f) => ({ ...f, modalidad: e.target.value }))}>
-                <option value="VIRTUAL">Virtual</option>
-                <option value="PRESENCIAL">Presencial</option>
-                <option value="MIXTO">Mixto</option>
-              </select>
-            </label>
-            <label className="admin-elcc-label">
-              Inicio votación (opc.)
-              <input type="datetime-local" className="admin-elcc-input" value={form.votacion_inicio || ''} onChange={(e) => setForm((f) => ({ ...f, votacion_inicio: e.target.value }))} />
-            </label>
-            <label className="admin-elcc-label">
-              Fin votación (opc.)
-              <input type="datetime-local" className="admin-elcc-input" value={form.votacion_fin || ''} onChange={(e) => setForm((f) => ({ ...f, votacion_fin: e.target.value }))} />
-            </label>
-            <label className="admin-elcc-label admin-elcc-form-grid full" style={{ gridColumn: '1 / -1' }}>
-              Descripción
-              <textarea className="admin-elcc-textarea" value={form.descripcion || ''} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} rows={3} />
-            </label>
-          </div>
-
-          <div className="admin-elcc-callout">
-            <h3>¿Quién puede votar? (perfil)</h3>
-            <p>
-              Marca si votan <strong>solo alumnos</strong>, también <strong>apoderados</strong> y/o <strong>docentes</strong>. La campaña la puede ver cualquier usuario de la intranet; la urna solo para quien cumpla estas casillas{' '}
-              <em>y además</em> las reglas de grado/aula de abajo.
+        <div className="admin-elcc-proceso-stack">
+          <section className="admin-elcc-panel admin-elcc-card-surface admin-elcc-surf-mint">
+            <h2>Datos del proceso</h2>
+            <p className="admin-elcc-muted admin-elcc-lead">
+              Título, estado, modalidad, fechas y descripción breve. Resultados, cargos y listas están en los botones inferiores.
             </p>
-            <div className="admin-elcc-check-row">
-              {['ALUMNO', 'APODERADO', 'DOCENTE'].map((cod) => (
-                <label key={cod} className="admin-elcc-check">
-                  <input
-                    type="checkbox"
-                    checked={(form.perfiles_voto || []).map((x) => String(x).toUpperCase()).includes(cod)}
-                    onChange={() => togglePerfilVoto(cod)}
-                  />
-                  {cod === 'ALUMNO' ? 'Alumnos' : cod === 'APODERADO' ? 'Apoderados' : 'Docentes'}
-                </label>
-              ))}
+
+            <div className="admin-elcc-grid-proceso-3x2">
+              <label className="admin-elcc-label">
+                Título
+                <input className="admin-elcc-input" value={form.titulo || ''} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} />
+              </label>
+              <label className="admin-elcc-label">
+                Estado
+                <select className="admin-elcc-select" value={form.estado || ''} onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}>
+                  <option value="BORRADOR">BORRADOR (solo admin)</option>
+                  <option value="CAMPAÑA">CAMPAÑA (propuestas y planchas)</option>
+                  <option value="VOTACION">VOTACIÓN (urna disponible si cumple fecha)</option>
+                  <option value="CERRADA">CERRADA</option>
+                </select>
+              </label>
+              <label className="admin-elcc-label">
+                Modalidad
+                <select className="admin-elcc-select" value={form.modalidad || 'VIRTUAL'} onChange={(e) => setForm((f) => ({ ...f, modalidad: e.target.value }))}>
+                  <option value="VIRTUAL">Virtual</option>
+                  <option value="PRESENCIAL">Presencial</option>
+                  <option value="MIXTO">Mixto</option>
+                </select>
+              </label>
+              <label className="admin-elcc-label">
+                Inicio votación (opc.)
+                <input type="datetime-local" className="admin-elcc-input" value={form.votacion_inicio || ''} onChange={(e) => setForm((f) => ({ ...f, votacion_inicio: e.target.value }))} />
+              </label>
+              <label className="admin-elcc-label">
+                Fin votación (opc.)
+                <input type="datetime-local" className="admin-elcc-input" value={form.votacion_fin || ''} onChange={(e) => setForm((f) => ({ ...f, votacion_fin: e.target.value }))} />
+              </label>
+              <label className="admin-elcc-label">
+                Descripción
+                <input
+                  type="text"
+                  className="admin-elcc-input"
+                  value={form.descripcion || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+                  placeholder="Texto corto visible en campaña (una línea)"
+                />
+              </label>
             </div>
-          </div>
+          </section>
 
-          <div className="admin-elcc-callout admin-elcc-callout-pastel">
-            <h3>Filtrar por grado numérico (opcional)</h3>
-            <p>
-              Son los <strong>números de grado</strong> del colegio (1°, 2°, 3°…). Si marcas algunos, solo los alumnos de esos grados podrán votar (además del filtro de aulas, si lo usas). Si no marcas ninguno aquí, no se restringe por número de grado en este bloque.
+          <section className="admin-elcc-panel admin-elcc-card-surface admin-elcc-surf-lavender">
+            <h3 className="admin-elcc-perfil-title">¿Quién puede votar?</h3>
+            <p className="admin-elcc-perfil-desc">
+              Elige perfiles con derecho a urna. La <strong>campaña</strong> la puede ver cualquier usuario autenticado; la <strong>votación</strong> solo quien coincida con estos perfiles y con la convocatoria por aula.
             </p>
-            {gradosNumericosUnicos.length === 0 ? (
-              <p className="admin-elcc-muted">No hay grupos cargados para este año; revisa meta-grupos o el año activo.</p>
-            ) : (
-              <div className="admin-elcc-check-wrap">
-                {gradosNumericosUnicos.map((g) => (
-                  <label key={g} className="admin-elcc-check admin-elcc-chip-check">
-                    <input
-                      type="checkbox"
-                      checked={(form.grados_voto_arr || []).includes(g)}
-                      onChange={() => toggleGradoVoto(g)}
-                    />
-                    {g}°
+            <div className="admin-elcc-perfil-pills">
+              {['ALUMNO', 'APODERADO', 'DOCENTE'].map((cod) => {
+                const on = (form.perfiles_voto || []).map((x) => String(x).toUpperCase()).includes(cod);
+                const label = cod === 'ALUMNO' ? 'Alumnos' : cod === 'APODERADO' ? 'Apoderados' : 'Docentes';
+                return (
+                  <label key={cod} className={`admin-elcc-perfil-pill ${on ? 'on' : ''}`}>
+                    <input type="checkbox" checked={on} onChange={() => togglePerfilVoto(cod)} />
+                    <span>{label}</span>
                   </label>
-                ))}
-              </div>
-            )}
-          </div>
+                );
+              })}
+            </div>
+          </section>
 
-          <div className="admin-elcc-callout">
-            <h3>Convocatoria por aula (recomendado)</h3>
-            <p>
-              <strong>Convocatoria</strong> = qué <em>aulas concretas</em> (grado + sección + nivel) pueden participar. Equivale a elegir “esta lista de grupos del colegio”.
-              <br />
-              Si <strong>no marcas ninguna aula</strong>, se entiende <strong>todas las aulas del año</strong>. Si marcas una o más, <strong>solo esas aulas</strong> podrán votar.
+          <section className="admin-elcc-panel admin-elcc-card-surface admin-elcc-surf-peach">
+            <h3>Convocatoria por aula</h3>
+            <p className="admin-elcc-muted admin-elcc-convoc-intro">
+              <strong>Convocatoria</strong> = aulas concretas (grado · sección · nivel). Sin ninguna marca = <strong>todas</strong> las aulas del año lectivo. Con marcas = solo las elegidas.
             </p>
-            <div className="admin-elcc-grupos-box admin-elcc-grupos-scroll">
+            <div className="admin-elcc-convoc-grid">
               {gruposOpciones.length === 0 ? (
                 <span className="admin-elcc-muted">No hay grupos para este año lectivo.</span>
               ) : (
                 gruposOpciones.map((g) => (
-                  <label key={g.id} className="admin-elcc-grupo-line">
+                  <label key={g.id} className="admin-elcc-convoc-cell">
                     <input type="checkbox" checked={grupoSeleccion.includes(g.id)} onChange={() => toggleGrupo(g.id)} />
                     <span>
                       {g.grado ?? '—'}° {g.seccion ?? ''}
@@ -517,31 +420,14 @@ export default function AdminEleccionProceso() {
                 ))
               )}
             </div>
-          </div>
+          </section>
 
-          <details className="admin-elcc-details">
-            <summary>Opción avanzada: rango numérico de grados</summary>
-            <p className="admin-elcc-muted">
-              Solo úsalo si necesitas un rango tipo “del 3 al 5” sin marcar casillas. Si ya usaste grados marcados o aulas arriba, normalmente esto va vacío.
-            </p>
-            <div className="admin-elcc-form-grid" style={{ maxWidth: 480 }}>
-              <label className="admin-elcc-label">
-                Grado mínimo (número)
-                <input type="number" className="admin-elcc-input" value={form.grado_min ?? ''} onChange={(e) => setForm((f) => ({ ...f, grado_min: e.target.value }))} />
-              </label>
-              <label className="admin-elcc-label">
-                Grado máximo (número)
-                <input type="number" className="admin-elcc-input" value={form.grado_max ?? ''} onChange={(e) => setForm((f) => ({ ...f, grado_max: e.target.value }))} />
-              </label>
-            </div>
-          </details>
-
-          <div style={{ marginTop: '1rem' }}>
+          <div className="admin-elcc-save-bar">
             <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={guardarProceso}>
               Guardar datos del proceso
             </button>
           </div>
-        </section>
+        </div>
 
         <div className="admin-elcc-big-actions">
           <button type="button" className="admin-elcc-big-btn admin-elcc-big-mint" onClick={() => setModal('resultados')}>
@@ -663,7 +549,6 @@ export default function AdminEleccionProceso() {
                   lista={listaEnEdicion}
                   listas={listas}
                   setListas={setListas}
-                  idNum={idNum}
                   anio={anio}
                   cargos={cargos}
                   detalle={detalleLista[listaEditId]}
@@ -686,7 +571,6 @@ function ListaEditor({
   lista,
   listas,
   setListas,
-  idNum,
   anio,
   cargos,
   detalle,
@@ -701,6 +585,7 @@ function ListaEditor({
   };
 
   const listaLocal = listas.find((l) => l.id === lista.id) || lista;
+  const logoSrc = listaLocal.logo_path ? buildUploadsUrl(listaLocal.logo_path) : '';
 
   return (
     <div className="admin-elcc-lista-editor">
@@ -708,93 +593,89 @@ function ListaEditor({
         ← Volver a las listas
       </button>
 
-      <div className="admin-elcc-lista-card-compact">
+      <div className="admin-elcc-lista-card-compact admin-elcc-card-surface admin-elcc-surf-mint">
         <h3>Identidad de la lista</h3>
-        <div className="admin-elcc-form-grid">
-          <label className="admin-elcc-label">
-            Nombre
-            <input className="admin-elcc-input" value={listaLocal.nombre_lista} onChange={(e) => patch('nombre_lista', e.target.value)} />
-          </label>
-          <label className="admin-elcc-label">
-            Eslogan
-            <input className="admin-elcc-input" value={listaLocal.eslogan || ''} onChange={(e) => patch('eslogan', e.target.value)} />
-          </label>
-          <label className="admin-elcc-label">
-            Color primario
-            <input type="color" className="admin-elcc-input" style={{ height: 42 }} value={listaLocal.color_primario || '#4f46e5'} onChange={(e) => patch('color_primario', e.target.value)} />
-          </label>
-          <label className="admin-elcc-label">
-            Color secundario
-            <input type="color" className="admin-elcc-input" style={{ height: 42 }} value={listaLocal.color_secundario || '#0ea5e9'} onChange={(e) => patch('color_secundario', e.target.value)} />
-          </label>
-          <label className="admin-elcc-label">
-            Orden en urna
-            <input type="number" className="admin-elcc-input" value={listaLocal.orden_sort} onChange={(e) => patch('orden_sort', parseInt(e.target.value, 10) || 0)} />
-          </label>
-          <label className="admin-elcc-label">
-            Estado público
-            <select className="admin-elcc-select" value={listaLocal.estado} onChange={(e) => patch('estado', e.target.value)}>
-              <option value="BORRADOR">BORRADOR</option>
-              <option value="PUBLICADA">PUBLICADA</option>
-            </select>
-          </label>
+        <div className="admin-elcc-identidad-layout">
+          <div className="admin-elcc-identidad-main">
+            <div className="admin-elcc-identidad-row1">
+              <label className="admin-elcc-label">
+                Nombre
+                <input className="admin-elcc-input" value={listaLocal.nombre_lista} onChange={(e) => patch('nombre_lista', e.target.value)} />
+              </label>
+              <label className="admin-elcc-label">
+                Orden en urna
+                <input type="number" className="admin-elcc-input" value={listaLocal.orden_sort} onChange={(e) => patch('orden_sort', parseInt(e.target.value, 10) || 0)} />
+              </label>
+              <label className="admin-elcc-label">
+                Estado público
+                <select className="admin-elcc-select" value={listaLocal.estado} onChange={(e) => patch('estado', e.target.value)}>
+                  <option value="BORRADOR">BORRADOR</option>
+                  <option value="PUBLICADA">PUBLICADA</option>
+                </select>
+              </label>
+              <div className="admin-elcc-color-pair">
+                <label className="admin-elcc-label">
+                  Color 1
+                  <input type="color" className="admin-elcc-input admin-elcc-color-inp" value={listaLocal.color_primario || '#4f46e5'} onChange={(e) => patch('color_primario', e.target.value)} />
+                </label>
+                <label className="admin-elcc-label">
+                  Color 2
+                  <input type="color" className="admin-elcc-input admin-elcc-color-inp" value={listaLocal.color_secundario || '#0ea5e9'} onChange={(e) => patch('color_secundario', e.target.value)} />
+                </label>
+              </div>
+            </div>
+            <label className="admin-elcc-label">
+              Eslogan
+              <input className="admin-elcc-input" value={listaLocal.eslogan || ''} onChange={(e) => patch('eslogan', e.target.value)} placeholder="Frase corta de campaña" />
+            </label>
+          </div>
+          <div className="admin-elcc-identidad-aside">
+            <div className="admin-elcc-logo-preview-wrap">
+              {logoSrc ? (
+                <img className="admin-elcc-logo-preview" src={logoSrc} alt="Logo lista" />
+              ) : (
+                <div className="admin-elcc-logo-preview-ph">Vista previa del logo</div>
+              )}
+            </div>
+            <label className="admin-elcc-btn admin-elcc-btn-ghost admin-elcc-btn-block">
+              Elegir imagen
+              <input type="file" accept="image/*" hidden onChange={(e) => subirListaFile(lista.id, 'logo', e.target.files?.[0])} />
+            </label>
+            <button type="button" className="admin-elcc-btn admin-elcc-btn-primary admin-elcc-btn-block" onClick={() => actualizarLista(listaLocal)}>
+              Guardar identidad
+            </button>
+          </div>
         </div>
-        <div className="admin-elcc-row-btns">
-          <label className="admin-elcc-btn admin-elcc-btn-ghost" style={{ cursor: 'pointer' }}>
-            Subir logo lista
-            <input type="file" accept="image/*" hidden onChange={(e) => subirListaFile(lista.id, 'logo', e.target.files?.[0])} />
-          </label>
-          <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={() => actualizarLista(listaLocal)}>
-            Guardar identidad
-          </button>
-        </div>
-      </div>
-
-      <div className="admin-elcc-lista-card-compact">
-        <h3>Candidato a alcalde (buscar alumno)</h3>
-        <p className="admin-elcc-muted">
-          Vincula al alumno del colegio: se mostrará su nombre y la foto del perfil del sistema en la campaña. Opcionalmente puedes subir una foto extra solo si en algún caso no hubiera foto en el perfil.
-        </p>
-        {listaLocal.alcalde_nombre_mostrar && (
-          <p>
-            <strong>Actual:</strong> {listaLocal.alcalde_nombre_mostrar}
-            {listaLocal.alcalde_alumno_id ? <span className="admin-elcc-tag ok">Enlazado a matrícula</span> : null}
-          </p>
-        )}
-        <AlumnoSearch
-          anio={anio}
-          label="Buscar por DNI o nombre"
-          hint="Elige un resultado para asignarlo como alcalde de esta lista."
-          onElegir={async (alu) => {
-            await actualizarLista(
-              { ...listaLocal, alcalde_alumno_id: alu.id },
-              {
-                alcalde_alumno_id: alu.id,
-                alcalde_nombres: alu.nombres,
-                alcalde_apellidos: `${alu.apellido_paterno || ''} ${alu.apellido_materno || ''}`.trim()
-              }
-            );
-          }}
-        />
-        <label className="admin-elcc-btn admin-elcc-btn-ghost" style={{ cursor: 'pointer', display: 'inline-block', marginTop: 8 }}>
-          Foto alcalde (opcional, sobre perfil)
-          <input type="file" accept="image/*" hidden onChange={(e) => subirListaFile(lista.id, 'alcalde', e.target.files?.[0])} />
-        </label>
       </div>
 
       <ListaDetalleEditor
         listaId={lista.id}
+        listaLocal={listaLocal}
         anio={anio}
         cargos={cargos}
         loadingDetalle={loadingDetalle}
         detalle={detalle}
         onRecargar={onRecargarDetalle}
+        actualizarLista={actualizarLista}
+        subirListaFile={subirListaFile}
       />
     </div>
   );
 }
 
-function ListaDetalleEditor({ listaId, anio, cargos, loadingDetalle, detalle, onRecargar }) {
+const ALCALDE_VALUE = '__ALCALDE__';
+
+function ListaDetalleEditor({
+  listaId,
+  listaLocal,
+  anio,
+  cargos,
+  loadingDetalle,
+  detalle,
+  onRecargar,
+  actualizarLista,
+  subirListaFile
+}) {
   const [mCargoId, setMCargoId] = useState('');
   const [busq, setBusq] = useState('');
   const [resAlu, setResAlu] = useState([]);
@@ -804,6 +685,13 @@ function ListaDetalleEditor({ listaId, anio, cargos, loadingDetalle, detalle, on
   const [redTipo, setRedTipo] = useState('YOUTUBE');
   const [redTitulo, setRedTitulo] = useState('');
   const [redUrl, setRedUrl] = useState('');
+
+  const thumbAlcalde =
+    listaLocal.alcalde_foto_url ||
+    (listaLocal.alcalde_foto_path ? buildUploadsUrl(listaLocal.alcalde_foto_path) : '');
+  const tieneAlcalde = Boolean(
+    listaLocal.alcalde_alumno_id || (listaLocal.alcalde_nombre_mostrar && String(listaLocal.alcalde_nombre_mostrar).trim() !== '')
+  );
 
   useEffect(() => {
     if (!busq || busq.trim().length < 2) {
@@ -826,32 +714,67 @@ function ListaDetalleEditor({ listaId, anio, cargos, loadingDetalle, detalle, on
     return () => window.clearTimeout(t);
   }, [busq, anio]);
 
-  const agregarMiembroDesdeAlumno = async (alu) => {
+  const agregarPlanchaDesdeAlumno = async (alu) => {
     if (!mCargoId) {
       Swal.fire('Selecciona un cargo', '', 'warning');
       return;
     }
-    await api.post(`/elecciones/admin/listas/${listaId}/miembros`, {
-      cargo_id: parseInt(mCargoId, 10),
-      alumno_id: alu.id
-    });
-    setBusq('');
-    setResAlu([]);
-    await onRecargar();
-    await Swal.fire('Listo', 'Integrante agregado (foto desde perfil del alumno)', 'success');
+    try {
+      if (mCargoId === ALCALDE_VALUE) {
+        await actualizarLista(
+          { ...listaLocal, alcalde_alumno_id: alu.id },
+          {
+            alcalde_alumno_id: alu.id,
+            alcalde_nombres: alu.nombres,
+            alcalde_apellidos: `${alu.apellido_paterno || ''} ${alu.apellido_materno || ''}`.trim()
+          },
+          { silent: true }
+        );
+      } else {
+        await api.post(`/elecciones/admin/listas/${listaId}/miembros`, {
+          cargo_id: parseInt(mCargoId, 10),
+          alumno_id: alu.id
+        });
+        await onRecargar();
+      }
+      setBusq('');
+      setResAlu([]);
+    } catch (e) {
+      Swal.fire('No se pudo agregar', e.response?.data?.error || e.message, 'error');
+    }
+  };
+
+  const quitarAlcalde = async () => {
+    try {
+      await actualizarLista(
+        { ...listaLocal, alcalde_alumno_id: null, alcalde_nombres: '', alcalde_apellidos: '' },
+        { alcalde_alumno_id: null, alcalde_nombres: '', alcalde_apellidos: '' },
+        { silent: true }
+      );
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || e.message, 'error');
+    }
   };
 
   const subirMiembroFoto = async (mid, file) => {
     if (!file) return;
-    const fd = new FormData();
-    fd.append('foto', file);
-    await api.post(`/elecciones/admin/miembros/${mid}/foto`, fd);
-    await onRecargar();
+    try {
+      const fd = new FormData();
+      fd.append('foto', file);
+      await api.post(`/elecciones/admin/miembros/${mid}/foto`, fd);
+      await onRecargar();
+    } catch (e) {
+      Swal.fire('No se pudo subir la foto', e.response?.data?.error || e.message, 'error');
+    }
   };
 
   const borrarMiembro = async (mid) => {
-    await api.delete(`/elecciones/admin/miembros/${mid}`);
-    await onRecargar();
+    try {
+      await api.delete(`/elecciones/admin/miembros/${mid}`);
+      await onRecargar();
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || e.message, 'error');
+    }
   };
 
   const agregarProp = async () => {
@@ -859,35 +782,51 @@ function ListaDetalleEditor({ listaId, anio, cargos, loadingDetalle, detalle, on
       Swal.fire('Completa título y detalle', '', 'warning');
       return;
     }
-    await api.post(`/elecciones/admin/listas/${listaId}/propuestas`, { titulo: propT, cuerpo: propC });
-    setPropT('');
-    setPropC('');
-    await onRecargar();
+    try {
+      await api.post(`/elecciones/admin/listas/${listaId}/propuestas`, { titulo: propT, cuerpo: propC });
+      setPropT('');
+      setPropC('');
+      await onRecargar();
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || e.message, 'error');
+    }
   };
 
   const borrarProp = async (pid) => {
-    await api.delete(`/elecciones/admin/propuestas/${pid}`);
-    await onRecargar();
+    try {
+      await api.delete(`/elecciones/admin/propuestas/${pid}`);
+      await onRecargar();
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || e.message, 'error');
+    }
   };
 
   const agregarRed = async () => {
-    if (!redUrl) {
+    if (!redUrl || !String(redUrl).trim()) {
       Swal.fire('URL requerida', '', 'warning');
       return;
     }
-    await api.post(`/elecciones/admin/listas/${listaId}/redes`, {
-      tipo: redTipo,
-      titulo: redTitulo || null,
-      url: redUrl
-    });
-    setRedUrl('');
-    setRedTitulo('');
-    await onRecargar();
+    try {
+      await api.post(`/elecciones/admin/listas/${listaId}/redes`, {
+        tipo: redTipo,
+        titulo: redTitulo || null,
+        url: String(redUrl).trim()
+      });
+      setRedUrl('');
+      setRedTitulo('');
+      await onRecargar();
+    } catch (e) {
+      Swal.fire('No se pudo guardar el enlace', e.response?.data?.error || e.message, 'error');
+    }
   };
 
   const borrarRed = async (rid) => {
-    await api.delete(`/elecciones/admin/redes/${rid}`);
-    await onRecargar();
+    try {
+      await api.delete(`/elecciones/admin/redes/${rid}`);
+      await onRecargar();
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || e.message, 'error');
+    }
   };
 
   if (loadingDetalle && !detalle) {
@@ -901,114 +840,174 @@ function ListaDetalleEditor({ listaId, anio, cargos, loadingDetalle, detalle, on
 
   return (
     <div className="admin-elcc-plancha-wrap">
-      <h3>Plancha (miembros)</h3>
-      <p className="admin-elcc-muted">El mismo buscador por DNI o nombre. La foto sale del perfil del alumno si está enlazado.</p>
-      <div className="admin-elcc-plancha-add">
-        <label className="admin-elcc-label">
-          Cargo
-          <select className="admin-elcc-select" value={mCargoId} onChange={(e) => setMCargoId(e.target.value)}>
-            <option value="">— Elige —</option>
-            {cargos.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
+      <div className="admin-elcc-lista-card-compact admin-elcc-card-surface admin-elcc-surf-lavender">
+        <h3>Plancha electoral (alcalde y cargos)</h3>
+        <p className="admin-elcc-muted">
+          Elige el <strong>cargo</strong> (incluida la opción <strong>Alcalde</strong> para la cara de la lista en la urna), escribe DNI o apellidos y pulsa un resultado para añadirlo a la tabla. Puedes <strong>quitar</strong> filas o subir una <strong>foto de campaña</strong> si hiciera falta.
+        </p>
+        <div className="admin-elcc-plancha-add admin-elcc-row-cargo-search">
+          <label className="admin-elcc-label">
+            Cargo
+            <select className="admin-elcc-select" value={mCargoId} onChange={(e) => setMCargoId(e.target.value)}>
+              <option value="">— Elige —</option>
+              <option value={ALCALDE_VALUE}>Alcalde (cara de la lista / urna)</option>
+              {cargos.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-elcc-label flex-1">
+            Buscar alumno
+            <input
+              className="admin-elcc-input"
+              value={busq}
+              onChange={(e) => setBusq(e.target.value)}
+              placeholder="DNI, apellido o nombre (mín. 2 caracteres)"
+            />
+          </label>
+        </div>
+        {loadingAlu && <span className="admin-elcc-muted">Buscando…</span>}
+        {resAlu.length > 0 && (
+          <ul className="admin-elcc-search-inline">
+            {resAlu.map((a) => (
+              <li key={a.id}>
+                <button type="button" className="admin-elcc-pick-row" onClick={() => agregarPlanchaDesdeAlumno(a)}>
+                  Añadir: <strong>{a.nombre_completo}</strong> <span className="admin-elcc-muted">DNI {a.dni || '—'}</span>
+                </button>
+              </li>
             ))}
-          </select>
-        </label>
-        <label className="admin-elcc-label flex-1">
-          Buscar alumno
-          <input className="admin-elcc-input" value={busq} onChange={(e) => setBusq(e.target.value)} placeholder="DNI o apellido" />
-        </label>
+          </ul>
+        )}
+
+        <div className="admin-elcc-table-scroll">
+          <table className="admin-elcc-plancha-table">
+            <thead>
+              <tr>
+                <th>Foto</th>
+                <th>Cargo</th>
+                <th>Nombre</th>
+                <th>Foto campaña</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {tieneAlcalde ? (
+                <tr>
+                  <td>
+                    {thumbAlcalde ? <img src={thumbAlcalde} alt="" className="admin-elcc-plancha-face" /> : <span className="admin-elcc-muted">—</span>}
+                  </td>
+                  <td>
+                    <strong>Alcalde</strong>
+                    {listaLocal.alcalde_alumno_id ? <span className="admin-elcc-tag ok">Matrícula</span> : null}
+                  </td>
+                  <td>{listaLocal.alcalde_nombre_mostrar || [listaLocal.alcalde_nombres, listaLocal.alcalde_apellidos].filter(Boolean).join(' ')}</td>
+                  <td>
+                    <label className="admin-elcc-file-mini">
+                      Subir
+                      <input type="file" accept="image/*" hidden onChange={(e) => subirListaFile(listaId, 'alcalde', e.target.files?.[0])} />
+                    </label>
+                  </td>
+                  <td>
+                    <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => quitarAlcalde()}>
+                      Quitar
+                    </button>
+                  </td>
+                </tr>
+              ) : null}
+              {(detalle.miembros || []).map((m) => {
+                const face = m.foto_display_url || (m.foto_path ? buildUploadsUrl(m.foto_path) : '');
+                return (
+                  <tr key={m.id}>
+                    <td>
+                      {face ? <img src={face} alt="" className="admin-elcc-plancha-face" /> : <span className="admin-elcc-muted">—</span>}
+                    </td>
+                    <td>
+                      <strong>{m.cargo_nombre}</strong>
+                      {m.alumno_id ? <span className="admin-elcc-tag ok"> Perfil</span> : null}
+                    </td>
+                    <td>
+                      {m.nombres} {m.apellidos}
+                    </td>
+                    <td>
+                      <label className="admin-elcc-file-mini">
+                        Subir / cambiar
+                        <input type="file" accept="image/*" hidden onChange={(e) => subirMiembroFoto(m.id, e.target.files?.[0])} />
+                      </label>
+                    </td>
+                    <td>
+                      <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarMiembro(m.id)}>
+                        Quitar
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {!tieneAlcalde && (detalle.miembros || []).length === 0 ? (
+          <p className="admin-elcc-muted">Aún no hay filas. Elige cargo + alumno arriba.</p>
+        ) : null}
       </div>
-      {loadingAlu && <span className="admin-elcc-muted">Buscando…</span>}
-      {resAlu.length > 0 && (
-        <ul className="admin-elcc-mini-res">
-          {resAlu.map((a) => (
-            <li key={a.id}>
-              <button type="button" className="admin-elcc-mini-pick" onClick={() => agregarMiembroDesdeAlumno(a)}>
-                + {a.nombre_completo} <span className="admin-elcc-muted">({a.dni})</span>
+
+      <div className="admin-elcc-lista-card-compact admin-elcc-card-surface admin-elcc-surf-peach" style={{ marginTop: '1rem' }}>
+        <h3>Propuestas (texto enriquecido)</h3>
+        <label className="admin-elcc-label">
+          Título
+          <input className="admin-elcc-input" value={propT} onChange={(e) => setPropT(e.target.value)} />
+        </label>
+        <div className="admin-elcc-quill-wrap">
+          <ReactQuill theme="snow" value={propC} onChange={setPropC} modules={QUILL_MODULES} placeholder="Detalle con formato, listas y enlaces…" />
+        </div>
+        <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" style={{ marginTop: 8 }} onClick={agregarProp}>
+          Añadir propuesta
+        </button>
+        <ul className="admin-elcc-prop-list">
+          {(detalle.propuestas || []).map((p) => (
+            <li key={p.id}>
+              <strong>{p.titulo}</strong>
+              <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarProp(p.id)}>
+                Eliminar
               </button>
             </li>
           ))}
         </ul>
-      )}
-
-      <ul className="admin-elcc-miemb-grid">
-        {(detalle.miembros || []).map((m) => (
-          <li key={m.id} className="admin-elcc-miem-card">
-            <div>
-              <strong>{m.cargo_nombre}</strong>
-              <div>
-                {m.nombres} {m.apellidos}
-              </div>
-              {m.alumno_id && <span className="admin-elcc-tag ok">Perfil</span>}
-            </div>
-            {!m.alumno_id && (
-              <label className="admin-elcc-link-file">
-                Subir foto
-                <input type="file" accept="image/*" hidden onChange={(e) => subirMiembroFoto(m.id, e.target.files?.[0])} />
-              </label>
-            )}
-            {m.foto_path && <img src={buildUploadsUrl(m.foto_path)} alt="" className="admin-elcc-miem-thumb" />}
-            <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarMiembro(m.id)}>
-              Quitar
-            </button>
-          </li>
-        ))}
-      </ul>
-
-      <h3 style={{ marginTop: '1.25rem' }}>Propuestas (texto enriquecido)</h3>
-      <label className="admin-elcc-label">
-        Título
-        <input className="admin-elcc-input" value={propT} onChange={(e) => setPropT(e.target.value)} />
-      </label>
-      <div className="admin-elcc-quill-wrap">
-        <ReactQuill theme="snow" value={propC} onChange={setPropC} modules={QUILL_MODULES} placeholder="Detalle con formato, listas y enlaces…" />
       </div>
-      <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" style={{ marginTop: 8 }} onClick={agregarProp}>
-        Añadir propuesta
-      </button>
-      <ul className="admin-elcc-prop-list">
-        {(detalle.propuestas || []).map((p) => (
-          <li key={p.id}>
-            <strong>{p.titulo}</strong>
-            <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarProp(p.id)}>
-              Eliminar
-            </button>
-          </li>
-        ))}
-      </ul>
 
-      <h3 style={{ marginTop: '1.25rem' }}>Videos y redes</h3>
-      <p className="admin-elcc-muted">Enlaces a YouTube, TikTok, Instagram o web de la campaña.</p>
-      <div className="admin-elcc-red-row">
-        <select className="admin-elcc-select" value={redTipo} onChange={(e) => setRedTipo(e.target.value)}>
-          <option value="YOUTUBE">YouTube</option>
-          <option value="TIKTOK">TikTok</option>
-          <option value="INSTAGRAM">Instagram</option>
-          <option value="WEB">Web</option>
-          <option value="OTRO">Otro</option>
-        </select>
-        <input className="admin-elcc-input" value={redTitulo} placeholder="Etiqueta (opcional)" onChange={(e) => setRedTitulo(e.target.value)} />
-        <input className="admin-elcc-input flex-1" value={redUrl} placeholder="https://..." onChange={(e) => setRedUrl(e.target.value)} />
-        <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={agregarRed}>
-          Añadir
-        </button>
+      <div className="admin-elcc-lista-card-compact admin-elcc-card-surface admin-elcc-surf-mint" style={{ marginTop: '1rem' }}>
+        <h3>Videos y redes</h3>
+        <p className="admin-elcc-muted">Enlaces a YouTube, TikTok, Instagram o web de la campaña.</p>
+        <div className="admin-elcc-red-row">
+          <select className="admin-elcc-select" value={redTipo} onChange={(e) => setRedTipo(e.target.value)}>
+            <option value="YOUTUBE">YouTube</option>
+            <option value="TIKTOK">TikTok</option>
+            <option value="INSTAGRAM">Instagram</option>
+            <option value="WEB">Web</option>
+            <option value="OTRO">Otro</option>
+          </select>
+          <input className="admin-elcc-input" value={redTitulo} placeholder="Etiqueta (opcional)" onChange={(e) => setRedTitulo(e.target.value)} />
+          <input className="admin-elcc-input flex-1" value={redUrl} placeholder="https://..." onChange={(e) => setRedUrl(e.target.value)} />
+          <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={agregarRed}>
+            Añadir
+          </button>
+        </div>
+        <ul className="admin-elcc-red-list">
+          {(detalle.redes || []).map((r) => (
+            <li key={r.id}>
+              <strong>{r.tipo}</strong>
+              {r.titulo ? ` — ${r.titulo}` : ''}:{' '}
+              <a href={r.url} target="_blank" rel="noreferrer">
+                {r.url}
+              </a>
+              <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarRed(r.id)}>
+                Quitar
+              </button>
+            </li>
+          ))}
+        </ul>
       </div>
-      <ul>
-        {(detalle.redes || []).map((r) => (
-          <li key={r.id}>
-            <strong>{r.tipo}</strong>
-            {r.titulo ? ` — ${r.titulo}` : ''}:{' '}
-            <a href={r.url} target="_blank" rel="noreferrer">
-              {r.url}
-            </a>
-            <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarRed(r.id)}>
-              Quitar
-            </button>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
