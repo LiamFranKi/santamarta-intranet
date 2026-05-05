@@ -9,8 +9,32 @@ import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import { buildUploadsUrl } from '../../utils/uploadsUrl';
 import Swal from 'sweetalert2';
+import DOMPurify from 'dompurify';
 import './AdminUsuarios.css';
 import './AdminElecciones.css';
+
+/** Tras subir logo/foto sin guardar identidad, el GET devuelve servidor; preservamos borrador local de la lista en edición. */
+function mergeListasPreservandoBorrador(freshListas, prevListas, editingListaId) {
+  if (!editingListaId || !Array.isArray(freshListas)) return freshListas || [];
+  const old = prevListas.find((x) => x.id === editingListaId);
+  if (!old) return freshListas;
+  return freshListas.map((L) => {
+    if (L.id !== editingListaId) return L;
+    return {
+      ...L,
+      nombre_lista: old.nombre_lista,
+      eslogan: old.eslogan,
+      color_primario: old.color_primario,
+      color_secundario: old.color_secundario,
+      estado: old.estado,
+      orden_sort: old.orden_sort,
+      alcalde_nombres: old.alcalde_nombres,
+      alcalde_apellidos: old.alcalde_apellidos,
+      alcalde_alumno_id: old.alcalde_alumno_id,
+      alcalde_nombre_mostrar: old.alcalde_nombre_mostrar
+    };
+  });
+}
 
 const QUILL_MODULES = {
   toolbar: [
@@ -22,9 +46,9 @@ const QUILL_MODULES = {
   ]
 };
 
-function Modal({ title, children, onClose, wide }) {
+function Modal({ title, children, onClose, wide, stack }) {
   const node = (
-    <div className="admin-elcc-modal-backdrop" role="presentation" onClick={onClose}>
+    <div className={`admin-elcc-modal-backdrop${stack ? ' admin-elcc-modal-stack2' : ''}`} role="presentation" onClick={onClose}>
       <div
         className={`admin-elcc-modal ${wide ? 'admin-elcc-modal-wide' : ''}`}
         onClick={(e) => e.stopPropagation()}
@@ -213,12 +237,24 @@ export default function AdminEleccionProceso() {
   };
 
   const nuevaLista = async () => {
+    const rnom = await Swal.fire({
+      title: 'Nueva lista',
+      input: 'text',
+      inputLabel: 'Nombre de la lista',
+      inputPlaceholder: 'Ej. Lista Unidos por el cole',
+      showCancelButton: true,
+      confirmButtonText: 'Crear lista',
+      cancelButtonText: 'Cancelar',
+      inputValidator: (v) => (!v?.trim() ? 'Escribe un nombre para crear la lista' : null)
+    });
+    if (!rnom.isConfirmed || !rnom.value?.trim()) return;
     try {
       const { data } = await api.post(`/elecciones/admin/procesos/${idNum}/listas`, {
-        nombre_lista: 'Nueva lista',
+        nombre_lista: rnom.value.trim(),
         estado: 'BORRADOR'
       });
-      await cargarTodo();
+      const r = await api.get(`/elecciones/admin/procesos/${idNum}/listas`);
+      setListas(r.data.listas || []);
       setListaEditId(data.id);
       setDetalleLista((prev) => {
         const n = { ...prev };
@@ -258,7 +294,9 @@ export default function AdminEleccionProceso() {
     const ok = await Swal.fire({
       title: '¿Eliminar lista?',
       icon: 'warning',
-      showCancelButton: true
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar'
     });
     if (!ok.isConfirmed) return;
     try {
@@ -281,8 +319,8 @@ export default function AdminEleccionProceso() {
     try {
       await api.post(ep, fd);
       const r = await api.get(`/elecciones/admin/procesos/${idNum}/listas`);
-      setListas(r.data.listas || []);
-      await Swal.fire('Archivo subido', '', 'success');
+      setListas((prev) => mergeListasPreservandoBorrador(r.data.listas || [], prev, listaEditId));
+      await Swal.fire({ title: 'Archivo subido', icon: 'success', timer: 1600, showConfirmButton: false });
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error || 'Error al subir', 'error');
     }
@@ -547,6 +585,7 @@ export default function AdminEleccionProceso() {
               listaEnEdicion && (
                 <ListaEditor
                   lista={listaEnEdicion}
+                  procesoId={idNum}
                   listas={listas}
                   setListas={setListas}
                   anio={anio}
@@ -569,6 +608,7 @@ export default function AdminEleccionProceso() {
 
 function ListaEditor({
   lista,
+  procesoId,
   listas,
   setListas,
   anio,
@@ -586,12 +626,30 @@ function ListaEditor({
 
   const listaLocal = listas.find((l) => l.id === lista.id) || lista;
   const logoSrc = listaLocal.logo_path ? buildUploadsUrl(listaLocal.logo_path) : '';
+  const landingAlumno = `${window.location.origin}/alumno/elecciones/${procesoId}/lista/${lista.id}`;
+  const landingCampana = `${window.location.origin}/elecciones-campana/${procesoId}/lista/${lista.id}`;
 
   return (
     <div className="admin-elcc-lista-editor">
       <button type="button" className="admin-elcc-btn admin-elcc-btn-ghost admin-elcc-back-list" onClick={onVolver}>
         ← Volver a las listas
       </button>
+
+      <div className="admin-elcc-vista-publica admin-elcc-card-surface admin-elcc-surf-peach">
+        <h4 className="admin-elcc-vista-publica-title">Vista pública (landing de esta lista)</h4>
+        <p className="admin-elcc-muted admin-elcc-vista-desc">
+          Lo que verá el electorado es la página de campaña con logo, alcalde, propuestas y enlaces. La lista debe estar en estado{' '}
+          <strong>PUBLICADA</strong> y el proceso en <strong>CAMPAÑA</strong> o posterior para que los alumnos la vean en su menú de elecciones.
+        </p>
+        <div className="admin-elcc-vista-links">
+          <a className="admin-elcc-btn admin-elcc-btn-primary admin-elcc-btn-sm" href={landingAlumno} target="_blank" rel="noreferrer">
+            Abrir vista (ruta alumno)
+          </a>
+          <a className="admin-elcc-btn admin-elcc-btn-ghost admin-elcc-btn-sm" href={landingCampana} target="_blank" rel="noreferrer">
+            Abrir vista (elecciones-campaña)
+          </a>
+        </div>
+      </div>
 
       <div className="admin-elcc-lista-card-compact admin-elcc-card-surface admin-elcc-surf-mint">
         <h3>Identidad de la lista</h3>
@@ -637,10 +695,23 @@ function ListaEditor({
                 <div className="admin-elcc-logo-preview-ph">Vista previa del logo</div>
               )}
             </div>
-            <label className="admin-elcc-btn admin-elcc-btn-ghost admin-elcc-btn-block">
+            <input
+              type="file"
+              accept="image/*"
+              className="admin-elcc-file-hidden"
+              id={`logo-lista-${lista.id}`}
+              onChange={(e) => {
+                subirListaFile(lista.id, 'logo', e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+            <button
+              type="button"
+              className="admin-elcc-btn admin-elcc-btn-ghost admin-elcc-btn-block"
+              onClick={() => document.getElementById(`logo-lista-${lista.id}`)?.click()}
+            >
               Elegir imagen
-              <input type="file" accept="image/*" hidden onChange={(e) => subirListaFile(lista.id, 'logo', e.target.files?.[0])} />
-            </label>
+            </button>
             <button type="button" className="admin-elcc-btn admin-elcc-btn-primary admin-elcc-btn-block" onClick={() => actualizarLista(listaLocal)}>
               Guardar identidad
             </button>
@@ -682,6 +753,7 @@ function ListaDetalleEditor({
   const [loadingAlu, setLoadingAlu] = useState(false);
   const [propT, setPropT] = useState('');
   const [propC, setPropC] = useState('');
+  const [propEdit, setPropEdit] = useState(null);
   const [redTipo, setRedTipo] = useState('YOUTUBE');
   const [redTitulo, setRedTitulo] = useState('');
   const [redUrl, setRedUrl] = useState('');
@@ -702,9 +774,14 @@ function ListaDetalleEditor({
       setLoadingAlu(true);
       try {
         const { data } = await api.get('/elecciones/admin/meta-alumnos', {
-          params: { q: busq.trim(), anio, limit: 16 }
+          params: { q: busq.trim(), anio, limit: 24 }
         });
-        setResAlu(data.alumnos || []);
+        const raw = data.alumnos || [];
+        const byId = new Map();
+        raw.forEach((a) => {
+          if (a?.id != null && !byId.has(a.id)) byId.set(a.id, a);
+        });
+        setResAlu([...byId.values()]);
       } catch {
         setResAlu([]);
       } finally {
@@ -801,6 +878,21 @@ function ListaDetalleEditor({
     }
   };
 
+  const guardarPropEdit = async () => {
+    if (!propEdit) return;
+    try {
+      await api.put(`/elecciones/admin/propuestas/${propEdit.id}`, {
+        titulo: propEdit.titulo,
+        cuerpo: propEdit.cuerpo
+      });
+      setPropEdit(null);
+      await onRecargar();
+      await Swal.fire({ title: 'Propuesta actualizada', icon: 'success', timer: 1400, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || e.message, 'error');
+    }
+  };
+
   const agregarRed = async () => {
     if (!redUrl || !String(redUrl).trim()) {
       Swal.fire('URL requerida', '', 'warning');
@@ -888,7 +980,9 @@ function ListaDetalleEditor({
                 <th>Foto</th>
                 <th>Cargo</th>
                 <th>Nombre</th>
-                <th>Foto campaña</th>
+                <th title="Imagen opcional solo para campaña (si no subes nada, se usa la foto de perfil del alumno).">
+                  Foto campaña
+                </th>
                 <th />
               </tr>
             </thead>
@@ -904,10 +998,19 @@ function ListaDetalleEditor({
                   </td>
                   <td>{listaLocal.alcalde_nombre_mostrar || [listaLocal.alcalde_nombres, listaLocal.alcalde_apellidos].filter(Boolean).join(' ')}</td>
                   <td>
-                    <label className="admin-elcc-file-mini">
-                      Subir
-                      <input type="file" accept="image/*" hidden onChange={(e) => subirListaFile(listaId, 'alcalde', e.target.files?.[0])} />
-                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="admin-elcc-file-hidden"
+                      id={`foto-alcalde-${listaId}`}
+                      onChange={(e) => {
+                        subirListaFile(listaId, 'alcalde', e.target.files?.[0]);
+                        e.target.value = '';
+                      }}
+                    />
+                    <button type="button" className="admin-elcc-uploadfake" onClick={() => document.getElementById(`foto-alcalde-${listaId}`)?.click()}>
+                      Subir foto campaña
+                    </button>
                   </td>
                   <td>
                     <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => quitarAlcalde()}>
@@ -931,10 +1034,19 @@ function ListaDetalleEditor({
                       {m.nombres} {m.apellidos}
                     </td>
                     <td>
-                      <label className="admin-elcc-file-mini">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="admin-elcc-file-hidden"
+                        id={`foto-miembro-${m.id}`}
+                        onChange={(e) => {
+                          subirMiembroFoto(m.id, e.target.files?.[0]);
+                          e.target.value = '';
+                        }}
+                      />
+                      <button type="button" className="admin-elcc-uploadfake" onClick={() => document.getElementById(`foto-miembro-${m.id}`)?.click()}>
                         Subir / cambiar
-                        <input type="file" accept="image/*" hidden onChange={(e) => subirMiembroFoto(m.id, e.target.files?.[0])} />
-                      </label>
+                      </button>
                     </td>
                     <td>
                       <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarMiembro(m.id)}>
@@ -964,17 +1076,58 @@ function ListaDetalleEditor({
         <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" style={{ marginTop: 8 }} onClick={agregarProp}>
           Añadir propuesta
         </button>
-        <ul className="admin-elcc-prop-list">
+        <ul className="admin-elcc-prop-list admin-elcc-prop-rich">
           {(detalle.propuestas || []).map((p) => (
-            <li key={p.id}>
-              <strong>{p.titulo}</strong>
-              <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarProp(p.id)}>
-                Eliminar
-              </button>
+            <li key={p.id} className="admin-elcc-prop-item">
+              <div className="admin-elcc-prop-head">
+                <strong>{p.titulo}</strong>
+                <span className="admin-elcc-prop-actions">
+                  <button type="button" className="admin-elcc-btn admin-elcc-btn-ghost admin-elcc-btn-xs" onClick={() => setPropEdit({ id: p.id, titulo: p.titulo || '', cuerpo: p.cuerpo || '' })}>
+                    Editar
+                  </button>
+                  <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarProp(p.id)}>
+                    Eliminar
+                  </button>
+                </span>
+              </div>
+              <details className="admin-elcc-prop-details">
+                <summary>Vista previa del texto</summary>
+                <div
+                  className="admin-elcc-prop-html"
+                  dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.cuerpo || '') }}
+                />
+              </details>
             </li>
           ))}
         </ul>
       </div>
+
+      {propEdit ? (
+        <Modal title="Editar propuesta" wide stack onClose={() => setPropEdit(null)}>
+          <label className="admin-elcc-label">
+            Título
+            <input className="admin-elcc-input" value={propEdit.titulo} onChange={(e) => setPropEdit((x) => ({ ...x, titulo: e.target.value }))} />
+          </label>
+          <p className="admin-elcc-muted">Detalle (formato enriquecido)</p>
+          <div className="admin-elcc-quill-wrap">
+            <ReactQuill
+              key={propEdit.id}
+              theme="snow"
+              value={propEdit.cuerpo}
+              onChange={(html) => setPropEdit((x) => ({ ...x, cuerpo: html }))}
+              modules={QUILL_MODULES}
+            />
+          </div>
+          <div className="admin-elcc-row-btns" style={{ marginTop: 12 }}>
+            <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={guardarPropEdit}>
+              Guardar cambios
+            </button>
+            <button type="button" className="admin-elcc-btn admin-elcc-btn-ghost" onClick={() => setPropEdit(null)}>
+              Cancelar
+            </button>
+          </div>
+        </Modal>
+      ) : null}
 
       <div className="admin-elcc-lista-card-compact admin-elcc-card-surface admin-elcc-surf-mint" style={{ marginTop: '1rem' }}>
         <h3>Videos y redes</h3>

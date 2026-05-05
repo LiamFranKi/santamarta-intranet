@@ -430,8 +430,13 @@ router.get('/admin/meta-alumnos', authenticateToken, requireStaff, async (req, r
       params = [Number.isFinite(anio) ? anio : 2026, colegioId, like, like, like, like, limit];
     }
     const rows = await query(sql, params);
+    const byId = new Map();
+    (rows || []).forEach((r) => {
+      if (r && r.id != null && !byId.has(r.id)) byId.set(r.id, r);
+    });
+    const deduped = [...byId.values()];
     res.json({
-      alumnos: (rows || []).map((r) => ({
+      alumnos: deduped.map((r) => ({
         id: r.id,
         dni: r.dni,
         nombres: r.nombres,

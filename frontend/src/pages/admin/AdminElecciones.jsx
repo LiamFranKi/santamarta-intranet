@@ -121,32 +121,58 @@ export default function AdminElecciones() {
                       Configurar
                     </button>
                     <details className="admin-elcc-opt-menu">
-                      <summary className="admin-elcc-opt-trigger">Más opciones</summary>
+                      <summary className="admin-elcc-opt-trigger">
+                        <span className="admin-elcc-opt-chev">▾</span> Más opciones
+                      </summary>
                       <div className="admin-elcc-opt-dropdown" role="menu">
                         <button
                           type="button"
                           className="admin-elcc-opt-item"
                           onClick={() => navigate(`/admin/herramientas/elecciones/${p.id}?panel=resultados`)}
                         >
-                          Resultados (modal)
+                          <span className="admin-elcc-opt-ico" aria-hidden>
+                            📊
+                          </span>
+                          <span className="admin-elcc-opt-txt">
+                            <span className="admin-elcc-opt-line1">Resultados</span>
+                            <span className="admin-elcc-opt-line2">Conteo por lista</span>
+                          </span>
                         </button>
                         <button
                           type="button"
                           className="admin-elcc-opt-item"
                           onClick={() => navigate(`/admin/herramientas/elecciones/${p.id}?panel=cargos`)}
                         >
-                          Cargos de plancha
+                          <span className="admin-elcc-opt-ico" aria-hidden>
+                            📋
+                          </span>
+                          <span className="admin-elcc-opt-txt">
+                            <span className="admin-elcc-opt-line1">Cargos de plancha</span>
+                            <span className="admin-elcc-opt-line2">Tesorero, vocal…</span>
+                          </span>
                         </button>
                         <button
                           type="button"
                           className="admin-elcc-opt-item"
                           onClick={() => navigate(`/admin/herramientas/elecciones/${p.id}?panel=listas`)}
                         >
-                          Listas y candidatos
+                          <span className="admin-elcc-opt-ico" aria-hidden>
+                            🗳️
+                          </span>
+                          <span className="admin-elcc-opt-txt">
+                            <span className="admin-elcc-opt-line1">Listas y candidatos</span>
+                            <span className="admin-elcc-opt-line2">Logos, plancha, propuestas</span>
+                          </span>
                         </button>
                         <hr className="admin-elcc-opt-sep" />
                         <button type="button" className="admin-elcc-opt-item admin-elcc-opt-danger" onClick={() => eliminar(p)}>
-                          Eliminar proceso
+                          <span className="admin-elcc-opt-ico" aria-hidden>
+                            🗑️
+                          </span>
+                          <span className="admin-elcc-opt-txt">
+                            <span className="admin-elcc-opt-line1">Eliminar proceso</span>
+                            <span className="admin-elcc-opt-line2">Irreversible</span>
+                          </span>
                         </button>
                       </div>
                     </details>
