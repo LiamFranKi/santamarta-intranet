@@ -96,52 +96,64 @@ export default function AdminElecciones() {
           </button>
         </div>
 
-        <div className="admin-elcc-table-card">
+        <div className="admin-elcc-grid-wrap">
           {loading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '2.5rem' }}>
+            <div className="admin-elcc-grid-loading">
               <CircularProgress />
             </div>
           ) : procesos.length === 0 ? (
-            <div style={{ padding: '2.5rem', textAlign: 'center', color: '#64748b' }}>
-              No hay procesos. Crea uno para empezar.
-            </div>
+            <div className="admin-elcc-empty">No hay procesos. Crea uno para empezar.</div>
           ) : (
-            <table className="admin-elcc-table">
-              <thead>
-                <tr>
-                  <th>Título</th>
-                  <th>Estado</th>
-                  <th>Modalidad</th>
-                  <th style={{ width: 220 }} />
-                </tr>
-              </thead>
-              <tbody>
-                {procesos.map((p) => (
-                  <tr key={p.id}>
-                    <td>
-                      <strong>{p.titulo}</strong>
-                    </td>
-                    <td>
-                      <span className={BADGE_CLASS[p.estado] || BADGE_CLASS.BORRADOR}>{p.estado}</span>
-                    </td>
-                    <td>{p.modalidad}</td>
-                    <td>
-                      <button
-                        type="button"
-                        className="admin-usu-btn admin-usu-btn-secondary"
-                        style={{ marginRight: 8 }}
-                        onClick={() => navigate(`/admin/herramientas/elecciones/${p.id}`)}
-                      >
-                        Editar
-                      </button>
-                      <button type="button" className="admin-usu-btn admin-usu-btn-danger-outline" onClick={() => eliminar(p)}>
-                        Eliminar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="admin-elcc-proceso-grid">
+              {procesos.map((p) => (
+                <article key={p.id} className="admin-elcc-proceso-card">
+                  <div className="admin-elcc-proceso-card-top">
+                    <h2 className="admin-elcc-proceso-title">{p.titulo}</h2>
+                    <span className={BADGE_CLASS[p.estado] || BADGE_CLASS.BORRADOR}>{p.estado}</span>
+                  </div>
+                  <p className="admin-elcc-proceso-meta">{p.modalidad || '—'}</p>
+                  <div className="admin-elcc-proceso-card-actions">
+                    <button
+                      type="button"
+                      className="admin-elcc-btn admin-elcc-btn-primary admin-elcc-btn-sm"
+                      onClick={() => navigate(`/admin/herramientas/elecciones/${p.id}`)}
+                    >
+                      Configurar
+                    </button>
+                    <details className="admin-elcc-opt-menu">
+                      <summary className="admin-elcc-opt-trigger">Más opciones</summary>
+                      <div className="admin-elcc-opt-dropdown" role="menu">
+                        <button
+                          type="button"
+                          className="admin-elcc-opt-item"
+                          onClick={() => navigate(`/admin/herramientas/elecciones/${p.id}?panel=resultados`)}
+                        >
+                          Resultados (modal)
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-elcc-opt-item"
+                          onClick={() => navigate(`/admin/herramientas/elecciones/${p.id}?panel=cargos`)}
+                        >
+                          Cargos de plancha
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-elcc-opt-item"
+                          onClick={() => navigate(`/admin/herramientas/elecciones/${p.id}?panel=listas`)}
+                        >
+                          Listas y candidatos
+                        </button>
+                        <hr className="admin-elcc-opt-sep" />
+                        <button type="button" className="admin-elcc-opt-item admin-elcc-opt-danger" onClick={() => eliminar(p)}>
+                          Eliminar proceso
+                        </button>
+                      </div>
+                    </details>
+                  </div>
+                </article>
+              ))}
+            </div>
           )}
         </div>
       </div>

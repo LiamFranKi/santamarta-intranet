@@ -1,6 +1,8 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { CircularProgress } from '@mui/material';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
@@ -9,9 +11,105 @@ import Swal from 'sweetalert2';
 import './AdminUsuarios.css';
 import './AdminElecciones.css';
 
+const QUILL_MODULES = {
+  toolbar: [
+    [{ header: [1, 2, 3, false] }],
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ list: 'ordered' }, { list: 'bullet' }],
+    ['link'],
+    ['clean']
+  ]
+};
+
+function Modal({ title, children, onClose, wide }) {
+  return (
+    <div className="admin-elcc-modal-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className={`admin-elcc-modal ${wide ? 'admin-elcc-modal-wide' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="admin-elcc-modal-head">
+          <h2>{title}</h2>
+          <button type="button" className="admin-elcc-modal-x" onClick={onClose} aria-label="Cerrar">
+            ×
+          </button>
+        </div>
+        <div className="admin-elcc-modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+/** Búsqueda de alumno vía /elecciones/admin/meta-alumnos */
+function AlumnoSearch({
+  anio,
+  onElegir,
+  label,
+  hint
+}) {
+  const [q, setQ] = useState('');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const tref = useRef(null);
+
+  useEffect(() => {
+    if (!q || q.trim().length < 2) {
+      setResults([]);
+      return undefined;
+    }
+    const t = window.setTimeout(async () => {
+      setLoading(true);
+      try {
+        const { data } = await api.get('/elecciones/admin/meta-alumnos', {
+          params: { q: q.trim(), anio, limit: 20 }
+        });
+        setResults(data.alumnos || []);
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 320);
+    return () => window.clearTimeout(t);
+  }, [q, anio]);
+
+  return (
+    <div className="admin-elcc-alu-search">
+      <label className="admin-elcc-label">
+        {label}
+        <input
+          className="admin-elcc-input"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="DNI o apellidos / nombre (mín. 2 caracteres)"
+          autoComplete="off"
+        />
+      </label>
+      {hint && <p className="admin-elcc-hint">{hint}</p>}
+      {loading && <span className="admin-elcc-muted">Buscando…</span>}
+      {results.length > 0 && (
+        <ul className="admin-elcc-alu-results" ref={tref}>
+          {results.map((a) => (
+            <li key={a.id}>
+              <button type="button" className="admin-elcc-alu-pick" onClick={() => onElegir(a)}>
+                <strong>{a.nombre_completo}</strong>
+                <span className="admin-elcc-muted"> DNI {a.dni || '—'}</span>
+                {a.etiqueta_grupo && <span className="admin-elcc-tag">{a.etiqueta_grupo}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function AdminEleccionProceso() {
   const { procesoId } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
@@ -22,12 +120,23 @@ export default function AdminEleccionProceso() {
   const [listas, setListas] = useState([]);
   const [gruposOpciones, setGruposOpciones] = useState([]);
   const [grupoSeleccion, setGrupoSeleccion] = useState([]);
-  const [expandedLista, setExpandedLista] = useState(null);
   const [detalleLista, setDetalleLista] = useState({});
   const [loadingDetalle, setLoadingDetalle] = useState(false);
   const [resultados, setResultados] = useState(null);
 
+  const [modal, setModal] = useState(null);
+  const [listaEditId, setListaEditId] = useState(null);
+
   const idNum = parseInt(procesoId, 10);
+  const anio = user?.anio_activo;
+
+  const gradosNumericosUnicos = useMemo(() => {
+    const s = new Set();
+    (gruposOpciones || []).forEach((g) => {
+      if (g.grado != null && g.grado !== '') s.add(Number(g.grado));
+    });
+    return [...s].filter((n) => !Number.isNaN(n)).sort((a, b) => a - b);
+  }, [gruposOpciones]);
 
   const cargarTodo = useCallback(async () => {
     if (!idNum || Number.isNaN(idNum)) return;
@@ -44,7 +153,7 @@ export default function AdminEleccionProceso() {
         Array.isArray(pr.perfiles_voto) && pr.perfiles_voto.length
           ? pr.perfiles_voto.map((x) => String(x).toUpperCase())
           : ['ALUMNO'];
-      const gvArr = Array.isArray(pr.grados_voto) ? pr.grados_voto : [];
+      const gvArr = Array.isArray(pr.grados_voto) ? pr.grados_voto.map((x) => Number(x)).filter((n) => !Number.isNaN(n)) : [];
       setForm({
         titulo: pr.titulo || '',
         descripcion: pr.descripcion || '',
@@ -55,17 +164,15 @@ export default function AdminEleccionProceso() {
         votacion_inicio: pr.votacion_inicio ? String(pr.votacion_inicio).slice(0, 16) : '',
         votacion_fin: pr.votacion_fin ? String(pr.votacion_fin).slice(0, 16) : '',
         perfiles_voto: perfilArr,
-        grados_voto_texto: gvArr.length ? gvArr.join(', ') : ''
+        grados_voto_arr: gvArr
       });
       const gids = Array.isArray(pr.grupo_ids) ? pr.grupo_ids.map(Number).filter(Boolean) : [];
       setGrupoSeleccion(gids);
 
       setCargos(rCar.data.cargos || []);
       setListas(rLis.data.listas || []);
-      setExpandedLista(null);
       setDetalleLista({});
 
-      const anio = user?.anio_activo;
       if (anio) {
         try {
           const gr = await api.get('/elecciones/admin/meta-grupos', { params: { anio } });
@@ -87,11 +194,22 @@ export default function AdminEleccionProceso() {
     } finally {
       setLoading(false);
     }
-  }, [idNum, navigate, user?.anio_activo]);
+  }, [idNum, navigate, anio]);
 
   useEffect(() => {
     cargarTodo();
   }, [cargarTodo]);
+
+  /** Desde el listado: `/elecciones/:id?panel=cargos|listas|resultados` abre el modal correspondiente. */
+  useEffect(() => {
+    const panel = searchParams.get('panel');
+    if (panel === 'resultados' || panel === 'cargos' || panel === 'listas') {
+      setModal(panel);
+      const next = new URLSearchParams(searchParams);
+      next.delete('panel');
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const cargarDetalleLista = async (listaId) => {
     setLoadingDetalle(true);
@@ -115,18 +233,15 @@ export default function AdminEleccionProceso() {
   };
 
   useEffect(() => {
-    if (!expandedLista) return;
-    if (detalleLista[expandedLista]) return;
-    cargarDetalleLista(expandedLista);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- cache check arriba
-  }, [expandedLista]);
+    if (!listaEditId) return;
+    if (detalleLista[listaEditId]) return;
+    cargarDetalleLista(listaEditId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- evitar bucle: detalle se hidrata tras cargarDetalleLista
+  }, [listaEditId, detalleLista]);
 
   const guardarProceso = async () => {
     try {
-      const gradosParseados = String(form.grados_voto_texto || '')
-        .split(/[,;\s]+/)
-        .map((s) => parseInt(s.trim(), 10))
-        .filter((n) => !Number.isNaN(n));
+      const gv = Array.isArray(form.grados_voto_arr) ? form.grados_voto_arr.map((n) => Number(n)).filter((n) => !Number.isNaN(n)) : [];
       await api.put(`/elecciones/admin/procesos/${idNum}`, {
         ...form,
         grado_min: form.grado_min === '' ? null : form.grado_min,
@@ -135,7 +250,7 @@ export default function AdminEleccionProceso() {
         votacion_inicio: form.votacion_inicio || null,
         votacion_fin: form.votacion_fin || null,
         perfiles_voto: Array.isArray(form.perfiles_voto) && form.perfiles_voto.length ? form.perfiles_voto : ['ALUMNO'],
-        grados_voto: gradosParseados.length ? gradosParseados : []
+        grados_voto: gv.length ? gv : []
       });
       await Swal.fire('Guardado', '', 'success');
       cargarTodo();
@@ -174,7 +289,7 @@ export default function AdminEleccionProceso() {
         estado: 'BORRADOR'
       });
       await cargarTodo();
-      setExpandedLista(data.id);
+      setListaEditId(data.id);
       setDetalleLista((prev) => {
         const n = { ...prev };
         delete n[data.id];
@@ -186,7 +301,7 @@ export default function AdminEleccionProceso() {
     }
   };
 
-  const actualizarLista = async (lista) => {
+  const actualizarLista = async (lista, patch = {}) => {
     try {
       await api.put(`/elecciones/admin/listas/${lista.id}`, {
         nombre_lista: lista.nombre_lista,
@@ -195,8 +310,10 @@ export default function AdminEleccionProceso() {
         color_secundario: lista.color_secundario,
         alcalde_nombres: lista.alcalde_nombres,
         alcalde_apellidos: lista.alcalde_apellidos,
+        alcalde_alumno_id: lista.alcalde_alumno_id ?? null,
         estado: lista.estado,
-        orden_sort: lista.orden_sort
+        orden_sort: lista.orden_sort,
+        ...patch
       });
       await Swal.fire('Lista guardada', '', 'success');
       const r = await api.get(`/elecciones/admin/procesos/${idNum}/listas`);
@@ -215,6 +332,7 @@ export default function AdminEleccionProceso() {
     if (!ok.isConfirmed) return;
     try {
       await api.delete(`/elecciones/admin/listas/${lid}`);
+      if (listaEditId === lid) setListaEditId(null);
       cargarTodo();
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error || 'No se pudo borrar', 'error');
@@ -261,6 +379,18 @@ export default function AdminEleccionProceso() {
     });
   };
 
+  const toggleGradoVoto = (num) => {
+    setForm((f) => {
+      const arr = Array.isArray(f.grados_voto_arr) ? [...f.grados_voto_arr] : [];
+      const i = arr.indexOf(num);
+      if (i >= 0) arr.splice(i, 1);
+      else arr.push(num);
+      return { ...f, grados_voto_arr: arr.sort((a, b) => a - b) };
+    });
+  };
+
+  const listaEnEdicion = useMemo(() => listas.find((l) => l.id === listaEditId) || null, [listas, listaEditId]);
+
   if (loading && !proceso) {
     return (
       <DashboardLayout>
@@ -274,14 +404,18 @@ export default function AdminEleccionProceso() {
   return (
     <DashboardLayout>
       <div className="admin-elcc-detalle-layout">
-        <div style={{ marginBottom: '1rem' }}>
+        <div className="admin-elcc-proceso-toolbar">
           <button type="button" className="admin-elcc-btn admin-elcc-btn-ghost" onClick={() => navigate('/admin/herramientas/elecciones')}>
-            ← Volver
+            ← Volver al listado
           </button>
         </div>
 
-        <div className="admin-elcc-panel">
+        <section className="admin-elcc-panel admin-elcc-panel-hero">
           <h2>Datos del proceso</h2>
+          <p className="admin-elcc-muted admin-elcc-lead">
+            Aquí defines título, estado, ventana de votación y reglas de <strong>quién puede votar</strong>. Los demás apartados (resultados, cargos, listas) están en los botones de abajo para no saturar la pantalla.
+          </p>
+
           <div className="admin-elcc-form-grid">
             <label className="admin-elcc-label">
               Título
@@ -305,14 +439,6 @@ export default function AdminEleccionProceso() {
               </select>
             </label>
             <label className="admin-elcc-label">
-              Grado mín. (vacío = todos)
-              <input type="number" className="admin-elcc-input" value={form.grado_min ?? ''} onChange={(e) => setForm((f) => ({ ...f, grado_min: e.target.value }))} />
-            </label>
-            <label className="admin-elcc-label">
-              Grado máx. (vacío = todos)
-              <input type="number" className="admin-elcc-input" value={form.grado_max ?? ''} onChange={(e) => setForm((f) => ({ ...f, grado_max: e.target.value }))} />
-            </label>
-            <label className="admin-elcc-label">
               Inicio votación (opc.)
               <input type="datetime-local" className="admin-elcc-input" value={form.votacion_inicio || ''} onChange={(e) => setForm((f) => ({ ...f, votacion_inicio: e.target.value }))} />
             </label>
@@ -325,244 +451,394 @@ export default function AdminEleccionProceso() {
               <textarea className="admin-elcc-textarea" value={form.descripcion || ''} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} rows={3} />
             </label>
           </div>
-          <div
-            style={{
-              marginTop: '1rem',
-              padding: '0.85rem 1rem',
-              background: '#f8fafc',
-              borderRadius: 10,
-              border: '1px solid #e2e8f0'
-            }}
-          >
-            <h3 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem', color: '#0f172a' }}>Quién puede votar (perfil)</h3>
-            <p style={{ margin: '0 0 0.65rem', fontSize: '0.82rem', color: '#64748b' }}>
-              Define si votan solo alumnos, también apoderados o docentes. La campaña y las listas las puede ver cualquier usuario
-              autenticado; la urna solo se habilita para quien cumpla perfil más grados/aulas.
+
+          <div className="admin-elcc-callout">
+            <h3>¿Quién puede votar? (perfil)</h3>
+            <p>
+              Marca si votan <strong>solo alumnos</strong>, también <strong>apoderados</strong> y/o <strong>docentes</strong>. La campaña la puede ver cualquier usuario de la intranet; la urna solo para quien cumpla estas casillas{' '}
+              <em>y además</em> las reglas de grado/aula de abajo.
             </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.85rem 1.25rem' }}>
+            <div className="admin-elcc-check-row">
               {['ALUMNO', 'APODERADO', 'DOCENTE'].map((cod) => (
-                <label key={cod} style={{ cursor: 'pointer', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <label key={cod} className="admin-elcc-check">
                   <input
                     type="checkbox"
                     checked={(form.perfiles_voto || []).map((x) => String(x).toUpperCase()).includes(cod)}
                     onChange={() => togglePerfilVoto(cod)}
-                  />{' '}
+                  />
                   {cod === 'ALUMNO' ? 'Alumnos' : cod === 'APODERADO' ? 'Apoderados' : 'Docentes'}
                 </label>
               ))}
             </div>
-            <h3 style={{ margin: '0.85rem 0 0.4rem', fontSize: '0.95rem', color: '#0f172a' }}>Grados que pueden votar (opcional)</h3>
-            <p style={{ margin: '0 0 0.45rem', fontSize: '0.82rem', color: '#64748b' }}>
-              Lista separada por comas (ej. <strong>3, 4, 5</strong>). Si lo dejas vacío, se usan solo «Grado mín/máx» de arriba.
-            </p>
-            <input
-              type="text"
-              className="admin-elcc-input"
-              placeholder="Ej. 3, 4, 5"
-              value={form.grados_voto_texto || ''}
-              onChange={(e) => setForm((f) => ({ ...f, grados_voto_texto: e.target.value }))}
-              style={{ maxWidth: '100%', width: 360 }}
-            />
           </div>
-          <p style={{ marginTop: '1rem', fontSize: '0.85rem', color: '#64748b' }}>
-            Convocatoria por aula: sin selección abajo = todas las secciones. Con selección = solo grupos marcados.
-          </p>
-          <div className="admin-elcc-grupos-box" style={{ marginTop: 8 }}>
-            {gruposOpciones.length === 0 ? (
-              <span style={{ color: '#94a3b8' }}>No hay grupos para este año.</span>
+
+          <div className="admin-elcc-callout admin-elcc-callout-pastel">
+            <h3>Filtrar por grado numérico (opcional)</h3>
+            <p>
+              Son los <strong>números de grado</strong> del colegio (1°, 2°, 3°…). Si marcas algunos, solo los alumnos de esos grados podrán votar (además del filtro de aulas, si lo usas). Si no marcas ninguno aquí, no se restringe por número de grado en este bloque.
+            </p>
+            {gradosNumericosUnicos.length === 0 ? (
+              <p className="admin-elcc-muted">No hay grupos cargados para este año; revisa meta-grupos o el año activo.</p>
             ) : (
-              gruposOpciones.map((g) => (
-                <label key={g.id} style={{ display: 'block', cursor: 'pointer', marginBottom: 4 }}>
-                  <input type="checkbox" checked={grupoSeleccion.includes(g.id)} onChange={() => toggleGrupo(g.id)} />{' '}
-                  {g.grado ?? '—'}° {g.seccion ?? ''}
-                  {(g.nivel_nombre && ` · ${g.nivel_nombre}`) || ''}
-                </label>
-              ))
+              <div className="admin-elcc-check-wrap">
+                {gradosNumericosUnicos.map((g) => (
+                  <label key={g} className="admin-elcc-check admin-elcc-chip-check">
+                    <input
+                      type="checkbox"
+                      checked={(form.grados_voto_arr || []).includes(g)}
+                      onChange={() => toggleGradoVoto(g)}
+                    />
+                    {g}°
+                  </label>
+                ))}
+              </div>
             )}
           </div>
+
+          <div className="admin-elcc-callout">
+            <h3>Convocatoria por aula (recomendado)</h3>
+            <p>
+              <strong>Convocatoria</strong> = qué <em>aulas concretas</em> (grado + sección + nivel) pueden participar. Equivale a elegir “esta lista de grupos del colegio”.
+              <br />
+              Si <strong>no marcas ninguna aula</strong>, se entiende <strong>todas las aulas del año</strong>. Si marcas una o más, <strong>solo esas aulas</strong> podrán votar.
+            </p>
+            <div className="admin-elcc-grupos-box admin-elcc-grupos-scroll">
+              {gruposOpciones.length === 0 ? (
+                <span className="admin-elcc-muted">No hay grupos para este año lectivo.</span>
+              ) : (
+                gruposOpciones.map((g) => (
+                  <label key={g.id} className="admin-elcc-grupo-line">
+                    <input type="checkbox" checked={grupoSeleccion.includes(g.id)} onChange={() => toggleGrupo(g.id)} />
+                    <span>
+                      {g.grado ?? '—'}° {g.seccion ?? ''}
+                      {g.nivel_nombre ? ` · ${g.nivel_nombre}` : ''}
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+          </div>
+
+          <details className="admin-elcc-details">
+            <summary>Opción avanzada: rango numérico de grados</summary>
+            <p className="admin-elcc-muted">
+              Solo úsalo si necesitas un rango tipo “del 3 al 5” sin marcar casillas. Si ya usaste grados marcados o aulas arriba, normalmente esto va vacío.
+            </p>
+            <div className="admin-elcc-form-grid" style={{ maxWidth: 480 }}>
+              <label className="admin-elcc-label">
+                Grado mínimo (número)
+                <input type="number" className="admin-elcc-input" value={form.grado_min ?? ''} onChange={(e) => setForm((f) => ({ ...f, grado_min: e.target.value }))} />
+              </label>
+              <label className="admin-elcc-label">
+                Grado máximo (número)
+                <input type="number" className="admin-elcc-input" value={form.grado_max ?? ''} onChange={(e) => setForm((f) => ({ ...f, grado_max: e.target.value }))} />
+              </label>
+            </div>
+          </details>
+
           <div style={{ marginTop: '1rem' }}>
             <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={guardarProceso}>
-              Guardar proceso
+              Guardar datos del proceso
             </button>
           </div>
-        </div>
+        </section>
 
-        <div className="admin-elcc-panel">
-          <h2>Resultados (conteo)</h2>
-          {resultados && resultados.totales ? (
-            <>
-              <p style={{ color: '#64748b', fontSize: '0.9rem' }}>Participación registrada: {resultados.votos_registrados}</p>
-              <table className="admin-elcc-table">
-                <thead>
-                  <tr>
-                    <th>Lista</th>
-                    <th>Votos</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {resultados.totales.map((t) => (
-                    <tr key={t.lista_id}>
-                      <td>{t.nombre_lista}</td>
-                      <td>{t.votos}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </>
-          ) : (
-            <p style={{ color: '#94a3b8' }}>Sin datos aún.</p>
-          )}
-          <button type="button" className="admin-elcc-btn admin-elcc-btn-ghost" style={{ marginTop: 8 }} onClick={cargarTodo}>
-            Actualizar conteo
+        <div className="admin-elcc-big-actions">
+          <button type="button" className="admin-elcc-big-btn admin-elcc-big-mint" onClick={() => setModal('resultados')}>
+            <span className="admin-elcc-big-icon">📊</span>
+            <span className="admin-elcc-big-text">Resultados</span>
+            <small>Conteo de votos por lista</small>
+          </button>
+          <button type="button" className="admin-elcc-big-btn admin-elcc-big-lavender" onClick={() => setModal('cargos')}>
+            <span className="admin-elcc-big-icon">📋</span>
+            <span className="admin-elcc-big-text">Cargos de plancha</span>
+            <small>Tesorero, vocal… (incluye “Alcalde” si quieres buscarlo en listas)</small>
+          </button>
+          <button type="button" className="admin-elcc-big-btn admin-elcc-big-peach" onClick={() => setModal('listas')}>
+            <span className="admin-elcc-big-icon">🗳️</span>
+            <span className="admin-elcc-big-text">Listas y candidatos</span>
+            <small>Logos, alcalde por DNI, plancha y propuestas</small>
           </button>
         </div>
 
-        <div className="admin-elcc-panel">
-          <h2>Cargos de plancha</h2>
-          <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Ej. Tesorero, Vocal. El candidato a alcalde se carga aparte en cada lista.</p>
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-            <input className="admin-elcc-input" placeholder="Nombre del cargo" value={newCargoNombre} onChange={(e) => setNewCargoNombre(e.target.value)} style={{ maxWidth: 280 }} />
-            <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={agregarCargo}>
-              Agregar
+        {modal === 'resultados' && (
+          <Modal title="Resultados (conteo)" onClose={() => setModal(null)}>
+            {resultados && resultados.totales ? (
+              <>
+                <p className="admin-elcc-muted">Participación registrada: {resultados.votos_registrados}</p>
+                <table className="admin-elcc-table">
+                  <thead>
+                    <tr>
+                      <th>Lista</th>
+                      <th>Votos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resultados.totales.map((t) => (
+                      <tr key={t.lista_id}>
+                        <td>{t.nombre_lista}</td>
+                        <td>{t.votos}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            ) : (
+              <p className="admin-elcc-muted">Sin datos aún.</p>
+            )}
+            <button type="button" className="admin-elcc-btn admin-elcc-btn-ghost" style={{ marginTop: 12 }} onClick={() => cargarTodo()}>
+              Actualizar conteo
             </button>
-          </div>
-          <ul style={{ paddingLeft: 18, margin: 0 }}>
-            {cargos.map((c) => (
-              <li key={c.id} style={{ marginBottom: 6 }}>
-                <strong>{c.nombre}</strong>{' '}
-                <button type="button" className="admin-elcc-btn admin-elcc-btn-danger" style={{ padding: '0.2rem 0.45rem', fontSize: '0.75rem' }} onClick={() => borrarCargo(c.id)}>
-                  Quitar
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+          </Modal>
+        )}
 
-        <div className="admin-elcc-panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h2>Listas / candidaturas</h2>
-            <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={nuevaLista}>
-              + Lista
-            </button>
-          </div>
-          {listas.map((lista) => (
-            <div key={lista.id} className="admin-elcc-lista-card">
-              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                {lista.logo_path ? (
-                  <img className="admin-elcc-mini-img" src={buildUploadsUrl(lista.logo_path)} alt="" />
-                ) : (
-                  <div className="admin-elcc-mini-img" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>Logo</div>
-                )}
-                {lista.alcalde_foto_path ? (
-                  <img className="admin-elcc-mini-img" src={buildUploadsUrl(lista.alcalde_foto_path)} alt="" />
-                ) : (
-                  <div className="admin-elcc-mini-img" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10 }}>Alcalde</div>
-                )}
-                <div style={{ flex: 1, minWidth: 200 }}>
-                  <label className="admin-elcc-label">
-                    Nombre lista
-                    <input className="admin-elcc-input" value={lista.nombre_lista} onChange={(e) => setListas((L) => L.map((x) => (x.id === lista.id ? { ...x, nombre_lista: e.target.value } : x)))} />
-                  </label>
-                </div>
-              </div>
-              <div className="admin-elcc-form-grid" style={{ marginTop: '0.85rem' }}>
-                <label className="admin-elcc-label admin-elcc-form-grid full">
-                  Eslogan
-                  <input className="admin-elcc-input" value={lista.eslogan || ''} onChange={(e) => setListas((L) => L.map((x) => (x.id === lista.id ? { ...x, eslogan: e.target.value } : x)))} />
-                </label>
-                <label className="admin-elcc-label">
-                  Color primario
-                  <input type="color" className="admin-elcc-input" style={{ height: 42 }} value={lista.color_primario || '#4f46e5'} onChange={(e) => setListas((L) => L.map((x) => (x.id === lista.id ? { ...x, color_primario: e.target.value } : x)))} />
-                </label>
-                <label className="admin-elcc-label">
-                  Color secundario
-                  <input type="color" className="admin-elcc-input" style={{ height: 42 }} value={lista.color_secundario || '#0ea5e9'} onChange={(e) => setListas((L) => L.map((x) => (x.id === lista.id ? { ...x, color_secundario: e.target.value } : x)))} />
-                </label>
-                <label className="admin-elcc-label">
-                  Orden urna
-                  <input type="number" className="admin-elcc-input" value={lista.orden_sort} onChange={(e) => setListas((L) => L.map((x) => (x.id === lista.id ? { ...x, orden_sort: parseInt(e.target.value, 10) || 0 } : x)))} />
-                </label>
-                <label className="admin-elcc-label">
-                  Estado público
-                  <select className="admin-elcc-select" value={lista.estado} onChange={(e) => setListas((L) => L.map((x) => (x.id === lista.id ? { ...x, estado: e.target.value } : x)))}>
-                    <option value="BORRADOR">BORRADOR</option>
-                    <option value="PUBLICADA">PUBLICADA</option>
-                  </select>
-                </label>
-                <label className="admin-elcc-label">
-                  Alcalde — nombres
-                  <input className="admin-elcc-input" value={lista.alcalde_nombres || ''} onChange={(e) => setListas((L) => L.map((x) => (x.id === lista.id ? { ...x, alcalde_nombres: e.target.value } : x)))} />
-                </label>
-                <label className="admin-elcc-label">
-                  Alcalde — apellidos
-                  <input className="admin-elcc-input" value={lista.alcalde_apellidos || ''} onChange={(e) => setListas((L) => L.map((x) => (x.id === lista.id ? { ...x, alcalde_apellidos: e.target.value } : x)))} />
-                </label>
-              </div>
-              <div style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={() => actualizarLista(lista)}>
-                  Guardar datos
-                </button>
-                <label className="admin-elcc-btn admin-elcc-btn-ghost" style={{ cursor: 'pointer' }}>
-                  Subir logo
-                  <input type="file" accept="image/*" hidden onChange={(e) => subirListaFile(lista.id, 'logo', e.target.files?.[0])} />
-                </label>
-                <label className="admin-elcc-btn admin-elcc-btn-ghost" style={{ cursor: 'pointer' }}>
-                  Foto alcalde
-                  <input type="file" accept="image/*" hidden onChange={(e) => subirListaFile(lista.id, 'alcalde', e.target.files?.[0])} />
-                </label>
-                <button type="button" className="admin-elcc-btn admin-elcc-btn-danger" onClick={() => borrarLista(lista.id)}>
-                  Eliminar lista
-                </button>
-                <button
-                  type="button"
-                  className="admin-elcc-btn admin-elcc-btn-ghost"
-                  onClick={() => setExpandedLista((x) => (x === lista.id ? null : lista.id))}
-                >
-                  {expandedLista === lista.id ? '▲ Ocultar plancha / propuestas' : '▼ Plancha, propuestas y redes'}
-                </button>
-              </div>
-
-              {expandedLista === lista.id && (
-                <ListaDetalleEditor
-                  listaId={lista.id}
-                  cargos={cargos}
-                  loadingDetalle={loadingDetalle}
-                  detalle={detalleLista[lista.id]}
-                  onRecargar={() => cargarDetalleLista(lista.id)}
-                />
-              )}
+        {modal === 'cargos' && (
+          <Modal title="Cargos de plancha" onClose={() => setModal(null)}>
+            <p className="admin-elcc-muted">
+              Define los cargos que cada lista debe cubrir (ej. Tesorero). Para el alcalde puedes crear un cargo “Alcalde” o asignar al alcalde al buscar al alumno en la lista. Los miembros pueden enlazarse por DNI desde el editor de lista.
+            </p>
+            <div className="admin-elcc-inline-add">
+              <input
+                className="admin-elcc-input"
+                placeholder="Nombre del cargo"
+                value={newCargoNombre}
+                onChange={(e) => setNewCargoNombre(e.target.value)}
+              />
+              <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={agregarCargo}>
+                Agregar
+              </button>
             </div>
-          ))}
-        </div>
+            <ul className="admin-elcc-cargo-list">
+              {cargos.map((c) => (
+                <li key={c.id}>
+                  <span>{c.nombre}</span>
+                  <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarCargo(c.id)}>
+                    Quitar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </Modal>
+        )}
+
+        {modal === 'listas' && (
+          <Modal title="Listas y candidaturas" onClose={() => setModal(null)} wide>
+            {!listaEditId ? (
+              <>
+                <div className="admin-elcc-modal-toolbar">
+                  <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={nuevaLista}>
+                    + Nueva lista
+                  </button>
+                </div>
+                <div className="admin-elcc-lista-grid">
+                  {listas.map((lista) => (
+                    <div key={lista.id} className="admin-elcc-lista-tile">
+                      <div className="admin-elcc-lista-tile-head">
+                        {lista.logo_path ? (
+                          <img className="admin-elcc-tile-logo" src={buildUploadsUrl(lista.logo_path)} alt="" />
+                        ) : (
+                          <div className="admin-elcc-tile-logo-ph">Logo</div>
+                        )}
+                        <div>
+                          <strong>{lista.nombre_lista}</strong>
+                          <div className="admin-elcc-muted small">{lista.estado}</div>
+                        </div>
+                      </div>
+                      <div className="admin-elcc-tile-actions">
+                        <button type="button" className="admin-elcc-btn admin-elcc-btn-primary admin-elcc-btn-sm" onClick={() => setListaEditId(lista.id)}>
+                          Editar lista
+                        </button>
+                        <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-sm" onClick={() => borrarLista(lista.id)}>
+                          Eliminar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {listas.length === 0 && <p className="admin-elcc-muted">No hay listas. Crea una para la campaña.</p>}
+              </>
+            ) : (
+              listaEnEdicion && (
+                <ListaEditor
+                  lista={listaEnEdicion}
+                  listas={listas}
+                  setListas={setListas}
+                  idNum={idNum}
+                  anio={anio}
+                  cargos={cargos}
+                  detalle={detalleLista[listaEditId]}
+                  loadingDetalle={loadingDetalle}
+                  onRecargarDetalle={() => cargarDetalleLista(listaEditId)}
+                  actualizarLista={actualizarLista}
+                  subirListaFile={subirListaFile}
+                  onVolver={() => setListaEditId(null)}
+                />
+              )
+            )}
+          </Modal>
+        )}
       </div>
     </DashboardLayout>
   );
 }
 
-function ListaDetalleEditor({ listaId, procesoId, cargos, loadingDetalle, detalle, onRecargar }) {
+function ListaEditor({
+  lista,
+  listas,
+  setListas,
+  idNum,
+  anio,
+  cargos,
+  detalle,
+  loadingDetalle,
+  onRecargarDetalle,
+  actualizarLista,
+  subirListaFile,
+  onVolver
+}) {
+  const patch = (field, value) => {
+    setListas((L) => L.map((x) => (x.id === lista.id ? { ...x, [field]: value } : x)));
+  };
+
+  const listaLocal = listas.find((l) => l.id === lista.id) || lista;
+
+  return (
+    <div className="admin-elcc-lista-editor">
+      <button type="button" className="admin-elcc-btn admin-elcc-btn-ghost admin-elcc-back-list" onClick={onVolver}>
+        ← Volver a las listas
+      </button>
+
+      <div className="admin-elcc-lista-card-compact">
+        <h3>Identidad de la lista</h3>
+        <div className="admin-elcc-form-grid">
+          <label className="admin-elcc-label">
+            Nombre
+            <input className="admin-elcc-input" value={listaLocal.nombre_lista} onChange={(e) => patch('nombre_lista', e.target.value)} />
+          </label>
+          <label className="admin-elcc-label">
+            Eslogan
+            <input className="admin-elcc-input" value={listaLocal.eslogan || ''} onChange={(e) => patch('eslogan', e.target.value)} />
+          </label>
+          <label className="admin-elcc-label">
+            Color primario
+            <input type="color" className="admin-elcc-input" style={{ height: 42 }} value={listaLocal.color_primario || '#4f46e5'} onChange={(e) => patch('color_primario', e.target.value)} />
+          </label>
+          <label className="admin-elcc-label">
+            Color secundario
+            <input type="color" className="admin-elcc-input" style={{ height: 42 }} value={listaLocal.color_secundario || '#0ea5e9'} onChange={(e) => patch('color_secundario', e.target.value)} />
+          </label>
+          <label className="admin-elcc-label">
+            Orden en urna
+            <input type="number" className="admin-elcc-input" value={listaLocal.orden_sort} onChange={(e) => patch('orden_sort', parseInt(e.target.value, 10) || 0)} />
+          </label>
+          <label className="admin-elcc-label">
+            Estado público
+            <select className="admin-elcc-select" value={listaLocal.estado} onChange={(e) => patch('estado', e.target.value)}>
+              <option value="BORRADOR">BORRADOR</option>
+              <option value="PUBLICADA">PUBLICADA</option>
+            </select>
+          </label>
+        </div>
+        <div className="admin-elcc-row-btns">
+          <label className="admin-elcc-btn admin-elcc-btn-ghost" style={{ cursor: 'pointer' }}>
+            Subir logo lista
+            <input type="file" accept="image/*" hidden onChange={(e) => subirListaFile(lista.id, 'logo', e.target.files?.[0])} />
+          </label>
+          <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={() => actualizarLista(listaLocal)}>
+            Guardar identidad
+          </button>
+        </div>
+      </div>
+
+      <div className="admin-elcc-lista-card-compact">
+        <h3>Candidato a alcalde (buscar alumno)</h3>
+        <p className="admin-elcc-muted">
+          Vincula al alumno del colegio: se mostrará su nombre y la foto del perfil del sistema en la campaña. Opcionalmente puedes subir una foto extra solo si en algún caso no hubiera foto en el perfil.
+        </p>
+        {listaLocal.alcalde_nombre_mostrar && (
+          <p>
+            <strong>Actual:</strong> {listaLocal.alcalde_nombre_mostrar}
+            {listaLocal.alcalde_alumno_id ? <span className="admin-elcc-tag ok">Enlazado a matrícula</span> : null}
+          </p>
+        )}
+        <AlumnoSearch
+          anio={anio}
+          label="Buscar por DNI o nombre"
+          hint="Elige un resultado para asignarlo como alcalde de esta lista."
+          onElegir={async (alu) => {
+            await actualizarLista(
+              { ...listaLocal, alcalde_alumno_id: alu.id },
+              {
+                alcalde_alumno_id: alu.id,
+                alcalde_nombres: alu.nombres,
+                alcalde_apellidos: `${alu.apellido_paterno || ''} ${alu.apellido_materno || ''}`.trim()
+              }
+            );
+          }}
+        />
+        <label className="admin-elcc-btn admin-elcc-btn-ghost" style={{ cursor: 'pointer', display: 'inline-block', marginTop: 8 }}>
+          Foto alcalde (opcional, sobre perfil)
+          <input type="file" accept="image/*" hidden onChange={(e) => subirListaFile(lista.id, 'alcalde', e.target.files?.[0])} />
+        </label>
+      </div>
+
+      <ListaDetalleEditor
+        listaId={lista.id}
+        anio={anio}
+        cargos={cargos}
+        loadingDetalle={loadingDetalle}
+        detalle={detalle}
+        onRecargar={onRecargarDetalle}
+      />
+    </div>
+  );
+}
+
+function ListaDetalleEditor({ listaId, anio, cargos, loadingDetalle, detalle, onRecargar }) {
   const [mCargoId, setMCargoId] = useState('');
-  const [mNom, setMNom] = useState('');
-  const [mApe, setMApe] = useState('');
+  const [busq, setBusq] = useState('');
+  const [resAlu, setResAlu] = useState([]);
+  const [loadingAlu, setLoadingAlu] = useState(false);
   const [propT, setPropT] = useState('');
   const [propC, setPropC] = useState('');
-  const [redTipo, setRedTipo] = useState('TIKTOK');
+  const [redTipo, setRedTipo] = useState('YOUTUBE');
   const [redTitulo, setRedTitulo] = useState('');
   const [redUrl, setRedUrl] = useState('');
 
-  const agregarMiembro = async () => {
-    if (!mCargoId || !mNom || !mApe) {
-      Swal.fire('Completa cargo, nombres y apellidos', '', 'warning');
+  useEffect(() => {
+    if (!busq || busq.trim().length < 2) {
+      setResAlu([]);
+      return undefined;
+    }
+    const t = window.setTimeout(async () => {
+      setLoadingAlu(true);
+      try {
+        const { data } = await api.get('/elecciones/admin/meta-alumnos', {
+          params: { q: busq.trim(), anio, limit: 16 }
+        });
+        setResAlu(data.alumnos || []);
+      } catch {
+        setResAlu([]);
+      } finally {
+        setLoadingAlu(false);
+      }
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [busq, anio]);
+
+  const agregarMiembroDesdeAlumno = async (alu) => {
+    if (!mCargoId) {
+      Swal.fire('Selecciona un cargo', '', 'warning');
       return;
     }
     await api.post(`/elecciones/admin/listas/${listaId}/miembros`, {
       cargo_id: parseInt(mCargoId, 10),
-      nombres: mNom,
-      apellidos: mApe
+      alumno_id: alu.id
     });
-    setMNom('');
-    setMApe('');
+    setBusq('');
+    setResAlu([]);
     await onRecargar();
-    await Swal.fire('Listo', 'Miembro agregado', 'success');
+    await Swal.fire('Listo', 'Integrante agregado (foto desde perfil del alumno)', 'success');
   };
 
   const subirMiembroFoto = async (mid, file) => {
@@ -579,8 +855,8 @@ function ListaDetalleEditor({ listaId, procesoId, cargos, loadingDetalle, detall
   };
 
   const agregarProp = async () => {
-    if (!propT || !propC) {
-      Swal.fire('Título y texto requeridos', '', 'warning');
+    if (!propT || !propC || propC.replace(/<[^>]+>/g, '').trim() === '') {
+      Swal.fire('Completa título y detalle', '', 'warning');
       return;
     }
     await api.post(`/elecciones/admin/listas/${listaId}/propuestas`, { titulo: propT, cuerpo: propC });
@@ -624,13 +900,14 @@ function ListaDetalleEditor({ listaId, procesoId, cargos, loadingDetalle, detall
   if (!detalle) return null;
 
   return (
-    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed #e2e8f0' }}>
-      <h3 style={{ fontSize: '0.95rem', margin: '0 0 0.6rem' }}>Plancha (sin alcalde)</h3>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8, alignItems: 'flex-end' }}>
+    <div className="admin-elcc-plancha-wrap">
+      <h3>Plancha (miembros)</h3>
+      <p className="admin-elcc-muted">El mismo buscador por DNI o nombre. La foto sale del perfil del alumno si está enlazado.</p>
+      <div className="admin-elcc-plancha-add">
         <label className="admin-elcc-label">
           Cargo
           <select className="admin-elcc-select" value={mCargoId} onChange={(e) => setMCargoId(e.target.value)}>
-            <option value="">—</option>
+            <option value="">— Elige —</option>
             {cargos.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.nombre}
@@ -638,89 +915,96 @@ function ListaDetalleEditor({ listaId, procesoId, cargos, loadingDetalle, detall
             ))}
           </select>
         </label>
-        <label className="admin-elcc-label">
-          Nombres
-          <input className="admin-elcc-input" value={mNom} onChange={(e) => setMNom(e.target.value)} />
+        <label className="admin-elcc-label flex-1">
+          Buscar alumno
+          <input className="admin-elcc-input" value={busq} onChange={(e) => setBusq(e.target.value)} placeholder="DNI o apellido" />
         </label>
-        <label className="admin-elcc-label">
-          Apellidos
-          <input className="admin-elcc-input" value={mApe} onChange={(e) => setMApe(e.target.value)} />
-        </label>
-        <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={agregarMiembro}>
-          Agregar
-        </button>
       </div>
-      <ul style={{ paddingLeft: 16, margin: '0 0 1rem' }}>
+      {loadingAlu && <span className="admin-elcc-muted">Buscando…</span>}
+      {resAlu.length > 0 && (
+        <ul className="admin-elcc-mini-res">
+          {resAlu.map((a) => (
+            <li key={a.id}>
+              <button type="button" className="admin-elcc-mini-pick" onClick={() => agregarMiembroDesdeAlumno(a)}>
+                + {a.nombre_completo} <span className="admin-elcc-muted">({a.dni})</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <ul className="admin-elcc-miemb-grid">
         {(detalle.miembros || []).map((m) => (
-          <li key={m.id} style={{ marginBottom: 8 }}>
-            <strong>{m.cargo_nombre}</strong>: {m.nombres} {m.apellidos}{' '}
-            <label style={{ cursor: 'pointer', fontSize: '0.8rem', color: '#6366f1' }}>
-              Foto
-              <input type="file" accept="image/*" hidden onChange={(e) => subirMiembroFoto(m.id, e.target.files?.[0])} />
-            </label>{' '}
-            {m.foto_path && <img alt="" src={buildUploadsUrl(m.foto_path)} style={{ width: 36, height: 36, objectFit: 'cover', verticalAlign: 'middle', marginLeft: 6, borderRadius: 8 }} />}
-            <button type="button" className="admin-elcc-btn admin-elcc-btn-danger" style={{ marginLeft: 8 }} onClick={() => borrarMiembro(m.id)}>
+          <li key={m.id} className="admin-elcc-miem-card">
+            <div>
+              <strong>{m.cargo_nombre}</strong>
+              <div>
+                {m.nombres} {m.apellidos}
+              </div>
+              {m.alumno_id && <span className="admin-elcc-tag ok">Perfil</span>}
+            </div>
+            {!m.alumno_id && (
+              <label className="admin-elcc-link-file">
+                Subir foto
+                <input type="file" accept="image/*" hidden onChange={(e) => subirMiembroFoto(m.id, e.target.files?.[0])} />
+              </label>
+            )}
+            {m.foto_path && <img src={buildUploadsUrl(m.foto_path)} alt="" className="admin-elcc-miem-thumb" />}
+            <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarMiembro(m.id)}>
               Quitar
             </button>
           </li>
         ))}
       </ul>
 
-      <h3 style={{ fontSize: '0.95rem', margin: '0 0 0.6rem' }}>Propuestas</h3>
-      <label className="admin-elcc-label admin-elcc-form-grid full">
+      <h3 style={{ marginTop: '1.25rem' }}>Propuestas (texto enriquecido)</h3>
+      <label className="admin-elcc-label">
         Título
         <input className="admin-elcc-input" value={propT} onChange={(e) => setPropT(e.target.value)} />
       </label>
-      <label className="admin-elcc-label admin-elcc-form-grid full">
-        Detalle
-        <textarea className="admin-elcc-textarea" value={propC} onChange={(e) => setPropC(e.target.value)} rows={3} />
-      </label>
-      <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={agregarProp} style={{ marginBottom: 12 }}>
+      <div className="admin-elcc-quill-wrap">
+        <ReactQuill theme="snow" value={propC} onChange={setPropC} modules={QUILL_MODULES} placeholder="Detalle con formato, listas y enlaces…" />
+      </div>
+      <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" style={{ marginTop: 8 }} onClick={agregarProp}>
         Añadir propuesta
       </button>
-      <ul style={{ paddingLeft: 16 }}>
+      <ul className="admin-elcc-prop-list">
         {(detalle.propuestas || []).map((p) => (
           <li key={p.id}>
-            <strong>{p.titulo}</strong> — {String(p.cuerpo || '').slice(0, 80)}
-            {(p.cuerpo || '').length > 80 ? '…' : ''}
-            <button type="button" className="admin-elcc-btn admin-elcc-btn-danger" style={{ marginLeft: 8 }} onClick={() => borrarProp(p.id)}>
+            <strong>{p.titulo}</strong>
+            <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarProp(p.id)}>
               Eliminar
             </button>
           </li>
         ))}
       </ul>
 
-      <h3 style={{ fontSize: '0.95rem', margin: '1rem 0 0.6rem' }}>Redes / enlaces</h3>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-end', marginBottom: 8 }}>
-        <label className="admin-elcc-label">
-          Tipo
-          <select className="admin-elcc-select" value={redTipo} onChange={(e) => setRedTipo(e.target.value)}>
-            <option value="TIKTOK">TikTok</option>
-            <option value="INSTAGRAM">Instagram</option>
-            <option value="YOUTUBE">YouTube</option>
-            <option value="WEB">Web</option>
-            <option value="OTRO">Otro</option>
-          </select>
-        </label>
-        <label className="admin-elcc-label">
-          Etiqueta
-          <input className="admin-elcc-input" value={redTitulo} placeholder="Ej. Campaña día 1" onChange={(e) => setRedTitulo(e.target.value)} />
-        </label>
-        <label className="admin-elcc-label" style={{ minWidth: 220 }}>
-          URL
-          <input className="admin-elcc-input" value={redUrl} placeholder="https://..." onChange={(e) => setRedUrl(e.target.value)} />
-        </label>
+      <h3 style={{ marginTop: '1.25rem' }}>Videos y redes</h3>
+      <p className="admin-elcc-muted">Enlaces a YouTube, TikTok, Instagram o web de la campaña.</p>
+      <div className="admin-elcc-red-row">
+        <select className="admin-elcc-select" value={redTipo} onChange={(e) => setRedTipo(e.target.value)}>
+          <option value="YOUTUBE">YouTube</option>
+          <option value="TIKTOK">TikTok</option>
+          <option value="INSTAGRAM">Instagram</option>
+          <option value="WEB">Web</option>
+          <option value="OTRO">Otro</option>
+        </select>
+        <input className="admin-elcc-input" value={redTitulo} placeholder="Etiqueta (opcional)" onChange={(e) => setRedTitulo(e.target.value)} />
+        <input className="admin-elcc-input flex-1" value={redUrl} placeholder="https://..." onChange={(e) => setRedUrl(e.target.value)} />
         <button type="button" className="admin-elcc-btn admin-elcc-btn-primary" onClick={agregarRed}>
           Añadir
         </button>
       </div>
-      <ul style={{ paddingLeft: 16 }}>
+      <ul>
         {(detalle.redes || []).map((r) => (
           <li key={r.id}>
             <strong>{r.tipo}</strong>
-            {r.titulo ? ` — ${r.titulo}` : ''}: <a href={r.url} target="_blank" rel="noreferrer">{r.url}</a>
-            <button type="button" className="admin-elcc-btn admin-elcc-btn-danger" style={{ marginLeft: 8 }} onClick={() => borrarRed(r.id)}>
-              Eliminar
+            {r.titulo ? ` — ${r.titulo}` : ''}:{' '}
+            <a href={r.url} target="_blank" rel="noreferrer">
+              {r.url}
+            </a>
+            <button type="button" className="admin-elcc-btn admin-elcc-btn-danger admin-elcc-btn-xs" onClick={() => borrarRed(r.id)}>
+              Quitar
             </button>
           </li>
         ))}
