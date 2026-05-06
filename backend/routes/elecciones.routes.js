@@ -860,7 +860,7 @@ router.get('/admin/procesos/:id/votos', authenticateToken, requireStaff, async (
 
     const tipoUsuario = typeof q.tipo_usuario === 'string' ? String(q.tipo_usuario).trim().toUpperCase() : '';
     if (tipoUsuario && ['ALUMNO', 'APODERADO', 'DOCENTE'].includes(tipoUsuario)) {
-      where += ' AND UPPER(IFNULL(u.tipo,'')) = ?';
+      where += " AND UPPER(IFNULL(u.tipo,'')) = ?";
       params.push(tipoUsuario);
     }
 
