@@ -7,7 +7,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const multer = require('multer');
-const { query, execute, getAnioActivo } = require('../utils/mysql');
+const { query, execute, getAnioActivo, mysqlReadPool } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 
 const STAFF_TYPES = new Set(['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA']);
@@ -766,17 +766,53 @@ router.put('/admin/procesos/:id', authenticateToken, requireStaff, async (req, r
 });
 
 router.delete('/admin/procesos/:id', authenticateToken, requireStaff, async (req, res) => {
+  const procesoId = parseInt(req.params.id, 10);
+  const colegioId = req.user.colegio_id;
+  if (!procesoId || Number.isNaN(procesoId)) return res.status(400).json({ error: 'ID inválido' });
+
+  const row = await getProcesoAdmin(colegioId, procesoId);
+  if (!row) return res.status(404).json({ error: 'No encontrado' });
+
+  /** InnoDB a veces falla borrando el proceso antes que listas→miembros: miemb→cargo tiene RESTRICT. Borramos en orden seguro. */
+  let conn;
   try {
-    const procesoId = parseInt(req.params.id, 10);
-    const r = await execute(`DELETE FROM elecciones_proceso WHERE id = ? AND colegio_id = ?`, [
+    conn = await mysqlReadPool.getConnection();
+    await conn.beginTransaction();
+    await conn.execute(`DELETE FROM elecciones_voto WHERE proceso_id = ? AND colegio_id = ?`, [procesoId, colegioId]);
+    await conn.execute(
+      `DELETE m FROM elecciones_miembro m
+       INNER JOIN elecciones_lista l ON l.id = m.lista_id
+       WHERE l.proceso_id = ?`,
+      [procesoId]
+    );
+    const [del] = await conn.execute(`DELETE FROM elecciones_proceso WHERE id = ? AND colegio_id = ?`, [
       procesoId,
-      req.user.colegio_id
+      colegioId
     ]);
-    if (!r.affectedRows) return res.status(404).json({ error: 'No encontrado' });
+    if (!del.affectedRows) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'No encontrado' });
+    }
+    await conn.commit();
     res.json({ message: 'Eliminado' });
   } catch (e) {
+    if (conn) {
+      try {
+        await conn.rollback();
+      } catch (rb) {
+        console.error('[elecciones] delete proceso rollback:', rb);
+      }
+    }
     console.error('[elecciones] delete proceso:', e);
-    res.status(500).json({ error: 'No se pudo eliminar (¿hay votos registrados?).' });
+    const code = e.code || e.errno;
+    const fk = code === 'ER_ROW_IS_REFERENCED_2' || code === 1451 || e.errno === 1451;
+    res.status(500).json({
+      error: fk
+        ? 'No se pudo eliminar: siguen enlazados datos internos del proceso.'
+        : 'No se pudo eliminar el proceso. Revisa registros del servidor o inténtalo de nuevo.'
+    });
+  } finally {
+    if (conn) conn.release();
   }
 });
 
@@ -930,10 +966,11 @@ router.get('/admin/procesos/:id/votos', authenticateToken, requireStaff, async (
     const countRows = await query(
       `SELECT COUNT(*) AS n
        FROM elecciones_voto v
-       INNER JOIN usuarios u ON u.id = v.usuario_id AND u.colegio_id = v.colegio_id
+       LEFT JOIN usuarios u ON u.id = v.usuario_id
        LEFT JOIN alumnos a ON a.id = COALESCE(v.alumno_id, u.alumno_id) AND a.colegio_id = v.colegio_id
-       LEFT JOIN apoderados ap ON ap.id = u.apoderado_id AND ap.colegio_id = v.colegio_id
+       LEFT JOIN apoderados ap ON ap.id = u.apoderado_id AND u.colegio_id = v.colegio_id
        LEFT JOIN personal p ON p.id = u.personal_id AND p.colegio_id = v.colegio_id
+       INNER JOIN elecciones_lista l ON l.id = v.lista_id AND l.proceso_id = v.proceso_id
        WHERE ${where}`,
       params
     );
@@ -954,9 +991,14 @@ router.get('/admin/procesos/:id/votos', authenticateToken, requireStaff, async (
            NULLIF(TRIM(CONCAT_WS(' ', a.nombres, a.apellido_paterno, a.apellido_materno)), ''),
            NULLIF(TRIM(CONCAT_WS(' ', ap.nombres, ap.apellido_paterno, ap.apellido_materno)), ''),
            NULLIF(TRIM(CONCAT_WS(' ', p.nombres, p.apellidos)), ''),
-           u.usuario
+           NULLIF(TRIM(IFNULL(u.usuario,'')),''),
+           CONCAT('Usuario #', v.usuario_id)
          ) AS votante_nombre,
-         COALESCE(NULLIF(TRIM(a.nro_documento),''), NULLIF(TRIM(ap.nro_documento),''), u.usuario) AS votante_dni,
+         COALESCE(
+           NULLIF(TRIM(a.nro_documento),''),
+           NULLIF(TRIM(ap.nro_documento), ''),
+           IFNULL(u.usuario, CONCAT('#', v.usuario_id))
+         ) AS votante_dni,
          l.nombre_lista,
          CASE
            WHEN g.id IS NOT NULL THEN TRIM(CONCAT(
@@ -967,7 +1009,7 @@ router.get('/admin/procesos/:id/votos', authenticateToken, requireStaff, async (
            ELSE NULL
          END AS aula_etiqueta
        FROM elecciones_voto v
-       INNER JOIN usuarios u ON u.id = v.usuario_id AND u.colegio_id = v.colegio_id
+       LEFT JOIN usuarios u ON u.id = v.usuario_id
        LEFT JOIN alumnos a ON a.id = COALESCE(v.alumno_id, u.alumno_id) AND a.colegio_id = v.colegio_id
        LEFT JOIN apoderados ap ON ap.id = u.apoderado_id AND ap.colegio_id = v.colegio_id
        LEFT JOIN personal p ON p.id = u.personal_id AND p.colegio_id = v.colegio_id
