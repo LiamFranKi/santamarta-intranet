@@ -6,9 +6,9 @@
 }
 
 .elcc-urna-aviso--cuenta {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.12), rgba(139, 92, 246, 0.1));
-  border: 1px solid rgba(99, 102, 241, 0.35);
-  color: #1e1b4b;
+  background: linear-gradient(135deg, rgba(224, 231, 255, 0.85), rgba(237, 233, 254, 0.75));
+  border: 1px solid rgba(165, 180, 252, 0.55);
+  color: #312e81;
 }
 
 .elcc-urna-aviso__lbl {
@@ -17,7 +17,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #4338ca;
+  color: #5b21b6;
   margin-bottom: 0.35rem;
 }
 

@@ -8,6 +8,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 import { useEleccionPortalPaths } from './elecciones/useEleccionPortalPaths';
 import { msRestantesHasta, votacionHorarioAbiertoCliente } from './elecciones/eleccionCountdownUtils';
+import { elccPastelClass } from './elecciones/elccPastel';
 import './AlumnoElecciones.css';
 
 function useTickMs() {
@@ -69,12 +70,12 @@ export default function AlumnoEleccionProceso() {
   }
 
   const inner = (
-    <div className="elcc-alum-hub">
-      <button type="button" className="elcc-alum-btn elcc-alum-btn-secondary" style={{ marginBottom: '1rem' }} onClick={() => navigate(routeBase)}>
+    <div className="elcc-alum-hub elcc-alum-hub--flush">
+      <button type="button" className="elcc-alum-btn elcc-alum-btn-secondary elcc-alum-back-todas" onClick={() => navigate(routeBase)}>
         ← Todas las elecciones
       </button>
 
-      <header className="elcc-alum-hero">
+      <header className="elcc-alum-hero elcc-alum-hero--pastel">
         <h1>{proceso.titulo}</h1>
         {proceso.descripcion && <p>{proceso.descripcion}</p>}
         {!puede_participar && (
@@ -95,31 +96,27 @@ export default function AlumnoEleccionProceso() {
         />
       )}
 
-      <h2 style={{ fontSize: '1.08rem', color: '#0f172a', marginBottom: '0.75rem' }}>Candidatos y propuestas</h2>
-      <p className="elcc-alum-muted" style={{ marginBottom: '1rem' }}>
+      <h2 className="elcc-alum-block-title">Candidatos y propuestas</h2>
+      <p className="elcc-alum-muted elcc-alum-block-lead">
         Pulsa cada lista para ver la plancha completa, propuestas y enlaces.
       </p>
 
-      <div className="elcc-alum-card-grid">
-        {(listas || []).map((L) => (
-          <article key={L.id} className="elcc-alum-proc-card">
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+      <div className="elcc-alum-card-grid elcc-alum-card-grid--candidatos">
+        {(listas || []).map((L, idx) => (
+          <article key={L.id} className={`elcc-alum-candidato-card ${elccPastelClass(idx)}`}>
+            <div className="elcc-alum-candidato-card__logo-wrap">
               {L.logo_url ? (
-                <img src={L.logo_url} alt="" style={{ width: 56, height: 56, objectFit: 'contain', borderRadius: 12, background: '#f8fafc' }} />
+                <img src={L.logo_url} alt="" className="elcc-alum-candidato-logo" />
               ) : (
-                <div style={{ width: 56, height: 56, borderRadius: 12, background: '#e2e8f0' }} />
+                <div className="elcc-alum-candidato-logo-ph" aria-hidden />
               )}
-              <div>
-                <h2 style={{ margin: 0 }}>{L.nombre_lista}</h2>
-                {L.eslogan && <p className="elcc-alum-muted" style={{ margin: '6px 0 0' }}>{L.eslogan}</p>}
-              </div>
             </div>
-            <div className="elcc-alum-btn-row">
-              <Link
-                className="elcc-alum-btn elcc-alum-btn-primary"
-                style={{ textDecoration: 'none', flex: 1 }}
-                to={`${routeBase}/${pid}/lista/${L.id}`}
-              >
+            <div className="elcc-alum-candidato-card__text">
+              <h2 className="elcc-alum-candidato-nombre">{L.nombre_lista}</h2>
+              {L.eslogan ? <p className="elcc-alum-muted elcc-alum-candidato-eslogan">{L.eslogan}</p> : null}
+            </div>
+            <div className="elcc-alum-btn-row elcc-alum-btn-row--block">
+              <Link className="elcc-alum-btn elcc-alum-btn-primary elcc-alum-btn--centered" to={`${routeBase}/${pid}/lista/${L.id}`}>
                 Ver página de campaña
               </Link>
             </div>

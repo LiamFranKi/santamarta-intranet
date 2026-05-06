@@ -6,6 +6,7 @@ import EleccionCampanaLayout from '../components/elecciones/EleccionCampanaLayou
 import api from '../services/api';
 import { useEleccionPortalPaths } from './elecciones/useEleccionPortalPaths';
 import { msRestantesHasta, textoCuentaRegresivaUrna, votacionHorarioAbiertoCliente } from './elecciones/eleccionCountdownUtils';
+import { elccPastelClass } from './elecciones/elccPastel';
 import './AlumnoElecciones.css';
 
 function useTickMs() {
@@ -40,8 +41,8 @@ export default function AlumnoElecciones() {
   }, [load]);
 
   const inner = (
-    <div className="elcc-alum-hub">
-      <header className="elcc-alum-hero">
+    <div className="elcc-alum-hub elcc-alum-hub--flush">
+      <header className="elcc-alum-hero elcc-alum-hero--pastel">
         <h1>{isCampana ? 'Jornada electoral' : 'Elecciones en el colegio'}</h1>
         <p>
           {isCampana
@@ -59,8 +60,8 @@ export default function AlumnoElecciones() {
           No hay elecciones publicadas por ahora.
         </p>
       ) : (
-        <div className="elcc-alum-card-grid">
-          {procesos.map((p) => {
+        <div className="elcc-alum-card-grid elcc-alum-card-grid--candidatos">
+          {procesos.map((p, idx) => {
             const cd = p.countdown_urna;
             const convocado =
               p.puede_participar !== undefined && p.puede_participar !== null ? !!p.puede_participar : !!p.puede_ver;
@@ -74,8 +75,8 @@ export default function AlumnoElecciones() {
               cuenta?.linea ||
               (p.estado === 'VOTACION' && !horarioOk && (msApertura == null || msApertura <= 0) ? 'Fuera del horario de votación' : null);
             return (
-              <article key={p.id} className="elcc-alum-proc-card">
-                <div>
+              <article key={p.id} className={`elcc-alum-proc-card elcc-alum-proc-card--hub ${elccPastelClass(idx)}`}>
+                <div className="elcc-alum-proc-card__body">
                   <h2>{p.titulo}</h2>
                   {!convocado && (
                     <p className="elcc-alum-muted">
@@ -91,20 +92,32 @@ export default function AlumnoElecciones() {
                     </p>
                   )}
                   {convocado && p.estado === 'VOTACION' && p.puede_votar_ahora && !p.ya_voto && (
-                    <p style={{ margin: '0.5rem 0 0' }}>
-                      <Link className="elcc-alum-btn elcc-alum-btn-primary" style={{ textDecoration: 'none', display: 'inline-block' }} to={`${routeBase}/${p.id}/votar`}>
-                        VOTA AQUÍ
+                    <div className="elcc-alum-vota-slot">
+                      <Link className="elcc-alum-btn-vota" to={`${routeBase}/${p.id}/votar`}>
+                        <span className="elcc-alum-btn-vota__glow" aria-hidden />
+                        <span className="elcc-alum-btn-vota__shine" aria-hidden />
+                        <span className="elcc-alum-btn-vota__content">
+                          <span className="elcc-alum-btn-vota__icon" aria-hidden>
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                              <path
+                                d="M4 10h16v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V10z"
+                                stroke="currentColor"
+                                strokeWidth="1.75"
+                                strokeLinejoin="round"
+                              />
+                              <path d="M8 10V7a4 4 0 0 1 8 0v3" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                              <path d="M9 15h6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+                            </svg>
+                          </span>
+                          <span className="elcc-alum-btn-vota__label">Vota aquí</span>
+                        </span>
                       </Link>
-                    </p>
+                    </div>
                   )}
                 </div>
-                <div className="elcc-alum-btn-row">
-                  <Link
-                    className="elcc-alum-btn elcc-alum-btn-primary"
-                    style={{ textDecoration: 'none' }}
-                    to={`${routeBase}/${p.id}`}
-                  >
-                    Ver convocatoria
+                <div className="elcc-alum-btn-row elcc-alum-btn-row--block">
+                  <Link className="elcc-alum-btn elcc-alum-btn-primary elcc-alum-btn--centered" to={`${routeBase}/${p.id}`}>
+                    Ver página de campaña
                   </Link>
                 </div>
               </article>

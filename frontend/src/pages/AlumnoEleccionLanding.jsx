@@ -15,6 +15,7 @@ import Swal from 'sweetalert2';
 import DOMPurify from 'dompurify';
 import { useEleccionPortalPaths } from './elecciones/useEleccionPortalPaths';
 import { msRestantesHasta, votacionHorarioAbiertoCliente } from './elecciones/eleccionCountdownUtils';
+import { elccPastelClass } from './elecciones/elccPastel';
 import './AlumnoElecciones.css';
 
 function useTickMs() {
@@ -35,6 +36,17 @@ function normalizeHex(c) {
     return `#${x[0]}${x[0]}${x[1]}${x[1]}${x[2]}${x[2]}`.toLowerCase();
   }
   return s;
+}
+
+/** Aclara un hex hacia blanco para cabeceras pastel legibles con texto oscuro. */
+function mixWithWhite(hex, t = 0.78) {
+  const h = normalizeHex(hex).replace('#', '');
+  if (h.length !== 6) return '#e0e7ff';
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  const mix = (c) => Math.round(255 * t + c * (1 - t));
+  return `#${[mix(r), mix(g), mix(b)].map((x) => x.toString(16).padStart(2, '0')).join('')}`;
 }
 
 /** Si primario y secundario son iguales, oscurece uno para que el degradado se note. */
@@ -101,7 +113,9 @@ export default function AlumnoEleccionLanding() {
   }, [load]);
 
   const { c1, c2 } = coloresListaParaHero(data?.lista);
-  const heroBackground = `linear-gradient(128deg, ${c1} 0%, ${c2} 42%, ${c1} 88%, ${c2} 100%)`;
+  const c1p = mixWithWhite(c1, 0.82);
+  const c2p = mixWithWhite(c2, 0.76);
+  const heroBackground = `linear-gradient(128deg, ${c1p} 0%, ${c2p} 42%, #faf5ff 78%, #ecfeff 100%)`;
 
   if (loading || !data) {
     const wrap = (
@@ -147,7 +161,7 @@ export default function AlumnoEleccionLanding() {
         }
       }
     >
-        <div className="elcc-alum-landing-hero" style={{ background: heroBackground }}>
+        <div className="elcc-alum-landing-hero elcc-alum-landing-hero--pastelTone" style={{ background: heroBackground }}>
           <div className="elcc-alum-landing-inner">
             {lista.logo_url ? <img src={lista.logo_url} alt="" className="elcc-alum-landing-logo" /> : <div className="elcc-alum-landing-logo" />}
             <div className="elcc-alum-landing-headlines">
@@ -181,21 +195,27 @@ export default function AlumnoEleccionLanding() {
           </div>
         </div>
 
-        <section className="elcc-alum-section">
+        <section className="elcc-alum-section elcc-alum-section--wide">
           <h2 className="elcc-alum-section-title">Equipo / plancha</h2>
-          <div className="elcc-alum-plancha-grid">
-            <article className="elcc-alum-plancha-card">
+          <div className="elcc-alum-plancha-grid elcc-alum-plancha-grid--centered">
+            <article className={`elcc-alum-plancha-card ${elccPastelClass(0)}`}>
               <div className="elcc-alum-plancha-role">Alcalde</div>
               {alcalde.foto_url ? (
-                <img src={alcalde.foto_url} alt="" style={{ width: 88, height: 88, objectFit: 'cover', borderRadius: 14, marginBottom: 6 }} />
-              ) : null}
-              <div style={{ fontWeight: 700, fontSize: '0.92rem', color: '#0f172a' }}>{alcalde.nombre_completo}</div>
+                <img src={alcalde.foto_url} alt="" className="elcc-alum-plancha-face elcc-alum-plancha-face--lg" />
+              ) : (
+                <div className="elcc-alum-plancha-face elcc-alum-plancha-face--lg elcc-alum-plancha-face-ph" aria-hidden />
+              )}
+              <div className="elcc-alum-plancha-nombre">{alcalde.nombre_completo}</div>
             </article>
             {(plancha || []).map((m, idx) => (
-              <article key={`${m.cargo}-${idx}`} className="elcc-alum-plancha-card">
+              <article key={`${m.cargo}-${idx}`} className={`elcc-alum-plancha-card ${elccPastelClass(idx + 1)}`}>
                 <div className="elcc-alum-plancha-role">{m.cargo}</div>
-                {m.foto_url ? <img src={m.foto_url} alt="" /> : <div style={{ width: 72, height: 72, margin: '0 auto 6px', background: '#f1f5f9', borderRadius: 14 }} />}
-                <div style={{ fontWeight: 600 }}>{m.nombre_completo}</div>
+                {m.foto_url ? (
+                  <img src={m.foto_url} alt="" className="elcc-alum-plancha-face elcc-alum-plancha-face--lg" />
+                ) : (
+                  <div className="elcc-alum-plancha-face elcc-alum-plancha-face--lg elcc-alum-plancha-face-ph" aria-hidden />
+                )}
+                <div className="elcc-alum-plancha-nombre">{m.nombre_completo}</div>
               </article>
             ))}
           </div>
@@ -204,14 +224,14 @@ export default function AlumnoEleccionLanding() {
           {(propuestas || []).length === 0 ? (
             <p className="elcc-alum-muted">Las propuestas se publicarán pronto.</p>
           ) : (
-            propuestas.map((p) => (
-              <div key={p.id} className="elcc-alum-prop">
-                <strong style={{ color: '#1e293b', display: 'block', marginBottom: 6 }}>{p.titulo}</strong>
+            propuestas.map((p, i) => (
+              <details key={p.id} className={`elcc-alum-prop-details ${elccPastelClass(i)}`}>
+                <summary className="elcc-alum-prop-summary">{p.titulo}</summary>
                 <div
-                  className="elcc-alum-prop-body"
+                  className="elcc-alum-prop-body elcc-alum-prop-body--pad"
                   dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(p.cuerpo || '') }}
                 />
-              </div>
+              </details>
             ))
           )}
 
