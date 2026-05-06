@@ -2258,19 +2258,21 @@ router.get('/perfil', async (req, res) => {
 
     const alumnoData = alumno[0];
 
-    // Obtener apoderados (padre y madre)
+    // Obtener todos los apoderados vinculados al alumno
     const apoderados = await query(
       `SELECT ap.*, 
               CASE 
                 WHEN ap.parentesco = 0 THEN 'Padre'
                 WHEN ap.parentesco = 1 THEN 'Madre'
+                WHEN ap.parentesco = 2 THEN 'Tutor'
+                WHEN ap.parentesco = 3 THEN 'Abuelo(a)'
+                WHEN ap.parentesco = 4 THEN 'Otro'
                 ELSE 'Otro'
               END as parentesco_nombre
        FROM apoderados ap
        INNER JOIN familias f ON f.apoderado_id = ap.id
        WHERE f.alumno_id = ? AND ap.colegio_id = ?
-       AND ap.parentesco IN (0, 1)
-       ORDER BY ap.parentesco ASC`,
+       ORDER BY ap.parentesco ASC, ap.apellido_paterno ASC, ap.apellido_materno ASC, ap.nombres ASC`,
       [alumnoData.id, colegio_id]
     );
 
@@ -2300,6 +2302,17 @@ router.get('/perfil', async (req, res) => {
       sexo: alumnoData.sexo !== undefined ? alumnoData.sexo : null,
       foto: fotoUrl,
       fecha_nacimiento: alumnoData.fecha_nacimiento,
+      apoderados: (apoderados || []).map((ap) => ({
+        id: ap.id,
+        parentesco: ap.parentesco,
+        parentesco_nombre: ap.parentesco_nombre || 'Apoderado',
+        nombres: ap.nombres || '',
+        apellido_paterno: ap.apellido_paterno || '',
+        apellido_materno: ap.apellido_materno || '',
+        telefono_fijo: ap.telefono_fijo || '',
+        telefono_celular: ap.telefono_celular || '',
+        email: ap.email || ''
+      })),
       padre: padre ? {
         nombres: padre.nombres || '',
         apellido_paterno: padre.apellido_paterno || '',
