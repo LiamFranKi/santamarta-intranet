@@ -11,6 +11,19 @@ import './EleccionResultadosLive.css';
 
 const POLL_MS = 1000;
 
+/** Reloj hasta cierre oficial (solo informativo; el modal épico empieza a los últimos 30 s). */
+function formatoHastaCierre(ms) {
+  if (ms == null || ms <= 0) return null;
+  const totalS = Math.floor(ms / 1000);
+  const d = Math.floor(totalS / 86400);
+  const h = Math.floor((totalS % 86400) / 3600);
+  const m = Math.floor((totalS % 3600) / 60);
+  const s = totalS % 60;
+  if (d >= 1) return `${d} día${d === 1 ? '' : 's'} ${h}h ${String(m).padStart(2, '0')}m`;
+  if (h >= 1) return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+  return `${m}m ${String(s).padStart(2, '0')}s`;
+}
+
 function useTickMs() {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -76,6 +89,7 @@ export default function EleccionResultadosLive() {
   const showCountdownModal = fase === 'CUENTA_FINAL';
   const showSuspenseModal = fase === 'SUSPENSO';
   const showWinnerModal = fase === 'GANADOR' && showWinner;
+  const untilCloseLabel = formatoHastaCierre(msCierre);
 
   const inner = (
     <div className="elcc-rs-wrap">
@@ -90,10 +104,43 @@ export default function EleccionResultadosLive() {
 
       {fase !== 'GANADOR' ? (
         <section className="elcc-rs-card">
-          <h2>Esperando cierre oficial de la votacion</h2>
-          <p className="elcc-rs-muted">
-            Cuando termine el conteo, el sistema mostrara automaticamente al ganador y habilitara los resultados completos.
-          </p>
+          {fase === 'PREVIA' ? (
+            <>
+              <h2>Jornada aún sin cierre oficial</h2>
+              <p className="elcc-rs-muted">
+                Mientras tanto puedes revisar las campañas. La pantalla de resultados «en vivo» (cuenta atrás destacada)
+                aparece solo en los últimos segundos antes del cierre programado en horario Lima y luego el anuncio del
+                ganador.
+              </p>
+              {untilCloseLabel && (
+                <p className="elcc-rs-wait-highlight">
+                  Tiempo hasta el cierre programado de la votación (Lima): <strong>{untilCloseLabel}</strong>
+                </p>
+              )}
+            </>
+          ) : fase === 'ESPERA_CIERRE' ? (
+            <>
+              <h2>Esperando cierre oficial de la votación</h2>
+              <p className="elcc-rs-muted">
+                Falta tiempo para cerrar urnas por reloj. La ventana grande con la cuenta atrás y efectos se abre cuando
+                queden{' '}
+                <strong className="elcc-rs-wait-strong">30 segundos o menos</strong> antes del horario oficial de cierre
+                (Lima). Después: suspenso y anuncio del ganador con confeti.
+              </p>
+              {untilCloseLabel && (
+                <p className="elcc-rs-wait-highlight">
+                  Faltan aprox.: <strong>{untilCloseLabel}</strong>
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <h2>Esperando cierre oficial de la votacion</h2>
+              <p className="elcc-rs-muted">
+                Cuando termine el conteo, el sistema mostrara automaticamente al ganador y habilitara los resultados completos.
+              </p>
+            </>
+          )}
         </section>
       ) : (
         <section className="elcc-rs-card">
