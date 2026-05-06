@@ -61,6 +61,7 @@ import AdminEncuestaEstadisticas from './pages/admin/AdminEncuestaEstadisticas';
 import AdminEncuestaHistorial from './pages/admin/AdminEncuestaHistorial';
 import AdminElecciones from './pages/admin/AdminElecciones';
 import AdminEleccionProceso from './pages/admin/AdminEleccionProceso';
+import AdminEleccionVotos from './pages/admin/AdminEleccionVotos';
 import AdminEventos from './pages/admin/AdminEventos';
 import MisEncuestas from './pages/MisEncuestas';
 import EncuestaResponder from './pages/EncuestaResponder';
@@ -495,6 +496,14 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA']}>
             <AdminEleccionProceso />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/elecciones/:procesoId/votos"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA']}>
+            <AdminEleccionVotos />
           </PrivateRoute>
         }
       />

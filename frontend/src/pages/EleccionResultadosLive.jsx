@@ -11,7 +11,14 @@ import './EleccionResultadosLive.css';
 
 const POLL_MS = 1000;
 
-/** Reloj hasta cierre oficial (solo informativo; el modal épico empieza a los últimos 30 s). */
+function formatoMmSs(totalSegundos) {
+  if (totalSegundos == null || totalSegundos < 0) return '—';
+  const m = Math.floor(totalSegundos / 60);
+  const s = totalSegundos % 60;
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
+
+/** Reloj hasta cierre oficial (solo informativo; el modal «cuenta atrás épica» abre cuando queden 2 min o menos antes del cierre Lima). */
 function formatoHastaCierre(ms) {
   if (ms == null || ms <= 0) return null;
   const totalS = Math.floor(ms / 1000);
@@ -33,7 +40,7 @@ function useTickMs() {
   return now;
 }
 
-function confettiPieces(total = 22) {
+function garlandPieces(total = 16) {
   return Array.from({ length: total }, (_, i) => i + 1);
 }
 
@@ -108,13 +115,11 @@ export default function EleccionResultadosLive() {
             <>
               <h2>Jornada aún sin cierre oficial</h2>
               <p className="elcc-rs-muted">
-                Mientras tanto puedes revisar las campañas. La pantalla de resultados «en vivo» (cuenta atrás destacada)
-                aparece solo en los últimos segundos antes del cierre programado en horario Lima y luego el anuncio del
-                ganador.
+                Mientras tanto puedes revisar las campañas. La cuenta regresiva a pantalla completa aparece cuando falten hasta 2 minutos para el cierre oficial (hora Lima).
               </p>
               {untilCloseLabel && (
                 <p className="elcc-rs-wait-highlight">
-                  Tiempo hasta el cierre programado de la votación (Lima): <strong>{untilCloseLabel}</strong>
+                  Faltan <strong>{untilCloseLabel}</strong> para el cierre de las elecciones (hora oficial Lima).
                 </p>
               )}
             </>
@@ -122,14 +127,13 @@ export default function EleccionResultadosLive() {
             <>
               <h2>Esperando cierre oficial de la votación</h2>
               <p className="elcc-rs-muted">
-                Falta tiempo para cerrar urnas por reloj. La ventana grande con la cuenta atrás y efectos se abre cuando
-                queden{' '}
-                <strong className="elcc-rs-wait-strong">30 segundos o menos</strong> antes del horario oficial de cierre
-                (Lima). Después: suspenso y anuncio del ganador con confeti.
+                La urna está abierta hasta el horario oficial. La ventana de cuenta atrás en grande se abrirá cuando queden hasta{' '}
+                <strong className="elcc-rs-wait-strong">2 minutos</strong>
+                antes del cierre (Lima). Luego viene el suspenso y el anuncio del ganador.
               </p>
               {untilCloseLabel && (
                 <p className="elcc-rs-wait-highlight">
-                  Faltan aprox.: <strong>{untilCloseLabel}</strong>
+                  Faltan <strong>{untilCloseLabel}</strong> para el cierre de las elecciones (hora oficial Lima).
                 </p>
               )}
             </>
@@ -175,8 +179,9 @@ export default function EleccionResultadosLive() {
           {showCountdownModal && (
             <div className="elcc-rs-modal elcc-rs-modal--count">
               <div className="elcc-rs-kicker">Finalizan las elecciones</div>
-              <div className="elcc-rs-big-number">{segundosFinales}</div>
-              <p>Preparando resultados oficiales...</p>
+              <div className="elcc-rs-big-mmss">{formatoMmSs(segundosFinales)}</div>
+              <p className="elcc-rs-count-sec">{segundosFinales != null ? `${segundosFinales} segundos` : ''}</p>
+              <p className="elcc-rs-count-hint">Cuenta atrás hasta el cierre oficial (Lima).</p>
             </div>
           )}
 
@@ -190,19 +195,30 @@ export default function EleccionResultadosLive() {
 
           {showWinnerModal && winner && (
             <div className="elcc-rs-modal elcc-rs-modal--winner">
-              <div className="elcc-rs-confetti" aria-hidden>
-                {confettiPieces().map((n) => (
-                  <span key={n} style={{ '--n': n }} />
+              <div className="elcc-rs-garland elcc-rs-garland--left" aria-hidden="true">
+                {garlandPieces(18).map((n) => (
+                  <span key={`L${n}`} className="elcc-rs-pennant elcc-rs-pennant--left" style={{ '--i': n }} />
                 ))}
               </div>
-              <h2>Nuevo alcalde</h2>
-              <p className="elcc-rs-winner-list">{winner.nombre_lista}</p>
-              <p className="elcc-rs-winner-name">{winner.alcalde_nombre_completo}</p>
-              {winner.alcalde_foto_url ? <img src={winner.alcalde_foto_url} alt="" className="elcc-rs-winner-face" /> : null}
-              <p className="elcc-rs-winner-note">Felicidades a la lista ganadora</p>
-              <button type="button" className="elcc-rs-btn" onClick={() => setShowWinner(false)}>
-                Ver resultados
-              </button>
+              <div className="elcc-rs-garland elcc-rs-garland--right" aria-hidden="true">
+                {garlandPieces(18).map((n) => (
+                  <span key={`R${n}`} className="elcc-rs-pennant elcc-rs-pennant--right" style={{ '--i': n }} />
+                ))}
+              </div>
+              <div className="elcc-rs-winner-inner">
+                <h2>Nuevo alcalde</h2>
+                <p className="elcc-rs-winner-list">{winner.nombre_lista}</p>
+                {winner.alcalde_foto_url ? (
+                  <img src={winner.alcalde_foto_url} alt="" className="elcc-rs-winner-face elcc-rs-winner-face--hero" />
+                ) : (
+                  <div className="elcc-rs-face-ph elcc-rs-face-ph--hero" />
+                )}
+                <p className="elcc-rs-winner-name">{winner.alcalde_nombre_completo}</p>
+                <p className="elcc-rs-winner-note">Felicidades a la lista ganadora</p>
+                <button type="button" className="elcc-rs-btn" onClick={() => setShowWinner(false)}>
+                  Ver resultados
+                </button>
+              </div>
             </div>
           )}
         </div>

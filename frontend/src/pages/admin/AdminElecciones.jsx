@@ -143,6 +143,19 @@ export default function AdminElecciones() {
                         <button
                           type="button"
                           className="admin-elcc-opt-item"
+                          onClick={() => navigate(`/admin/herramientas/elecciones/${p.id}/votos`)}
+                        >
+                          <span className="admin-elcc-opt-ico" aria-hidden>
+                            🗂️
+                          </span>
+                          <span className="admin-elcc-opt-txt">
+                            <span className="admin-elcc-opt-line1">Ver votos</span>
+                            <span className="admin-elcc-opt-line2">Filtros y anular voto puntual</span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-elcc-opt-item"
                           onClick={() => navigate(`/admin/herramientas/elecciones/${p.id}?panel=cargos`)}
                         >
                           <span className="admin-elcc-opt-ico" aria-hidden>

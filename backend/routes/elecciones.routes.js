@@ -265,7 +265,7 @@ function faseResultadosPublicos(procesoRow, nowMs) {
 
   if (procesoRow.estado === 'CAMPAÑA') return { fase: 'PREVIA', ms_hasta_cierre: msCierre, publicar_desde_ms: pubMs };
   if (procesoRow.estado === 'VOTACION') {
-    if (msCierre != null && msCierre > 30000) return { fase: 'ESPERA_CIERRE', ms_hasta_cierre: msCierre, publicar_desde_ms: pubMs };
+    if (msCierre != null && msCierre > 120000) return { fase: 'ESPERA_CIERRE', ms_hasta_cierre: msCierre, publicar_desde_ms: pubMs };
     if (msCierre != null && msCierre > 0) return { fase: 'CUENTA_FINAL', ms_hasta_cierre: msCierre, publicar_desde_ms: pubMs };
     return { fase: 'SUSPENSO', ms_hasta_cierre: 0, publicar_desde_ms: pubMs };
   }
@@ -801,6 +801,180 @@ router.get('/admin/procesos/:id/resultados', authenticateToken, requireStaff, as
   } catch (e) {
     console.error('[elecciones] resultados:', e);
     res.status(500).json({ error: 'No se pudieron cargar resultados' });
+  }
+});
+
+/** Listado de votos emitidos (auditoría / corrección). Staff del colegio. */
+router.get('/admin/procesos/:id/votos', authenticateToken, requireStaff, async (req, res) => {
+  try {
+    const colegioId = req.user.colegio_id;
+    const procesoId = parseInt(req.params.id, 10);
+    if (!procesoId || Number.isNaN(procesoId)) return res.status(400).json({ error: 'ID inválido' });
+    const row = await getProcesoAdmin(colegioId, procesoId);
+    if (!row) return res.status(404).json({ error: 'Proceso no encontrado' });
+
+    const q = req.query || {};
+    const page = Math.max(1, parseInt(q.page, 10) || 1);
+    const limit = Math.min(100, Math.max(5, parseInt(q.limit, 10) || 40));
+    const offset = (page - 1) * limit;
+
+    let where =
+      `v.proceso_id = ? AND v.colegio_id = ?`;
+    const params = [procesoId, colegioId];
+
+    const stripLikeWild = (s) => String(s || '').trim().replace(/[%_\\]/g, '');
+    const dniQ = typeof q.dni === 'string' ? stripLikeWild(q.dni) : '';
+    if (dniQ.length > 0) {
+      const like = `%${dniQ}%`;
+      where += ` AND (
+        u.usuario LIKE ?
+        OR IFNULL(a.nro_documento,'') LIKE ?
+        OR IFNULL(ap.nro_documento,'') LIKE ?
+      )`;
+      params.push(like, like, like);
+    }
+
+    const nombreQ = typeof q.nombre === 'string' ? stripLikeWild(q.nombre) : '';
+    if (nombreQ.length > 0) {
+      const like = `%${nombreQ}%`;
+      where += ` AND (
+        CONCAT_WS(' ', a.nombres, a.apellido_paterno, a.apellido_materno) LIKE ?
+        OR CONCAT_WS(' ', ap.nombres, ap.apellido_paterno, ap.apellido_materno) LIKE ?
+        OR CONCAT_WS(' ', p.nombres, p.apellidos) LIKE ?
+      )`;
+      params.push(like, like, like);
+    }
+
+    const listaId = q.lista_id != null && String(q.lista_id).trim() !== '' ? parseInt(q.lista_id, 10) : null;
+    if (listaId != null && !Number.isNaN(listaId)) {
+      where += ' AND v.lista_id = ?';
+      params.push(listaId);
+    }
+
+    const grupoId =
+      q.grupo_id != null && String(q.grupo_id).trim() !== '' ? parseInt(q.grupo_id, 10) : null;
+    if (grupoId != null && !Number.isNaN(grupoId)) {
+      where += ' AND v.grupo_id_snap = ?';
+      params.push(grupoId);
+    }
+
+    const tipoUsuario = typeof q.tipo_usuario === 'string' ? String(q.tipo_usuario).trim().toUpperCase() : '';
+    if (tipoUsuario && ['ALUMNO', 'APODERADO', 'DOCENTE'].includes(tipoUsuario)) {
+      where += ' AND UPPER(IFNULL(u.tipo,'')) = ?';
+      params.push(tipoUsuario);
+    }
+
+    const desde = typeof q.desde === 'string' ? q.desde.trim() : '';
+    if (desde && /^\d{4}-\d{2}-\d{2}$/.test(desde)) {
+      where += ' AND DATE(v.created_at) >= ?';
+      params.push(desde);
+    }
+    const hasta = typeof q.hasta === 'string' ? q.hasta.trim() : '';
+    if (hasta && /^\d{4}-\d{2}-\d{2}$/.test(hasta)) {
+      where += ' AND DATE(v.created_at) <= ?';
+      params.push(hasta);
+    }
+
+    const countRows = await query(
+      `SELECT COUNT(*) AS n
+       FROM elecciones_voto v
+       INNER JOIN usuarios u ON u.id = v.usuario_id AND u.colegio_id = v.colegio_id
+       LEFT JOIN alumnos a ON a.id = COALESCE(v.alumno_id, u.alumno_id) AND a.colegio_id = v.colegio_id
+       LEFT JOIN apoderados ap ON ap.id = u.apoderado_id AND ap.colegio_id = v.colegio_id
+       LEFT JOIN personal p ON p.id = u.personal_id AND p.colegio_id = v.colegio_id
+       WHERE ${where}`,
+      params
+    );
+    const total = Number(countRows[0]?.n || 0);
+
+    const rows = await query(
+      `SELECT
+         v.id,
+         v.created_at,
+         v.usuario_id,
+         v.votante_tipo,
+         v.lista_id,
+         v.grupo_id_snap,
+         v.grado_snap,
+         u.tipo AS usuario_tipo,
+         u.usuario AS login_usuario,
+         COALESCE(
+           NULLIF(TRIM(CONCAT_WS(' ', a.nombres, a.apellido_paterno, a.apellido_materno)), ''),
+           NULLIF(TRIM(CONCAT_WS(' ', ap.nombres, ap.apellido_paterno, ap.apellido_materno)), ''),
+           NULLIF(TRIM(CONCAT_WS(' ', p.nombres, p.apellidos)), ''),
+           u.usuario
+         ) AS votante_nombre,
+         COALESCE(NULLIF(TRIM(a.nro_documento),''), NULLIF(TRIM(ap.nro_documento),''), u.usuario) AS votante_dni,
+         l.nombre_lista,
+         CASE
+           WHEN g.id IS NOT NULL THEN TRIM(CONCAT(
+             COALESCE(g.grado,''), '° ', COALESCE(g.seccion,''),
+             IFNULL(CONCAT(' · ', nl.nombre), '')
+           ))
+           WHEN v.grado_snap IS NOT NULL THEN CONCAT(v.grado_snap, '° (sin aula fija)')
+           ELSE NULL
+         END AS aula_etiqueta
+       FROM elecciones_voto v
+       INNER JOIN usuarios u ON u.id = v.usuario_id AND u.colegio_id = v.colegio_id
+       LEFT JOIN alumnos a ON a.id = COALESCE(v.alumno_id, u.alumno_id) AND a.colegio_id = v.colegio_id
+       LEFT JOIN apoderados ap ON ap.id = u.apoderado_id AND ap.colegio_id = v.colegio_id
+       LEFT JOIN personal p ON p.id = u.personal_id AND p.colegio_id = v.colegio_id
+       INNER JOIN elecciones_lista l ON l.id = v.lista_id AND l.proceso_id = v.proceso_id
+       LEFT JOIN grupos g ON g.id = v.grupo_id_snap AND g.colegio_id = v.colegio_id
+       LEFT JOIN niveles nl ON nl.id = g.nivel_id
+       WHERE ${where}
+       ORDER BY v.created_at DESC, v.id DESC
+       LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
+      [...params]
+    );
+
+    const votos = (rows || []).map((r) => ({
+      id: r.id,
+      created_at: r.created_at,
+      usuario_id: r.usuario_id,
+      usuario_tipo: r.usuario_tipo,
+      votante_tipo: r.votante_tipo,
+      votante_nombre: r.votante_nombre,
+      votante_dni: r.votante_dni,
+      login_usuario: r.login_usuario,
+      lista_id: r.lista_id,
+      nombre_lista: r.nombre_lista,
+      grupo_id_snap: r.grupo_id_snap,
+      grado_snap: r.grado_snap,
+      aula_etiqueta: r.aula_etiqueta || null
+    }));
+
+    res.json({
+      proceso: { id: procesoId, titulo: row.titulo, estado: row.estado },
+      pagination: { page, limit, total, total_pages: Math.ceil(total / limit) || 0 },
+      votos
+    });
+  } catch (e) {
+    console.error('[elecciones] admin votos list:', e);
+    res.status(500).json({ error: 'No se pudieron listar los votos' });
+  }
+});
+
+router.delete('/admin/procesos/:id/votos/:votoId', authenticateToken, requireStaff, async (req, res) => {
+  try {
+    const colegioId = req.user.colegio_id;
+    const procesoId = parseInt(req.params.id, 10);
+    const votoId = parseInt(req.params.votoId, 10);
+    if (!procesoId || Number.isNaN(procesoId) || !votoId || Number.isNaN(votoId)) {
+      return res.status(400).json({ error: 'IDs inválidos' });
+    }
+    const proceso = await getProcesoAdmin(colegioId, procesoId);
+    if (!proceso) return res.status(404).json({ error: 'Proceso no encontrado' });
+
+    const r = await execute(
+      `DELETE FROM elecciones_voto WHERE id = ? AND proceso_id = ? AND colegio_id = ?`,
+      [votoId, procesoId, colegioId]
+    );
+    if (!r.affectedRows) return res.status(404).json({ error: 'Voto no encontrado' });
+    res.json({ ok: true, message: 'Voto eliminado; el usuario podrá registrar otro en este proceso.' });
+  } catch (e) {
+    console.error('[elecciones] admin delete voto:', e);
+    res.status(500).json({ error: 'No se pudo eliminar el voto' });
   }
 });
 

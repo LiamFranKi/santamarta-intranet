@@ -179,13 +179,17 @@ export default function AdminEleccionProceso() {
   /** Desde el listado: `/elecciones/:id?panel=cargos|listas|resultados` abre el modal correspondiente. */
   useEffect(() => {
     const panel = searchParams.get('panel');
+    if (panel === 'votos' && idNum && !Number.isNaN(idNum)) {
+      navigate(`/admin/herramientas/elecciones/${idNum}/votos`, { replace: true });
+      return;
+    }
     if (panel === 'resultados' || panel === 'cargos' || panel === 'listas') {
       setModal(panel);
       const next = new URLSearchParams(searchParams);
       next.delete('panel');
       setSearchParams(next, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams, navigate, idNum]);
 
   const cargarDetalleLista = async (listaId) => {
     setLoadingDetalle(true);
@@ -505,6 +509,15 @@ export default function AdminEleccionProceso() {
             <span className="admin-elcc-big-icon">📊</span>
             <span className="admin-elcc-big-text">Resultados</span>
             <small>Conteo de votos por lista</small>
+          </button>
+          <button
+            type="button"
+            className="admin-elcc-big-btn admin-elcc-big-sky"
+            onClick={() => navigate(`/admin/herramientas/elecciones/${idNum}/votos`)}
+          >
+            <span className="admin-elcc-big-icon">🗂️</span>
+            <span className="admin-elcc-big-text">Ver votos emitidos</span>
+            <small>Filtros por aula, lista, DNI; quitar voto si hubo error</small>
           </button>
           <button type="button" className="admin-elcc-big-btn admin-elcc-big-lavender" onClick={() => setModal('cargos')}>
             <span className="admin-elcc-big-icon">📋</span>

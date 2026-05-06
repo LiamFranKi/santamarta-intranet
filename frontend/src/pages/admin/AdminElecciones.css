@@ -621,6 +621,11 @@ body.swal2-shown .swal2-container,
   border: 1px solid #fdba74;
 }
 
+.admin-elcc-big-sky {
+  background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 100%);
+  border: 1px solid #7dd3fc;
+}
+
 .admin-elcc-big-icon {
   font-size: 1.5rem;
   line-height: 1;
