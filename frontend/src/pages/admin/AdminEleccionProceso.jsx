@@ -334,6 +334,34 @@ export default function AdminEleccionProceso() {
     }
   };
 
+  /** Ensayo/demo: borra todos los votos y vuelve a CAMPAÑA sin publicación de resultados (solo administrador). */
+  const reinicioDemoEnsayo = async () => {
+    const dlg = await Swal.fire({
+      title: 'Reinicio agresivo (solo demostración)',
+      html: `<p>Elimina <strong>todos los votos</strong>, limpia la hora guardada de publicación de resultados y deja el proceso en <strong>CAMPAÑA</strong> para repetir el ensayo.</p>
+        <p style="margin-top:.6rem;text-align:left;font-size:.9rem;color:#57534e">Si <strong>la fecha de cierre ya pasó</strong>, el sistema puede volver a <strong>RESULTADOS</strong> al siguiente recargo (con cero votos): en ese caso ajusta primero <strong>fin de votación</strong> a una hora <strong>futura</strong>.</p>
+        <p style="margin-top:.75rem">Escribe exactamente:</p>`,
+      input: 'text',
+      inputPlaceholder: 'REINICIAR_DEMOSTRACION',
+      showCancelButton: true,
+      confirmButtonText: 'Reiniciar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+      inputValidator: (v) =>
+        String(v || '').trim() === 'REINICIAR_DEMOSTRACION' ? null : 'Debes escribir REINICIAR_DEMOSTRACION'
+    });
+    if (!dlg.isConfirmed) return;
+    try {
+      const { data } = await api.post(`/elecciones/admin/procesos/${idNum}/reinicio-demo`, {
+        confirmacion: 'REINICIAR_DEMOSTRACION'
+      });
+      await Swal.fire('Listo', data?.message || 'Proceso reiniciado para ensayo.', 'success');
+      cargarTodo();
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || 'No se pudo reiniciar', 'error');
+    }
+  };
+
   const subirListaFile = async (listaId, field, file) => {
     if (!file) return;
     const fd = new FormData();
@@ -530,6 +558,30 @@ export default function AdminEleccionProceso() {
             <small>Logos, alcalde por DNI, plancha y propuestas</small>
           </button>
         </div>
+
+        {user?.tipo === 'ADMINISTRADOR' && !['BORRADOR', 'ARCHIVO'].includes(form.estado || '') && (
+          <section
+            className="admin-elcc-panel admin-elcc-card-surface"
+            style={{
+              marginTop: '1rem',
+              border: '1px solid #fca5a5',
+              background: 'linear-gradient(180deg, #fffafb 0%, #fff 100%)'
+            }}
+          >
+            <h3 style={{ marginTop: 0, color: '#991b1b', fontSize: '1rem' }}>Demostración / ensayo electoral</h3>
+            <p className="admin-elcc-muted" style={{ marginBottom: '0.75rem', lineHeight: 1.5 }}>
+              Usa esta acción cuando probaste hasta resultados en vivo y quieres repetir desde cero. No sustituye un cierre oficial en producción: borra votos registrados sin archivo de auditoría.
+            </p>
+            <button
+              type="button"
+              className="admin-elcc-btn"
+              style={{ background: '#dc2626', borderColor: '#b91c1c', color: '#fff', fontWeight: 700 }}
+              onClick={reinicioDemoEnsayo}
+            >
+              Reiniciar jornada (borrar votos y marcas de resultado)
+            </button>
+          </section>
+        )}
 
         {modal === 'resultados' && (
           <Modal title="Resultados (conteo)" onClose={() => setModal(null)}>

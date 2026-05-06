@@ -49,9 +49,11 @@ const uploadImg = multer({
 
 function diskUrl(req, rel) {
   if (!rel) return null;
+  const s = String(rel).trim();
+  if (/^https?:\/\//i.test(s)) return s;
   const host = req.get('host');
   const proto = req.protocol || 'http';
-  return `${proto}://${host}/uploads/${String(rel).replace(/^\/+/, '')}`;
+  return `${proto}://${host}/uploads/${s.replace(/^\/+/, '')}`;
 }
 
 function parseGrupoIds(raw) {
@@ -230,7 +232,7 @@ async function aplicarEstadoTemporalProceso(procesoRow) {
 
 async function totalesPublicosProceso(req, colegioId, procesoId) {
   const totales = await query(
-    `SELECT l.id AS lista_id, l.nombre_lista, l.logo_path,
+    `SELECT l.id AS lista_id, l.nombre_lista, l.logo_path, l.alcalde_alumno_id,
             aa.nombres AS cal_nom, aa.apellido_paterno AS cal_app, aa.apellido_materno AS cal_apm, aa.foto AS cal_foto,
             l.alcalde_nombres, l.alcalde_apellidos, l.alcalde_foto_path,
             COUNT(v.id) AS votos
@@ -238,20 +240,23 @@ async function totalesPublicosProceso(req, colegioId, procesoId) {
   LEFT JOIN elecciones_voto v ON v.lista_id = l.id AND v.proceso_id = l.proceso_id
   LEFT JOIN alumnos aa ON aa.id = l.alcalde_alumno_id AND aa.colegio_id = ?
       WHERE l.proceso_id = ? AND l.estado = 'PUBLICADA'
-   GROUP BY l.id, l.nombre_lista, l.logo_path, aa.nombres, aa.apellido_paterno, aa.apellido_materno, aa.foto,
+   GROUP BY l.id, l.nombre_lista, l.logo_path, l.alcalde_alumno_id,
+            aa.nombres, aa.apellido_paterno, aa.apellido_materno, aa.foto,
             l.alcalde_nombres, l.alcalde_apellidos, l.alcalde_foto_path
    ORDER BY votos DESC, l.orden_sort ASC, l.id ASC`,
     [colegioId, procesoId]
   );
   return (totales || []).map((t) => {
     const alcalde = mapAlcaldeListaPublic(req, t);
+    const logoUrl = diskUrl(req, t.logo_path);
+    const fotoLista = logoUrl || null;
     return {
       lista_id: t.lista_id,
       nombre_lista: t.nombre_lista,
       votos: Number(t.votos || 0),
-      logo_url: diskUrl(req, t.logo_path),
+      logo_url: logoUrl,
       alcalde_nombre_completo: alcalde.nombre_completo,
-      alcalde_foto_url: alcalde.foto_url
+      alcalde_foto_url: alcalde.foto_url || fotoLista
     };
   });
 }
@@ -772,6 +777,53 @@ router.delete('/admin/procesos/:id', authenticateToken, requireStaff, async (req
   } catch (e) {
     console.error('[elecciones] delete proceso:', e);
     res.status(500).json({ error: 'No se pudo eliminar (¿hay votos registrados?).' });
+  }
+});
+
+/**
+ * Reinicio para ensayos: borra votos del proceso y vuelve a CAMPAÑA sin resultados_publicados_at.
+ * Destructivo; solo ADMINISTRADOR y confirmación escrita obligatoria.
+ */
+router.post('/admin/procesos/:id/reinicio-demo', authenticateToken, requireStaff, async (req, res) => {
+  try {
+    if (req.user?.tipo !== 'ADMINISTRADOR') {
+      return res
+        .status(403)
+        .json({ error: 'Solo un usuario administrador puede ejecutar el reinicio de demostración.' });
+    }
+    if (String(req.body?.confirmacion || '').trim() !== 'REINICIAR_DEMOSTRACION') {
+      return res.status(400).json({
+        error: 'Confirmación incorrecta. Envía el campo confirmacion exactamente igual a REINICIAR_DEMOSTRACION.'
+      });
+    }
+    const colegioId = req.user.colegio_id;
+    const procesoId = parseInt(req.params.id, 10);
+    if (!procesoId || Number.isNaN(procesoId)) return res.status(400).json({ error: 'ID inválido' });
+    const row = await getProcesoAdmin(colegioId, procesoId);
+    if (!row) return res.status(404).json({ error: 'Proceso no encontrado' });
+    if (row.estado === 'BORRADOR' || row.estado === 'ARCHIVO') {
+      return res.status(400).json({
+        error: 'No se puede usar el reinicio de demostración en procesos en BORRADOR u ARCHIVO.'
+      });
+    }
+
+    await execute(`DELETE FROM elecciones_voto WHERE proceso_id = ? AND colegio_id = ?`, [procesoId, colegioId]);
+    await execute(
+      `UPDATE elecciones_proceso
+          SET estado = 'CAMPAÑA',
+              resultados_publicados_at = NULL
+        WHERE id = ? AND colegio_id = ?`,
+      [procesoId, colegioId]
+    );
+
+    res.json({
+      ok: true,
+      message:
+        'Votos eliminados. Estado inicial: CAMPAÑA sin fecha de publicación de resultados. Si ya pasó la hora de cierre configurada, ajusta votación_fin a una hora futura antes de continuar el ensayo; si no, el sistema volverá a marcar RESULTADOS al consultar.'
+    });
+  } catch (e) {
+    console.error('[elecciones] reinicio demo:', e);
+    res.status(500).json({ error: 'No se pudo completar el reinicio' });
   }
 });
 
