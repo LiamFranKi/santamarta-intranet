@@ -15062,7 +15062,9 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
     const contextoAlumnoIdEnvio = primerValorMultipart(contexto_alumno_id);
     const contextoGrupoIdEnvio = primerValorMultipart(contexto_grupo_id);
     const enviarAValue = String(primerValorMultipart(enviar_a) || 'todos').toLowerCase();
-    const enviarATipo = ['apoderados', 'alumnos', 'docentes', 'todos'].includes(enviarAValue) ? enviarAValue : 'todos';
+    const enviarATipo = ['apoderados', 'alumnos', 'docentes', 'todos', 'todo_personal'].includes(enviarAValue)
+      ? enviarAValue
+      : 'todos';
     const alcanceValue = String(primerValorMultipart(alcance) || '').toLowerCase();
     const esConexionManual = primerValorMultipart(modo_conexiones) === 'true' || primerValorMultipart(modo_conexiones) === true;
     const expandApoderadosRoles = expand_apoderados_roles === 'true' || expand_apoderados_roles === true;
@@ -15188,6 +15190,16 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                 `SELECT id as usuario_id FROM usuarios
                  WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo = 'DOCENTE'`,
                 [colegio_id]
+              );
+            } else if (enviarATipo === 'todo_personal') {
+              // Solo cuentas de trabajo intranet (no alumnos ni apoderados). Un docente que también es apoderado
+              // tiene usuario DOCENTE y recibe aquí; su usuario APODERADO no entra en esta lista.
+              const tiposPersonal = ['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA', 'DOCENTE', 'ASISTENCIA'];
+              const ph = tiposPersonal.map(() => '?').join(',');
+              usuariosGlobales = await query(
+                `SELECT id AS usuario_id FROM usuarios
+                 WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo IN (${ph})`,
+                [colegio_id, ...tiposPersonal]
               );
             } else {
               // TODOS incluye administradores, promotoría, docentes, alumnos y apoderados
@@ -15377,6 +15389,27 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
             } catch (errDocGrupos) {
               console.warn('⚠️ [ENVIAR MENSAJE] Error obteniendo docentes por grupos:', errDocGrupos.message);
             }
+          }
+        }
+
+        // Cobertura por grupos + perfil «Todo el personal»: destinatarios = todo el staff del colegio
+        // (los grupos solo enriquecen asunto/cuerpo; administración y demás roles no pertenecen a un aula).
+        if (enviarATipo === 'todo_personal' && alcanceEnvio === 'grupos') {
+          try {
+            const tiposPersonal = ['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA', 'DOCENTE', 'ASISTENCIA'];
+            const ph = tiposPersonal.map(() => '?').join(',');
+            const staffRows = await query(
+              `SELECT id AS usuario_id FROM usuarios
+               WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo IN (${ph})`,
+              [colegio_id, ...tiposPersonal]
+            );
+            (staffRows || []).forEach((u) => {
+              if (!usuariosDestinatarios.includes(u.usuario_id)) {
+                usuariosDestinatarios.push(u.usuario_id);
+              }
+            });
+          } catch (staffGrupoErr) {
+            console.warn('⚠️ [ENVIAR MENSAJE] Error destinatarios todo_personal (grupos):', staffGrupoErr.message);
           }
         }
 

@@ -33,9 +33,21 @@ function formatFechaHora(value) {
   return { fecha, hora };
 }
 
+const ETIQUETA_PERFIL_DESTINO = {
+  TODOS: 'Todos los perfiles',
+  ALUMNOS: 'Alumnos',
+  DOCENTES: 'Docentes',
+  APODERADOS: 'Apoderados',
+  TODO_PERSONAL: 'Todo el personal'
+};
+
+function etiquetaPerfilDestino(codigo) {
+  const k = String(codigo || '').toUpperCase();
+  return ETIQUETA_PERFIL_DESTINO[k] || k || '—';
+}
+
 function formatCobertura(row) {
-  const perfil = String(row?.perfil_destino || 'TODOS').toUpperCase();
-  return perfil;
+  return etiquetaPerfilDestino(row?.perfil_destino);
 }
 
 export default function AdminConexiones() {
@@ -461,6 +473,9 @@ export default function AdminConexiones() {
                 <label><input type="radio" checked={perfilDestino === 'alumnos'} onChange={() => setPerfilDestino('alumnos')} /> Alumnos</label>
                 <label><input type="radio" checked={perfilDestino === 'docentes'} onChange={() => setPerfilDestino('docentes')} /> Docentes</label>
                 <label><input type="radio" checked={perfilDestino === 'apoderados'} onChange={() => setPerfilDestino('apoderados')} /> Apoderados</label>
+                <label title="Administración, secretaría, promotoría, psicología, docentes, asistencia. No familias ni alumnos; los docentes que también son apoderados reciben en su usuario docente.">
+                  <input type="radio" checked={perfilDestino === 'todo_personal'} onChange={() => setPerfilDestino('todo_personal')} /> Todo el personal
+                </label>
               </div>
 
               {alcance === 'grupos' && (
@@ -530,7 +545,11 @@ export default function AdminConexiones() {
                       })()}
                     </div>
                     <div><strong>Personal:</strong> {detalle?.personal || '—'}</div>
-                    <div><strong>Cobertura:</strong> {String(detalle?.perfil_destino || '—').toUpperCase()}</div>
+                    <div>
+                      <strong>Alcance:</strong>{' '}
+                      {String(detalle?.alcance || '').toUpperCase() === 'TODOS' ? 'Todo el colegio' : 'Grupos seleccionados'}
+                    </div>
+                    <div><strong>Perfil destino:</strong> {etiquetaPerfilDestino(detalle?.perfil_destino)}</div>
                     <div><strong>Grupo:</strong> {detalle?.grupo || '—'}</div>
                     <div><strong>Asunto:</strong> {detalle?.asunto || 'Sin asunto'}</div>
                   </div>
