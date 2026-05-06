@@ -192,6 +192,9 @@ export default function AlumnoEleccionLanding() {
             <Link to={`${routeBase}/${pid}`} className="elcc-alum-landing-backlink">
               ← Volver a {proceso.titulo}
             </Link>
+            <Link to={`${routeBase}/${pid}/resultados`} className="elcc-alum-landing-backlink">
+              Ver resultados en vivo
+            </Link>
           </div>
         </div>
 

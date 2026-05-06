@@ -74,6 +74,11 @@ export default function AlumnoEleccionProceso() {
       <button type="button" className="elcc-alum-btn elcc-alum-btn-secondary elcc-alum-back-todas" onClick={() => navigate(routeBase)}>
         ← Todas las elecciones
       </button>
+      <div className="elcc-alum-top-actions">
+        <Link className="elcc-alum-btn elcc-alum-btn-results" to={`${routeBase}/${pid}/resultados`}>
+          Ver resultados
+        </Link>
+      </div>
 
       <header className="elcc-alum-hero elcc-alum-hero--pastel">
         <h1>{proceso.titulo}</h1>

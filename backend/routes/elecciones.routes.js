@@ -11,6 +11,7 @@ const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
 
 const STAFF_TYPES = new Set(['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA']);
+const PROCESO_ESTADOS = ['BORRADOR', 'CAMPAÑA', 'VOTACION', 'RESULTADOS', 'CERRADA', 'ARCHIVO'];
 
 function requireStaff(req, res, next) {
   if (!req.user || !STAFF_TYPES.has(req.user.tipo)) {
@@ -186,6 +187,69 @@ function payloadCountdownUrna(procesoRow) {
     votacion_iso_inicio: tIni != null ? new Date(tIni).toISOString() : null,
     votacion_iso_fin: tFin != null ? new Date(tFin).toISOString() : null
   };
+}
+
+async function aplicarEstadoTemporalProceso(procesoRow) {
+  if (!procesoRow || procesoRow.estado !== 'VOTACION') return procesoRow;
+  const tFin = limaMysqlOrInputToUtcMs(procesoRow.votacion_fin);
+  if (tFin == null || Date.now() <= tFin) return procesoRow;
+  const publicadoAt = procesoRow.resultados_publicados_at || utcMsToMysqlLimaWall(tFin + 3000);
+  await execute(
+    `UPDATE elecciones_proceso
+       SET estado = 'RESULTADOS',
+           resultados_publicados_at = COALESCE(resultados_publicados_at, ?)
+     WHERE id = ? AND estado = 'VOTACION'`,
+    [publicadoAt, procesoRow.id]
+  );
+  return { ...procesoRow, estado: 'RESULTADOS', resultados_publicados_at: publicadoAt };
+}
+
+async function totalesPublicosProceso(req, colegioId, procesoId) {
+  const totales = await query(
+    `SELECT l.id AS lista_id, l.nombre_lista, l.logo_path,
+            aa.nombres AS cal_nom, aa.apellido_paterno AS cal_app, aa.apellido_materno AS cal_apm, aa.foto AS cal_foto,
+            l.alcalde_nombres, l.alcalde_apellidos, l.alcalde_foto_path,
+            COUNT(v.id) AS votos
+       FROM elecciones_lista l
+  LEFT JOIN elecciones_voto v ON v.lista_id = l.id AND v.proceso_id = l.proceso_id
+  LEFT JOIN alumnos aa ON aa.id = l.alcalde_alumno_id AND aa.colegio_id = ?
+      WHERE l.proceso_id = ? AND l.estado = 'PUBLICADA'
+   GROUP BY l.id, l.nombre_lista, l.logo_path, aa.nombres, aa.apellido_paterno, aa.apellido_materno, aa.foto,
+            l.alcalde_nombres, l.alcalde_apellidos, l.alcalde_foto_path
+   ORDER BY votos DESC, l.orden_sort ASC, l.id ASC`,
+    [colegioId, procesoId]
+  );
+  return (totales || []).map((t) => {
+    const alcalde = mapAlcaldeListaPublic(req, t);
+    return {
+      lista_id: t.lista_id,
+      nombre_lista: t.nombre_lista,
+      votos: Number(t.votos || 0),
+      logo_url: diskUrl(req, t.logo_path),
+      alcalde_nombre_completo: alcalde.nombre_completo,
+      alcalde_foto_url: alcalde.foto_url
+    };
+  });
+}
+
+function faseResultadosPublicos(procesoRow, nowMs) {
+  const tFin = limaMysqlOrInputToUtcMs(procesoRow.votacion_fin);
+  const pubMs =
+    limaMysqlOrInputToUtcMs(procesoRow.resultados_publicados_at) ||
+    (tFin != null ? tFin + 3000 : nowMs);
+  const msCierre = tFin != null ? Math.max(0, tFin - nowMs) : null;
+
+  if (procesoRow.estado === 'CAMPAÑA') return { fase: 'PREVIA', ms_hasta_cierre: msCierre, publicar_desde_ms: pubMs };
+  if (procesoRow.estado === 'VOTACION') {
+    if (msCierre != null && msCierre > 30000) return { fase: 'ESPERA_CIERRE', ms_hasta_cierre: msCierre, publicar_desde_ms: pubMs };
+    if (msCierre != null && msCierre > 0) return { fase: 'CUENTA_FINAL', ms_hasta_cierre: msCierre, publicar_desde_ms: pubMs };
+    return { fase: 'SUSPENSO', ms_hasta_cierre: 0, publicar_desde_ms: pubMs };
+  }
+  if (procesoRow.estado === 'RESULTADOS') {
+    if (nowMs < pubMs) return { fase: 'SUSPENSO', ms_hasta_cierre: 0, publicar_desde_ms: pubMs };
+    return { fase: 'GANADOR', ms_hasta_cierre: 0, publicar_desde_ms: pubMs };
+  }
+  return { fase: 'NO_DISPONIBLE', ms_hasta_cierre: 0, publicar_desde_ms: pubMs };
 }
 
 async function matriculaContextoAlumno(alumnoId, colegioId, anio) {
@@ -412,7 +476,7 @@ function mapMiembroPublic(req, row) {
 }
 
 function procesoVisibleAlumno(estado) {
-  return estado === 'CAMPAÑA' || estado === 'VOTACION' || estado === 'CERRADA';
+  return estado === 'CAMPAÑA' || estado === 'VOTACION' || estado === 'RESULTADOS' || estado === 'CERRADA';
 }
 
 /** Grupos del año (admin/promotoría/secretaría) para convocatoria por aula — sin depender de permisos de catálogo académico. */
@@ -492,6 +556,7 @@ router.get('/admin/meta-alumnos', authenticateToken, requireStaff, async (req, r
       if (r && r.id != null && !byId.has(r.id)) byId.set(r.id, r);
     });
     const deduped = [...byId.values()];
+    const finMs = limaMysqlOrInputToUtcMs(proceso.votacion_fin);
     res.json({
       alumnos: deduped.map((r) => ({
         id: r.id,
@@ -552,7 +617,7 @@ router.post('/admin/procesos', authenticateToken, requireStaff, async (req, res)
     if (!titulo || String(titulo).trim().length === 0) {
       return res.status(400).json({ error: 'El título es obligatorio' });
     }
-    const st = estado && ['BORRADOR', 'CAMPAÑA', 'VOTACION', 'CERRADA'].includes(estado) ? estado : 'BORRADOR';
+    const st = estado && PROCESO_ESTADOS.includes(estado) ? estado : 'BORRADOR';
     const md = modalidad && ['VIRTUAL', 'PRESENCIAL', 'MIXTO'].includes(modalidad) ? modalidad : 'VIRTUAL';
     const gmin = grado_min === '' || grado_min == null ? null : parseInt(grado_min, 10);
     const gmax = grado_max === '' || grado_max == null ? null : parseInt(grado_max, 10);
@@ -561,8 +626,8 @@ router.post('/admin/procesos', authenticateToken, requireStaff, async (req, res)
     const gvj = jsonGradosVotoForDb(grados_voto);
     const r = await execute(
       `INSERT INTO elecciones_proceso
-        (colegio_id, titulo, descripcion, estado, modalidad, grado_min, grado_max, grupo_ids, perfiles_voto, grados_voto, votacion_inicio, votacion_fin)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        (colegio_id, titulo, descripcion, estado, modalidad, grado_min, grado_max, grupo_ids, perfiles_voto, grados_voto, votacion_inicio, votacion_fin, publicar_resultados)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
         colegioId,
         String(titulo).trim(),
@@ -575,7 +640,8 @@ router.post('/admin/procesos', authenticateToken, requireStaff, async (req, res)
         pj,
         gvj,
         normalizeVotacionBodyToMysql(votacion_inicio),
-        normalizeVotacionBodyToMysql(votacion_fin)
+        normalizeVotacionBodyToMysql(votacion_fin),
+        1
       ]
     );
     const id = r.insertId;
@@ -617,7 +683,7 @@ router.put('/admin/procesos/:id', authenticateToken, requireStaff, async (req, r
       grados_voto
     } = req.body || {};
 
-    const st = estado && ['BORRADOR', 'CAMPAÑA', 'VOTACION', 'CERRADA'].includes(estado) ? estado : row.estado;
+    const st = estado && PROCESO_ESTADOS.includes(estado) ? estado : row.estado;
     const md = modalidad && ['VIRTUAL', 'PRESENCIAL', 'MIXTO'].includes(modalidad) ? modalidad : row.modalidad;
     const gmin = grado_min === '' || grado_min == null ? null : parseInt(grado_min, 10);
     const gmax = grado_max === '' || grado_max == null ? null : parseInt(grado_max, 10);
@@ -1445,13 +1511,14 @@ async function handlerEleccionesProcesosLista(req, res) {
     const colegioId = req.user.colegio_id;
     const rows = await query(
       `SELECT * FROM elecciones_proceso
-       WHERE colegio_id = ? AND estado IN ('CAMPAÑA','VOTACION')
+       WHERE colegio_id = ? AND estado IN ('CAMPAÑA','VOTACION','RESULTADOS')
        ORDER BY id DESC`,
       [colegioId]
     );
     const anio = await getAnioActivo(colegioId);
     const out = [];
-    for (const row of rows) {
+    for (const row0 of rows) {
+      const row = await aplicarEstadoTemporalProceso(row0);
       const eleg = await elegibilidadVotanteUsuario(req, row, colegioId, anio);
       const cd = payloadCountdownUrna(row);
       out.push({
@@ -1499,24 +1566,25 @@ async function handlerEleccionesProcesoDetalle(req, res) {
     ]);
     if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
     const proceso = rows[0];
-    if (!procesoVisibleAlumno(proceso.estado)) {
+    const procesoTime = await aplicarEstadoTemporalProceso(proceso);
+    if (!procesoVisibleAlumno(procesoTime.estado)) {
       return res.status(403).json({ error: 'Este proceso no está disponible' });
     }
     const anio = await getAnioActivo(colegioId);
-    const eleg = await elegibilidadVotanteUsuario(req, proceso, colegioId, anio);
+    const eleg = await elegibilidadVotanteUsuario(req, procesoTime, colegioId, anio);
     const [votoRow] = await query(
       `SELECT lista_id FROM elecciones_voto WHERE proceso_id = ? AND usuario_id = ? LIMIT 1`,
       [procesoId, req.user.usuario_id]
     );
-    const cd = payloadCountdownUrna(proceso);
+    const cd = payloadCountdownUrna(procesoTime);
     const listas = await fetchListasPublicasMaps(req, colegioId, procesoId);
     res.json({
-      proceso: serializeProceso(proceso),
+      proceso: serializeProceso(procesoTime),
       puede_participar: eleg.ok,
       motivo_bloqueo: eleg.ok ? null : eleg.mensaje,
-      votacion_abierta: proceso.estado === 'VOTACION' && cd.ventana_horaria_abierta,
+      votacion_abierta: procesoTime.estado === 'VOTACION' && cd.ventana_horaria_abierta,
       puede_votar_ahora:
-        eleg.ok && proceso.estado === 'VOTACION' && cd.ventana_horaria_abierta,
+        eleg.ok && procesoTime.estado === 'VOTACION' && cd.ventana_horaria_abierta,
       countdown_urna: cd,
       ya_voto: !!votoRow,
       lista_votada_id: votoRow ? votoRow.lista_id : null,
@@ -1538,7 +1606,8 @@ async function handlerEleccionesLanding(req, res) {
       colegioId
     ]);
     if (!proceso) return res.status(404).json({ error: 'Proceso no encontrado' });
-    if (!procesoVisibleAlumno(proceso.estado)) {
+    const procesoTime = await aplicarEstadoTemporalProceso(proceso);
+    if (!procesoVisibleAlumno(procesoTime.estado)) {
       return res.status(403).json({ error: 'No disponible' });
     }
     const listasRow = await query(
@@ -1553,7 +1622,7 @@ async function handlerEleccionesLanding(req, res) {
     if (!listasRow.length) return res.status(404).json({ error: 'Lista no encontrada' });
     const listaJoin = listasRow[0];
     const anio = await getAnioActivo(colegioId);
-    const eleg = await elegibilidadVotanteUsuario(req, proceso, colegioId, anio);
+    const eleg = await elegibilidadVotanteUsuario(req, procesoTime, colegioId, anio);
     const miembrosRows = await query(
       `SELECT m.*, c.nombre AS cargo_nombre,
         ma.nombres AS alu_nom, ma.apellido_paterno AS alu_app, ma.apellido_materno AS alu_apm, ma.foto AS alu_foto
@@ -1573,7 +1642,7 @@ async function handlerEleccionesLanding(req, res) {
       [listaId]
     );
     const alcaldeMapped = mapAlcaldeListaPublic(req, listaJoin);
-    const cd = payloadCountdownUrna(proceso);
+    const cd = payloadCountdownUrna(procesoTime);
     const [votoRow] = await query(
       `SELECT lista_id FROM elecciones_voto WHERE proceso_id = ? AND usuario_id = ? LIMIT 1`,
       [procesoId, req.user.usuario_id]
@@ -1582,7 +1651,7 @@ async function handlerEleccionesLanding(req, res) {
       proceso: {
         id: proceso.id,
         titulo: proceso.titulo,
-        estado: proceso.estado
+        estado: procesoTime.estado
       },
       lista: {
         id: listaJoin.id,
@@ -1598,8 +1667,8 @@ async function handlerEleccionesLanding(req, res) {
       redes,
       puede_participar: eleg.ok,
       motivo_bloqueo: eleg.ok ? null : eleg.mensaje,
-      votacion_abierta: proceso.estado === 'VOTACION' && cd.ventana_horaria_abierta,
-      puede_votar_ahora: eleg.ok && proceso.estado === 'VOTACION' && cd.ventana_horaria_abierta,
+      votacion_abierta: procesoTime.estado === 'VOTACION' && cd.ventana_horaria_abierta,
+      puede_votar_ahora: eleg.ok && procesoTime.estado === 'VOTACION' && cd.ventana_horaria_abierta,
       ya_voto: !!votoRow,
       countdown_urna: cd
     });
@@ -1618,14 +1687,15 @@ async function handlerEleccionesUrna(req, res) {
       colegioId
     ]);
     if (!proceso) return res.status(404).json({ error: 'No encontrado' });
-    if (proceso.estado !== 'VOTACION') {
+    const procesoTime = await aplicarEstadoTemporalProceso(proceso);
+    if (procesoTime.estado !== 'VOTACION') {
       return res.status(403).json({ error: 'La votación no está abierta', codigo: 'NO_VOTACION' });
     }
-    if (!votacionAbiertaPorFechas(proceso)) {
+    if (!votacionAbiertaPorFechas(procesoTime)) {
       return res.status(403).json({ error: 'Fuera del horario de votación', codigo: 'FUERA_DE_FECHA' });
     }
     const anio = await getAnioActivo(colegioId);
-    const eleg = await elegibilidadVotanteUsuario(req, proceso, colegioId, anio);
+    const eleg = await elegibilidadVotanteUsuario(req, procesoTime, colegioId, anio);
     if (!eleg.ok) {
       return res.status(403).json({ error: eleg.mensaje, codigo: eleg.codigo });
     }
@@ -1657,7 +1727,7 @@ async function handlerEleccionesUrna(req, res) {
           color_primario: L.color_primario
         };
       }),
-      countdown_urna: payloadCountdownUrna(proceso)
+      countdown_urna: payloadCountdownUrna(procesoTime)
     });
   } catch (e) {
     console.error('[elecciones] urna votante:', e);
@@ -1677,14 +1747,15 @@ async function handlerEleccionesVoto(req, res) {
       colegioId
     ]);
     if (!proceso) return res.status(404).json({ error: 'Proceso no encontrado' });
-    if (proceso.estado !== 'VOTACION') {
+    const procesoTime = await aplicarEstadoTemporalProceso(proceso);
+    if (procesoTime.estado !== 'VOTACION') {
       return res.status(403).json({ error: 'La votación no está abierta' });
     }
-    if (!votacionAbiertaPorFechas(proceso)) {
+    if (!votacionAbiertaPorFechas(procesoTime)) {
       return res.status(403).json({ error: 'Fuera del horario de votación' });
     }
     const anio = await getAnioActivo(colegioId);
-    const eleg = await elegibilidadVotanteUsuario(req, proceso, colegioId, anio);
+    const eleg = await elegibilidadVotanteUsuario(req, procesoTime, colegioId, anio);
     if (!eleg.ok) {
       return res.status(403).json({ error: eleg.mensaje });
     }
@@ -1750,12 +1821,53 @@ async function handlerEleccionesVoto(req, res) {
   }
 }
 
+async function handlerEleccionesResultadosPublicos(req, res) {
+  try {
+    const procesoId = parseInt(req.params.id, 10);
+    const colegioId = req.user.colegio_id;
+    const rows = await query(`SELECT * FROM elecciones_proceso WHERE id = ? AND colegio_id = ? LIMIT 1`, [procesoId, colegioId]);
+    if (!rows.length) return res.status(404).json({ error: 'No encontrado' });
+    const proceso = await aplicarEstadoTemporalProceso(rows[0]);
+    if (proceso.estado === 'CERRADA' || proceso.estado === 'ARCHIVO' || proceso.estado === 'BORRADOR') {
+      return res.status(403).json({ error: 'Resultados no disponibles para este proceso' });
+    }
+
+    const nowMs = Date.now();
+    const fase = faseResultadosPublicos(proceso, nowMs);
+    const totales = await totalesPublicosProceso(req, colegioId, procesoId);
+    const votosRegistrados = totales.reduce((acc, t) => acc + Number(t.votos || 0), 0);
+    const ganador = totales[0] || null;
+    const showResultados = fase.fase === 'GANADOR';
+
+    res.json({
+      proceso: {
+        id: proceso.id,
+        titulo: proceso.titulo,
+        estado: proceso.estado
+      },
+      fase: fase.fase,
+      ms_hasta_cierre: fase.ms_hasta_cierre,
+      votacion_iso_fin: finMs != null ? new Date(finMs).toISOString() : null,
+      publicar_desde_iso: fase.publicar_desde_ms ? new Date(fase.publicar_desde_ms).toISOString() : null,
+      server_now_iso: new Date(nowMs).toISOString(),
+      hora_oficial: 'Lima, Peru',
+      votos_registrados: votosRegistrados,
+      ganador: showResultados ? ganador : null,
+      totales: showResultados ? totales : []
+    });
+  } catch (e) {
+    console.error('[elecciones] resultados publicos:', e);
+    res.status(500).json({ error: 'No se pudieron cargar resultados' });
+  }
+}
+
 // --- Portal electoral (usuarios intranet según proceso.perfiles_voto) ---
 router.get('/portal/procesos', authenticateToken, handlerEleccionesProcesosLista);
 router.get('/portal/procesos/:id', authenticateToken, handlerEleccionesProcesoDetalle);
 router.get('/portal/procesos/:id/listas/:listaId', authenticateToken, handlerEleccionesLanding);
 router.get('/portal/procesos/:id/urna', authenticateToken, handlerEleccionesUrna);
 router.post('/portal/procesos/:id/voto', authenticateToken, handlerEleccionesVoto);
+router.get('/portal/procesos/:id/resultados', authenticateToken, handlerEleccionesResultadosPublicos);
 
 // --- Compatibilidad alumno ---
 router.get('/alumno/procesos', authenticateToken, requireUserType('ALUMNO'), handlerEleccionesProcesosLista);
@@ -1763,5 +1875,6 @@ router.get('/alumno/procesos/:id', authenticateToken, requireUserType('ALUMNO'),
 router.get('/alumno/procesos/:id/listas/:listaId', authenticateToken, requireUserType('ALUMNO'), handlerEleccionesLanding);
 router.get('/alumno/procesos/:id/urna', authenticateToken, requireUserType('ALUMNO'), handlerEleccionesUrna);
 router.post('/alumno/procesos/:id/voto', authenticateToken, requireUserType('ALUMNO'), handlerEleccionesVoto);
+router.get('/alumno/procesos/:id/resultados', authenticateToken, requireUserType('ALUMNO'), handlerEleccionesResultadosPublicos);
 
 module.exports = router;

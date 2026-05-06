@@ -42,6 +42,14 @@
   background: #f3e8ff;
   color: #7e22ce;
 }
+.admin-elcc-badge-resultados {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.admin-elcc-badge-archivo {
+  background: #e2e8f0;
+  color: #334155;
+}
 
 .admin-elcc-table-card {
   background: #fff;

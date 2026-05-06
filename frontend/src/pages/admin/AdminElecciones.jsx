@@ -11,7 +11,9 @@ const BADGE_CLASS = {
   BORRADOR: 'admin-elcc-badge admin-elcc-badge-borrador',
   CAMPAÑA: 'admin-elcc-badge admin-elcc-badge-campana',
   VOTACION: 'admin-elcc-badge admin-elcc-badge-votacion',
-  CERRADA: 'admin-elcc-badge admin-elcc-badge-cerrada'
+  RESULTADOS: 'admin-elcc-badge admin-elcc-badge-resultados',
+  CERRADA: 'admin-elcc-badge admin-elcc-badge-cerrada',
+  ARCHIVO: 'admin-elcc-badge admin-elcc-badge-archivo'
 };
 
 export default function AdminElecciones() {

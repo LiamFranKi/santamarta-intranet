@@ -391,7 +391,9 @@ export default function AdminEleccionProceso() {
                   <option value="BORRADOR">BORRADOR (solo admin)</option>
                   <option value="CAMPAÑA">CAMPAÑA (propuestas y planchas)</option>
                   <option value="VOTACION">VOTACIÓN (urna disponible si cumple fecha)</option>
+                  <option value="RESULTADOS">RESULTADOS (ganador y barras visibles)</option>
                   <option value="CERRADA">CERRADA</option>
+                  <option value="ARCHIVO">ARCHIVO (oculto para comunidad)</option>
                 </select>
               </label>
               <label className="admin-elcc-label">

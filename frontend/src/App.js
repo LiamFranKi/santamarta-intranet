@@ -46,6 +46,7 @@ import AlumnoElecciones from './pages/AlumnoElecciones';
 import AlumnoEleccionProceso from './pages/AlumnoEleccionProceso';
 import AlumnoEleccionLanding from './pages/AlumnoEleccionLanding';
 import AlumnoEleccionVotar from './pages/AlumnoEleccionVotar';
+import EleccionResultadosLive from './pages/EleccionResultadosLive';
 import AdminIncidencias from './pages/admin/AdminIncidencias';
 import HerramientasExamenesLista from './pages/herramientas/HerramientasExamenesLista';
 import HerramientasExamenEditor from './pages/herramientas/HerramientasExamenEditor';
@@ -924,6 +925,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/alumno/elecciones/:procesoId/resultados"
+        element={
+          <PrivateRoute requiredTypes={ELECCIONES_ALUMNO_RUTA_TIPOS}>
+            <EleccionResultadosLive />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/elecciones-campana"
         element={
           <PrivateRoute requiredTypes={ELECCIONES_CAMPANA_RUTA_TIPOS}>
@@ -952,6 +961,14 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredTypes={ELECCIONES_CAMPANA_RUTA_TIPOS}>
             <AlumnoEleccionVotar />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/elecciones-campana/:procesoId/resultados"
+        element={
+          <PrivateRoute requiredTypes={ELECCIONES_CAMPANA_RUTA_TIPOS}>
+            <EleccionResultadosLive />
           </PrivateRoute>
         }
       />

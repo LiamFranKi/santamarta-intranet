@@ -119,6 +119,9 @@ export default function AlumnoElecciones() {
                   <Link className="elcc-alum-btn elcc-alum-btn-primary elcc-alum-btn--centered" to={`${routeBase}/${p.id}`}>
                     Ver página de campaña
                   </Link>
+                  <Link className="elcc-alum-btn elcc-alum-btn-results elcc-alum-btn--centered" to={`${routeBase}/${p.id}/resultados`}>
+                    Ver resultados
+                  </Link>
                 </div>
               </article>
             );
