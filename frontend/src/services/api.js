@@ -199,10 +199,10 @@ api.interceptors.response.use(
     /** Elecciones (alumno / portal intranet): 403/409 por convocatoria, horario o voto duplicado no debe cerrar sesión. */
     const isEleccionesIntranetRoute = /\/elecciones\/(alumno|portal)\//.test(reqUrl);
     const skipLogoutEleccionesIntranet =
-      isEleccionesIntranetRoute && (status === 403 || status === 409);
+      isEleccionesIntranetRoute && (status === 403 || status === 409 || status === 500);
     /** Elecciones admin: 403 por rol, token edge o reglas del servidor no debe desloguear (mostrar error en pantalla). */
     const isEleccionesAdminRoute = /\/elecciones\/admin\//.test(reqUrl);
-    const skipLogoutEleccionesAdmin403 = isEleccionesAdminRoute && status === 403;
+    const skipLogoutEleccionesAdmin403 = isEleccionesAdminRoute && (status === 403 || status === 500);
 
     if (
       status &&

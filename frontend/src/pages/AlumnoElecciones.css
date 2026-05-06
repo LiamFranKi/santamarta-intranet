@@ -5,7 +5,7 @@
 }
 
 .elcc-alum-hub--flush {
-  max-width: min(1160px, 100%);
+  max-width: min(1320px, 100%);
   width: 100%;
   box-sizing: border-box;
   padding-left: clamp(0.75rem, 2.2vw, 1.35rem);
@@ -77,6 +77,14 @@
 .elcc-alum-card-grid--candidatos {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
   gap: 1.15rem;
+}
+
+.elcc-alum-card-grid--hub {
+  grid-template-columns: 1fr;
+}
+
+.elcc-alum-card-grid--hub .elcc-alum-proc-card--hub {
+  min-height: 0;
 }
 
 .elcc-alum-proc-card {

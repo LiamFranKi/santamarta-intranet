@@ -60,7 +60,7 @@ export default function AlumnoElecciones() {
           No hay elecciones publicadas por ahora.
         </p>
       ) : (
-        <div className="elcc-alum-card-grid elcc-alum-card-grid--candidatos">
+        <div className="elcc-alum-card-grid elcc-alum-card-grid--candidatos elcc-alum-card-grid--hub">
           {procesos.map((p, idx) => {
             const cd = p.countdown_urna;
             const convocado =

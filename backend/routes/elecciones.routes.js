@@ -556,7 +556,6 @@ router.get('/admin/meta-alumnos', authenticateToken, requireStaff, async (req, r
       if (r && r.id != null && !byId.has(r.id)) byId.set(r.id, r);
     });
     const deduped = [...byId.values()];
-    const finMs = limaMysqlOrInputToUtcMs(proceso.votacion_fin);
     res.json({
       alumnos: deduped.map((r) => ({
         id: r.id,
@@ -1834,6 +1833,7 @@ async function handlerEleccionesResultadosPublicos(req, res) {
 
     const nowMs = Date.now();
     const fase = faseResultadosPublicos(proceso, nowMs);
+    const finMs = limaMysqlOrInputToUtcMs(proceso.votacion_fin);
     const totales = await totalesPublicosProceso(req, colegioId, procesoId);
     const votosRegistrados = totales.reduce((acc, t) => acc + Number(t.votos || 0), 0);
     const ganador = totales[0] || null;

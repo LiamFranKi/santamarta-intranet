@@ -30,7 +30,7 @@
 
 .elcc-campana-topbar-inner {
   position: relative;
-  max-width: min(1160px, 100%);
+  max-width: min(1320px, 100%);
   margin: 0 auto;
   padding: 1.25rem clamp(0.75rem, 2.2vw, 1.35rem) 1.5rem;
 }
@@ -69,7 +69,7 @@
 
 .elcc-campana-main {
   flex: 1;
-  max-width: min(1160px, 100%);
+  max-width: min(1320px, 100%);
   width: 100%;
   margin: 0 auto;
   padding: 1.25rem clamp(0.75rem, 2.2vw, 1.35rem) 2.5rem;

@@ -50,6 +50,14 @@ const QUILL_MODULES = {
 
 const QUILL_FORMATS = ['header', 'bold', 'italic', 'underline', 'strike', 'list', 'bullet', 'link', 'image'];
 
+function datetimeLocalLimaToMs(v) {
+  const s = String(v || '').trim();
+  if (!s) return null;
+  const full = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s) ? `${s}:00` : s;
+  const t = new Date(`${full}-05:00`).getTime();
+  return Number.isNaN(t) ? null : t;
+}
+
 function Modal({ title, children, onClose, wide, stack }) {
   const node = (
     <div className={`admin-elcc-modal-backdrop${stack ? ' admin-elcc-modal-stack2' : ''}`} role="presentation" onClick={onClose}>
@@ -95,6 +103,16 @@ export default function AdminEleccionProceso() {
 
   const idNum = parseInt(procesoId, 10);
   const anio = user?.anio_activo;
+  const publicacionActiva = !['BORRADOR', 'CERRADA', 'ARCHIVO'].includes(form.estado || '');
+  const faseVisual = useMemo(() => {
+    if (!publicacionActiva) return 'Inactivo (oculto para comunidad)';
+    const now = Date.now();
+    const ini = datetimeLocalLimaToMs(form.votacion_inicio);
+    const fin = datetimeLocalLimaToMs(form.votacion_fin);
+    if (ini != null && now < ini) return 'Campaña (esperando apertura de votación)';
+    if (fin != null && now < fin) return 'Votación en curso';
+    return 'Resultados';
+  }, [publicacionActiva, form.votacion_inicio, form.votacion_fin]);
 
   const cargarTodo = useCallback(async () => {
     if (!idNum || Number.isNaN(idNum)) return;
@@ -386,15 +404,22 @@ export default function AdminEleccionProceso() {
                 <input className="admin-elcc-input" value={form.titulo || ''} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} />
               </label>
               <label className="admin-elcc-label">
-                Estado
-                <select className="admin-elcc-select" value={form.estado || ''} onChange={(e) => setForm((f) => ({ ...f, estado: e.target.value }))}>
-                  <option value="BORRADOR">BORRADOR (solo admin)</option>
-                  <option value="CAMPAÑA">CAMPAÑA (propuestas y planchas)</option>
-                  <option value="VOTACION">VOTACIÓN (urna disponible si cumple fecha)</option>
-                  <option value="RESULTADOS">RESULTADOS (ganador y barras visibles)</option>
-                  <option value="CERRADA">CERRADA</option>
-                  <option value="ARCHIVO">ARCHIVO (oculto para comunidad)</option>
+                Publicación
+                <select
+                  className="admin-elcc-select"
+                  value={publicacionActiva ? 'ACTIVO' : 'INACTIVO'}
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      estado: e.target.value === 'ACTIVO' ? 'CAMPAÑA' : 'ARCHIVO'
+                    }))
+                  }
+                >
+                  <option value="ACTIVO">ACTIVO (fase automática por fechas)</option>
+                  <option value="INACTIVO">INACTIVO (oculto para comunidad)</option>
                 </select>
+                <small className="admin-elcc-muted">Con ACTIVO, campaña/votación/resultados se muestran automáticamente según la hora de Lima.</small>
+                <small className="admin-elcc-muted"><strong>Fase actual:</strong> {faseVisual}</small>
               </label>
               <label className="admin-elcc-label">
                 Modalidad
