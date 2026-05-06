@@ -89,6 +89,8 @@
   max-width: 1200px;
   margin: 0 auto;
   padding: 0 1rem 2.5rem;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .admin-elcc-panel {
@@ -97,6 +99,8 @@
   border-radius: 12px;
   padding: 1.25rem;
   margin-bottom: 1.25rem;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .admin-elcc-panel h2 {
@@ -122,6 +126,7 @@
   font-size: 0.82rem;
   font-weight: 600;
   color: #334155;
+  min-width: 0;
 }
 
 .admin-elcc-input,
@@ -132,6 +137,10 @@
   border-radius: 8px;
   font-size: 0.92rem;
   font-family: inherit;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .admin-elcc-textarea {
@@ -409,6 +418,7 @@ body.swal2-shown .swal2-container,
   flex-direction: column;
   box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
   border: 1px solid #e2e8f0;
+  min-width: 0;
 }
 
 .admin-elcc-modal-wide {
@@ -450,7 +460,9 @@ body.swal2-shown .swal2-container,
 .admin-elcc-modal-body {
   padding: 1.15rem 1.25rem 1.35rem;
   overflow: auto;
+  overflow-x: hidden;
   flex: 1;
+  min-width: 0;
 }
 
 .admin-elcc-proceso-toolbar {
@@ -909,12 +921,17 @@ body.swal2-shown .swal2-container,
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  min-width: 0;
 }
 
 .admin-elcc-grid-proceso-3x2 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.75rem 1rem;
+}
+
+.admin-elcc-grid-proceso-3x2 > * {
+  min-width: 0;
 }
 
 @media (max-width: 900px) {
@@ -1038,9 +1055,13 @@ body.swal2-shown .swal2-container,
 /* Identidad lista */
 .admin-elcc-identidad-layout {
   display: grid;
-  grid-template-columns: 1fr minmax(140px, 180px);
+  grid-template-columns: 1fr minmax(0, 180px);
   gap: 1.25rem;
   align-items: start;
+}
+
+.admin-elcc-identidad-main {
+  min-width: 0;
 }
 
 @media (max-width: 720px) {
@@ -1051,21 +1072,41 @@ body.swal2-shown .swal2-container,
 
 .admin-elcc-identidad-row1 {
   display: grid;
-  grid-template-columns: minmax(120px, 1.4fr) minmax(72px, 0.55fr) minmax(100px, 0.85fr) auto;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.55fr) minmax(0, 0.85fr) minmax(0, auto);
   gap: 0.55rem 0.65rem;
   align-items: end;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 900px) {
   .admin-elcc-identidad-row1 {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-elcc-identidad-row1 .admin-elcc-color-pair {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-elcc-identidad-row1 {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 .admin-elcc-color-pair {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.45rem;
   align-items: end;
+  min-width: 0;
+}
+
+@media (max-width: 520px) {
+  .admin-elcc-color-pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
 }
 
 .admin-elcc-color-inp {
@@ -1078,6 +1119,8 @@ body.swal2-shown .swal2-container,
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .admin-elcc-logo-preview-wrap {
@@ -1086,6 +1129,8 @@ body.swal2-shown .swal2-container,
   background: #fff;
   aspect-ratio: 1;
   max-height: 160px;
+  max-width: min(200px, 100%);
+  margin-inline: auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1304,4 +1349,218 @@ body.swal2-shown .swal2-container,
 .admin-elcc-prop-html img {
   max-width: 100%;
   height: auto;
+}
+
+/* —— Pantallas pequeñas: evitar desbordes y reducir densidad tipográfica —— */
+@media (max-width: 639px) {
+  .admin-elcc-wrap,
+  .admin-elcc-detalle-layout {
+    padding-left: 0.65rem;
+    padding-right: 0.65rem;
+  }
+
+  .admin-elcc-hero h1 {
+    font-size: 1.35rem;
+  }
+
+  .admin-elcc-panel {
+    padding: 0.85rem 0.7rem;
+    border-radius: 10px;
+  }
+
+  .admin-elcc-panel h2 {
+    font-size: 0.95rem;
+    margin-bottom: 0.65rem;
+  }
+
+  .admin-elcc-lead,
+  .admin-elcc-perfil-desc,
+  .admin-elcc-convoc-intro {
+    font-size: 0.8rem;
+    line-height: 1.45;
+  }
+
+  .admin-elcc-muted {
+    font-size: 0.78rem;
+  }
+
+  .admin-elcc-muted.small {
+    font-size: 0.7rem;
+  }
+
+  .admin-elcc-perfil-title {
+    font-size: 0.92rem;
+  }
+
+  .admin-elcc-perfil-pill {
+    font-size: 0.78rem;
+    padding: 0.35rem 0.6rem;
+  }
+
+  .admin-elcc-callout,
+  .admin-elcc-callout-pastel {
+    font-size: 0.78rem;
+    padding: 0.65rem 0.75rem;
+  }
+
+  .admin-elcc-modal-backdrop {
+    padding: 0.35rem;
+    align-items: stretch;
+  }
+
+  .admin-elcc-modal,
+  .admin-elcc-modal-wide {
+    max-width: 100%;
+    width: 100%;
+    max-height: min(94dvh, 100%);
+    border-radius: 12px;
+  }
+
+  .admin-elcc-modal-head {
+    padding: 0.6rem 0.7rem;
+  }
+
+  .admin-elcc-modal-head h2 {
+    font-size: 0.98rem;
+    line-height: 1.25;
+    padding-right: 0.25rem;
+  }
+
+  .admin-elcc-modal-body {
+    padding: 0.65rem 0.6rem 0.85rem;
+  }
+
+  .admin-elcc-big-btn {
+    padding: 0.7rem 0.8rem;
+    font-size: 0.85rem;
+  }
+
+  .admin-elcc-big-btn small {
+    font-size: 0.7rem;
+    display: block;
+    margin-top: 0.12rem;
+    line-height: 1.35;
+    font-weight: 500;
+    opacity: 0.95;
+  }
+
+  .admin-elcc-big-icon {
+    font-size: 1.2rem;
+  }
+
+  .admin-elcc-vista-publica {
+    padding: 0.7rem 0.72rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .admin-elcc-vista-publica-title {
+    font-size: 0.88rem;
+  }
+
+  .admin-elcc-vista-desc {
+    font-size: 0.75rem;
+    line-height: 1.45;
+  }
+
+  .admin-elcc-vista-links {
+    flex-direction: column;
+  }
+
+  .admin-elcc-vista-links .admin-elcc-btn {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .admin-elcc-lista-card-compact {
+    padding: 0.72rem 0.6rem;
+    min-width: 0;
+  }
+
+  .admin-elcc-lista-card-compact h3 {
+    font-size: 0.98rem;
+    margin: 0 0 0.5rem;
+  }
+
+  .admin-elcc-label {
+    font-size: 0.76rem;
+  }
+
+  .admin-elcc-input,
+  .admin-elcc-select,
+  .admin-elcc-textarea {
+    font-size: 0.86rem;
+    padding: 0.45rem 0.55rem;
+  }
+
+  .admin-elcc-input[type='datetime-local'] {
+    /* Algunos navegadores reservan demasiado ancho; forzamos a respetar la celda */
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .admin-elcc-opt-dropdown {
+    min-width: 0;
+    max-width: min(300px, calc(100vw - 1.25rem));
+  }
+
+  .admin-elcc-quill-wrap .ql-toolbar.ql-snow {
+    flex-wrap: wrap;
+    padding: 6px;
+  }
+
+  .admin-elcc-quill-wrap .ql-container {
+    font-size: 0.86rem;
+    min-height: 120px;
+  }
+
+  .admin-elcc-miemb-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-elcc-lista-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-elcc-proceso-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-elcc-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-elcc-prop-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-elcc-prop-actions {
+    justify-content: flex-start;
+  }
+
+  .admin-elcc-prop-html {
+    font-size: 0.8rem;
+  }
+
+  .admin-elcc-inline-add {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-elcc-inline-add .admin-elcc-input {
+    width: 100%;
+  }
+
+  .admin-elcc-modal-toolbar {
+    justify-content: stretch;
+  }
+
+  .admin-elcc-modal-toolbar .admin-elcc-btn {
+    width: 100%;
+  }
+
+  .admin-elcc-logo-preview-wrap {
+    max-height: 132px;
+  }
 }

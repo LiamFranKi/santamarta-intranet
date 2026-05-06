@@ -675,6 +675,16 @@
   }
 }
 
+/* Móvil: el min-width fijo del main forzaba scroll horizontal en formularios admin */
+@media (max-width: 639px) {
+  .dashboard-main {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+}
+
 /* Scrollbar personalizada - casi invisible, delgada y del color del menú */
 .sidebar-nav::-webkit-scrollbar,
 .dashboard-main::-webkit-scrollbar,
