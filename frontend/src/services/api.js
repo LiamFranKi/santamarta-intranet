@@ -203,6 +203,14 @@ api.interceptors.response.use(
     /** Elecciones admin: 403 por rol, token edge o reglas del servidor no debe desloguear (mostrar error en pantalla). */
     const isEleccionesAdminRoute = /\/elecciones\/admin\//.test(reqUrl);
     const skipLogoutEleccionesAdmin403 = isEleccionesAdminRoute && (status === 403 || status === 500);
+    /**
+     * Bootstrap público (/colegio/:id): 5xx o 502/503 del proxy no implican sesión inválida.
+     * Sin esto, caída del API muestra “Sesión cerrada” aún en la pantalla de login.
+     */
+    const isPublicColegioBootstrapRoute =
+      /^\/colegio\/\d+$/.test(reqUrl) || /^\/colegio\/\d+\/nombre-intranet$/.test(reqUrl);
+    const skipLogoutPublicColegioServerErrors =
+      isPublicColegioBootstrapRoute && [500, 502, 503].includes(status);
 
     if (
       status &&
@@ -226,6 +234,7 @@ api.interceptors.response.use(
       !skipLogoutAlumnoExamen &&
       !skipLogoutEleccionesIntranet &&
       !skipLogoutEleccionesAdmin403 &&
+      !skipLogoutPublicColegioServerErrors &&
       !isPublicEventosRoute
     ) {
       const errorInfo = criticalErrors[status];

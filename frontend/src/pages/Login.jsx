@@ -12,7 +12,7 @@ function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   const { login, isAuthenticated, user } = useAuth();
-  const { loading: loadingColegio } = useColegio();
+  const { loading: loadingColegio, error: errorColegio } = useColegio();
   const navigate = useNavigate();
 
   // Resolver URL base en tiempo de ejecución (no en compilación)
@@ -244,6 +244,11 @@ function Login() {
 
               {loadingColegio ? (
                 <div className="login-hint">Cargando configuración del colegio...</div>
+              ) : errorColegio ? (
+                <div className="login-hint login-hint--warn" role="alert">
+                  No se pudo cargar la configuración del colegio desde el servidor. Si el problema continúa, el servicio
+                  puede estar en mantenimiento o la base de datos no responde (comuníquese con administración).
+                </div>
               ) : null}
             </form>
           </div>

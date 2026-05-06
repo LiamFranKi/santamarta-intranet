@@ -341,6 +341,11 @@
   color: #6b7280;
 }
 
+.login-hint--warn {
+  color: #9a3412;
+  font-weight: 600;
+}
+
 @media (max-width: 900px) {
   .login-card-wide {
     grid-template-columns: 1fr;
