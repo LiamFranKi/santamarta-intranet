@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
@@ -54,21 +54,48 @@ export default function EleccionesCampanaBanner() {
   const routeBase = useMemo(() => (user?.tipo === 'ALUMNO' ? '/alumno/elecciones' : '/elecciones-campana'), [user?.tipo]);
   const now = useNowEverySecond();
   const [procesos, setProcesos] = useState([]);
+  const refetchAbiertoRef = useRef(new Set());
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    const fetchPros = async () => {
       try {
         const { data } = await api.get('/elecciones/portal/procesos');
         if (!cancelled) setProcesos(data?.procesos || []);
       } catch {
         if (!cancelled) setProcesos([]);
       }
-    })();
+    };
+    fetchPros();
+    const interval = window.setInterval(fetchPros, 12000);
     return () => {
       cancelled = true;
+      window.clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    procesos.forEach((p) => {
+      if (p.estado !== 'CAMPAÑA') {
+        refetchAbiertoRef.current.delete(p.id);
+        return;
+      }
+      const iso = p.countdown_urna?.votacion_iso_inicio;
+      if (!iso) return;
+      const ms = msRestantesHasta(iso, now);
+      if ((ms === null || ms <= 0) && !refetchAbiertoRef.current.has(p.id)) {
+        refetchAbiertoRef.current.add(p.id);
+        (async () => {
+          try {
+            const { data } = await api.get('/elecciones/portal/procesos');
+            setProcesos(data?.procesos || []);
+          } catch {
+            setProcesos([]);
+          }
+        })();
+      }
+    });
+  }, [now, procesos]);
 
   const model = pickBannerModel(procesos, now);
 

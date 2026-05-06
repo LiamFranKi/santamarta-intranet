@@ -190,9 +190,33 @@ function payloadCountdownUrna(procesoRow) {
 }
 
 async function aplicarEstadoTemporalProceso(procesoRow) {
-  if (!procesoRow || procesoRow.estado !== 'VOTACION') return procesoRow;
+  if (!procesoRow) return procesoRow;
+
+  const now = ahoraEnMs();
   const tFin = limaMysqlOrInputToUtcMs(procesoRow.votacion_fin);
-  if (tFin == null || Date.now() <= tFin) return procesoRow;
+
+  // Con «ACTIVO» el proceso queda en CAMPAÑA; al llegar votacion_inicio debe pasar a VOTACION para habilitar urna y flags.
+  if (procesoRow.estado === 'CAMPAÑA') {
+    if (tFin != null && now > tFin) {
+      const publicadoAt = procesoRow.resultados_publicados_at || utcMsToMysqlLimaWall(tFin + 3000);
+      await execute(
+        `UPDATE elecciones_proceso
+           SET estado = 'RESULTADOS',
+               resultados_publicados_at = COALESCE(resultados_publicados_at, ?)
+         WHERE id = ? AND estado = 'CAMPAÑA'`,
+        [publicadoAt, procesoRow.id]
+      );
+      return { ...procesoRow, estado: 'RESULTADOS', resultados_publicados_at: publicadoAt };
+    }
+    if (votacionAbiertaPorFechas(procesoRow)) {
+      await execute(`UPDATE elecciones_proceso SET estado = 'VOTACION' WHERE id = ? AND estado = 'CAMPAÑA'`, [procesoRow.id]);
+      return { ...procesoRow, estado: 'VOTACION' };
+    }
+    return procesoRow;
+  }
+
+  if (procesoRow.estado !== 'VOTACION') return procesoRow;
+  if (tFin == null || now <= tFin) return procesoRow;
   const publicadoAt = procesoRow.resultados_publicados_at || utcMsToMysqlLimaWall(tFin + 3000);
   await execute(
     `UPDATE elecciones_proceso
@@ -581,16 +605,17 @@ router.get('/admin/procesos', authenticateToken, requireStaff, async (req, res) 
   try {
     const colegioId = req.user.colegio_id;
     const rows = await query(
-      `SELECT id, titulo, descripcion, estado, modalidad, grado_min, grado_max, grupo_ids, perfiles_voto, grados_voto,
-              votacion_inicio, votacion_fin, created_at, updated_at
-       FROM elecciones_proceso
+      `SELECT * FROM elecciones_proceso
        WHERE colegio_id = ?
        ORDER BY id DESC`,
       [colegioId]
     );
-    res.json({
-      procesos: rows.map(serializeProceso)
-    });
+    const procesos = [];
+    for (const row0 of rows) {
+      const row = await aplicarEstadoTemporalProceso(row0);
+      procesos.push(serializeProceso(row));
+    }
+    res.json({ procesos });
   } catch (e) {
     console.error('[elecciones] admin list:', e);
     res.status(500).json({ error: 'No se pudieron cargar los procesos' });
@@ -655,7 +680,8 @@ router.get('/admin/procesos/:id', authenticateToken, requireStaff, async (req, r
   try {
     const row = await getProcesoAdmin(req.user.colegio_id, req.params.id);
     if (!row) return res.status(404).json({ error: 'Proceso no encontrado' });
-    res.json({ proceso: serializeProceso(row) });
+    const rowTimed = await aplicarEstadoTemporalProceso(row);
+    res.json({ proceso: serializeProceso(rowTimed) });
   } catch (e) {
     console.error('[elecciones] get proceso:', e);
     res.status(500).json({ error: 'Error al cargar' });
@@ -667,6 +693,7 @@ router.put('/admin/procesos/:id', authenticateToken, requireStaff, async (req, r
     const procesoId = parseInt(req.params.id, 10);
     const row = await getProcesoAdmin(req.user.colegio_id, procesoId);
     if (!row) return res.status(404).json({ error: 'Proceso no encontrado' });
+    const rowTimed = await aplicarEstadoTemporalProceso(row);
 
     const {
       titulo,
@@ -682,7 +709,11 @@ router.put('/admin/procesos/:id', authenticateToken, requireStaff, async (req, r
       grados_voto
     } = req.body || {};
 
-    const st = estado && PROCESO_ESTADOS.includes(estado) ? estado : row.estado;
+    let st = estado && PROCESO_ESTADOS.includes(estado) ? estado : rowTimed.estado;
+    const noRebobinar = new Set(['VOTACION', 'RESULTADOS', 'CERRADA']);
+    if (estado === 'CAMPAÑA' && rowTimed.estado !== 'CAMPAÑA' && noRebobinar.has(rowTimed.estado)) {
+      st = rowTimed.estado;
+    }
     const md = modalidad && ['VIRTUAL', 'PRESENCIAL', 'MIXTO'].includes(modalidad) ? modalidad : row.modalidad;
     const gmin = grado_min === '' || grado_min == null ? null : parseInt(grado_min, 10);
     const gmax = grado_max === '' || grado_max == null ? null : parseInt(grado_max, 10);

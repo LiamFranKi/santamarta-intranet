@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { CircularProgress } from '@mui/material';
 import DashboardLayout from '../components/DashboardLayout';
@@ -24,21 +24,45 @@ export default function AlumnoElecciones() {
   const [loading, setLoading] = useState(true);
   const [procesos, setProcesos] = useState([]);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts) => {
+    const silent = opts?.silent === true;
+    if (!silent) setLoading(true);
     try {
       const { data } = await api.get(`${apiPrefix}/procesos`);
       setProcesos(data.procesos || []);
     } catch {
-      setProcesos([]);
+      if (!silent) setProcesos([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [apiPrefix]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  // La cuenta regresiva es local pero el estado (CAMPAÑA→VOTACION) viene del servidor.
+  useEffect(() => {
+    const id = window.setInterval(() => load({ silent: true }), 12000);
+    return () => window.clearInterval(id);
+  }, [load]);
+
+  const refetchAbiertoRef = useRef(new Set());
+  useEffect(() => {
+    procesos.forEach((p) => {
+      if (p.estado !== 'CAMPAÑA') {
+        refetchAbiertoRef.current.delete(p.id);
+        return;
+      }
+      const iso = p.countdown_urna?.votacion_iso_inicio;
+      if (!iso) return;
+      const ms = msRestantesHasta(iso, now);
+      if ((ms === null || ms <= 0) && !refetchAbiertoRef.current.has(p.id)) {
+        refetchAbiertoRef.current.add(p.id);
+        load({ silent: true });
+      }
+    });
+  }, [now, procesos, load]);
 
   const inner = (
     <div className="elcc-alum-hub elcc-alum-hub--flush">
