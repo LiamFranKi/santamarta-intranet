@@ -100,7 +100,6 @@ export default function DashboardLayout({ children }) {
           path.startsWith('/alumno/herramientas') ||
           path.startsWith('/alumno/vocabularios') ||
           path.startsWith('/alumno/elecciones') ||
-          path.startsWith('/elecciones-campana') ||
           path.startsWith('/herramientas-examenes') ||
           path.startsWith('/encuestas')
         ) && { alumnoHerramientas: true }
@@ -524,9 +523,9 @@ export default function DashboardLayout({ children }) {
                     to="/elecciones-campana"
                   >
                     <span className="sidebar-icon" aria-hidden>
-                      🏛️
+                      🗳️
                     </span>
-                    <span className="sidebar-label">Jornada electoral</span>
+                    <span className="sidebar-label">Elecciones escolares</span>
                   </NavLink>
                 </div>
               </div>
@@ -692,17 +691,6 @@ export default function DashboardLayout({ children }) {
                       🗳️
                     </span>
                     <span className="sidebar-label">Elecciones escolares</span>
-                  </NavLink>
-                  <NavLink
-                    className={({ isActive }) =>
-                      `sidebar-sublink ${isActive || location.pathname.startsWith('/elecciones-campana') ? 'active' : ''}`
-                    }
-                    to="/elecciones-campana"
-                  >
-                    <span className="sidebar-icon" aria-hidden>
-                      🏛️
-                    </span>
-                    <span className="sidebar-label">Jornada electoral</span>
                   </NavLink>
                   <NavLink
                     className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
@@ -929,7 +917,7 @@ export default function DashboardLayout({ children }) {
                   to="/elecciones-campana"
                 >
                   <span className="sidebar-icon">🗳️</span>
-                  <span className="sidebar-label">Jornada electoral</span>
+                  <span className="sidebar-label">Elecciones escolares</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">

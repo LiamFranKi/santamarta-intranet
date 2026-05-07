@@ -47,6 +47,7 @@ import AlumnoEleccionProceso from './pages/AlumnoEleccionProceso';
 import AlumnoEleccionLanding from './pages/AlumnoEleccionLanding';
 import AlumnoEleccionVotar from './pages/AlumnoEleccionVotar';
 import EleccionResultadosLive from './pages/EleccionResultadosLive';
+import EleccionesCampanaRedirectAlumno from './components/elecciones/EleccionesCampanaRedirectAlumno';
 import AdminIncidencias from './pages/admin/AdminIncidencias';
 import HerramientasExamenesLista from './pages/herramientas/HerramientasExamenesLista';
 import HerramientasExamenEditor from './pages/herramientas/HerramientasExamenEditor';
@@ -945,7 +946,9 @@ function AppRoutes() {
         path="/elecciones-campana"
         element={
           <PrivateRoute requiredTypes={ELECCIONES_CAMPANA_RUTA_TIPOS}>
-            <AlumnoElecciones />
+            <EleccionesCampanaRedirectAlumno>
+              <AlumnoElecciones />
+            </EleccionesCampanaRedirectAlumno>
           </PrivateRoute>
         }
       />
@@ -953,7 +956,9 @@ function AppRoutes() {
         path="/elecciones-campana/:procesoId"
         element={
           <PrivateRoute requiredTypes={ELECCIONES_CAMPANA_RUTA_TIPOS}>
-            <AlumnoEleccionProceso />
+            <EleccionesCampanaRedirectAlumno>
+              <AlumnoEleccionProceso />
+            </EleccionesCampanaRedirectAlumno>
           </PrivateRoute>
         }
       />
@@ -961,7 +966,9 @@ function AppRoutes() {
         path="/elecciones-campana/:procesoId/lista/:listaId"
         element={
           <PrivateRoute requiredTypes={ELECCIONES_CAMPANA_RUTA_TIPOS}>
-            <AlumnoEleccionLanding />
+            <EleccionesCampanaRedirectAlumno>
+              <AlumnoEleccionLanding />
+            </EleccionesCampanaRedirectAlumno>
           </PrivateRoute>
         }
       />
@@ -969,7 +976,9 @@ function AppRoutes() {
         path="/elecciones-campana/:procesoId/votar"
         element={
           <PrivateRoute requiredTypes={ELECCIONES_CAMPANA_RUTA_TIPOS}>
-            <AlumnoEleccionVotar />
+            <EleccionesCampanaRedirectAlumno>
+              <AlumnoEleccionVotar />
+            </EleccionesCampanaRedirectAlumno>
           </PrivateRoute>
         }
       />
@@ -977,7 +986,9 @@ function AppRoutes() {
         path="/elecciones-campana/:procesoId/resultados"
         element={
           <PrivateRoute requiredTypes={ELECCIONES_CAMPANA_RUTA_TIPOS}>
-            <EleccionResultadosLive />
+            <EleccionesCampanaRedirectAlumno>
+              <EleccionResultadosLive />
+            </EleccionesCampanaRedirectAlumno>
           </PrivateRoute>
         }
       />
