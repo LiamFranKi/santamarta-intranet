@@ -50,6 +50,21 @@ function attachQuillImageUploadHandler(quill) {
   });
 }
 
+/**
+ * PointerSensor cubre ratón y puntero táctil; `distance` evita confundir tap con drag.
+ * Junto a `touch-action: none` en `.drag-handle` (CSS), el scroll del contenedor no cancela el arrastre en móvil/tablet.
+ */
+function useSortableDndSensors() {
+  return useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+}
+
 // Componente SortableItem para drag and drop
 function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown, dropdownPosition, buttonRef, readOnly = false }) {
   const {
@@ -78,7 +93,11 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
         {...(readOnly ? {} : attributes)} 
         {...(readOnly ? {} : listeners)}
         className={readOnly ? '' : 'drag-handle'}
-        style={{ cursor: readOnly ? 'default' : 'grab', userSelect: 'none' }}
+        style={{
+          cursor: readOnly ? 'default' : 'grab',
+          userSelect: 'none',
+          ...(readOnly ? {} : { touchAction: 'none' }),
+        }}
       >
         {archivo.nombre}
       </td>
@@ -251,13 +270,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const [temaEditando, setTemaEditando] = useState(null);
   const [guardandoTema, setGuardandoTema] = useState(false);
   
-  // Drag and Drop sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
+  const sensors = useSortableDndSensors();
 
   // Formulario de tarea
   const [formTarea, setFormTarea] = useState({
@@ -5867,12 +5880,7 @@ function PreguntasAlternativasModal({
 }) {
   const [preguntaVistaPrevia, setPreguntaVistaPrevia] = useState(null);
   const [mostrarVistaPrevia, setMostrarVistaPrevia] = useState(false);
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
+  const sensors = useSortableDndSensors();
 
   const handleDragEnd = async (event) => {
     if (contenidoBloqueado) return;
@@ -6117,7 +6125,13 @@ function SortablePreguntaRow({ pregunta, examen, index, contenidoBloqueado = fal
         <div
           {...dragHandleProps}
           className="drag-handle"
-          style={{ cursor: contenidoBloqueado ? 'not-allowed' : 'grab', fontSize: '1.2rem', userSelect: 'none', opacity: contenidoBloqueado ? 0.35 : 1 }}
+          style={{
+            cursor: contenidoBloqueado ? 'not-allowed' : 'grab',
+            fontSize: '1.2rem',
+            userSelect: 'none',
+            opacity: contenidoBloqueado ? 0.35 : 1,
+            ...(contenidoBloqueado ? {} : { touchAction: 'none' }),
+          }}
           title={contenidoBloqueado ? 'Reordenar deshabilitado' : 'Arrastrar para reordenar'}
         >
           ⋮⋮

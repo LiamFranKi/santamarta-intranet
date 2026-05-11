@@ -1275,6 +1275,9 @@
 .drag-handle {
   cursor: grab !important;
   user-select: none;
+  /* Sin esto, en iOS/Android el navegador prioriza el scroll y el drag suelta con over=null → el ítem vuelve a su sitio */
+  touch-action: none;
+  -webkit-user-select: none;
   transition: all 0.2s;
   padding: 0.25rem;
   border-radius: 4px;

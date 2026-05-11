@@ -19,6 +19,11 @@ const { fetchMatriculaVigenteMasReciente, sqlMatriculaIdMasRecientePorAlumno } =
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
+const {
+  fetchRangosCiclosParsed,
+  contarInasistenciasBimestre,
+  contarTardanzasBimestre,
+} = require('../utils/libretaResumenBimestres');
 
 // Configurar multer para subir archivos de mensajes
 const mensajesStorage = multer.diskStorage({
@@ -2639,6 +2644,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
 
     const matriculaId = matricula[0].matricula_id;
     const grupoId = matricula[0].grupo_id;
+    const rangosLibretaAsis = await fetchRangosCiclosParsed(query, colegio_id);
 
     // Obtener información del alumno y grupo (incluye tipo_calificacion para INICIAL cualitativa)
     const alumnoInfo = await query(
@@ -2839,14 +2845,14 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       const conductaMap = {};
       conductaProm.forEach(p => { conductaMap[p.ciclo] = p.promedio; });
 
-      const inasistenciasB1 = await obtenerInasistencias(matriculaId, 1, anio_activo);
-      const inasistenciasB2 = await obtenerInasistencias(matriculaId, 2, anio_activo);
-      const inasistenciasB3 = await obtenerInasistencias(matriculaId, 3, anio_activo);
-      const inasistenciasB4 = await obtenerInasistencias(matriculaId, 4, anio_activo);
-      const tardanzasB1 = await obtenerTardanzas(matriculaId, 1, anio_activo);
-      const tardanzasB2 = await obtenerTardanzas(matriculaId, 2, anio_activo);
-      const tardanzasB3 = await obtenerTardanzas(matriculaId, 3, anio_activo);
-      const tardanzasB4 = await obtenerTardanzas(matriculaId, 4, anio_activo);
+      const inasistenciasB1 = await contarInasistenciasBimestre(query, matriculaId, anio, rangosLibretaAsis, 1);
+      const inasistenciasB2 = await contarInasistenciasBimestre(query, matriculaId, anio, rangosLibretaAsis, 2);
+      const inasistenciasB3 = await contarInasistenciasBimestre(query, matriculaId, anio, rangosLibretaAsis, 3);
+      const inasistenciasB4 = await contarInasistenciasBimestre(query, matriculaId, anio, rangosLibretaAsis, 4);
+      const tardanzasB1 = await contarTardanzasBimestre(query, matriculaId, anio, rangosLibretaAsis, 1);
+      const tardanzasB2 = await contarTardanzasBimestre(query, matriculaId, anio, rangosLibretaAsis, 2);
+      const tardanzasB3 = await contarTardanzasBimestre(query, matriculaId, anio, rangosLibretaAsis, 3);
+      const tardanzasB4 = await contarTardanzasBimestre(query, matriculaId, anio, rangosLibretaAsis, 4);
 
       // Detalle de notas: explicaciones del docente por curso (bimestre seleccionado)
       let detalle_notas_cual = [];
@@ -2883,10 +2889,10 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         suma_notas: { b1: null, b2: null, b3: null, b4: null },
         promedio: { b1: null, b2: null, b3: null, b4: null, final: null },
         promedio_conducta: {
-          b1: conductaMap[1] != null ? conductaMap[1] : '20',
-          b2: conductaMap[2] != null ? conductaMap[2] : '20',
-          b3: conductaMap[3] != null ? conductaMap[3] : '20',
-          b4: conductaMap[4] != null ? conductaMap[4] : '20'
+          b1: conductaMap[1] != null && conductaMap[1] !== '' ? conductaMap[1] : null,
+          b2: conductaMap[2] != null && conductaMap[2] !== '' ? conductaMap[2] : null,
+          b3: conductaMap[3] != null && conductaMap[3] !== '' ? conductaMap[3] : null,
+          b4: conductaMap[4] != null && conductaMap[4] !== '' ? conductaMap[4] : null
         },
         orden_merito: { b1: null, b2: null, b3: null, b4: null },
         inasistencias: { b1: inasistenciasB1, b2: inasistenciasB2, b3: inasistenciasB3, b4: inasistenciasB4 },
@@ -2978,12 +2984,12 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       promediosPorAsignatura[p.asignatura_id][p.ciclo] = p.promedio;
     });
 
-    // Promedio conducta (asignatura_id = -101), default 20
-    const conductaProm = promediosPorAsignatura[-101] || {};
-    const promedioConductaB1 = (conductaProm[1] !== null && conductaProm[1] !== '' && conductaProm[1] !== '-') ? conductaProm[1] : '20';
-    const promedioConductaB2 = (conductaProm[2] !== null && conductaProm[2] !== '' && conductaProm[2] !== '-') ? conductaProm[2] : '20';
-    const promedioConductaB3 = (conductaProm[3] !== null && conductaProm[3] !== '' && conductaProm[3] !== '-') ? conductaProm[3] : '20';
-    const promedioConductaB4 = (conductaProm[4] !== null && conductaProm[4] !== '' && conductaProm[4] !== '-') ? conductaProm[4] : '20';
+    // Promedio conducta (asignatura_id = -101); sin fila en ese ciclo → null (no inventar 20)
+    const conductaProm = promediosPorAsignatura[-101] || promediosPorAsignatura['-101'] || {};
+    const promedioConductaB1 = (conductaProm[1] !== null && conductaProm[1] !== '' && conductaProm[1] !== '-') ? conductaProm[1] : null;
+    const promedioConductaB2 = (conductaProm[2] !== null && conductaProm[2] !== '' && conductaProm[2] !== '-') ? conductaProm[2] : null;
+    const promedioConductaB3 = (conductaProm[3] !== null && conductaProm[3] !== '' && conductaProm[3] !== '-') ? conductaProm[3] : null;
+    const promedioConductaB4 = (conductaProm[4] !== null && conductaProm[4] !== '' && conductaProm[4] !== '-') ? conductaProm[4] : null;
 
     // Recomendaciones: solo la del bimestre seleccionado (sin prefijo "Bimestre X:")
     let recomendacionesTexto = '';
@@ -3181,16 +3187,15 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     const ordenMerito = ordenMeritoResult.puestos;
     const ordenMeritoDetalle = ordenMeritoResult.detalle || { b1: [], b2: [], b3: [], b4: [] };
 
-    // Inasistencias y tardanzas (usar datos de asistencia)
-    const inasistenciasB1 = await obtenerInasistencias(matriculaId, 1, anio_activo);
-    const inasistenciasB2 = await obtenerInasistencias(matriculaId, 2, anio_activo);
-    const inasistenciasB3 = await obtenerInasistencias(matriculaId, 3, anio_activo);
-    const inasistenciasB4 = await obtenerInasistencias(matriculaId, 4, anio_activo);
+    const inasistenciasB1 = await contarInasistenciasBimestre(query, matriculaId, anio, rangosLibretaAsis, 1);
+    const inasistenciasB2 = await contarInasistenciasBimestre(query, matriculaId, anio, rangosLibretaAsis, 2);
+    const inasistenciasB3 = await contarInasistenciasBimestre(query, matriculaId, anio, rangosLibretaAsis, 3);
+    const inasistenciasB4 = await contarInasistenciasBimestre(query, matriculaId, anio, rangosLibretaAsis, 4);
 
-    const tardanzasB1 = await obtenerTardanzas(matriculaId, 1, anio_activo);
-    const tardanzasB2 = await obtenerTardanzas(matriculaId, 2, anio_activo);
-    const tardanzasB3 = await obtenerTardanzas(matriculaId, 3, anio_activo);
-    const tardanzasB4 = await obtenerTardanzas(matriculaId, 4, anio_activo);
+    const tardanzasB1 = await contarTardanzasBimestre(query, matriculaId, anio, rangosLibretaAsis, 1);
+    const tardanzasB2 = await contarTardanzasBimestre(query, matriculaId, anio, rangosLibretaAsis, 2);
+    const tardanzasB3 = await contarTardanzasBimestre(query, matriculaId, anio, rangosLibretaAsis, 3);
+    const tardanzasB4 = await contarTardanzasBimestre(query, matriculaId, anio, rangosLibretaAsis, 4);
 
     // Detalle de notas: explicaciones del docente por curso (para el bimestre seleccionado)
     const detalleNotasRows = await query(
@@ -3288,48 +3293,6 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     res.status(500).json({ error: 'Error al obtener libreta', details: error.message });
   }
 });
-
-// Función auxiliar para obtener inasistencias por bimestre
-async function obtenerInasistencias(matriculaId, ciclo, anio) {
-  try {
-    // Obtener rango de fechas del bimestre (esto se puede obtener de configuración)
-    // Por ahora contamos todas las faltas del año
-    const faltas = await query(
-      `SELECT COUNT(*) as total
-       FROM matriculas_asistencias ma
-       INNER JOIN matriculas m ON m.id = ma.matricula_id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE ma.matricula_id = ? 
-         AND ma.tipo = 'FALTA'
-         AND g.anio = ?`,
-      [matriculaId, anio]
-    );
-    return faltas.length > 0 ? faltas[0].total : 0;
-  } catch (error) {
-    console.error('Error obteniendo inasistencias:', error);
-    return 0;
-  }
-}
-
-// Función auxiliar para obtener tardanzas por bimestre
-async function obtenerTardanzas(matriculaId, ciclo, anio) {
-  try {
-    const tardanzas = await query(
-      `SELECT COUNT(*) as total
-       FROM matriculas_asistencias ma
-       INNER JOIN matriculas m ON m.id = ma.matricula_id
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE ma.matricula_id = ? 
-         AND ma.tipo = 'TARDANZA'
-         AND g.anio = ?`,
-      [matriculaId, anio]
-    );
-    return tardanzas.length > 0 ? tardanzas[0].total : 0;
-  } catch (error) {
-    console.error('Error obteniendo tardanzas:', error);
-    return 0;
-  }
-}
 
 // Función auxiliar para calcular orden de mérito por bimestre (ranking por promedio general del grupo)
 // Retorna { puestos: { b1, b2, b3, b4 }, detalle: { b1: [{ apellido_paterno, apellido_materno, nombres, promedio, puesto }], ... } }

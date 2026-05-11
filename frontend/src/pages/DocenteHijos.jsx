@@ -2791,7 +2791,7 @@ function DocenteHijos() {
       dibFila('CANTIDAD DE CURSOS', cantB);
       dibFila('SUMA DE NOTAS', sumaB);
       dibFila('PROMEDIO', promB, '-');
-      dibFila('PROMEDIO CONDUCTA', condB, '20');
+      dibFila('PROMEDIO CONDUCTA', condB, '-');
       dibFila('ORDEN DE MÉRITO', ordB);
       dibFila('N° DE INASISTENCIAS', inasB, '0');
       dibFila('N° DE TARDANZAS', tardB, '0');
