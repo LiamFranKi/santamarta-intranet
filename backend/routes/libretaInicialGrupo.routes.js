@@ -309,6 +309,7 @@ router.get('/grupos/:grupoId/libreta-inicial/registro', async (req, res) => {
   try {
     const { grupoId } = req.params;
     const ciclo = parseInt(req.query.ciclo, 10) || 1;
+    const filtro = sqlFiltroAlcanceCiclo(ciclo);
     const { colegio_id } = req.user;
     const acc = await assertAccesoGrupoLibretaInicial(req, grupoId);
     if (!acc.ok) return res.status(acc.status).json({ error: acc.error });
