@@ -13011,6 +13011,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
               a.nombres,
               a.apellido_paterno,
               a.apellido_materno,
+              a.foto,
+              a.fecha_nacimiento,
               CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
               u.usuario as codigo,
               g.grado,
@@ -13036,6 +13038,15 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     }
 
     const alumno = alumnoInfo[0];
+    const fotoLibretaUrl = (() => {
+      const f = alumno.foto;
+      if (!f || String(f).trim() === '') return null;
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      return process.env.NODE_ENV === 'production'
+        ? `${phpSystemUrl}/Static/Image/Fotos/${f}`
+        : `http://localhost:5000/Static/Image/Fotos/${f}`;
+    })();
+    alumno.foto_url = fotoLibretaUrl;
     const esCualitativa = alumno.tipo_calificacion === 0 || (alumno.nivel_nombre || '').toUpperCase().includes('INICIAL');
 
     // Obtener título de la intranet desde la tabla colegios
@@ -13069,7 +13080,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         } catch (err) { return {}; }
       };
 
-      const cursosCualitativos = await Promise.all(asignaturasCual.map(async (asig) => {
+      let usaLibretaInicialCustom = false;
+      let cursosCualitativos = await Promise.all(asignaturasCual.map(async (asig) => {
         const criterios = await query(
           `SELECT * FROM asignaturas_criterios WHERE asignatura_id = ? AND colegio_id = ? ORDER BY orden ASC`,
           [asig.asignatura_id, colegio_id]
@@ -13165,6 +13177,23 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
         };
       }));
 
+      try {
+        const { tryBuildLibretaInicialCustomCursos } = require('../utils/libretaInicialCustomCursos');
+        const customCourses = await tryBuildLibretaInicialCustomCursos(query, {
+          grupoId,
+          colegio_id,
+          anioGrupo: alumno.anio,
+          matriculaId,
+          ciclo
+        });
+        if (customCourses && customCourses.length > 0) {
+          cursosCualitativos = customCourses;
+          usaLibretaInicialCustom = true;
+        }
+      } catch (e) {
+        /* tablas libreta_inicial_* opcionales */
+      }
+
       let recomendacionesTexto = '';
       const matriculaRow = await query(`SELECT recomendaciones FROM matriculas WHERE id = ?`, [matriculaId]);
       if (matriculaRow && matriculaRow[0] && matriculaRow[0].recomendaciones) {
@@ -13217,6 +13246,9 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
           explicacion: (r.explicacion || '').trim() || ''
         }));
       } catch (e) { console.error('[HIJOS-LIBRETA] Error detalle_notas cualitativa:', e); }
+      if (usaLibretaInicialCustom) {
+        detalle_notas_cual = [];
+      }
 
       const resumenCual = {
         cantidad_cursos: { b1: cursosCualitativos.length, b2: cursosCualitativos.length, b3: cursosCualitativos.length, b4: cursosCualitativos.length },

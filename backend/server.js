@@ -277,6 +277,8 @@ const eleccionesRoutes = require('./routes/elecciones.routes');
 const docentePsicologiaRoutes = require('./routes/docente.psicologia.routes');
 app.use('/api/docente/psicologia', docentePsicologiaRoutes);
 app.use('/api/docente', docenteRoutes);
+const libretaInicialGrupoRoutes = require('./routes/libretaInicialGrupo.routes');
+app.use('/api/docente', libretaInicialGrupoRoutes);
 app.use('/api/alumno', alumnoRoutes);
 app.use('/api/asistencia', asistenciaRoutes);
 app.use('/api/push', pushRoutes);

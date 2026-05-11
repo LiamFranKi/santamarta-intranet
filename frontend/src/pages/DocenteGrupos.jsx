@@ -4,8 +4,14 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
 import GrupoAlumnosListaView from '../components/grupoAlumnos/GrupoAlumnosListaView';
+import LibretaInicialAreasModal from '../components/libretaInicial/LibretaInicialAreasModal';
+import LibretaInicialRegistroModal from '../components/libretaInicial/LibretaInicialRegistroModal';
 import api from '../services/api';
 import './DocenteGrupos.css';
+
+function esGrupoNivelInicial(grupo) {
+  return String(grupo?.nivel_nombre || '').toUpperCase().includes('INICIAL');
+}
 
 function DocenteGrupos() {
   const navigate = useNavigate();
@@ -15,6 +21,8 @@ function DocenteGrupos() {
   const [selectedGrupo, setSelectedGrupo] = useState(null);
   const [grupoInfo, setGrupoInfo] = useState(null);
   const [openDropdownGrupo, setOpenDropdownGrupo] = useState(null);
+  const [modalLibretaAreas, setModalLibretaAreas] = useState(null);
+  const [modalLibretaRegistro, setModalLibretaRegistro] = useState(null);
   const reportesConducta = useGrupoReportesConducta({ apiPathPrefix: 'docente/grupos' });
 
   useEffect(() => {
@@ -280,6 +288,36 @@ function DocenteGrupos() {
                                   <span className="dropdown-icon">📉</span>
                                   <span>Presentación</span>
                                 </button>
+                                {esGrupoNivelInicial(grupo) && (
+                                  <>
+                                    <button
+                                      className="dropdown-item"
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setOpenDropdownGrupo(null);
+                                        setModalLibretaAreas(grupo);
+                                      }}
+                                    >
+                                      <span className="dropdown-icon">📐</span>
+                                      <span>Áreas e indicadores</span>
+                                    </button>
+                                    <button
+                                      className="dropdown-item"
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        e.preventDefault();
+                                        setOpenDropdownGrupo(null);
+                                        setModalLibretaRegistro(grupo);
+                                      }}
+                                    >
+                                      <span className="dropdown-icon">✏️</span>
+                                      <span>Registrar notas y detalles</span>
+                                    </button>
+                                  </>
+                                )}
                               </div>,
                               document.body
                             )
@@ -306,6 +344,12 @@ function DocenteGrupos() {
           />
         )}
         {reportesConducta.ReportesModals}
+        {modalLibretaAreas && (
+          <LibretaInicialAreasModal grupo={modalLibretaAreas} onClose={() => setModalLibretaAreas(null)} />
+        )}
+        {modalLibretaRegistro && (
+          <LibretaInicialRegistroModal grupo={modalLibretaRegistro} onClose={() => setModalLibretaRegistro(null)} />
+        )}
       </div>
 
     </DashboardLayout>
