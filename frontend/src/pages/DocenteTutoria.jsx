@@ -242,6 +242,14 @@ function DocenteTutoria() {
     cargarGruposTutor();
   }, []);
 
+  /* SweetAlert2: otras páginas (p. ej. AdminElecciones.css) fijan body.swal2-shown .swal2-container a ~13050;
+     eso queda por debajo del modal tutoría (100000). Esta clase sube la especificidad del override en
+     DocenteTutoria-swal-layer.css */
+  useEffect(() => {
+    document.body.classList.add('docente-tutoria-route');
+    return () => document.body.classList.remove('docente-tutoria-route');
+  }, []);
+
   // Cerrar dropdowns al hacer clic fuera
   useEffect(() => {
     if (!openDropdown && !openDropdownAlumno) return;
