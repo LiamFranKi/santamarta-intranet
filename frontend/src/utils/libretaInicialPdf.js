@@ -126,6 +126,15 @@ function drawCellCentered(doc, x, y, w, h, fillRgb, text, opts = {}) {
   doc.text(String(text ?? ''), x + w / 2, y + h / 2 + fontSize * 0.12, { align: 'center', maxWidth: w - 2 });
 }
 
+/** Parte el texto solo si no cabe en una línea (evita saltos prematuros de splitTextToSize). */
+function lineasParaCelda(doc, texto, maxWmm, fontSize, bold = false) {
+  const t = String(texto ?? '').trim() || '—';
+  doc.setFont('helvetica', bold ? 'bold' : 'normal');
+  doc.setFontSize(fontSize);
+  if (doc.getTextWidth(t) <= maxWmm) return [t];
+  return doc.splitTextToSize(t, maxWmm);
+}
+
 /**
  * @param {object} doc instancia jsPDF
  * @param {object} opts opciones de página y datos
@@ -149,6 +158,7 @@ export function renderLibretaInicialBoleta(doc, opts) {
   const bimRoman = ['I', 'II', 'III', 'IV'][(cicloSel || 1) - 1] || 'I';
   let yPos = Math.max(yStart, margin + (logoHeightMm || 0) + 2);
 
+  /* Mismo verde para título y celdas (no usar colorLabel del boletín que puede ser otro tono). */
   const verde = PDF_TABLA_VERDE;
   const blanco = colorData || [255, 255, 255];
 
@@ -166,7 +176,7 @@ export function renderLibretaInicialBoleta(doc, opts) {
   /* ——— Título ——— */
   const bannerH = 11;
   ensureSpace(bannerH + 50);
-  doc.setFillColor(...(colorLabel || verde));
+  doc.setFillColor(...verde);
   drawRoundedRect(doc, margin, yPos, contentWidth, bannerH, 1.5, 'F');
   doc.setDrawColor(0, 0, 0);
   drawRoundedRect(doc, margin, yPos, contentWidth, bannerH, 1.5, 'S');
@@ -184,53 +194,55 @@ export function renderLibretaInicialBoleta(doc, opts) {
   );
   yPos += bannerH + 3;
 
-  /* ——— Tabla datos alumno (formato imagen 01, sin foto) ——— */
+  /* ——— Tabla datos alumno: una sola anchura L para todos los labels; CÓDIGO / TURNO / AÑO misma coordenada x ——— */
   const rowBase = 5.8;
   const w = contentWidth;
-  const l1 = w * 0.11;
-  const v1 = w * 0.54;
-  const l2 = w * 0.1;
-  const v2 = w - l1 - v1 - l2;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(6.2);
+  const L = Math.min(
+    Math.max(doc.getTextWidth('GRADO / SECCIÓN') + 3.2, doc.getTextWidth('ALUMNO') + 3.2, 18),
+    w * 0.185
+  );
+  const segundoBloqueX = margin + (w * 2) / 3;
+  const S = w / 3 - L;
+  const M = (w * 2) / 3 - L;
 
   const nombreAl = String(a.nombre_completo || '—').trim();
-  const lineasNombre = doc.splitTextToSize(nombreAl, v1 - 2.5);
-  const hRow1 = Math.max(rowBase, 2 + lineasNombre.length * 3.2);
+  const padTxt = 1.6;
+  const lineasNombre = lineasParaCelda(doc, nombreAl, Math.max(4, M - padTxt), 7, false);
+  const hRow1 = Math.max(rowBase, 2 + lineasNombre.length * 3.15);
 
   ensureSpace(hRow1 + rowBase * 3 + 4);
-  let x0 = margin;
-  drawCellCentered(doc, x0, yPos, l1, hRow1, verde, 'ALUMNO', { fontSize: 7.2, bold: true });
-  drawCell(doc, x0 + l1, yPos, v1, hRow1, blanco, lineasNombre, { fontSize: 7 });
-  drawCellCentered(doc, x0 + l1 + v1, yPos, l2, hRow1, verde, 'CÓDIGO', { fontSize: 7.2, bold: true });
-  drawCellCentered(doc, x0 + l1 + v1 + l2, yPos, v2, hRow1, blanco, String(a.codigo || '—'), { fontSize: 7 });
+  drawCellCentered(doc, margin, yPos, L, hRow1, verde, 'ALUMNO', { fontSize: 6.6, bold: true });
+  drawCell(doc, margin + L, yPos, M, hRow1, blanco, lineasNombre, { fontSize: 7 });
+  drawCellCentered(doc, segundoBloqueX, yPos, L, hRow1, verde, 'CÓDIGO', { fontSize: 6.6, bold: true });
+  drawCellCentered(doc, segundoBloqueX + L, yPos, S, hRow1, blanco, String(a.codigo || '—'), { fontSize: 7 });
   yPos += hRow1;
 
-  /* Misma anchura para las tres etiquetas verdes: GRADO/SECCIÓN, NIVEL, TURNO */
-  const thirdW = w / 3;
-  const labTriple = Math.min(thirdW * 0.4, 26);
-  const valTriple = thirdW - labTriple;
+  const trioW = w / 3;
   const gradoTxt = `${a.grado ?? '—'}° ${String(a.seccion || '').trim()}`.trim();
   const nivelTxt = String(a.nivel_nombre || '—').trim();
   const turnoTxt = String(a.turno_nombre || '—').trim();
 
-  drawCellCentered(doc, margin, yPos, labTriple, rowBase, verde, 'GRADO / SECCIÓN', { fontSize: 6.2, bold: true });
-  drawCellCentered(doc, margin + labTriple, yPos, valTriple, rowBase, blanco, gradoTxt, { fontSize: 7 });
-  drawCellCentered(doc, margin + thirdW, yPos, labTriple, rowBase, verde, 'NIVEL', { fontSize: 7, bold: true });
-  drawCellCentered(doc, margin + thirdW + labTriple, yPos, valTriple, rowBase, blanco, nivelTxt, { fontSize: 7 });
-  drawCellCentered(doc, margin + thirdW * 2, yPos, labTriple, rowBase, verde, 'TURNO', { fontSize: 7, bold: true });
-  drawCellCentered(doc, margin + thirdW * 2 + labTriple, yPos, valTriple, rowBase, blanco, turnoTxt, { fontSize: 7 });
+  for (let t = 0; t < 3; t++) {
+    const xT = margin + t * trioW;
+    drawCellCentered(doc, xT, yPos, L, rowBase, verde, t === 0 ? 'GRADO / SECCIÓN' : t === 1 ? 'NIVEL' : 'TURNO', {
+      fontSize: t === 0 ? 5.9 : 6.4,
+      bold: true
+    });
+    drawCellCentered(doc, xT + L, yPos, trioW - L, rowBase, blanco, t === 0 ? gradoTxt : t === 1 ? nivelTxt : turnoTxt, {
+      fontSize: 7
+    });
+  }
   yPos += rowBase;
 
-  const lTu = w * 0.11;
-  const vTu = w * 0.62;
-  const lAn = w * 0.09;
-  const vAn = w - lTu - vTu - lAn;
   const tutorTxt = String(a.tutor_nombre || 'No asignado').trim();
-  const lineasTutor = doc.splitTextToSize(tutorTxt, vTu - 2.5);
-  const hRow3 = Math.max(rowBase, 2 + lineasTutor.length * 3.2);
-  drawCellCentered(doc, margin, yPos, lTu, hRow3, verde, 'TUTOR', { fontSize: 7.2, bold: true });
-  drawCell(doc, margin + lTu, yPos, vTu, hRow3, blanco, lineasTutor, { fontSize: 7 });
-  drawCellCentered(doc, margin + lTu + vTu, yPos, lAn, hRow3, verde, 'AÑO', { fontSize: 7.2, bold: true });
-  drawCellCentered(doc, margin + lTu + vTu + lAn, yPos, vAn, hRow3, blanco, String(a.anio ?? '—'), { fontSize: 7 });
+  const lineasTutor = lineasParaCelda(doc, tutorTxt, Math.max(4, M - padTxt), 7, false);
+  const hRow3 = Math.max(rowBase, 2 + lineasTutor.length * 3.15);
+  drawCellCentered(doc, margin, yPos, L, hRow3, verde, 'TUTOR', { fontSize: 6.6, bold: true });
+  drawCell(doc, margin + L, yPos, M, hRow3, blanco, lineasTutor, { fontSize: 7 });
+  drawCellCentered(doc, segundoBloqueX, yPos, L, hRow3, verde, 'AÑO', { fontSize: 6.6, bold: true });
+  drawCellCentered(doc, segundoBloqueX + L, yPos, S, hRow3, blanco, String(a.anio ?? '—'), { fontSize: 7 });
   yPos += hRow3 + 4;
 
   /* ——— Columnas: más ancho Área y Descripción; nota y semáforo más angostos ——— */
@@ -280,10 +292,12 @@ export function renderLibretaInicialBoleta(doc, opts) {
     yPos += hArea;
 
     const pintarFilaIndicador = (ind) => {
+      const fsInd = 7;
+      const padCelda = 1.8;
       const textoDetalle = getTextoDetalle(ind);
-      const lineas = doc.splitTextToSize(textoDetalle || '—', colDesc - 3);
       const descInd = String(ind.descripcion || ind.abreviatura || 'Indicador').trim() || '—';
-      const lineasInd = doc.splitTextToSize(descInd, colArea - 3);
+      const lineas = lineasParaCelda(doc, textoDetalle || '—', Math.max(3, colDesc - padCelda), fsInd, false);
+      const lineasInd = lineasParaCelda(doc, descInd, Math.max(3, colArea - padCelda), fsInd, false);
       const rowHeight = Math.max(5.5, Math.max(lineasInd.length, 1) * 3.5 + 3, lineas.length * 3.5 + 3);
       ensureSpace(rowHeight + 2);
 
@@ -341,10 +355,10 @@ export function renderLibretaInicialBoleta(doc, opts) {
     });
   });
 
-  yPos += 14;
+  yPos += 8;
 
   if (!(datosLibreta.recomendaciones || '').trim()) {
-    yPos += 8;
+    yPos += 5;
   }
 
   /* ——— Observaciones (más separación respecto al cuadro de notas) ——— */
@@ -400,7 +414,7 @@ export function renderLibretaInicialBoleta(doc, opts) {
       doc.text(ln, margin, yPos);
       yPos += 3.6;
     });
-    yPos += 6;
+    yPos += 3.5;
   }
 
   const yLey = yPos;
@@ -492,8 +506,7 @@ export function renderLibretaInicialBoleta(doc, opts) {
     doc.rect(xEsc + leyLetraW, yy, wColDer - leyLetraW, hLeyRow, 'FD');
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.2);
-    const tShow = txt === 'Logro destacado' ? 'LOGRO DESTACADO' : txt;
-    doc.text(tShow, xEsc + leyLetraW + 1.2, yy + hLeyRow / 2 + 0.9);
+    doc.text(txt, xEsc + leyLetraW + 1.2, yy + hLeyRow / 2 + 0.9);
     yy += hLeyRow;
   });
   const hEscalaTotal = yy - yLey;
@@ -501,19 +514,22 @@ export function renderLibretaInicialBoleta(doc, opts) {
   const hPie = Math.max(hResumenTotal, hSemaTotal, hEscalaTotal);
   yPos = yLey + hPie + 4;
 
-  /* ——— Firmas ——— */
-  yPos += 22;
+  /* ——— Firmas (líneas más cortas, centradas en cada mitad) ——— */
+  yPos += 20;
   ensureSpace(28);
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.45);
-  const gapFirma = 14;
-  const anchoFirma = (contentWidth - gapFirma) / 2;
+  const anchoLinFirma = Math.min(52, contentWidth * 0.26);
+  const gapCentroFirma = 18;
+  const centroCont = margin + contentWidth / 2;
+  const xLinIzq = centroCont - gapCentroFirma / 2 - anchoLinFirma;
+  const xLinDer = centroCont + gapCentroFirma / 2;
   const yLinea = yPos;
-  doc.line(margin, yLinea, margin + anchoFirma, yLinea);
-  doc.line(margin + anchoFirma + gapFirma, yLinea, margin + contentWidth, yLinea);
+  doc.line(xLinIzq, yLinea, xLinIzq + anchoLinFirma, yLinea);
+  doc.line(xLinDer, yLinea, xLinDer + anchoLinFirma, yLinea);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(0, 0, 0);
-  doc.text('FIRMA DEL DOCENTE', margin + anchoFirma / 2, yLinea + 8, { align: 'center' });
-  doc.text('FIRMA DIRECCION', margin + anchoFirma + gapFirma + anchoFirma / 2, yLinea + 8, { align: 'center' });
+  doc.text('FIRMA DEL DOCENTE', xLinIzq + anchoLinFirma / 2, yLinea + 8, { align: 'center' });
+  doc.text('FIRMA DIRECCION', xLinDer + anchoLinFirma / 2, yLinea + 8, { align: 'center' });
 }
