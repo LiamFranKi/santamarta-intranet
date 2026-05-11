@@ -60,10 +60,15 @@ export function getNotaCualitativaPdfStyle(notaRaw) {
 }
 
 function drawRoundedRect(doc, x, y, w, h, r, style) {
+  const nx = Number(x) || 0;
+  const ny = Number(y) || 0;
+  const nw = Math.max(0.01, Number(w) || 0);
+  const nh = Math.max(0.01, Number(h) || 0);
+  const nr = Math.max(0, Math.min(Number(r) || 0, nw / 2, nh / 2));
   if (typeof doc.roundedRect === 'function') {
-    doc.roundedRect(x, y, w, h, r, r, style);
+    doc.roundedRect(nx, ny, nw, nh, nr, nr, style);
   } else {
-    doc.rect(x, y, w, h, style);
+    doc.rect(nx, ny, nw, nh, style);
   }
 }
 
@@ -148,9 +153,9 @@ export async function renderLibretaInicialBoleta(doc, opts) {
     Math.min(255, colorLabel[1] + 25),
     Math.min(255, colorLabel[2] + 25)
   );
-  drawRoundedRect(doc, photoX - 1.2, photoY - 1.2, photoSize + 2.4, photoSize + 2.4, 3, 3, 'F');
+  drawRoundedRect(doc, photoX - 1.2, photoY - 1.2, photoSize + 2.4, photoSize + 2.4, 3, 'F');
   doc.setFillColor(255, 255, 255);
-  drawRoundedRect(doc, photoX, photoY, photoSize, photoSize, 2.5, 2.5, 'F');
+  drawRoundedRect(doc, photoX, photoY, photoSize, photoSize, 2.5, 'F');
 
   const fotoData = await loadImageDataUrl(fotoUrl);
   let fotoPintada = false;
@@ -165,7 +170,7 @@ export async function renderLibretaInicialBoleta(doc, opts) {
   }
   if (!fotoPintada) {
     doc.setFillColor(...colorLabel);
-    drawRoundedRect(doc, photoX, photoY, photoSize, photoSize, 2.2, 2.2, 'F');
+    drawRoundedRect(doc, photoX, photoY, photoSize, photoSize, 2.2, 'F');
     const initials = pdfGetInitialsLibreta(a.nombre_completo || '');
     doc.setTextColor(55, 71, 79);
     doc.setFont('helvetica', 'bold');
@@ -201,7 +206,7 @@ export async function renderLibretaInicialBoleta(doc, opts) {
   const escalaH = 21;
   ensureSpace(escalaH + 20);
   doc.setFillColor(250, 250, 252);
-  drawRoundedRect(doc, margin, yPos, contentWidth, escalaH, 2, 2, 'FD');
+  drawRoundedRect(doc, margin, yPos, contentWidth, escalaH, 2, 'FD');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.2);
   doc.setTextColor(30, 41, 59);

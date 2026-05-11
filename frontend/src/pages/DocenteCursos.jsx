@@ -3796,7 +3796,8 @@ function DocenteCursos() {
                 'linear-gradient(135deg, #e0f2f1 0%, #b2dfdb 100%)', // Turquesa pastel
               ];
               const colorFondo = coloresPasteles[index % coloresPasteles.length];
-              
+              const ocultarMenuNotasInicial = (curso.nivel_nombre || '').toUpperCase().includes('INICIAL');
+
               return (
               <div key={curso.id} className="curso-card mundo-card" style={{ background: colorFondo }}>
                 <div className="curso-header">
@@ -3870,13 +3871,17 @@ function DocenteCursos() {
                           <button onClick={() => handleCursoAction(curso, 'alumnos')}>
                             👥 Lista de Alumnos
                           </button>
-                          <button onClick={() => handleCursoAction(curso, 'notas')}>
-                            📝 Registrar Notas
-                          </button>
-                          <button onClick={() => handleCursoAction(curso, 'detalle-notas')}>
-                            📋 Detalle Notas
-                          </button>
-                          {curso.nivel_tipo_calificacion === 0 && (
+                          {!ocultarMenuNotasInicial && (
+                            <button onClick={() => handleCursoAction(curso, 'notas')}>
+                              📝 Registrar Notas
+                            </button>
+                          )}
+                          {!ocultarMenuNotasInicial && (
+                            <button onClick={() => handleCursoAction(curso, 'detalle-notas')}>
+                              📋 Detalle Notas
+                            </button>
+                          )}
+                          {!ocultarMenuNotasInicial && curso.nivel_tipo_calificacion === 0 && (
                             <button onClick={() => handleCursoAction(curso, 'indicadores')}>
                               📋 Registrar Indicadores
                             </button>

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './libretaInicialDocente.css';
@@ -134,7 +135,7 @@ export default function LibretaInicialRegistroModal({ grupo, onClose }) {
 
   const tituloGrupo = `${grupo?.grado}° ${grupo?.seccion || ''} — ${grupo?.nivel_nombre || ''}`;
 
-  return (
+  return createPortal(
     <div className="li-modal-backdrop" role="presentation" onClick={onClose}>
       <div className="li-modal" role="dialog" aria-labelledby="li-reg-title" onClick={(e) => e.stopPropagation()}>
         <div className="li-modal-header">
@@ -257,6 +258,7 @@ export default function LibretaInicialRegistroModal({ grupo, onClose }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

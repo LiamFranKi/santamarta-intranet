@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './libretaInicialDocente.css';
@@ -9,6 +10,8 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
   const [openArea, setOpenArea] = useState({});
   const [nuevaArea, setNuevaArea] = useState('');
   const [nuevoInd, setNuevoInd] = useState({});
+  /** Borrador local del nombre por área (el guardado explícito evita depender solo del blur). */
+  const [nombreAreaBorrador, setNombreAreaBorrador] = useState({});
 
   const grupoId = grupo?.id;
 
@@ -30,6 +33,10 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    setNombreAreaBorrador({});
+  }, [areas]);
 
   const addArea = async () => {
     const nombre = nuevaArea.trim();
@@ -53,6 +60,21 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
       Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
     }
   };
+
+  const guardarNombreArea = async (areaId, nombreServidor) => {
+    const texto = String(
+      nombreAreaBorrador[areaId] !== undefined ? nombreAreaBorrador[areaId] : nombreServidor || ''
+    ).trim();
+    if (!texto) {
+      await Swal.fire({ icon: 'warning', text: 'El nombre del área no puede quedar vacío.' });
+      return;
+    }
+    if (texto === String(nombreServidor || '').trim()) return;
+    await updateAreaNombre(areaId, texto);
+  };
+
+  const textoNombreArea = (area) =>
+    nombreAreaBorrador[area.id] !== undefined ? nombreAreaBorrador[area.id] : area.nombre;
 
   const deleteArea = async (areaId) => {
     const ok = await Swal.fire({
@@ -114,7 +136,7 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
 
   const tituloGrupo = `${grupo?.grado}° ${grupo?.seccion || ''} — ${grupo?.nivel_nombre || ''}`;
 
-  return (
+  return createPortal(
     <div className="li-modal-backdrop" role="presentation" onClick={onClose}>
       <div className="li-modal" role="dialog" aria-labelledby="li-areas-title" onClick={(e) => e.stopPropagation()}>
         <div className="li-modal-header">
@@ -159,16 +181,30 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
                     </button>
                     {openArea[a.id] && (
                       <div className="li-accordion-body">
-                        <div className="li-ind-row" style={{ marginBottom: '0.75rem' }}>
-                          <input
-                            className="li-input"
-                            style={{ gridColumn: '1 / -1' }}
-                            defaultValue={a.nombre}
-                            key={`nm-${a.id}-${a.nombre}`}
-                            onBlur={(e) => {
-                              if (e.target.value.trim() !== a.nombre) updateAreaNombre(a.id, e.target.value);
-                            }}
-                          />
+                        <div className="li-area-nombre-edit" style={{ marginBottom: '0.75rem' }}>
+                          <label className="li-field-label" htmlFor={`li-area-nombre-${a.id}`}>
+                            Nombre del área
+                          </label>
+                          <div className="li-toolbar">
+                            <input
+                              id={`li-area-nombre-${a.id}`}
+                              className="li-input"
+                              style={{ flex: '1 1 200px' }}
+                              value={textoNombreArea(a)}
+                              onChange={(e) => setNombreAreaBorrador((p) => ({ ...p, [a.id]: e.target.value }))}
+                            />
+                            <button
+                              type="button"
+                              className="li-btn li-btn-ghost"
+                              onClick={() => guardarNombreArea(a.id, a.nombre)}
+                              disabled={
+                                textoNombreArea(a).trim() === String(a.nombre || '').trim() ||
+                                !textoNombreArea(a).trim()
+                              }
+                            >
+                              Guardar nombre
+                            </button>
+                          </div>
                           <button type="button" className="li-btn li-btn-danger" onClick={() => deleteArea(a.id)}>
                             Eliminar área
                           </button>
@@ -230,6 +266,7 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
