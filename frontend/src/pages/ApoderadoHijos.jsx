@@ -9,6 +9,7 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import Swal from 'sweetalert2';
 import { generarPDFBoletaDesdeDatos, MSG_NO_IMPRESION_BOLETA } from '../utils/generarPDFBoletaPago';
+import { getLibretaPdfLabelFillRgb } from '../utils/libretaPdfColors';
 import './DocenteHijos.css';
 import './AlumnoCursos.css';
 
@@ -2187,8 +2188,8 @@ function ApoderadoHijos() {
       doc.setLineWidth(borderWidth);
       doc.setDrawColor(0, 0, 0); // Borde negro
       
-      // Azul más puro para labels: RGB(100, 149, 237) - azul cornflower
-      const colorLabel = [100, 149, 237];
+      // Inicial: pasteles por grado (3°/4°/5° años); otros niveles: azul cornflower
+      const colorLabel = getLibretaPdfLabelFillRgb(datosLibreta);
       const colorData = [255, 255, 255]; // Blanco para datos
       
       // Fila 1: ALUMNO y CÓDIGO
