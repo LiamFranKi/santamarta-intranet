@@ -74,6 +74,11 @@ export default function LibretaInicialRegistroModal({ grupo, onClose }) {
     load();
   }, [load]);
 
+  useEffect(() => {
+    document.body.classList.add('li-libreta-modal-open');
+    return () => document.body.classList.remove('li-libreta-modal-open');
+  }, []);
+
   const openAlumno = (al) => {
     const nextFlat = flattenIndicadores(areas);
     if (nextFlat.length === 0) {

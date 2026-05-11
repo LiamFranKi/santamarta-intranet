@@ -1,8 +1,16 @@
+/*
+  Solo con modales libreta abiertos (clase en body vía JS): Swal por encima del backdrop 300000.
+  DocenteGrupos no importa DocenteCursos.css (Swal ~100001), el default Swal queda muy bajo.
+*/
+body.li-libreta-modal-open.swal2-shown .swal2-container {
+  z-index: 500010 !important;
+}
+
 .li-modal-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
-  /* Por encima del layout (header/sidebar) y menús ~100k; por debajo de SweetAlert (~500k en varias rutas) */
+  /* Por encima del layout (header/sidebar) y menús ~100k; Swal se fuerza arriba con la regla anterior */
   z-index: 300000 !important;
   isolation: isolate;
   display: flex;

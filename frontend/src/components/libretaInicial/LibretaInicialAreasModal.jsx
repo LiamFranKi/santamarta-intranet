@@ -35,6 +35,11 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
   }, [load]);
 
   useEffect(() => {
+    document.body.classList.add('li-libreta-modal-open');
+    return () => document.body.classList.remove('li-libreta-modal-open');
+  }, []);
+
+  useEffect(() => {
     setNombreAreaBorrador({});
   }, [areas]);
 

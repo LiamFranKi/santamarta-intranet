@@ -35,6 +35,52 @@ function rgbSemaforoNota(notaRaw) {
   return [148, 163, 184];
 }
 
+/** Convierte nota cualitativa a número para promediar (AD > A > B > C). */
+function notaCualitativaANum(s) {
+  const u = String(s ?? '').trim().toUpperCase();
+  if (u === 'AD') return 4;
+  if (u === 'A') return 3;
+  if (u === 'B') return 2;
+  if (u === 'C') return 1;
+  return null;
+}
+
+function numANotaCualitativa(n) {
+  const r = Math.round(Number(n));
+  if (r >= 4) return 'AD';
+  if (r === 3) return 'A';
+  if (r === 2) return 'B';
+  return 'C';
+}
+
+/**
+ * Promedio de notas de indicadores (ej. A+A+B → A; A+B+B → B) vía media y redondeo.
+ */
+function promedioNotasIndicadores(notasStrs) {
+  const nums = (notasStrs || []).map(notaCualitativaANum).filter((x) => x !== null);
+  if (nums.length === 0) return '-';
+  const avg = nums.reduce((acc, v) => acc + v, 0) / nums.length;
+  return numANotaCualitativa(avg);
+}
+
+/** Recorre criterios/indicadores del curso y devuelve las notas del bimestre activo. */
+function collectNotasCurso(curso, bimLabel) {
+  const out = [];
+  const key = `nota_b${bimLabel}`;
+  (curso.criterios || []).forEach((cr) => {
+    if (cr.indicadores && cr.indicadores.length > 0) {
+      cr.indicadores.forEach((ind) => {
+        const n = ind[key];
+        if (n !== null && n !== undefined && String(n).trim() !== '') out.push(String(n));
+      });
+    } else {
+      const n = cr[key];
+      if (n !== null && n !== undefined && String(n).trim() !== '') out.push(String(n));
+    }
+  });
+  return out;
+}
+
 function drawRoundedRect(doc, x, y, w, h, r, style) {
   const nx = Number(x) || 0;
   const ny = Number(y) || 0;
@@ -83,7 +129,6 @@ function drawCellCentered(doc, x, y, w, h, fillRgb, text, opts = {}) {
 /**
  * @param {object} doc instancia jsPDF
  * @param {object} opts opciones de página y datos
- * @returns {Promise<void>}
  */
 export function renderLibretaInicialBoleta(doc, opts) {
   const {
@@ -159,22 +204,20 @@ export function renderLibretaInicialBoleta(doc, opts) {
   drawCellCentered(doc, x0 + l1 + v1 + l2, yPos, v2, hRow1, blanco, String(a.codigo || '—'), { fontSize: 7 });
   yPos += hRow1;
 
-  const lG = w * 0.16;
-  const vG = w * 0.14;
-  const lN = w * 0.09;
-  const vN = w * 0.16;
-  const lT = w * 0.09;
-  const vT = w - lG - vG - lN - vN - lT;
+  /* Misma anchura para las tres etiquetas verdes: GRADO/SECCIÓN, NIVEL, TURNO */
+  const thirdW = w / 3;
+  const labTriple = Math.min(thirdW * 0.4, 26);
+  const valTriple = thirdW - labTriple;
   const gradoTxt = `${a.grado ?? '—'}° ${String(a.seccion || '').trim()}`.trim();
   const nivelTxt = String(a.nivel_nombre || '—').trim();
   const turnoTxt = String(a.turno_nombre || '—').trim();
 
-  drawCellCentered(doc, margin, yPos, lG, rowBase, verde, 'GRADO / SECCIÓN', { fontSize: 6.3, bold: true });
-  drawCellCentered(doc, margin + lG, yPos, vG, rowBase, blanco, gradoTxt, { fontSize: 7 });
-  drawCellCentered(doc, margin + lG + vG, yPos, lN, rowBase, verde, 'NIVEL', { fontSize: 7, bold: true });
-  drawCellCentered(doc, margin + lG + vG + lN, yPos, vN, rowBase, blanco, nivelTxt, { fontSize: 7 });
-  drawCellCentered(doc, margin + lG + vG + lN + vN, yPos, lT, rowBase, verde, 'TURNO', { fontSize: 7, bold: true });
-  drawCellCentered(doc, margin + lG + vG + lN + vN + lT, yPos, vT, rowBase, blanco, turnoTxt, { fontSize: 7 });
+  drawCellCentered(doc, margin, yPos, labTriple, rowBase, verde, 'GRADO / SECCIÓN', { fontSize: 6.2, bold: true });
+  drawCellCentered(doc, margin + labTriple, yPos, valTriple, rowBase, blanco, gradoTxt, { fontSize: 7 });
+  drawCellCentered(doc, margin + thirdW, yPos, labTriple, rowBase, verde, 'NIVEL', { fontSize: 7, bold: true });
+  drawCellCentered(doc, margin + thirdW + labTriple, yPos, valTriple, rowBase, blanco, nivelTxt, { fontSize: 7 });
+  drawCellCentered(doc, margin + thirdW * 2, yPos, labTriple, rowBase, verde, 'TURNO', { fontSize: 7, bold: true });
+  drawCellCentered(doc, margin + thirdW * 2 + labTriple, yPos, valTriple, rowBase, blanco, turnoTxt, { fontSize: 7 });
   yPos += rowBase;
 
   const lTu = w * 0.11;
@@ -190,11 +233,11 @@ export function renderLibretaInicialBoleta(doc, opts) {
   drawCellCentered(doc, margin + lTu + vTu + lAn, yPos, vAn, hRow3, blanco, String(a.anio ?? '—'), { fontSize: 7 });
   yPos += hRow3 + 4;
 
-  /* ——— Columnas notas: Área | Descripción del proceso | Promedio | Color ——— */
-  const colArea = w * 0.28;
-  const colDesc = w * 0.47;
-  const colNota = w * 0.12;
-  const colCirc = w - colArea - colDesc - colNota;
+  /* ——— Columnas: más ancho Área y Descripción; nota y semáforo más angostos ——— */
+  const colNota = w * 0.075;
+  const colCirc = w * 0.068;
+  const colArea = w * 0.36;
+  const colDesc = w - colArea - colNota - colCirc;
 
   const bimLabel = cicloSel;
   const getNota = (item) => {
@@ -213,9 +256,16 @@ export function renderLibretaInicialBoleta(doc, opts) {
 
   (datosLibreta.cursos_cualitativos || []).forEach((curso) => {
     const nombreCurso = String(curso.curso_nombre || '').toUpperCase();
-    const vCurso = curso[`promedio_b${bimLabel}`];
-    const promTxt =
-      vCurso !== null && vCurso !== '' && vCurso !== '-' ? String(vCurso).toUpperCase() : '-';
+    const notasInd = collectNotasCurso(curso, bimLabel);
+    let promTxt = promedioNotasIndicadores(notasInd);
+    if (promTxt === '-') {
+      const vCurso = curso[`promedio_b${bimLabel}`];
+      if (vCurso !== null && vCurso !== '' && vCurso !== '-') {
+        promTxt = String(vCurso).toUpperCase();
+      }
+    } else {
+      promTxt = String(promTxt).toUpperCase();
+    }
 
     const hArea = 5.5;
     ensureSpace(hArea + 6);
@@ -291,116 +341,168 @@ export function renderLibretaInicialBoleta(doc, opts) {
     });
   });
 
-  yPos += 3;
+  yPos += 14;
 
-  /* ——— Observaciones + leyendas (imagen 03) ——— */
+  if (!(datosLibreta.recomendaciones || '').trim()) {
+    yPos += 8;
+  }
+
+  /* ——— Observaciones (más separación respecto al cuadro de notas) ——— */
   const resumen = datosLibreta.resumen || {};
-  const idx = Math.max(0, (cicloSel || 1) - 1);
-  const pick = (arr) => (arr && arr[idx] != null && arr[idx] !== '' ? String(arr[idx]) : '—');
-  const inas = pick([
-    resumen.inasistencias?.b1,
-    resumen.inasistencias?.b2,
-    resumen.inasistencias?.b3,
-    resumen.inasistencias?.b4
-  ]);
-  const tard = pick([
-    resumen.tardanzas?.b1,
-    resumen.tardanzas?.b2,
-    resumen.tardanzas?.b3,
-    resumen.tardanzas?.b4
-  ]);
+  const cicloN = cicloSel || 1;
+
+  const valBimConducta = (i) => {
+    const keys = ['b1', 'b2', 'b3', 'b4'];
+    const k = keys[i];
+    const v = resumen.promedio_conducta?.[k];
+    if (i + 1 > cicloN) return '—';
+    if (v === null || v === undefined || v === '') return '—';
+    return String(v);
+  };
+  const valBimInas = (i) => {
+    const keys = ['b1', 'b2', 'b3', 'b4'];
+    const k = keys[i];
+    const v = resumen.inasistencias?.[k];
+    if (i + 1 > cicloN) return '—';
+    if (v === null || v === undefined || v === '') return '—';
+    return String(v);
+  };
+  const valBimTard = (i) => {
+    const keys = ['b1', 'b2', 'b3', 'b4'];
+    const k = keys[i];
+    const v = resumen.tardanzas?.[k];
+    if (i + 1 > cicloN) return '—';
+    if (v === null || v === undefined || v === '') return '—';
+    return String(v);
+  };
 
   const textoRecom = (datosLibreta.recomendaciones || '').trim();
-  const anchoLey = (contentWidth - 6) / 3;
+  const gapPie = 2;
+  const wPieTotal = contentWidth - gapPie * 2;
+  const wResumenPie = wPieTotal * 0.46;
+  const wColDer = (wPieTotal - wResumenPie) / 2;
   const hLeyHead = 5;
-  const hLeyRow = 5.2;
+  const hLeyRow = 5;
+  const hSubRom = 4.8;
 
-  ensureSpace(42);
+  ensureSpace(50);
   if (textoRecom) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(0, 0, 0);
     doc.text('Observaciones del tutor(a)', margin, yPos);
-    yPos += 3.5;
+    yPos += 4.5;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(7);
     const recLines = doc.splitTextToSize(textoRecom, contentWidth - 2);
-    recLines.slice(0, 6).forEach((ln) => {
+    recLines.slice(0, 8).forEach((ln) => {
       ensureSpace(4);
       doc.text(ln, margin, yPos);
       yPos += 3.6;
     });
-    yPos += 2;
+    yPos += 6;
   }
 
   const yLey = yPos;
   let xL = margin;
 
-  /* Inasistencias / tardanzas */
-  drawCellCentered(doc, xL, yLey, anchoLey, hLeyHead, verde, 'ASISTENCIA', { fontSize: 7, bold: true });
-  drawCellCentered(doc, xL, yLey + hLeyHead, anchoLey * 0.52, hLeyRow, verde, 'N° INASISTENCIAS', { fontSize: 5.8, bold: true });
-  drawCellCentered(doc, xL + anchoLey * 0.52, yLey + hLeyHead, anchoLey * 0.48, hLeyRow, blanco, inas, { fontSize: 7 });
-  drawCellCentered(doc, xL, yLey + hLeyHead + hLeyRow, anchoLey * 0.52, hLeyRow, verde, 'N° TARDANZAS', { fontSize: 5.8, bold: true });
-  drawCellCentered(doc, xL + anchoLey * 0.52, yLey + hLeyHead + hLeyRow, anchoLey * 0.48, hLeyRow, blanco, tard, {
-    fontSize: 7
-  });
-
-  xL += anchoLey + 3;
-  /* Leyenda colores (fondo blanco en filas de datos) */
-  drawCellCentered(doc, xL, yLey, anchoLey, hLeyHead, verde, 'LEYENDA', { fontSize: 7, bold: true });
-  doc.setDrawColor(0, 0, 0);
-  doc.setLineWidth(0.2);
-  doc.setFillColor(...blanco);
-  doc.rect(xL, yLey + hLeyHead, anchoLey, hLeyRow, 'FD');
-  doc.setFillColor(234, 179, 8);
-  if (typeof doc.circle === 'function') {
-    doc.circle(xL + 4, yLey + hLeyHead + hLeyRow / 2, 1.8, 'F');
-  } else {
-    doc.rect(xL + 2.2, yLey + hLeyHead + 1.2, 3.6, 3.6, 'F');
+  /* ——— CUADRO DE RESUMEN: conducta, inasistencias, tardanzas (I–IV) ——— */
+  const labR = wResumenPie * 0.42;
+  const colBimW = (wResumenPie - labR) / 4;
+  let yR = yLey;
+  drawCellCentered(doc, xL, yR, wResumenPie, hLeyHead, verde, 'CUADRO DE RESUMEN', { fontSize: 7, bold: true });
+  yR += hLeyHead;
+  drawCellCentered(doc, xL, yR, labR, hSubRom, verde, '', { fontSize: 6 });
+  for (let i = 0; i < 4; i++) {
+    const rom = ['I', 'II', 'III', 'IV'][i];
+    drawCellCentered(doc, xL + labR + i * colBimW, yR, colBimW, hSubRom, verde, rom, { fontSize: 6.5, bold: true });
   }
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(6.5);
-  doc.setTextColor(0, 0, 0);
-  doc.text('En proceso', xL + 8, yLey + hLeyHead + hLeyRow / 2 + 0.9);
+  yR += hSubRom;
 
-  doc.setFillColor(...blanco);
-  doc.rect(xL, yLey + hLeyHead + hLeyRow, anchoLey, hLeyRow, 'FD');
-  doc.setFillColor(239, 68, 68);
-  if (typeof doc.circle === 'function') {
-    doc.circle(xL + 4, yLey + hLeyHead + hLeyRow + hLeyRow / 2, 1.8, 'F');
-  } else {
-    doc.rect(xL + 2.2, yLey + hLeyHead + hLeyRow + 1.2, 3.6, 3.6, 'F');
-  }
-  doc.text('Requiere apoyo', xL + 8, yLey + hLeyHead + hLeyRow + hLeyRow / 2 + 0.9);
+  const filaResBim = (etiq, fnVal) => {
+    drawCellCentered(doc, xL, yR, labR, hLeyRow, verde, etiq, { fontSize: 5.6, bold: true });
+    for (let i = 0; i < 4; i++) {
+      drawCellCentered(doc, xL + labR + i * colBimW, yR, colBimW, hLeyRow, blanco, fnVal(i), { fontSize: 6.8 });
+    }
+    yR += hLeyRow;
+  };
 
-  xL += anchoLey + 3;
-  /* Leyenda letras */
-  drawCellCentered(doc, xL, yLey, anchoLey, hLeyHead, verde, 'ESCALA', { fontSize: 7, bold: true });
+  filaResBim('NOTA DE CONDUCTA', valBimConducta);
+  filaResBim('N° INASISTENCIAS', valBimInas);
+  filaResBim('N° TARDANZAS', valBimTard);
+
+  const hResumenTotal = yR - yLey;
+
+  xL += wResumenPie + gapPie;
+  /* ——— SEMÁFORO (verde / amarillo / rojo) ——— */
+  const xSem = xL;
+  let ySem = yLey;
+  drawCellCentered(doc, xSem, ySem, wColDer, hLeyHead, verde, 'SEMAFORO', { fontSize: 7, bold: true });
+  ySem += hLeyHead;
+
+  const filaCirculoTxt = (y0, rgb, texto) => {
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.2);
+    doc.setFillColor(...blanco);
+    doc.rect(xSem, y0, wColDer, hLeyRow, 'FD');
+    doc.setFillColor(...rgb);
+    const cx = xSem + 4;
+    const cy = y0 + hLeyRow / 2;
+    if (typeof doc.circle === 'function') {
+      doc.circle(cx, cy, 1.8, 'F');
+    } else {
+      doc.rect(cx - 1.8, cy - 1.8, 3.6, 3.6, 'F');
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text(texto, xSem + 8, cy + 0.9);
+  };
+
+  filaCirculoTxt(ySem, [34, 197, 94], 'Logrado');
+  ySem += hLeyRow;
+  filaCirculoTxt(ySem, [234, 179, 8], 'En proceso');
+  ySem += hLeyRow;
+  filaCirculoTxt(ySem, [239, 68, 68], 'Requiere apoyo');
+  ySem += hLeyRow;
+  const hSemaTotal = ySem - yLey;
+
+  xL += wColDer + gapPie;
+  /* ——— ESCALA (AD + A B C) ——— */
+  const xEsc = xL;
+  drawCellCentered(doc, xEsc, yLey, wColDer, hLeyHead, verde, 'ESCALA', { fontSize: 7, bold: true });
+  const leyLetraW = wColDer * 0.14;
+  let yy = yLey + hLeyHead;
   const leyendas = [
+    ['AD', 'Logro destacado'],
     ['A', 'Logro esperado'],
     ['B', 'En proceso'],
     ['C', 'En inicio']
   ];
-  let yy = yLey + hLeyHead;
   leyendas.forEach(([letra, txt]) => {
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.2);
     doc.setFillColor(...verde);
-    doc.rect(xL, yy, anchoLey * 0.12, hLeyRow, 'FD');
+    doc.rect(xEsc, yy, leyLetraW, hLeyRow, 'FD');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7);
+    doc.setFontSize(letra === 'AD' ? 6.5 : 7);
     doc.setTextColor(0, 0, 0);
-    doc.text(letra, xL + (anchoLey * 0.12) / 2, yy + hLeyRow / 2 + 0.9, { align: 'center' });
+    doc.text(letra, xEsc + leyLetraW / 2, yy + hLeyRow / 2 + 0.9, { align: 'center' });
     doc.setFillColor(...blanco);
-    doc.rect(xL + anchoLey * 0.12, yy, anchoLey * 0.88, hLeyRow, 'FD');
+    doc.rect(xEsc + leyLetraW, yy, wColDer - leyLetraW, hLeyRow, 'FD');
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.5);
-    doc.text(txt, xL + anchoLey * 0.12 + 1.5, yy + hLeyRow / 2 + 0.9);
+    doc.setFontSize(6.2);
+    const tShow = txt === 'Logro destacado' ? 'LOGRO DESTACADO' : txt;
+    doc.text(tShow, xEsc + leyLetraW + 1.2, yy + hLeyRow / 2 + 0.9);
     yy += hLeyRow;
   });
+  const hEscalaTotal = yy - yLey;
 
-  yPos = yLey + hLeyHead + hLeyRow * 3 + 2;
+  const hPie = Math.max(hResumenTotal, hSemaTotal, hEscalaTotal);
+  yPos = yLey + hPie + 4;
 
-  /* ——— Firmas: mucho espacio y dos bloques ——— */
-  yPos += 32;
+  /* ——— Firmas ——— */
+  yPos += 22;
   ensureSpace(28);
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.45);
