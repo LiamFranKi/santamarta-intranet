@@ -14,6 +14,8 @@ import './DocenteCursos.css';
 import './AlumnoCursos.css';
 import './AlumnoHorario.css';
 import './DocenteHijos.css';
+/* Debe ir al final: fuerza .swal2-container por encima de overlays de tutoría */
+import './DocenteTutoria-swal-layer.css';
 import TutoriaModalDeudores from '../components/tutoria/TutoriaModalDeudores';
 
 /** Rango inicial (año calendario del año lectivo hasta hoy) para reportes tutor evidencias */
@@ -1582,7 +1584,6 @@ function DocenteTutoria() {
         text: 'Recomendaciones guardadas correctamente',
         timer: 2000,
         showConfirmButton: false,
-        zIndex: 200000,
       });
     } catch (error) {
       console.error('Error guardando recomendaciones:', error);
@@ -1590,7 +1591,6 @@ function DocenteTutoria() {
         icon: 'error',
         title: 'Error',
         text: error.response?.data?.error || 'No se pudo guardar',
-        zIndex: 200000,
       });
     } finally {
       setGuardandoRecomendaciones(false);
@@ -1599,7 +1599,7 @@ function DocenteTutoria() {
 
   const exportarPDFRecomendaciones = async () => {
     if (!recomendacionesAlumnos.length) {
-      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar', zIndex: 200000 });
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
       return;
     }
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -1656,7 +1656,6 @@ function DocenteTutoria() {
       text: 'El reporte se descargó correctamente',
       timer: 2000,
       showConfirmButton: false,
-      zIndex: 200000,
     });
   };
 
@@ -2199,7 +2198,6 @@ function DocenteTutoria() {
         text: 'Notas de conducta guardadas correctamente',
         timer: 2000,
         showConfirmButton: false,
-        zIndex: 200000,
       });
     } catch (error) {
       console.error('Error guardando conducta:', error);
@@ -2207,7 +2205,6 @@ function DocenteTutoria() {
         icon: 'error',
         title: 'Error',
         text: error.response?.data?.error || 'No se pudo guardar',
-        zIndex: 200000,
       });
     } finally {
       setGuardandoConducta(false);
@@ -2216,7 +2213,7 @@ function DocenteTutoria() {
 
   const exportarPDFConducta = async () => {
     if (!conductaAlumnos.length) {
-      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar', zIndex: 200000 });
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
       return;
     }
     const doc = new jsPDF('l', 'mm', 'a4');
@@ -2315,7 +2312,6 @@ function DocenteTutoria() {
       text: 'El reporte se descargó correctamente',
       timer: 2000,
       showConfirmButton: false,
-      zIndex: 200000,
     });
   };
 

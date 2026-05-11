@@ -1,0 +1,5 @@
+/* SweetAlert2: por encima de modales tutoría (.modal-registro-asistencia-overlay usa z-index 100000)
+   y del menú "Opciones" (~99999). SweetAlert2 v11 no acepta el parámetro zIndex en Swal.fire(). */
+body.swal2-shown .swal2-container {
+  z-index: 500000 !important;
+}
