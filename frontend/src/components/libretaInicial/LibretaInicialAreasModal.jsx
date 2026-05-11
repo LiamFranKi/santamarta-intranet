@@ -4,22 +4,46 @@ import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './libretaInicialDocente.css';
 
+const ALCANCE_OPTS = [
+  { v: 0, l: 'Todo el año (I–IV)' },
+  { v: 1, l: 'Solo I bimestre' },
+  { v: 2, l: 'Solo II bimestre' },
+  { v: 3, l: 'Solo III bimestre' },
+  { v: 4, l: 'Solo IV bimestre' }
+];
+
+function etiquetaAlcance(v) {
+  const n = Number(v);
+  const o = ALCANCE_OPTS.find((x) => x.v === n);
+  return o ? o.l : 'Todo el año (I–IV)';
+}
+
 export default function LibretaInicialAreasModal({ grupo, onClose }) {
   const [loading, setLoading] = useState(true);
   const [areas, setAreas] = useState([]);
   const [openArea, setOpenArea] = useState({});
   const [nuevaArea, setNuevaArea] = useState('');
   const [nuevoInd, setNuevoInd] = useState({});
+  /** Bimestre en el que se listan / crean indicadores (API filtra alcance). */
+  const [bimestreVista, setBimestreVista] = useState(1);
+  /** Alcance del próximo indicador a agregar (0 = todo el año; 1–4 = solo ese bimestre). */
+  const [alcanceNuevo, setAlcanceNuevo] = useState(1);
   /** Borrador local del nombre por área (el guardado explícito evita depender solo del blur). */
   const [nombreAreaBorrador, setNombreAreaBorrador] = useState({});
 
   const grupoId = grupo?.id;
 
+  useEffect(() => {
+    setAlcanceNuevo(bimestreVista);
+  }, [bimestreVista]);
+
   const load = useCallback(async () => {
     if (!grupoId) return;
     try {
       setLoading(true);
-      const { data } = await api.get(`/docente/grupos/${grupoId}/libreta-inicial/estructura`);
+      const { data } = await api.get(`/docente/grupos/${grupoId}/libreta-inicial/estructura`, {
+        params: { ciclo: bimestreVista }
+      });
       setAreas(data.areas || []);
     } catch (e) {
       const msg = e.response?.data?.error || e.message || 'No se pudo cargar';
@@ -28,7 +52,7 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
     } finally {
       setLoading(false);
     }
-  }, [grupoId, onClose]);
+  }, [grupoId, onClose, bimestreVista]);
 
   useEffect(() => {
     load();
@@ -122,6 +146,17 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
     }
   };
 
+  const updateAlcanceIndicador = async (indicadorId, alcance) => {
+    try {
+      await api.put(`/docente/grupos/${grupoId}/libreta-inicial/indicadores/${indicadorId}`, {
+        alcance_ciclo: Number(alcance)
+      });
+      await load();
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error al actualizar alcance' });
+    }
+  };
+
   const deleteIndicador = async (indicadorId) => {
     const ok = await Swal.fire({
       title: '¿Eliminar indicador?',
@@ -158,6 +193,45 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
             <div className="li-loading">Cargando…</div>
           ) : (
             <>
+              <div className="li-toolbar" style={{ alignItems: 'center', marginBottom: '0.75rem' }}>
+                <label htmlFor="li-bim-estructura" style={{ fontWeight: 600, color: '#334155', fontSize: '0.88rem' }}>
+                  Ver / editar indicadores del bimestre:
+                </label>
+                <select
+                  id="li-bim-estructura"
+                  className="li-input"
+                  style={{ width: 'auto', minWidth: 120 }}
+                  value={bimestreVista}
+                  onChange={(e) => setBimestreVista(parseInt(e.target.value, 10))}
+                >
+                  <option value={1}>I</option>
+                  <option value={2}>II</option>
+                  <option value={3}>III</option>
+                  <option value={4}>IV</option>
+                </select>
+                <span style={{ color: '#64748b', fontSize: '0.82rem', flex: '1 1 200px' }}>
+                  Se muestran indicadores de <strong>todo el año</strong> y los de <strong>este bimestre</strong>. Al
+                  imprimir la libreta, el apoderado elige el bimestre y verá la misma regla.
+                </span>
+              </div>
+              <div className="li-toolbar" style={{ alignItems: 'center', marginBottom: '0.5rem' }}>
+                <label htmlFor="li-alcance-nuevo" style={{ fontWeight: 600, color: '#334155', fontSize: '0.88rem' }}>
+                  Nuevos indicadores serán:
+                </label>
+                <select
+                  id="li-alcance-nuevo"
+                  className="li-input"
+                  style={{ flex: '1 1 220px', maxWidth: 320 }}
+                  value={alcanceNuevo}
+                  onChange={(e) => setAlcanceNuevo(parseInt(e.target.value, 10))}
+                >
+                  {ALCANCE_OPTS.map((o) => (
+                    <option key={o.v} value={o.v}>
+                      {o.l}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div className="li-toolbar">
                 <input
                   className="li-input"
@@ -218,6 +292,7 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
                           <thead>
                             <tr>
                               <th>Indicador</th>
+                              <th style={{ minWidth: 200 }}>Alcance</th>
                               <th style={{ width: 90 }}> </th>
                             </tr>
                           </thead>
@@ -236,6 +311,20 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
                                       }
                                     }}
                                   />
+                                </td>
+                                <td>
+                                  <select
+                                    className="li-input"
+                                    style={{ width: '100%', fontSize: '0.82rem' }}
+                                    value={Number(ind.alcance_ciclo ?? 0)}
+                                    onChange={(e) => updateAlcanceIndicador(ind.id, e.target.value)}
+                                  >
+                                    {ALCANCE_OPTS.map((o) => (
+                                      <option key={o.v} value={o.v}>
+                                        {o.l}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </td>
                                 <td>
                                   <button

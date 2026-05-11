@@ -4,6 +4,7 @@
  */
 async function tryBuildLibretaInicialCustomCursos(query, { grupoId, colegio_id, anioGrupo, matriculaId, ciclo }) {
   try {
+    const cicloInt = Math.min(4, Math.max(1, parseInt(ciclo, 10) || 1));
     const areas = await query(
       `SELECT id, nombre FROM libreta_inicial_areas
        WHERE grupo_id = ? AND colegio_id = ? AND anio = ?
@@ -14,10 +15,11 @@ async function tryBuildLibretaInicialCustomCursos(query, { grupoId, colegio_id, 
     const areaIds = areas.map((a) => a.id);
     const placeholders = areaIds.map(() => '?').join(',');
     const indicadores = await query(
-      `SELECT id, area_id, descripcion FROM libreta_inicial_indicadores
+      `SELECT id, area_id, descripcion, alcance_ciclo FROM libreta_inicial_indicadores
        WHERE area_id IN (${placeholders}) AND colegio_id = ?
+       AND (alcance_ciclo = 0 OR alcance_ciclo = ?)
        ORDER BY orden ASC, id ASC`,
-      [...areaIds, colegio_id]
+      [...areaIds, colegio_id, cicloInt]
     );
     if (!indicadores || indicadores.length === 0) return null;
 
@@ -41,7 +43,7 @@ async function tryBuildLibretaInicialCustomCursos(query, { grupoId, colegio_id, 
           row[`nota_b${c}`] =
             v && v.nota != null && String(v.nota).trim() !== '' ? String(v.nota).trim() : null;
         }
-        const vCiclo = valMap.get(`${ind.id}_${ciclo}`);
+        const vCiclo = valMap.get(`${ind.id}_${cicloInt}`);
         row.explicacion = vCiclo && vCiclo.detalle != null ? String(vCiclo.detalle).trim() : '';
         return row;
       });

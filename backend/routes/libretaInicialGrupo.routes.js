@@ -94,12 +94,21 @@ async function guardarRecomendacionUnAlumno(matriculaId, grupoId, colegio_id, ci
 
 router.use(authenticateToken);
 
+/** Filtro SQL: indicadores de todo el año (0) o del bimestre elegido (1–4). */
+function sqlFiltroAlcanceCiclo(cicloInt) {
+  const c = parseInt(cicloInt, 10);
+  if (!Number.isFinite(c) || c < 1 || c > 4) return { sql: '', params: [] };
+  return { sql: ' AND (i.alcance_ciclo = 0 OR i.alcance_ciclo = ?) ', params: [c] };
+}
+
 router.get('/grupos/:grupoId/libreta-inicial/estructura', async (req, res) => {
   try {
     const { grupoId } = req.params;
     const { colegio_id } = req.user;
     const acc = await assertAccesoGrupoLibretaInicial(req, grupoId);
     if (!acc.ok) return res.status(acc.status).json({ error: acc.error });
+    const cicloVista = parseInt(req.query.ciclo, 10);
+    const filtro = sqlFiltroAlcanceCiclo(cicloVista);
 
     const areas =
       (await query(
@@ -112,12 +121,14 @@ router.get('/grupos/:grupoId/libreta-inicial/estructura', async (req, res) => {
 
     const ids = areas.map((a) => a.id);
     const ph = ids.map(() => '?').join(',');
+    const indParams = [...ids, colegio_id, ...filtro.params];
     const indicadores =
       (await query(
-        `SELECT id, area_id, descripcion, orden FROM libreta_inicial_indicadores
-         WHERE area_id IN (${ph}) AND colegio_id = ?
-         ORDER BY orden ASC, id ASC`,
-        [...ids, colegio_id]
+        `SELECT i.id, i.area_id, i.descripcion, i.orden, i.alcance_ciclo FROM libreta_inicial_indicadores i
+         WHERE i.area_id IN (${ph}) AND i.colegio_id = ?
+         ${filtro.sql}
+         ORDER BY i.orden ASC, i.id ASC`,
+        indParams
       )) || [];
 
     const conInd = areas.map((a) => ({
@@ -215,16 +226,19 @@ router.post('/grupos/:grupoId/libreta-inicial/indicadores', async (req, res) => 
     );
     if (!ar.length) return res.status(404).json({ error: 'Área no encontrada' });
 
+    let alcance = parseInt(req.body.alcance_ciclo, 10);
+    if (!Number.isFinite(alcance) || alcance < 0 || alcance > 4) alcance = 0;
+
     const mx = await query(
       `SELECT COALESCE(MAX(orden), 0) as m FROM libreta_inicial_indicadores WHERE area_id = ? AND colegio_id = ?`,
       [areaId, colegio_id]
     );
     const orden = Number(mx[0]?.m || 0) + 1;
     const r = await execute(
-      `INSERT INTO libreta_inicial_indicadores (area_id, colegio_id, descripcion, orden) VALUES (?, ?, ?, ?)`,
-      [areaId, colegio_id, descripcion, orden]
+      `INSERT INTO libreta_inicial_indicadores (area_id, colegio_id, descripcion, orden, alcance_ciclo) VALUES (?, ?, ?, ?, ?)`,
+      [areaId, colegio_id, descripcion, orden, alcance]
     );
-    res.json({ id: r.insertId, area_id: areaId, descripcion, orden });
+    res.json({ id: r.insertId, area_id: areaId, descripcion, orden, alcance_ciclo: alcance });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Error al crear indicador' });
@@ -239,6 +253,13 @@ router.put('/grupos/:grupoId/libreta-inicial/indicadores/:indicadorId', async (r
     if (!acc.ok) return res.status(acc.status).json({ error: acc.error });
     const descripcion = req.body.descripcion != null ? String(req.body.descripcion).trim() : null;
     const orden = req.body.orden != null ? parseInt(req.body.orden, 10) : null;
+    let alcance = null;
+    if (req.body.alcance_ciclo !== undefined && req.body.alcance_ciclo !== null) {
+      alcance = parseInt(req.body.alcance_ciclo, 10);
+      if (!Number.isFinite(alcance) || alcance < 0 || alcance > 4) {
+        return res.status(400).json({ error: 'alcance_ciclo debe ser 0 (todo el año) o 1–4 (bimestre)' });
+      }
+    }
 
     const row = await query(
       `SELECT i.id FROM libreta_inicial_indicadores i
@@ -252,6 +273,9 @@ router.put('/grupos/:grupoId/libreta-inicial/indicadores/:indicadorId', async (r
     }
     if (orden != null && !Number.isNaN(orden)) {
       await execute(`UPDATE libreta_inicial_indicadores SET orden = ? WHERE id = ?`, [orden, indicadorId]);
+    }
+    if (alcance !== null) {
+      await execute(`UPDATE libreta_inicial_indicadores SET alcance_ciclo = ? WHERE id = ?`, [alcance, indicadorId]);
     }
     res.json({ success: true });
   } catch (e) {
@@ -300,12 +324,14 @@ router.get('/grupos/:grupoId/libreta-inicial/registro', async (req, res) => {
     if (areas.length) {
       const ids = areas.map((a) => a.id);
       const ph = ids.map(() => '?').join(',');
+      const indParams = [...ids, colegio_id, ...filtro.params];
       indicadores =
         (await query(
-          `SELECT id, area_id, descripcion, orden FROM libreta_inicial_indicadores
-           WHERE area_id IN (${ph}) AND colegio_id = ?
-           ORDER BY orden ASC, id ASC`,
-          [...ids, colegio_id]
+          `SELECT i.id, i.area_id, i.descripcion, i.orden, i.alcance_ciclo FROM libreta_inicial_indicadores i
+           WHERE i.area_id IN (${ph}) AND i.colegio_id = ?
+           ${filtro.sql}
+           ORDER BY i.orden ASC, i.id ASC`,
+          indParams
         )) || [];
     }
 
@@ -388,8 +414,9 @@ router.post('/grupos/:grupoId/libreta-inicial/guardar-alumno', async (req, res) 
       const indOk = await query(
         `SELECT i.id FROM libreta_inicial_indicadores i
          INNER JOIN libreta_inicial_areas a ON a.id = i.area_id
-         WHERE i.id = ? AND i.colegio_id = ? AND a.grupo_id = ? AND a.anio = ?`,
-        [indId, colegio_id, grupoId, acc.anioEsc]
+         WHERE i.id = ? AND i.colegio_id = ? AND a.grupo_id = ? AND a.anio = ?
+         AND (i.alcance_ciclo = 0 OR i.alcance_ciclo = ?)`,
+        [indId, colegio_id, grupoId, acc.anioEsc, cicloInt]
       );
       if (!indOk.length) continue;
       const detalle = v.detalle != null ? String(v.detalle) : '';
