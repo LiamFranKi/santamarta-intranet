@@ -2295,7 +2295,7 @@ function ApoderadoHijos() {
         doc.text('NOTA', margin + colAreaWidth + colNotaWidth / 2, yPos + 3.5, { align: 'center' });
         doc.setFillColor(...colorLabel);
         doc.rect(margin + colAreaWidth + colNotaWidth, yPos, colDetalleWidth, headerHeight, 'FD');
-        doc.text(`BIMESTRE ${['I','II','III','IV'][cicloSel - 1]}`, margin + colAreaWidth + colNotaWidth + colDetalleWidth / 2, yPos + 3.5, { align: 'center' });
+        doc.text('DESCRIPCIÓN DE LA NOTA', margin + colAreaWidth + colNotaWidth + colDetalleWidth / 2, yPos + 3.5, { align: 'center' });
         yPos += headerHeight;
 
         doc.setFont('helvetica', 'normal');
@@ -2652,7 +2652,13 @@ function ApoderadoHijos() {
         yDet += 5;
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
-        doc.text(`Bimestre ${['I','II','III','IV'][(cicloSel || 1) - 1]} — ${datosLibreta.alumno?.grado}° ${datosLibreta.alumno?.seccion || ''}`, margin, yDet);
+        doc.text(
+          datosLibreta.es_cualitativa
+            ? `DESCRIPCIÓN DE LA NOTA — ${datosLibreta.alumno?.grado}° ${datosLibreta.alumno?.seccion || ''}`
+            : `Bimestre ${['I', 'II', 'III', 'IV'][(cicloSel || 1) - 1]} — ${datosLibreta.alumno?.grado}° ${datosLibreta.alumno?.seccion || ''}`,
+          margin,
+          yDet
+        );
         yDet += 10;
 
         const colCurso = 45;

@@ -1576,10 +1576,22 @@ function DocenteTutoria() {
         ciclo: recomendacionesCiclo,
         recomendaciones: rec
       });
-      Swal.fire({ icon: 'success', title: 'Guardado', text: 'Recomendaciones guardadas correctamente', timer: 2000, showConfirmButton: false });
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado',
+        text: 'Recomendaciones guardadas correctamente',
+        timer: 2000,
+        showConfirmButton: false,
+        zIndex: 200000,
+      });
     } catch (error) {
       console.error('Error guardando recomendaciones:', error);
-      Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudo guardar' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo guardar',
+        zIndex: 200000,
+      });
     } finally {
       setGuardandoRecomendaciones(false);
     }
@@ -1587,7 +1599,7 @@ function DocenteTutoria() {
 
   const exportarPDFRecomendaciones = async () => {
     if (!recomendacionesAlumnos.length) {
-      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar', zIndex: 200000 });
       return;
     }
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -1638,7 +1650,14 @@ function DocenteTutoria() {
     doc.setTextColor(150, 150, 150);
     doc.text(`Generado: ${new Date().toLocaleString('es-PE')}`, margin, pageHeight - 8);
     doc.save(`Recomendaciones_${grupoNombre.replace(/\s+/g, '_')}_B${recomendacionesCiclo}.pdf`);
-    Swal.fire({ icon: 'success', title: 'PDF generado', text: 'El reporte se descargó correctamente', timer: 2000, showConfirmButton: false });
+    Swal.fire({
+      icon: 'success',
+      title: 'PDF generado',
+      text: 'El reporte se descargó correctamente',
+      timer: 2000,
+      showConfirmButton: false,
+      zIndex: 200000,
+    });
   };
 
   // Conducta (+ modales evidencias: descuentos presentación / incidencias)
@@ -2174,10 +2193,22 @@ function DocenteTutoria() {
         ciclo: conductaCiclo,
         notas
       });
-      Swal.fire({ icon: 'success', title: 'Guardado', text: 'Notas de conducta guardadas correctamente', timer: 2000, showConfirmButton: false });
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado',
+        text: 'Notas de conducta guardadas correctamente',
+        timer: 2000,
+        showConfirmButton: false,
+        zIndex: 200000,
+      });
     } catch (error) {
       console.error('Error guardando conducta:', error);
-      Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudo guardar' });
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo guardar',
+        zIndex: 200000,
+      });
     } finally {
       setGuardandoConducta(false);
     }
@@ -2185,7 +2216,7 @@ function DocenteTutoria() {
 
   const exportarPDFConducta = async () => {
     if (!conductaAlumnos.length) {
-      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar', zIndex: 200000 });
       return;
     }
     const doc = new jsPDF('l', 'mm', 'a4');
@@ -2278,7 +2309,14 @@ function DocenteTutoria() {
     }
 
     doc.save(`Conducta_${grupoNombre.replace(/\s+/g, '_')}_B${conductaCiclo}.pdf`);
-    Swal.fire({ icon: 'success', title: 'PDF generado', text: 'El reporte se descargó correctamente', timer: 2000, showConfirmButton: false });
+    Swal.fire({
+      icon: 'success',
+      title: 'PDF generado',
+      text: 'El reporte se descargó correctamente',
+      timer: 2000,
+      showConfirmButton: false,
+      zIndex: 200000,
+    });
   };
 
   /** Reportes evidencias tutor: descuentos presentación QR / incidencias grupo — PDF mismos filtros fecha */
