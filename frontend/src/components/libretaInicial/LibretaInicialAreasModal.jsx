@@ -127,7 +127,11 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
     const descripcion = String(nuevoInd[areaId] || '').trim();
     if (!descripcion) return;
     try {
-      await api.post(`/docente/grupos/${grupoId}/libreta-inicial/indicadores`, { area_id: areaId, descripcion });
+      await api.post(`/docente/grupos/${grupoId}/libreta-inicial/indicadores`, {
+        area_id: areaId,
+        descripcion,
+        alcance_ciclo: alcanceNuevo,
+      });
       setNuevoInd((p) => ({ ...p, [areaId]: '' }));
       await load();
     } catch (e) {
@@ -232,6 +236,10 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
                   ))}
                 </select>
               </div>
+              <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '0 0 0.75rem 0', lineHeight: 1.45 }}>
+                Al pulsar <strong>Agregar indicador</strong>, el alcance se guarda con lo elegido arriba. La columna
+                «Alcance» en la tabla sirve solo para <strong>corregir</strong> indicadores que ya existen.
+              </p>
               <div className="li-toolbar">
                 <input
                   className="li-input"
@@ -292,7 +300,7 @@ export default function LibretaInicialAreasModal({ grupo, onClose }) {
                           <thead>
                             <tr>
                               <th>Indicador</th>
-                              <th style={{ minWidth: 200 }}>Alcance</th>
+                              <th style={{ minWidth: 200 }}>Alcance (editar)</th>
                               <th style={{ width: 90 }}> </th>
                             </tr>
                           </thead>
