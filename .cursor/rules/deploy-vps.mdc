@@ -9,11 +9,12 @@ alwaysApply: true
 El flujo que **siempre** se usa para actualizar el servidor es:
 
 ```bash
-cd /home/vanguard/intranet2026 && git pull origin main && cd frontend && npm run build && cd .. && pm2 restart all
+cd /home/vanguard/intranet2026 && git pull origin main && cd frontend && npm install && npm run build && cd .. && pm2 restart all
 ```
 
 - Ruta del proyecto en el servidor: `/home/vanguard/intranet2026`
-- Después de `git pull` es obligatorio `npm run build` en `frontend` para que se vean los cambios.
+- Después de `git pull` es obligatorio **`npm install`** en `frontend` (nuevas dependencias, p. ej. `qrcode`) y luego **`npm run build`** para que compile el bundle.
+- Si cambió `backend/package.json`, ejecuta también en el servidor: `cd /home/vanguard/intranet2026/backend && npm install` antes de `pm2 restart all`.
 - Al final se ejecuta `pm2 restart all` desde la raíz del proyecto (`cd ..` después del build).
 
 Cuando el usuario pida "subir a GitHub y el código putty" o "comando putty", incluir:
