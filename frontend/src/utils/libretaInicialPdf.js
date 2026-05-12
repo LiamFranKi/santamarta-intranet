@@ -128,13 +128,13 @@ function drawRoundedRect(doc, x, y, w, h, r, style) {
 }
 
 function drawCell(doc, x, y, w, h, fillRgb, lines, opts = {}) {
-  const { fontSize = 7, textColor = [0, 0, 0], lineWidth = 0.2 } = opts;
+  const { fontSize = 7, textColor = [0, 0, 0], lineWidth = 0.2, bold = false } = opts;
   const arr = Array.isArray(lines) ? lines : [String(lines ?? '')];
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(lineWidth);
   doc.setFillColor(...fillRgb);
   doc.rect(x, y, w, h, 'FD');
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('helvetica', bold ? 'bold' : 'normal');
   doc.setTextColor(...textColor);
   doc.setFontSize(fontSize);
   const lh = fontSize * 0.38;
@@ -214,15 +214,17 @@ export function renderLibretaInicialBoleta(doc, opts) {
   if (twTit > contentWidth - 6) {
     lineasTitulo = doc.splitTextToSize(tituloBanner, contentWidth - 6);
   }
+  const padBannerTop = 4.85;
   const lhTitulo = 3.55;
-  const bannerH = Math.max(12, 2.8 + lineasTitulo.length * lhTitulo + 5.2);
+  const padBannerBottom = 4.65;
+  const bannerH = Math.max(13.5, padBannerTop + lineasTitulo.length * lhTitulo + padBannerBottom);
   ensureSpace(bannerH + 50);
   doc.setFillColor(...verde);
   drawRoundedRect(doc, margin, yPos, contentWidth, bannerH, 1.5, 'F');
   doc.setDrawColor(0, 0, 0);
   drawRoundedRect(doc, margin, yPos, contentWidth, bannerH, 1.5, 'S');
   doc.setTextColor(0, 0, 0);
-  let ty = yPos + 2.9;
+  let ty = yPos + padBannerTop;
   lineasTitulo.forEach((ln) => {
     doc.text(ln, margin + contentWidth / 2, ty, { align: 'center' });
     ty += lhTitulo;
@@ -232,7 +234,7 @@ export function renderLibretaInicialBoleta(doc, opts) {
   doc.text(
     `${String(a.nivel_nombre || 'NIVEL INICIAL').toUpperCase()} · BIMESTRE ${bimRoman} · AÑO ${a.anio ?? '-'}`,
     margin + contentWidth / 2,
-    yPos + bannerH - 2.35,
+    yPos + bannerH - 2.15,
     { align: 'center' }
   );
   yPos += bannerH + 3;
@@ -257,9 +259,9 @@ export function renderLibretaInicialBoleta(doc, opts) {
 
   ensureSpace(hRow1 + rowBase * 3 + 4);
   drawCellCentered(doc, margin, yPos, L, hRow1, verde, 'ALUMNO', { fontSize: 6.6, bold: true });
-  drawCell(doc, margin + L, yPos, M, hRow1, blanco, lineasNombre, { fontSize: 7 });
+  drawCell(doc, margin + L, yPos, M, hRow1, blanco, lineasNombre, { fontSize: 7, bold: true });
   drawCellCentered(doc, segundoBloqueX, yPos, L, hRow1, verde, 'CÓDIGO', { fontSize: 6.6, bold: true });
-  drawCellCentered(doc, segundoBloqueX + L, yPos, S, hRow1, blanco, String(a.codigo || '—'), { fontSize: 7 });
+  drawCellCentered(doc, segundoBloqueX + L, yPos, S, hRow1, blanco, String(a.codigo || '—'), { fontSize: 7, bold: true });
   yPos += hRow1;
 
   const trioW = w / 3;
@@ -274,7 +276,8 @@ export function renderLibretaInicialBoleta(doc, opts) {
       bold: true
     });
     drawCellCentered(doc, xT + L, yPos, trioW - L, rowBase, blanco, t === 0 ? gradoTxt : t === 1 ? nivelTxt : turnoTxt, {
-      fontSize: 7
+      fontSize: 7,
+      bold: true
     });
   }
   yPos += rowBase;
@@ -283,9 +286,9 @@ export function renderLibretaInicialBoleta(doc, opts) {
   const lineasTutor = lineasParaCelda(doc, tutorTxt, Math.max(4, M - padTxt), 7, false);
   const hRow3 = Math.max(rowBase, 2 + lineasTutor.length * 3.15);
   drawCellCentered(doc, margin, yPos, L, hRow3, verde, 'TUTOR', { fontSize: 6.6, bold: true });
-  drawCell(doc, margin + L, yPos, M, hRow3, blanco, lineasTutor, { fontSize: 7 });
+  drawCell(doc, margin + L, yPos, M, hRow3, blanco, lineasTutor, { fontSize: 7, bold: true });
   drawCellCentered(doc, segundoBloqueX, yPos, L, hRow3, verde, 'AÑO', { fontSize: 6.6, bold: true });
-  drawCellCentered(doc, segundoBloqueX + L, yPos, S, hRow3, blanco, String(a.anio ?? '—'), { fontSize: 7 });
+  drawCellCentered(doc, segundoBloqueX + L, yPos, S, hRow3, blanco, String(a.anio ?? '—'), { fontSize: 7, bold: true });
   yPos += hRow3 + 4;
 
   const bimLabel = cicloSel;
@@ -523,18 +526,20 @@ export function renderLibretaInicialBoleta(doc, opts) {
   const leyLetraW = wEscala * 0.1;
   const wTxtCol = wEscala - leyLetraW - 2.2;
   let yy = yLey + hLeyHead;
-  const lhTit = 2.85;
-  const lhBody = 2.55;
+  const lhTit = 2.45;
+  const lhBody = 2.28;
+  const innerW = wEscala - leyLetraW;
+  const xTxtMid = xEsc + leyLetraW + innerW / 2;
+  const maxTxt = Math.max(16, wTxtCol - 1.4);
 
   ESCALA_INICIAL_DETALLE.forEach(({ letra, titulo, texto }) => {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5.9);
+    doc.setFontSize(5.85);
     const tituloUpper = String(titulo || '').toUpperCase();
-    const lineasTit = doc.splitTextToSize(tituloUpper, wTxtCol);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(5.15);
-    const lineasBody = doc.splitTextToSize(String(texto || ''), wTxtCol);
-    const rowH = Math.max(14, 2.2 + lineasTit.length * lhTit + lineasBody.length * lhBody + 1.4);
+    const lineasTit = doc.splitTextToSize(tituloUpper, maxTxt);
+    doc.setFontSize(5.05);
+    const lineasBody = doc.splitTextToSize(String(texto || ''), maxTxt);
+    const rowH = Math.max(10.2, 1.2 + lineasTit.length * lhTit + lineasBody.length * lhBody + 0.55);
 
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.2);
@@ -547,18 +552,18 @@ export function renderLibretaInicialBoleta(doc, opts) {
 
     doc.setFillColor(...blanco);
     doc.rect(xEsc + leyLetraW, yy, wEscala - leyLetraW, rowH, 'FD');
-    let yt = yy + 2.1;
+    const blockTxtH = lineasTit.length * lhTit + lineasBody.length * lhBody;
+    let yt = yy + Math.max(1.15, (rowH - blockTxtH) / 2 + lhTit * 0.72);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5.9);
+    doc.setFontSize(5.85);
     doc.setTextColor(0, 0, 0);
     lineasTit.forEach((ln) => {
-      doc.text(ln, xEsc + leyLetraW + 1.1, yt);
+      doc.text(ln, xTxtMid, yt, { align: 'center', maxWidth: maxTxt });
       yt += lhTit;
     });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(5.15);
+    doc.setFontSize(5.05);
     lineasBody.forEach((ln) => {
-      doc.text(ln, xEsc + leyLetraW + 1.1, yt);
+      doc.text(ln, xTxtMid, yt, { align: 'center', maxWidth: maxTxt });
       yt += lhBody;
     });
     yy += rowH;
