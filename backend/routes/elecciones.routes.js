@@ -261,6 +261,28 @@ async function totalesPublicosProceso(req, colegioId, procesoId) {
   });
 }
 
+function totalesMaximoPrimerPuesto(totales) {
+  if (!totales || !totales.length) return { suma: 0, maxV: 0, conMax: [] };
+  const suma = totales.reduce((acc, t) => acc + Number(t.votos || 0), 0);
+  const maxV = Math.max(0, ...totales.map((t) => Number(t.votos || 0)));
+  const conMax = totales.filter((t) => Number(t.votos || 0) === maxV);
+  return { suma, maxV, conMax };
+}
+
+/** Solo hay ganador único si hay al menos un voto y una sola lista alcanza el máximo (evita «ganador» con 0 votos o empates). */
+function elegirGanadorDesdeTotales(totales) {
+  const { suma, maxV, conMax } = totalesMaximoPrimerPuesto(totales);
+  if (suma <= 0 || maxV <= 0) return null;
+  return conMax.length === 1 ? conMax[0] : null;
+}
+
+/** Listas empatadas en el máximo de votos (solo si hay votos y más de una en el tope). */
+function listasEmpatePrimerLugar(totales) {
+  const { suma, maxV, conMax } = totalesMaximoPrimerPuesto(totales);
+  if (suma <= 0 || maxV <= 0) return null;
+  return conMax.length > 1 ? conMax : null;
+}
+
 function faseResultadosPublicos(procesoRow, nowMs) {
   const tFin = limaMysqlOrInputToUtcMs(procesoRow.votacion_fin);
   const pubMs =
@@ -2150,8 +2172,9 @@ async function handlerEleccionesResultadosPublicos(req, res) {
     const finMs = limaMysqlOrInputToUtcMs(proceso.votacion_fin);
     const totales = await totalesPublicosProceso(req, colegioId, procesoId);
     const votosRegistrados = totales.reduce((acc, t) => acc + Number(t.votos || 0), 0);
-    const ganador = totales[0] || null;
     const showResultados = fase.fase === 'GANADOR';
+    const ganador = showResultados ? elegirGanadorDesdeTotales(totales) : null;
+    const empatePrimerLugar = showResultados ? listasEmpatePrimerLugar(totales) : null;
 
     res.json({
       proceso: {
@@ -2167,6 +2190,7 @@ async function handlerEleccionesResultadosPublicos(req, res) {
       hora_oficial: 'Lima, Peru',
       votos_registrados: votosRegistrados,
       ganador: showResultados ? ganador : null,
+      empate_primer_lugar: empatePrimerLugar,
       totales: showResultados ? totales : []
     });
   } catch (e) {

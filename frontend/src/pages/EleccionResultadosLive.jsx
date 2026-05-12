@@ -89,13 +89,16 @@ export default function EleccionResultadosLive() {
 
   const totalVotos = Number(data.votos_registrados || 0);
   const totales = Array.isArray(data.totales) ? data.totales : [];
-  const top = Number(totales[0]?.votos || 0);
+  const top = Math.max(0, ...totales.map((t) => Number(t.votos || 0)));
   const winner = data.ganador || null;
+  const empateListas =
+    Array.isArray(data.empate_primer_lugar) && data.empate_primer_lugar.length >= 2 ? data.empate_primer_lugar : null;
+  const empateIds = new Set((empateListas || []).map((l) => l.lista_id));
   const fase = String(data.fase || '');
 
   const showCountdownModal = fase === 'CUENTA_FINAL';
   const showSuspenseModal = fase === 'SUSPENSO';
-  const showWinnerModal = fase === 'GANADOR' && showWinner;
+  const showWinnerModal = fase === 'GANADOR' && showWinner && !!winner;
   const untilCloseLabel = formatoHastaCierre(msCierre);
 
   const inner = (
@@ -150,12 +153,52 @@ export default function EleccionResultadosLive() {
         <section className="elcc-rs-card">
           <h2>Conteo oficial</h2>
           <p className="elcc-rs-muted">Total de votos registrados: {totalVotos}</p>
+          {!winner && totalVotos === 0 && (
+            <p className="elcc-rs-muted" style={{ marginBottom: 12 }}>
+              Aún no hay votos en esta jornada. Cuando se registren participaciones, aquí se mostrará el conteo y, si corresponde, al ganador.
+            </p>
+          )}
+          {empateListas && (
+            <div className="elcc-rs-tie-panel" role="status" aria-live="polite">
+              <div className="elcc-rs-tie-ribbon" aria-hidden="true" />
+              <div className="elcc-rs-tie-badge">Empate en primer lugar</div>
+              <p className="elcc-rs-tie-lead">
+                {empateListas.length} listas con el mismo máximo de votos ({Number(empateListas[0]?.votos || 0)} cada una).
+              </p>
+              <p className="elcc-rs-tie-hint">
+                No se declara ganador único en esta jornada. La institución puede convocar una segunda vuelta entre estas listas; el
+                calendario y la urna se configuran desde administración.
+              </p>
+              <ul className="elcc-rs-tie-grid">
+                {empateListas.map((t) => (
+                  <li key={t.lista_id} className="elcc-rs-tie-card">
+                    {t.alcalde_foto_url ? (
+                      <img src={t.alcalde_foto_url} alt="" className="elcc-rs-tie-face" />
+                    ) : (
+                      <div className="elcc-rs-face-ph elcc-rs-tie-face" />
+                    )}
+                    <span className="elcc-rs-tie-lista">{t.nombre_lista}</span>
+                    <span className="elcc-rs-tie-alcalde">{t.alcalde_nombre_completo || 'Candidato/a'}</span>
+                    <span className="elcc-rs-tie-votos">{Number(t.votos || 0)} votos</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {!winner && totalVotos > 0 && !empateListas && (
+            <p className="elcc-rs-muted" style={{ marginBottom: 12 }}>
+              No se puede declarar un único ganador con el conteo actual.
+            </p>
+          )}
           <div className="elcc-rs-bars">
-            {totales.map((t, idx) => {
+            {totales.map((t) => {
               const votos = Number(t.votos || 0);
               const pct = top > 0 ? Math.round((votos / top) * 100) : 0;
               return (
-                <article key={t.lista_id} className="elcc-rs-bar-card">
+                <article
+                  key={t.lista_id}
+                  className={`elcc-rs-bar-card${empateIds.has(t.lista_id) ? ' elcc-rs-bar-card--empate' : ''}`}
+                >
                   <div className="elcc-rs-bar-head">
                     {t.alcalde_foto_url ? <img src={t.alcalde_foto_url} alt="" /> : <div className="elcc-rs-face-ph" />}
                     <div>
@@ -193,7 +236,7 @@ export default function EleccionResultadosLive() {
             </div>
           )}
 
-          {showWinnerModal && winner && (
+          {showWinnerModal && (
             <div className="elcc-rs-modal elcc-rs-modal--winner">
               <div className="elcc-rs-garland elcc-rs-garland--left" aria-hidden="true">
                 {garlandPieces(18).map((n) => (
