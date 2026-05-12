@@ -1212,11 +1212,15 @@ function GruposPanel({ meta }) {
         const { data } = await api.get(`/admin/academico/grupos/${row.id}/qr-carnets`);
         Swal.close();
         const carnets = data.carnets || [];
+        const totalMatriculas = typeof data.total_matriculas === 'number' ? data.total_matriculas : null;
         if (!carnets.length) {
           await Swal.fire({
-            icon: 'info',
-            title: 'Sin alumnos',
-            text: 'Este grupo no tiene matrículas regulares para imprimir QR.',
+            icon: totalMatriculas > 0 ? 'warning' : 'info',
+            title: totalMatriculas > 0 ? 'No se generaron carnets' : 'Sin alumnos',
+            text:
+              totalMatriculas > 0
+                ? `El grupo tiene ${totalMatriculas} matrícula(s), pero no se pudo armar ningún carnet (revisar datos de alumnos/apoderados o logs del servidor).`
+                : 'Este grupo no tiene matrículas regulares para imprimir QR.',
           });
           return;
         }
@@ -1252,20 +1256,28 @@ function GruposPanel({ meta }) {
         .join('');
       const { isConfirmed, value } = await Swal.fire({
         title: 'Exportar Notas',
+        width: 'min(32rem, calc(100vw - 1.5rem))',
+        padding: '1.35rem 1.25rem 1rem',
+        customClass: {
+          popup: 'admin-academico-sw-export-notas',
+          htmlContainer: 'admin-academico-sw-export-notas-html',
+        },
         html: `
-          <p style="margin:0 0 12px;font-size:14px;color:#444;text-align:left">Seleccione el año escolar y el bimestre a exportar.</p>
-          <div style="text-align:left;margin-bottom:10px">
-            <label for="swal-notas-anio" style="display:block;font-weight:600;margin-bottom:4px">Año</label>
-            <select id="swal-notas-anio" class="swal2-select" style="width:100%">${optsAnio}</select>
-          </div>
-          <div style="text-align:left">
-            <label for="swal-notas-ciclo" style="display:block;font-weight:600;margin-bottom:4px">Bimestre</label>
-            <select id="swal-notas-ciclo" class="swal2-select" style="width:100%">
-              <option value="1">I Bimestre</option>
-              <option value="2">II Bimestre</option>
-              <option value="3">III Bimestre</option>
-              <option value="4">IV Bimestre</option>
-            </select>
+          <div class="admin-academico-export-notas-body">
+            <p class="admin-academico-export-notas-lead">Seleccione el año escolar y el bimestre a exportar.</p>
+            <div class="admin-academico-export-notas-field">
+              <label for="swal-notas-anio">Año</label>
+              <select id="swal-notas-anio" class="swal2-select admin-academico-export-notas-select">${optsAnio}</select>
+            </div>
+            <div class="admin-academico-export-notas-field">
+              <label for="swal-notas-ciclo">Bimestre</label>
+              <select id="swal-notas-ciclo" class="swal2-select admin-academico-export-notas-select">
+                <option value="1">I Bimestre</option>
+                <option value="2">II Bimestre</option>
+                <option value="3">III Bimestre</option>
+                <option value="4">IV Bimestre</option>
+              </select>
+            </div>
           </div>
         `,
         icon: 'question',

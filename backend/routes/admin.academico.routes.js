@@ -826,23 +826,35 @@ router.get('/grupos/:grupoId/qr-carnets', async (req, res) => {
       [grupoId, cid]
     );
 
-    const { logo_url, logo_base64 } = await leerLogoBoletaBase64(query);
+    let logo_url = null;
+    let logo_base64 = null;
+    try {
+      const logos = await leerLogoBoletaBase64(query);
+      logo_url = logos.logo_url;
+      logo_base64 = logos.logo_base64;
+    } catch (logoErr) {
+      console.error('[admin/academico/grupos/:grupoId/qr-carnets] logo boleta:', logoErr);
+    }
 
     const carnets = [];
     for (const row of alumnosRows) {
-      const alumnoId = row.alumno_id;
-      const payload = await buildQrCarnetPayloadForAlumnoEnGrupo(query, {
-        colegio_id: cid,
-        alumno_id: alumnoId,
-        grupo_id: grupoId,
-        anio_activo: anioCarnet,
-      });
-      if (!payload || payload.alumno_id !== alumnoId) continue;
-      carnets.push({
-        ...payload,
-        logo_url,
-        logo_base64,
-      });
+      try {
+        const alumnoId = row.alumno_id;
+        const payload = await buildQrCarnetPayloadForAlumnoEnGrupo(query, {
+          colegio_id: cid,
+          alumno_id: alumnoId,
+          grupo_id: grupoId,
+          anio_activo: anioCarnet,
+        });
+        if (!payload || payload.alumno_id !== alumnoId) continue;
+        carnets.push({
+          ...payload,
+          logo_url,
+          logo_base64,
+        });
+      } catch (oneErr) {
+        console.error('[admin/academico/grupos/:grupoId/qr-carnets] alumno_id=', row?.alumno_id, oneErr);
+      }
     }
 
     res.json({
@@ -853,6 +865,7 @@ router.get('/grupos/:grupoId/qr-carnets', async (req, res) => {
         nivel_nombre: grupo.nivel_nombre,
         anio: grupo.anio,
       },
+      total_matriculas: alumnosRows.length,
       carnets,
     });
   } catch (e) {

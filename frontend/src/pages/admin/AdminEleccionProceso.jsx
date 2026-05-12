@@ -895,24 +895,43 @@ function ListaDetalleEditor({
     return () => window.clearTimeout(t);
   }, [busq, anio]);
 
+  /** El Quill de «nueva propuesta» solo existe cuando ya hay detalle; antes el efecto corría con ref null y no se enganchaba el subidor de imágenes. */
+  const propuestasQuillMontable = Boolean(listaId && detalle != null && !loadingDetalle);
+
   useEffect(() => {
-    if (!listaId) return undefined;
+    if (!propuestasQuillMontable) return undefined;
     const url = `/elecciones/admin/listas/${listaId}/propuestas/subir-imagen`;
-    const t = window.setTimeout(() => {
+    let cancelled = false;
+    const attach = () => {
+      if (cancelled) return;
       const q = propQuillRef.current?.getEditor?.();
       if (q) attachQuillImageUploadHandler(q, api, url);
-    }, 200);
-    return () => window.clearTimeout(t);
-  }, [listaId]);
+    };
+    const t = window.setTimeout(() => {
+      requestAnimationFrame(() => requestAnimationFrame(attach));
+    }, 80);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, [listaId, propuestasQuillMontable]);
 
   useEffect(() => {
     if (!propEdit || !listaId) return undefined;
     const url = `/elecciones/admin/listas/${listaId}/propuestas/subir-imagen`;
-    const t = window.setTimeout(() => {
+    let cancelled = false;
+    const attach = () => {
+      if (cancelled) return;
       const q = propEditQuillRef.current?.getEditor?.();
       if (q) attachQuillImageUploadHandler(q, api, url);
-    }, 250);
-    return () => window.clearTimeout(t);
+    };
+    const t = window.setTimeout(() => {
+      requestAnimationFrame(() => requestAnimationFrame(attach));
+    }, 100);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
   }, [propEdit?.id, listaId]);
 
   const agregarPlanchaDesdeAlumno = async (alu) => {
@@ -1196,6 +1215,7 @@ function ListaDetalleEditor({
         </label>
         <div className="admin-elcc-quill-wrap">
           <ReactQuill
+            key={`propuesta-nueva-${listaId}`}
             ref={propQuillRef}
             theme="snow"
             value={propC}

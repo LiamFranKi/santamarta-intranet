@@ -5,6 +5,9 @@ export function attachQuillImageUploadHandler(quill, api, uploadEndpoint = '/doc
   if (!quill || !api) return;
   const toolbar = quill.getModule('toolbar');
   if (!toolbar) return;
+  // Evita duplicar handlers si el efecto React se vuelve a ejecutar con el mismo editor y URL.
+  if (quill.__elccQuillImageEndpoint === uploadEndpoint) return;
+  quill.__elccQuillImageEndpoint = uploadEndpoint;
   toolbar.addHandler('image', () => {
     const input = document.createElement('input');
     input.setAttribute('type', 'file');

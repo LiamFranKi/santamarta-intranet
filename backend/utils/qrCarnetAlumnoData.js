@@ -107,9 +107,9 @@ async function buildQrCarnetPayloadForAlumnoEnGrupo(query, { colegio_id, alumno_
     `SELECT CONCAT(ap.nombres, ' ', ap.apellido_paterno, ' ', ap.apellido_materno) as nombre_completo,
             ap.telefono_celular,
             ap.direccion
-     FROM familias f
-     INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = f.colegio_id
-     WHERE f.alumno_id = ? AND f.colegio_id = ?
+     FROM apoderados ap
+     INNER JOIN familias f ON f.apoderado_id = ap.id
+     WHERE f.alumno_id = ? AND ap.colegio_id = ?
      ORDER BY f.id ASC
      LIMIT 1`,
     [alumno_id, colegio_id]

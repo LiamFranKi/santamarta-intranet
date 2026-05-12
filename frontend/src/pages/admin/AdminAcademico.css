@@ -826,3 +826,52 @@ body.admin-academico-page .swal2-container {
   font-size: 0.85rem;
   padding: 0.35rem 0;
 }
+
+/* SweetAlert2 — Exportar notas (evita barra horizontal y popup estrecho) */
+.swal2-popup.admin-academico-sw-export-notas {
+  box-sizing: border-box;
+}
+
+.swal2-html-container.admin-academico-sw-export-notas-html {
+  margin: 0 !important;
+  overflow-x: hidden !important;
+  max-width: 100%;
+}
+
+.admin-academico-export-notas-body {
+  text-align: left;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-academico-export-notas-lead {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  color: #334155;
+  line-height: 1.45;
+}
+
+.admin-academico-export-notas-field {
+  margin-bottom: 0.85rem;
+}
+
+.admin-academico-export-notas-field:last-child {
+  margin-bottom: 0;
+}
+
+.admin-academico-export-notas-field label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+  font-size: 0.88rem;
+  color: #0f172a;
+}
+
+.admin-academico-export-notas-select.swal2-select {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  display: block;
+}
