@@ -26,6 +26,15 @@ const fs = require('fs');
 
 const app = express();
 
+// Evita caídas silenciosas / reinicios PM2 sin pista en log
+process.on('unhandledRejection', (reason) => {
+  console.error('[process] unhandledRejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[process] uncaughtException:', err);
+  process.exit(1);
+});
+
 // Leer puerto del archivo o usar default
 let PORT = process.env.PORT || 5000;
 try {
@@ -332,18 +341,26 @@ app.listen(PORT, () => {
       
       // Ejecutar inmediatamente al iniciar (después de 60 segundos para que el servidor y BD estén listos)
       setTimeout(async () => {
-        console.log('📅 [AUTO-VERIFICACION] Iniciando primera verificación de tareas por vencer...');
-        await verificarTareasPorVencer();
-        console.log('📅 [AUTO-VERIFICACION] Verificando tareas vencidas sin entrega...');
-        await verificarTareasVencidasSinEntrega();
+        try {
+          console.log('📅 [AUTO-VERIFICACION] Iniciando primera verificación de tareas por vencer...');
+          await verificarTareasPorVencer();
+          console.log('📅 [AUTO-VERIFICACION] Verificando tareas vencidas sin entrega...');
+          await verificarTareasVencidasSinEntrega();
+        } catch (e) {
+          console.error('❌ [AUTO-VERIFICACION] Error en primera ejecución:', e);
+        }
       }, 60000); // 60 segundos después de iniciar
       
       // Ejecutar cada 24 horas (86400000 ms = 24 horas)
       setInterval(async () => {
-        console.log('📅 [AUTO-VERIFICACION] Ejecutando verificación periódica de tareas por vencer...');
-        await verificarTareasPorVencer();
-        console.log('📅 [AUTO-VERIFICACION] Verificando tareas vencidas sin entrega...');
-        await verificarTareasVencidasSinEntrega();
+        try {
+          console.log('📅 [AUTO-VERIFICACION] Ejecutando verificación periódica de tareas por vencer...');
+          await verificarTareasPorVencer();
+          console.log('📅 [AUTO-VERIFICACION] Verificando tareas vencidas sin entrega...');
+          await verificarTareasVencidasSinEntrega();
+        } catch (e) {
+          console.error('❌ [AUTO-VERIFICACION] Error en ejecución periódica:', e);
+        }
       }, 24 * 60 * 60 * 1000); // Cada 24 horas
       
       console.log('📅 [AUTO-VERIFICACION] Sistema de verificación automática configurado:');
@@ -362,12 +379,20 @@ app.listen(PORT, () => {
     try {
       const { enviarNotificacionesCumpleanos } = require('./services/cumpleanosPushService');
       setTimeout(async () => {
-        console.log('🎂 [CUMPLEANOS-PUSH] Ejecutando notificaciones de cumpleaños del día...');
-        await enviarNotificacionesCumpleanos();
+        try {
+          console.log('🎂 [CUMPLEANOS-PUSH] Ejecutando notificaciones de cumpleaños del día...');
+          await enviarNotificacionesCumpleanos();
+        } catch (e) {
+          console.error('❌ [CUMPLEANOS-PUSH] Error en primera ejecución:', e);
+        }
       }, 120000); // 2 min después de iniciar
       setInterval(async () => {
-        console.log('🎂 [CUMPLEANOS-PUSH] Ejecutando notificaciones de cumpleaños del día...');
-        await enviarNotificacionesCumpleanos();
+        try {
+          console.log('🎂 [CUMPLEANOS-PUSH] Ejecutando notificaciones de cumpleaños del día...');
+          await enviarNotificacionesCumpleanos();
+        } catch (e) {
+          console.error('❌ [CUMPLEANOS-PUSH] Error en ejecución periódica:', e);
+        }
       }, 24 * 60 * 60 * 1000); // cada 24 horas
       console.log('🎂 [CUMPLEANOS-PUSH] Programado: primera ejecución en 2 min, luego cada 24 h');
     } catch (error) {
@@ -381,12 +406,20 @@ app.listen(PORT, () => {
     try {
       const { ejecutarNotificacionesInstitucionalVencimiento } = require('./services/institucionalVencimientoNotificacionService');
       setTimeout(async () => {
-        console.log('📋 [INSTITUCIONAL-VENC] Primera verificación de vencimientos...');
-        await ejecutarNotificacionesInstitucionalVencimiento();
+        try {
+          console.log('📋 [INSTITUCIONAL-VENC] Primera verificación de vencimientos...');
+          await ejecutarNotificacionesInstitucionalVencimiento();
+        } catch (e) {
+          console.error('❌ [INSTITUCIONAL-VENC] Error en primera ejecución:', e);
+        }
       }, 100000);
       setInterval(async () => {
-        console.log('📋 [INSTITUCIONAL-VENC] Verificación periódica (cada 24 h)...');
-        await ejecutarNotificacionesInstitucionalVencimiento();
+        try {
+          console.log('📋 [INSTITUCIONAL-VENC] Verificación periódica (cada 24 h)...');
+          await ejecutarNotificacionesInstitucionalVencimiento();
+        } catch (e) {
+          console.error('❌ [INSTITUCIONAL-VENC] Error en ejecución periódica:', e);
+        }
       }, 24 * 60 * 60 * 1000);
       console.log('📋 [INSTITUCIONAL-VENC] Programado: primera ejecución ~100 s, luego cada 24 h (zona Lima).');
     } catch (error) {

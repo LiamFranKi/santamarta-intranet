@@ -9,7 +9,8 @@ import { useEleccionPortalPaths } from './elecciones/useEleccionPortalPaths';
 import { msRestantesHasta } from './elecciones/eleccionCountdownUtils';
 import './EleccionResultadosLive.css';
 
-const POLL_MS = 1000;
+/** Evita N peticiones/seg por pestaña (muchas pestañas = saturación API/BD). 2,5 s sigue siendo «en vivo». */
+const POLL_MS = 2500;
 
 function formatoMmSs(totalSegundos) {
   if (totalSegundos == null || totalSegundos < 0) return '—';

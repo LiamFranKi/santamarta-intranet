@@ -14,6 +14,15 @@ const mysqlHost = isProduction
 
 console.log(`🔌 MySQL: ${isProduction ? 'PRODUCCIÓN' : 'DESARROLLO'} - Host: ${mysqlHost}`);
 
+/** Límite por proceso Node; con muchos usuarios concurrentes, 10 saturaba el pool (colas largas). Ajustar con MYSQL_CONNECTION_LIMIT (5–100). */
+function mysqlPoolConnectionLimit() {
+  const raw = parseInt(String(process.env.MYSQL_CONNECTION_LIMIT || '').trim(), 10);
+  if (Number.isFinite(raw) && raw >= 5 && raw <= 100) return raw;
+  return isProduction ? 32 : 12;
+}
+const MYSQL_POOL_LIMIT = mysqlPoolConnectionLimit();
+console.log(`🔌 MySQL pool connectionLimit=${MYSQL_POOL_LIMIT} (opcional: MYSQL_CONNECTION_LIMIT; max_connections del servidor debe ser mayor)`);
+
 const mysqlReadPool = mysql.createPool({
   host: mysqlHost,
   port: process.env.MYSQL_PORT || 3306,
@@ -21,7 +30,7 @@ const mysqlReadPool = mysql.createPool({
   password: process.env.MYSQL_PASSWORD,
   database: process.env.MYSQL_DATABASE,
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: MYSQL_POOL_LIMIT,
   queueLimit: 0,
   multipleStatements: false,
   // Configuración adicional para producción

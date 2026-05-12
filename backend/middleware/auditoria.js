@@ -1,6 +1,27 @@
 const { registrarAccion } = require('../utils/auditoria');
 
 /**
+ * GETs de polling muy frecuentes: antes cada respuesta disparaba INSERT en auditoría,
+ * compitiendo con lecturas/escrituras reales por el mismo pool MySQL.
+ */
+function esGetAuditoriaAltaFrecuencia(req) {
+  if (req.method !== 'GET') return false;
+  const pathOnly = String(req.originalUrl || req.url || '').split('?')[0];
+  if (pathOnly.includes('modal-pendiente')) return true;
+  return /^\/api\/elecciones\/(portal|alumno)\/procesos\/\d+\/resultados$/i.test(pathOnly);
+}
+
+/** Sin registro automático en auditoría (reduce carga BD con muchos usuarios; staff sigue auditado). */
+const TIPOS_SIN_AUDITORIA_AUTOMATICA = new Set(['ALUMNO', 'APODERADO']);
+
+function omitirAuditoriaAutomaticaPorTipoUsuario(req) {
+  const tipo = String(req.user?.tipo || '')
+    .trim()
+    .toUpperCase();
+  return TIPOS_SIN_AUDITORIA_AUTOMATICA.has(tipo);
+}
+
+/**
  * Middleware para registrar automáticamente todas las acciones
  */
 const middlewareAuditoria = (req, res, next) => {
@@ -23,6 +44,14 @@ const middlewareAuditoria = (req, res, next) => {
       return originalJson(data);
     }
 
+    if (esGetAuditoriaAltaFrecuencia(req)) {
+      return originalJson(data);
+    }
+
+    if (omitirAuditoriaAutomaticaPorTipoUsuario(req)) {
+      return originalJson(data);
+    }
+
     // Registrar acción de forma asíncrona (no bloquea la respuesta)
     if (req.user) {
       registrarAccion({
@@ -40,7 +69,7 @@ const middlewareAuditoria = (req, res, next) => {
         user_agent: req.get('user-agent'),
         datos_nuevos: req.method !== 'GET' ? sanitizarDatos(req.body) : null,
         resultado: res.statusCode < 400 ? 'EXITOSO' : 'ERROR',
-        mensaje_error: res.statusCode >= 400 ? JSON.stringify(data) : null,
+        mensaje_error: res.statusCode >= 400 ? serializarRespuestaAuditoria(data) : null,
         duracion_ms: duracion,
       }).catch(err => {
         console.error('Error en auditoría:', err);
@@ -148,6 +177,20 @@ function sanitizarDatos(data) {
   delete sanitized.secret;
   
   return sanitized;
+}
+
+/** Evita que JSON.stringify en el payload de error tumbe res.json (circular/BigInt). */
+function serializarRespuestaAuditoria(data) {
+  try {
+    if (data == null) return null;
+    return JSON.stringify(data);
+  } catch {
+    try {
+      return JSON.stringify({ error: 'payload_no_serializable' });
+    } catch {
+      return null;
+    }
+  }
 }
 
 module.exports = middlewareAuditoria;

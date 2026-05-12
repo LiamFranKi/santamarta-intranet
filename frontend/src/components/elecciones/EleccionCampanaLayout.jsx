@@ -53,7 +53,7 @@ export default function EleccionCampanaLayout({ children }) {
     };
 
     refresh();
-    const id = window.setInterval(refresh, 3000);
+    const id = window.setInterval(refresh, 8000);
     return () => {
       mounted = false;
       window.clearInterval(id);
