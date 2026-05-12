@@ -194,6 +194,31 @@ body.li-libreta-modal-open.swal2-shown .swal2-container {
   background: #f1f5f9;
 }
 
+/* Registro por alumno: columna detalle oculta (sigue en DOM; el guardado envía detalle vacío o lo ya cargado). */
+.li-table-mini.li-table-mini--registro-ocultar-detalle {
+  table-layout: fixed;
+}
+
+.li-table-mini.li-table-mini--registro-ocultar-detalle .li-col-detalle {
+  display: none;
+}
+
+.li-table-mini.li-table-mini--registro-ocultar-detalle .li-col-indicador {
+  width: auto;
+}
+
+.li-table-mini.li-table-mini--registro-ocultar-detalle .li-col-nota {
+  width: 6.5rem;
+  white-space: nowrap;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.li-table-mini.li-table-mini--registro-ocultar-detalle .li-col-nota .li-select-nota {
+  width: 100%;
+  max-width: 6rem;
+}
+
 .li-select-nota {
   min-width: 4.5rem;
 }

@@ -314,7 +314,7 @@ function DocenteGrupos() {
                                       }}
                                     >
                                       <span className="dropdown-icon">✏️</span>
-                                      <span>Registrar notas y detalles</span>
+                                      <span>Registrar Notas</span>
                                     </button>
                                   </>
                                 )}

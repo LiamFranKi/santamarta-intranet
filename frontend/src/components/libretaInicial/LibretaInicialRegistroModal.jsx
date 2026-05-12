@@ -145,7 +145,7 @@ export default function LibretaInicialRegistroModal({ grupo, onClose }) {
       <div className="li-modal" role="dialog" aria-labelledby="li-reg-title" onClick={(e) => e.stopPropagation()}>
         <div className="li-modal-header">
           <div>
-            <h2 id="li-reg-title">Registrar notas y detalles</h2>
+            <h2 id="li-reg-title">Registrar Notas</h2>
             <p className="li-modal-sub">{tituloGrupo}</p>
           </div>
           <button type="button" className="li-btn-close" onClick={onClose} aria-label="Cerrar">
@@ -173,7 +173,7 @@ export default function LibretaInicialRegistroModal({ grupo, onClose }) {
           ) : (
             <>
               <p style={{ color: '#64748b', fontSize: '0.88rem', marginTop: 0 }}>
-                Abra un alumno, complete el detalle y la nota por indicador, y use <strong>Guardar este alumno</strong>{' '}
+                Abra un alumno, complete la <strong>nota</strong> por indicador, y use <strong>Guardar este alumno</strong>{' '}
                 antes de cerrar o cambiar de alumno para no perder cambios.
               </p>
               {(alumnos || []).map((al) => (
@@ -199,26 +199,26 @@ export default function LibretaInicialRegistroModal({ grupo, onClose }) {
                       {areas.map((ar) => (
                         <div key={ar.id} style={{ marginBottom: '1rem' }}>
                           <div style={{ fontWeight: 700, marginBottom: '0.35rem', color: '#334155' }}>{ar.nombre}</div>
-                          <table className="li-table-mini">
+                          <table className="li-table-mini li-table-mini--registro-ocultar-detalle">
                             <thead>
                               <tr>
-                                <th>Indicador</th>
-                                <th>Descripción / detalle</th>
-                                <th style={{ width: 88 }}>Nota</th>
+                                <th className="li-col-indicador">Indicador</th>
+                                <th className="li-col-detalle">Descripción / detalle</th>
+                                <th className="li-col-nota">Nota</th>
                               </tr>
                             </thead>
                             <tbody>
                               {(ar.indicadores || []).map((ind) => (
                                 <tr key={ind.id}>
-                                  <td>{ind.descripcion}</td>
-                                  <td>
+                                  <td className="li-col-indicador">{ind.descripcion}</td>
+                                  <td className="li-col-detalle">
                                     <textarea
                                       className="li-textarea-detalle"
                                       value={edit.vals[ind.id]?.detalle ?? ''}
                                       onChange={(e) => setVal(ind.id, 'detalle', e.target.value)}
                                     />
                                   </td>
-                                  <td>
+                                  <td className="li-col-nota">
                                     <select
                                       className="li-input li-select-nota"
                                       value={edit.vals[ind.id]?.nota ?? ''}

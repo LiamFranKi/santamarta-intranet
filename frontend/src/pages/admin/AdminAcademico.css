@@ -827,9 +827,11 @@ body.admin-academico-page .swal2-container {
   padding: 0.35rem 0;
 }
 
-/* SweetAlert2 — Exportar notas (evita barra horizontal y popup estrecho) */
+/* SweetAlert2 — Exportar notas (ancho cómodo, sin scroll horizontal) */
 .swal2-popup.admin-academico-sw-export-notas {
   box-sizing: border-box;
+  width: min(46rem, calc(100vw - 2rem)) !important;
+  max-width: min(46rem, calc(100vw - 2rem)) !important;
 }
 
 .swal2-html-container.admin-academico-sw-export-notas-html {

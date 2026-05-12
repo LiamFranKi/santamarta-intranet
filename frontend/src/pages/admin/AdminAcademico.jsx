@@ -1256,8 +1256,8 @@ function GruposPanel({ meta }) {
         .join('');
       const { isConfirmed, value } = await Swal.fire({
         title: 'Exportar Notas',
-        width: 'min(32rem, calc(100vw - 1.5rem))',
-        padding: '1.35rem 1.25rem 1rem',
+        width: 'min(46rem, calc(100vw - 2rem))',
+        padding: '1.4rem 1.85rem 1.1rem',
         customClass: {
           popup: 'admin-academico-sw-export-notas',
           htmlContainer: 'admin-academico-sw-export-notas-html',
