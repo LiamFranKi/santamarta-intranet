@@ -86,7 +86,7 @@ function flattenIndicadoresCurso(curso) {
   return rows;
 }
 
-/** Leyenda ESCALA extendida (pie de página). */
+/** Leyenda Nivel de logro (pie de página, cabecera "NIVEL DE LOGRO"). */
 const ESCALA_INICIAL_DETALLE = [
   {
     letra: 'AD',
@@ -356,7 +356,7 @@ export function renderLibretaInicialBoleta(doc, opts) {
         doc.setFillColor(...blanco);
         doc.rect(margin + colArea, y0, colDesc, rh, 'FD');
         doc.setFont('helvetica', 'normal');
-        doc.text('—', margin + colArea + 1.5, y0 + rh / 2 + 1);
+        doc.text('—', margin + colArea + colDesc / 2, y0 + rh / 2 + 1, { align: 'center' });
         const stNL = getNotaCualitativaPdfStyle('');
         doc.setFillColor(...stNL.fill);
         doc.rect(xNL, y0, colNL, rh, 'FD');
@@ -415,10 +415,13 @@ export function renderLibretaInicialBoleta(doc, opts) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.setTextColor(0, 0, 0);
-        let yi = yRow + 3.35;
+        const lhDesc = 3.65;
+        const blockInd = lineas.length * lhDesc;
+        const xDescMid = margin + colArea + colDesc / 2;
+        let yi = yRow + Math.max(2.35, (rh - blockInd) / 2 + lhDesc * 0.72);
         lineas.forEach((ln) => {
-          doc.text(ln, margin + colArea + 1.2, yi, { maxWidth: colDesc - 2.4 });
-          yi += 3.65;
+          doc.text(ln, xDescMid, yi, { align: 'center', maxWidth: colDesc - 2.4 });
+          yi += lhDesc;
         });
 
         const notaStr = getNota(ind);
@@ -522,7 +525,7 @@ export function renderLibretaInicialBoleta(doc, opts) {
   hResumenTotal = yR - yLey;
 
   const xEsc = margin + wResumenPie + gapPie;
-  drawCellCentered(doc, xEsc, yLey, wEscala, hLeyHead, verde, 'ESCALA', { fontSize: 8, bold: true });
+  drawCellCentered(doc, xEsc, yLey, wEscala, hLeyHead, verde, 'NIVEL DE LOGRO', { fontSize: 8, bold: true });
   const leyLetraW = wEscala * 0.1;
   const wTxtCol = wEscala - leyLetraW - 2.2;
   let yy = yLey + hLeyHead;
