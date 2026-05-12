@@ -1,4 +1,5 @@
 import React from 'react';
+import { idsAlternativaExamenIguales } from '../../utils/examenRespuestaIds';
 
 function PreguntaVerdaderoFalso({ pregunta, respuesta, onRespuestaChange }) {
   if (!pregunta) {
@@ -21,27 +22,23 @@ function PreguntaVerdaderoFalso({ pregunta, respuesta, onRespuestaChange }) {
     return desc === 'falso' || desc.includes('falso') || desc === 'false';
   });
 
-  // Determinar qué alternativa está seleccionada
-  // La respuesta puede ser: ID numérico, string 'VERDADERO'/'FALSO', o el ID como string
-  const respuestaId = typeof respuesta === 'number' 
-    ? respuesta 
-    : (typeof respuesta === 'string' && !isNaN(parseInt(respuesta)))
-      ? parseInt(respuesta)
-      : null;
-  
-  // Verificar selección
-  const estaSeleccionadoVerdadero = alternativaVerdadero 
-    ? (respuestaId === alternativaVerdadero.id || respuesta === alternativaVerdadero.id)
-    : (respuesta === 'VERDADERO' || respuesta === 'verdadero');
-  
+  // Verificar selección (IDs pueden ser number o string desde la API)
+  const estaSeleccionadoVerdadero = alternativaVerdadero
+    ? idsAlternativaExamenIguales(respuesta, alternativaVerdadero.id) ||
+      respuesta === 'VERDADERO' ||
+      respuesta === 'verdadero'
+    : respuesta === 'VERDADERO' || respuesta === 'verdadero';
+
   const estaSeleccionadoFalso = alternativaFalso
-    ? (respuestaId === alternativaFalso.id || respuesta === alternativaFalso.id)
-    : (respuesta === 'FALSO' || respuesta === 'falso');
+    ? idsAlternativaExamenIguales(respuesta, alternativaFalso.id) ||
+      respuesta === 'FALSO' ||
+      respuesta === 'falso'
+    : respuesta === 'FALSO' || respuesta === 'falso';
 
   const handleSeleccionar = (alternativa, fallbackValue) => {
-    if (alternativa && alternativa.id) {
-      // Guardar el ID de la alternativa
-      onRespuestaChange(alternativa.id);
+    const idRaw = alternativa?.id;
+    if (alternativa != null && idRaw !== null && idRaw !== '' && Number.isFinite(Number(idRaw))) {
+      onRespuestaChange(Number(idRaw));
     } else if (fallbackValue) {
       // Fallback: guardar como string si no hay alternativa
       onRespuestaChange(fallbackValue);

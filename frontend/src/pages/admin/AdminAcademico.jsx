@@ -7,6 +7,10 @@ import Swal from 'sweetalert2';
 import GrupoAlumnosListaView from '../../components/grupoAlumnos/GrupoAlumnosListaView';
 import { useGrupoReportesConducta } from '../../components/grupoReportes/useGrupoReportesConducta';
 import GrupoHorarioCompletoModal from '../../components/grupoHorario/GrupoHorarioCompletoModal';
+import AdminGrupoAsistenciaModal from '../../components/admin/AdminGrupoAsistenciaModal';
+import { exportGrupoCarnetsPdfA4 } from '../../utils/carnetQrPdf';
+import { generarPDFNotasTutoria } from '../../utils/pdfNotasTutoria';
+import { jsPDF } from 'jspdf';
 import './AdminDocumentosGestion.css';
 import './AdminAcademico.css';
 
@@ -518,13 +522,13 @@ function IconoPapelera() {
 
 const OPCIONES_GRUPO_MENU = [
   { key: 'lista_alumnos', label: 'Lista de Alumnos', icon: '👥' },
-  { key: 'reporte_incidencias', label: 'Incidencia', icon: '📌' },
-  { key: 'reporte_presentacion', label: 'Presentación', icon: '📉' },
   { key: 'ver_horario', label: 'Ver Horario', icon: '🗓️' },
   { key: 'registro_asistencia', label: 'Registro de Asistencia', icon: '📝' },
   { key: 'imprimir_qr', label: 'Imprimir QR', icon: '🧾' },
   { key: 'registro_notas', label: 'Registro de Notas', icon: '📚' },
   { key: 'recomendaciones', label: 'Recomendaciones', icon: '💡' },
+  { key: 'reporte_incidencias', label: 'Incidencia', icon: '📌' },
+  { key: 'reporte_presentacion', label: 'Presentación', icon: '📉' },
   { key: 'editar', label: 'Editar', icon: '✏️' },
   { key: 'eliminar', label: 'Eliminar', icon: '🗑️', danger: true }
 ];
@@ -811,6 +815,13 @@ function GruposPanel({ meta }) {
   const [menuGrupoId, setMenuGrupoId] = useState(null);
   const [listaAlumnosGrupoRow, setListaAlumnosGrupoRow] = useState(null);
   const [horarioModalGrupo, setHorarioModalGrupo] = useState(null);
+  const [grupoAsistenciaAdmin, setGrupoAsistenciaAdmin] = useState(null);
+  const [mostrarModalRecomendacionesAdmin, setMostrarModalRecomendacionesAdmin] = useState(false);
+  const [grupoRecomendacionesAdmin, setGrupoRecomendacionesAdmin] = useState(null);
+  const [recomendacionesCicloAdmin, setRecomendacionesCicloAdmin] = useState(1);
+  const [recomendacionesAlumnosAdmin, setRecomendacionesAlumnosAdmin] = useState([]);
+  const [loadingRecomendacionesAdmin, setLoadingRecomendacionesAdmin] = useState(false);
+  const [guardandoRecomendacionesAdmin, setGuardandoRecomendacionesAdmin] = useState(false);
   const [subiendoHorario, setSubiendoHorario] = useState(false);
 
   const reportesConducta = useGrupoReportesConducta({
@@ -993,6 +1004,151 @@ function GruposPanel({ meta }) {
     }
   };
 
+  const cerrarModalRecomendacionesAdmin = () => {
+    setMostrarModalRecomendacionesAdmin(false);
+    setGrupoRecomendacionesAdmin(null);
+    setRecomendacionesAlumnosAdmin([]);
+  };
+
+  const cargarRecomendacionesAdmin = async (grupoId, ciclo) => {
+    if (!grupoId) return;
+    try {
+      setLoadingRecomendacionesAdmin(true);
+      const res = await api.get(`/admin/academico/grupos/${grupoId}/recomendaciones`, { params: { ciclo } });
+      setRecomendacionesAlumnosAdmin(res.data.alumnos || []);
+    } catch (error) {
+      console.error('Error cargando recomendaciones:', error);
+      Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudieron cargar' });
+      setRecomendacionesAlumnosAdmin([]);
+    } finally {
+      setLoadingRecomendacionesAdmin(false);
+    }
+  };
+
+  const handleCambiarCicloRecomendacionesAdmin = (ciclo) => {
+    setRecomendacionesCicloAdmin(ciclo);
+    if (grupoRecomendacionesAdmin) {
+      cargarRecomendacionesAdmin(grupoRecomendacionesAdmin.id, ciclo);
+    }
+  };
+
+  const handleRecomendacionChangeAdmin = (matriculaId, valor) => {
+    setRecomendacionesAlumnosAdmin((prev) =>
+      prev.map((a) => (a.matricula_id === matriculaId ? { ...a, recomendacion: valor } : a))
+    );
+  };
+
+  const handleGuardarRecomendacionesAdmin = async () => {
+    if (!grupoRecomendacionesAdmin) return;
+    try {
+      setGuardandoRecomendacionesAdmin(true);
+      const rec = {};
+      recomendacionesAlumnosAdmin.forEach((a) => {
+        rec[a.matricula_id] = a.recomendacion || '';
+      });
+      await api.post(`/admin/academico/grupos/${grupoRecomendacionesAdmin.id}/recomendaciones`, {
+        ciclo: recomendacionesCicloAdmin,
+        recomendaciones: rec,
+      });
+      Swal.fire({
+        icon: 'success',
+        title: 'Guardado',
+        text: 'Recomendaciones guardadas correctamente',
+        timer: 2000,
+        showConfirmButton: false,
+      });
+    } catch (error) {
+      console.error('Error guardando recomendaciones:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo guardar',
+      });
+    } finally {
+      setGuardandoRecomendacionesAdmin(false);
+    }
+  };
+
+  const exportarPDFRecomendacionesAdmin = async () => {
+    if (!recomendacionesAlumnosAdmin.length) {
+      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
+      return;
+    }
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 14;
+    const grupoNombre = grupoRecomendacionesAdmin
+      ? `${grupoRecomendacionesAdmin.grado}° ${grupoRecomendacionesAdmin.seccion} - ${grupoRecomendacionesAdmin.nivel_nombre}`
+      : '';
+    let yPos = 0;
+    const colorPrimario = [102, 126, 234];
+    const colorBlanco = [255, 255, 255];
+
+    try {
+      const logoRes = await fetch('/icons/logoboleta.png');
+      if (logoRes.ok) {
+        const blob = await logoRes.blob();
+        const dataUrl = await new Promise((res) => {
+          const r = new FileReader();
+          r.onloadend = () => res(r.result);
+          r.readAsDataURL(blob);
+        });
+        doc.addImage(dataUrl, 'PNG', margin, 4, 24, 24);
+      }
+    } catch (e) {
+      /* ignorar */
+    }
+
+    doc.setFillColor(...colorPrimario);
+    doc.rect(0, 0, pageWidth, 36, 'F');
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...colorBlanco);
+    doc.text('APRECIACIONES / RECOMENDACIONES', margin + 30, 14);
+    doc.setFontSize(10);
+    doc.setTextColor(240, 240, 240);
+    doc.text(
+      `Grupo: ${grupoNombre}  |  Bimestre: ${recomendacionesCicloAdmin}  |  Año: ${grupoRecomendacionesAdmin?.anio || ''}`,
+      margin + 30,
+      24
+    );
+    yPos = 42;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+    recomendacionesAlumnosAdmin.forEach((a) => {
+      if (yPos > pageHeight - 35) {
+        doc.addPage();
+        yPos = margin;
+      }
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${a.numero}. ${a.nombre_completo}`, margin, yPos);
+      yPos += 5;
+      doc.setFont('helvetica', 'normal');
+      const texto = (a.recomendacion || '').trim() || '(Sin recomendación)';
+      const lineas = doc.splitTextToSize(texto, pageWidth - 2 * margin);
+      lineas.forEach((l) => {
+        doc.text(l, margin + 5, yPos);
+        yPos += 5;
+      });
+      yPos += 5;
+    });
+
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Generado: ${new Date().toLocaleString('es-PE')}`, margin, pageHeight - 8);
+    doc.save(`Recomendaciones_${grupoNombre.replace(/\s+/g, '_')}_B${recomendacionesCicloAdmin}.pdf`);
+    Swal.fire({
+      icon: 'success',
+      title: 'PDF generado',
+      text: 'El reporte se descargó correctamente',
+      timer: 2000,
+      showConfirmButton: false,
+    });
+  };
+
   const accionGrupoMenu = async (accion, row) => {
     if (accion === 'editar') {
       openEdit(row);
@@ -1035,6 +1191,149 @@ function GruposPanel({ meta }) {
     if (accion === 'ver_horario') {
       setMenuGrupoId(null);
       setHorarioModalGrupo(row);
+      return;
+    }
+    if (accion === 'registro_asistencia') {
+      if (vistaSoloLecturaGrados) return;
+      setGrupoAsistenciaAdmin(row);
+      return;
+    }
+    if (accion === 'imprimir_qr') {
+      if (vistaSoloLecturaGrados) return;
+      setMenuGrupoId(null);
+      try {
+        Swal.fire({
+          title: 'Generando carnets…',
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          },
+        });
+        const { data } = await api.get(`/admin/academico/grupos/${row.id}/qr-carnets`);
+        Swal.close();
+        const carnets = data.carnets || [];
+        if (!carnets.length) {
+          await Swal.fire({
+            icon: 'info',
+            title: 'Sin alumnos',
+            text: 'Este grupo no tiene matrículas regulares para imprimir QR.',
+          });
+          return;
+        }
+        const sec = String(etiquetaSeccionGrupo(row.seccion)).replace(/\s+/g, '_');
+        const fileBase = `Carnets_QR_${String(row.nivel_nombre || 'Grupo').replace(/\s+/g, '_')}_${row.grado}_${sec}`;
+        await exportGrupoCarnetsPdfA4(carnets, { fileBase });
+        await Swal.fire({
+          icon: 'success',
+          title: 'PDF listo',
+          text: `Se exportaron ${carnets.length} carnet(es) en A4 (2×4 por hoja). Cada código corresponde al alumno del carnet.`,
+        });
+      } catch (e) {
+        Swal.close();
+        await Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: e.response?.data?.error || e.message || 'No se pudo generar el PDF',
+        });
+      }
+      return;
+    }
+    if (accion === 'registro_notas') {
+      if (vistaSoloLecturaGrados) return;
+      setMenuGrupoId(null);
+      const anioEsperado = row.anio != null ? parseInt(row.anio, 10) : parseInt(anio, 10);
+      if (!Number.isFinite(anioEsperado)) {
+        await Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo determinar el año del grupo.' });
+        return;
+      }
+      const añosParaExport = [...new Set([...añosSelect, anioEsperado])].sort((a, b) => b - a);
+      const optsAnio = añosParaExport
+        .map((y) => `<option value="${y}"${y === anioEsperado ? ' selected' : ''}>${y}</option>`)
+        .join('');
+      const { isConfirmed, value } = await Swal.fire({
+        title: 'Exportar Notas',
+        html: `
+          <p style="margin:0 0 12px;font-size:14px;color:#444;text-align:left">Seleccione el año escolar y el bimestre a exportar.</p>
+          <div style="text-align:left;margin-bottom:10px">
+            <label for="swal-notas-anio" style="display:block;font-weight:600;margin-bottom:4px">Año</label>
+            <select id="swal-notas-anio" class="swal2-select" style="width:100%">${optsAnio}</select>
+          </div>
+          <div style="text-align:left">
+            <label for="swal-notas-ciclo" style="display:block;font-weight:600;margin-bottom:4px">Bimestre</label>
+            <select id="swal-notas-ciclo" class="swal2-select" style="width:100%">
+              <option value="1">I Bimestre</option>
+              <option value="2">II Bimestre</option>
+              <option value="3">III Bimestre</option>
+              <option value="4">IV Bimestre</option>
+            </select>
+          </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Generar PDF',
+        cancelButtonText: 'Cancelar',
+        focusConfirm: false,
+        preConfirm: () => {
+          const anioSel = parseInt(document.getElementById('swal-notas-anio')?.value, 10);
+          const cicloSel = parseInt(document.getElementById('swal-notas-ciclo')?.value, 10) || 1;
+          if (!Number.isFinite(anioSel)) {
+            Swal.showValidationMessage('Seleccione un año válido');
+            return false;
+          }
+          if (anioSel !== anioEsperado) {
+            Swal.showValidationMessage(`El año debe ser ${anioEsperado} (año de esta aula en el catálogo).`);
+            return false;
+          }
+          return { anio: anioSel, ciclo: cicloSel };
+        },
+      });
+      if (!isConfirmed || !value) return;
+      try {
+        const response = await api.get(`/admin/academico/grupos/${row.id}/notas-todos`, {
+          params: { ciclo: value.ciclo, anio: value.anio },
+        });
+        const cursosData = response.data?.cursos || [];
+        const grupoInfo = response.data?.grupo || row;
+        if (cursosData.length === 0) {
+          await Swal.fire({
+            icon: 'info',
+            title: 'Sin datos',
+            text: 'No hay cursos con notas para este grupo',
+            confirmButtonText: 'Entendido',
+          });
+          return;
+        }
+        const ok = generarPDFNotasTutoria(cursosData, grupoInfo);
+        if (ok) {
+          await Swal.fire({
+            icon: 'success',
+            title: '¡PDF Generado!',
+            text: `Se descargó el reporte de notas de ${cursosData.length} curso(s)`,
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 3000,
+            zIndex: 100001,
+          });
+        }
+      } catch (error) {
+        console.error('Error generando PDF de notas:', error);
+        await Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: error.response?.data?.error || 'No se pudo generar el PDF de notas',
+          confirmButtonText: 'Entendido',
+        });
+      }
+      return;
+    }
+    if (accion === 'recomendaciones') {
+      if (vistaSoloLecturaGrados) return;
+      setMenuGrupoId(null);
+      setGrupoRecomendacionesAdmin(row);
+      setMostrarModalRecomendacionesAdmin(true);
+      setRecomendacionesCicloAdmin(1);
+      await cargarRecomendacionesAdmin(row.id, 1);
       return;
     }
     const titulos = {
@@ -1377,6 +1676,115 @@ function GruposPanel({ meta }) {
           onClose={() => setHorarioModalGrupo(null)}
         />
       ) : null}
+      <AdminGrupoAsistenciaModal
+        open={!!grupoAsistenciaAdmin && !vistaSoloLecturaGrados}
+        grupo={grupoAsistenciaAdmin}
+        onClose={() => setGrupoAsistenciaAdmin(null)}
+      />
+      {mostrarModalRecomendacionesAdmin && grupoRecomendacionesAdmin
+        ? createPortal(
+            <div
+              className="modal-registro-asistencia-overlay"
+              onClick={cerrarModalRecomendacionesAdmin}
+              role="presentation"
+            >
+              <div
+                className="modal-registro-asistencia-container"
+                onClick={(e) => e.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+              >
+                <div className="modal-registro-asistencia-header">
+                  <h2>💬 Apreciaciones / Recomendaciones</h2>
+                  <button
+                    className="modal-registro-asistencia-close"
+                    onClick={cerrarModalRecomendacionesAdmin}
+                    type="button"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="modal-registro-asistencia-filters">
+                  <label htmlFor="admin-rec-ciclo">Bimestre:</label>
+                  <select
+                    id="admin-rec-ciclo"
+                    value={recomendacionesCicloAdmin}
+                    onChange={(e) => handleCambiarCicloRecomendacionesAdmin(parseInt(e.target.value, 10))}
+                    disabled={loadingRecomendacionesAdmin}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      border: '2px solid #e5e7eb',
+                      borderRadius: 8,
+                      fontSize: '1rem',
+                      background: 'white',
+                      minWidth: 100,
+                    }}
+                  >
+                    {[1, 2, 3, 4].map((b) => (
+                      <option key={b} value={b}>
+                        Bimestre {b}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="btn-imprimir-asistencia"
+                    onClick={exportarPDFRecomendacionesAdmin}
+                    disabled={loadingRecomendacionesAdmin || !recomendacionesAlumnosAdmin.length}
+                  >
+                    🖨️ Exportar PDF
+                  </button>
+                </div>
+                <div className="modal-registro-asistencia-table-wrap">
+                  {loadingRecomendacionesAdmin ? (
+                    <div className="modal-registro-asistencia-loading">
+                      <div className="loading-spinner" />
+                      <p>Cargando...</p>
+                    </div>
+                  ) : (
+                    <table className="tabla-registro-asistencia">
+                      <thead>
+                        <tr>
+                          <th style={{ width: 50 }}>N°</th>
+                          <th>APELLIDOS Y NOMBRES</th>
+                          <th>RECOMENDACIÓN</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recomendacionesAlumnosAdmin.map((a) => (
+                          <tr key={a.matricula_id}>
+                            <td style={{ textAlign: 'center', fontWeight: 600 }}>{a.numero}</td>
+                            <td>{a.nombre_completo}</td>
+                            <td>
+                              <textarea
+                                className="input-recomendacion"
+                                value={a.recomendacion || ''}
+                                onChange={(e) => handleRecomendacionChangeAdmin(a.matricula_id, e.target.value)}
+                                rows={3}
+                                placeholder="Escribe la recomendación..."
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+                <div className="modal-registro-asistencia-footer">
+                  <button
+                    type="button"
+                    className="btn-guardar-asistencias"
+                    onClick={handleGuardarRecomendacionesAdmin}
+                    disabled={loadingRecomendacionesAdmin || guardandoRecomendacionesAdmin}
+                  >
+                    {guardandoRecomendacionesAdmin ? 'Guardando...' : 'Guardar Datos'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </section>
     {reportesConducta.ReportesModals}
     </>

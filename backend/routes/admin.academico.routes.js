@@ -10,12 +10,37 @@ const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 const { sqlMatriculaEstadoSoloRegular } = require('../utils/matriculaEstados');
+const moment = require('moment-timezone');
+const mensajesConfig = require('../config/mensajes.json');
+const { crearNotificacionesApoderados } = require('./docente.routes');
+const {
+  buildQrCarnetPayloadForAlumnoEnGrupo,
+  leerLogoBoletaBase64,
+} = require('../utils/qrCarnetAlumnoData');
+const { fetchNotasTodosGrupoData } = require('../utils/notasTodosGrupoData');
+const {
+  fetchGrupoRecomendacionesContext,
+  listarAlumnosRecomendacionesPorGrupo,
+  guardarRecomendacionesPorGrupo,
+} = require('../utils/recomendacionesGrupoMatriculas');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
   if (req.user?.tipo === 'ADMINISTRADOR') return next();
   if (req.user?.tipo === 'PSICOLOGA') {
     const p = req.path || '';
+    if (p.includes('/qr-carnets')) {
+      return res.status(403).json({ error: 'No autorizado para exportar carnets QR.' });
+    }
+    if (p.includes('/notas-todos')) {
+      return res.status(403).json({ error: 'No autorizado para exportar registro de notas.' });
+    }
+    if (p.includes('/recomendaciones')) {
+      return res.status(403).json({ error: 'No autorizado para apreciaciones o recomendaciones del grupo.' });
+    }
+    if (p.includes('/asistencia')) {
+      return res.status(403).json({ error: 'No autorizado para registro de asistencia.' });
+    }
     if (p === '/meta' || p.startsWith('/grupos') || p.startsWith('/grados')) {
       return next();
     }
@@ -450,6 +475,495 @@ router.get('/grupos/:grupoId/horario', async (req, res) => {
   } catch (e) {
     console.error('[admin/academico/grupos/:grupoId/horario]', e);
     res.status(500).json({ error: 'Error al obtener horario' });
+  }
+});
+
+/** Solo administrador: registro de asistencia por grupo (misma lógica que tutoría docente). */
+function assertSoloAdminAsistencia(req, res) {
+  if (req.user?.tipo !== 'ADMINISTRADOR') {
+    res.status(403).json({
+      error: 'Solo el administrador puede registrar asistencia desde Grados.',
+    });
+    return false;
+  }
+  return true;
+}
+
+/**
+ * GET /api/admin/academico/grupos/:grupoId/asistencia?fecha=YYYY-MM-DD
+ */
+router.get('/grupos/:grupoId/asistencia', async (req, res) => {
+  try {
+    if (!assertSoloAdminAsistencia(req, res)) return;
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const cid = colegio(req);
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'ID de grupo inválido' });
+    }
+
+    const grupoRows = await query(
+      `SELECT g.*, n.nombre as nivel_nombre FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.id = ? AND g.colegio_id = ?`,
+      [grupoId, cid]
+    );
+    if (!grupoRows.length) {
+      return res.status(404).json({ error: 'Grupo no encontrado' });
+    }
+
+    const { fecha } = req.query;
+    const fechaQuery = fecha
+      ? moment(fecha).format('YYYY-MM-DD')
+      : moment().tz('America/Lima').format('YYYY-MM-DD');
+
+    const matriculas = await query(
+      `SELECT m.id as matricula_id, a.id as alumno_id,
+              CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo
+       FROM matriculas m
+       INNER JOIN alumnos a ON a.id = m.alumno_id
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
+      [grupoId, cid]
+    );
+
+    const asistencias =
+      matriculas.length === 0
+        ? []
+        : await query(
+            `SELECT matricula_id, tipo, hora_entrada, hora_salida
+             FROM matriculas_asistencias
+             WHERE matricula_id IN (${matriculas.map(() => '?').join(',')}) AND fecha = ?`,
+            [...matriculas.map((m) => m.matricula_id), fechaQuery]
+          );
+    const mapaAsistencia = {};
+    (asistencias || []).forEach((a) => {
+      mapaAsistencia[a.matricula_id] = a;
+    });
+
+    const lista = matriculas.map((m, i) => ({
+      numero: i + 1,
+      matricula_id: m.matricula_id,
+      alumno_id: m.alumno_id,
+      nombre_completo: m.nombre_completo,
+      asistencia: mapaAsistencia[m.matricula_id] || null,
+      tipo: mapaAsistencia[m.matricula_id]?.tipo || null,
+    }));
+
+    res.json({ grupo: grupoRows[0], alumnos: lista, fecha: fechaQuery });
+  } catch (e) {
+    console.error('[admin/academico/grupos/:grupoId/asistencia GET]', e);
+    res.status(500).json({ error: 'Error al obtener asistencia' });
+  }
+});
+
+/**
+ * POST /api/admin/academico/grupos/:grupoId/asistencia
+ */
+router.post('/grupos/:grupoId/asistencia', async (req, res) => {
+  try {
+    if (!assertSoloAdminAsistencia(req, res)) return;
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const cid = colegio(req);
+    const anio_activo = parseInt(req.user.anio_activo, 10);
+    const { usuario_id } = req.user;
+    const { matricula_id, fecha, tipo, hora_dispositivo } = req.body;
+
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'ID de grupo inválido' });
+    }
+    if (!matricula_id || !fecha || !tipo) {
+      return res.status(400).json({ error: 'Datos incompletos' });
+    }
+    const tiposValidos = ['PRESENTE', 'TARDANZA', 'TARDANZA_JUSTIFICADA', 'FALTA', 'FALTA_JUSTIFICADA'];
+    if (!tiposValidos.includes(tipo)) {
+      return res.status(400).json({ error: 'Tipo inválido' });
+    }
+
+    const grupoOk = await query(`SELECT g.id FROM grupos g WHERE g.id = ? AND g.colegio_id = ?`, [grupoId, cid]);
+    if (!grupoOk.length) {
+      return res.status(403).json({ error: 'Grupo no encontrado o no pertenece a su colegio' });
+    }
+
+    const fechaNorm = moment(fecha).format('YYYY-MM-DD');
+    let horaActual = moment().tz('America/Lima').format('HH:mm:ss');
+    if (hora_dispositivo && typeof hora_dispositivo === 'string') {
+      const h = hora_dispositivo.trim();
+      const match = h.match(/^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/);
+      if (match) {
+        const hour = parseInt(match[1], 10);
+        const min = parseInt(match[2], 10);
+        const sec = match[3] != null ? parseInt(match[3], 10) : 0;
+        if (hour >= 0 && hour <= 23 && min >= 0 && min <= 59 && sec >= 0 && sec <= 59) {
+          horaActual = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+      }
+    }
+
+    const existente = await query(
+      `SELECT id, tipo FROM matriculas_asistencias WHERE matricula_id = ? AND fecha = ?`,
+      [matricula_id, fechaNorm]
+    );
+
+    let enviarNotificacion = false;
+    if (existente.length > 0) {
+      if (existente[0].tipo !== tipo) {
+        await execute(
+          `UPDATE matriculas_asistencias SET tipo = ?, hora_entrada = COALESCE(hora_entrada, ?) WHERE id = ?`,
+          [tipo, horaActual, existente[0].id]
+        );
+        enviarNotificacion = true;
+      }
+    } else {
+      await execute(
+        `INSERT INTO matriculas_asistencias (matricula_id, fecha, tipo, hora_entrada, created_at) VALUES (?, ?, ?, ?, NOW())`,
+        [matricula_id, fechaNorm, tipo, horaActual]
+      );
+      enviarNotificacion = true;
+    }
+
+    if (enviarNotificacion) {
+      const alumnoData = await query(
+        `SELECT a.id, a.nombres, a.apellido_paterno, a.apellido_materno
+         FROM alumnos a INNER JOIN matriculas m ON m.alumno_id = a.id
+         WHERE m.id = ? AND m.grupo_id = ? AND m.colegio_id = ?`,
+        [matricula_id, grupoId, cid]
+      );
+      if (alumnoData.length > 0) {
+        const nombreAlumno = `${alumnoData[0].nombres} ${alumnoData[0].apellido_paterno} ${alumnoData[0].apellido_materno}`.trim();
+        const fechaForm = moment(fechaNorm).format('DD/MM/YYYY');
+        const cfg = mensajesConfig.asistencia?.manual?.[tipo];
+        const tituloBase = cfg?.titulo || `Asistencia: ${tipo}`;
+        const palabraClaveManual =
+          {
+            PRESENTE: 'ASISTIÓ',
+            TARDANZA: 'TARDANZA',
+            TARDANZA_JUSTIFICADA: 'TARDANZA JUSTIFICADA',
+            FALTA: 'FALTA',
+            FALTA_JUSTIFICADA: 'FALTA JUSTIFICADA',
+          }[tipo] || tipo;
+        const titulo = `${palabraClaveManual} - ${tituloBase}`;
+        let mensaje = (cfg?.mensaje_corto || '')
+          .replace('{nombreAlumno}', nombreAlumno)
+          .replace('{fecha}', fechaForm);
+        if (tipo === 'FALTA' || tipo === 'TARDANZA') {
+          mensaje += (mensaje.trim() ? ' ' : '') + 'Comuníquese con su tutora para poder justificar su Falta o Tardanza.';
+        }
+        setImmediate(() => {
+          crearNotificacionesApoderados({
+            alumno_id: alumnoData[0].id,
+            usuario_id,
+            colegio_id: cid,
+            anio_activo,
+            tituloNotificacion: titulo,
+            mensajeNotificacion: mensaje,
+            tipoNotificacion: `asistencia_manual_${tipo}`,
+            dataExtra: { fecha: fechaNorm, tipo },
+          }).catch((err) => console.error('Error notificando asistencia:', err));
+        });
+      }
+    }
+
+    res.json({ success: true, tipo });
+  } catch (e) {
+    console.error('[admin/academico/grupos/:grupoId/asistencia POST]', e);
+    res.status(500).json({ error: 'Error al guardar asistencia' });
+  }
+});
+
+/**
+ * POST /api/admin/academico/grupos/:grupoId/asistencia/guardar-todo
+ */
+router.post('/grupos/:grupoId/asistencia/guardar-todo', async (req, res) => {
+  try {
+    if (!assertSoloAdminAsistencia(req, res)) return;
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const cid = colegio(req);
+    const anio_activo = parseInt(req.user.anio_activo, 10);
+    const { usuario_id } = req.user;
+    const { fecha, hora_dispositivo } = req.body;
+
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'ID de grupo inválido' });
+    }
+
+    const grupoOk = await query(`SELECT g.id FROM grupos g WHERE g.id = ? AND g.colegio_id = ?`, [grupoId, cid]);
+    if (!grupoOk.length) {
+      return res.status(403).json({ error: 'Grupo no encontrado o no pertenece a su colegio' });
+    }
+
+    const fechaNorm = fecha
+      ? moment(fecha).format('YYYY-MM-DD')
+      : moment().tz('America/Lima').format('YYYY-MM-DD');
+    let horaActual = moment().tz('America/Lima').format('HH:mm:ss');
+    if (hora_dispositivo && typeof hora_dispositivo === 'string') {
+      const h = hora_dispositivo.trim();
+      const match = h.match(/^(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?$/);
+      if (match) {
+        const hour = parseInt(match[1], 10);
+        const min = parseInt(match[2], 10);
+        const sec = match[3] != null ? parseInt(match[3], 10) : 0;
+        if (hour >= 0 && hour <= 23 && min >= 0 && min <= 59 && sec >= 0 && sec <= 59) {
+          horaActual = `${String(hour).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+        }
+      }
+    }
+
+    const matriculas = await query(
+      `SELECT m.id as matricula_id, a.id as alumno_id, a.nombres, a.apellido_paterno, a.apellido_materno
+       FROM matriculas m INNER JOIN alumnos a ON a.id = m.alumno_id
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)`,
+      [grupoId, cid]
+    );
+
+    const asistenciasExistentes =
+      matriculas.length === 0
+        ? []
+        : await query(
+            `SELECT matricula_id, tipo FROM matriculas_asistencias WHERE matricula_id IN (${matriculas.map(() => '?').join(',')}) AND fecha = ?`,
+            [...matriculas.map((m) => m.matricula_id), fechaNorm]
+          );
+    const mapa = {};
+    (asistenciasExistentes || []).forEach((a) => {
+      mapa[a.matricula_id] = a.tipo;
+    });
+
+    const considerarPresente = ['PRESENTE', 'TARDANZA', 'TARDANZA_JUSTIFICADA'];
+    const marcadosComoFalta = [];
+
+    for (const m of matriculas) {
+      const tipoActual = mapa[m.matricula_id];
+      const tienePresenteOTardanza = tipoActual && considerarPresente.includes(tipoActual);
+      if (!tienePresenteOTardanza) {
+        const existenteRow = await query(
+          `SELECT id, tipo FROM matriculas_asistencias WHERE matricula_id = ? AND fecha = ?`,
+          [m.matricula_id, fechaNorm]
+        );
+        const yaTieneFalta =
+          existenteRow.length > 0 &&
+          (existenteRow[0].tipo === 'FALTA' || existenteRow[0].tipo === 'FALTA_JUSTIFICADA');
+        if (yaTieneFalta) continue;
+        if (existenteRow.length > 0) {
+          await execute(`UPDATE matriculas_asistencias SET tipo = 'FALTA' WHERE id = ?`, [existenteRow[0].id]);
+        } else {
+          await execute(
+            `INSERT INTO matriculas_asistencias (matricula_id, fecha, tipo, hora_entrada, created_at) VALUES (?, ?, ?, ?, NOW())`,
+            [m.matricula_id, fechaNorm, 'FALTA', horaActual]
+          );
+        }
+        marcadosComoFalta.push({
+          alumno_id: m.alumno_id,
+          nombre_completo: `${m.nombres} ${m.apellido_paterno} ${m.apellido_materno}`.trim(),
+        });
+      }
+    }
+
+    for (const item of marcadosComoFalta) {
+      const cfg = mensajesConfig.asistencia?.manual?.FALTA;
+      const tituloBase = cfg?.titulo || 'Falta Registrada';
+      const titulo = `FALTA - ${tituloBase}`;
+      const fechaForm = moment(fechaNorm).format('DD/MM/YYYY');
+      let mensaje = (cfg?.mensaje_corto || '')
+        .replace('{nombreAlumno}', item.nombre_completo)
+        .replace('{fecha}', fechaForm);
+      mensaje += (mensaje.trim() ? ' ' : '') + 'Comuníquese con su tutora para poder justificar su Falta o Tardanza.';
+      setImmediate(() => {
+        crearNotificacionesApoderados({
+          alumno_id: item.alumno_id,
+          usuario_id,
+          colegio_id: cid,
+          anio_activo,
+          tituloNotificacion: titulo,
+          mensajeNotificacion: mensaje,
+          tipoNotificacion: 'asistencia_manual_FALTA',
+          dataExtra: { fecha: fechaNorm, tipo: 'FALTA' },
+        }).catch((err) => console.error('Error notificando falta:', err));
+      });
+    }
+
+    res.json({ success: true, marcados_como_falta: marcadosComoFalta.length });
+  } catch (e) {
+    console.error('[admin/academico/grupos/:grupoId/asistencia/guardar-todo]', e);
+    res.status(500).json({ error: 'Error al guardar asistencias' });
+  }
+});
+
+/**
+ * GET /api/admin/academico/grupos/:grupoId/qr-carnets
+ * Carnets QR por alumno del grupo (matrícula en ese grupo). Solo administrador.
+ */
+router.get('/grupos/:grupoId/qr-carnets', async (req, res) => {
+  try {
+    if (req.user?.tipo !== 'ADMINISTRADOR') {
+      return res.status(403).json({ error: 'Solo el administrador puede exportar carnets QR por grupo.' });
+    }
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const cid = colegio(req);
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'ID de grupo inválido' });
+    }
+
+    const grupoRows = await query(
+      `SELECT g.*, n.nombre AS nivel_nombre FROM grupos g
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.id = ? AND g.colegio_id = ?`,
+      [grupoId, cid]
+    );
+    if (!grupoRows.length) {
+      return res.status(404).json({ error: 'Grupo no encontrado' });
+    }
+    const grupo = grupoRows[0];
+
+    const [cRow] = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
+    const anioColegio = parseInt(cRow?.anio_activo || new Date().getFullYear(), 10);
+    const anioCarnet = Number.isFinite(parseInt(grupo.anio, 10)) ? parseInt(grupo.anio, 10) : anioColegio;
+
+    const alumnosRows = await query(
+      `SELECT a.id AS alumno_id
+       FROM matriculas m
+       INNER JOIN alumnos a ON a.id = m.alumno_id
+       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
+      [grupoId, cid]
+    );
+
+    const { logo_url, logo_base64 } = await leerLogoBoletaBase64(query);
+
+    const carnets = [];
+    for (const row of alumnosRows) {
+      const alumnoId = row.alumno_id;
+      const payload = await buildQrCarnetPayloadForAlumnoEnGrupo(query, {
+        colegio_id: cid,
+        alumno_id: alumnoId,
+        grupo_id: grupoId,
+        anio_activo: anioCarnet,
+      });
+      if (!payload || payload.alumno_id !== alumnoId) continue;
+      carnets.push({
+        ...payload,
+        logo_url,
+        logo_base64,
+      });
+    }
+
+    res.json({
+      grupo: {
+        id: grupo.id,
+        grado: grupo.grado,
+        seccion: grupo.seccion,
+        nivel_nombre: grupo.nivel_nombre,
+        anio: grupo.anio,
+      },
+      carnets,
+    });
+  } catch (e) {
+    console.error('[admin/academico/grupos/:grupoId/qr-carnets]', e);
+    res.status(500).json({ error: 'Error al armar carnets QR del grupo' });
+  }
+});
+
+/**
+ * GET /api/admin/academico/grupos/:grupoId/notas-todos?ciclo=1&anio=2025
+ * Mismos datos que tutoría (PDF notas todos los cursos). Solo administrador.
+ */
+router.get('/grupos/:grupoId/notas-todos', async (req, res) => {
+  try {
+    if (req.user?.tipo !== 'ADMINISTRADOR') {
+      return res.status(403).json({ error: 'Solo el administrador puede exportar el registro de notas por grupo.' });
+    }
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const cid = colegio(req);
+    const cicloInt = parseInt(req.query.ciclo, 10) || 1;
+    const anioGrupo = parseInt(req.query.anio, 10);
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'ID de grupo inválido' });
+    }
+    if (!Number.isFinite(anioGrupo)) {
+      return res.status(400).json({ error: 'Año escolar inválido' });
+    }
+    if (cicloInt < 1 || cicloInt > 4) {
+      return res.status(400).json({ error: 'Bimestre inválido' });
+    }
+
+    const { cursos, grupo } = await fetchNotasTodosGrupoData(query, {
+      grupoId,
+      colegio_id: cid,
+      anioGrupo,
+      cicloInt,
+    });
+    res.json({ cursos, grupo });
+  } catch (e) {
+    if (e.code === 'GRUPO_NOT_FOUND') {
+      return res.status(404).json({ error: 'Grupo no encontrado o no pertenece a ese año en su colegio' });
+    }
+    console.error('[admin/academico/grupos/:grupoId/notas-todos]', e);
+    res.status(500).json({ error: 'Error al obtener notas del grupo' });
+  }
+});
+
+/**
+ * GET /api/admin/academico/grupos/:grupoId/recomendaciones?ciclo=1
+ * Misma carga que tutoría. Solo administrador.
+ */
+router.get('/grupos/:grupoId/recomendaciones', async (req, res) => {
+  try {
+    if (req.user?.tipo !== 'ADMINISTRADOR') {
+      return res.status(403).json({ error: 'Solo el administrador puede ver recomendaciones por grupo.' });
+    }
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const cid = colegio(req);
+    const ciclo = parseInt(req.query.ciclo, 10) || 1;
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'ID de grupo inválido' });
+    }
+    const grupo = await fetchGrupoRecomendacionesContext(query, grupoId, cid);
+    if (!grupo) {
+      return res.status(404).json({ error: 'Grupo no encontrado' });
+    }
+    const lista = await listarAlumnosRecomendacionesPorGrupo(query, { grupoId, colegio_id: cid, ciclo });
+    res.json({ grupo, alumnos: lista, ciclo });
+  } catch (error) {
+    console.error('[admin/academico/grupos/:grupoId/recomendaciones GET]', error);
+    res.status(500).json({ error: 'Error al obtener recomendaciones' });
+  }
+});
+
+/**
+ * POST /api/admin/academico/grupos/:grupoId/recomendaciones
+ * body: { ciclo, recomendaciones: { matricula_id: texto } }
+ */
+router.post('/grupos/:grupoId/recomendaciones', async (req, res) => {
+  try {
+    if (req.user?.tipo !== 'ADMINISTRADOR') {
+      return res.status(403).json({ error: 'Solo el administrador puede guardar recomendaciones por grupo.' });
+    }
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const cid = colegio(req);
+    const { ciclo, recomendaciones } = req.body;
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'ID de grupo inválido' });
+    }
+    const cicloInt = parseInt(ciclo, 10) || 1;
+    if (cicloInt < 1 || cicloInt > 4) {
+      return res.status(400).json({ error: 'Ciclo inválido' });
+    }
+    const grupo = await fetchGrupoRecomendacionesContext(query, grupoId, cid);
+    if (!grupo) {
+      return res.status(404).json({ error: 'Grupo no encontrado' });
+    }
+    const personalActor =
+      req.user.personal_id != null && req.user.personal_id !== ''
+        ? parseInt(req.user.personal_id, 10)
+        : parseInt(req.user.usuario_id, 10) || 0;
+    await guardarRecomendacionesPorGrupo(query, execute, {
+      grupoId,
+      cicloInt,
+      recomendaciones,
+      personalActor,
+    });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[admin/academico/grupos/:grupoId/recomendaciones POST]', error);
+    res.status(500).json({ error: 'Error al guardar recomendaciones' });
   }
 });
 

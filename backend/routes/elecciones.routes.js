@@ -2033,6 +2033,12 @@ async function handlerEleccionesUrna(req, res) {
   }
 }
 
+function isDuplicateKeyMysql(err) {
+  if (!err) return false;
+  if (err.code === 'ER_DUP_ENTRY' || err.errno === 1062) return true;
+  return String(err.sqlMessage || err.message || '').includes('Duplicate entry');
+}
+
 async function handlerEleccionesVoto(req, res) {
   try {
     const procesoId = parseInt(req.params.id, 10);
@@ -2062,6 +2068,14 @@ async function handlerEleccionesVoto(req, res) {
       [listaId, procesoId]
     );
     if (!lista) return res.status(400).json({ error: 'Lista no válida' });
+
+    const votoPrev = await query(
+      `SELECT id FROM elecciones_voto WHERE proceso_id = ? AND usuario_id = ? LIMIT 1`,
+      [procesoId, req.user.usuario_id]
+    );
+    if (votoPrev && votoPrev.length > 0) {
+      return res.status(409).json({ error: 'Ya registraste tu voto en este proceso.', ya_voto: true });
+    }
 
     const ctxSnap = eleg.contextoMatricula;
     const tipoV = String(req.user.tipo || '').toUpperCase();
@@ -2099,17 +2113,18 @@ async function handlerEleccionesVoto(req, res) {
         ]
       );
     } catch (insErr) {
+      if (isDuplicateKeyMysql(insErr)) {
+        return res.status(409).json({ error: 'Ya registraste tu voto en este proceso.', ya_voto: true });
+      }
       if (insErr.code === 'ER_BAD_FIELD_ERROR' || insErr.errno === 1054) {
         try {
           await insertFallbackSinTipo();
         } catch (e2) {
-          if (e2.code === 'ER_DUP_ENTRY' || e2.errno === 1062) {
-            return res.status(409).json({ error: 'Ya registraste tu voto en este proceso.' });
+          if (isDuplicateKeyMysql(e2)) {
+            return res.status(409).json({ error: 'Ya registraste tu voto en este proceso.', ya_voto: true });
           }
           throw e2;
         }
-      } else if (insErr.code === 'ER_DUP_ENTRY' || insErr.errno === 1062) {
-        return res.status(409).json({ error: 'Ya registraste tu voto en este proceso.' });
       } else throw insErr;
     }
     res.status(201).json({ message: 'Voto registrado. ¡Gracias por participar!' });

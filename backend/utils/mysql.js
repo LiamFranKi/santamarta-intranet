@@ -56,7 +56,13 @@ async function execute(sql, params = []) {
     const [result] = await mysqlReadPool.execute(sql, params);
     return result;
   } catch (error) {
-    console.error('MySQL Execute Error:', error);
+    const isDup =
+      error?.code === 'ER_DUP_ENTRY' ||
+      error?.errno === 1062 ||
+      String(error?.sqlMessage || '').includes('Duplicate entry');
+    if (!isDup) {
+      console.error('MySQL Execute Error:', error);
+    }
     throw error;
   }
 }

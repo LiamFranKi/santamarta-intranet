@@ -11,6 +11,7 @@ import PreguntaOrdenar from '../components/examen/PreguntaOrdenar';
 import PreguntaEmparejar from '../components/examen/PreguntaEmparejar';
 import PreguntaArrastrarSoltar from '../components/examen/PreguntaArrastrarSoltar';
 import './AlumnoExamen.css';
+import { findAlternativaMarcadaVF } from '../utils/examenRespuestaIds';
 
 /** Acepta ALEATORIO aunque venga con espacios o distinta capitalización desde la API/BD */
 function ordenPreguntasEsAleatorio(val) {
@@ -1138,32 +1139,27 @@ function AlumnoExamen() {
     if (!tieneRespuesta) return null; // Retornar null para indicar que no hay respuesta
     
     switch (pregunta.tipo) {
-      case 'ALTERNATIVAS':
-        const alternativa = pregunta.alternativas?.find(alt => alt.id === respuesta);
+      case 'ALTERNATIVAS': {
+        const alternativa = findAlternativaMarcadaVF(pregunta.alternativas, respuesta);
         return alternativa ? { html: alternativa.descripcion, tipo: 'html' } : null;
-      
-      case 'VERDADERO_FALSO':
-        // La respuesta puede ser un ID numérico o un string 'VERDADERO'/'FALSO' (para compatibilidad)
-        if (typeof respuesta === 'number' || (typeof respuesta === 'string' && !isNaN(parseInt(respuesta)))) {
-          // Es un ID de alternativa
-          const alternativa = pregunta.alternativas?.find(alt => alt.id === parseInt(respuesta));
-          if (alternativa) {
-            const desc = alternativa.descripcion ? alternativa.descripcion.replace(/<[^>]*>/g, '').trim().toLowerCase() : '';
-            if (desc.includes('verdadero')) {
-              return { html: '✅ Verdadero', tipo: 'text' };
-            } else if (desc.includes('falso')) {
-              return { html: '❌ Falso', tipo: 'text' };
-            }
-            return { html: alternativa.descripcion || 'Sin descripción', tipo: 'html' };
+      }
+
+      case 'VERDADERO_FALSO': {
+        const alternativa = findAlternativaMarcadaVF(pregunta.alternativas, respuesta);
+        if (alternativa) {
+          const desc = alternativa.descripcion
+            ? alternativa.descripcion.replace(/<[^>]*>/g, '').trim().toLowerCase()
+            : '';
+          if (desc.includes('verdadero')) {
+            return { html: 'Verdadero', tipo: 'text' };
           }
-        } else if (respuesta === 'VERDADERO') {
-          // Compatibilidad con formato antiguo
-          return { html: '✅ Verdadero', tipo: 'text' };
-        } else if (respuesta === 'FALSO') {
-          // Compatibilidad con formato antiguo
-          return { html: '❌ Falso', tipo: 'text' };
+          if (desc.includes('falso')) {
+            return { html: 'Falso', tipo: 'text' };
+          }
+          return { html: alternativa.descripcion || 'Sin descripción', tipo: 'html' };
         }
         return null;
+      }
       
       case 'ORDENAR':
         if (Array.isArray(respuesta) && respuesta.length > 0) {

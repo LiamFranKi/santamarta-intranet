@@ -7,6 +7,11 @@ import Swal from 'sweetalert2';
 import { useAuth } from '../context/AuthContext';
 import './DocenteAulaVirtual-gamificado.css';
 import { huecosCompletarMetaPorDescripcion, esCompletarCorrecto } from '../utils/examenCompletar';
+import {
+  parseIdAlternativaExamen,
+  idsAlternativaExamenIguales,
+  findAlternativaMarcadaVF,
+} from '../utils/examenRespuestaIds';
 
 function AlumnoExamenResultados() {
   const { examenId } = useParams();
@@ -297,10 +302,13 @@ function DetallesExamenModal({ resultado, detalles, examen, onClose }) {
   // Función para determinar el estado de una alternativa
   const getEstadoAlternativa = (preguntaId, alternativaId, esCorrecta) => {
     const respuestaAlumno = respuestas[preguntaId] || respuestas[preguntaId.toString()];
-    const alternativaIdNum = typeof alternativaId === 'number' ? alternativaId : parseInt(alternativaId);
-    const respuestaAlumnoNum = typeof respuestaAlumno === 'number' ? respuestaAlumno : parseInt(respuestaAlumno);
-    const alumnoMarcó = respuestaAlumnoNum === alternativaIdNum;
-    
+    const alternativaIdNum = Number(alternativaId);
+    const respuestaAlumnoNum = parseIdAlternativaExamen(respuestaAlumno);
+    const alumnoMarcó =
+      respuestaAlumnoNum !== null &&
+      Number.isFinite(alternativaIdNum) &&
+      respuestaAlumnoNum === alternativaIdNum;
+
     if (esCorrecta) {
       if (alumnoMarcó) {
         return 'correcta_marcada';
@@ -346,7 +354,7 @@ function DetallesExamenModal({ resultado, detalles, examen, onClose }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         {preguntas.map((pregunta, index) => {
           const respuestaAlumno = respuestas[pregunta.id] || respuestas[pregunta.id.toString()];
-          const respuestaAlumnoNum = respuestaAlumno ? (typeof respuestaAlumno === 'number' ? respuestaAlumno : parseInt(respuestaAlumno)) : null;
+          const respuestaAlumnoNum = parseIdAlternativaExamen(respuestaAlumno);
           
           const renderizarPregunta = () => {
             switch (pregunta.tipo) {
@@ -485,31 +493,38 @@ function DetallesExamenModal({ resultado, detalles, examen, onClose }) {
                 );
               }
 
-              case 'VERDADERO_FALSO':
-                const respuestaVFAlumno = respuestaAlumnoNum || respuestaAlumno;
-                const alternativaVFMarcada = pregunta.alternativas?.find(alt => {
-                  const altId = typeof alt.id === 'number' ? alt.id : parseInt(alt.id);
-                  return altId === respuestaVFAlumno || altId === respuestaAlumnoNum;
-                });
-                
-                const alternativaVFCorrecta = pregunta.alternativas?.find(alt => alt.correcta === 'SI' || alt.correcta === true);
-                const esCorrectaVF = alternativaVFMarcada && alternativaVFCorrecta && 
-                                   alternativaVFMarcada.id === alternativaVFCorrecta.id;
-                
+              case 'VERDADERO_FALSO': {
+                const alternativaVFMarcada = findAlternativaMarcadaVF(
+                  pregunta.alternativas,
+                  respuestaAlumno
+                );
+
+                const alternativaVFCorrecta = pregunta.alternativas?.find(
+                  (alt) => alt.correcta === 'SI' || alt.correcta === true
+                );
+                const esCorrectaVF =
+                  alternativaVFMarcada &&
+                  alternativaVFCorrecta &&
+                  idsAlternativaExamenIguales(alternativaVFMarcada.id, alternativaVFCorrecta.id);
+
                 let respuestaVFTexto = '(sin respuesta)';
                 if (alternativaVFMarcada) {
-                  const desc = alternativaVFMarcada.descripcion ? alternativaVFMarcada.descripcion.replace(/<[^>]*>/g, '').trim() : '';
+                  const desc = alternativaVFMarcada.descripcion
+                    ? alternativaVFMarcada.descripcion.replace(/<[^>]*>/g, '').trim()
+                    : '';
                   respuestaVFTexto = desc || 'Sin descripción';
                 } else if (respuestaAlumno === 'VERDADERO' || respuestaAlumno === 'verdadero') {
                   respuestaVFTexto = 'Verdadero';
                 } else if (respuestaAlumno === 'FALSO' || respuestaAlumno === 'falso') {
                   respuestaVFTexto = 'Falso';
                 }
-                
-                const respuestaVFCorrectaTexto = alternativaVFCorrecta 
-                  ? (alternativaVFCorrecta.descripcion ? alternativaVFCorrecta.descripcion.replace(/<[^>]*>/g, '').trim() : 'Sin descripción')
+
+                const respuestaVFCorrectaTexto = alternativaVFCorrecta
+                  ? alternativaVFCorrecta.descripcion
+                    ? alternativaVFCorrecta.descripcion.replace(/<[^>]*>/g, '').trim()
+                    : 'Sin descripción'
                   : 'No definida';
-                
+
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ 
@@ -550,6 +565,7 @@ function DetallesExamenModal({ resultado, detalles, examen, onClose }) {
                     </div>
                   </div>
                 );
+              }
 
               case 'RESPUESTA_CORTA':
                 const respuestaCortaAlumno = typeof respuestaAlumno === 'string' ? respuestaAlumno : String(respuestaAlumno || '');

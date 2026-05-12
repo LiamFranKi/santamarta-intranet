@@ -15,6 +15,7 @@ const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente'
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
+const { findAlternativaMarcadaVF } = require('../utils/examenRespuestaIds');
 const { etiquetaGradoGrupo } = require('../utils/notificacionExamenApoderadoTexto');
 const { enviarCorreoHtml } = require('../services/emailService');
 
@@ -128,15 +129,9 @@ function resolverTextoRespuesta(pregunta, respuestaAlumno) {
   }
 
   if (tipo === 'ALTERNATIVAS' || tipo === 'VERDADERO_FALSO') {
-    const rid =
-      typeof respuestaAlumno === 'number'
-        ? respuestaAlumno
-        : (typeof respuestaAlumno === 'string' && !Number.isNaN(parseInt(respuestaAlumno, 10)))
-          ? parseInt(respuestaAlumno, 10)
-          : null;
-    if (rid !== null) {
-      const alt = alternativas.find((a) => Number(a.id) === Number(rid));
-      if (alt) return htmlToPlain(alt.descripcion || `Alternativa ${rid}`) || `Alternativa ${rid}`;
+    const alt = findAlternativaMarcadaVF(alternativas, respuestaAlumno);
+    if (alt) {
+      return htmlToPlain(alt.descripcion || `Alternativa ${alt.id}`) || `Alternativa ${alt.id}`;
     }
     return htmlToPlain(String(respuestaAlumno));
   }
@@ -4353,47 +4348,14 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
         case 'ALTERNATIVAS':
         case 'VERDADERO_FALSO':
           if (respuestaAlumno !== null && respuestaAlumno !== undefined && respuestaAlumno !== '') {
-            // Normalizar la respuesta (puede ser número, string numérico, o string 'VERDADERO'/'FALSO')
-            const respuestaId = typeof respuestaAlumno === 'number' 
-              ? respuestaAlumno 
-              : (typeof respuestaAlumno === 'string' && !isNaN(parseInt(respuestaAlumno)))
-                ? parseInt(respuestaAlumno)
-                : null;
-            
-            if (respuestaId !== null) {
-              // Buscar la alternativa marcada por ID
-              const alternativaMarcada = alternativas.find(alt => {
-                const altId = typeof alt.id === 'number' ? alt.id : parseInt(alt.id);
-                return altId === respuestaId;
-              });
-              
-              if (alternativaMarcada && alternativaMarcada.correcta === 'SI') {
-                esCorrecta = true;
-                puntosPregunta = tipoPuntaje === 'GENERAL' 
-                  ? puntosCorrecta
-                  : (parseFloat(pregunta.puntos) || 0);
-              } else if (examen[0].penalizar_incorrecta === 'SI') {
-                puntosPregunta = -(parseFloat(examen[0].penalizacion_incorrecta) || 0);
-              }
-            } else {
-              // Si la respuesta es un string 'VERDADERO'/'FALSO' (compatibilidad con formato antiguo)
-              // Buscar la alternativa que coincida con el texto
-              const respuestaTexto = String(respuestaAlumno).trim().toLowerCase();
-              const alternativaMarcada = alternativas.find(alt => {
-                if (!alt.descripcion) return false;
-                const desc = alt.descripcion.replace(/<[^>]*>/g, '').trim().toLowerCase();
-                return (respuestaTexto === 'verdadero' && desc.includes('verdadero')) ||
-                       (respuestaTexto === 'falso' && desc.includes('falso'));
-              });
-              
-              if (alternativaMarcada && alternativaMarcada.correcta === 'SI') {
-                esCorrecta = true;
-                puntosPregunta = tipoPuntaje === 'GENERAL' 
-                  ? puntosCorrecta
-                  : (parseFloat(pregunta.puntos) || 0);
-              } else if (examen[0].penalizar_incorrecta === 'SI') {
-                puntosPregunta = -(parseFloat(examen[0].penalizacion_incorrecta) || 0);
-              }
+            const alternativaMarcada = findAlternativaMarcadaVF(alternativas, respuestaAlumno);
+            if (alternativaMarcada && alternativaMarcada.correcta === 'SI') {
+              esCorrecta = true;
+              puntosPregunta = tipoPuntaje === 'GENERAL'
+                ? puntosCorrecta
+                : (parseFloat(pregunta.puntos) || 0);
+            } else if (examen[0].penalizar_incorrecta === 'SI') {
+              puntosPregunta = -(parseFloat(examen[0].penalizacion_incorrecta) || 0);
             }
           }
           break;

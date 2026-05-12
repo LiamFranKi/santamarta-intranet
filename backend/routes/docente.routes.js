@@ -35,12 +35,18 @@ const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente'
 const { tryInsertPushCronDedup, fechaLimaYmd } = require('../utils/pushCronDedup');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
+const { findAlternativaMarcadaVF } = require('../utils/examenRespuestaIds');
 const { assertDocentePuedeEditarContenidoExamenVirtual, examenBloqueaEdicionContenidoDocente } = require('../utils/examenBloqueoEdicionContenido');
 const {
   fetchRangosCiclosParsed,
   contarInasistenciasBimestre,
   contarTardanzasBimestre,
 } = require('../utils/libretaResumenBimestres');
+const { fetchNotasTodosGrupoData } = require('../utils/notasTodosGrupoData');
+const {
+  listarAlumnosRecomendacionesPorGrupo,
+  guardarRecomendacionesPorGrupo,
+} = require('../utils/recomendacionesGrupoMatriculas');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { lineaAlumnoGrado } = require('../utils/notificacionExamenApoderadoTexto');
 const { listarDeudoresGrupo, mergeObservacionesTutor } = require('../utils/tutorDeudoresService');
@@ -6269,169 +6275,13 @@ router.get('/tutoria/grupos/:grupoId/notas-todos', async (req, res) => {
       return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
 
-    // Obtener asignaturas del grupo
-    const asignaturas = await query(
-      `SELECT a.id, a.grupo_id, c.nombre as curso_nombre, c.peso_examen_mensual, c.examen_mensual
-       FROM asignaturas a
-       INNER JOIN cursos c ON c.id = a.curso_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?
-       ORDER BY c.nombre ASC`,
-      [grupoId, colegio_id, anio_activo]
-    );
-
-    if (asignaturas.length === 0) {
-      return res.json({ cursos: [], grupo: grupoTutor[0] });
-    }
-
-    const grupoInfo = grupoTutor[0];
-    const cursosConNotas = [];
-
-    const esInicialTutoria = (grupoInfo.tipo_calificacion === 0);
-
-    for (const asignatura of asignaturas) {
-      const cursoId = asignatura.id;
-
-      // Obtener criterios del curso
-      let criterios = await query(
-        `SELECT * FROM asignaturas_criterios
-         WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = ? OR ciclo = 0)
-         ORDER BY orden ASC`,
-        [cursoId, colegio_id, cicloInt]
-      );
-      // INICIAL: si no hay criterios para bimestre 2, 3 o 4, usar los del 1er bimestre
-      if (criterios.length === 0 && [2, 3, 4].includes(cicloInt) && esInicialTutoria) {
-        criterios = await query(
-          `SELECT * FROM asignaturas_criterios
-           WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = 1 OR ciclo = 0)
-           ORDER BY orden ASC`,
-          [cursoId, colegio_id]
-        );
-      }
-
-      const criterioIds = criterios.map(c => c.id);
-      let todosIndicadores = [];
-      if (criterioIds.length > 0) {
-        todosIndicadores = await query(
-          `SELECT * FROM asignaturas_indicadores
-           WHERE criterio_id IN (${criterioIds.map(() => '?').join(',')})
-           ORDER BY criterio_id ASC, id ASC`,
-          criterioIds
-        );
-      }
-
-      const indicadoresPorCriterio = {};
-      todosIndicadores.forEach(indicador => {
-        if (!indicadoresPorCriterio[indicador.criterio_id]) {
-          indicadoresPorCriterio[indicador.criterio_id] = [];
-        }
-        indicadoresPorCriterio[indicador.criterio_id].push(indicador);
-      });
-
-      const criteriosConIndicadores = criterios.map(criterio => ({
-        ...criterio,
-        indicadores: indicadoresPorCriterio[criterio.id] || []
-      }));
-
-      // Obtener alumnos del grupo
-      const alumnos = await query(
-        `SELECT a.id as alumno_id,
-                a.nombres,
-                a.apellido_paterno,
-                a.apellido_materno,
-                CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
-                m.id as matricula_id
-         FROM alumnos a
-         INNER JOIN matriculas m ON m.alumno_id = a.id
-         INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE m.grupo_id = ?
-           AND m.colegio_id = ?
-           AND (m.estado = 0)
-           AND g.anio = ?
-         ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
-        [grupoId, colegio_id, anio_activo]
-      );
-
-      const matriculaIds = alumnos.map(a => a.matricula_id);
-      let todasNotasDetalles = [];
-      let todasNotasCriterios = [];
-      let todasExamenesMensuales = [];
-      let todosPromedios = [];
-
-      if (matriculaIds.length > 0) {
-        todasNotasDetalles = await query(
-          `SELECT matricula_id, data FROM notas_detalles
-           WHERE asignatura_id = ? AND matricula_id IN (${matriculaIds.map(() => '?').join(',')}) AND ciclo = ?`,
-          [cursoId, ...matriculaIds, cicloInt]
-        );
-        todasNotasCriterios = await query(
-          `SELECT matricula_id, criterio_id, nota FROM notas
-           WHERE asignatura_id = ? AND matricula_id IN (${matriculaIds.map(() => '?').join(',')}) AND ciclo = ?`,
-          [cursoId, ...matriculaIds, cicloInt]
-        );
-        if (asignatura.examen_mensual === 'SI') {
-          todasExamenesMensuales = await query(
-            `SELECT matricula_id, nro, nota FROM notas_examen_mensual
-             WHERE asignatura_id = ? AND matricula_id IN (${matriculaIds.map(() => '?').join(',')}) AND ciclo = ?
-             ORDER BY matricula_id ASC, nro ASC`,
-            [cursoId, ...matriculaIds, cicloInt]
-          );
-        }
-        todosPromedios = await query(
-          `SELECT matricula_id, promedio FROM promedios
-           WHERE asignatura_id = ? AND matricula_id IN (${matriculaIds.map(() => '?').join(',')}) AND ciclo = ?`,
-          [cursoId, ...matriculaIds, cicloInt]
-        );
-      }
-
-      const alumnosConNotas = alumnos.map((alumno, index) => {
-        const matriculaId = alumno.matricula_id;
-        const notaDetalle = todasNotasDetalles.find(nd => nd.matricula_id === matriculaId);
-        let notasDetalladas = {};
-        if (notaDetalle && notaDetalle.data) {
-          notasDetalladas = deserializarNotasDetalles(notaDetalle.data);
-        }
-        const notasCriterios = todasNotasCriterios.filter(n => n.matricula_id === matriculaId);
-        const notasMap = {};
-        notasCriterios.forEach(nota => { notasMap[nota.criterio_id] = nota.nota; });
-        const examenesAlumno = todasExamenesMensuales.filter(e => e.matricula_id === matriculaId);
-        const examenesMap = {};
-        examenesAlumno.forEach(examen => { examenesMap[examen.nro] = examen.nota; });
-        const promedioAlumno = todosPromedios.find(p => p.matricula_id === matriculaId);
-
-        return {
-          ...alumno,
-          numero: index + 1,
-          notas_detalladas: notasDetalladas,
-          notas_criterios: notasMap,
-          examenes_mensuales: examenesMap,
-          promedio_final: promedioAlumno ? promedioAlumno.promedio : null
-        };
-      });
-
-      cursosConNotas.push({
-        curso: {
-          id: cursoId,
-          curso_nombre: asignatura.curso_nombre,
-          grado: grupoInfo.grado,
-          seccion: grupoInfo.seccion,
-          nivel_nombre: grupoInfo.nivel_nombre,
-          grupo_id: grupoId,
-          nivel: {
-            tipo_calificacion: grupoInfo.tipo_calificacion,
-            tipo_calificacion_final: grupoInfo.tipo_calificacion_final,
-            nota_aprobatoria: grupoInfo.nota_aprobatoria,
-            nota_maxima: grupoInfo.nota_maxima,
-            nota_minima: grupoInfo.nota_minima
-          },
-          examen_mensual: asignatura.examen_mensual === 'SI',
-          peso_examen_mensual: asignatura.peso_examen_mensual || 0
-        },
-        criterios: criteriosConIndicadores,
-        alumnos: alumnosConNotas,
-        ciclo: cicloInt
-      });
-    }
+    const anioGrupo = parseInt(grupoTutor[0].anio, 10) || parseInt(anio_activo, 10);
+    const { cursos: cursosConNotas, grupo: grupoInfo } = await fetchNotasTodosGrupoData(query, {
+      grupoId,
+      colegio_id,
+      anioGrupo,
+      cicloInt,
+    });
 
     res.json({ cursos: cursosConNotas, grupo: grupoInfo });
   } catch (error) {
@@ -8707,29 +8557,10 @@ router.get('/tutoria/grupos/:grupoId/recomendaciones', async (req, res) => {
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    const matriculas = await query(
-      `SELECT m.id as matricula_id, a.id as alumno_id,
-              CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo,
-              m.recomendaciones
-       FROM matriculas m INNER JOIN alumnos a ON a.id = m.alumno_id
-       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
-       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
-      [grupoId, colegio_id]
-    );
-
-    const phpSerialize = require('php-serialize');
-    const lista = matriculas.map((m, i) => {
-      let descripcion = '';
-      if (m.recomendaciones) {
-        try {
-          const decoded = Buffer.from(m.recomendaciones, 'base64').toString('binary');
-          const deserialized = phpSerialize.unserialize(decoded);
-          if (deserialized && deserialized[ciclo] && deserialized[ciclo].descripcion) {
-            descripcion = deserialized[ciclo].descripcion || '';
-          }
-        } catch (e) { /* ignore */ }
-      }
-      return { numero: i + 1, matricula_id: m.matricula_id, nombre_completo: m.nombre_completo, recomendacion: descripcion };
+    const lista = await listarAlumnosRecomendacionesPorGrupo(query, {
+      grupoId,
+      colegio_id,
+      ciclo,
     });
 
     res.json({ grupo: grupoTutor[0], alumnos: lista, ciclo });
@@ -8760,23 +8591,12 @@ router.post('/tutoria/grupos/:grupoId/recomendaciones', async (req, res) => {
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    const phpSerialize = require('php-serialize');
-    for (const [matriculaId, descripcion] of Object.entries(recomendaciones || {})) {
-      const rows = await query(`SELECT id, recomendaciones FROM matriculas WHERE id = ? AND grupo_id = ?`, [matriculaId, grupoId]);
-      if (rows.length === 0) continue;
-
-      let rec = {};
-      if (rows[0].recomendaciones) {
-        try {
-          const decoded = Buffer.from(rows[0].recomendaciones, 'base64').toString('binary');
-          rec = phpSerialize.unserialize(decoded) || {};
-        } catch (e) { }
-      }
-      rec[cicloInt] = { descripcion: String(descripcion || '').trim(), personal: personalId };
-      const serialized = phpSerialize.serialize(rec);
-      const encoded = Buffer.from(serialized, 'binary').toString('base64');
-      await execute(`UPDATE matriculas SET recomendaciones = ? WHERE id = ?`, [encoded, matriculaId]);
-    }
+    await guardarRecomendacionesPorGrupo(query, execute, {
+      grupoId,
+      cicloInt,
+      recomendaciones,
+      personalActor: personalId,
+    });
 
     res.json({ success: true });
   } catch (error) {
@@ -20147,57 +19967,16 @@ router.post('/aula-virtual/examenes/:examenId/calificar', async (req, res) => {
           // Evaluar según el tipo de pregunta (misma lógica que finalizar examen)
           switch (pregunta.tipo) {
             case 'ALTERNATIVAS':
+            case 'VERDADERO_FALSO':
               if (respuestaAlumno !== null && respuestaAlumno !== undefined && respuestaAlumno !== '') {
-                const alternativaId = typeof respuestaAlumno === 'number' ? respuestaAlumno : parseInt(respuestaAlumno);
-                const alternativaMarcada = alternativas.find(alt => {
-                  const altIdComp = typeof alt.id === 'number' ? alt.id : parseInt(alt.id);
-                  return altIdComp === alternativaId;
-                });
-                
+                const alternativaMarcada = findAlternativaMarcadaVF(alternativas, respuestaAlumno);
                 if (alternativaMarcada && alternativaMarcada.correcta === 'SI') {
                   esCorrecta = true;
-                  puntosPregunta = tipoPuntaje === 'GENERAL' 
+                  puntosPregunta = tipoPuntaje === 'GENERAL'
                     ? puntosCorrecta
                     : (parseFloat(pregunta.puntos) || 0);
                 } else if (examenInfo.penalizar_incorrecta === 'SI') {
                   puntosPregunta = -(parseFloat(examenInfo.penalizacion_incorrecta) || 0);
-                }
-              }
-              break;
-
-            case 'VERDADERO_FALSO':
-              if (respuestaAlumno !== null && respuestaAlumno !== undefined && respuestaAlumno !== '') {
-                if (typeof respuestaAlumno === 'number') {
-                  const alternativaMarcada = alternativas.find(alt => {
-                    const altIdComp = typeof alt.id === 'number' ? alt.id : parseInt(alt.id);
-                    return altIdComp === respuestaAlumno;
-                  });
-                  
-                  if (alternativaMarcada && alternativaMarcada.correcta === 'SI') {
-                    esCorrecta = true;
-                    puntosPregunta = tipoPuntaje === 'GENERAL' 
-                      ? puntosCorrecta
-                      : (parseFloat(pregunta.puntos) || 0);
-                  } else if (examenInfo.penalizar_incorrecta === 'SI') {
-                    puntosPregunta = -(parseFloat(examenInfo.penalizacion_incorrecta) || 0);
-                  }
-                } else {
-                  const respuestaTexto = String(respuestaAlumno).trim().toLowerCase();
-                  const alternativaMarcada = alternativas.find(alt => {
-                    if (!alt.descripcion) return false;
-                    const desc = alt.descripcion.replace(/<[^>]*>/g, '').trim().toLowerCase();
-                    return (respuestaTexto === 'verdadero' && desc.includes('verdadero')) ||
-                           (respuestaTexto === 'falso' && desc.includes('falso'));
-                  });
-                  
-                  if (alternativaMarcada && alternativaMarcada.correcta === 'SI') {
-                    esCorrecta = true;
-                    puntosPregunta = tipoPuntaje === 'GENERAL' 
-                      ? puntosCorrecta
-                      : (parseFloat(pregunta.puntos) || 0);
-                  } else if (examenInfo.penalizar_incorrecta === 'SI') {
-                    puntosPregunta = -(parseFloat(examenInfo.penalizacion_incorrecta) || 0);
-                  }
                 }
               }
               break;
