@@ -90,7 +90,9 @@ export default function AlumnoElecciones() {
             const convocado =
               p.puede_participar !== undefined && p.puede_participar !== null ? !!p.puede_participar : !!p.puede_ver;
             const msApertura = msRestantesHasta(cd?.votacion_iso_inicio, now);
+            const msCierre = msRestantesHasta(cd?.votacion_iso_fin, now);
             const horarioOk = votacionHorarioAbiertoCliente(cd);
+            const puedeVerResultados = p.estado === 'RESULTADOS' || p.estado === 'CERRADA' || (msCierre != null && msCierre <= 0);
             const cuenta =
               (p.estado === 'VOTACION' || p.estado === 'CAMPAÑA') && msApertura != null && msApertura > 0
                 ? textoCuentaRegresivaUrna(msApertura)
@@ -143,9 +145,11 @@ export default function AlumnoElecciones() {
                   <Link className="elcc-alum-btn elcc-alum-btn-primary elcc-alum-btn--centered" to={`${routeBase}/${p.id}`}>
                     Ver página de campaña
                   </Link>
-                  <Link className="elcc-alum-btn elcc-alum-btn-results elcc-alum-btn--centered" to={`${routeBase}/${p.id}/resultados`}>
-                    Ver resultados
-                  </Link>
+                  {puedeVerResultados && (
+                    <Link className="elcc-alum-btn elcc-alum-btn-results elcc-alum-btn--centered" to={`${routeBase}/${p.id}/resultados`}>
+                      Ver resultados
+                    </Link>
+                  )}
                 </div>
               </article>
             );

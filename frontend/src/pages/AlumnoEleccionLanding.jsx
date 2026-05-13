@@ -142,7 +142,10 @@ export default function AlumnoEleccionLanding() {
 
   const cd = countdown_urna;
   const msApertura = msRestantesHasta(cd?.votacion_iso_inicio, now);
+  const msCierre = msRestantesHasta(cd?.votacion_iso_fin, now);
   const horarioOk = votacionHorarioAbiertoCliente(cd);
+  const puedeVerResultados =
+    proceso.estado === 'RESULTADOS' || proceso.estado === 'CERRADA' || proceso.estado === 'ARCHIVO' || (msCierre != null && msCierre <= 0);
   let bloqueoUrnaTxt = null;
   if (proceso.estado === 'VOTACION') {
     if (!puede_participar) bloqueoUrnaTxt = motivo_bloqueo || 'No estás convocado/a para votar en este proceso.';
@@ -192,9 +195,11 @@ export default function AlumnoEleccionLanding() {
             <Link to={`${routeBase}/${pid}`} className="elcc-alum-landing-backlink">
               ← Volver a {proceso.titulo}
             </Link>
-            <Link to={`${routeBase}/${pid}/resultados`} className="elcc-alum-landing-backlink">
-              Ver resultados en vivo
-            </Link>
+            {puedeVerResultados && (
+              <Link to={`${routeBase}/${pid}/resultados`} className="elcc-alum-landing-backlink">
+                Ver resultados en vivo
+              </Link>
+            )}
           </div>
         </div>
 

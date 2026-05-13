@@ -45,8 +45,9 @@ export default function EleccionCampanaLayout({ children }) {
 
     const refresh = async () => {
       try {
-        await api.get(`${apiPrefix}/procesos/${procesoId}/resultados`);
-        if (mounted) setShowResultadosChip(true);
+        const { data } = await api.get(`${apiPrefix}/procesos/${procesoId}/resultados`);
+        const fase = String(data?.fase || '');
+        if (mounted) setShowResultadosChip(fase === 'SUSPENSO' || fase === 'GANADOR');
       } catch {
         if (mounted) setShowResultadosChip(false);
       }

@@ -59,7 +59,10 @@ export default function AlumnoEleccionProceso() {
   const { proceso, listas, puede_participar, motivo_bloqueo, ya_voto, puede_votar_ahora, countdown_urna } = data;
   const cd = countdown_urna;
   const msApertura = msRestantesHasta(cd?.votacion_iso_inicio, now);
+  const msCierre = msRestantesHasta(cd?.votacion_iso_fin, now);
   const horarioOk = votacionHorarioAbiertoCliente(cd);
+  const puedeVerResultados =
+    proceso.estado === 'RESULTADOS' || proceso.estado === 'CERRADA' || proceso.estado === 'ARCHIVO' || (msCierre != null && msCierre <= 0);
 
   let bloqueoUrnaTxt = null;
   if (proceso.estado === 'VOTACION') {
@@ -75,9 +78,11 @@ export default function AlumnoEleccionProceso() {
         ← Todas las elecciones
       </button>
       <div className="elcc-alum-top-actions">
-        <Link className="elcc-alum-btn elcc-alum-btn-results" to={`${routeBase}/${pid}/resultados`}>
-          Ver resultados
-        </Link>
+        {puedeVerResultados && (
+          <Link className="elcc-alum-btn elcc-alum-btn-results" to={`${routeBase}/${pid}/resultados`}>
+            Ver resultados
+          </Link>
+        )}
       </div>
 
       <header className="elcc-alum-hero elcc-alum-hero--pastel">

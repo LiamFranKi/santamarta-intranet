@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { CircularProgress } from '@mui/material';
 import DashboardLayout from '../components/DashboardLayout';
@@ -9,8 +9,8 @@ import { useEleccionPortalPaths } from './elecciones/useEleccionPortalPaths';
 import { msRestantesHasta } from './elecciones/eleccionCountdownUtils';
 import './EleccionResultadosLive.css';
 
-/** Evita N peticiones/seg por pestaña (muchas pestañas = saturación API/BD). 2,5 s sigue siendo «en vivo». */
-const POLL_MS = 2500;
+/** Reducimos presión sobre API/BD cerca del cierre y evitamos overlaps de requests. */
+const POLL_MS = 10000;
 
 function formatoMmSs(totalSegundos) {
   if (totalSegundos == null || totalSegundos < 0) return '—';
@@ -50,6 +50,7 @@ export default function EleccionResultadosLive() {
   const { procesoId } = useParams();
   const navigate = useNavigate();
   const now = useTickMs();
+  const requestInFlightRef = useRef(false);
   const pid = parseInt(procesoId, 10);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
@@ -57,6 +58,8 @@ export default function EleccionResultadosLive() {
 
   const load = useCallback(async () => {
     if (!pid || Number.isNaN(pid)) return;
+    if (requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
     try {
       const { data: d } = await api.get(`${apiPrefix}/procesos/${pid}/resultados`);
       setData(d);
@@ -65,6 +68,8 @@ export default function EleccionResultadosLive() {
       setLoading(false);
       Swal.fire('Resultados', e.response?.data?.error || 'No disponibles por ahora', 'info');
       navigate(`${routeBase}/${pid}`);
+    } finally {
+      requestInFlightRef.current = false;
     }
   }, [pid, apiPrefix, navigate, routeBase]);
 
@@ -76,7 +81,6 @@ export default function EleccionResultadosLive() {
 
   const msCierre = useMemo(() => msRestantesHasta(data?.votacion_iso_fin, now), [data?.votacion_iso_fin, now]);
   const msPublicacion = useMemo(() => msRestantesHasta(data?.publicar_desde_iso, now), [data?.publicar_desde_iso, now]);
-  const segundosFinales = msCierre != null ? Math.max(0, Math.ceil(msCierre / 1000)) : null;
   const segundosSuspenso = msPublicacion != null ? Math.max(0, Math.ceil(msPublicacion / 1000)) : 0;
 
   if (loading || !data) {
@@ -97,8 +101,8 @@ export default function EleccionResultadosLive() {
   const empateIds = new Set((empateListas || []).map((l) => l.lista_id));
   const fase = String(data.fase || '');
 
-  const showCountdownModal = fase === 'CUENTA_FINAL';
-  const showSuspenseModal = fase === 'SUSPENSO';
+  const showCountdownModal = fase === 'SUSPENSO';
+  const showSuspenseModal = false;
   const showWinnerModal = fase === 'GANADOR' && showWinner && !!winner;
   const untilCloseLabel = formatoHastaCierre(msCierre);
 
@@ -119,7 +123,8 @@ export default function EleccionResultadosLive() {
             <>
               <h2>Jornada aún sin cierre oficial</h2>
               <p className="elcc-rs-muted">
-                Mientras tanto puedes revisar las campañas. La cuenta regresiva a pantalla completa aparece cuando falten hasta 2 minutos para el cierre oficial (hora Lima).
+                Mientras tanto puedes revisar las campañas. Los resultados completos y la animación final se mostrarán recién después
+                del cierre oficial (hora Lima).
               </p>
               {untilCloseLabel && (
                 <p className="elcc-rs-wait-highlight">
@@ -131,9 +136,8 @@ export default function EleccionResultadosLive() {
             <>
               <h2>Esperando cierre oficial de la votación</h2>
               <p className="elcc-rs-muted">
-                La urna está abierta hasta el horario oficial. La ventana de cuenta atrás en grande se abrirá cuando queden hasta{' '}
-                <strong className="elcc-rs-wait-strong">2 minutos</strong>
-                antes del cierre (Lima). Luego viene el suspenso y el anuncio del ganador.
+                La urna sigue abierta hasta el horario oficial. Para no cargar antes de tiempo, la secuencia fuerte de resultados se
+                activa recién después del cierre (Lima).
               </p>
               {untilCloseLabel && (
                 <p className="elcc-rs-wait-highlight">
@@ -143,10 +147,16 @@ export default function EleccionResultadosLive() {
             </>
           ) : (
             <>
-              <h2>Esperando cierre oficial de la votacion</h2>
+              <h2>Conteo oficial en proceso</h2>
               <p className="elcc-rs-muted">
-                Cuando termine el conteo, el sistema mostrara automaticamente al ganador y habilitara los resultados completos.
+                La votacion ya cerró. Durante estos primeros minutos se procesa el conteo final y luego se mostrará automaticamente al
+                ganador con los resultados completos.
               </p>
+              {segundosSuspenso > 0 && (
+                <p className="elcc-rs-wait-highlight">
+                  Revelacion final en <strong>{formatoMmSs(segundosSuspenso)}</strong>.
+                </p>
+              )}
             </>
           )}
         </section>
@@ -222,10 +232,10 @@ export default function EleccionResultadosLive() {
         <div className="elcc-rs-modal-backdrop" role="dialog" aria-modal="true">
           {showCountdownModal && (
             <div className="elcc-rs-modal elcc-rs-modal--count">
-              <div className="elcc-rs-kicker">Finalizan las elecciones</div>
-              <div className="elcc-rs-big-mmss">{formatoMmSs(segundosFinales)}</div>
-              <p className="elcc-rs-count-sec">{segundosFinales != null ? `${segundosFinales} segundos` : ''}</p>
-              <p className="elcc-rs-count-hint">Cuenta atrás hasta el cierre oficial (Lima).</p>
+              <div className="elcc-rs-kicker">Conteo oficial en curso</div>
+              <div className="elcc-rs-big-mmss">{formatoMmSs(segundosSuspenso)}</div>
+              <p className="elcc-rs-count-sec">{segundosSuspenso != null ? `${segundosSuspenso} segundos` : ''}</p>
+              <p className="elcc-rs-count-hint">Cuenta regresiva para la revelación oficial del ganador.</p>
             </div>
           )}
 

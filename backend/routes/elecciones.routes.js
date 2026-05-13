@@ -12,12 +12,38 @@ const { authenticateToken, requireUserType } = require('../middleware/auth');
 
 const STAFF_TYPES = new Set(['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA']);
 const PROCESO_ESTADOS = ['BORRADOR', 'CAMPAÑA', 'VOTACION', 'RESULTADOS', 'CERRADA', 'ARCHIVO'];
+const RESULTADOS_PUBLICOS_CACHE_MS = 3000;
+const RESULTADOS_SUSPENSO_MS = 120000;
+const resultadosPublicosCache = new Map();
 
 function requireStaff(req, res, next) {
   if (!req.user || !STAFF_TYPES.has(req.user.tipo)) {
     return res.status(403).json({ error: 'No autorizado' });
   }
   next();
+}
+
+function getResultadosPublicosCacheKey(colegioId, procesoId) {
+  return `${colegioId}:${procesoId}`;
+}
+
+function getResultadosPublicosCache(colegioId, procesoId) {
+  const key = getResultadosPublicosCacheKey(colegioId, procesoId);
+  const hit = resultadosPublicosCache.get(key);
+  if (!hit) return null;
+  if (hit.expiresAt <= Date.now()) {
+    resultadosPublicosCache.delete(key);
+    return null;
+  }
+  return hit.payload;
+}
+
+function setResultadosPublicosCache(colegioId, procesoId, payload) {
+  const key = getResultadosPublicosCacheKey(colegioId, procesoId);
+  resultadosPublicosCache.set(key, {
+    payload,
+    expiresAt: Date.now() + RESULTADOS_PUBLICOS_CACHE_MS
+  });
 }
 
 const eleccionesDir = path.join(__dirname, '..', 'uploads', 'elecciones');
@@ -200,7 +226,7 @@ async function aplicarEstadoTemporalProceso(procesoRow) {
   // Con «ACTIVO» el proceso queda en CAMPAÑA; al llegar votacion_inicio debe pasar a VOTACION para habilitar urna y flags.
   if (procesoRow.estado === 'CAMPAÑA') {
     if (tFin != null && now > tFin) {
-      const publicadoAt = procesoRow.resultados_publicados_at || utcMsToMysqlLimaWall(tFin + 3000);
+      const publicadoAt = procesoRow.resultados_publicados_at || utcMsToMysqlLimaWall(tFin + RESULTADOS_SUSPENSO_MS);
       await execute(
         `UPDATE elecciones_proceso
            SET estado = 'RESULTADOS',
@@ -219,7 +245,7 @@ async function aplicarEstadoTemporalProceso(procesoRow) {
 
   if (procesoRow.estado !== 'VOTACION') return procesoRow;
   if (tFin == null || now <= tFin) return procesoRow;
-  const publicadoAt = procesoRow.resultados_publicados_at || utcMsToMysqlLimaWall(tFin + 3000);
+  const publicadoAt = procesoRow.resultados_publicados_at || utcMsToMysqlLimaWall(tFin + RESULTADOS_SUSPENSO_MS);
   await execute(
     `UPDATE elecciones_proceso
        SET estado = 'RESULTADOS',
@@ -285,15 +311,14 @@ function listasEmpatePrimerLugar(totales) {
 
 function faseResultadosPublicos(procesoRow, nowMs) {
   const tFin = limaMysqlOrInputToUtcMs(procesoRow.votacion_fin);
-  const pubMs =
-    limaMysqlOrInputToUtcMs(procesoRow.resultados_publicados_at) ||
-    (tFin != null ? tFin + 3000 : nowMs);
+  const minPubMs = tFin != null ? tFin + RESULTADOS_SUSPENSO_MS : nowMs;
+  const rawPubMs = limaMysqlOrInputToUtcMs(procesoRow.resultados_publicados_at);
+  const pubMs = rawPubMs != null ? Math.max(rawPubMs, minPubMs) : minPubMs;
   const msCierre = tFin != null ? Math.max(0, tFin - nowMs) : null;
 
   if (procesoRow.estado === 'CAMPAÑA') return { fase: 'PREVIA', ms_hasta_cierre: msCierre, publicar_desde_ms: pubMs };
   if (procesoRow.estado === 'VOTACION') {
-    if (msCierre != null && msCierre > 120000) return { fase: 'ESPERA_CIERRE', ms_hasta_cierre: msCierre, publicar_desde_ms: pubMs };
-    if (msCierre != null && msCierre > 0) return { fase: 'CUENTA_FINAL', ms_hasta_cierre: msCierre, publicar_desde_ms: pubMs };
+    if (msCierre != null && msCierre > 0) return { fase: 'ESPERA_CIERRE', ms_hasta_cierre: msCierre, publicar_desde_ms: pubMs };
     return { fase: 'SUSPENSO', ms_hasta_cierre: 0, publicar_desde_ms: pubMs };
   }
   if (procesoRow.estado === 'RESULTADOS') {
@@ -2170,13 +2195,25 @@ async function handlerEleccionesResultadosPublicos(req, res) {
     const nowMs = Date.now();
     const fase = faseResultadosPublicos(proceso, nowMs);
     const finMs = limaMysqlOrInputToUtcMs(proceso.votacion_fin);
-    const totales = await totalesPublicosProceso(req, colegioId, procesoId);
-    const votosRegistrados = totales.reduce((acc, t) => acc + Number(t.votos || 0), 0);
     const showResultados = fase.fase === 'GANADOR';
-    const ganador = showResultados ? elegirGanadorDesdeTotales(totales) : null;
-    const empatePrimerLugar = showResultados ? listasEmpatePrimerLugar(totales) : null;
+    let totales = [];
+    let votosRegistrados = 0;
+    let ganador = null;
+    let empatePrimerLugar = null;
 
-    res.json({
+    if (showResultados) {
+      const cachedPayload = getResultadosPublicosCache(colegioId, procesoId);
+      if (cachedPayload) {
+        return res.json(cachedPayload);
+      }
+
+      totales = await totalesPublicosProceso(req, colegioId, procesoId);
+      votosRegistrados = totales.reduce((acc, t) => acc + Number(t.votos || 0), 0);
+      ganador = elegirGanadorDesdeTotales(totales);
+      empatePrimerLugar = listasEmpatePrimerLugar(totales);
+    }
+
+    const payload = {
       proceso: {
         id: proceso.id,
         titulo: proceso.titulo,
@@ -2189,10 +2226,16 @@ async function handlerEleccionesResultadosPublicos(req, res) {
       server_now_iso: new Date(nowMs).toISOString(),
       hora_oficial: 'Lima, Peru',
       votos_registrados: votosRegistrados,
-      ganador: showResultados ? ganador : null,
+      ganador,
       empate_primer_lugar: empatePrimerLugar,
-      totales: showResultados ? totales : []
-    });
+      totales
+    };
+
+    if (showResultados) {
+      setResultadosPublicosCache(colegioId, procesoId, payload);
+    }
+
+    res.json(payload);
   } catch (e) {
     console.error('[elecciones] resultados publicos:', e);
     res.status(500).json({ error: 'No se pudieron cargar resultados' });
