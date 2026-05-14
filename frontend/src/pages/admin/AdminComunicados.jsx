@@ -6,9 +6,19 @@ import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import { normalizeStaticFileUrl } from '../../config/staticFiles';
 import { useAuth } from '../../context/AuthContext';
+import { procesarHTMLMensaje } from '../../utils/mensajesHtml';
 import '../DocenteComunicados.css';
 import '../DocenteGrupos.css';
 import Swal from 'sweetalert2';
+
+const swalSobreModal = {
+  target: document.body,
+  customClass: { container: 'cf-swal-over-modal' },
+  didOpen: (popup) => {
+    const root = popup?.closest?.('.swal2-container');
+    if (root) root.style.zIndex = '250000';
+  }
+};
 
 function AdminComunicados() {
   const { user } = useAuth();
@@ -48,23 +58,24 @@ function AdminComunicados() {
         input.onchange = async () => {
           const file = input.files[0];
           if (!file || file.size > 5 * 1024 * 1024) {
-            Swal.fire('Error', 'La imagen no puede ser mayor a 5MB', 'error');
+            Swal.fire({ ...swalSobreModal, title: 'Error', text: 'La imagen no puede ser mayor a 5MB', icon: 'error' });
             return;
           }
           if (!file.type.startsWith('image/')) {
-            Swal.fire('Error', 'Solo se permiten imágenes', 'error');
+            Swal.fire({ ...swalSobreModal, title: 'Error', text: 'Solo se permiten imágenes', icon: 'error' });
             return;
           }
           try {
             const formData = new FormData();
             formData.append('imagen', file);
             const res = await api.post('/docente/mensajes/subir-imagen', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-            const url = `${api.defaults.baseURL.replace('/api', '')}${res.data.url}`;
+            const url = String(res.data?.url || '').trim().replace(/^(https?:\/\/[^/\s"'<>]+)(https?:\/\/.*)$/i, '$2');
+            if (!url) throw new Error('URL de imagen vacía');
             const range = quill.getSelection(true) || { index: quill.getLength(), length: 0 };
             quill.insertEmbed(range.index, 'image', url);
             quill.setSelection(range.index + 1);
           } catch (e) {
-            Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+            Swal.fire({ ...swalSobreModal, title: 'Error', text: 'No se pudo subir la imagen', icon: 'error' });
           }
         };
       });
@@ -134,7 +145,7 @@ function AdminComunicados() {
     setComunicadoEditando(comunicado);
     setFormulario({
       descripcion: comunicado.descripcion || '',
-      contenido: comunicado.contenido || '',
+      contenido: procesarHTMLMensaje(comunicado.contenido || ''),
       tipo: comunicado.tipo || 'TEXTO',
       privacidad: comunicado.privacidad || '',
       show_in_home: comunicado.show_in_home === 1 || comunicado.show_in_home === true,
@@ -186,6 +197,7 @@ function AdminComunicados() {
         
         if (response.data.success) {
           Swal.fire({
+            ...swalSobreModal,
             icon: 'success',
             title: '¡Éxito!',
             text: 'Comunicado actualizado correctamente',
@@ -205,6 +217,7 @@ function AdminComunicados() {
         
         if (response.data.success) {
           Swal.fire({
+            ...swalSobreModal,
             icon: 'success',
             title: '¡Éxito!',
             text: 'Comunicado creado correctamente',
@@ -218,6 +231,7 @@ function AdminComunicados() {
     } catch (error) {
       console.error('Error guardando comunicado:', error);
       Swal.fire({
+        ...swalSobreModal,
         icon: 'error',
         title: 'Error',
         text: error.response?.data?.error || 'Error al guardar comunicado'
@@ -227,6 +241,7 @@ function AdminComunicados() {
 
   const handleEliminarComunicado = async (comunicado) => {
     const result = await Swal.fire({
+      ...swalSobreModal,
       title: '¿Estás seguro?',
       text: `¿Deseas eliminar el comunicado "${comunicado.descripcion}"?`,
       icon: 'warning',
@@ -243,6 +258,7 @@ function AdminComunicados() {
         
         if (response.data.success) {
           Swal.fire({
+            ...swalSobreModal,
             icon: 'success',
             title: '¡Eliminado!',
             text: 'Comunicado eliminado correctamente',
@@ -254,6 +270,7 @@ function AdminComunicados() {
       } catch (error) {
         console.error('Error eliminando comunicado:', error);
         Swal.fire({
+          ...swalSobreModal,
           icon: 'error',
           title: 'Error',
           text: error.response?.data?.error || 'Error al eliminar comunicado'
@@ -346,12 +363,13 @@ function AdminComunicados() {
   const handleVerComunicado = (comunicado) => {
     marcarComoLeido(comunicado.id);
     const contenidoHtml = comunicado.contenido && String(comunicado.contenido).trim()
-      ? comunicado.contenido
+      ? procesarHTMLMensaje(comunicado.contenido)
       : '<p>Sin contenido adicional.</p>';
     const bloqueArchivo = comunicado.archivo_url
       ? `<div class="comunicado-modal-archivo"><a href="${comunicado.archivo_url}" target="_blank" rel="noopener noreferrer">📎 Ver archivo adjunto</a></div>`
       : '';
     Swal.fire({
+      ...swalSobreModal,
       title: comunicado.descripcion || 'Comunicado',
       html: `
         <div class="comunicado-modal-meta">📅 ${formatearFecha(comunicado.fecha_hora)}</div>
@@ -513,7 +531,7 @@ function AdminComunicados() {
                     {comunicado.contenido && (
                       <div 
                         className="comunicado-contenido"
-                        dangerouslySetInnerHTML={{ __html: comunicado.contenido }}
+                        dangerouslySetInnerHTML={{ __html: procesarHTMLMensaje(comunicado.contenido) }}
                       />
                     )}
                     <div className="comunicado-fecha">

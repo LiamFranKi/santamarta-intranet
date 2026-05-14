@@ -9,6 +9,7 @@ import '../DocenteGrupos.css';
 import './AdminConexiones.css';
 
 const cfSwalSobreModal = {
+  target: document.body,
   customClass: { container: 'cf-swal-over-modal' },
   didOpen: (popup) => {
     const root = popup?.closest?.('.swal2-container');

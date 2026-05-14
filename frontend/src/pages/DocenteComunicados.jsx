@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import { normalizeStaticFileUrl } from '../config/staticFiles';
+import { procesarHTMLMensaje } from '../utils/mensajesHtml';
 import Swal from 'sweetalert2';
 import './DocenteComunicados.css';
 
@@ -172,7 +173,7 @@ function DocenteComunicados() {
   const handleVerComunicado = (comunicado) => {
     marcarComoLeido(comunicado.id);
     const contenidoHtml = comunicado.contenido && String(comunicado.contenido).trim()
-      ? comunicado.contenido
+      ? procesarHTMLMensaje(comunicado.contenido)
       : '<p>Sin contenido adicional.</p>';
     const bloqueArchivo = comunicado.archivo_url
       ? `<div class="comunicado-modal-archivo"><a href="${comunicado.archivo_url}" target="_blank" rel="noopener noreferrer">📎 Ver archivo adjunto</a></div>`
@@ -320,7 +321,7 @@ function DocenteComunicados() {
                     {comunicado.contenido && (
                       <div 
                         className="comunicado-contenido"
-                        dangerouslySetInnerHTML={{ __html: comunicado.contenido }}
+                        dangerouslySetInnerHTML={{ __html: procesarHTMLMensaje(comunicado.contenido) }}
                       />
                     )}
                     <div className="comunicado-fecha">

@@ -1228,8 +1228,13 @@
 }
 
 /* SweetAlert2 por encima de modales de Conexiones Familiares (admin/docente) */
-.swal2-container.cf-swal-over-modal {
+.swal2-container.cf-swal-over-modal,
+body.swal2-shown .swal2-container.cf-swal-over-modal {
   z-index: 250000 !important;
+}
+
+.swal2-container.cf-swal-over-modal {
+  position: fixed !important;
 }
 
 .modal-mensaje-container {

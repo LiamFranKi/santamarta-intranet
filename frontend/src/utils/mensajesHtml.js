@@ -54,6 +54,9 @@ export function procesarHTMLMensaje(html) {
     if (fixed.startsWith('blob:')) {
       return `<img${before} src="${fixed}"${after}>`;
     }
+    // Corrige URLs mal concatenadas como:
+    // https://midominio.comhttps://nuevo.vanguardschools.edu.pe/Static/Archivos/...
+    fixed = fixed.replace(/^(https?:\/\/[^/\s"'<>]+)(https?:\/\/.*)$/i, '$2');
     fixed = fixed
       .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpBase)
       .replace(/https?:\/\/(www\.)?vanguardschools\.com\/?static/gi, `${phpBase}/Static`);
