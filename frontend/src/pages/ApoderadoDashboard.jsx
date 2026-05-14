@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
+import useIsMobileViewport from '../hooks/useIsMobileViewport';
 import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionesCardFeed from '../components/PublicacionesCardFeed';
@@ -14,6 +15,7 @@ import './DocenteGrupos.css';
 function ApoderadoDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobileViewport();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
@@ -472,16 +474,17 @@ function ApoderadoDashboard() {
           )}
         </div>
 
-        {/* Card amarillo - Solo en móvil */}
-        <div id="dashboard-publicaciones" className="dashboard-section card-amarillo-section">
-          <div className="card-amarillo-vacio">
-            <h3 className="card-amarillo-title">Publicaciones</h3>
-            <div className="card-amarillo-separator"></div>
-            <div className="card-amarillo-feed-container">
-              <PublicacionesCardFeed />
+        {isMobile && (
+          <div id="dashboard-publicaciones" className="dashboard-section card-amarillo-section">
+            <div className="card-amarillo-vacio">
+              <h3 className="card-amarillo-title">Publicaciones</h3>
+              <div className="card-amarillo-separator"></div>
+              <div className="card-amarillo-feed-container">
+                <PublicacionesCardFeed />
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Modal de detalle de evento */}

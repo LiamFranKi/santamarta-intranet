@@ -3,31 +3,8 @@ import { createPortal } from 'react-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
+import PublicacionContenido from './PublicacionContenido';
 import '../components/PublicacionesWidget.css';
-
-// Función para normalizar URLs de imágenes
-function normalizeImageUrl(url) {
-  if (!url) return url;
-  
-  const currentHost = window.location.hostname;
-  const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-  
-  let normalized = url;
-  
-  if (normalized.includes('vanguardschools.edu.pe/uploads')) {
-    normalized = normalized.replace(/https?:\/\/vanguardschools\.edu\.pe\/uploads/g, `${currentProtocol}//${currentHost}/uploads`);
-  }
-  
-  if (normalized.includes('vanguardschools.edu.pe/Static')) {
-    normalized = normalized.replace(/https?:\/\/vanguardschools\.edu\.pe\/Static/g, 'https://nuevo.vanguardschools.edu.pe/Static');
-  }
-  
-  normalized = normalized.replace(/vanguardschools\.com(static|uploads)/gi, (match, path) => {
-    return `https://nuevo.vanguardschools.edu.pe/Static${path === 'static' ? '' : ''}`;
-  });
-  
-  return normalized;
-}
 
 function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
   const { user } = useAuth();
@@ -169,77 +146,7 @@ function PublicacionesCardFeed({ onPublicacionEliminada, refreshTrigger }) {
               </span>
             </div>
             
-            {/* Contenido */}
-            <div className="publicacion-contenido">
-              <p>{pub.contenido}</p>
-              {pub.images && Array.isArray(pub.images) && pub.images.length > 0 && (
-                <div className="publicacion-imagenes">
-                  {pub.images.slice(0, 3).map((imagenUrl, idx) => {
-                    let urlCompleta;
-                    if (imagenUrl.startsWith('http')) {
-                      urlCompleta = normalizeImageUrl(imagenUrl);
-                    } else {
-                      const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-                      urlCompleta = `${protocol}//${window.location.hostname}${imagenUrl.startsWith('/') ? '' : '/'}${imagenUrl}`;
-                    }
-                    
-                    return (
-                      <img 
-                        key={idx}
-                        src={urlCompleta} 
-                        alt={`Publicación ${idx + 1}`}
-                        className={pub.images.length === 1 ? 'imagen-sola' : 'imagen-multiple'}
-                        onClick={() => setImagenModal(urlCompleta)}
-                        onError={(e) => {
-                          console.error('Error cargando imagen:', imagenUrl, '→', urlCompleta);
-                          e.target.style.display = 'none';
-                        }}
-                        style={{ cursor: 'pointer' }}
-                      />
-                    );
-                  })}
-                  {pub.images.length > 3 && (
-                    <div className="imagen-mas">+{pub.images.length - 3} más</div>
-                  )}
-                </div>
-              )}
-              {pub.archivos && pub.archivos.length > 0 && (
-                <div className="publicacion-archivos">
-                  {pub.archivos.map((archivo, idx) => {
-                    let archivoUrl;
-                    if (archivo.startsWith('http')) {
-                      archivoUrl = archivo;
-                    } else if (archivo.startsWith('/Static/')) {
-                      archivoUrl = `https://nuevo.vanguardschools.edu.pe${archivo}`;
-                    } else {
-                      archivoUrl = `https://nuevo.vanguardschools.edu.pe/Static/Archivos/${archivo}`;
-                    }
-                    
-                    const nombreArchivo = archivo.split('/').pop() || `Archivo ${idx + 1}`;
-                    const extension = nombreArchivo.split('.').pop()?.toLowerCase() || 'pdf';
-                    
-                    const nombreMostrar = extension === 'pdf' ? 'Archivo.pdf' : 
-                                         extension === 'doc' || extension === 'docx' ? 'Archivo.docx' :
-                                         extension === 'xls' || extension === 'xlsx' ? 'Archivo.xlsx' :
-                                         extension === 'ppt' || extension === 'pptx' ? 'Archivo.pptx' :
-                                         `Archivo.${extension}`;
-                    
-                    return (
-                      <a 
-                        key={idx}
-                        href={archivoUrl}
-                        download
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="archivo-link"
-                      >
-                        📎 {nombreMostrar}
-                      </a>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <PublicacionContenido pub={pub} onImageClick={setImagenModal} />
             
             {/* "Para: [quién]" al final */}
             <div className="publicacion-para-container">

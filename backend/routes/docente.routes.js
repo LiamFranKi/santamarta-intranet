@@ -48,7 +48,7 @@ const {
   guardarRecomendacionesPorGrupo,
 } = require('../utils/recomendacionesGrupoMatriculas');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
-const { lineaAlumnoGrado } = require('../utils/notificacionExamenApoderadoTexto');
+const { lineaAlumnoGrado, etiquetaGradoGrupo } = require('../utils/notificacionExamenApoderadoTexto');
 const { listarDeudoresGrupo, mergeObservacionesTutor } = require('../utils/tutorDeudoresService');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
@@ -179,6 +179,43 @@ function mergeGruposDocenteSinDuplicar(gruposAsignados, gruposTutoria) {
   return Array.from(byId.values());
 }
 
+function normalizarTextoComparacionNotificacion(texto) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function construirMensajeFamiliaConAlumnoYGrupo(base, row) {
+  const mensajeBase = String(base || '').trim();
+  if (!mensajeBase || !row) return mensajeBase;
+
+  const alumnoNombre = String(row.alumno_nombre || row.nombre_completo_alumno || '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const grupoTexto = etiquetaGradoGrupo(row);
+  const baseNormalizada = normalizarTextoComparacionNotificacion(mensajeBase);
+  const yaIncluyeAlumno =
+    alumnoNombre && baseNormalizada.includes(normalizarTextoComparacionNotificacion(alumnoNombre));
+  const yaIncluyeGrupo =
+    grupoTexto && baseNormalizada.includes(normalizarTextoComparacionNotificacion(grupoTexto));
+
+  if (yaIncluyeAlumno && (!grupoTexto || yaIncluyeGrupo)) {
+    return mensajeBase;
+  }
+
+  const lineaContexto = lineaAlumnoGrado({
+    alumno_nombre: alumnoNombre,
+    grado: row.grado,
+    seccion: row.seccion,
+    nivel_nombre: row.nivel_nombre,
+  });
+
+  return lineaContexto ? `${lineaContexto} — ${mensajeBase}` : mensajeBase;
+}
+
 /**
  * Función auxiliar para crear notificaciones de Aula Virtual
  * @param {Object} params - Parámetros de la notificación
@@ -201,8 +238,11 @@ async function crearNotificacionesAulaVirtual(params) {
     // Obtener información de la asignatura (grupo y curso)
     const asignaturaInfo = await query(
       `SELECT a.grupo_id, a.curso_id, c.nombre as curso_nombre,
+              g.grado, g.seccion, COALESCE(n.nombre, '') as nivel_nombre,
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre_completo
        FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN cursos c ON c.id = a.curso_id
        INNER JOIN personal p ON p.id = a.personal_id
        WHERE a.id = ? AND a.colegio_id = ?`,
@@ -214,8 +254,13 @@ async function crearNotificacionesAulaVirtual(params) {
       return;
     }
     
-    const { grupo_id, curso_nombre, docente_nombre_completo } = asignaturaInfo[0];
+    const { grupo_id, curso_nombre, docente_nombre_completo, grado, seccion, nivel_nombre } = asignaturaInfo[0];
     const nombreDocente = docente_nombre || docente_nombre_completo || 'Un docente';
+    const grupoTexto = etiquetaGradoGrupo({ grado, seccion, nivel_nombre });
+    const prefijoCursoGrupo = [
+      `Curso: ${curso_nombre}`,
+      grupoTexto ? `Grupo: ${grupoTexto}` : null
+    ].filter(Boolean).join(' - ');
     
     // Preparar título y mensaje según el tipo
     let tituloNotificacion = '';
@@ -224,28 +269,28 @@ async function crearNotificacionesAulaVirtual(params) {
     switch (tipo) {
       case 'tema':
         tituloNotificacion = 'Nuevo Tema';
-        mensajeNotificacion = `Curso: ${curso_nombre} - Tema: ${nombre} - Docente: ${nombreDocente}`;
+        mensajeNotificacion = `${prefijoCursoGrupo} - Tema: ${nombre} - Docente: ${nombreDocente}`;
         break;
       case 'tarea':
         tituloNotificacion = 'Nuevo Proyecto';
         const fechaEntregaTexto = fecha_entrega ? ` - Fecha de entrega: ${fecha_entrega}` : '';
-        mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}${fechaEntregaTexto}`;
+        mensajeNotificacion = `${prefijoCursoGrupo} - Docente: ${nombreDocente}${fechaEntregaTexto}`;
         break;
       case 'examen':
         tituloNotificacion = 'Nuevo Examen';
-        mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
+        mensajeNotificacion = `${prefijoCursoGrupo} - Docente: ${nombreDocente}`;
         break;
       case 'video':
         tituloNotificacion = 'Nuevo Video';
-        mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
+        mensajeNotificacion = `${prefijoCursoGrupo} - Docente: ${nombreDocente}`;
         break;
       case 'enlace':
         tituloNotificacion = 'Nuevo Enlace de Ayuda';
-        mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
+        mensajeNotificacion = `${prefijoCursoGrupo} - Docente: ${nombreDocente}`;
         break;
       default:
         tituloNotificacion = 'Nueva Actividad';
-        mensajeNotificacion = `Curso: ${curso_nombre} - Docente: ${nombreDocente}`;
+        mensajeNotificacion = `${prefijoCursoGrupo} - Docente: ${nombreDocente}`;
     }
     
     // Obtener alumnos del grupo
@@ -310,6 +355,86 @@ async function crearNotificacionesAulaVirtual(params) {
     
     // Combinar todos los destinatarios (alumnos + apoderados + docentes-apoderados)
     const todosDestinatarios = [...new Set([...alumnoUsuarioIds, ...apoderadoUsuarioIds])];
+    const mapaPadreAlumnos = new Map();
+    const apoderadoUsuarioIdSet = new Set(
+      apoderadoUsuarioIds.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n))
+    );
+
+    const registrarAlumnoPadre = (padreId, alumnoNombre) => {
+      const uid = parseInt(padreId, 10);
+      const nombreAlumno = String(alumnoNombre || '').replace(/\s+/g, ' ').trim();
+      if (Number.isNaN(uid) || !nombreAlumno) return;
+      if (!mapaPadreAlumnos.has(uid)) mapaPadreAlumnos.set(uid, new Set());
+      mapaPadreAlumnos.get(uid).add(nombreAlumno);
+    };
+
+    if (alumnoIds.length > 0 && apoderadoUsuarioIds.length > 0) {
+      const phAl = alumnoIds.map(() => '?').join(',');
+      try {
+        const rowsApod = await query(
+          `SELECT u.id AS padre_usuario_id,
+                  TRIM(CONCAT(COALESCE(a.nombres,''),' ',COALESCE(a.apellido_paterno,''),' ',COALESCE(a.apellido_materno,''))) AS alumno_nombre
+           FROM matriculas m
+           INNER JOIN alumnos a ON a.id = m.alumno_id
+           INNER JOIN familias f ON f.alumno_id = a.id
+           INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
+           INNER JOIN usuarios u ON u.apoderado_id = ap.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+           WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
+             AND a.id IN (${phAl})`,
+          [colegio_id, colegio_id, grupo_id, colegio_id, ...alumnoIds]
+        );
+        for (const r of rowsApod || []) {
+          registrarAlumnoPadre(r.padre_usuario_id, r.alumno_nombre);
+        }
+
+        const rowsDocApod = await query(
+          `SELECT DISTINCT u.id AS padre_usuario_id,
+                  TRIM(CONCAT(COALESCE(a.nombres,''),' ',COALESCE(a.apellido_paterno,''),' ',COALESCE(a.apellido_materno,''))) AS alumno_nombre
+           FROM matriculas m
+           INNER JOIN alumnos a ON a.id = m.alumno_id
+           INNER JOIN familias f ON f.alumno_id = a.id
+           INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
+           INNER JOIN usuarios u ON u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'
+           INNER JOIN personal p ON p.id = u.personal_id
+           WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
+             AND a.id IN (${phAl})
+             AND ap.nro_documento IS NOT NULL AND TRIM(ap.nro_documento) <> ''
+             AND (p.nro_documento = ap.nro_documento OR TRIM(u.usuario) = TRIM(ap.nro_documento))`,
+          [colegio_id, colegio_id, grupo_id, colegio_id, ...alumnoIds]
+        );
+        for (const r of rowsDocApod || []) {
+          registrarAlumnoPadre(r.padre_usuario_id, r.alumno_nombre);
+        }
+      } catch (eMap) {
+        console.error('❌ [AULA VIRTUAL] Error construyendo contexto apoderado/hijo:', eMap);
+      }
+    }
+
+    let tipoPorDestinatario = new Map();
+    if (todosDestinatarios.length > 0) {
+      const phDest = todosDestinatarios.map(() => '?').join(',');
+      const tiposRows = await query(
+        `SELECT id, tipo, alumno_id FROM usuarios WHERE id IN (${phDest}) AND colegio_id = ?`,
+        [...todosDestinatarios.map((id) => parseInt(id, 10)), colegio_id]
+      );
+      tipoPorDestinatario = new Map(
+        (tiposRows || []).map((r) => [parseInt(r.id, 10), { tipo: r.tipo, alumno_id: r.alumno_id }])
+      );
+    }
+
+    const construirMensajeAulaVirtualDestinatario = (destinatarioIdNum, tipoUsuario) => {
+      if (tipoUsuario === 'ALUMNO') return mensajeNotificacion;
+      if (!apoderadoUsuarioIdSet.has(destinatarioIdNum)) return mensajeNotificacion;
+      const nombresRelacionados = mapaPadreAlumnos.get(destinatarioIdNum);
+      if (!nombresRelacionados || nombresRelacionados.size === 0) return mensajeNotificacion;
+      const alumnosTexto = Array.from(nombresRelacionados.values()).join(', ');
+      if (!alumnosTexto) return mensajeNotificacion;
+      const prefijoAlumno =
+        nombresRelacionados.size > 1
+          ? `Alumnos/as: ${alumnosTexto}`
+          : `Alumno/a: ${alumnosTexto}`;
+      return `${prefijoAlumno} — ${mensajeNotificacion}`;
+    };
     
     console.log(`📚 [AULA VIRTUAL] Encontrados ${todosDestinatarios.length} destinatarios (${alumnoUsuarioIds.length} alumnos, ${apoderadoUsuarioIds.length} apoderados incluyendo docentes)`);
     
@@ -317,14 +442,15 @@ async function crearNotificacionesAulaVirtual(params) {
     if (todosDestinatarios.length > 0) {
       for (const destinatarioId of todosDestinatarios) {
         try {
+          const destinatarioIdNum = parseInt(destinatarioId, 10);
           const urlDestino = await obtenerUrlAulaVirtual(query, destinatarioId, {
             asignatura_id,
             grupo_id,
             recurso_tipo: tipo,
             recurso_id: entidad_id
           });
-          const uRows = await query(`SELECT tipo, alumno_id FROM usuarios WHERE id = ? LIMIT 1`, [destinatarioId]);
-          const u0 = uRows[0] || {};
+          const u0 = tipoPorDestinatario.get(destinatarioIdNum) || {};
+          const mensajeDestinatario = construirMensajeAulaVirtualDestinatario(destinatarioIdNum, u0.tipo);
           const accion_payload = {
             asignatura_id,
             grupo_id,
@@ -336,7 +462,7 @@ async function crearNotificacionesAulaVirtual(params) {
             usuario_id,
             destinatario_id: destinatarioId,
             asunto: tituloNotificacion,
-            contenido: mensajeNotificacion,
+            contenido: mensajeDestinatario,
             estado: 'NO ENVIADO',
             accion_tipo: `aula_virtual_${tipo}`,
             accion_payload,
@@ -363,12 +489,15 @@ async function crearNotificacionesAulaVirtual(params) {
           const baseTag = `aula-virtual-${tipo}-${entidad_id || Date.now()}`;
           const pushItems = [];
           for (const sub of subscriptionsData) {
+            const uid = parseInt(sub.usuario_id, 10);
+            const uMeta = tipoPorDestinatario.get(uid) || {};
             const urlPush = await obtenerUrlAulaVirtual(query, sub.usuario_id, {
               asignatura_id,
               grupo_id,
               recurso_tipo: tipo,
               recurso_id: entidad_id
             });
+            const bodyPush = construirMensajeAulaVirtualDestinatario(uid, uMeta.tipo);
             pushItems.push({
               subscription: {
                 endpoint: sub.endpoint,
@@ -376,7 +505,7 @@ async function crearNotificacionesAulaVirtual(params) {
               },
               payload: {
                 title: tituloNotificacion,
-                body: mensajeNotificacion,
+                body: bodyPush,
                 icon: '/icons/icon-192x192.png',
                 badge: '/icons/icon-192x192.png',
                 vibrate: [200, 100, 200],
@@ -474,6 +603,31 @@ async function crearNotificacionesApoderados(params) {
     
     const alumnoUsuarioId = alumnoUsuario[0].usuario_id;
     console.log(`✅ [NOTIFICACIONES APODERADOS] Usuario del alumno encontrado: ${alumnoUsuarioId}`);
+
+    let mensajeNotificacionFinal = String(mensajeNotificacion || '').trim();
+    try {
+      const alumnoCtxRows = await query(
+        `SELECT
+           TRIM(CONCAT(COALESCE(a.nombres,''), ' ', COALESCE(a.apellido_paterno,''), ' ', COALESCE(a.apellido_materno,''))) AS alumno_nombre,
+           g.grado,
+           g.seccion,
+           COALESCE(n.nombre, '') AS nivel_nombre
+         FROM alumnos a
+         LEFT JOIN matriculas m ON m.alumno_id = a.id AND m.colegio_id = a.colegio_id AND (m.estado = 0)
+         LEFT JOIN grupos g ON g.id = m.grupo_id AND g.anio = ?
+         LEFT JOIN niveles n ON n.id = g.nivel_id
+         WHERE a.id = ? AND a.colegio_id = ?
+         ORDER BY (g.id IS NULL) ASC, m.fecha_registro DESC
+         LIMIT 1`,
+        [anio_activo, alumnoIdNum, colegio_id]
+      );
+      mensajeNotificacionFinal = construirMensajeFamiliaConAlumnoYGrupo(
+        mensajeNotificacion,
+        alumnoCtxRows && alumnoCtxRows[0] ? alumnoCtxRows[0] : null
+      );
+    } catch (ctxErr) {
+      console.error('❌ [NOTIFICACIONES APODERADOS] Error obteniendo contexto alumno/grupo:', ctxErr);
+    }
     
     // Obtener apoderados del alumno
     let apoderadoUsuarioIds = [];
@@ -588,8 +742,8 @@ async function crearNotificacionesApoderados(params) {
           const usuarioIdNum = parseInt(usuario_id);
           const destinatarioIdNum = parseInt(destinatarioId);
           
-          if (isNaN(usuarioIdNum) || isNaN(destinatarioIdNum) || !tituloNotificacion || !mensajeNotificacion) {
-            console.error(`❌ [NOTIFICACIONES APODERADOS] Valores inválidos: usuario_id=${usuario_id}, destinatarioId=${destinatarioId}, titulo=${tituloNotificacion}, mensaje=${mensajeNotificacion}`);
+          if (isNaN(usuarioIdNum) || isNaN(destinatarioIdNum) || !tituloNotificacion || !mensajeNotificacionFinal) {
+            console.error(`❌ [NOTIFICACIONES APODERADOS] Valores inválidos: usuario_id=${usuario_id}, destinatarioId=${destinatarioId}, titulo=${tituloNotificacion}, mensaje=${mensajeNotificacionFinal}`);
             continue;
           }
           
@@ -606,7 +760,7 @@ async function crearNotificacionesApoderados(params) {
             usuario_id: usuarioIdNum,
             destinatario_id: destinatarioIdNum,
             asunto: String(tituloNotificacion),
-            contenido: String(mensajeNotificacion),
+            contenido: String(mensajeNotificacionFinal),
             estado: 'NO ENVIADO',
             accion_tipo: String(tipoNotificacion || 'apoderado'),
             accion_payload: { alumno_id: alumnoIdNum, ...dataExtra },
@@ -653,7 +807,7 @@ async function crearNotificacionesApoderados(params) {
           },
           payload: {
             title: tituloNotificacion,
-            body: mensajeNotificacion,
+            body: mensajeNotificacionFinal,
             icon: '/icons/icon-192x192.png',
             badge: '/icons/icon-192x192.png',
             vibrate: [200, 100, 200],
@@ -712,7 +866,7 @@ async function crearNotificacionesApoderados(params) {
             if (email && !emailsUnicos.has(email)) emailsUnicos.set(email, u.email);
           });
           for (const email of emailsUnicos.values()) {
-            enviarCorreoNotificacion(email, tituloNotificacion, mensajeNotificacion, colegioNombre, categoriaCorreo)
+            enviarCorreoNotificacion(email, tituloNotificacion, mensajeNotificacionFinal, colegioNombre, categoriaCorreo)
               .catch(err => console.error(`❌ [NOTIFICACIONES APODERADOS] Error correo:`, err));
           }
           if (emailsUnicos.size > 0) {
@@ -16134,6 +16288,65 @@ function decodePublicacionImages(imagesString) {
   }
 }
 
+function limpiarUrlVideoCandidata(url) {
+  return String(url || '').trim().replace(/[),.;!?]+$/g, '');
+}
+
+function esVideoIdYouTubeValido(videoId) {
+  return /^[a-zA-Z0-9_-]{11}$/.test(String(videoId || '').trim());
+}
+
+function extraerVideoIdYouTube(urlValue) {
+  const raw = limpiarUrlVideoCandidata(urlValue);
+  if (!raw) return '';
+
+  try {
+    const parsed = new URL(raw);
+    const host = String(parsed.hostname || '').toLowerCase().replace(/^www\./, '');
+
+    if (host === 'youtu.be') {
+      const candidate = parsed.pathname.split('/').filter(Boolean)[0] || '';
+      return esVideoIdYouTubeValido(candidate) ? candidate : '';
+    }
+
+    if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com') {
+      const watchId = parsed.searchParams.get('v') || '';
+      if (esVideoIdYouTubeValido(watchId)) {
+        return watchId;
+      }
+
+      const parts = parsed.pathname.split('/').filter(Boolean);
+      const markerIndex = parts.findIndex((part) => ['embed', 'shorts', 'live', 'v'].includes(part));
+      if (markerIndex >= 0) {
+        const candidate = parts[markerIndex + 1] || '';
+        return esVideoIdYouTubeValido(candidate) ? candidate : '';
+      }
+    }
+  } catch (error) {
+    return '';
+  }
+
+  return '';
+}
+
+function extraerVideoPublicacionDesdeContenido(contenido) {
+  const urls = String(contenido || '').match(/https?:\/\/[^\s<>"']+/gi) || [];
+  for (const url of urls) {
+    const videoId = extraerVideoIdYouTube(url);
+    if (videoId) {
+      return {
+        tipo_video: 'YOUTUBE',
+        video_id: videoId
+      };
+    }
+  }
+
+  return {
+    tipo_video: '',
+    video_id: ''
+  };
+}
+
 /**
  * GET /api/docente/publicaciones
  * Obtener publicaciones (feed tipo Facebook)
@@ -16469,14 +16682,26 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
       archivosSerialized = Buffer.from(serialized).toString('base64');
     }
 
+    const videoPublicacion = extraerVideoPublicacionDesdeContenido(contenido);
+
     // Insertar publicación en MySQL
     // La tabla publicaciones tiene: id, colegio_id, usuario_id, contenido, tipo_video, video_id, images, archivos, privacidad, fecha_hora
     const fechaHora = fechaHoraMySQLLima();
     const result = await execute(
       `INSERT INTO publicaciones 
        (colegio_id, usuario_id, contenido, tipo_video, video_id, images, archivos, privacidad, fecha_hora)
-       VALUES (?, ?, ?, '', '', ?, ?, ?, ?)`,
-      [colegio_id, usuario_id, contenido, imagesSerialized, archivosSerialized, privacidad, fechaHora]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        colegio_id,
+        usuario_id,
+        contenido,
+        videoPublicacion.tipo_video,
+        videoPublicacion.video_id,
+        imagesSerialized,
+        archivosSerialized,
+        privacidad,
+        fechaHora
+      ]
     );
 
     // Registrar auditoría ANTES de responder
@@ -16494,7 +16719,15 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
       ip_address: req.ip || req.connection.remoteAddress,
       user_agent: req.get('user-agent'),
       datos_anteriores: null,
-      datos_nuevos: JSON.stringify({ contenido, compartir_con, grupos_ids, imagen: imagenPath, archivo: archivoPath }),
+      datos_nuevos: JSON.stringify({
+        contenido,
+        compartir_con,
+        grupos_ids,
+        imagen: imagenPath,
+        archivo: archivoPath,
+        tipo_video: videoPublicacion.tipo_video,
+        video_id: videoPublicacion.video_id
+      }),
       resultado: 'EXITOSO'
     });
 

@@ -7,6 +7,7 @@ const { enviarCorreoAsistencia } = require('../services/emailService');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { urlPortalHijoPorTipoUsuario } = require('../utils/notificacionUrls');
+const { lineaAlumnoGrado, etiquetaGradoGrupo } = require('../utils/notificacionExamenApoderadoTexto');
 const mensajesConfig = require('../config/mensajes.json');
 
 // Todas las rutas requieren autenticación: ASISTENCIA, ADMINISTRADOR o DOCENTE con al menos un grupo como tutor
@@ -57,6 +58,41 @@ function parsearFechaHoraDispositivo(fecha_dispositivo, hora_dispositivo) {
   if (h < 0 || h > 23 || min < 0 || min > 59 || seg < 0 || seg > 59) return null;
   const horaNorm = `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}:${String(seg).padStart(2, '0')}`;
   return { fecha, hora: horaNorm };
+}
+
+function normalizarTextoComparacionNotificacion(texto) {
+  return String(texto || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function construirMensajeFamiliaConAlumnoYGrupo(base, row) {
+  const mensajeBase = String(base || '').trim();
+  if (!mensajeBase || !row) return mensajeBase;
+
+  const alumnoNombre = String(row.alumno_nombre || '').replace(/\s+/g, ' ').trim();
+  const grupoTexto = etiquetaGradoGrupo(row);
+  const baseNormalizada = normalizarTextoComparacionNotificacion(mensajeBase);
+  const yaIncluyeAlumno =
+    alumnoNombre && baseNormalizada.includes(normalizarTextoComparacionNotificacion(alumnoNombre));
+  const yaIncluyeGrupo =
+    grupoTexto && baseNormalizada.includes(normalizarTextoComparacionNotificacion(grupoTexto));
+
+  if (yaIncluyeAlumno && (!grupoTexto || yaIncluyeGrupo)) {
+    return mensajeBase;
+  }
+
+  const lineaContexto = lineaAlumnoGrado({
+    alumno_nombre: alumnoNombre,
+    grado: row.grado,
+    seccion: row.seccion,
+    nivel_nombre: row.nivel_nombre,
+  });
+
+  return lineaContexto ? `${lineaContexto} — ${mensajeBase}` : mensajeBase;
 }
 
 /**
@@ -579,6 +615,28 @@ router.post('/registrar', async (req, res) => {
         if (!mensajeConfig) {
           console.error(`❌ [ASISTENCIA] No se encontró configuración de mensaje para tipo_registro: ${tipo_registro}`);
         }
+        let contextoAlumnoNotificacion = null;
+        try {
+          const ctxRows = await query(
+            `SELECT
+               TRIM(CONCAT(COALESCE(a.nombres,''), ' ', COALESCE(a.apellido_paterno,''), ' ', COALESCE(a.apellido_materno,''))) AS alumno_nombre,
+               g.grado,
+               g.seccion,
+               COALESCE(n.nombre, '') AS nivel_nombre
+             FROM alumnos a
+             LEFT JOIN matriculas m ON m.alumno_id = a.id AND m.colegio_id = a.colegio_id AND (m.estado = 0)
+             LEFT JOIN grupos g ON g.id = m.grupo_id AND g.anio = ?
+             LEFT JOIN niveles n ON n.id = g.nivel_id
+             WHERE a.id = ? AND a.colegio_id = ?
+             ORDER BY (g.id IS NULL) ASC, m.fecha_registro DESC
+             LIMIT 1`,
+            [anio_activo, datosUsuario.id, colegio_id]
+          );
+          contextoAlumnoNotificacion = ctxRows && ctxRows[0] ? ctxRows[0] : null;
+        } catch (ctxErr) {
+          console.error('❌ [ASISTENCIA] Error obteniendo contexto alumno/grupo:', ctxErr);
+        }
+
         let tituloNotificacion = mensajeConfig?.titulo || `Asistencia ${tipo_registro}`;
         const palabraClave = tipo_registro === 'ENTRADA'
           ? (tipoAsistenciaParaNotificacion === 'TARDANZA' ? 'TARDANZA' : 'ASISTIÓ')
@@ -601,6 +659,10 @@ router.post('/registrar', async (req, res) => {
         if (tipo_registro === 'ENTRADA') {
           mensajeNotificacion += textoDescuentosPresentacionApoderado(descuentosPresentacion);
         }
+        mensajeNotificacion = construirMensajeFamiliaConAlumnoYGrupo(
+          mensajeNotificacion,
+          contextoAlumnoNotificacion
+        );
         
         console.log(`📧 [ASISTENCIA] Título notificación: ${tituloNotificacion}`);
         console.log(`📧 [ASISTENCIA] Mensaje notificación: ${mensajeNotificacion}`);

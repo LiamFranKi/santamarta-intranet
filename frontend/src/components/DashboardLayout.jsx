@@ -1,11 +1,11 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import useIsMobileViewport from '../hooks/useIsMobileViewport';
 import api from '../services/api';
 import CalendarioWidget from './CalendarioWidget';
 import AlumnoAvatarWidget from './AlumnoAvatarWidget';
 import PublicacionesWidget from './PublicacionesWidget';
-import PublicacionFormCard from './PublicacionFormCard';
 import PublicacionesCardFeed from './PublicacionesCardFeed';
 import NotificacionesWidget from './NotificacionesWidget';
 import PWAInstallPrompt from './PWAInstallPrompt';
@@ -27,6 +27,7 @@ export default function DashboardLayout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobileViewport();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState({});
   const sidebarNavRef = useRef(null);
@@ -128,8 +129,6 @@ export default function DashboardLayout({ children }) {
     tiene_grupos: false,
     tiene_cursos: false
   });
-  const [cargandoAsignaciones, setCargandoAsignaciones] = useState(false);
-  const [refreshPublicaciones, setRefreshPublicaciones] = useState(0);
   const [mostrarModalAsistencias, setMostrarModalAsistencias] = useState(false);
   const [esSupervisorSupervision, setEsSupervisorSupervision] = useState(false);
   
@@ -161,8 +160,6 @@ export default function DashboardLayout({ children }) {
     const cargarDatosDocente = async () => {
       if (user?.tipo !== 'DOCENTE') return;
       try {
-        setCargandoAsignaciones(true);
-
         const responseRoles = await api.get('/docente/roles-adicionales');
         if (cancelled) return;
         setRolesAdicionales({
@@ -191,15 +188,12 @@ export default function DashboardLayout({ children }) {
           setTieneAsignaciones({ tiene_grupos: false, tiene_cursos: false });
           setEsSupervisorSupervision(false);
         }
-      } finally {
-        if (!cancelled) setCargandoAsignaciones(false);
       }
     };
 
     const resetNoDocenteAcademico = () => {
       setTieneAsignaciones({ tiene_grupos: false, tiene_cursos: false });
       setEsSupervisorSupervision(false);
-      setCargandoAsignaciones(false);
     };
 
     if (user?.tipo === 'DOCENTE') {
@@ -321,7 +315,7 @@ export default function DashboardLayout({ children }) {
       // Desarrollo: usar localhost
       return `http://localhost:5000/Static/Image/Fotos/${fotoNombre}`;
     }
-  }, [user?.foto, user?.foto_nombre, role]);
+  }, [user?.foto, user?.foto_nombre]);
 
   return (
     <div className="dashboard-layout">
@@ -1497,38 +1491,21 @@ export default function DashboardLayout({ children }) {
         >
           <main className="dashboard-main">{children}</main>
           
-          {/* Columna derecha (calendario, publicaciones): no se muestra para ADMINISTRADOR */}
-          {(role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO') && (
+          {/* Columna derecha: solo se monta en web/tablet para evitar requests ocultos en móvil */}
+          {!isMobile && (role === 'DOCENTE' || role === 'ALUMNO' || role === 'APODERADO') && (
             <aside className="dashboard-sidebar-right">
               {role === 'ALUMNO' && <AlumnoAvatarWidget />}
               <CalendarioWidget />
-              {/* PublicacionesWidget anterior - Solo en web/tablet, para DOCENTE */}
               {role === 'DOCENTE' && (
-                <div className="publicaciones-widget-sidebar">
+                <div id="dashboard-publicaciones" className="publicaciones-widget-sidebar">
                   <PublicacionesWidget />
                 </div>
               )}
-              {/* PublicacionesCardFeed para ALUMNO y APODERADO en web/tablet (igual diseño) */}
               {(role === 'ALUMNO' || role === 'APODERADO') && (
-                <div className="publicaciones-widget-sidebar">
+                <div id="dashboard-publicaciones" className="publicaciones-widget-sidebar">
                   <PublicacionesCardFeed />
                 </div>
               )}
-              {/* Card amarillo de publicaciones - Solo en móvil (oculto en web/tablet) */}
-              <div className="dashboard-section card-amarillo-section card-amarillo-sidebar">
-                <div className="card-amarillo-vacio">
-                  <h3 className="card-amarillo-title">Publicaciones</h3>
-                  <div className="card-amarillo-separator"></div>
-                  {role === 'DOCENTE' && (
-                    <div className="card-amarillo-form-container">
-                      <PublicacionFormCard onPublicacionCreada={() => setRefreshPublicaciones(prev => prev + 1)} />
-                    </div>
-                  )}
-                  <div className="card-amarillo-feed-container">
-                    <PublicacionesCardFeed refreshTrigger={refreshPublicaciones} />
-                  </div>
-                </div>
-              </div>
             </aside>
           )}
         </div>

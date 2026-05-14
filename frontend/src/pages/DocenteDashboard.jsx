@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import DashboardLayout from '../components/DashboardLayout';
+import useIsMobileViewport from '../hooks/useIsMobileViewport';
 import api from '../services/api';
 import EventoDetalleModal from '../components/EventoDetalleModal';
 import PublicacionFormCard from '../components/PublicacionFormCard';
@@ -16,19 +17,29 @@ import './DocenteGrupos.css';
 function DocenteDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const isMobile = useIsMobileViewport();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
   const [paginaActual, setPaginaActual] = useState(1);
   const [eventoSeleccionado, setEventoSeleccionado] = useState(null);
   const [tipoEventoSeleccionado, setTipoEventoSeleccionado] = useState(null);
   const [mostrarComunicadoHome, setMostrarComunicadoHome] = useState(false);
-  const [tieneAsignaciones, setTieneAsignaciones] = useState({
-    tiene_grupos: true,
-    tiene_cursos: true
-  });
   const [refreshPublicaciones, setRefreshPublicaciones] = useState(0);
   const [docsGestion, setDocsGestion] = useState([]);
   const [loadingDocsGestion, setLoadingDocsGestion] = useState(true);
+  const tieneAsignaciones = useMemo(() => {
+    if (!dashboardData) {
+      return { tiene_grupos: true, tiene_cursos: true };
+    }
+
+    const gruposAsignados = Number(dashboardData?.estadisticas?.gruposAsignados || 0);
+    const cursosAsignados = Number(dashboardData?.estadisticas?.cursosAsignados || 0);
+
+    return {
+      tiene_grupos: gruposAsignados > 0,
+      tiene_cursos: cursosAsignados > 0
+    };
+  }, [dashboardData]);
 
   const cargarDashboard = async () => {
     try {
@@ -75,26 +86,6 @@ function DocenteDashboard() {
 
   useEffect(() => {
     cargarDashboard();
-    
-    // Cargar información de asignaciones
-    const cargarAsignaciones = async () => {
-      try {
-        const response = await api.get('/docente/tiene-asignaciones');
-        setTieneAsignaciones({
-          tiene_grupos: response.data.tiene_grupos || false,
-          tiene_cursos: response.data.tiene_cursos || false
-        });
-      } catch (error) {
-        console.error('Error cargando asignaciones:', error);
-        // En caso de error, mantener valores por defecto (mostrar cards)
-        setTieneAsignaciones({
-          tiene_grupos: true,
-          tiene_cursos: true
-        });
-      }
-    };
-    
-    cargarAsignaciones();
   }, []);
 
   useEffect(() => {
@@ -627,19 +618,20 @@ function DocenteDashboard() {
           verMasTo="/docente/herramientas/documentos"
         />
 
-        {/* Card amarillo - Solo en móvil */}
-        <div id="dashboard-publicaciones" className="dashboard-section card-amarillo-section">
-          <div className="card-amarillo-vacio">
-            <h3 className="card-amarillo-title">Publicaciones</h3>
-            <div className="card-amarillo-separator"></div>
-            <div className="card-amarillo-form-container">
-              <PublicacionFormCard onPublicacionCreada={() => setRefreshPublicaciones(prev => prev + 1)} />
-            </div>
-            <div className="card-amarillo-feed-container">
-              <PublicacionesCardFeed refreshTrigger={refreshPublicaciones} />
+        {isMobile && (
+          <div id="dashboard-publicaciones" className="dashboard-section card-amarillo-section">
+            <div className="card-amarillo-vacio">
+              <h3 className="card-amarillo-title">Publicaciones</h3>
+              <div className="card-amarillo-separator"></div>
+              <div className="card-amarillo-form-container">
+                <PublicacionFormCard onPublicacionCreada={() => setRefreshPublicaciones(prev => prev + 1)} />
+              </div>
+              <div className="card-amarillo-feed-container">
+                <PublicacionesCardFeed refreshTrigger={refreshPublicaciones} />
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Modal de detalle de evento */}

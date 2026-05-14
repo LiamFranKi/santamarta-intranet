@@ -3,35 +3,8 @@ import { createPortal } from 'react-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
+import PublicacionContenido from './PublicacionContenido';
 import './PublicacionesWidget.css';
-
-// Función para normalizar URLs de imágenes
-function normalizeImageUrl(url) {
-  if (!url) return url;
-  
-  const currentHost = window.location.hostname;
-  const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-  
-  // Si la URL es del dominio antiguo, reemplazarla
-  let normalized = url;
-  
-  // Reemplazar vanguardschools.edu.pe/uploads por el dominio actual
-  if (normalized.includes('vanguardschools.edu.pe/uploads')) {
-    normalized = normalized.replace(/https?:\/\/vanguardschools\.edu\.pe\/uploads/g, `${currentProtocol}//${currentHost}/uploads`);
-  }
-  
-  // Reemplazar vanguardschools.edu.pe/Static por el dominio del sistema PHP (nuevo.vanguardschools.edu.pe)
-  if (normalized.includes('vanguardschools.edu.pe/Static')) {
-    normalized = normalized.replace(/https?:\/\/vanguardschools\.edu\.pe\/Static/g, 'https://nuevo.vanguardschools.edu.pe/Static');
-  }
-  
-  // Corregir URLs malformadas (sin barra después del dominio)
-  normalized = normalized.replace(/vanguardschools\.com(static|uploads)/gi, (match, path) => {
-    return `https://nuevo.vanguardschools.edu.pe/Static${path === 'static' ? '' : ''}`;
-  });
-  
-  return normalized;
-}
 
 function PublicacionesWidget() {
   const { user } = useAuth();
@@ -659,90 +632,7 @@ function PublicacionesWidget() {
               </span>
             </div>
             
-            {/* Contenido */}
-            <div className="publicacion-contenido">
-              <p>{pub.contenido}</p>
-              {pub.images && Array.isArray(pub.images) && pub.images.length > 0 && (
-                <div className="publicacion-imagenes">
-                  {pub.images.slice(0, 3).map((imagenUrl, idx) => {
-                    // Normalizar URL: convertir URLs del sistema anterior al dominio correcto
-                    let urlCompleta;
-                    if (imagenUrl.startsWith('http')) {
-                      // Si es una URL completa, normalizarla
-                      urlCompleta = normalizeImageUrl(imagenUrl);
-                    } else {
-                      // Si es relativa, construir URL completa
-                      const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-                      urlCompleta = `${protocol}//${window.location.hostname}${imagenUrl.startsWith('/') ? '' : '/'}${imagenUrl}`;
-                    }
-                    
-                    return (
-                      <img 
-                        key={idx}
-                        src={urlCompleta} 
-                        alt={`Publicación ${idx + 1}`}
-                        className={pub.images.length === 1 ? 'imagen-sola' : 'imagen-multiple'}
-                        onClick={() => setImagenModal(urlCompleta)}
-                        onError={(e) => {
-                          console.error('Error cargando imagen:', imagenUrl, '→', urlCompleta);
-                          e.target.style.display = 'none';
-                        }}
-                        style={{ cursor: 'pointer' }}
-                      />
-                    );
-                  })}
-                  {pub.images.length > 3 && (
-                    <div className="imagen-mas">+{pub.images.length - 3} más</div>
-                  )}
-                </div>
-              )}
-              {pub.archivos && pub.archivos.length > 0 && (
-                <div className="publicacion-archivos">
-                  {pub.archivos.map((archivo, idx) => {
-                    // El sistema PHP guarda solo el nombre del archivo (ej: "archivo.pdf")
-                    // IMPORTANTE: Usar el mismo dominio del sistema PHP para servir archivos
-                    // Esto asegura que Apache los sirva exactamente igual que el sistema PHP
-                    let archivoUrl;
-                    if (archivo.startsWith('http')) {
-                      // Ya es una URL completa
-                      archivoUrl = archivo;
-                    } else if (archivo.startsWith('/Static/')) {
-                      // Es una ruta completa del sistema antiguo (compatibilidad)
-                      // Usar el dominio del sistema PHP para servir archivos
-                      archivoUrl = `https://nuevo.vanguardschools.edu.pe${archivo}`;
-                    } else {
-                      // Es solo el nombre del archivo (formato del sistema PHP)
-                      // Usar el dominio del sistema PHP para servir archivos (igual que el sistema anterior)
-                      archivoUrl = `https://nuevo.vanguardschools.edu.pe/Static/Archivos/${archivo}`;
-                    }
-                    
-                    // Obtener el nombre del archivo y su extensión
-                    const nombreArchivo = archivo.split('/').pop() || `Archivo ${idx + 1}`;
-                    const extension = nombreArchivo.split('.').pop()?.toLowerCase() || 'pdf';
-                    
-                    // Mostrar nombre más corto y legible
-                    const nombreMostrar = extension === 'pdf' ? 'Archivo.pdf' : 
-                                         extension === 'doc' || extension === 'docx' ? 'Archivo.docx' :
-                                         extension === 'xls' || extension === 'xlsx' ? 'Archivo.xlsx' :
-                                         extension === 'ppt' || extension === 'pptx' ? 'Archivo.pptx' :
-                                         `Archivo.${extension}`;
-                    
-                    return (
-                      <a 
-                        key={idx}
-                        href={archivoUrl}
-                        download
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="archivo-link"
-                      >
-                        📎 {nombreMostrar}
-                      </a>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <PublicacionContenido pub={pub} onImageClick={setImagenModal} />
             
             {/* "Para: [quién]" al final */}
             <div className="publicacion-para-container">

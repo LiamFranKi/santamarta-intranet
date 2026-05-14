@@ -4587,6 +4587,8 @@ router.get('/publicaciones', async (req, res) => {
       return {
         id: pub.id,
         contenido: pub.contenido || '',
+        tipo_video: pub.tipo_video || '',
+        video_id: pub.video_id || '',
         images: images,
         archivos: archivos,
         compartir_con: compartirCon,
