@@ -2248,8 +2248,6 @@ function AreasPanel({ meta }) {
   );
 }
 
-const ASIGNATURA_MENU_EST_HEIGHT = 340;
-
 function buildFiltrosAsignaturasDefault(meta, nivelesLista) {
   const anio = new Date().getFullYear();
   const sedes = meta?.sedes || [];
@@ -2316,7 +2314,9 @@ function AsignaturasPanel({ meta, accionesRef }) {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
   const [menuAsignaturaRow, setMenuAsignaturaRow] = useState(null);
-  const [menuPlacement, setMenuPlacement] = useState(null);
+  const [menuAnchorRect, setMenuAnchorRect] = useState(null);
+  const [menuCoords, setMenuCoords] = useState(null);
+  const menuPortalRef = useRef(null);
   const [listaAlumnosGrupoRow, setListaAlumnosGrupoRow] = useState(null);
   const [grupoAsistenciaAdmin, setGrupoAsistenciaAdmin] = useState(null);
   const [cursosDisponibles, setCursosDisponibles] = useState([]);
@@ -2382,7 +2382,8 @@ function AsignaturasPanel({ meta, accionesRef }) {
 
   const cerrarMenuAsignatura = useCallback(() => {
     setMenuAsignaturaRow(null);
-    setMenuPlacement(null);
+    setMenuAnchorRect(null);
+    setMenuCoords(null);
   }, []);
 
   const abrirMenuAsignatura = useCallback((e, row) => {
@@ -2392,19 +2393,35 @@ function AsignaturasPanel({ meta, accionesRef }) {
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
-    const menuW = 240;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const openUp = spaceBelow < ASIGNATURA_MENU_EST_HEIGHT && rect.top > spaceBelow;
-    let left = rect.right - menuW;
-    left = Math.max(8, Math.min(left, window.innerWidth - menuW - 8));
-    setMenuPlacement({
-      top: openUp ? rect.top - 6 : rect.bottom + 6,
-      left,
+    const menuW = 248;
+    setMenuAnchorRect(rect);
+    setMenuCoords({
+      top: rect.bottom + 6,
+      left: Math.max(8, Math.min(rect.right - menuW, window.innerWidth - menuW - 8)),
       minWidth: menuW,
-      openUp,
     });
     setMenuAsignaturaRow(row);
   }, [menuAsignaturaRow?.id, cerrarMenuAsignatura]);
+
+  useEffect(() => {
+    if (!menuAsignaturaRow || !menuAnchorRect || !menuPortalRef.current) return undefined;
+    const menuRect = menuPortalRef.current.getBoundingClientRect();
+    const menuW = menuRect.width || menuCoords?.minWidth || 248;
+    const menuH = menuRect.height || 120;
+    const gap = 6;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const preferBelow = menuAnchorRect.bottom + gap;
+    const preferAbove = menuAnchorRect.top - menuH - gap;
+    const top =
+      preferBelow + menuH > vh - 8 && preferAbove >= 8
+        ? preferAbove
+        : Math.max(8, Math.min(preferBelow, vh - menuH - 8));
+    const left = Math.max(8, Math.min(menuAnchorRect.right - menuW, vw - menuW - 8));
+    setMenuCoords((prev) =>
+      prev && prev.top === top && prev.left === left ? prev : { top, left, minWidth: menuW }
+    );
+  }, [menuAsignaturaRow, menuAnchorRect]);
 
   useEffect(() => {
     if (!menuAsignaturaRow) return undefined;
@@ -2813,19 +2830,16 @@ function AsignaturasPanel({ meta, accionesRef }) {
       )}
 
       {menuAsignaturaRow &&
-        menuPlacement &&
+        menuCoords &&
         createPortal(
           <div
+            ref={menuPortalRef}
             className="admin-academico-asignaturas-dropdown-portal"
             role="menu"
             style={{
-              position: 'fixed',
-              top: menuPlacement.openUp ? 'auto' : menuPlacement.top,
-              bottom: menuPlacement.openUp ? window.innerHeight - menuPlacement.top : 'auto',
-              left: menuPlacement.left,
-              minWidth: menuPlacement.minWidth,
-              transform: menuPlacement.openUp ? 'translateY(-100%)' : 'none',
-              zIndex: 10050,
+              top: menuCoords.top,
+              left: menuCoords.left,
+              minWidth: menuCoords.minWidth,
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
