@@ -1,9 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import useIsMobileViewport from '../hooks/useIsMobileViewport';
 import './BirthdayWidget.css';
+
+/** Móvil + tablet: panel contraído por defecto (solo icono 🎂). Escritorio: desplegado. */
+const BIRTHDAY_COMPACT_MAX_WIDTH = 1024;
+
+function initialBirthdayExpanded() {
+  if (typeof window === 'undefined') return true;
+  return window.innerWidth > BIRTHDAY_COMPACT_MAX_WIDTH;
+}
 
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -29,8 +38,20 @@ function rutaMensajesPorPerfil(tipo) {
 function BirthdayWidget({ visibleDefault = true, comunicadoAbierto = false }) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const isCompactViewport = useIsMobileViewport(BIRTHDAY_COMPACT_MAX_WIDTH);
   const [showConfig, setShowConfig] = useState(null);
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(initialBirthdayExpanded);
+  const [userPinnedExpanded, setUserPinnedExpanded] = useState(false);
+
+  const setExpandedUser = useCallback((value) => {
+    setUserPinnedExpanded(true);
+    setExpanded(value);
+  }, []);
+
+  useEffect(() => {
+    if (userPinnedExpanded) return;
+    setExpanded(!isCompactViewport);
+  }, [isCompactViewport, userPinnedExpanded]);
   const [loading, setLoading] = useState(true);
   const [cumpleanos, setCumpleanos] = useState([]);
   const [mes, setMes] = useState(new Date().getMonth() + 1);
@@ -109,7 +130,7 @@ function BirthdayWidget({ visibleDefault = true, comunicadoAbierto = false }) {
       }
     });
     cerrarModal();
-    setExpanded(false);
+    setExpandedUser(false);
   };
 
   if (showConfig === false || !visibleDefault) return null;
@@ -121,7 +142,7 @@ function BirthdayWidget({ visibleDefault = true, comunicadoAbierto = false }) {
       <button
         type="button"
         className="birthday-widget-icon"
-        onClick={() => setExpanded(true)}
+        onClick={() => setExpandedUser(true)}
         aria-label="Ver cumpleaños del mes"
         style={{ zIndex: comunicadoAbierto ? 9990 : 9999 }}
       >
@@ -144,7 +165,7 @@ function BirthdayWidget({ visibleDefault = true, comunicadoAbierto = false }) {
           <button
             type="button"
             className="birthday-widget-close"
-            onClick={() => setExpanded(false)}
+            onClick={() => setExpandedUser(false)}
             aria-label="Minimizar"
           >
             ×

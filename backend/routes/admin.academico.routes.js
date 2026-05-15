@@ -391,6 +391,95 @@ router.get('/grupos', listGrupos);
 router.get('/grados', listGrupos);
 
 /**
+ * GET /api/admin/academico/grupos/:grupoId/cursos-disponibles
+ * Cursos del nivel del grupo que aún no tienen asignatura en ese grupo.
+ * Query: exclude_asignatura_id — en edición, incluye el curso de esa asignatura aunque esté "ocupado".
+ */
+router.get('/grupos/:grupoId/cursos-disponibles', async (req, res) => {
+  try {
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const cid = colegio(req);
+    const excludeAsignaturaId =
+      req.query.exclude_asignatura_id != null && String(req.query.exclude_asignatura_id).trim() !== ''
+        ? parseInt(req.query.exclude_asignatura_id, 10)
+        : null;
+
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'ID de grupo inválido' });
+    }
+
+    const [gRow] = await query(
+      `SELECT g.id, g.nivel_id, g.grado, g.seccion, g.anio, n.nombre AS nivel_nombre
+       FROM grupos g
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.id = ? AND g.colegio_id = ?`,
+      [grupoId, cid]
+    );
+    if (!gRow) return res.status(404).json({ error: 'Grupo no encontrado' });
+
+    const ccols = await getTableColumns('cursos').catch(() => null);
+    if (!ccols?.has('nivel_id')) {
+      return res.status(400).json({
+        error: 'La tabla cursos no tiene nivel_id; no se puede filtrar por nivel del grupo.',
+      });
+    }
+
+    let asignadosSql = `SELECT id, curso_id FROM asignaturas WHERE grupo_id = ? AND colegio_id = ?`;
+    const asignadosParams = [grupoId, cid];
+    if (Number.isFinite(excludeAsignaturaId)) {
+      asignadosSql += ' AND id != ?';
+      asignadosParams.push(excludeAsignaturaId);
+    }
+    const asignadosRows = await query(asignadosSql, asignadosParams);
+    const ocupados = new Set((asignadosRows || []).map((r) => r.curso_id));
+
+    const todosNivel = await query(
+      `SELECT c.id, c.nombre, c.abreviatura, c.nivel_id
+       FROM cursos c
+       WHERE c.colegio_id = ? AND c.nivel_id = ?
+       ORDER BY c.nombre ASC`,
+      [cid, gRow.nivel_id]
+    );
+
+    let cursos = (todosNivel || []).filter((c) => !ocupados.has(c.id));
+
+    if (Number.isFinite(excludeAsignaturaId)) {
+      const [actual] = await query(
+        'SELECT curso_id FROM asignaturas WHERE id = ? AND colegio_id = ? LIMIT 1',
+        [excludeAsignaturaId, cid]
+      );
+      const cursoActualId = actual?.curso_id;
+      if (cursoActualId && !cursos.some((c) => c.id === cursoActualId)) {
+        const [curActual] = await query(
+          `SELECT id, nombre, abreviatura, nivel_id FROM cursos WHERE id = ? AND colegio_id = ?`,
+          [cursoActualId, cid]
+        );
+        if (curActual) {
+          cursos = [{ ...curActual, asignado_actual: true }, ...cursos];
+        }
+      }
+    }
+
+    res.json({
+      grupo: {
+        id: gRow.id,
+        nivel_id: gRow.nivel_id,
+        nivel_nombre: gRow.nivel_nombre,
+        grado: gRow.grado,
+        seccion: gRow.seccion,
+        anio: gRow.anio,
+      },
+      cursos,
+      total_nivel: (todosNivel || []).length,
+      total_ocupados: ocupados.size,
+    });
+  } catch (e) {
+    console.error('[admin/academico/grupos/:grupoId/cursos-disponibles]', e);
+    res.status(500).json({ error: 'Error al listar cursos disponibles' });
+  }
+});
+
+/**
  * GET /api/admin/academico/grupos/:grupoId/horario
  * Horario completo del aula (misma lógica que tutoría / alumno). Query opcional ?anio= (por defecto año del grupo).
  */
@@ -1470,30 +1559,103 @@ router.post('/asignaturas', async (req, res) => {
   try {
     const cid = colegio(req);
     const grupo_id = parseInt(req.body?.grupo_id, 10);
-    const curso_id = parseInt(req.body?.curso_id, 10);
     const personal_id = parseInt(req.body?.personal_id, 10);
-    if (!grupo_id || !curso_id || !personal_id) {
-      return res.status(400).json({ error: 'Grupo, curso y docente son obligatorios' });
+
+    let cursoIds = [];
+    if (Array.isArray(req.body?.curso_ids)) {
+      cursoIds = [...new Set(
+        req.body.curso_ids
+          .map((x) => parseInt(x, 10))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      )];
+    } else if (req.body?.curso_id != null && String(req.body.curso_id).trim() !== '') {
+      const uno = parseInt(req.body.curso_id, 10);
+      if (Number.isFinite(uno)) cursoIds = [uno];
     }
-    const [g] = await query('SELECT id FROM grupos WHERE id = ? AND colegio_id = ?', [grupo_id, cid]);
+
+    if (!grupo_id || !personal_id || !cursoIds.length) {
+      return res.status(400).json({
+        error: 'Grupo, docente y al menos un curso son obligatorios',
+      });
+    }
+
+    const [g] = await query(
+      'SELECT id, nivel_id FROM grupos WHERE id = ? AND colegio_id = ?',
+      [grupo_id, cid]
+    );
     if (!g) return res.status(400).json({ error: 'Grupo no válido' });
-    const [c] = await query('SELECT id FROM cursos WHERE id = ? AND colegio_id = ?', [curso_id, cid]);
-    if (!c) return res.status(400).json({ error: 'Curso no válido' });
+
     const [p] = await query('SELECT id FROM personal WHERE id = ? AND colegio_id = ?', [personal_id, cid]);
     if (!p) return res.status(400).json({ error: 'Docente no válido' });
-    let r;
-    try {
-      r = await execute(
-        `INSERT INTO asignaturas (colegio_id, grupo_id, curso_id, personal_id) VALUES (?, ?, ?, ?)`,
-        [cid, grupo_id, curso_id, personal_id]
-      );
-    } catch (e) {
-      if (String(e.message || '').includes('Duplicate') || e.code === 'ER_DUP_ENTRY') {
-        return res.status(400).json({ error: 'Ya existe esa asignación (grupo/curso/docente).' });
+
+    const ccols = await getTableColumns('cursos').catch(() => null);
+    const asignadosRows = await query(
+      'SELECT curso_id FROM asignaturas WHERE grupo_id = ? AND colegio_id = ?',
+      [grupo_id, cid]
+    );
+    const ocupados = new Set((asignadosRows || []).map((r) => r.curso_id));
+
+    const insertados = [];
+    const omitidos = [];
+    const errores = [];
+
+    for (const curso_id of cursoIds) {
+      if (ocupados.has(curso_id)) {
+        omitidos.push({ curso_id, motivo: 'Ya tiene docente en este grupo' });
+        continue;
       }
-      throw e;
+
+      const [c] = await query(
+        ccols?.has('nivel_id')
+          ? 'SELECT id, nivel_id FROM cursos WHERE id = ? AND colegio_id = ?'
+          : 'SELECT id FROM cursos WHERE id = ? AND colegio_id = ?',
+        [curso_id, cid]
+      );
+      if (!c) {
+        errores.push({ curso_id, motivo: 'Curso no válido' });
+        continue;
+      }
+      if (ccols?.has('nivel_id') && c.nivel_id !== g.nivel_id) {
+        errores.push({ curso_id, motivo: 'El curso no pertenece al nivel del grupo' });
+        continue;
+      }
+
+      try {
+        const r = await execute(
+          `INSERT INTO asignaturas (colegio_id, grupo_id, curso_id, personal_id) VALUES (?, ?, ?, ?)`,
+          [cid, grupo_id, curso_id, personal_id]
+        );
+        ocupados.add(curso_id);
+        insertados.push({ id: r.insertId, curso_id });
+      } catch (e) {
+        if (String(e.message || '').includes('Duplicate') || e.code === 'ER_DUP_ENTRY') {
+          omitidos.push({ curso_id, motivo: 'Asignación duplicada' });
+        } else {
+          errores.push({ curso_id, motivo: e.message || 'Error al insertar' });
+        }
+      }
     }
-    res.json({ success: true, id: r.insertId });
+
+    if (!insertados.length) {
+      const msg =
+        omitidos.length && !errores.length
+          ? 'Los cursos seleccionados ya tienen docente en este grupo.'
+          : 'No se pudo crear ninguna asignatura. Revise los cursos seleccionados.';
+      return res.status(400).json({
+        error: msg,
+        omitidos,
+        errores,
+      });
+    }
+
+    res.json({
+      success: true,
+      id: insertados[0].id,
+      creadas: insertados.length,
+      insertados,
+      omitidos,
+      errores,
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: e.message || 'No se pudo crear la asignatura' });

@@ -878,14 +878,59 @@ body.admin-academico-page .swal2-container {
   display: block;
 }
 
-/* ——— Asignaturas: filtros + tabla + menú opciones ——— */
-.admin-academico-asignaturas-toolbar {
+/* ——— Asignaturas: encabezado, filtros, tabla, menú portal ——— */
+.admin-academico-asignaturas-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem 1.25rem;
+}
+
+.admin-academico-page-header-text {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.admin-academico-asignaturas-header-btn {
+  flex-shrink: 0;
+  min-width: auto;
+  margin-top: 0.15rem;
+}
+
+.admin-academico-asignaturas-filters-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 0.85rem;
   margin-bottom: 1.15rem;
+  padding: 0.85rem 1rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.admin-academico-asignaturas-filters-bar .admin-academico-grupos-filter-field select {
+  min-width: 118px;
+}
+
+.admin-academico-asignaturas-filter-grado select {
+  min-width: 72px;
+}
+
+.admin-academico-asignaturas-filter-seccion select {
+  min-width: 88px;
+}
+
+.admin-academico-asignaturas-filter-anio select {
+  min-width: 88px;
 }
 
 .admin-academico-asignaturas-btn-buscar {
   align-self: flex-end;
   margin-bottom: 1px;
+  padding: 0.5rem 1.25rem;
+  white-space: nowrap;
 }
 
 .admin-academico-asignaturas-hint {
@@ -896,6 +941,7 @@ body.admin-academico-page .swal2-container {
 
 .admin-academico-asignaturas-table-wrap {
   overflow-x: auto;
+  overflow-y: visible;
 }
 
 .admin-academico-asignaturas-table th,
@@ -905,20 +951,133 @@ body.admin-academico-page .swal2-container {
 
 .admin-academico-asignaturas-th-opciones,
 .admin-academico-asignaturas-td-opciones {
-  width: 120px;
+  width: 112px;
   text-align: center;
 }
 
-.admin-academico-asignaturas-opciones {
-  position: relative;
-  display: inline-flex;
-  justify-content: center;
+.admin-academico-asignaturas-opciones-btn {
+  width: auto;
+  min-width: 96px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.82rem;
 }
 
-.admin-academico-asignaturas-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
-  z-index: 50;
-  min-width: 220px;
+/* Menú Opciones en portal (evita recorte y fondo transparente en tabla) */
+.admin-academico-asignaturas-dropdown-portal {
+  padding: 0.4rem;
+  background: #ffffff;
+  border: 1px solid rgba(74, 131, 193, 0.28);
+  border-radius: 12px;
+  box-shadow:
+    0 16px 40px rgba(15, 23, 42, 0.18),
+    0 4px 12px rgba(15, 23, 42, 0.08);
+  max-height: min(70vh, 360px);
+  overflow-y: auto;
+}
+
+.admin-academico-asignaturas-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  border-radius: 8px;
+  background: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #1e3a5f;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.admin-academico-asignaturas-dropdown-item:hover {
+  background: #f0f7ff;
+}
+
+.admin-academico-asignaturas-dropdown-item--danger {
+  color: #b91c1c;
+}
+
+.admin-academico-asignaturas-dropdown-item--danger:hover {
+  background: #fef2f2;
+}
+
+@media (max-width: 900px) {
+  .admin-academico-asignaturas-filters-bar {
+    gap: 0.55rem 0.65rem;
+  }
+
+  .admin-academico-asignaturas-filters-bar .admin-academico-grupos-filter-field {
+    flex: 1 1 calc(50% - 0.5rem);
+    min-width: 140px;
+  }
+
+  .admin-academico-asignaturas-btn-buscar {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+}
+
+/* Modal asignaturas: lista de cursos (nuevo, multiselección) */
+.admin-academico-asignaturas-cursos-empty {
+  margin: 0.35rem 0 0;
+  font-size: 0.88rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.admin-academico-asignaturas-cursos-meta {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.admin-academico-asignaturas-cursos-list {
+  max-height: min(240px, 40vh);
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.35rem 0.5rem;
+  background: #f8fafc;
+}
+
+.admin-academico-asignaturas-curso-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.35rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.92rem;
+  color: #1e293b;
+}
+
+.admin-academico-asignaturas-curso-check:hover {
+  background: #eef2ff;
+}
+
+.admin-academico-asignaturas-curso-check input {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  accent-color: #4a83c1;
+}
+
+.admin-academico-asignaturas-curso-abbr {
+  margin-left: auto;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  background: #e2e8f0;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+.admin-academico-asignaturas-cursos-selected {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1e3a5f;
 }
