@@ -945,7 +945,10 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
         </div>
 
         {/* Selector Global de Bimestre */}
-        <div className="bimestre-selector-global">
+        <div
+          className="bimestre-selector-global"
+          style={{ '--bimestre-tab-count': totalNotas }}
+        >
           {Array.from({ length: totalNotas }, (_, i) => i + 1).map((bim) => (
             <button
               key={bim}

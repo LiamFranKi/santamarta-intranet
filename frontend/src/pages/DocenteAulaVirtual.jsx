@@ -3575,8 +3575,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
           <p>{curso?.curso_nombre || 'Curso'} - {curso?.grado}° {curso?.seccion} - {curso?.anio}</p>
         </div>
 
-        {/* Selector Global de Bimestre */}
-        <div className="bimestre-selector-global">
+        {/* Selector Global de Bimestre — ancho completo, N columnas según bimestres */}
+        <div
+          className="bimestre-selector-global"
+          style={{ '--bimestre-tab-count': totalNotas }}
+        >
           {Array.from({ length: totalNotas }, (_, i) => i + 1).map((bim) => (
             <button
               key={bim}

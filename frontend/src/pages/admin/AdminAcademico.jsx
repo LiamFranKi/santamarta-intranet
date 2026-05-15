@@ -2952,9 +2952,6 @@ function AsignaturasPanel({ meta, accionesRef }) {
                           onClick={() => toggleCursoNuevo(c.id)}
                         >
                           <span className="admin-academico-asignaturas-curso-tab__nombre">{c.nombre}</span>
-                          {c.abreviatura ? (
-                            <span className="admin-academico-asignaturas-curso-tab__abbr">{c.abreviatura}</span>
-                          ) : null}
                         </button>
                       );
                     })}

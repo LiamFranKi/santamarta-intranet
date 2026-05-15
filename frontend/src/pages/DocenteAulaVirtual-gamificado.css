@@ -114,13 +114,17 @@
   z-index: 1;
 }
 
-/* Bimestre Selector Global */
+/* Bimestre Selector Global — una fila que ocupa el mismo ancho útil que las cards */
 .bimestre-selector-global {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
+  --bimestre-tab-count: 4;
+  display: grid;
+  grid-template-columns: repeat(var(--bimestre-tab-count), minmax(0, 1fr));
+  align-items: stretch;
+  gap: 0.65rem 0.85rem;
+  width: 100%;
+  max-width: 100%;
   margin-bottom: 2rem;
-  flex-wrap: wrap;
+  box-sizing: border-box;
   position: relative;
   z-index: 1;
 }
@@ -129,15 +133,21 @@
   background: rgba(255, 255, 255, 0.85);
   border: 2px solid rgba(196, 181, 253, 0.3);
   color: #6366f1;
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 1rem;
   border-radius: 16px;
   cursor: pointer;
   font-size: 1rem;
   font-weight: 600;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(10px);
-  min-width: 120px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   box-shadow: 0 4px 15px rgba(99, 102, 241, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .bimestre-tab-global:hover {
@@ -1398,14 +1408,14 @@
   }
 
   .bimestre-selector-global {
-    gap: 0.5rem;
+    gap: 0.5rem 0.6rem;
     margin-bottom: 1.5rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .bimestre-tab-global {
-    padding: 0.5rem 1rem;
+    padding: 0.5rem 0.85rem;
     font-size: 0.85rem;
-    min-width: 90px;
   }
 
   .aula-dashboard-grid {
@@ -1803,9 +1813,8 @@
   }
 
   .bimestre-tab-global {
-    padding: 0.4rem 0.75rem;
-    font-size: 0.75rem;
-    min-width: 70px;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.78rem;
   }
 
   .aula-section-card {
