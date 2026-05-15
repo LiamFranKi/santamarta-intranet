@@ -1351,35 +1351,118 @@ router.delete('/areas/:id', async (req, res) => {
 });
 
 // ——— Asignaturas ———
+function normalizarSeccionFiltro(sec) {
+  const u = String(sec || '').trim().toUpperCase();
+  if (u === 'ÚNICA') return 'UNICA';
+  return u;
+}
+
 router.get('/asignaturas', async (req, res) => {
   try {
     const cid = colegio(req);
     const anio = req.query.anio != null ? parseInt(req.query.anio, 10) : null;
     const grupoId = req.query.grupo_id != null ? parseInt(req.query.grupo_id, 10) : null;
+    const sedeId = req.query.sede_id != null && String(req.query.sede_id).trim() !== ''
+      ? parseInt(req.query.sede_id, 10)
+      : null;
+    const nivelId = req.query.nivel_id != null && String(req.query.nivel_id).trim() !== ''
+      ? parseInt(req.query.nivel_id, 10)
+      : null;
+    const grado = req.query.grado != null && String(req.query.grado).trim() !== ''
+      ? parseInt(req.query.grado, 10)
+      : null;
+    const seccionRaw = req.query.seccion != null ? String(req.query.seccion).trim() : '';
+    const turnoId = req.query.turno_id != null && String(req.query.turno_id).trim() !== ''
+      ? parseInt(req.query.turno_id, 10)
+      : null;
+
     const [cRow] = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
     const anioF = Number.isFinite(anio) ? anio : parseInt(cRow?.anio_activo || new Date().getFullYear(), 10);
+    const gcols = await getTableColumns('grupos').catch(() => null);
+
     let sql = `
       SELECT a.id, a.grupo_id, a.curso_id, a.personal_id,
              c.nombre AS curso_nombre,
-             g.grado, g.seccion, g.anio, n.nombre AS nivel_nombre,
-             TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))) AS docente_nombre
+             g.grado, g.seccion, g.anio, g.nivel_id, g.turno_id,
+             n.nombre AS nivel_nombre,
+             TRIM(CONCAT(COALESCE(p.apellidos,''), ', ', COALESCE(p.nombres,''))) AS docente_nombre`;
+    if (gcols?.has('sede_id')) sql += `, s.nombre AS sede_nombre, g.sede_id`;
+    if (gcols?.has('turno_id')) sql += `, t.nombre AS turno_nombre`;
+    sql += `
       FROM asignaturas a
       INNER JOIN grupos g ON g.id = a.grupo_id
       INNER JOIN cursos c ON c.id = a.curso_id
       INNER JOIN niveles n ON n.id = g.nivel_id
-      INNER JOIN personal p ON p.id = a.personal_id
-      WHERE a.colegio_id = ? AND g.anio = ?`;
+      INNER JOIN personal p ON p.id = a.personal_id`;
+    if (gcols?.has('sede_id')) sql += ` LEFT JOIN sedes s ON s.id = g.sede_id`;
+    if (gcols?.has('turno_id')) sql += ` LEFT JOIN turnos t ON t.id = g.turno_id`;
+    sql += ` WHERE a.colegio_id = ? AND g.anio = ?`;
     const params = [cid, anioF];
-    if (grupoId) {
+
+    if (Number.isFinite(grupoId)) {
       sql += ' AND a.grupo_id = ?';
       params.push(grupoId);
     }
+    if (Number.isFinite(sedeId) && gcols?.has('sede_id')) {
+      sql += ' AND g.sede_id = ?';
+      params.push(sedeId);
+    }
+    if (Number.isFinite(nivelId)) {
+      sql += ' AND g.nivel_id = ?';
+      params.push(nivelId);
+    }
+    if (Number.isFinite(grado)) {
+      sql += ' AND g.grado = ?';
+      params.push(grado);
+    }
+    if (seccionRaw) {
+      sql += ' AND UPPER(TRIM(g.seccion)) = ?';
+      params.push(normalizarSeccionFiltro(seccionRaw));
+    }
+    if (Number.isFinite(turnoId) && gcols?.has('turno_id')) {
+      sql += ' AND g.turno_id = ?';
+      params.push(turnoId);
+    }
+
     sql += ' ORDER BY n.nombre, g.grado, g.seccion, c.nombre';
     const rows = await query(sql, params);
     res.json({ anio: anioF, asignaturas: rows || [] });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Error al listar asignaturas' });
+  }
+});
+
+/** Resumen de una asignatura (p. ej. Aula Virtual desde admin). */
+router.get('/asignaturas/:id/resumen', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const cid = colegio(req);
+    const anioQ = req.query.anio != null ? parseInt(req.query.anio, 10) : null;
+    const [cRow] = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
+    const anioF = Number.isFinite(anioQ) ? anioQ : parseInt(cRow?.anio_activo || new Date().getFullYear(), 10);
+
+    const rows = await query(
+      `SELECT a.id, a.grupo_id, a.curso_id, a.personal_id, a.aula_virtual, a.habilitar_aula,
+              c.nombre AS curso_nombre, c.imagen AS curso_imagen,
+              g.grado, g.seccion, g.anio, g.nivel_id, g.turno_id, g.sede_id,
+              n.nombre AS nivel_nombre, t.nombre AS turno_nombre, s.nombre AS sede_nombre,
+              TRIM(CONCAT(COALESCE(p.apellidos,''), ', ', COALESCE(p.nombres,''))) AS docente_nombre
+       FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
+       INNER JOIN personal p ON p.id = a.personal_id
+       LEFT JOIN turnos t ON t.id = g.turno_id
+       LEFT JOIN sedes s ON s.id = g.sede_id
+       WHERE a.id = ? AND a.colegio_id = ? AND g.anio = ?`,
+      [id, cid, anioF]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Asignatura no encontrada' });
+    res.json({ asignatura: rows[0] });
+  } catch (e) {
+    console.error('[admin/academico/asignaturas/:id/resumen]', e);
+    res.status(500).json({ error: 'Error al obtener asignatura' });
   }
 });
 

@@ -371,12 +371,37 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
 
   const cargarDatosCurso = useCallback(async () => {
     try {
-      // Obtener información del curso/asignatura desde la lista de cursos
-      const response = await api.get('/docente/cursos');
-      const cursoEncontrado = response.data.cursos.find(c => c.id === asignaturaId);
+      let cursoEncontrado = null;
+      try {
+        const response = await api.get('/docente/cursos');
+        cursoEncontrado = (response.data.cursos || []).find(
+          (c) => c.id === asignaturaId || String(c.id) === String(asignaturaId)
+        );
+      } catch (e) {
+        console.warn('Lista de cursos no disponible:', e);
+      }
+      if (!cursoEncontrado) {
+        try {
+          const { data } = await api.get(`/admin/academico/asignaturas/${asignaturaId}/resumen`);
+          const a = data.asignatura;
+          if (a) {
+            cursoEncontrado = {
+              id: a.id,
+              curso_nombre: a.curso_nombre,
+              grado: a.grado,
+              seccion: a.seccion,
+              anio: a.anio,
+              nivel_nombre: a.nivel_nombre,
+              turno_nombre: a.turno_nombre,
+              grupo_id: a.grupo_id,
+            };
+          }
+        } catch (e) {
+          console.warn('Resumen admin de asignatura no disponible:', e);
+        }
+      }
       setCurso(cursoEncontrado || null);
-      
-      // Obtener configuración (total_notas)
+
       const configResponse = await api.get('/docente/aula-virtual/config');
       setTotalNotas(configResponse.data.total_notas || 4);
     } catch (error) {
@@ -3530,6 +3555,8 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                 } else {
                   navigate('/docente/tutoria');
                 }
+              } else if (location.state?.adminReturnTo) {
+                navigate(location.state.adminReturnTo);
               } else {
                 navigate('/docente/cursos');
               }

@@ -877,3 +877,48 @@ body.admin-academico-page .swal2-container {
   box-sizing: border-box !important;
   display: block;
 }
+
+/* ——— Asignaturas: filtros + tabla + menú opciones ——— */
+.admin-academico-asignaturas-toolbar {
+  margin-bottom: 1.15rem;
+}
+
+.admin-academico-asignaturas-btn-buscar {
+  align-self: flex-end;
+  margin-bottom: 1px;
+}
+
+.admin-academico-asignaturas-hint {
+  margin: 0.5rem 0 1rem;
+  color: #64748b;
+  font-size: 0.92rem;
+}
+
+.admin-academico-asignaturas-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-academico-asignaturas-table th,
+.admin-academico-asignaturas-table td {
+  vertical-align: middle;
+}
+
+.admin-academico-asignaturas-th-opciones,
+.admin-academico-asignaturas-td-opciones {
+  width: 120px;
+  text-align: center;
+}
+
+.admin-academico-asignaturas-opciones {
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.admin-academico-asignaturas-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 50;
+  min-width: 220px;
+}

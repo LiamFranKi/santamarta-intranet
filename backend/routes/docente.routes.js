@@ -50,10 +50,27 @@ const {
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { lineaAlumnoGrado, etiquetaGradoGrupo } = require('../utils/notificacionExamenApoderadoTexto');
 const { listarDeudoresGrupo, mergeObservacionesTutor } = require('../utils/tutorDeudoresService');
+const { fetchAsignaturaConAcceso, esStaffColegio } = require('../utils/asignaturaAcceso');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
   return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA';
+}
+
+/** Docente titular o staff (admin/promotoría) con asignatura en el colegio y año activo. */
+async function verificarAccesoAsignatura(
+  req,
+  res,
+  asignaturaId,
+  selectSql = 'a.*',
+  errorMsg = 'No tienes acceso a este curso'
+) {
+  const row = await fetchAsignaturaConAcceso(query, req, asignaturaId, selectSql);
+  if (!row) {
+    res.status(403).json({ error: errorMsg });
+    return null;
+  }
+  return row;
 }
 
 /** Admin, Promotoría o Psicóloga: listado de grupos del año y publicaciones con alcance de colegio (misma regla que admin en feed). */
@@ -2845,30 +2862,44 @@ router.get('/alumnos/:alumnoId/info', async (req, res) => {
  */
 router.get('/cursos', async (req, res) => {
   try {
-    const { usuario_id, colegio_id, anio_activo } = req.user;
-
-    // Obtener personal_id del token
+    const { colegio_id, anio_activo, tipo } = req.user;
     const personalId = req.user.personal_id;
-    
-    if (!personalId) {
+    const staff = esStaffColegio(tipo);
+
+    if (!staff && !personalId) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
-    // Obtener cursos asignados
-    // asignaturas tiene grupo_id directamente, no area_curso_id
-    const cursos = await query(
-      `SELECT a.*, c.nombre as curso_nombre, c.imagen as curso_imagen, 
-              g.grado, g.seccion, g.anio, 
-              n.nombre as nivel_nombre, n.tipo_calificacion as nivel_tipo_calificacion, t.nombre as turno_nombre
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?
-       ORDER BY n.nombre, g.grado, g.seccion, c.nombre`,
-      [personalId, colegio_id, anio_activo]
-    );
+    let cursos;
+    if (staff) {
+      cursos = await query(
+        `SELECT a.*, c.nombre as curso_nombre, c.imagen as curso_imagen,
+                g.grado, g.seccion, g.anio,
+                n.nombre as nivel_nombre, n.tipo_calificacion as nivel_tipo_calificacion, t.nombre as turno_nombre
+         FROM asignaturas a
+         INNER JOIN grupos g ON g.id = a.grupo_id
+         INNER JOIN cursos c ON c.id = a.curso_id
+         INNER JOIN niveles n ON n.id = g.nivel_id
+         INNER JOIN turnos t ON t.id = g.turno_id
+         WHERE a.colegio_id = ? AND g.anio = ?
+         ORDER BY n.nombre, g.grado, g.seccion, c.nombre`,
+        [colegio_id, anio_activo]
+      );
+    } else {
+      cursos = await query(
+        `SELECT a.*, c.nombre as curso_nombre, c.imagen as curso_imagen,
+                g.grado, g.seccion, g.anio,
+                n.nombre as nivel_nombre, n.tipo_calificacion as nivel_tipo_calificacion, t.nombre as turno_nombre
+         FROM asignaturas a
+         INNER JOIN grupos g ON g.id = a.grupo_id
+         INNER JOIN cursos c ON c.id = a.curso_id
+         INNER JOIN niveles n ON n.id = g.nivel_id
+         INNER JOIN turnos t ON t.id = g.turno_id
+         WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?
+         ORDER BY n.nombre, g.grado, g.seccion, c.nombre`,
+        [personalId, colegio_id, anio_activo]
+      );
+    }
 
     // Construir URLs completas para las imágenes de cursos
     // Según el modelo anterior, las imágenes están en /Static/Archivos/
@@ -2924,32 +2955,19 @@ router.get('/cursos/:cursoId/alumnos', async (req, res) => {
       return res.status(400).json({ error: 'ID de curso es requerido' });
     }
 
-    // Obtener personal_id del token
-    const personalId = req.user.personal_id;
-    
-    if (!personalId) {
+    if (!req.user.personal_id && !esStaffColegio(req.user.tipo)) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
-    // Verificar que el docente tiene acceso a este curso (asignatura)
-    const asignatura = await query(
-      `SELECT a.*, g.id as grupo_id, g.grado, g.seccion, g.anio,
+    const cursoInfo = await verificarAccesoAsignatura(
+      req,
+      res,
+      cursoId,
+      `a.*, g.id as grupo_id, g.grado, g.seccion, g.anio,
               n.nombre as nivel_nombre, t.nombre as turno_nombre,
-              c.nombre as curso_nombre
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN turnos t ON t.id = g.turno_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personalId, colegio_id, anio_activo]
+              c.nombre as curso_nombre`
     );
-
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
-
-    const cursoInfo = asignatura[0];
+    if (!cursoInfo) return;
 
     // Obtener alumnos del grupo con conteo de estrellas e incidencias
     // IMPORTANTE: Las estrellas e incidencias se calculan solo del año activo y del curso específico
@@ -3950,7 +3968,7 @@ router.get('/cursos/:cursoId/notas', async (req, res) => {
     const { colegio_id, anio_activo, personal_id } = req.user;
     const { ciclo = 1 } = req.query; // Ciclo por defecto: 1
 
-    if (!personal_id) {
+    if (!personal_id && !esStaffColegio(req.user.tipo)) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
@@ -3960,25 +3978,16 @@ router.get('/cursos/:cursoId/notas', async (req, res) => {
 
     const cicloInt = parseInt(ciclo);
 
-    // Verificar que el docente tiene acceso a este curso
-    const asignatura = await query(
-      `SELECT a.*, g.id as grupo_id, g.grado, g.seccion, g.anio, g.nivel_id,
+    const cursoInfo = await verificarAccesoAsignatura(
+      req,
+      res,
+      cursoId,
+      `a.*, g.id as grupo_id, g.grado, g.seccion, g.anio, g.nivel_id,
               n.nombre as nivel_nombre, n.tipo_calificacion, n.tipo_calificacion_final,
               n.nota_aprobatoria, n.nota_maxima, n.nota_minima,
-              c.nombre as curso_nombre, c.peso_examen_mensual, c.examen_mensual
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personal_id, colegio_id, anio_activo]
+              c.nombre as curso_nombre, c.peso_examen_mensual, c.examen_mensual`
     );
-
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
-
-    const cursoInfo = asignatura[0];
+    if (!cursoInfo) return;
 
     // Si es Cualitativa (INICIAL), obtener tabla de conversión letras
     let rangosLetrasPrimaria = [];
@@ -4926,22 +4935,12 @@ router.get('/cursos/:cursoId/criterios', async (req, res) => {
     const { colegio_id, personal_id } = req.user;
     const { ciclo } = req.query;
 
-    if (!personal_id) {
+    if (!personal_id && !esStaffColegio(req.user.tipo)) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
-    const asignatura = await query(
-      `SELECT a.*, n.tipo_calificacion
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ?`,
-      [cursoId, personal_id, colegio_id]
-    );
-
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
+    const asignaturaAcceso = await verificarAccesoAsignatura(req, res, cursoId, 'a.*');
+    if (!asignaturaAcceso) return;
 
     let criterios = [];
     if (ciclo) {
@@ -5409,21 +5408,13 @@ router.get('/cursos/:cursoId/copiar-contenido', async (req, res) => {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { cursoId } = req.params;
 
-    // Verificar que el curso pertenece al docente
-    const curso = await query(
-      `SELECT a.*, c.nombre as curso_nombre, g.grado, g.seccion, g.nivel_id, g.anio
-       FROM asignaturas a
-       INNER JOIN cursos c ON c.id = a.curso_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personal_id, colegio_id, anio_activo]
+    const cursoInfo = await verificarAccesoAsignatura(
+      req,
+      res,
+      cursoId,
+      `a.*, c.nombre as curso_nombre, g.grado, g.seccion, g.nivel_id, g.anio`
     );
-
-    if (curso.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
-
-    const cursoInfo = curso[0];
+    if (!cursoInfo) return;
 
     // Obtener otras asignaturas del mismo curso, mismo grado, mismo año (cualquier docente; el que tiene el contenido puede copiar a otras secciones)
     const otrasAsignaturas = await query(
@@ -17186,17 +17177,14 @@ router.get('/aula-virtual/temas', async (req, res) => {
     // Si no se proporciona ciclo, usar 1 por defecto
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
-    // Verificar que el docente tiene acceso a esta asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, req.user.personal_id, colegio_id, anio_activo]
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
     );
-
-    if (asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
-    }
+    if (!asignaturaAcceso) return;
 
     // Obtener temas de la asignatura (asignaturas_temas NO tiene ciclo, se muestra todos)
     const temas = await query(
@@ -17229,17 +17217,14 @@ router.get('/aula-virtual/tareas', async (req, res) => {
     // Si no se proporciona ciclo, usar 1 por defecto
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
-    // Verificar que el docente tiene acceso a esta asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, req.user.personal_id, colegio_id, anio_activo]
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
     );
-
-    if (asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
-    }
+    if (!asignaturaAcceso) return;
 
     // Obtener tareas de la asignatura filtradas por ciclo con información del docente
     const tareas = await query(
@@ -18656,17 +18641,14 @@ router.get('/aula-virtual/examenes', async (req, res) => {
     // Si no se proporciona ciclo, usar 1 por defecto
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
-    // Verificar que el docente tiene acceso a esta asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, req.user.personal_id, colegio_id, anio_activo]
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
     );
-
-    if (asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
-    }
+    if (!asignaturaAcceso) return;
 
     // Obtener exámenes de la asignatura filtrados por ciclo con conteo de preguntas
     // IMPORTANTE: Habilitar automáticamente exámenes cuando llega la fecha/hora de inicio
@@ -20907,17 +20889,14 @@ router.get('/aula-virtual/archivos', async (req, res) => {
     // Si no se proporciona ciclo, usar 1 por defecto
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
-    // Verificar que el docente tiene acceso a esta asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, req.user.personal_id, colegio_id, anio_activo]
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
     );
-
-    if (asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
-    }
+    if (!asignaturaAcceso) return;
 
     // Obtener archivos de la asignatura filtrados por ciclo (ordenados según el orden establecido)
     const archivos = await query(
@@ -21927,17 +21906,14 @@ router.get('/aula-virtual/videos', async (req, res) => {
     // Si no se proporciona ciclo, usar 1 por defecto
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
-    // Verificar que el docente tiene acceso a esta asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, req.user.personal_id, colegio_id, anio_activo]
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
     );
-
-    if (asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
-    }
+    if (!asignaturaAcceso) return;
 
     // Obtener videos de la asignatura filtrados por ciclo
     const videos = await query(
@@ -21970,17 +21946,14 @@ router.get('/aula-virtual/enlaces', async (req, res) => {
     // Si no se proporciona ciclo, usar 1 por defecto
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
-    // Verificar que el docente tiene acceso a esta asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, req.user.personal_id, colegio_id, anio_activo]
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
     );
-
-    if (asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
-    }
+    if (!asignaturaAcceso) return;
 
     // Obtener enlaces de la asignatura filtrados por ciclo
     const enlaces = await query(

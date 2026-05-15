@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
@@ -12,6 +12,7 @@ import './DocenteCursos.css';
 
 function DocenteCursos() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const logoNominaUrl = useMemo(() => {
     const base = process.env.REACT_APP_API_URL
@@ -131,6 +132,18 @@ function DocenteCursos() {
   useEffect(() => {
     cargarCursos();
   }, []);
+
+  const adminAsignaturaPendienteRef = useRef(null);
+
+  useEffect(() => {
+    const st = location.state;
+    if (!st?.asignaturaId || !st?.asignaturaAction) return;
+    adminAsignaturaPendienteRef.current = {
+      id: st.asignaturaId,
+      action: st.asignaturaAction,
+    };
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, location.pathname, navigate]);
 
   // Configurar handler de imágenes para ReactQuill en modal de mensaje
   useEffect(() => {
@@ -2280,6 +2293,23 @@ function DocenteCursos() {
         break;
     }
   };
+
+  useEffect(() => {
+    const pending = adminAsignaturaPendienteRef.current;
+    if (!pending || loading || !cursos.length) return;
+    const curso = cursos.find(
+      (c) => c.id === pending.id || String(c.id) === String(pending.id)
+    );
+    if (!curso) return;
+    const actionMap = {
+      notas: 'notas',
+      criterios: 'indicadores',
+      copiar_contenido: 'copiar',
+    };
+    const action = actionMap[pending.action] || pending.action;
+    adminAsignaturaPendienteRef.current = null;
+    handleCursoAction(curso, action);
+  }, [loading, cursos]);
 
   // Obtener grupo_id del curso (necesario para enviar mensaje)
   const obtenerGrupoIdDelCurso = async (cursoId) => {

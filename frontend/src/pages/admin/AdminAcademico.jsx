@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
@@ -2214,62 +2214,137 @@ function AreasPanel({ meta }) {
   );
 }
 
+const OPCIONES_ASIGNATURA_MENU = [
+  { key: 'criterios', label: 'Criterios / Indicadores', icon: '📋' },
+  { key: 'aula_virtual', label: 'Aula Virtual', icon: '🎓' },
+  { key: 'lista_alumnos', label: 'Lista de Alumnos', icon: '👥' },
+  { key: 'copiar_contenido', label: 'Copiar Contenido', icon: '📑' },
+  { key: 'registrar_notas', label: 'Registrar Notas', icon: '📝' },
+  { key: 'registrar_asistencia', label: 'Registrar Asistencia', icon: '✅' },
+  { key: 'editar', label: 'Editar Asignatura', icon: '✏️' },
+  { key: 'eliminar', label: 'Borrar Asignatura', icon: '🗑️', danger: true },
+];
+
+function etiquetaGrupoAsignatura(r) {
+  const nivel = String(r.nivel_nombre || '').trim().toUpperCase() || '—';
+  const grado = r.grado != null ? `${r.grado}°` : '';
+  const sec = etiquetaSeccionGrupo(r.seccion);
+  const anioTxt = r.anio != null ? ` - ${r.anio}` : '';
+  return `${nivel} - ${grado} ${sec}${anioTxt}`.replace(/\s+/g, ' ').trim();
+}
+
 function AsignaturasPanel({ meta }) {
+  const navigate = useNavigate();
   const anioDef = meta?.anio_activo || new Date().getFullYear();
-  const [anio, setAnio] = useState(anioDef);
-  const [grupoId, setGrupoId] = useState('');
+  const nivelesLista = useMemo(
+    () => ordenarNivelesInicialPrimariaSecundaria(meta?.niveles),
+    [meta]
+  );
+  const añosSelect = useMemo(() => {
+    const arr = [];
+    for (let y = anioDef + 3; y >= anioDef - 10; y -= 1) arr.push(y);
+    return arr;
+  }, [anioDef]);
+
+  const [filtros, setFiltros] = useState({
+    anio: anioDef,
+    sede_id: '',
+    nivel_id: '',
+    grado: '',
+    seccion: '',
+    turno_id: '',
+  });
+  const [filtrosAplicados, setFiltrosAplicados] = useState(null);
   const [rows, setRows] = useState([]);
   const [grupos, setGrupos] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [buscado, setBuscado] = useState(false);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({});
+  const [menuAsignaturaId, setMenuAsignaturaId] = useState(null);
+  const [listaAlumnosGrupoRow, setListaAlumnosGrupoRow] = useState(null);
+  const [grupoAsistenciaAdmin, setGrupoAsistenciaAdmin] = useState(null);
+  const [cursosList, setCursosList] = useState([]);
 
-  const loadGrupos = useCallback(async () => {
+  const gradosFiltro = useMemo(
+    () => gradosDisponiblesPorNivel(filtros.nivel_id, nivelesLista),
+    [filtros.nivel_id, nivelesLista]
+  );
+
+  const loadGruposModal = useCallback(async (anio) => {
     const { data } = await api.get('/admin/academico/grupos', { params: { anio } });
     setGrupos(data.grupos || []);
-  }, [anio]);
+  }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (paramsIn) => {
     setLoading(true);
     try {
-      const params = { anio };
-      if (grupoId) params.grupo_id = grupoId;
-      const { data } = await api.get('/admin/academico/asignaturas', { params });
+      const { data } = await api.get('/admin/academico/asignaturas', { params: paramsIn });
       setRows(data.asignaturas || []);
+      setBuscado(true);
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error al buscar asignaturas' });
     } finally {
       setLoading(false);
     }
-  }, [anio, grupoId]);
+  }, []);
 
-  useEffect(() => {
-    loadGrupos().catch(() => {});
-  }, [loadGrupos]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
-  const [cursosList, setCursosList] = useState([]);
   useEffect(() => {
     api.get('/admin/academico/cursos').then((r) => setCursosList(r.data.cursos || [])).catch(() => {});
   }, []);
 
-  const openNew = () => {
+  useEffect(() => {
+    if (menuAsignaturaId == null) return;
+    const close = (e) => {
+      const el = e.target?.closest?.('.admin-academico-asignaturas-opciones');
+      if (!el) setMenuAsignaturaId(null);
+    };
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [menuAsignaturaId]);
+
+  const onBuscar = () => {
+    const p = { anio: filtros.anio };
+    if (filtros.sede_id) p.sede_id = filtros.sede_id;
+    if (filtros.nivel_id) p.nivel_id = filtros.nivel_id;
+    if (filtros.grado !== '') p.grado = filtros.grado;
+    if (filtros.seccion) p.seccion = filtros.seccion;
+    if (filtros.turno_id) p.turno_id = filtros.turno_id;
+    setFiltrosAplicados(p);
+    load(p);
+  };
+
+  const limpiarFiltros = () => {
+    setFiltros({
+      anio: anioDef,
+      sede_id: '',
+      nivel_id: '',
+      grado: '',
+      seccion: '',
+      turno_id: '',
+    });
+    setFiltrosAplicados(null);
+    setRows([]);
+    setBuscado(false);
+  };
+
+  const openNew = async () => {
+    await loadGruposModal(filtros.anio).catch(() => {});
     setForm({
       grupo_id: grupos[0]?.id || '',
       curso_id: cursosList[0]?.id || '',
-      personal_id: meta?.docentes?.[0]?.id || ''
+      personal_id: meta?.docentes?.[0]?.id || '',
     });
     setModal('new');
   };
 
-  const openEdit = (r) => {
+  const openEdit = async (r) => {
+    const anioG = r.anio != null ? r.anio : filtros.anio;
+    await loadGruposModal(anioG).catch(() => {});
     setForm({
       grupo_id: r.grupo_id,
       curso_id: r.curso_id,
-      personal_id: r.personal_id
+      personal_id: r.personal_id,
     });
     setModal({ edit: r });
   };
@@ -2287,7 +2362,7 @@ function AsignaturasPanel({ meta }) {
         await api.post('/admin/academico/asignaturas', body);
       }
       setModal(null);
-      await load();
+      if (filtrosAplicados) await load(filtrosAplicados);
       Swal.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
     } catch (e) {
       Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
@@ -2297,65 +2372,263 @@ function AsignaturasPanel({ meta }) {
   const eliminar = async (r) => {
     const ok = await Swal.fire({
       icon: 'warning',
-      title: '¿Eliminar asignatura?',
+      title: '¿Borrar asignatura?',
       html: `${r.nivel_nombre} ${r.grado}° ${r.seccion} — ${r.curso_nombre}`,
       showCancelButton: true
     });
     if (!ok.isConfirmed) return;
     try {
       await api.delete(`/admin/academico/asignaturas/${r.id}`);
-      await load();
+      if (filtrosAplicados) await load(filtrosAplicados);
       Swal.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
     } catch (e) {
       Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo eliminar (puede haber notas o contenidos).' });
     }
   };
 
+  const grupoRowDesdeAsignatura = (r) => ({
+    id: r.grupo_id,
+    grado: r.grado,
+    seccion: r.seccion,
+    nivel_nombre: r.nivel_nombre,
+    turno_nombre: r.turno_nombre,
+    anio: r.anio != null ? r.anio : filtros.anio,
+  });
+
+  const accionAsignaturaMenu = async (accion, row) => {
+    setMenuAsignaturaId(null);
+    if (accion === 'editar') {
+      openEdit(row);
+      return;
+    }
+    if (accion === 'eliminar') {
+      await eliminar(row);
+      return;
+    }
+    if (accion === 'lista_alumnos') {
+      setListaAlumnosGrupoRow(grupoRowDesdeAsignatura(row));
+      return;
+    }
+    if (accion === 'registrar_asistencia') {
+      setGrupoAsistenciaAdmin(grupoRowDesdeAsignatura(row));
+      return;
+    }
+    if (accion === 'aula_virtual') {
+      navigate(`/docente/cursos/${row.id}/aula`, {
+        state: { adminReturnTo: '/admin/academico/asignaturas' },
+      });
+      return;
+    }
+    if (accion === 'registrar_notas' || accion === 'criterios' || accion === 'copiar_contenido') {
+      navigate('/docente/cursos', {
+        state: {
+          asignaturaId: row.id,
+          asignaturaAction: accion,
+          adminReturnTo: '/admin/academico/asignaturas',
+        },
+      });
+    }
+  };
+
+  if (listaAlumnosGrupoRow) {
+    return (
+      <>
+        <section className="dg-section admin-academico-asignaturas-section">
+          <GrupoAlumnosListaView
+            grupoId={listaAlumnosGrupoRow.id}
+            grupoInfo={{
+              id: listaAlumnosGrupoRow.id,
+              grado: listaAlumnosGrupoRow.grado,
+              seccion: listaAlumnosGrupoRow.seccion,
+              nivel_nombre: listaAlumnosGrupoRow.nivel_nombre,
+              turno_nombre: listaAlumnosGrupoRow.turno_nombre,
+              anio: listaAlumnosGrupoRow.anio,
+            }}
+            onVolver={() => setListaAlumnosGrupoRow(null)}
+            psicologiaLinkMode="admin"
+          />
+        </section>
+        <AdminGrupoAsistenciaModal
+          open={!!grupoAsistenciaAdmin}
+          grupo={grupoAsistenciaAdmin}
+          onClose={() => setGrupoAsistenciaAdmin(null)}
+        />
+      </>
+    );
+  }
+
   return (
-    <section className="dg-section">
-      <div className="dg-filters">
-        <label>
-          Año
-          <input type="number" value={anio} onChange={(e) => setAnio(parseInt(e.target.value, 10) || anioDef)} style={{ marginLeft: 8, width: 100 }} />
-        </label>
-        <label>
-          Filtrar grupo
-          <select value={grupoId} onChange={(e) => setGrupoId(e.target.value)} style={{ marginLeft: 8, minWidth: 220 }}>
-            <option value="">Todos</option>
-            {grupos.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.nivel_nombre} {g.grado}° {g.seccion}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Btn onClick={openNew}>+ Nueva asignatura</Btn>
+    <section className="dg-section admin-academico-asignaturas-section">
+      <div className="admin-academico-grupos-toolbar admin-academico-asignaturas-toolbar">
+        <div className="admin-academico-grupos-filters">
+          {(meta?.sedes || []).length > 0 && (
+            <label className="admin-academico-grupos-filter-field">
+              <span>Colegio / Sede</span>
+              <select
+                value={filtros.sede_id}
+                onChange={(e) => setFiltros((f) => ({ ...f, sede_id: e.target.value }))}
+              >
+                <option value="">Todas</option>
+                {(meta?.sedes || []).map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="admin-academico-grupos-filter-field">
+            <span>Nivel</span>
+            <select
+              value={filtros.nivel_id}
+              onChange={(e) =>
+                setFiltros((f) => ({
+                  ...f,
+                  nivel_id: e.target.value,
+                  grado: '',
+                }))
+              }
+            >
+              <option value="">Todos</option>
+              {nivelesLista.map((n) => (
+                <option key={n.id} value={n.id}>
+                  {n.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-academico-grupos-filter-field">
+            <span>Grado</span>
+            <select
+              value={filtros.grado}
+              onChange={(e) => setFiltros((f) => ({ ...f, grado: e.target.value }))}
+            >
+              <option value="">Todos</option>
+              {gradosFiltro.map((g) => (
+                <option key={g} value={g}>
+                  {g}°
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-academico-grupos-filter-field">
+            <span>Sección</span>
+            <select
+              value={filtros.seccion}
+              onChange={(e) => setFiltros((f) => ({ ...f, seccion: e.target.value }))}
+            >
+              <option value="">Todas</option>
+              {SECCIONES_GRUPO.map((s) => (
+                <option key={s.v} value={s.v}>
+                  {s.l}
+                </option>
+              ))}
+            </select>
+          </label>
+          {(meta?.turnos || []).length > 0 && (
+            <label className="admin-academico-grupos-filter-field">
+              <span>Turno</span>
+              <select
+                value={filtros.turno_id}
+                onChange={(e) => setFiltros((f) => ({ ...f, turno_id: e.target.value }))}
+              >
+                <option value="">Todos</option>
+                {(meta?.turnos || []).map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="admin-academico-grupos-filter-field">
+            <span>Año</span>
+            <select
+              value={filtros.anio}
+              onChange={(e) => setFiltros((f) => ({ ...f, anio: parseInt(e.target.value, 10) || anioDef }))}
+            >
+              {añosSelect.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" className="dg-btn-primary admin-academico-asignaturas-btn-buscar" onClick={onBuscar}>
+            Buscar
+          </button>
+          <button type="button" className="dg-btn-ghost admin-academico-grupos-ver-todo" onClick={limpiarFiltros}>
+            Limpiar
+          </button>
+        </div>
+        <button type="button" className="admin-academico-grupos-btn-nuevo" onClick={openNew}>
+          + Nueva Asignatura
+        </button>
       </div>
+
       {loading ? (
-        <p>Cargando…</p>
+        <p className="admin-academico-grupos-loading">Buscando…</p>
+      ) : !buscado ? (
+        <p className="admin-academico-asignaturas-hint">
+          Elija los filtros y pulse <strong>Buscar</strong> para listar las asignaturas del año.
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="admin-academico-niveles-empty">No hay asignaturas con esos filtros.</p>
       ) : (
-        <div className="admin-academico-table-wrap">
-          <table className="admin-academico-table">
+        <div className="admin-academico-table-wrap admin-academico-asignaturas-table-wrap">
+          <table className="admin-academico-table admin-academico-asignaturas-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Grupo</th>
-                <th>Curso</th>
                 <th>Docente</th>
-                <th />
+                <th>Curso</th>
+                <th>Grupo (Nivel - Grado - Sección)</th>
+                <th className="admin-academico-asignaturas-th-opciones">Opciones</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id}>
-                  <td>{r.id}</td>
-                  <td>{r.nivel_nombre} {r.grado}° {r.seccion}</td>
-                  <td>{r.curso_nombre}</td>
-                  <td>{r.docente_nombre}</td>
-                  <td>
-                    <div className="admin-academico-actions">
-                      <Btn variant="ghost" onClick={() => openEdit(r)}>Editar</Btn>
-                      <Btn variant="ghost" onClick={() => eliminar(r)}>Eliminar</Btn>
+                  <td>{r.docente_nombre || '—'}</td>
+                  <td>{r.curso_nombre || '—'}</td>
+                  <td>{etiquetaGrupoAsignatura(r)}</td>
+                  <td className="admin-academico-asignaturas-td-opciones">
+                    <div
+                      className="admin-academico-asignaturas-opciones"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        className="admin-academico-grupo-card__opciones"
+                        aria-expanded={menuAsignaturaId === r.id}
+                        aria-haspopup="menu"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMenuAsignaturaId(menuAsignaturaId === r.id ? null : r.id);
+                        }}
+                      >
+                        Opciones
+                      </button>
+                      {menuAsignaturaId === r.id && (
+                        <div
+                          className="admin-academico-grupo-card__dropdown admin-academico-asignaturas-dropdown"
+                          role="menu"
+                        >
+                          {OPCIONES_ASIGNATURA_MENU.map((op) => (
+                            <button
+                              key={op.key}
+                              type="button"
+                              role="menuitem"
+                              className={`admin-academico-grupo-card__dropdown-item${op.danger ? ' admin-academico-grupo-card__dropdown-item--danger' : ''}`}
+                              onClick={() => accionAsignaturaMenu(op.key, r)}
+                            >
+                              <span className="admin-academico-grupo-card__dropdown-icon" aria-hidden>
+                                {op.icon}
+                              </span>
+                              {op.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -2365,16 +2638,24 @@ function AsignaturasPanel({ meta }) {
         </div>
       )}
 
+      <AdminGrupoAsistenciaModal
+        open={!!grupoAsistenciaAdmin}
+        grupo={grupoAsistenciaAdmin}
+        onClose={() => setGrupoAsistenciaAdmin(null)}
+      />
+
       <ModalRoot open={!!(modal && meta)} onClose={() => setModal(null)} wide>
         <>
           <h3>{modal?.edit ? 'Editar asignatura' : 'Nueva asignatura'}</h3>
-          <p className="admin-academico-hint">Equivale al formulario legacy: grupo (sede, nivel, grado, sección, turno, año) + curso + docente.</p>
+          <p className="admin-academico-hint">Grupo (nivel, grado, sección, turno, año) + curso + docente titular.</p>
           <div className="admin-academico-modal-grid">
             <div className="admin-academico-field admin-academico-field--full">
               <label>Grupo</label>
               <select value={form.grupo_id} onChange={(e) => setForm({ ...form, grupo_id: e.target.value })}>
                 {grupos.map((g) => (
-                  <option key={g.id} value={g.id}>{g.nivel_nombre} {g.grado}° {g.seccion}</option>
+                  <option key={g.id} value={g.id}>
+                    {g.nivel_nombre} {g.grado}° {etiquetaSeccionGrupo(g.seccion)}
+                  </option>
                 ))}
               </select>
             </div>
