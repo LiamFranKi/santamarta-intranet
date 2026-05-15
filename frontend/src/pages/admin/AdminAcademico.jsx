@@ -2941,12 +2941,16 @@ function AsignaturasPanel({ meta, accionesRef }) {
                       const checked = (form.curso_ids || []).map(String).includes(String(c.id));
                       return (
                         <label key={c.id} className="admin-academico-asignaturas-curso-check">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleCursoNuevo(c.id)}
-                          />
-                          <span>{c.nombre}</span>
+                          <span className="admin-academico-asignaturas-curso-check__box">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleCursoNuevo(c.id)}
+                            />
+                          </span>
+                          <span className="admin-academico-asignaturas-curso-check__label">
+                            {c.nombre}
+                          </span>
                           {c.abreviatura ? (
                             <span className="admin-academico-asignaturas-curso-abbr">{c.abreviatura}</span>
                           ) : null}
