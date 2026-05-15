@@ -17,6 +17,20 @@ import {
   findAlternativaMarcadaVF,
 } from '../utils/examenRespuestaIds';
 
+/** Línea bajo el título "Aula Virtual": curso · nivel antes del grado · año. */
+function subtituloAulaVirtualCurso(curso) {
+  if (!curso) return '';
+  const nombreCurso = (curso.curso_nombre || 'Curso').trim();
+  const nivel = String(curso.nivel_nombre || '').trim();
+  const grado = curso.grado != null && String(curso.grado).trim() !== '' ? `${String(curso.grado).trim()}°` : '';
+  const seccion = String(curso.seccion || '').trim();
+  const nivelGradoSeccion = [nivel || null, grado || null, seccion || null].filter(Boolean).join(' ');
+  const año = curso.anio != null && String(curso.anio).trim() !== '' ? String(curso.anio).trim() : '';
+  const mitad =
+    nivelGradoSeccion && año ? `${nivelGradoSeccion} - ${año}` : nivelGradoSeccion || año || '—';
+  return `${nombreCurso} - ${mitad}`;
+}
+
 /** Inserta imágenes en Quill vía URL (subida a servidor), no base64 — compatible con descripción larga en BD. */
 function attachQuillImageUploadHandler(quill) {
   if (!quill) return;
@@ -312,7 +326,8 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
     tareas: { api: 'biblioteca-tareas', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Proyectos', labelItem: 'titulo', useCopyTemas: false },
     examenes: { api: 'biblioteca-examenes', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Exámenes', labelItem: 'titulo', useCopyTemas: false },
     videos: { api: 'biblioteca-videos', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Videos', labelItem: 'descripcion', useCopyTemas: false },
-    enlaces: { api: 'biblioteca-enlaces', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Enlaces', labelItem: 'descripcion', useCopyTemas: false }
+    enlaces: { api: 'biblioteca-enlaces', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Enlaces', labelItem: 'descripcion', useCopyTemas: false },
+    sesiones: { api: 'biblioteca-sesiones', copyApi: 'copiar-biblioteca', titulo: 'Biblioteca de Sesiones (PDF)', labelItem: 'descripcion', useCopyTemas: false }
   };
 
   // Estado para modal de Asignar a Registro (Tareas)
@@ -375,7 +390,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       try {
         const response = await api.get('/docente/cursos');
         cursoEncontrado = (response.data.cursos || []).find(
-          (c) => c.id === asignaturaId || String(c.id) === String(asignaturaId)
+          (c) =>
+            c.id === asignaturaId ||
+            String(c.id) === String(asignaturaId) ||
+            c.asignatura_id === asignaturaId ||
+            String(c.asignatura_id) === String(asignaturaId)
         );
       } catch (e) {
         console.warn('Lista de cursos no disponible:', e);
@@ -721,6 +740,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       else if (tipoBiblioteca === 'examenes') cargarExamenes(bimestreGlobal);
       else if (tipoBiblioteca === 'videos') cargarVideos(bimestreGlobal);
       else if (tipoBiblioteca === 'enlaces') cargarEnlaces(bimestreGlobal);
+      else if (tipoBiblioteca === 'sesiones') cargarSesiones(bimestreGlobal);
     } catch (err) {
       console.error('[Biblioteca] Error copiando:', err);
       Swal.fire({
@@ -3572,7 +3592,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
               </span>
             )}
           </h1>
-          <p>{curso?.curso_nombre || 'Curso'} - {curso?.grado}° {curso?.seccion} - {curso?.anio}</p>
+          {curso ? <p>{subtituloAulaVirtualCurso(curso)}</p> : null}
         </div>
 
         {/* Selector Global de Bimestre — ancho completo, N columnas según bimestres */}
@@ -3676,21 +3696,35 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                 <p className="card-count">{sesiones.filter(s => s.ciclo === bimestreGlobal).length}</p>
                 <p className="card-subtitle">PDFs vinculados a temas</p>
               </div>
-              <div className="card-action-btns" onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
+              <div className="card-action-btns">
                 {!soloLecturaTutor && (
-                  <button 
-                    type="button"
-                    className="card-action-btn" 
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      e.preventDefault();
-                      setSesionEditando(null);
-                      setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
-                      setMostrarFormSesion(true); 
-                    }}
-                  >
-                    + Nuevo
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="card-action-btn card-action-btn-secondary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        abrirModalBiblioteca('sesiones');
+                      }}
+                      title="Ver sesiones PDF de años anteriores"
+                    >
+                      📖 Biblioteca
+                    </button>
+                    <button
+                      type="button"
+                      className="card-action-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setSesionEditando(null);
+                        setFormSesion({ tema_id: '', descripcion: '', archivo: null, archivoNombre: '', ciclo: bimestreGlobal });
+                        setMostrarFormSesion(true);
+                      }}
+                    >
+                      + Nuevo
+                    </button>
+                  </>
                 )}
               </div>
             </div>

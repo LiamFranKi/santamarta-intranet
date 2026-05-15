@@ -23,6 +23,26 @@ function getInitials(nombre) {
   return parts.map((p) => p[0]?.toUpperCase()).join('') || 'U';
 }
 
+/** Una línea corta para el header: nivel antes del grado, sección y año (aula docente). */
+function textoUbicacionAulaDocente(ctx) {
+  if (!ctx) return '';
+  const nivel = String(ctx.nivel_nombre || '').trim();
+  const grado =
+    ctx.grado != null && String(ctx.grado).trim() !== '' ? `${String(ctx.grado).trim()}°` : '';
+  const seccion = String(ctx.seccion || '').trim();
+  const año = ctx.anio != null && String(ctx.anio).trim() !== '' ? String(ctx.anio).trim() : '';
+  const ubic = [nivel || null, grado || null, seccion || null].filter(Boolean).join(' ');
+  return ubic && año ? `${ubic} · ${año}` : ubic || año || '';
+}
+
+function tituloUbicacionAulaDocente(ctx) {
+  if (!ctx) return '';
+  const curso = String(ctx.curso_nombre || '').trim();
+  const u = textoUbicacionAulaDocente(ctx);
+  if (curso && u) return `${curso} — ${u}`;
+  return curso || u;
+}
+
 export default function DashboardLayout({ children }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -131,6 +151,8 @@ export default function DashboardLayout({ children }) {
   });
   const [mostrarModalAsistencias, setMostrarModalAsistencias] = useState(false);
   const [esSupervisorSupervision, setEsSupervisorSupervision] = useState(false);
+  /** Contexto del aula (solo docente en rutas /docente/cursos/:id/aula o tutor aula-virtual). */
+  const [docenteAulaUbicacion, setDocenteAulaUbicacion] = useState(null);
   
   // Debug: verificar que el componente se monta
   React.useEffect(() => {
@@ -216,6 +238,61 @@ export default function DashboardLayout({ children }) {
     };
   }, [user]);
 
+  // Docente: en el aula virtual, una línea bajo el rol con nivel + grado + sección + año (y nombre de curso en title).
+  useEffect(() => {
+    if (user?.tipo !== 'DOCENTE') {
+      setDocenteAulaUbicacion(null);
+      return undefined;
+    }
+    const path = location.pathname || '';
+    const matchCursos = path.match(/^\/docente\/cursos\/(\d+)\/aula$/);
+    const matchTutor = path.match(/^\/docente\/tutoria\/grupos\/(\d+)\/aula-virtual\/(\d+)/);
+    if (!matchCursos && !matchTutor) {
+      setDocenteAulaUbicacion(null);
+      return undefined;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        let found = null;
+        if (matchCursos) {
+          const asigId = matchCursos[1];
+          const { data } = await api.get('/docente/cursos');
+          const lista = data.cursos || [];
+          found = lista.find(
+            (c) =>
+              String(c.id) === String(asigId) || String(c.asignatura_id) === String(asigId)
+          );
+        } else if (matchTutor) {
+          const [, grupoId, asigId] = matchTutor;
+          const { data } = await api.get(`/docente/tutoria/grupos/${grupoId}/cursos`);
+          const lista = data.cursos || [];
+          found = lista.find(
+            (c) =>
+              String(c.id) === String(asigId) || String(c.asignatura_id) === String(asigId)
+          );
+        }
+        if (cancelled) return;
+        setDocenteAulaUbicacion(
+          found
+            ? {
+                curso_nombre: found.curso_nombre,
+                nivel_nombre: found.nivel_nombre,
+                grado: found.grado,
+                seccion: found.seccion,
+                anio: found.anio,
+              }
+            : null
+        );
+      } catch (e) {
+        if (!cancelled) setDocenteAulaUbicacion(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.tipo, location.pathname]);
+
   // Toggle submenu; en móvil hacer scroll al submenú expandido para que no quede tapado
   const toggleSubmenu = (menuKey) => {
     const isOpening = !expandedMenus[menuKey];
@@ -266,6 +343,10 @@ export default function DashboardLayout({ children }) {
   }
   const initials = getInitials(displayName);
   const role = user?.tipo || 'USUARIO';
+  const docenteLineaUbicacionAula =
+    user?.tipo === 'DOCENTE' ? textoUbicacionAulaDocente(docenteAulaUbicacion) : '';
+  const docenteTituloUbicacionAula =
+    user?.tipo === 'DOCENTE' ? tituloUbicacionAulaDocente(docenteAulaUbicacion) : '';
   
   // Debug: verificar el role
   React.useEffect(() => {
@@ -1441,6 +1522,11 @@ export default function DashboardLayout({ children }) {
               <div className="user-info">
                 <div className="user-name">{displayName}</div>
                 <div className="user-role">{role}</div>
+                {docenteLineaUbicacionAula ? (
+                  <div className="user-docente-aula-ubicacion" title={docenteTituloUbicacionAula || undefined}>
+                    {docenteLineaUbicacionAula}
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

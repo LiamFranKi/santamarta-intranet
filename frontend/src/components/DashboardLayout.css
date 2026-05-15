@@ -286,6 +286,19 @@
   letter-spacing: 0.5px;
 }
 
+/* Docente dentro del aula: nivel antes del grado (tooltip con nombre del curso) */
+.user-docente-aula-ubicacion {
+  font-size: 0.7rem;
+  color: #4b5563;
+  font-weight: 500;
+  line-height: 1.25;
+  margin-top: 2px;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .header-actions {
   display: flex;
   align-items: center;

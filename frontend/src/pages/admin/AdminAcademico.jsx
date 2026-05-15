@@ -527,16 +527,6 @@ function etiquetaSeccionGrupo(sec) {
   return String(sec || '').toUpperCase();
 }
 
-function urlArchivoHorarioVirtual(guardado) {
-  if (!guardado || !String(guardado).trim()) return '';
-  const s = String(guardado).trim();
-  if (/^https?:\/\//i.test(s)) return s;
-  const clean = s.replace(/^\/+/, '');
-  if (clean.startsWith('Static/')) return `${window.location.origin}/${clean}`;
-  return `${window.location.origin}/Static/${clean}`;
-}
-
-function IconoLapiz() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M17 3a2.828 2.828 0 1 1 4 4L7 21l-4 1 1-4L17 3z" />
@@ -856,7 +846,6 @@ function GruposPanel({ meta }) {
   const [recomendacionesAlumnosAdmin, setRecomendacionesAlumnosAdmin] = useState([]);
   const [loadingRecomendacionesAdmin, setLoadingRecomendacionesAdmin] = useState(false);
   const [guardandoRecomendacionesAdmin, setGuardandoRecomendacionesAdmin] = useState(false);
-  const [subiendoHorario, setSubiendoHorario] = useState(false);
 
   const reportesConducta = useGrupoReportesConducta({
     apiPathPrefix: 'docente/grupos',
@@ -933,24 +922,6 @@ function GruposPanel({ meta }) {
     });
   }, [rows]);
 
-  const onHorarioVirtualFile = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setSubiendoHorario(true);
-    try {
-      const fd = new FormData();
-      fd.append('archivo', file);
-      const { data } = await api.post('/admin/academico/grupos/upload-horario', fd);
-      setForm((f) => ({ ...f, horario_virtual: data.path || '' }));
-      Swal.fire({ icon: 'success', title: 'Archivo subido', timer: 1400, showConfirmButton: false });
-    } catch (err) {
-      Swal.fire({ icon: 'error', text: err.response?.data?.error || 'No se pudo subir el archivo' });
-    } finally {
-      setSubiendoHorario(false);
-    }
-  };
-
   const verTodo = () => {
     setFiltroNivelId('');
     setAnio(anioDef);
@@ -966,10 +937,7 @@ function GruposPanel({ meta }) {
       seccion: 'UNICA',
       turno_id: meta?.turnos?.[0]?.id || '',
       sede_id: meta?.sedes?.[0]?.id || '',
-      tutor_id: '',
-      enlace_archivos: '',
-      aula_virtual: '',
-      horario_virtual: ''
+      tutor_id: ''
     });
     setModal('new');
   };
@@ -984,10 +952,7 @@ function GruposPanel({ meta }) {
       seccion: SECCIONES_GRUPO.some((s) => s.v === sec) ? sec : 'A',
       turno_id: r.turno_id,
       sede_id: r.sede_id,
-      tutor_id: r.tutor_id || '',
-      enlace_archivos: r.enlace_archivos || '',
-      aula_virtual: r.aula_virtual || '',
-      horario_virtual: r.horario_virtual || ''
+      tutor_id: r.tutor_id || ''
     });
     setModal({ edit: r });
   };
@@ -1004,9 +969,13 @@ function GruposPanel({ meta }) {
   const guardar = async () => {
     try {
       const body = {
-        ...form,
+        sede_id: form.sede_id,
+        nivel_id: form.nivel_id,
         grado: parseInt(form.grado, 10),
-        anio: parseInt(form.anio, 10)
+        seccion: form.seccion,
+        turno_id: form.turno_id,
+        anio: parseInt(form.anio, 10),
+        tutor_id: form.tutor_id
       };
       if (modal?.edit) {
         await api.put(`/admin/academico/grupos/${modal.edit.id}`, body);
@@ -1558,7 +1527,7 @@ function GruposPanel({ meta }) {
             {modal?.edit ? 'Editar grupo' : 'Nuevo grado'}
           </h3>
           <p className="admin-academico-nivel-form-card__lead">
-            Sede, nivel y aula (grado, sección, turno); año y tutor. Otros datos son opcionales.
+            Sede, nivel y aula (grado, sección, turno); año y tutor.
           </p>
           <div className="admin-academico-nivel-form-grid">
             <div className="admin-academico-grupo-form-row-sede-nivel">
@@ -1652,55 +1621,6 @@ function GruposPanel({ meta }) {
                 </select>
               </div>
             </div>
-
-            <details className="admin-academico-grupo-form-extras">
-              <summary>Más datos (opcional)</summary>
-              <div className="admin-academico-nivel-form-grid" style={{ marginTop: '0.75rem' }}>
-                <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
-                  <label>Dirección de archivos</label>
-                  <input
-                    value={form.enlace_archivos}
-                    onChange={(e) => setForm({ ...form, enlace_archivos: e.target.value })}
-                    placeholder="URL o ruta"
-                  />
-                </div>
-                <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
-                  <label>Link aula virtual</label>
-                  <input
-                    value={form.aula_virtual}
-                    onChange={(e) => setForm({ ...form, aula_virtual: e.target.value })}
-                    placeholder="https://…"
-                  />
-                </div>
-                <div className="admin-academico-nivel-form-field admin-academico-nivel-form-field--full">
-                  <label>Horario aula virtual (archivo)</label>
-                  {form.horario_virtual ? (
-                    <p className="admin-academico-grupo-form-archivo-actual">
-                      <a href={urlArchivoHorarioVirtual(form.horario_virtual)} target="_blank" rel="noopener noreferrer">
-                        Ver archivo actual
-                      </a>
-                      <button
-                        type="button"
-                        className="admin-academico-grupo-form-quitar-archivo"
-                        onClick={() => setForm((f) => ({ ...f, horario_virtual: '' }))}
-                      >
-                        Quitar
-                      </button>
-                    </p>
-                  ) : null}
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,application/pdf,image/*"
-                    disabled={subiendoHorario}
-                    onChange={onHorarioVirtualFile}
-                    className="admin-academico-grupo-form-file"
-                  />
-                  <p className="admin-academico-nivel-form-micro">
-                    {subiendoHorario ? 'Subiendo…' : 'Adjunte PDF, imagen u Office. Puede reemplazar el archivo cuando quiera.'}
-                  </p>
-                </div>
-              </div>
-            </details>
           </div>
           <div className="admin-academico-modal-actions">
             <Btn variant="ghost" onClick={() => setModal(null)}>

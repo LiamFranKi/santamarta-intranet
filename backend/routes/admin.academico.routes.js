@@ -1090,7 +1090,7 @@ router.post('/grupos', async (req, res) => {
       const v = req.body?.[key];
       const s = v != null ? String(v).trim() : '';
       fields.push(key);
-      values.push(s || null);
+      values.push(s);
     }
     const placeholders = fields.map(() => '?').join(', ');
     let r;
@@ -1132,10 +1132,11 @@ router.put('/grupos/:id', async (req, res) => {
     const vals = [anio, nivel_id, grado, seccion, turno_id, tutor_id, sede_id];
     for (const key of GRUPO_EXTRA_KEYS) {
       if (!gcols.has(key)) continue;
-      const v = req.body?.[key];
+      if (!Object.prototype.hasOwnProperty.call(req.body ?? {}, key)) continue;
+      const v = req.body[key];
       const s = v != null ? String(v).trim() : '';
       sets.push(`${key} = ?`);
-      vals.push(s || null);
+      vals.push(s);
     }
     vals.push(id, cid);
     try {

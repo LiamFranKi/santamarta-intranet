@@ -173,7 +173,7 @@
 
 /* SweetAlert2: por defecto queda por debajo del sidebar del dashboard */
 body.admin-academico-page .swal2-container {
-  z-index: 20100 !important;
+  z-index: 40000 !important;
 }
 
 /* ——— Niveles: tarjetas (vista tipo tarjetas, colores pasteles) ——— */

@@ -6332,13 +6332,16 @@ router.get('/tutoria/grupos/:grupoId/cursos', async (req, res) => {
       return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
 
-    // Obtener asignaturas (cursos) del grupo
+    // Obtener asignaturas (cursos) del grupo (mismo nivel/grado/sección/año para todo el grupo)
     const cursos = await query(
       `SELECT DISTINCT
               a.id as asignatura_id,
+              a.id as id,
               c.id as curso_id,
               c.nombre as curso_nombre,
               c.imagen as curso_imagen,
+              g.grado, g.seccion, g.anio,
+              n.nombre as nivel_nombre,
               CONCAT(p.nombres, ' ', p.apellidos) as docente_nombre,
               p.id as docente_id,
               p.foto as docente_foto,
@@ -6348,6 +6351,8 @@ router.get('/tutoria/grupos/:grupoId/cursos', async (req, res) => {
               a.aula_virtual as link_aula_virtual
        FROM asignaturas a
        INNER JOIN cursos c ON c.id = a.curso_id
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN personal p ON p.id = a.personal_id
        WHERE a.grupo_id = ? AND a.colegio_id = ?
        ORDER BY c.nombre ASC`,
@@ -21306,9 +21311,67 @@ router.get('/aula-virtual/biblioteca-enlaces', async (req, res) => {
 });
 
 /**
+ * GET /api/docente/aula-virtual/biblioteca-sesiones
+ * Sesiones PDF del mismo curso/grado en años anteriores (misma lógica que otras bibliotecas).
+ */
+router.get('/aula-virtual/biblioteca-sesiones', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, personal_id } = req.user;
+    const { asignatura_id } = req.query;
+    if (!asignatura_id) return res.status(400).json({ error: 'asignatura_id es requerido' });
+    const data = await obtenerAsignaturasBiblioteca(asignatura_id, personal_id, colegio_id, anio_activo);
+    if (!data) return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const porAnio = {};
+    const añosSet = new Set();
+    for (const asig of data.asignaturas) {
+      const items = await query(
+        `SELECT s.id, s.tema_id, s.titulo, s.descripcion, s.archivo, s.ciclo
+         FROM asignaturas_sesion_pdf s
+         WHERE s.asignatura_id = ?
+         ORDER BY s.ciclo ASC, s.id ASC`,
+        [asig.asignatura_id]
+      );
+      const mapped = (items || []).map((s) => {
+        let archivo_url = null;
+        if (s.archivo && String(s.archivo).trim() !== '') {
+          const nombre = String(s.archivo).startsWith('/Static/Archivos/')
+            ? String(s.archivo).replace(/^\/Static\/Archivos\//, '')
+            : String(s.archivo);
+          archivo_url = isDevelopment
+            ? `http://localhost:5000/Static/Archivos/${nombre}`
+            : `${phpSystemUrl}/Static/Archivos/${nombre}`;
+        }
+        return {
+          ...s,
+          nombre:
+            (s.descripcion && String(s.descripcion).trim()) ||
+            (s.titulo && String(s.titulo).trim()) ||
+            'Sesión PDF',
+          asignatura_id: asig.asignatura_id,
+          asignatura_label: `${asig.curso_nombre} - ${asig.grado}° ${asig.seccion} (${asig.anio})`,
+          docente_nombre: asig.docente_nombre || 'Docente',
+          archivo_url,
+        };
+      });
+      if (mapped.length > 0) {
+        if (!porAnio[asig.anio]) porAnio[asig.anio] = [];
+        porAnio[asig.anio].push(...mapped);
+        añosSet.add(asig.anio);
+      }
+    }
+    res.json({ porAnio, años: Array.from(añosSet).sort((a, b) => b - a) });
+  } catch (error) {
+    console.error('Error biblioteca sesiones:', error);
+    res.status(500).json({ error: 'Error al obtener biblioteca de sesiones' });
+  }
+});
+
+/**
  * POST /api/docente/aula-virtual/copiar-biblioteca
- * Copiar items desde biblioteca al año actual (tareas, examenes, videos, enlaces)
- * Body: { asignatura_id, tipo: 'tareas'|'examenes'|'videos'|'enlaces', items: [{ asignatura_origen_id, item_id }] }
+ * Copiar items desde biblioteca al año actual (tareas, examenes, videos, enlaces, sesiones)
+ * Body: { asignatura_id, tipo: 'tareas'|'examenes'|'videos'|'enlaces'|'sesiones', items: [{ asignatura_origen_id, item_id }] }
  * Nota: El ciclo/bimestre se conserva al copiar
  */
 router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
@@ -21320,16 +21383,24 @@ router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
       return res.status(400).json({ error: 'asignatura_id, tipo e items son requeridos' });
     }
 
-    const tiposValidos = ['tareas', 'examenes', 'videos', 'enlaces'];
+    const tiposValidos = ['tareas', 'examenes', 'videos', 'enlaces', 'sesiones'];
     if (!tiposValidos.includes(tipo)) {
-      return res.status(400).json({ error: 'tipo debe ser: tareas, examenes, videos o enlaces' });
+      return res.status(400).json({ error: 'tipo debe ser: tareas, examenes, videos, enlaces o sesiones' });
     }
 
-    const asignaturaDestino = await query(
-      `SELECT a.* FROM asignaturas a INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, personal_id, colegio_id, anio_activo]
-    );
+    const esStaffAula =
+      req.user.tipo === 'ADMINISTRADOR' || req.user.tipo === 'PROMOTORIA';
+    const asignaturaDestino = esStaffAula
+      ? await query(
+          `SELECT a.* FROM asignaturas a INNER JOIN grupos g ON g.id = a.grupo_id
+           WHERE a.id = ? AND a.colegio_id = ? AND g.anio = ?`,
+          [asignatura_id, colegio_id, anio_activo]
+        )
+      : await query(
+          `SELECT a.* FROM asignaturas a INNER JOIN grupos g ON g.id = a.grupo_id
+           WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
+          [asignatura_id, personal_id, colegio_id, anio_activo]
+        );
 
     if (asignaturaDestino.length === 0) {
       return res.status(403).json({ error: 'No tienes acceso a la asignatura destino' });
@@ -21447,6 +21518,58 @@ router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
         await execute(
           `INSERT INTO asignaturas_enlaces (asignatura_id, trabajador_id, descripcion, enlace, ciclo, fecha_hora) VALUES (?, ?, ?, ?, ?, ?)`,
           [asignatura_id, personal_id, e.descripcion || '', e.enlace || '', e.ciclo, fechaHoraMySQLLima()]
+        );
+        copiados++;
+      }
+    } else if (tipo === 'sesiones') {
+      const [destRow] = await query(`SELECT colegio_id FROM asignaturas WHERE id = ?`, [asignatura_id]);
+      const colegioDest = destRow?.colegio_id || colegio_id;
+      for (const item of items) {
+        const { asignatura_origen_id, item_id } = item;
+        if (!asignatura_origen_id || !item_id) continue;
+        const sesionRows = await query(
+          `SELECT * FROM asignaturas_sesion_pdf WHERE id = ? AND asignatura_id = ?`,
+          [item_id, asignatura_origen_id]
+        );
+        if (sesionRows.length === 0) continue;
+        const s = sesionRows[0];
+        const temaOrigen = await query(
+          `SELECT nombre, ciclo, orden FROM asignaturas_archivos WHERE id = ? AND asignatura_id = ?`,
+          [s.tema_id, asignatura_origen_id]
+        );
+        if (temaOrigen.length === 0) continue;
+        const t = temaOrigen[0];
+        let temaDest = await query(
+          `SELECT id FROM asignaturas_archivos
+           WHERE asignatura_id = ? AND nombre = ? AND ciclo = ? AND orden = ?
+           LIMIT 1`,
+          [asignatura_id, t.nombre, t.ciclo, t.orden != null ? parseInt(t.orden, 10) : 0]
+        );
+        if (temaDest.length === 0) {
+          temaDest = await query(
+            `SELECT id FROM asignaturas_archivos
+             WHERE asignatura_id = ? AND nombre = ? AND ciclo = ?
+             ORDER BY orden ASC, id ASC
+             LIMIT 1`,
+            [asignatura_id, t.nombre, t.ciclo]
+          );
+        }
+        if (temaDest.length === 0) continue;
+        const temaDestinoId = temaDest[0].id;
+        await execute(
+          `INSERT INTO asignaturas_sesion_pdf (asignatura_id, tema_id, titulo, descripcion, archivo, ciclo, trabajador_id, fecha_hora, colegio_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            asignatura_id,
+            temaDestinoId,
+            s.titulo || 'SESION',
+            s.descripcion || '',
+            s.archivo,
+            s.ciclo,
+            personal_id,
+            fechaHoraMySQLLima(),
+            colegioDest,
+          ]
         );
         copiados++;
       }
