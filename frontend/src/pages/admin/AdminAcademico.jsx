@@ -2326,8 +2326,8 @@ function AsignaturasPanel({ meta, accionesRef }) {
   const gruposOrdenados = useMemo(() => ordenarGruposInicialPrimariaSecundaria(grupos), [grupos]);
 
   const gradosFiltro = useMemo(
-    () => gradosDisponiblesPorNivel(filtros.nivel_id, nivelesLista),
-    [filtros.nivel_id, nivelesLista]
+    () => gradosDisponiblesPorNivel(filtros?.nivel_id, nivelesLista),
+    [filtros?.nivel_id, nivelesLista]
   );
 
   const loadGruposModal = useCallback(async (anio) => {
