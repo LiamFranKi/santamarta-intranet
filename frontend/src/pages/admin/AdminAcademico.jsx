@@ -2936,25 +2936,26 @@ function AsignaturasPanel({ meta, accionesRef }) {
                     {cursosDisponibles.length} curso{cursosDisponibles.length !== 1 ? 's' : ''} disponible
                     {cursosDisponibles.length !== 1 ? 's' : ''}
                   </p>
-                  <div className="admin-academico-asignaturas-cursos-list" role="group" aria-label="Cursos a asignar">
+                  <div
+                    className="admin-academico-asignaturas-cursos-list"
+                    role="group"
+                    aria-label="Cursos a asignar. Pulse para seleccionar o quitar."
+                  >
                     {cursosDisponibles.map((c) => {
-                      const checked = (form.curso_ids || []).map(String).includes(String(c.id));
+                      const selected = (form.curso_ids || []).map(String).includes(String(c.id));
                       return (
-                        <label key={c.id} className="admin-academico-asignaturas-curso-check">
-                          <span className="admin-academico-asignaturas-curso-check__box">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleCursoNuevo(c.id)}
-                            />
-                          </span>
-                          <span className="admin-academico-asignaturas-curso-check__label">
-                            {c.nombre}
-                          </span>
+                        <button
+                          key={c.id}
+                          type="button"
+                          className={`admin-academico-asignaturas-curso-tab${selected ? ' admin-academico-asignaturas-curso-tab--selected' : ''}`}
+                          aria-pressed={selected}
+                          onClick={() => toggleCursoNuevo(c.id)}
+                        >
+                          <span className="admin-academico-asignaturas-curso-tab__nombre">{c.nombre}</span>
                           {c.abreviatura ? (
-                            <span className="admin-academico-asignaturas-curso-abbr">{c.abreviatura}</span>
+                            <span className="admin-academico-asignaturas-curso-tab__abbr">{c.abreviatura}</span>
                           ) : null}
-                        </label>
+                        </button>
                       );
                     })}
                   </div>
