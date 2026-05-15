@@ -1296,25 +1296,75 @@
   cursor: not-allowed;
 }
 
-/* Drag and Drop Styles */
-.drag-handle {
+/* Drag and Drop: solo el botón-asa activa el drag; el resto de la fila permite scroll horizontal táctil */
+.drag-handle-th,
+.drag-handle-cell {
+  width: 2.75rem;
+  min-width: 2.75rem;
+  max-width: 3.25rem;
+  text-align: center;
+  vertical-align: middle;
+  padding: 0.35rem 0.2rem;
+  box-sizing: border-box;
+}
+
+.drag-handle-th {
+  color: #6366f1;
+  font-size: 0.75rem;
+  letter-spacing: -0.25em;
+  line-height: 1;
+}
+
+.drag-handle-cell {
+  background: rgba(249, 250, 251, 0.9);
+}
+
+button.drag-handle {
   cursor: grab !important;
   user-select: none;
-  /* Sin esto, en iOS/Android el navegador prioriza el scroll y el drag suelta con over=null → el ítem vuelve a su sitio */
-  touch-action: none;
   -webkit-user-select: none;
-  transition: all 0.2s;
-  padding: 0.25rem;
-  border-radius: 4px;
+  touch-action: none;
+  margin: 0 auto;
+  padding: 0.35rem 0.25rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #6366f1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  transition: background 0.2s, transform 0.15s;
+  line-height: 1;
+  font-family: inherit;
+}
+
+.drag-handle-grips {
+  font-size: 0.95rem;
+  letter-spacing: -0.35em;
+  display: inline-block;
+  transform: translateX(-1px);
+}
+
+.drag-handle-placeholder {
+  display: inline-block;
+  width: 2.25rem;
+  height: 2.25rem;
+}
+
+.tema-nombre-cell {
+  touch-action: pan-x pan-y;
 }
 
 .drag-handle:hover {
-  background: rgba(99, 102, 241, 0.1);
-  transform: scale(1.1);
+  background: rgba(99, 102, 241, 0.12) !important;
+  transform: scale(1.05);
 }
 
 .drag-handle:active {
   cursor: grabbing !important;
+  transform: scale(0.98);
 }
 
 .dragging {
@@ -1380,15 +1430,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.drag-handle:active {
-  cursor: grabbing !important;
-}
-
-.dragging {
-  opacity: 0.5;
-  background: #f3f4f6 !important;
 }
 
 /* Responsive */

@@ -71,13 +71,13 @@ function attachQuillImageUploadHandler(quill) {
 }
 
 /**
- * PointerSensor cubre ratón y puntero táctil; `distance` evita confundir tap con drag.
- * Junto a `touch-action: none` en `.drag-handle` (CSS), el scroll del contenedor no cancela el arrastre en móvil/tablet.
+ * PointerSensor: `distance` alto para no confundir scroll horizontal en tablas táctiles con inicio de drag.
+ * El arrastre solo se activa desde la celda `.drag-handle` (no desde NOMBRE ni Opciones).
  */
 function useSortableDndSensors() {
   return useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
+      activationConstraint: { distance: 16 },
     }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
@@ -100,7 +100,6 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-    cursor: 'grab',
   };
 
   return (
@@ -109,18 +108,23 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
       style={style}
       className={isDragging ? 'dragging' : ''}
     >
-      <td 
-        {...(readOnly ? {} : attributes)} 
-        {...(readOnly ? {} : listeners)}
-        className={readOnly ? '' : 'drag-handle'}
-        style={{
-          cursor: readOnly ? 'default' : 'grab',
-          userSelect: 'none',
-          ...(readOnly ? {} : { touchAction: 'none' }),
-        }}
-      >
-        {archivo.nombre}
+      <td className="drag-handle-cell">
+        {!readOnly ? (
+          <button
+            type="button"
+            className="drag-handle"
+            {...attributes}
+            {...listeners}
+            title="Arrastrar para reordenar (solo aquí)"
+            aria-label="Arrastrar fila para reordenar temas"
+          >
+            <span className="drag-handle-grips" aria-hidden>⋮⋮</span>
+          </button>
+        ) : (
+          <span className="drag-handle-placeholder" aria-hidden />
+        )}
       </td>
+      <td className="tema-nombre-cell">{archivo.nombre}</td>
       <td className="text-center">
         {archivo.fecha_hora ? (
           new Date(archivo.fecha_hora).toLocaleDateString('es-PE', {
@@ -1694,6 +1698,9 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       <table>
         <thead>
           <tr>
+            <th className="drag-handle-th" scope="col" aria-label="Arrastrar para orden" title="Reordenar: usar la columna ⋮⋮">
+              <span className="drag-handle-th-icon" aria-hidden>⋮⋮</span>
+            </th>
             <th>NOMBRE</th>
             <th>FECHA</th>
             <th>ACCIONES</th>
