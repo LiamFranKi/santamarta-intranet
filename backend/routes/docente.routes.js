@@ -5529,17 +5529,18 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       return res.status(400).json({ error: 'Debe seleccionar una asignatura destino' });
     }
 
-    // Origen: debe ser del docente actual (solo puede copiar desde sus cursos)
-    const asignaturaOrigen = await query(
-      `SELECT a.*, g.grado FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [cursoId, personal_id, colegio_id, anio_activo]
+    // Origen: docente titular de la asignatura o staff (admin/promotoría) con acceso al colegio y año
+    const origenRow = await fetchAsignaturaConAcceso(
+      query,
+      req,
+      cursoId,
+      'a.*, g.grado'
     );
-
-    if (asignaturaOrigen.length === 0) {
+    if (!origenRow) {
       return res.status(403).json({ error: 'No tienes acceso a esta asignatura de origen' });
     }
+
+    const asignaturaOrigen = [origenRow];
 
     // Destino: cualquier asignatura del mismo curso y mismo grado (puede ser de otro docente)
     const asignaturaDestino = await query(

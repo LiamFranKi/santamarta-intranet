@@ -8,6 +8,7 @@ import GrupoAlumnosListaView from '../../components/grupoAlumnos/GrupoAlumnosLis
 import { useGrupoReportesConducta } from '../../components/grupoReportes/useGrupoReportesConducta';
 import GrupoHorarioCompletoModal from '../../components/grupoHorario/GrupoHorarioCompletoModal';
 import AdminGrupoAsistenciaModal from '../../components/admin/AdminGrupoAsistenciaModal';
+import ModalCopiarContenidoAsignatura from '../../components/admin/ModalCopiarContenidoAsignatura';
 import { exportGrupoCarnetsPdfA4 } from '../../utils/carnetQrPdf';
 import { generarPDFNotasTutoria } from '../../utils/pdfNotasTutoria';
 import { jsPDF } from 'jspdf';
@@ -2240,6 +2241,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
   const menuPortalRef = useRef(null);
   const [listaAlumnosGrupoRow, setListaAlumnosGrupoRow] = useState(null);
   const [grupoAsistenciaAdmin, setGrupoAsistenciaAdmin] = useState(null);
+  const [copiarContenidoAsignaturaId, setCopiarContenidoAsignaturaId] = useState(null);
   const [cursosDisponibles, setCursosDisponibles] = useState([]);
   const [loadingCursosDisponibles, setLoadingCursosDisponibles] = useState(false);
   const [infoCursosGrupo, setInfoCursosGrupo] = useState(null);
@@ -2558,7 +2560,11 @@ function AsignaturasPanel({ meta, accionesRef }) {
       });
       return;
     }
-    if (accion === 'registrar_notas' || accion === 'criterios' || accion === 'copiar_contenido') {
+    if (accion === 'copiar_contenido') {
+      setCopiarContenidoAsignaturaId(row.id);
+      return;
+    }
+    if (accion === 'registrar_notas' || accion === 'criterios') {
       navigate('/docente/cursos', {
         state: {
           asignaturaId: row.id,
@@ -2591,6 +2597,14 @@ function AsignaturasPanel({ meta, accionesRef }) {
           open={!!grupoAsistenciaAdmin}
           grupo={grupoAsistenciaAdmin}
           onClose={() => setGrupoAsistenciaAdmin(null)}
+        />
+        <ModalCopiarContenidoAsignatura
+          open={copiarContenidoAsignaturaId != null}
+          asignaturaId={copiarContenidoAsignaturaId}
+          onClose={() => setCopiarContenidoAsignaturaId(null)}
+          onCopied={() => {
+            if (filtrosAplicados) load(filtrosAplicados);
+          }}
         />
       </>
     );
@@ -2903,6 +2917,14 @@ function AsignaturasPanel({ meta, accionesRef }) {
           </div>
         </>
       </ModalRoot>
+      <ModalCopiarContenidoAsignatura
+        open={copiarContenidoAsignaturaId != null}
+        asignaturaId={copiarContenidoAsignaturaId}
+        onClose={() => setCopiarContenidoAsignaturaId(null)}
+        onCopied={() => {
+          if (filtrosAplicados) load(filtrosAplicados);
+        }}
+      />
     </section>
   );
 }

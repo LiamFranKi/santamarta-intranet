@@ -179,6 +179,11 @@
   box-sizing: border-box;
 }
 
+/* Solo rol DOCENTE: 3 tarjetas por fila en escritorio (admin u otros roles siguen con 4 arriba). */
+.aula-dashboard-grid--docente {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 @media (max-width: 1199px) {
   .aula-dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

@@ -7,6 +7,7 @@ import { CSS } from '@dnd-kit/utilities';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import DashboardLayout from '../components/DashboardLayout';
+import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import './DocenteAulaVirtual-gamificado.css';
@@ -185,6 +186,7 @@ function SortableItem({ archivo, onEdit, onDelete, openDropdown, toggleDropdown,
 }
 
 function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
+  const { user } = useAuth();
   const { cursoId } = useParams(); // En realidad es asignatura_id
   const navigate = useNavigate();
   const location = useLocation();
@@ -194,6 +196,10 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   );
   const soloLecturaTutor =
     tutorGrupoId != null && tutorGrupoId !== undefined && String(tutorGrupoId).trim() !== '';
+
+  /** Grid de tarjetas: 3 columnas solo para perfil DOCENTE; administración u otros roles usan el grid por defecto (4). */
+  const gridCardsClases =
+    user?.tipo === 'DOCENTE' ? 'aula-dashboard-grid aula-dashboard-grid--docente' : 'aula-dashboard-grid';
   
   const [loading, setLoading] = useState(true);
   const [curso, setCurso] = useState(null);
@@ -3612,7 +3618,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
         </div>
 
         {/* Grid de Cards Gamificado */}
-        <div className="aula-dashboard-grid">
+        <div className={gridCardsClases}>
           {/* Card: TEMAS */}
           <div 
             className={`aula-section-card temas-card ${expandedCard === 'temas' ? 'expanded' : ''}`}
