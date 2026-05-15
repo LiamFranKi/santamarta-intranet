@@ -52,18 +52,33 @@ async function anioActivo(cid, anioQ) {
 
 /**
  * GET /api/admin/reportes/aula-temas/meta
+ * `grados` = grupos del año (nivel · grado · sección), orden: Inicial, Primaria, Secundaria.
  */
 router.get('/aula-temas/meta', async (req, res) => {
   try {
     const cid = colegioId(req);
     const anio = await anioActivo(cid, req.query.anio != null ? parseInt(req.query.anio, 10) : null);
-    const grados = await query(
-      `SELECT DISTINCT g.nivel_id, g.grado, n.nombre AS nivel_nombre
+    const rows = await query(
+      `SELECT g.id AS grupo_id,
+              g.nivel_id,
+              g.grado,
+              g.seccion,
+              n.nombre AS nivel_nombre
        FROM grupos g
-       INNER JOIN niveles n ON n.id = g.nivel_id AND n.colegio_id = ?
+       INNER JOIN niveles n ON n.id = g.nivel_id AND n.colegio_id = g.colegio_id
        WHERE g.colegio_id = ? AND g.anio = ?
-       ORDER BY COALESCE(n.grado_minimo, 0) ASC, n.id ASC, CAST(g.grado AS UNSIGNED) ASC, g.grado ASC`,
-      [cid, cid, anio]
+       ORDER BY
+         CASE
+           WHEN LOWER(TRIM(COALESCE(n.nombre, ''))) LIKE '%inicial%' THEN 1
+           WHEN LOWER(TRIM(COALESCE(n.nombre, ''))) LIKE '%primaria%' THEN 2
+           WHEN LOWER(TRIM(COALESCE(n.nombre, ''))) LIKE '%secundaria%' THEN 3
+           ELSE 4
+         END ASC,
+         n.id ASC,
+         CAST(g.grado AS UNSIGNED) ASC,
+         g.grado ASC,
+         g.seccion ASC`,
+      [cid, anio]
     );
     const docentes = await query(
       `SELECT p.id,
@@ -75,12 +90,17 @@ router.get('/aula-temas/meta', async (req, res) => {
     );
     res.json({
       anio,
-      grados: (grados || []).map((r) => ({
-        key: `${r.nivel_id}-${r.grado}`,
-        nivel_id: r.nivel_id,
-        grado: r.grado,
-        label: `${r.nivel_nombre || 'Nivel'} · ${r.grado}°`,
-      })),
+      grados: (rows || []).map((r) => {
+        const sec = String(r.seccion ?? '').trim();
+        return {
+          key: String(r.grupo_id),
+          grupo_id: r.grupo_id,
+          nivel_id: r.nivel_id,
+          grado: r.grado,
+          seccion: r.seccion,
+          label: `${r.nivel_nombre || 'Nivel'} · ${r.grado}° · Sec. ${sec || '—'}`,
+        };
+      }),
       docentes: docentes || [],
     });
   } catch (e) {
@@ -90,16 +110,15 @@ router.get('/aula-temas/meta', async (req, res) => {
 });
 
 /**
- * GET /api/admin/reportes/aula-temas/cursos-por-grado?nivel_id=&grado=
+ * GET /api/admin/reportes/aula-temas/cursos-por-grado?grupo_id=
  */
 router.get('/aula-temas/cursos-por-grado', async (req, res) => {
   try {
     const cid = colegioId(req);
     const anio = await anioActivo(cid, req.query.anio != null ? parseInt(req.query.anio, 10) : null);
-    const nivelId = parseInt(req.query.nivel_id, 10);
-    const grado = req.query.grado != null ? String(req.query.grado).trim() : '';
-    if (!Number.isFinite(nivelId) || grado === '') {
-      return res.status(400).json({ error: 'nivel_id y grado son requeridos' });
+    const grupoId = parseInt(req.query.grupo_id, 10);
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'grupo_id es requerido' });
     }
     const rows = await query(
       `SELECT DISTINCT c.id, c.nombre
@@ -108,10 +127,9 @@ router.get('/aula-temas/cursos-por-grado', async (req, res) => {
        INNER JOIN grupos g ON g.id = a.grupo_id AND g.colegio_id = ?
        WHERE a.colegio_id = ?
          AND g.anio = ?
-         AND g.nivel_id = ?
-         AND CAST(g.grado AS CHAR) = ?
+         AND g.id = ?
        ORDER BY c.nombre ASC`,
-      [cid, cid, cid, anio, nivelId, grado]
+      [cid, cid, cid, anio, grupoId]
     );
     res.json({ cursos: rows || [] });
   } catch (e) {
@@ -121,16 +139,15 @@ router.get('/aula-temas/cursos-por-grado', async (req, res) => {
 });
 
 /**
- * GET /api/admin/reportes/aula-temas/docentes-por-grado?nivel_id=&grado=
+ * GET /api/admin/reportes/aula-temas/docentes-por-grado?grupo_id=
  */
 router.get('/aula-temas/docentes-por-grado', async (req, res) => {
   try {
     const cid = colegioId(req);
     const anio = await anioActivo(cid, req.query.anio != null ? parseInt(req.query.anio, 10) : null);
-    const nivelId = parseInt(req.query.nivel_id, 10);
-    const grado = req.query.grado != null ? String(req.query.grado).trim() : '';
-    if (!Number.isFinite(nivelId) || grado === '') {
-      return res.status(400).json({ error: 'nivel_id y grado son requeridos' });
+    const grupoId = parseInt(req.query.grupo_id, 10);
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'grupo_id es requerido' });
     }
     const rows = await query(
       `SELECT DISTINCT p.id,
@@ -140,10 +157,9 @@ router.get('/aula-temas/docentes-por-grado', async (req, res) => {
        INNER JOIN personal p ON p.id = a.personal_id
        WHERE a.colegio_id = ?
          AND g.anio = ?
-         AND g.nivel_id = ?
-         AND CAST(g.grado AS CHAR) = ?
+         AND g.id = ?
        ORDER BY p.apellidos, p.nombres`,
-      [cid, cid, anio, nivelId, grado]
+      [cid, cid, anio, grupoId]
     );
     res.json({ docentes: rows || [] });
   } catch (e) {
@@ -154,7 +170,7 @@ router.get('/aula-temas/docentes-por-grado', async (req, res) => {
 
 /**
  * GET /api/admin/reportes/aula-temas/contenido
- * Query: ciclo, modo=grado_curso|grado_docente|docente, nivel_id, grado, curso_id, personal_id, anio (opcional)
+ * Query: ciclo, modo=grado_curso|grado_docente|docente, grupo_id (primeros dos modos), curso_id, personal_id, anio (opcional)
  */
 router.get('/aula-temas/contenido', async (req, res) => {
   try {
@@ -182,23 +198,21 @@ router.get('/aula-temas/contenido', async (req, res) => {
     const params = [cid, cid, cid, cid, anio];
 
     if (modo === 'grado_curso') {
-      const nivelId = parseInt(req.query.nivel_id, 10);
-      const grado = req.query.grado != null ? String(req.query.grado).trim() : '';
+      const grupoId = parseInt(req.query.grupo_id, 10);
       const cursoId = parseInt(req.query.curso_id, 10);
-      if (!Number.isFinite(nivelId) || grado === '' || !Number.isFinite(cursoId)) {
-        return res.status(400).json({ error: 'nivel_id, grado y curso_id son requeridos' });
+      if (!Number.isFinite(grupoId) || !Number.isFinite(cursoId)) {
+        return res.status(400).json({ error: 'grupo_id y curso_id son requeridos' });
       }
-      sql += ` AND g.nivel_id = ? AND CAST(g.grado AS CHAR) = ? AND a.curso_id = ?`;
-      params.push(nivelId, grado, cursoId);
+      sql += ` AND g.id = ? AND a.curso_id = ?`;
+      params.push(grupoId, cursoId);
     } else if (modo === 'grado_docente') {
-      const nivelId = parseInt(req.query.nivel_id, 10);
-      const grado = req.query.grado != null ? String(req.query.grado).trim() : '';
+      const grupoId = parseInt(req.query.grupo_id, 10);
       const personalId = parseInt(req.query.personal_id, 10);
-      if (!Number.isFinite(nivelId) || grado === '' || !Number.isFinite(personalId)) {
-        return res.status(400).json({ error: 'nivel_id, grado y personal_id son requeridos' });
+      if (!Number.isFinite(grupoId) || !Number.isFinite(personalId)) {
+        return res.status(400).json({ error: 'grupo_id y personal_id son requeridos' });
       }
-      sql += ` AND g.nivel_id = ? AND CAST(g.grado AS CHAR) = ? AND a.personal_id = ?`;
-      params.push(nivelId, grado, personalId);
+      sql += ` AND g.id = ? AND a.personal_id = ?`;
+      params.push(grupoId, personalId);
     } else if (modo === 'docente') {
       const personalId = parseInt(req.query.personal_id, 10);
       if (!Number.isFinite(personalId)) {

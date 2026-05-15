@@ -60,7 +60,7 @@ export default function AdminReportesTemas() {
   const [meta, setMeta] = useState(null);
   const [loadingMeta, setLoadingMeta] = useState(true);
 
-  const [gradoKey, setGradoKey] = useState('');
+  const [grupoKey, setGrupoKey] = useState('');
   const [cursoId, setCursoId] = useState('');
   const [personalGradoId, setPersonalGradoId] = useState('');
   const [personalDocenteId, setPersonalDocenteId] = useState('');
@@ -75,10 +75,10 @@ export default function AdminReportesTemas() {
   const [ultimoReq, setUltimoReq] = useState(null);
   const ultimoReqRef = useRef(null);
 
-  const gradoSel = useMemo(() => {
-    if (!gradoKey || !meta?.grados) return null;
-    return meta.grados.find((g) => g.key === gradoKey) || null;
-  }, [gradoKey, meta]);
+  const grupoSel = useMemo(() => {
+    if (!grupoKey || !meta?.grados) return null;
+    return meta.grados.find((g) => g.key === grupoKey) || null;
+  }, [grupoKey, meta]);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,7 +107,7 @@ export default function AdminReportesTemas() {
   }, []);
 
   useEffect(() => {
-    if (tab !== 'grado_curso' || !gradoSel || !meta?.anio) {
+    if (tab !== 'grado_curso' || !grupoSel?.grupo_id || !meta?.anio) {
       setCursos([]);
       setCursoId('');
       return;
@@ -117,7 +117,7 @@ export default function AdminReportesTemas() {
       try {
         setLoadingCursos(true);
         const { data } = await api.get('/admin/reportes/aula-temas/cursos-por-grado', {
-          params: { anio: meta.anio, nivel_id: gradoSel.nivel_id, grado: gradoSel.grado },
+          params: { anio: meta.anio, grupo_id: grupoSel.grupo_id },
         });
         if (cancelled) return;
         setCursos(Array.isArray(data?.cursos) ? data.cursos : []);
@@ -134,10 +134,10 @@ export default function AdminReportesTemas() {
     return () => {
       cancelled = true;
     };
-  }, [tab, gradoSel, meta?.anio]);
+  }, [tab, grupoSel, meta?.anio]);
 
   useEffect(() => {
-    if (tab !== 'grado_docente' || !gradoSel || !meta?.anio) {
+    if (tab !== 'grado_docente' || !grupoSel?.grupo_id || !meta?.anio) {
       setDocentesGrado([]);
       setPersonalGradoId('');
       return;
@@ -147,7 +147,7 @@ export default function AdminReportesTemas() {
       try {
         setLoadingDocGrado(true);
         const { data } = await api.get('/admin/reportes/aula-temas/docentes-por-grado', {
-          params: { anio: meta.anio, nivel_id: gradoSel.nivel_id, grado: gradoSel.grado },
+          params: { anio: meta.anio, grupo_id: grupoSel.grupo_id },
         });
         if (cancelled) return;
         setDocentesGrado(Array.isArray(data?.docentes) ? data.docentes : []);
@@ -164,7 +164,7 @@ export default function AdminReportesTemas() {
     return () => {
       cancelled = true;
     };
-  }, [tab, gradoSel, meta?.anio]);
+  }, [tab, grupoSel, meta?.anio]);
 
   const ejecutarBusqueda = useCallback(async () => {
     if (!meta?.anio) return;
@@ -174,8 +174,12 @@ export default function AdminReportesTemas() {
 
     if (tab === 'grado_curso') {
       modo = 'grado_curso';
-      if (!gradoSel) {
-        Swal.fire({ icon: 'warning', title: 'Falta el grado', text: 'Seleccione un grado.' });
+      if (!grupoSel?.grupo_id) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Falta el grupo',
+          text: 'Seleccione nivel · grado · sección (cada salón es un grupo distinto).',
+        });
         return;
       }
       const cid = parseInt(cursoId, 10);
@@ -186,14 +190,17 @@ export default function AdminReportesTemas() {
       params = {
         ...params,
         modo,
-        nivel_id: gradoSel.nivel_id,
-        grado: gradoSel.grado,
+        grupo_id: grupoSel.grupo_id,
         curso_id: cid,
       };
     } else if (tab === 'grado_docente') {
       modo = 'grado_docente';
-      if (!gradoSel) {
-        Swal.fire({ icon: 'warning', title: 'Falta el grado', text: 'Seleccione un grado.' });
+      if (!grupoSel?.grupo_id) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Falta el grupo',
+          text: 'Seleccione nivel · grado · sección.',
+        });
         return;
       }
       const pid = parseInt(personalGradoId, 10);
@@ -204,8 +211,7 @@ export default function AdminReportesTemas() {
       params = {
         ...params,
         modo,
-        nivel_id: gradoSel.nivel_id,
-        grado: gradoSel.grado,
+        grupo_id: grupoSel.grupo_id,
         personal_id: pid,
       };
     } else {
@@ -234,7 +240,7 @@ export default function AdminReportesTemas() {
     } finally {
       setLoadingContenido(false);
     }
-  }, [meta, tab, ciclo, gradoSel, cursoId, personalGradoId, personalDocenteId]);
+  }, [meta, tab, ciclo, grupoSel, cursoId, personalGradoId, personalDocenteId]);
 
   const recargarConCiclo = useCallback(
     async (cicloVal) => {
@@ -286,8 +292,8 @@ export default function AdminReportesTemas() {
             <h1>Reporte · Temas del aula virtual</h1>
             <p>
               Consulta centralizada de temas interactivos, sesiones, tareas, videos, enlaces y exámenes del aula,
-              filtrados por grado y curso, grado y docente, o por docente. El bimestre aplica a los contenidos que
-              lo usan en base de datos; los temas históricos sin bimestre siguen listándose aparte.
+              filtrados por grupo (nivel · grado · sección), curso y/o docente. Cada salón (A, B, …) es un grupo distinto.
+              El bimestre aplica a los contenidos que lo usan en base de datos; los temas históricos sin bimestre siguen listándose aparte.
             </p>
           </header>
 
@@ -339,33 +345,32 @@ export default function AdminReportesTemas() {
           </div>
 
           <div className="art-panel">
-            {(tab === 'grado_curso' || tab === 'grado_docente') && (
-              <div className="art-field" style={{ marginBottom: '1rem' }}>
-                <label htmlFor="grado-art">Grado</label>
-                <select
-                  id="grado-art"
-                  value={gradoKey}
-                  onChange={(e) => setGradoKey(e.target.value)}
-                >
-                  <option value="">— Seleccionar —</option>
-                  {(meta?.grados || []).map((g) => (
-                    <option key={g.key} value={g.key}>
-                      {g.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             {tab === 'grado_curso' && (
-              <div className="art-grid-filtros">
+              <div className="art-fila-filtros">
+                <div className="art-field art-field--grupo">
+                  <label htmlFor="grupo-art">Grupo (nivel · grado · sección)</label>
+                  <select
+                    id="grupo-art"
+                    value={grupoKey}
+                    onChange={(e) => setGrupoKey(e.target.value)}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {(meta?.grados || []).map((g) => (
+                      <option key={g.key} value={g.key}>
+                        {g.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="art-field">
-                  <label htmlFor="curso-art">Curso ({loadingCursos ? 'cargando…' : `${cursos.length} opciones`})</label>
+                  <label htmlFor="curso-art">
+                    Curso ({loadingCursos ? 'cargando…' : `${cursos.length} opciones`})
+                  </label>
                   <select
                     id="curso-art"
                     value={cursoId}
                     onChange={(e) => setCursoId(e.target.value)}
-                    disabled={!gradoSel || loadingCursos}
+                    disabled={!grupoSel || loadingCursos}
                   >
                     <option value="">— Curso —</option>
                     {cursos.map((c) => (
@@ -375,7 +380,7 @@ export default function AdminReportesTemas() {
                     ))}
                   </select>
                 </div>
-                <div className="art-buscar">
+                <div className="art-acciones">
                   <button
                     type="button"
                     className="art-btn-primary"
@@ -389,16 +394,31 @@ export default function AdminReportesTemas() {
             )}
 
             {tab === 'grado_docente' && (
-              <div className="art-grid-filtros">
+              <div className="art-fila-filtros">
+                <div className="art-field art-field--grupo">
+                  <label htmlFor="grupo-doc-art">Grupo (nivel · grado · sección)</label>
+                  <select
+                    id="grupo-doc-art"
+                    value={grupoKey}
+                    onChange={(e) => setGrupoKey(e.target.value)}
+                  >
+                    <option value="">— Seleccionar —</option>
+                    {(meta?.grados || []).map((g) => (
+                      <option key={g.key} value={g.key}>
+                        {g.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="art-field">
                   <label htmlFor="doc-grado-art">
-                    Docente ({loadingDocGrado ? 'cargando…' : `${docentesGrado.length} en este grado`})
+                    Docente ({loadingDocGrado ? 'cargando…' : `${docentesGrado.length} en este grupo`})
                   </label>
                   <select
                     id="doc-grado-art"
                     value={personalGradoId}
                     onChange={(e) => setPersonalGradoId(e.target.value)}
-                    disabled={!gradoSel || loadingDocGrado}
+                    disabled={!grupoSel || loadingDocGrado}
                   >
                     <option value="">— Docente —</option>
                     {docentesGrado.map((d) => (
@@ -408,7 +428,7 @@ export default function AdminReportesTemas() {
                     ))}
                   </select>
                 </div>
-                <div className="art-buscar">
+                <div className="art-acciones">
                   <button
                     type="button"
                     className="art-btn-primary"
@@ -422,8 +442,8 @@ export default function AdminReportesTemas() {
             )}
 
             {tab === 'docente' && (
-              <div className="art-grid-filtros">
-                <div className="art-field">
+              <div className="art-fila-filtros">
+                <div className="art-field art-field--grow">
                   <label htmlFor="doc-todos-art">Docente (todos)</label>
                   <select
                     id="doc-todos-art"
@@ -438,7 +458,7 @@ export default function AdminReportesTemas() {
                     ))}
                   </select>
                 </div>
-                <div className="art-buscar">
+                <div className="art-acciones">
                   <button
                     type="button"
                     className="art-btn-primary"

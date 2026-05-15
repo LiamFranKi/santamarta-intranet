@@ -140,6 +140,48 @@
   margin-bottom: 1rem;
 }
 
+/* Una fila en escritorio; en pantallas estrechas los controles pasan uno debajo del otro */
+.art-fila-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.art-fila-filtros .art-field {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+
+.art-fila-filtros .art-field--grupo {
+  flex: 1 1 260px;
+}
+
+.art-fila-filtros .art-field--grow {
+  flex: 1 1 280px;
+}
+
+.art-fila-filtros .art-acciones {
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 0.05rem;
+}
+
+@media (max-width: 720px) {
+  .art-fila-filtros .art-acciones {
+    margin-left: 0;
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .art-fila-filtros .art-acciones .art-btn-primary {
+    width: 100%;
+  }
+}
+
 .art-field label {
   display: block;
   font-size: 0.78rem;

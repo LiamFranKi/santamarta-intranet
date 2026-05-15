@@ -209,7 +209,7 @@ function Dashboard() {
     },
     '/admin/reportes/temas': {
       title: '📚 Temas del aula virtual',
-      description: 'Consulta de contenidos del aula por grado, curso o docente',
+      description: 'Consulta por grupo (nivel · grado · sección), curso o docente',
       icon: '📚'
     },
     '/admin/reportes/asistencias': {
