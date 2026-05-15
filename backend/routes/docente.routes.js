@@ -4527,47 +4527,78 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
       // Calcular promedios finales para cada alumno
       for (const matriculaIdInt of matriculaIds) {
         const notasFinales = notasPorAlumno[matriculaIdInt] || [];
+        const notasByCriterio = Object.fromEntries(
+          notasFinales.map((row) => [row.criterio_id, row])
+        );
         let promedioFinal = null;
 
-        if (notasFinales.length > 0) {
-          if (esCualitativa && rangosLetras.length > 0) {
+        if (esCualitativa && rangosLetras.length > 0) {
+          if (notasFinales.length > 0) {
             const numeros = notasFinales.map(n => letraANumero(n.nota)).filter(x => x !== null);
             if (numeros.length > 0) {
               const prom = numeros.reduce((s, x) => s + x, 0) / numeros.length;
               promedioFinal = numeroALetra(prom);
             }
-          } else if (cursoInfo.tipo_calificacion_final === 1) {
-            let sumaPonderada = 0;
-            let sumaPesos = 0;
-            for (const notaRow of notasFinales) {
-              const nota = parseFloat(notaRow.nota);
-              const peso = parseFloat(notaRow.peso) || 0;
-              if (!isNaN(nota) && peso > 0) {
-                sumaPonderada += (nota * peso / 100);
-                sumaPesos += peso;
+          }
+        } else if (cursoInfo.tipo_calificacion_final === 1 && !esCualitativa) {
+          let sumaPonderada = 0;
+          for (const criterio of criterios) {
+            const peso = parseFloat(criterio.peso) || 0;
+            if (peso <= 0) continue;
+            const row = notasByCriterio[criterio.id];
+            const raw = row?.nota;
+            const nota =
+              raw != null && raw !== '' && !isNaN(parseFloat(raw))
+                ? parseFloat(raw)
+                : 0;
+            sumaPonderada += (nota * peso) / 100;
+          }
+          if (cursoInfo.examen_mensual === 'SI') {
+            const pesoExamen = parseFloat(cursoInfo.peso_examen_mensual) || 0;
+            if (pesoExamen > 0) {
+              const examenesAlumno = examenesPorAlumno[matriculaIdInt] || [];
+              let promEx = 0;
+              if (examenesAlumno.length > 0) {
+                const notasExamenes = examenesAlumno
+                  .map(e => parseFloat(e.nota))
+                  .filter(n => !isNaN(n));
+                if (notasExamenes.length > 0) {
+                  promEx = Math.round(
+                    notasExamenes.reduce((sum, n) => sum + n, 0) / notasExamenes.length
+                  );
+                }
               }
-            }
-            if (sumaPesos > 0) {
-              promedioFinal = Math.abs(sumaPesos - 100) < 0.01
-                ? Math.round(sumaPonderada)
-                : Math.round((sumaPonderada / sumaPesos) * 100);
-            }
-          } else {
-            const notasValidas = notasFinales
-              .map(n => parseFloat(n.nota))
-              .filter(n => !isNaN(n));
-            if (notasValidas.length > 0) {
-              promedioFinal = Math.round(
-                notasValidas.reduce((sum, n) => sum + n, 0) / notasValidas.length
-              );
+              sumaPonderada += (promEx * pesoExamen) / 100;
             }
           }
+          const pesoCriterios = criterios.reduce((s, c) => s + (parseFloat(c.peso) || 0), 0);
+          const pesoExTot =
+            cursoInfo.examen_mensual === 'SI'
+              ? parseFloat(cursoInfo.peso_examen_mensual) || 0
+              : 0;
+          if (pesoCriterios + pesoExTot > 0) {
+            promedioFinal = Math.round(sumaPonderada);
+          }
+        } else if (notasFinales.length > 0 && !esCualitativa) {
+          const notasValidas = notasFinales
+            .map((n) => parseFloat(n.nota))
+            .filter((n) => !isNaN(n));
+          if (notasValidas.length > 0) {
+            promedioFinal = Math.round(
+              notasValidas.reduce((sum, n) => sum + n, 0) / notasValidas.length
+            );
+          }
 
-          // Agregar examen mensual si aplica (solo para calificación numérica)
-          if (!esCualitativa && cursoInfo.examen_mensual === 'SI' && promedioFinal !== null && typeof promedioFinal === 'number') {
+          if (
+            cursoInfo.examen_mensual === 'SI' &&
+            promedioFinal !== null &&
+            typeof promedioFinal === 'number'
+          ) {
             const examenesAlumno = examenesPorAlumno[matriculaIdInt] || [];
             if (examenesAlumno.length > 0) {
-              const notasExamenes = examenesAlumno.map(e => parseFloat(e.nota)).filter(n => !isNaN(n));
+              const notasExamenes = examenesAlumno
+                .map((e) => parseFloat(e.nota))
+                .filter((n) => !isNaN(n));
               if (notasExamenes.length > 0) {
                 const promedioExamen = Math.round(
                   notasExamenes.reduce((sum, n) => sum + n, 0) / notasExamenes.length
@@ -4575,7 +4606,7 @@ router.post('/cursos/:cursoId/notas', async (req, res) => {
                 const pesoExamen = cursoInfo.peso_examen_mensual || 0;
                 if (pesoExamen > 0) {
                   promedioFinal = Math.round(
-                    promedioFinal * (100 - pesoExamen) / 100 + promedioExamen * pesoExamen / 100
+                    (promedioFinal * (100 - pesoExamen)) / 100 + (promedioExamen * pesoExamen) / 100
                   );
                 } else {
                   promedioFinal = Math.round((promedioFinal + promedioExamen) / 2);

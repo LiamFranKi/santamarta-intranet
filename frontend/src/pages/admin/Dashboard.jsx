@@ -20,6 +20,7 @@ import AdminAcademico from './AdminAcademico';
 import AdminPsicologiaLista from './AdminPsicologiaLista';
 import AdminPsicologiaExpediente from './AdminPsicologiaExpediente';
 import AdminReportesDeudores from './AdminReportesDeudores';
+import AdminReportesTemas from './AdminReportesTemas';
 import NotificacionesWidget from '../../components/NotificacionesWidget';
 
 const PSICOLOGA_RUTAS_ADMIN = [
@@ -206,6 +207,11 @@ function Dashboard() {
       description: 'Asistente y módulo Vanguarcito',
       icon: '💬'
     },
+    '/admin/reportes/temas': {
+      title: '📚 Temas del aula virtual',
+      description: 'Consulta de contenidos del aula por grado, curso o docente',
+      icon: '📚'
+    },
     '/admin/reportes/asistencias': {
       title: '📊 Reportes de Asistencias',
       description: 'Genera reportes de asistencias',
@@ -389,6 +395,9 @@ function Dashboard() {
           </div>
         </DashboardLayout>
       );
+    }
+    if (location.pathname === '/admin/reportes/temas') {
+      return <AdminReportesTemas />;
     }
     if (location.pathname === '/admin/reportes/deudores') {
       return <AdminReportesDeudores />;

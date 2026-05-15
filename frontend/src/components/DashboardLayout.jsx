@@ -17,6 +17,9 @@ import HerramientasExamenActivacionModal from './HerramientasExamenActivacionMod
 import '../styles/CumpleMarcoFestivo.css';
 import './DashboardLayout.css';
 
+/** En `false`, el ítem no se muestra; la ruta `/admin/auditoria` sigue existiendo. */
+const MOSTRAR_MENU_AUDITORIA = false;
+
 function getInitials(nombre) {
   if (!nombre) return 'U';
   const parts = String(nombre).trim().split(/\s+/).slice(0, 2);
@@ -878,6 +881,10 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-menu-arrow">▶</span>
                 </button>
                 <div ref={(el) => { submenuRefs.current.reportes = el; }} className={`sidebar-submenu ${expandedMenus.reportes ? 'expanded' : ''}`}>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/temas">
+                    <span className="sidebar-icon" aria-hidden>📚</span>
+                    <span className="sidebar-label">Temas</span>
+                  </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/asistencias">
                     <span className="sidebar-icon" aria-hidden>✅</span>
                     <span className="sidebar-label">Asistencias</span>
@@ -1432,6 +1439,10 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-menu-arrow">▶</span>
                 </button>
                 <div ref={(el) => { submenuRefs.current.reportes = el; }} className={`sidebar-submenu ${expandedMenus.reportes ? 'expanded' : ''}`}>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/temas">
+                    <span className="sidebar-icon" aria-hidden>📚</span>
+                    <span className="sidebar-label">Temas</span>
+                  </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/asistencias">
                     <span className="sidebar-icon" aria-hidden>✅</span>
                     <span className="sidebar-label">Asistencias</span>
@@ -1450,12 +1461,14 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                 </div>
               </div>
+              {MOSTRAR_MENU_AUDITORIA && (
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/auditoria">
                   <span className="sidebar-icon">🧾</span>
                   <span className="sidebar-label">Auditoría</span>
                 </NavLink>
               </div>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/mensajes">
                   <span className="sidebar-icon">✉️</span>

@@ -1244,6 +1244,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/reportes/temas"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>
+            <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/admin/reportes/asistencias"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA']}>

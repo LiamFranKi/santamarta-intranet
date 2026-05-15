@@ -2584,53 +2584,106 @@ function DocenteCursos() {
     const tipoCalificacionFinal = datosNotas.curso?.nivel?.tipo_calificacion_final || 0;
     
     if (tipoCalificacionFinal === 1) {
-      // Porcentual: usar pesos de los criterios
+      // Porcentual: todos los criterios (y examen mensual) cuentan con su peso; sin nota = 0 en esa parte.
+      if (!esCualitativa) {
+        let sumaPonderada = 0;
+        datosNotas.criterios.forEach((criterio) => {
+          const peso = parseFloat(criterio.peso) || 0;
+          if (peso <= 0) return;
+          const promedioCriterio = calcularPromedioCriterio(matriculaId, criterio.id);
+          let notaN = 0;
+          if (promedioCriterio !== null && promedioCriterio !== undefined && promedioCriterio !== '') {
+            const n = typeof promedioCriterio === 'number' ? promedioCriterio : parseFloat(promedioCriterio);
+            if (!isNaN(n)) notaN = n;
+          }
+          sumaPonderada += (notaN * peso) / 100;
+        });
+
+        if (datosNotas.curso.examen_mensual) {
+          const pesoExamen = parseFloat(datosNotas.curso.peso_examen_mensual) || 0;
+          if (pesoExamen > 0) {
+            let examen1;
+            let examen2;
+            if (notasEditadas[matriculaId]?.examen_mensual?.hasOwnProperty('1')) {
+              examen1 = parseFloat(notasEditadas[matriculaId].examen_mensual[1] || 0);
+            } else {
+              examen1 = parseFloat(
+                datosNotas.alumnos.find((a) => a.matricula_id === matriculaId)?.examenes_mensuales?.[1] || 0
+              );
+            }
+            if (notasEditadas[matriculaId]?.examen_mensual?.hasOwnProperty('2')) {
+              examen2 = parseFloat(notasEditadas[matriculaId].examen_mensual[2] || 0);
+            } else {
+              examen2 = parseFloat(
+                datosNotas.alumnos.find((a) => a.matricula_id === matriculaId)?.examenes_mensuales?.[2] || 0
+              );
+            }
+            let promEx = 0;
+            if (!isNaN(examen1) && !isNaN(examen2) && examen1 > 0 && examen2 > 0) {
+              promEx = Math.round((examen1 + examen2) / 2);
+            }
+            sumaPonderada += (promEx * pesoExamen) / 100;
+          }
+        }
+
+        const pesoCriterios = datosNotas.criterios.reduce((s, c) => s + (parseFloat(c.peso) || 0), 0);
+        const pesoEx = datosNotas.curso.examen_mensual
+          ? parseFloat(datosNotas.curso.peso_examen_mensual) || 0
+          : 0;
+        if (pesoCriterios + pesoEx > 0) {
+          return Math.round(sumaPonderada);
+        }
+        return null;
+      }
+
+      // INICIAL / cualitativa con tipo final porcentual: comportamiento anterior (solo criterios con dato)
       let sumaPonderada = 0;
       let sumaPesos = 0;
 
-      datosNotas.criterios.forEach(criterio => {
+      datosNotas.criterios.forEach((criterio) => {
         const promedioCriterio = calcularPromedioCriterio(matriculaId, criterio.id);
         const peso = parseFloat(criterio.peso) || 0;
-        
+
         if (promedioCriterio !== null && peso > 0) {
-          sumaPonderada += (promedioCriterio * peso / 100);
+          sumaPonderada += (promedioCriterio * peso) / 100;
           sumaPesos += peso;
         }
       });
 
-      // Agregar examen mensual si aplica
       if (datosNotas.curso.examen_mensual) {
-        // Si hay notas editadas para examen mensual, usar solo esas (incluso si están vacías)
-        let examen1, examen2;
+        let examen1;
+        let examen2;
         if (notasEditadas[matriculaId]?.examen_mensual?.hasOwnProperty('1')) {
           examen1 = parseFloat(notasEditadas[matriculaId].examen_mensual[1] || 0);
         } else {
-          examen1 = parseFloat(datosNotas.alumnos.find(a => a.matricula_id === matriculaId)?.examenes_mensuales?.[1] || 0);
+          examen1 = parseFloat(
+            datosNotas.alumnos.find((a) => a.matricula_id === matriculaId)?.examenes_mensuales?.[1] || 0
+          );
         }
         if (notasEditadas[matriculaId]?.examen_mensual?.hasOwnProperty('2')) {
           examen2 = parseFloat(notasEditadas[matriculaId].examen_mensual[2] || 0);
         } else {
-          examen2 = parseFloat(datosNotas.alumnos.find(a => a.matricula_id === matriculaId)?.examenes_mensuales?.[2] || 0);
+          examen2 = parseFloat(
+            datosNotas.alumnos.find((a) => a.matricula_id === matriculaId)?.examenes_mensuales?.[2] || 0
+          );
         }
-        
+
         if (!isNaN(examen1) && !isNaN(examen2) && examen1 > 0 && examen2 > 0) {
           const promedioExamen = Math.round((examen1 + examen2) / 2);
           const pesoExamen = datosNotas.curso.peso_examen_mensual || 0;
-          
+
           if (pesoExamen > 0) {
-            sumaPonderada += (promedioExamen * pesoExamen / 100);
+            sumaPonderada += (promedioExamen * pesoExamen) / 100;
             sumaPesos += pesoExamen;
           }
         }
       }
 
       if (sumaPesos > 0) {
-        // Si los pesos suman 100, usar directamente; si no, normalizar
         if (Math.abs(sumaPesos - 100) < 0.01) {
           return Math.round(sumaPonderada);
-        } else {
-          return Math.round((sumaPonderada / sumaPesos) * 100);
         }
+        return Math.round((sumaPonderada / sumaPesos) * 100);
       }
     } else {
       // Promedio simple

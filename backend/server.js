@@ -265,6 +265,7 @@ const pushRoutes = require('./routes/push.routes');
 // Rutas de administrador
 const adminRoutes = require('./routes/admin.routes');
 const adminAcademicoRoutes = require('./routes/admin.academico.routes');
+const adminReportesRoutes = require('./routes/admin.reportes.routes');
 const adminUsuariosRoutes = require('./routes/admin.usuarios.routes');
 const adminPsicologiaRoutes = require('./routes/admin.psicologia.routes');
 const eventosRoutes = require('./routes/eventos.routes');
@@ -295,6 +296,7 @@ app.use('/api/admin/usuarios', adminUsuariosRoutes);
 const adminInscripcionMatriculaRoutes = require('./routes/admin.inscripcion-matricula.routes');
 app.use('/api/admin/usuarios', adminInscripcionMatriculaRoutes);
 app.use('/api/admin/academico', adminAcademicoRoutes);
+app.use('/api/admin/reportes', adminReportesRoutes);
 app.use('/api/admin/psicologia', adminPsicologiaRoutes);
 /* Eventos antes que /api/admin: si no, admin.routes bloquea PSICOLOGA/Promotoría antes de llegar a eventos.routes */
 app.use('/api/public/eventos', eventosRoutes.publicEventosRouter);

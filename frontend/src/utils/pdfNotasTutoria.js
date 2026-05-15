@@ -43,28 +43,68 @@ function calcPromedioCriterio(datosNotas, matriculaId, criterioId) {
 function calcPromedioFinal(datosNotas, matriculaId) {
   if (!datosNotas?.criterios) return null;
   const tipo = datosNotas.curso?.nivel?.tipo_calificacion_final || 0;
+  const esCualitativa = datosNotas.curso?.nivel?.tipo_calificacion === 0;
 
   if (tipo === 1) {
-    let sumaP = 0, sumaPesos = 0;
-    datosNotas.criterios.forEach(c => {
+    if (!esCualitativa) {
+      let sumaP = 0;
+      datosNotas.criterios.forEach((c) => {
+        const peso = parseFloat(c.peso) || 0;
+        if (peso <= 0) return;
+        const prom = calcPromedioCriterio(datosNotas, matriculaId, c.id);
+        let notaN = 0;
+        if (prom !== null && prom !== undefined && prom !== '') {
+          const n = typeof prom === 'number' ? prom : parseFloat(prom);
+          if (!isNaN(n)) notaN = n;
+        }
+        sumaP += (notaN * peso) / 100;
+      });
+      if (datosNotas.curso.examen_mensual) {
+        const pesoEx = parseFloat(datosNotas.curso.peso_examen_mensual) || 0;
+        if (pesoEx > 0) {
+          const alumno = datosNotas.alumnos?.find((a) => a.matricula_id === matriculaId);
+          const e1 = parseFloat(alumno?.examenes_mensuales?.[1] || 0);
+          const e2 = parseFloat(alumno?.examenes_mensuales?.[2] || 0);
+          let promEx = 0;
+          if (!isNaN(e1) && !isNaN(e2) && e1 > 0 && e2 > 0) {
+            promEx = Math.round((e1 + e2) / 2);
+          }
+          sumaP += (promEx * pesoEx) / 100;
+        }
+      }
+      const pesoCriterios = datosNotas.criterios.reduce((s, c) => s + (parseFloat(c.peso) || 0), 0);
+      const pesoExTot = datosNotas.curso.examen_mensual
+        ? parseFloat(datosNotas.curso.peso_examen_mensual) || 0
+        : 0;
+      return pesoCriterios + pesoExTot > 0 ? Math.round(sumaP) : null;
+    }
+
+    let sumaP = 0;
+    let sumaPesos = 0;
+    datosNotas.criterios.forEach((c) => {
       const prom = calcPromedioCriterio(datosNotas, matriculaId, c.id);
       const peso = parseFloat(c.peso) || 0;
       if (prom !== null && peso > 0) {
-        sumaP += (prom * peso / 100);
+        sumaP += (prom * peso) / 100;
         sumaPesos += peso;
       }
     });
     if (datosNotas.curso.examen_mensual) {
-      const alumno = datosNotas.alumnos?.find(a => a.matricula_id === matriculaId);
+      const alumno = datosNotas.alumnos?.find((a) => a.matricula_id === matriculaId);
       const e1 = parseFloat(alumno?.examenes_mensuales?.[1] || 0);
       const e2 = parseFloat(alumno?.examenes_mensuales?.[2] || 0);
       if (!isNaN(e1) && !isNaN(e2) && e1 > 0 && e2 > 0) {
         const promEx = Math.round((e1 + e2) / 2);
         const pesoEx = datosNotas.curso.peso_examen_mensual || 0;
-        if (pesoEx > 0) { sumaP += (promEx * pesoEx / 100); sumaPesos += pesoEx; }
+        if (pesoEx > 0) {
+          sumaP += (promEx * pesoEx) / 100;
+          sumaPesos += pesoEx;
+        }
       }
     }
-    return sumaPesos > 0 ? Math.round(sumaP) : null;
+    if (sumaPesos <= 0) return null;
+    if (Math.abs(sumaPesos - 100) < 0.01) return Math.round(sumaP);
+    return Math.round((sumaP / sumaPesos) * 100);
   }
 
   const proms = datosNotas.criterios
