@@ -21,6 +21,7 @@ import AdminPsicologiaLista from './AdminPsicologiaLista';
 import AdminPsicologiaExpediente from './AdminPsicologiaExpediente';
 import AdminReportesDeudores from './AdminReportesDeudores';
 import AdminReportesTemas from './AdminReportesTemas';
+import AdminReportesNotas from './AdminReportesNotas';
 import NotificacionesWidget from '../../components/NotificacionesWidget';
 
 const PSICOLOGA_RUTAS_ADMIN = [
@@ -401,6 +402,9 @@ function Dashboard() {
     }
     if (location.pathname === '/admin/reportes/deudores') {
       return <AdminReportesDeudores />;
+    }
+    if (location.pathname === '/admin/reportes/notas') {
+      return <AdminReportesNotas />;
     }
 
     return (
