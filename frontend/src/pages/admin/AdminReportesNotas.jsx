@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
@@ -301,13 +301,16 @@ function buildPdfPayload(report, data, meta) {
 
   if (data.filas?.length) {
     const isConducta = report.tipo === 'conducta-salones';
-    const isCurso = report.tipo === 'mejores-cursos-colegio' || report.tipo === 'ranking-salones-curso';
+    const isRankingCurso = report.tipo === 'ranking-salones-curso';
+    const isMejoresCursos = report.tipo === 'mejores-cursos-colegio';
     const isArea = report.tipo === 'por-area';
     const isCobertura = report.tipo === 'cobertura';
 
     const cols = [{ key: 'puesto', label: '#', width: 0.6 }];
-    if (isCurso && !isCobertura) {
+    if (isMejoresCursos) {
       cols.push({ key: 'curso_nombre', label: 'Curso', width: 2, align: 'left' });
+    } else if (isRankingCurso) {
+      cols.push({ key: 'label', label: 'Grado / Salón', width: 2, align: 'left' });
     } else {
       cols.push({ key: 'label', label: 'Salón / Área', width: 2, align: 'left' });
     }
@@ -321,8 +324,11 @@ function buildPdfPayload(report, data, meta) {
     if (isCobertura) {
       cols.push({ key: 'pct_cobertura', label: 'Cobertura', width: 1, format: 'pct' });
     }
-    if (!isCurso && !isArea && !isCobertura) {
+    if (!isMejoresCursos && !isRankingCurso && !isArea && !isCobertura) {
       cols.push({ key: 'pct_aprobados', label: '% aprob.', width: 1, format: 'pct' });
+    }
+    if (isRankingCurso && data.curso_nombre) {
+      base.titulo = `${data.titulo || report.label} — ${data.curso_nombre}`;
     }
     return { ...base, columns: cols, rows: data.filas };
   }
@@ -346,7 +352,8 @@ function buildPdfPayload(report, data, meta) {
 function RankingTable({ filas, tipo }) {
   if (!filas?.length) return <p className="admin-notas-empty">No hay registros para los filtros seleccionados.</p>;
   const isConducta = tipo === 'conducta-salones';
-  const isCurso = tipo === 'mejores-cursos-colegio' || tipo === 'curso';
+  const isRankingCurso = tipo === 'ranking-salones-curso';
+  const isMejoresCursos = tipo === 'mejores-cursos-colegio' || tipo === 'curso';
   const isCobertura = tipo === 'cobertura';
   const isArea = tipo === 'por-area';
   const isDetalle = tipo === 'detalle';
@@ -357,30 +364,40 @@ function RankingTable({ filas, tipo }) {
         <thead>
           <tr>
             <th className="col-puesto">#</th>
-            {!isCurso && !isCobertura && <th>{isArea ? 'Área' : isDetalle ? 'Alumno' : 'Salón'}</th>}
-            {isCurso && <th>Curso</th>}
+            {isMejoresCursos && <th>Curso</th>}
+            {!isMejoresCursos && !isCobertura && (
+              <th>{isArea ? 'Área' : isDetalle ? 'Alumno' : isRankingCurso ? 'Grado / Salón' : 'Salón'}</th>
+            )}
             {isCobertura && <th>Salón</th>}
             <th>{isConducta ? 'Conducta' : isDetalle ? 'Prom. acad.' : 'Promedio'}</th>
             {isDetalle && <th>Conducta</th>}
             {isCobertura && <th>Cobertura</th>}
-            {!isCurso && !isArea && !isCobertura && !isDetalle && <th>% aprob.</th>}
-            {!isCurso && !isCobertura && !isDetalle && <th>Alumnos</th>}
-            {isCurso && tipo === 'mejores-cursos-colegio' && <th>Secciones</th>}
+            {!isMejoresCursos && !isRankingCurso && !isArea && !isCobertura && !isDetalle && (
+              <th>% aprob.</th>
+            )}
+            {!isMejoresCursos && !isRankingCurso && !isCobertura && !isDetalle && <th>Alumnos</th>}
+            {isMejoresCursos && tipo === 'mejores-cursos-colegio' && <th>Secciones</th>}
           </tr>
         </thead>
         <tbody>
           {filas.map((f) => (
             <tr key={f.puesto ?? f.grupo_id ?? f.curso_id ?? f.area_id}>
-              <td className="col-puesto">{f.puesto ?? '—'}</td>
+              <td className="col-puesto">{f.puesto ?? '\u2014'}</td>
               <td className="col-left">
-                {f.label || f.curso_nombre || f.area_nombre || '—'}
+                {f.label || f.curso_nombre || f.area_nombre || '\u2014'}
               </td>
               <td>{fmtNota(f.promedio ?? f.promedio_academico)}</td>
               {isDetalle && <td>{fmtNota(f.promedio_conducta)}</td>}
               {isCobertura && <td>{fmtPct(f.pct_cobertura)}</td>}
-              {!isCurso && !isArea && !isCobertura && !isDetalle && <td>{fmtPct(f.pct_aprobados)}</td>}
-              {!isCurso && !isCobertura && !isDetalle && <td>{f.alumnos_total ?? f.alumnos_con_conducta ?? '\u2014'}</td>}
-              {isCurso && tipo === 'mejores-cursos-colegio' && <td>{f.secciones_evaluadas ?? '\u2014'}</td>}
+              {!isMejoresCursos && !isRankingCurso && !isArea && !isCobertura && !isDetalle && (
+                <td>{fmtPct(f.pct_aprobados)}</td>
+              )}
+              {!isMejoresCursos && !isRankingCurso && !isCobertura && !isDetalle && (
+                <td>{f.alumnos_total ?? f.alumnos_con_conducta ?? '\u2014'}</td>
+              )}
+              {isMejoresCursos && tipo === 'mejores-cursos-colegio' && (
+                <td>{f.secciones_evaluadas ?? '\u2014'}</td>
+              )}
             </tr>
           ))}
         </tbody>
@@ -405,19 +422,45 @@ export default function AdminReportesNotas() {
 
   const report = useMemo(() => ALL_REPORTS.find((r) => r.tipo === activeTipo) || ALL_REPORTS[0], [activeTipo]);
 
+  const esInicial = report.tipo === 'inicial-cualitativo';
+
+  const nivelesOpciones = useMemo(() => {
+    if (esInicial) return meta?.niveles_inicial || [];
+    return meta?.niveles || [];
+  }, [meta, esInicial]);
+
   const gradosOpciones = useMemo(() => {
     if (!meta?.grupos) return [];
     const set = new Set();
     const list = [];
     meta.grupos.forEach((g) => {
       if (nivelId && String(g.nivel_id) !== String(nivelId)) return;
+      if (!esInicial && g.tipo_calificacion === 0) return;
       const key = `${g.nivel_id}:${g.grado}`;
       if (set.has(key)) return;
       set.add(key);
       list.push({ nivel_id: g.nivel_id, grado: g.grado, label: `${g.grado}°` });
     });
     return list;
-  }, [meta, nivelId]);
+  }, [meta, nivelId, esInicial]);
+
+  const cursosOpciones = useMemo(() => {
+    const vinculo = meta?.cursos_vinculo || [];
+    const idsNumericos = new Set((meta?.niveles || []).map((n) => String(n.id)));
+    let rows = vinculo.filter((r) => idsNumericos.has(String(r.nivel_id)));
+    if (nivelId) rows = rows.filter((r) => String(r.nivel_id) === String(nivelId));
+    if (grado) rows = rows.filter((r) => String(r.grado) === String(grado));
+    const map = new Map();
+    rows.forEach((r) => map.set(r.curso_id, { id: r.curso_id, nombre: r.curso_nombre }));
+    return [...map.values()].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }, [meta, nivelId, grado]);
+
+  useEffect(() => {
+    if (!cursoId) return;
+    if (!cursosOpciones.some((c) => String(c.id) === String(cursoId))) {
+      setCursoId('');
+    }
+  }, [cursosOpciones, cursoId]);
 
   const loadMeta = useCallback(async (anioNum) => {
     setLoadingMeta(true);
@@ -584,16 +627,25 @@ export default function AdminReportesNotas() {
                   <option value="4">4°</option>
                 </select>
                 <label htmlFor="notas-nivel">Nivel</label>
-                <select id="notas-nivel" value={nivelId} onChange={(e) => { setNivelId(e.target.value); setGrado(''); setGrupoId(''); }}>
-                  <option value="">Todos</option>
-                  {(meta?.niveles || []).map((n) => (
+                <select
+                  id="notas-nivel"
+                  value={nivelId}
+                  onChange={(e) => {
+                    setNivelId(e.target.value);
+                    setGrado('');
+                    setGrupoId('');
+                    setCursoId('');
+                  }}
+                >
+                  <option value="">{esInicial ? '—' : 'Todos'}</option>
+                  {nivelesOpciones.map((n) => (
                     <option key={n.id} value={String(n.id)}>{n.nombre}</option>
                   ))}
                 </select>
                 {(report.needs.includes('grado') || gradosOpciones.length > 0) && (
                   <>
                     <label htmlFor="notas-grado">Grado</label>
-                    <select id="notas-grado" value={grado} onChange={(e) => { setGrado(e.target.value); setGrupoId(''); }}>
+                    <select id="notas-grado" value={grado} onChange={(e) => { setGrado(e.target.value); setGrupoId(''); setCursoId(''); }}>
                       <option value="">—</option>
                       {gradosOpciones.map((g) => (
                         <option key={`${g.nivel_id}-${g.grado}`} value={String(g.grado)}>{g.label}</option>
@@ -620,7 +672,7 @@ export default function AdminReportesNotas() {
                     <label htmlFor="notas-curso">Curso</label>
                     <select id="notas-curso" value={cursoId} onChange={(e) => setCursoId(e.target.value)}>
                       <option value="">—</option>
-                      {(meta?.cursos || []).map((c) => (
+                      {cursosOpciones.map((c) => (
                         <option key={c.id} value={String(c.id)}>{c.nombre}</option>
                       ))}
                     </select>
@@ -765,7 +817,10 @@ export default function AdminReportesNotas() {
                       report.tipo !== 'detalle-salon' &&
                       data.filas && (
                         <div className="admin-notas-split">
-                          <RankingTable filas={data.filas} tipo={report.tipo} />
+                          <RankingTable
+                            filas={data.filas}
+                            tipo={report.tipo === 'ranking-salones-curso' ? 'ranking-salones-curso' : report.tipo}
+                          />
                           {data.chart?.length > 0 && (
                             <BarChart chart={data.chart} variant={chartVariant} title="Comparativo visual" />
                           )}

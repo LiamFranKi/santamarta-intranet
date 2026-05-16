@@ -46,12 +46,28 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
+/** Query string / body → entero opcional */
+function optInt(v) {
+  if (v == null || v === '') return undefined;
+  const n = typeof v === 'number' ? v : parseInt(v, 10);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 /**
  * @param {Function} queryFn
  * @param {object} opts
  */
 async function buildNotasEngine(queryFn, opts) {
-  const { colegioId, anio, ciclo, nivelId, grado, grupoId, cursoId, areaId, soloNumericos } = opts;
+  const colegioId = opts.colegioId;
+  const anio = opts.anio;
+  const ciclo = opts.ciclo;
+  const nivelId = optInt(opts.nivelId ?? opts.nivel_id);
+  const grupoId = optInt(opts.grupoId ?? opts.grupo_id);
+  const cursoId = optInt(opts.cursoId ?? opts.curso_id);
+  const areaId = optInt(opts.areaId ?? opts.area_id);
+  const grado =
+    opts.grado != null && String(opts.grado).trim() !== '' ? String(opts.grado).trim() : undefined;
+  const soloNumericos = opts.soloNumericos;
   const cicloInt = Math.min(4, Math.max(1, parseInt(ciclo, 10) || 1));
 
   let grupoSql = `
@@ -287,7 +303,7 @@ async function getMeta(colegioId, anioQ) {
     [colegioId]
   );
 
-  const niveles = await query(
+  const nivelesRaw = await query(
     `SELECT DISTINCT n.id, n.nombre, n.tipo_calificacion
      FROM niveles n
      INNER JOIN grupos g ON g.nivel_id = n.id AND g.colegio_id = n.colegio_id
@@ -300,6 +316,24 @@ async function getMeta(colegioId, anioQ) {
          ELSE 4
        END ASC,
        n.id ASC`,
+    [colegioId, anio]
+  );
+
+  /** Inicial tiene reporte cualitativo aparte; no va en combobox numérico */
+  const niveles = (nivelesRaw || []).filter(
+    (n) => Number(n.tipo_calificacion) !== 0 && !/inicial/i.test(String(n.nombre || ''))
+  );
+  const niveles_inicial = (nivelesRaw || []).filter(
+    (n) => Number(n.tipo_calificacion) === 0 || /inicial/i.test(String(n.nombre || ''))
+  );
+
+  const cursosVinculo = await query(
+    `SELECT DISTINCT c.id AS curso_id, c.nombre AS curso_nombre, g.nivel_id, g.grado
+     FROM asignaturas a
+     INNER JOIN cursos c ON c.id = a.curso_id
+     INNER JOIN grupos g ON g.id = a.grupo_id AND g.colegio_id = a.colegio_id
+     WHERE a.colegio_id = ? AND g.anio = ?
+     ORDER BY c.nombre ASC, g.nivel_id ASC, g.grado ASC`,
     [colegioId, anio]
   );
 
@@ -316,8 +350,10 @@ async function getMeta(colegioId, anioQ) {
       tipo_calificacion: g.tipo_calificacion,
     })),
     cursos: cursos || [],
+    cursos_vinculo: cursosVinculo || [],
     areas: areas || [],
     niveles: niveles || [],
+    niveles_inicial: niveles_inicial || [],
   };
 }
 
@@ -326,7 +362,7 @@ async function reportRankingSalonesGeneral(colegioId, params) {
     colegioId,
     anio: params.anio,
     ciclo: params.ciclo,
-    nivelId: params.nivel_id,
+    nivel_id: params.nivel_id,
     grado: params.grado,
     soloNumericos: true,
   });
@@ -356,9 +392,9 @@ async function reportRankingSalonesCurso(colegioId, params) {
     colegioId,
     anio: params.anio,
     ciclo: params.ciclo,
-    nivelId: params.nivel_id,
+    nivel_id: params.nivel_id,
     grado: params.grado,
-    cursoId,
+    curso_id: cursoId,
     soloNumericos: true,
   });
   const filas = [];
@@ -400,7 +436,7 @@ async function reportMatrizCursosSalones(colegioId, params) {
     colegioId,
     anio: params.anio,
     ciclo: params.ciclo,
-    nivelId: params.nivel_id,
+    nivel_id: params.nivel_id,
     grado: params.grado,
     soloNumericos: true,
   });
@@ -446,7 +482,7 @@ async function reportMejoresCursosColegio(colegioId, params) {
     colegioId,
     anio: params.anio,
     ciclo: params.ciclo,
-    nivelId: params.nivel_id,
+    nivel_id: params.nivel_id,
     soloNumericos: true,
   });
   const byCurso = new Map();
@@ -519,7 +555,7 @@ async function reportDetalleSalon(colegioId, params) {
     colegioId,
     anio: params.anio,
     ciclo: params.ciclo,
-    grupoId: gid,
+    grupo_id: gid,
   });
   const g = eng.grupoMap[gid];
   const alumnos = (eng.alumnosPorGrupo[gid] || []).map((al, idx) => {
@@ -592,7 +628,7 @@ async function reportPanelGeneral(colegioId, params) {
     colegioId,
     anio: params.anio,
     ciclo: params.ciclo,
-    nivelId: params.nivel_id,
+    nivel_id: params.nivel_id,
     soloNumericos: true,
   });
   const todosProms = [];
@@ -651,8 +687,8 @@ async function reportEvolucionBimestres(colegioId, params) {
       colegioId,
       anio: params.anio,
       ciclo: c,
-      grupoId: Number.isFinite(gid) ? gid : undefined,
-      nivelId: Number.isFinite(nivelId) ? nivelId : undefined,
+      grupo_id: Number.isFinite(gid) ? gid : undefined,
+      nivel_id: Number.isFinite(nivelId) ? nivelId : undefined,
       grado: grado || undefined,
       soloNumericos: true,
     });
@@ -688,8 +724,8 @@ async function reportPorArea(colegioId, params) {
       colegioId,
       anio: params.anio,
       ciclo: params.ciclo,
-      areaId: area.id,
-      nivelId: params.nivel_id,
+      area_id: area.id,
+      nivel_id: params.nivel_id,
       soloNumericos: true,
     });
     const proms = [];
@@ -727,7 +763,7 @@ async function reportCobertura(colegioId, params) {
     colegioId,
     anio: params.anio,
     ciclo: params.ciclo,
-    nivelId: params.nivel_id,
+    nivel_id: params.nivel_id,
     grado: params.grado,
   });
   const filas = eng.grupos.map((g) => {
@@ -773,7 +809,7 @@ async function reportInicialCualitativo(colegioId, params) {
     colegioId,
     anio: params.anio,
     ciclo: params.ciclo,
-    nivelId: params.nivel_id,
+    nivel_id: params.nivel_id,
   });
   const distribucion = { AD: 0, A: 0, B: 0, C: 0, OTRO: 0 };
   eng.grupos.forEach((g) => {
@@ -820,7 +856,7 @@ async function reportConductaSalones(colegioId, params) {
     colegioId,
     anio: params.anio,
     ciclo: params.ciclo,
-    nivelId: params.nivel_id,
+    nivel_id: params.nivel_id,
     grado: params.grado,
   });
   const filas = [];
