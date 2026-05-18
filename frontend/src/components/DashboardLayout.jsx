@@ -1496,6 +1496,10 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🎂</span>
                     <span className="sidebar-label">Cumpleaños</span>
                   </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/config/indicadores">
+                    <span className="sidebar-icon" aria-hidden>📊</span>
+                    <span className="sidebar-label">Indicadores</span>
+                  </NavLink>
                 </div>
               </div>
             </>

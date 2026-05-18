@@ -15,6 +15,7 @@ import AdminUsuariosAlumnosTabla from './AdminUsuariosAlumnosTabla';
 import AdminUsuariosApoderados from './AdminUsuariosApoderados';
 import AdminConfiguracion from './AdminConfiguracion';
 import AdminConfigCumpleanos from './AdminConfigCumpleanos';
+import AdminConfigIndicadores from './AdminConfigIndicadores';
 import AdminMatriculasInscripcion from './AdminMatriculasInscripcion';
 import AdminAcademico from './AdminAcademico';
 import AdminPsicologiaLista from './AdminPsicologiaLista';
@@ -243,6 +244,11 @@ function Dashboard() {
       description: 'Plantillas de felicitaciones automáticas del colegio',
       icon: '🎂'
     },
+    '/admin/config/indicadores': {
+      title: '📊 Indicadores',
+      description: 'Plantillas de criterios para niveles cuantitativos',
+      icon: '📊'
+    },
     '/admin/auditoria': {
       title: '🧾 Auditoría',
       description: 'Visualiza los logs de auditoría del sistema',
@@ -335,6 +341,15 @@ function Dashboard() {
         <DashboardLayout>
           <div className="dashboard-container">
             <AdminConfigCumpleanos />
+          </div>
+        </DashboardLayout>
+      );
+    }
+    if (location.pathname === '/admin/config/indicadores') {
+      return (
+        <DashboardLayout>
+          <div className="dashboard-container">
+            <AdminConfigIndicadores />
           </div>
         </DashboardLayout>
       );

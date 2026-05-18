@@ -4382,6 +4382,10 @@ input.box:focus {
   padding: 1rem;
 }
 
+.modal-indicadores.modal-indicadores--wide {
+  max-width: 640px;
+}
+
 .modal-indicadores {
   max-width: 520px;
   width: 100%;
@@ -4501,8 +4505,32 @@ input.box:focus {
   color: #9ca3af;
 }
 
+.form-indicadores-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  align-items: flex-end;
+  margin-bottom: 1rem;
+}
+
+.form-group-indicadores--inline {
+  flex: 1 1 120px;
+  margin-bottom: 0;
+  min-width: 100px;
+}
+
+.form-group-indicadores--inline .input-indicadores,
+.form-group-indicadores--inline .select-bimestre {
+  max-width: none;
+  width: 100%;
+}
+
 .input-abreviatura {
   max-width: 140px;
+}
+
+.input-peso {
+  max-width: 100px;
 }
 
 .select-bimestre {
@@ -4570,6 +4598,60 @@ input.box:focus {
   font-size: 1rem;
   font-weight: 700;
   color: #4a83c1;
+}
+
+.indicadores-advertencia {
+  margin: 0 0 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  background: #fef2f2;
+  border-left: 3px solid #dc2626;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #991b1b;
+}
+
+.criterios-tabla-wrap {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.criterios-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.criterios-tabla th {
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  background: #f1f5f9;
+  color: #475569;
+  font-weight: 700;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.criterios-tabla td {
+  padding: 0.55rem 0.75rem;
+  border-top: 1px solid #e2e8f0;
+  vertical-align: middle;
+}
+
+.criterio-desc-cell {
+  margin-right: 0.5rem;
+}
+
+.criterio-peso-cell {
+  font-weight: 600;
+  color: #4a83c1;
+  white-space: nowrap;
+}
+
+.criterio-acciones-cell {
+  width: 48px;
+  text-align: right;
 }
 
 .indicadores-loading {

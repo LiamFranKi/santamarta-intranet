@@ -1299,6 +1299,14 @@ function AppRoutes() {
           </PrivateRoute>
         }
       />
+      <Route
+        path="/admin/config/indicadores"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <Dashboard />
+          </PrivateRoute>
+        }
+      />
       <Route path="/admin/config/anio-escolar" element={<Navigate to="/admin/config" replace />} />
       <Route path="/admin/config/general" element={<Navigate to="/admin/config" replace />} />
       <Route path="/admin/config/temas" element={<Navigate to="/admin/config" replace />} />

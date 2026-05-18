@@ -4961,7 +4961,12 @@ router.get('/cursos/:cursoId/criterios', async (req, res) => {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
-    const asignaturaAcceso = await verificarAccesoAsignatura(req, res, cursoId, 'a.*');
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      cursoId,
+      `a.*, c.nombre as curso_nombre, n.nombre as nivel_nombre, n.tipo_calificacion`
+    );
     if (!asignaturaAcceso) return;
 
     let criterios = [];
@@ -5013,7 +5018,14 @@ router.get('/cursos/:cursoId/criterios', async (req, res) => {
       indicadores: indicadoresPorCriterio[c.id] || []
     }));
 
-    res.json({ criterios: criteriosConIndicadores });
+    res.json({
+      criterios: criteriosConIndicadores,
+      curso: {
+        curso_nombre: asignaturaAcceso.curso_nombre,
+        nivel_nombre: asignaturaAcceso.nivel_nombre,
+        tipo_calificacion: asignaturaAcceso.tipo_calificacion,
+      },
+    });
   } catch (error) {
     console.error('Error obteniendo criterios:', error);
     res.status(500).json({ error: 'Error al obtener criterios' });
@@ -5022,35 +5034,39 @@ router.get('/cursos/:cursoId/criterios', async (req, res) => {
 
 /**
  * POST /api/docente/cursos/:cursoId/criterios
- * Crear criterio/indicador para nivel INICIAL (peso = 0)
+ * Crear criterio/indicador (INICIAL: peso 0 + indicador; cuantitativo: peso %)
  */
 router.post('/cursos/:cursoId/criterios', async (req, res) => {
   try {
     const { cursoId } = req.params;
     const { colegio_id, personal_id } = req.user;
-    const { descripcion, abreviatura, ciclo } = req.body;
+    const { descripcion, abreviatura, ciclo, peso, cuadros } = req.body;
 
-    if (!personal_id) {
+    if (!personal_id && !esStaffColegio(req.user.tipo)) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
     if (!descripcion || !descripcion.trim()) {
       return res.status(400).json({ error: 'La descripción es obligatoria' });
     }
 
-    const asignatura = await query(
-      `SELECT a.*, n.tipo_calificacion
-       FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ?`,
-      [cursoId, personal_id, colegio_id]
+    const asignatura = await verificarAccesoAsignatura(
+      req,
+      res,
+      cursoId,
+      'a.*, n.tipo_calificacion'
     );
+    if (!asignatura) return;
 
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
+    const cicloInt =
+      ciclo !== undefined && ciclo !== null && ciclo !== ''
+        ? parseInt(ciclo, 10)
+        : 1;
+    if (!Number.isFinite(cicloInt) || cicloInt < 0 || cicloInt > 4) {
+      return res.status(400).json({ error: 'Bimestre no válido' });
     }
 
-    const cicloInt = ciclo ? parseInt(ciclo) : 1;
+    const esCualitativa = asignatura.tipo_calificacion === 0;
+    const pesoVal = esCualitativa ? 0 : Math.max(0, parseFloat(peso) || 0);
     const abrev = (abreviatura || '').trim() || descripcion.trim().substring(0, 20);
 
     const maxOrden = await query(
@@ -5063,8 +5079,8 @@ router.post('/cursos/:cursoId/criterios', async (req, res) => {
 
     await execute(
       `INSERT INTO asignaturas_criterios (colegio_id, descripcion, abreviatura, asignatura_id, ciclo, orden, peso)
-       VALUES (?, ?, ?, ?, ?, ?, 0)`,
-      [colegio_id, descripcion.trim(), abrev, cursoId, cicloInt, orden]
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [colegio_id, descripcion.trim(), abrev, cursoId, cicloInt, orden, pesoVal]
     );
 
     const criterioInsertado = await query(
@@ -5078,10 +5094,11 @@ router.post('/cursos/:cursoId/criterios', async (req, res) => {
       return res.status(500).json({ error: 'Error al crear el criterio' });
     }
 
+    const cuadrosVal = esCualitativa ? 1 : Math.max(1, parseInt(cuadros, 10) || 1);
     await execute(
       `INSERT INTO asignaturas_indicadores (criterio_id, descripcion, cuadros)
-       VALUES (?, ?, 1)`,
-      [criterioId, descripcion.trim()]
+       VALUES (?, ?, ?)`,
+      [criterioId, descripcion.trim(), cuadrosVal]
     );
 
     res.json({
@@ -5104,20 +5121,12 @@ router.delete('/cursos/:cursoId/criterios/:criterioId', async (req, res) => {
     const { cursoId, criterioId } = req.params;
     const { colegio_id, personal_id } = req.user;
 
-    if (!personal_id) {
+    if (!personal_id && !esStaffColegio(req.user.tipo)) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
-    const asignatura = await query(
-      `SELECT a.id FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ?`,
-      [cursoId, personal_id, colegio_id]
-    );
-
-    if (!asignatura || asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este curso' });
-    }
+    const asignatura = await verificarAccesoAsignatura(req, res, cursoId, 'a.id');
+    if (!asignatura) return;
 
     const criterio = await query(
       `SELECT id FROM asignaturas_criterios

@@ -265,6 +265,7 @@ const pushRoutes = require('./routes/push.routes');
 // Rutas de administrador
 const adminRoutes = require('./routes/admin.routes');
 const adminAcademicoRoutes = require('./routes/admin.academico.routes');
+const adminIndicadoresPlantillasRoutes = require('./routes/admin.indicadores-plantillas.routes');
 const adminReportesRoutes = require('./routes/admin.reportes.routes');
 const adminUsuariosRoutes = require('./routes/admin.usuarios.routes');
 const adminPsicologiaRoutes = require('./routes/admin.psicologia.routes');
@@ -296,6 +297,7 @@ app.use('/api/admin/usuarios', adminUsuariosRoutes);
 const adminInscripcionMatriculaRoutes = require('./routes/admin.inscripcion-matricula.routes');
 app.use('/api/admin/usuarios', adminInscripcionMatriculaRoutes);
 app.use('/api/admin/academico', adminAcademicoRoutes);
+app.use('/api/admin/indicadores-plantillas', adminIndicadoresPlantillasRoutes);
 app.use('/api/admin/reportes', adminReportesRoutes);
 const adminReportesNotasRoutes = require('./routes/admin.reportes.notas.routes');
 app.use('/api/admin/reportes/notas', adminReportesNotasRoutes);

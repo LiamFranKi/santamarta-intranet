@@ -938,6 +938,79 @@ body.admin-academico-page .swal2-container {
   font-size: 0.92rem;
 }
 
+.admin-academico-asignaturas-table-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.admin-academico-libreta-inicial-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin: 0 0 0.85rem;
+  padding: 0.85rem 1rem 1rem;
+  background: linear-gradient(180deg, #f0f7ff 0%, #f8fafc 100%);
+  border: 1px solid rgba(74, 131, 193, 0.22);
+  border-bottom: none;
+  border-radius: 12px 12px 0 0;
+  text-align: center;
+}
+
+.admin-academico-libreta-inicial-meta {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #475569;
+  font-weight: 500;
+}
+
+.admin-academico-libreta-inicial-warn {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #b45309;
+  font-weight: 500;
+  max-width: 42rem;
+}
+
+.admin-academico-libreta-inicial-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem 0.85rem;
+}
+
+.admin-academico-libreta-inicial-btn {
+  min-width: 10.5rem;
+  margin: 0;
+}
+
+.admin-academico-libreta-inicial-btn--sec {
+  background: #ffffff;
+  color: #1e3a5f;
+  border: 1px solid rgba(74, 131, 193, 0.45);
+  box-shadow: none;
+}
+
+.admin-academico-libreta-inicial-btn--sec:hover:not(:disabled) {
+  background: #f0f7ff;
+}
+
+.admin-academico-libreta-inicial-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-academico-asignaturas-table-block .admin-academico-asignaturas-table-wrap {
+  border-radius: 0 0 12px 12px;
+}
+
+.admin-academico-asignaturas-table-block:has(.admin-academico-libreta-inicial-toolbar) .admin-academico-asignaturas-table-wrap {
+  border-top: 1px solid #e2e8f0;
+}
+
 .admin-academico-asignaturas-table-wrap {
   overflow-x: auto;
   overflow-y: visible;

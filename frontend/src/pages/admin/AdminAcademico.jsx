@@ -9,7 +9,10 @@ import { useGrupoReportesConducta } from '../../components/grupoReportes/useGrup
 import GrupoHorarioCompletoModal from '../../components/grupoHorario/GrupoHorarioCompletoModal';
 import AdminGrupoAsistenciaModal from '../../components/admin/AdminGrupoAsistenciaModal';
 import ModalCopiarContenidoAsignatura from '../../components/admin/ModalCopiarContenidoAsignatura';
+import ModalCriteriosIndicadoresAsignatura from '../../components/admin/ModalCriteriosIndicadoresAsignatura';
 import ModalRegistrarNotasAsignatura from '../../components/admin/ModalRegistrarNotasAsignatura';
+import LibretaInicialAreasModal from '../../components/libretaInicial/LibretaInicialAreasModal';
+import LibretaInicialRegistroModal from '../../components/libretaInicial/LibretaInicialRegistroModal';
 import { exportGrupoCarnetsPdfA4 } from '../../utils/carnetQrPdf';
 import { generarPDFNotasTutoria } from '../../utils/pdfNotasTutoria';
 import { jsPDF } from 'jspdf';
@@ -2213,6 +2216,29 @@ function etiquetaGrupoAsignatura(r) {
   return `${nivel} - ${grado} ${sec}${anioTxt}`.replace(/\s+/g, ' ').trim();
 }
 
+function esNivelInicialPorId(nivelId, nivelesLista) {
+  if (nivelId == null || nivelId === '') return false;
+  const n = (nivelesLista || []).find((x) => String(x.id) === String(nivelId));
+  if (!n) return false;
+  if (n.tipo_calificacion === 0) return true;
+  return String(n.nombre || '').toUpperCase().includes('INICIAL');
+}
+
+function grupoLibretaDesdeResultados(filtrosAplicados, rows) {
+  if (!filtrosAplicados || !rows?.length) return null;
+  const ids = [...new Set(rows.map((r) => r.grupo_id).filter(Boolean))];
+  if (ids.length !== 1) return { conflicto: ids.length > 1 };
+  const r = rows.find((x) => x.grupo_id === ids[0]) || rows[0];
+  return {
+    id: r.grupo_id,
+    grado: r.grado,
+    seccion: r.seccion,
+    nivel_nombre: r.nivel_nombre,
+    turno_nombre: r.turno_nombre,
+    anio: r.anio != null ? r.anio : filtrosAplicados.anio,
+  };
+}
+
 function AsignaturasPanel({ meta, accionesRef }) {
   const navigate = useNavigate();
   const anioDef = meta?.anio_activo || new Date().getFullYear();
@@ -2244,6 +2270,9 @@ function AsignaturasPanel({ meta, accionesRef }) {
   const [grupoAsistenciaAdmin, setGrupoAsistenciaAdmin] = useState(null);
   const [copiarContenidoAsignaturaId, setCopiarContenidoAsignaturaId] = useState(null);
   const [registrarNotasAsignaturaId, setRegistrarNotasAsignaturaId] = useState(null);
+  const [criteriosAsignaturaId, setCriteriosAsignaturaId] = useState(null);
+  const [modalLibretaAreas, setModalLibretaAreas] = useState(null);
+  const [modalLibretaRegistro, setModalLibretaRegistro] = useState(null);
   const [cursosDisponibles, setCursosDisponibles] = useState([]);
   const [loadingCursosDisponibles, setLoadingCursosDisponibles] = useState(false);
   const [infoCursosGrupo, setInfoCursosGrupo] = useState(null);
@@ -2254,6 +2283,23 @@ function AsignaturasPanel({ meta, accionesRef }) {
     () => gradosDisponiblesPorNivel(filtros?.nivel_id, nivelesLista),
     [filtros?.nivel_id, nivelesLista]
   );
+
+  const esInicialBuscado = useMemo(
+    () => buscado && esNivelInicialPorId(filtrosAplicados?.nivel_id, nivelesLista),
+    [buscado, filtrosAplicados?.nivel_id, nivelesLista]
+  );
+
+  const libretaGrupo = useMemo(
+    () => (esInicialBuscado ? grupoLibretaDesdeResultados(filtrosAplicados, rows) : null),
+    [esInicialBuscado, filtrosAplicados, rows]
+  );
+
+  const opcionesMenuVisibles = useMemo(() => {
+    if (!esInicialBuscado) return OPCIONES_ASIGNATURA_MENU;
+    return OPCIONES_ASIGNATURA_MENU.filter(
+      (op) => op.key !== 'criterios' && op.key !== 'registrar_notas'
+    );
+  }, [esInicialBuscado]);
 
   const loadGruposModal = useCallback(async (anio) => {
     const { data } = await api.get('/admin/academico/grupos', { params: { anio } });
@@ -2571,13 +2617,8 @@ function AsignaturasPanel({ meta, accionesRef }) {
       return;
     }
     if (accion === 'criterios') {
-      navigate('/docente/cursos', {
-        state: {
-          asignaturaId: row.id,
-          asignaturaAction: accion,
-          adminReturnTo: '/admin/academico/asignaturas',
-        },
-      });
+      setCriteriosAsignaturaId(row.id);
+      return;
     }
   };
 
@@ -2619,6 +2660,11 @@ function AsignaturasPanel({ meta, accionesRef }) {
           onGuardado={() => {
             if (filtrosAplicados) load(filtrosAplicados);
           }}
+        />
+        <ModalCriteriosIndicadoresAsignatura
+          open={criteriosAsignaturaId != null}
+          asignaturaId={criteriosAsignaturaId}
+          onClose={() => setCriteriosAsignaturaId(null)}
         />
       </>
     );
@@ -2744,8 +2790,42 @@ function AsignaturasPanel({ meta, accionesRef }) {
       ) : rows.length === 0 ? (
         <p className="admin-academico-niveles-empty">No hay asignaturas con esos filtros.</p>
       ) : (
-        <div className="admin-academico-table-wrap admin-academico-asignaturas-table-wrap">
-          <table className="admin-academico-table admin-academico-asignaturas-table">
+        <div className="admin-academico-asignaturas-table-block">
+          {esInicialBuscado && (
+            <div className="admin-academico-libreta-inicial-toolbar" role="region" aria-label="Libreta Inicial">
+              {libretaGrupo?.conflicto ? (
+                <p className="admin-academico-libreta-inicial-warn">
+                  Hay más de un aula en el resultado. Refine sección y turno en los filtros para usar la libreta.
+                </p>
+              ) : libretaGrupo?.id ? (
+                <p className="admin-academico-libreta-inicial-meta">
+                  {libretaGrupo.nivel_nombre} {libretaGrupo.grado}° {etiquetaSeccionGrupo(libretaGrupo.seccion)}
+                  {libretaGrupo.turno_nombre ? ` · ${libretaGrupo.turno_nombre}` : ''}
+                  {libretaGrupo.anio ? ` (${libretaGrupo.anio})` : ''}
+                </p>
+              ) : null}
+              <div className="admin-academico-libreta-inicial-toolbar-actions">
+                <button
+                  type="button"
+                  className="admin-academico-grupos-btn-nuevo admin-academico-libreta-inicial-btn"
+                  disabled={!libretaGrupo?.id}
+                  onClick={() => libretaGrupo?.id && setModalLibretaAreas(libretaGrupo)}
+                >
+                  Ver indicadores
+                </button>
+                <button
+                  type="button"
+                  className="admin-academico-grupos-btn-nuevo admin-academico-libreta-inicial-btn admin-academico-libreta-inicial-btn--sec"
+                  disabled={!libretaGrupo?.id}
+                  onClick={() => libretaGrupo?.id && setModalLibretaRegistro(libretaGrupo)}
+                >
+                  Registrar notas
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="admin-academico-table-wrap admin-academico-asignaturas-table-wrap">
+            <table className="admin-academico-table admin-academico-asignaturas-table">
             <thead>
               <tr>
                 <th>Docente</th>
@@ -2775,6 +2855,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -2792,7 +2873,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
             }}
             onMouseDown={(e) => e.stopPropagation()}
           >
-            {OPCIONES_ASIGNATURA_MENU.map((op) => (
+            {opcionesMenuVisibles.map((op) => (
               <button
                 key={op.key}
                 type="button"
@@ -2947,6 +3028,17 @@ function AsignaturasPanel({ meta, accionesRef }) {
           if (filtrosAplicados) load(filtrosAplicados);
         }}
       />
+      <ModalCriteriosIndicadoresAsignatura
+        open={criteriosAsignaturaId != null}
+        asignaturaId={criteriosAsignaturaId}
+        onClose={() => setCriteriosAsignaturaId(null)}
+      />
+      {modalLibretaAreas && (
+        <LibretaInicialAreasModal grupo={modalLibretaAreas} onClose={() => setModalLibretaAreas(null)} />
+      )}
+      {modalLibretaRegistro && (
+        <LibretaInicialRegistroModal grupo={modalLibretaRegistro} onClose={() => setModalLibretaRegistro(null)} />
+      )}
     </section>
   );
 }
