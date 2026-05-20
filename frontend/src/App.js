@@ -64,6 +64,7 @@ import AdminElecciones from './pages/admin/AdminElecciones';
 import AdminEleccionProceso from './pages/admin/AdminEleccionProceso';
 import AdminEleccionVotos from './pages/admin/AdminEleccionVotos';
 import AdminEventos from './pages/admin/AdminEventos';
+import AdminEnConstruccion from './pages/admin/AdminEnConstruccion';
 import MisEncuestas from './pages/MisEncuestas';
 import EncuestaResponder from './pages/EncuestaResponder';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
@@ -287,12 +288,16 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/comunicaciones/incidencias"
+        path="/admin/reportes/incidencias"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
             <AdminIncidencias />
           </PrivateRoute>
         }
+      />
+      <Route
+        path="/admin/comunicaciones/incidencias"
+        element={<Navigate to="/admin/reportes/incidencias" replace />}
       />
       <Route
         path="/admin/comunicaciones/chat-vanguard"
@@ -336,7 +341,7 @@ function AppRoutes() {
       />
       <Route path="/admin/publicaciones" element={<Navigate to="/admin/comunicaciones/publicaciones" replace />} />
       <Route path="/admin/conexiones" element={<Navigate to="/admin/comunicaciones/conexiones" replace />} />
-      <Route path="/admin/incidencias" element={<Navigate to="/admin/comunicaciones/incidencias" replace />} />
+      <Route path="/admin/incidencias" element={<Navigate to="/admin/reportes/incidencias" replace />} />
       <Route path="/admin/actividades" element={<Navigate to="/admin/comunicaciones/actividades" replace />} />
       <Route path="/admin/comunicados" element={<Navigate to="/admin/comunicaciones/comunicados" replace />} />
       <Route path="/admin/notificaciones" element={<Navigate to="/admin/comunicaciones/notificaciones" replace />} />
@@ -1096,6 +1101,46 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'SECRETARIA', 'PSICOLOGA']}>
             <Dashboard />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/pagos-facturas/buscar-pagos"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <AdminEnConstruccion titulo="Buscar Pagos" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/pagos-facturas/productos"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <AdminEnConstruccion titulo="Productos" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/pagos-facturas/ventas"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <AdminEnConstruccion titulo="Ventas" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/pagos-facturas/compras"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <AdminEnConstruccion titulo="Compras" />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/pagos-facturas/caja-chica"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <AdminEnConstruccion titulo="Caja Chica" />
           </PrivateRoute>
         }
       />

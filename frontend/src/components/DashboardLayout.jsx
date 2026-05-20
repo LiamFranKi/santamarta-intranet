@@ -60,6 +60,7 @@ export default function DashboardLayout({ children }) {
     reportes: null,
     herramientas: null,
     comunicaciones: null,
+    pagosFacturas: null,
     configuracion: null,
     docenteHerramientas: null,
     alumnoHerramientas: null,
@@ -81,14 +82,11 @@ export default function DashboardLayout({ children }) {
         (
           path.startsWith('/admin/herramientas')
           || path.startsWith('/admin/documentos-gestion')
+          || path.startsWith('/admin/vanguarcito')
         ) && { herramientas: true }
       ),
-      ...(
-        (
-          path.startsWith('/admin/comunicaciones')
-          || path.startsWith('/admin/vanguarcito')
-        ) && { comunicaciones: true }
-      ),
+      ...(path.startsWith('/admin/comunicaciones') && { comunicaciones: true }),
+      ...(path.startsWith('/admin/pagos-facturas') && { pagosFacturas: true }),
       ...(path.startsWith('/admin/config') && { configuracion: true }),
       ...(
         (
@@ -98,14 +96,11 @@ export default function DashboardLayout({ children }) {
           || path.startsWith('/elecciones-campana')
         ) && { docenteHerramientas: true }
       ),
-      ...(
-        (
-          path.startsWith('/admin/comunicaciones')
-          || path.startsWith('/admin/vanguarcito')
-        ) && user?.tipo === 'PSICOLOGA'
-          ? { psicologaCom: true }
-          : {}
-      ),
+      ...((path.startsWith('/admin/comunicaciones')
+        || path.startsWith('/admin/reportes/incidencias'))
+        && user?.tipo === 'PSICOLOGA'
+        ? { psicologaCom: true }
+        : {}),
       ...(path.startsWith('/admin/usuarios/alumnos') || path.startsWith('/admin/usuarios/apoderados')
         ? { psicologaUsuarios: true }
         : {}),
@@ -901,6 +896,10 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📋</span>
                     <span className="sidebar-label">Deudores</span>
                   </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/incidencias">
+                    <span className="sidebar-icon" aria-hidden>⚠️</span>
+                    <span className="sidebar-label">Incidencias</span>
+                  </NavLink>
                 </div>
               </div>
               {rolesAdicionales.es_apoderado && (
@@ -1167,7 +1166,7 @@ export default function DashboardLayout({ children }) {
                     </span>
                     <span className="sidebar-label">Conexiones</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/incidencias">
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/incidencias">
                     <span className="sidebar-icon" aria-hidden>
                       ⚠️
                     </span>
@@ -1237,12 +1236,6 @@ export default function DashboardLayout({ children }) {
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/matriculas">
                   <span className="sidebar-icon">📋</span>
                   <span className="sidebar-label">Matrículas</span>
-                </NavLink>
-              </div>
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia">
-                  <span className="sidebar-icon">🧠</span>
-                  <span className="sidebar-label">Psicología</span>
                 </NavLink>
               </div>
               <div className="sidebar-menu-item">
@@ -1346,6 +1339,15 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🎯</span>
                     <span className="sidebar-label">Supervisión</span>
                   </NavLink>
+                  <NavLink
+                    className={({ isActive }) =>
+                      `sidebar-sublink ${isActive || location.pathname === '/admin/vanguarcito' ? 'active' : ''}`
+                    }
+                    to="/admin/vanguarcito"
+                  >
+                    <span className="sidebar-icon" aria-hidden>🤖</span>
+                    <span className="sidebar-label">Vanguarcito</span>
+                  </NavLink>
                 </div>
               </div>
               <div className="sidebar-menu-item">
@@ -1369,16 +1371,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🔗</span>
                     <span className="sidebar-label">Conexiones</span>
                   </NavLink>
-                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/incidencias">
-                    <span className="sidebar-icon" aria-hidden>⚠️</span>
-                    <span className="sidebar-label">Incidencias</span>
-                  </NavLink>
-                  <NavLink
-                    className={({ isActive }) =>
-                      `sidebar-sublink ${isActive || location.pathname === '/admin/vanguarcito' ? 'active' : ''}`
-                    }
-                    to="/admin/comunicaciones/chat-vanguard"
-                  >
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/chat-vanguard">
                     <span className="sidebar-icon" aria-hidden>💬</span>
                     <span className="sidebar-label">Chat Vanguard</span>
                   </NavLink>
@@ -1395,6 +1388,52 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-label">Notificaciones</span>
                   </NavLink>
                 </div>
+              </div>
+              <div className="sidebar-menu-item">
+                <button
+                  type="button"
+                  className={`sidebar-menu-toggle ${expandedMenus.pagosFacturas ? 'expanded' : ''}`}
+                  onClick={() => toggleSubmenu('pagosFacturas')}
+                >
+                  <div className="sidebar-menu-toggle-content">
+                    <span className="sidebar-icon">💳</span>
+                    <span className="sidebar-label">Pagos/Facturas</span>
+                  </div>
+                  <span className="sidebar-menu-arrow">▶</span>
+                </button>
+                <div
+                  ref={(el) => {
+                    submenuRefs.current.pagosFacturas = el;
+                  }}
+                  className={`sidebar-submenu ${expandedMenus.pagosFacturas ? 'expanded' : ''}`}
+                >
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/pagos-facturas/buscar-pagos">
+                    <span className="sidebar-icon" aria-hidden>🔍</span>
+                    <span className="sidebar-label">Buscar Pagos</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/pagos-facturas/productos">
+                    <span className="sidebar-icon" aria-hidden>📦</span>
+                    <span className="sidebar-label">Productos</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/pagos-facturas/ventas">
+                    <span className="sidebar-icon" aria-hidden>🛒</span>
+                    <span className="sidebar-label">Ventas</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/pagos-facturas/compras">
+                    <span className="sidebar-icon" aria-hidden>🧾</span>
+                    <span className="sidebar-label">Compras</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/pagos-facturas/caja-chica">
+                    <span className="sidebar-icon" aria-hidden>💵</span>
+                    <span className="sidebar-label">Caja Chica</span>
+                  </NavLink>
+                </div>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia">
+                  <span className="sidebar-icon">🧠</span>
+                  <span className="sidebar-label">Psicología</span>
+                </NavLink>
               </div>
               {rolesAdicionales.es_apoderado && (
                 <>
@@ -1421,12 +1460,6 @@ export default function DashboardLayout({ children }) {
                   </div>
                 </>
               )}
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/vanguarcito">
-                  <span className="sidebar-icon">🤖</span>
-                  <span className="sidebar-label">Vanguarcito</span>
-                </NavLink>
-              </div>
               <div className="sidebar-menu-item">
                 <button
                   className={`sidebar-menu-toggle ${expandedMenus.reportes ? 'expanded' : ''}`}
@@ -1459,6 +1492,10 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📋</span>
                     <span className="sidebar-label">Deudores</span>
                   </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/incidencias">
+                    <span className="sidebar-icon" aria-hidden>⚠️</span>
+                    <span className="sidebar-label">Incidencias</span>
+                  </NavLink>
                 </div>
               </div>
               {MOSTRAR_MENU_AUDITORIA && (
@@ -1469,12 +1506,6 @@ export default function DashboardLayout({ children }) {
                 </NavLink>
               </div>
               )}
-              <div className="sidebar-item">
-                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/mensajes">
-                  <span className="sidebar-icon">✉️</span>
-                  <span className="sidebar-label">Mensajes</span>
-                </NavLink>
-              </div>
               <div className="sidebar-menu-item">
                 <button
                   type="button"
@@ -1501,6 +1532,12 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-label">Indicadores</span>
                   </NavLink>
                 </div>
+              </div>
+              <div className="sidebar-item">
+                <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/mensajes">
+                  <span className="sidebar-icon">✉️</span>
+                  <span className="sidebar-label">Mensajes</span>
+                </NavLink>
               </div>
             </>
           )}

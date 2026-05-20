@@ -194,7 +194,10 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
   const cargarArchivos = useCallback(async (ciclo) => {
     try {
       const response = await api.get('/alumno/aula-virtual/archivos', {
-        params: { asignatura_id: asignaturaId, ciclo: ciclo || bimestreGlobal }
+        params: {
+          asignatura_id: asignaturaId,
+          ciclo: Number(ciclo ?? bimestreGlobal) || 1,
+        },
       });
       setArchivos(response.data.archivos || []);
     } catch (error) {
@@ -286,7 +289,9 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
   };
 
   const renderTemasContent = () => {
-    const archivosFiltrados = archivos.filter(archivo => archivo.ciclo === bimestreGlobal);
+    const archivosFiltrados = archivos.filter(
+      (archivo) => Number(archivo.ciclo) === Number(bimestreGlobal)
+    );
 
     return (
       <div className="card-content-expanded">

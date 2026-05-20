@@ -50,7 +50,14 @@ const {
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { lineaAlumnoGrado, etiquetaGradoGrupo } = require('../utils/notificacionExamenApoderadoTexto');
 const { listarDeudoresGrupo, mergeObservacionesTutor } = require('../utils/tutorDeudoresService');
-const { fetchAsignaturaConAcceso, esStaffColegio } = require('../utils/asignaturaAcceso');
+const {
+  fetchAsignaturaConAcceso,
+  fetchExamenConAcceso,
+  fetchResultadoPruebaConAcceso,
+  fetchPreguntaExamenConAcceso,
+  fetchAlternativaExamenConAcceso,
+  esStaffColegio,
+} = require('../utils/asignaturaAcceso');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
@@ -68,6 +75,82 @@ async function verificarAccesoAsignatura(
   const row = await fetchAsignaturaConAcceso(query, req, asignaturaId, selectSql);
   if (!row) {
     res.status(403).json({ error: errorMsg });
+    return null;
+  }
+  return row;
+}
+
+/** Examen del aula virtual: titular o staff (admin/promotoría) en colegio y año activo. */
+async function verificarAccesoExamen(
+  req,
+  res,
+  examenId,
+  selectSql = 'ae.*',
+  errorMsg = 'No tienes acceso a este examen',
+  statusCode = 403,
+  extraJoins = ''
+) {
+  const row = await fetchExamenConAcceso(query, req, examenId, selectSql, extraJoins);
+  if (!row) {
+    res.status(statusCode).json({ error: errorMsg });
+    return null;
+  }
+  return row;
+}
+
+/** Resultado de prueba de examen: mismo criterio que verificarAccesoExamen. */
+async function verificarAccesoResultadoPrueba(
+  req,
+  res,
+  resultadoId,
+  selectSql = 'aep.*',
+  errorMsg = 'No tienes acceso a este resultado',
+  statusCode = 403,
+  extraJoins = ''
+) {
+  const row = await fetchResultadoPruebaConAcceso(
+    query,
+    req,
+    resultadoId,
+    selectSql,
+    extraJoins
+  );
+  if (!row) {
+    res.status(statusCode).json({ error: errorMsg });
+    return null;
+  }
+  return row;
+}
+
+/** Pregunta de examen virtual: mismo criterio que verificarAccesoExamen. */
+async function verificarAccesoPreguntaExamen(
+  req,
+  res,
+  preguntaId,
+  selectSql = 'ep.*, ae.asignatura_id, ep.examen_id',
+  errorMsg = 'No tienes acceso a esta pregunta',
+  statusCode = 403
+) {
+  const row = await fetchPreguntaExamenConAcceso(query, req, preguntaId, selectSql);
+  if (!row) {
+    res.status(statusCode).json({ error: errorMsg });
+    return null;
+  }
+  return row;
+}
+
+/** Alternativa de pregunta de examen virtual: mismo criterio que verificarAccesoExamen. */
+async function verificarAccesoAlternativaExamen(
+  req,
+  res,
+  alternativaId,
+  selectSql = 'aa.*, ep.examen_id, ep.pregunta_id, aa.pregunta_id',
+  errorMsg = 'No tienes acceso a esta alternativa',
+  statusCode = 403
+) {
+  const row = await fetchAlternativaExamenConAcceso(query, req, alternativaId, selectSql);
+  if (!row) {
+    res.status(statusCode).json({ error: errorMsg });
     return null;
   }
   return row;
@@ -18437,22 +18520,17 @@ router.get('/aula-virtual/examenes/:examenId/asignar-registro', async (req, res)
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { examenId } = req.params;
 
-    // Verificar que el examen existe y pertenece a una asignatura del docente
-    const examen = await query(
-      `SELECT ae.*, a.id as asignatura_id, a.grupo_id, g.grado, g.seccion, c.nombre as curso_nombre
-       FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
+    const examenInfo = await verificarAccesoExamen(
+      req,
+      res,
+      examenId,
+      'ae.*, a.id as asignatura_id, a.grupo_id, g.grado, g.seccion, c.nombre as curso_nombre',
+      'Examen no encontrado o sin permisos',
+      404,
+      ' INNER JOIN cursos c ON c.id = a.curso_id'
     );
+    if (!examenInfo) return;
 
-    if (examen.length === 0) {
-      return res.status(404).json({ error: 'Examen no encontrado o sin permisos' });
-    }
-
-    const examenInfo = examen[0];
     const ciclo = examenInfo.ciclo;
 
     // Obtener criterios de la asignatura para este ciclo (ciclo = 0 significa todos los ciclos)
@@ -18509,22 +18587,17 @@ router.post('/aula-virtual/examenes/:examenId/asignar-registro', async (req, res
       return res.status(400).json({ error: 'criterio_id y cuadro son requeridos' });
     }
 
-    // Verificar que el examen existe y pertenece a una asignatura del docente
-    const examen = await query(
-      `SELECT ae.*, a.id as asignatura_id, a.grupo_id, n.nota_minima
-       FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
+    const examenInfo = await verificarAccesoExamen(
+      req,
+      res,
+      examenId,
+      'ae.*, a.id as asignatura_id, a.grupo_id, n.nota_minima',
+      'Examen no encontrado o sin permisos',
+      404,
+      ' INNER JOIN niveles n ON n.id = g.nivel_id'
     );
+    if (!examenInfo) return;
 
-    if (examen.length === 0) {
-      return res.status(404).json({ error: 'Examen no encontrado o sin permisos' });
-    }
-
-    const examenInfo = examen[0];
     const asignaturaId = examenInfo.asignatura_id;
     const ciclo = examenInfo.ciclo;
     const grupoId = examenInfo.grupo_id;
@@ -18941,17 +19014,14 @@ router.post('/aula-virtual/examenes', uploadAulaVirtual.single('archivo_pdf'), a
       }
     }
 
-    // Verificar que el docente tiene acceso a esta asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, personal_id, colegio_id, anio_activo]
+    const asignatura = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
     );
-
-    if (asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
-    }
+    if (!asignatura) return;
 
     // Preparar valores para fecha y hora
     // Las columnas fecha_desde, fecha_hasta, hora_desde, hora_hasta son NOT NULL en la BD
@@ -19166,18 +19236,16 @@ router.put('/aula-virtual/examenes/:examenId', uploadAulaVirtual.single('archivo
 
     let estadoFinal = estadoSolicitado;
 
-    // Verificar que el examen existe y pertenece a una asignatura del docente
-    const examen = await query(
-      `SELECT ae.* FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
+    const examenRow = await verificarAccesoExamen(
+      req,
+      res,
+      examenId,
+      'ae.*',
+      'Examen no encontrado o sin permisos',
+      404
     );
-
-    if (examen.length === 0) {
-      return res.status(404).json({ error: 'Examen no encontrado o sin permisos' });
-    }
+    if (!examenRow) return;
+    const examen = [examenRow];
 
     // Si es PDF y se sube un nuevo archivo, validar
     if (tipo === 'PDF' && !req.file && !examen[0].archivo_pdf) {
@@ -19345,20 +19413,15 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
       return res.status(400).json({ error: 'Estado inválido. Debe ser ACTIVO o INACTIVO' });
     }
 
-    // Verificar que el examen existe y pertenece a una asignatura del docente
-    const examen = await query(
-      `SELECT ae.* FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
+    const examenActual = await verificarAccesoExamen(
+      req,
+      res,
+      examenId,
+      'ae.*',
+      'Examen no encontrado o sin permisos',
+      404
     );
-
-    if (examen.length === 0) {
-      return res.status(404).json({ error: 'Examen no encontrado o sin permisos' });
-    }
-
-    const examenActual = examen[0];
+    if (!examenActual) return;
 
     // Si el examen tiene ventana fecha/hora, la disponibilidad depende del rango.
     // No permitir activarlo manualmente fuera de la ventana vigente.
@@ -19727,31 +19790,18 @@ router.get('/aula-virtual/examenes/:examenId/resultados', async (req, res) => {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { examenId } = req.params;
 
-    // Verificar que el docente tiene acceso a este examen
-    const examen = await query(
-      `SELECT ae.* FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
+    const examenInfo = await verificarAccesoExamen(
+      req,
+      res,
+      examenId,
+      'ae.*, a.grupo_id'
     );
+    if (!examenInfo) return;
 
-    if (examen.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este examen' });
-    }
-
-    // Obtener el grupo_id del examen para listar todos los alumnos
-    const examenInfo = examen[0];
-    const asignatura = await query(
-      `SELECT a.grupo_id FROM asignaturas a WHERE a.id = ?`,
-      [examenInfo.asignatura_id]
-    );
-    
-    if (asignatura.length === 0) {
+    const grupoId = examenInfo.grupo_id;
+    if (!grupoId) {
       return res.status(404).json({ error: 'Asignatura no encontrada' });
     }
-    
-    const grupoId = asignatura[0].grupo_id;
 
     // Obtener TODOS los alumnos del grupo con LEFT JOIN a resultados
     // Si no tienen resultado, devolver NULL para mostrar "-" en el frontend
@@ -19781,7 +19831,7 @@ router.get('/aula-virtual/examenes/:examenId/resultados', async (req, res) => {
     );
 
     res.json({ 
-      examen: examen[0],
+      examen: examenInfo,
       resultados: resultados || []
     });
   } catch (error) {
@@ -19799,29 +19849,21 @@ router.get('/aula-virtual/resultados/:resultadoId/detalles', async (req, res) =>
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { resultadoId } = req.params;
 
-    // Obtener el resultado con información del examen y alumno
-    const resultado = await query(
-      `SELECT 
-        aep.*,
+    const resultadoInfo = await verificarAccesoResultadoPrueba(
+      req,
+      res,
+      resultadoId,
+      `aep.*,
         ae.titulo as examen_titulo,
         ae.tipo_puntaje,
         ae.puntos_correcta,
-        CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo
-       FROM asignaturas_examenes_pruebas aep
-       INNER JOIN asignaturas_examenes ae ON ae.id = aep.examen_id
-       INNER JOIN asignaturas a_asig ON a_asig.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a_asig.grupo_id
-       INNER JOIN matriculas m ON m.id = aep.matricula_id
-       INNER JOIN alumnos a ON a.id = m.alumno_id
-       WHERE aep.id = ? AND a_asig.personal_id = ? AND a_asig.colegio_id = ? AND g.anio = ?`,
-      [resultadoId, personal_id, colegio_id, anio_activo]
+        CONCAT(alum.apellido_paterno, ' ', alum.apellido_materno, ', ', alum.nombres) as nombre_completo`,
+      'No tienes acceso a este resultado',
+      403,
+      ` INNER JOIN matriculas m ON m.id = aep.matricula_id
+        INNER JOIN alumnos alum ON alum.id = m.alumno_id`
     );
-
-    if (resultado.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este resultado' });
-    }
-
-    const resultadoInfo = resultado[0];
+    if (!resultadoInfo) return;
     const examenId = resultadoInfo.examen_id;
 
     // IMPORTANTE: Obtener solo las preguntas que realmente vio el alumno
@@ -19926,27 +19968,19 @@ router.delete('/aula-virtual/resultados/:resultadoId', async (req, res) => {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { resultadoId } = req.params;
 
-    // Verificar que el resultado existe y el docente tiene acceso
-    const resultado = await query(
-      `SELECT 
-        aep.*,
+    const resultadoInfo = await verificarAccesoResultadoPrueba(
+      req,
+      res,
+      resultadoId,
+      `aep.*,
         ae.titulo as examen_titulo,
-        CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo
-       FROM asignaturas_examenes_pruebas aep
-       INNER JOIN asignaturas_examenes ae ON ae.id = aep.examen_id
-       INNER JOIN asignaturas a_asig ON a_asig.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a_asig.grupo_id
-       INNER JOIN matriculas m ON m.id = aep.matricula_id
-       INNER JOIN alumnos a ON a.id = m.alumno_id
-       WHERE aep.id = ? AND a_asig.personal_id = ? AND a_asig.colegio_id = ? AND g.anio = ?`,
-      [resultadoId, personal_id, colegio_id, anio_activo]
+        CONCAT(alum.apellido_paterno, ' ', alum.apellido_materno, ', ', alum.nombres) as nombre_completo`,
+      'No tienes acceso a este resultado',
+      403,
+      ` INNER JOIN matriculas m ON m.id = aep.matricula_id
+        INNER JOIN alumnos alum ON alum.id = m.alumno_id`
     );
-
-    if (resultado.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este resultado' });
-    }
-
-    const resultadoInfo = resultado[0];
+    if (!resultadoInfo) return;
 
     // Registrar auditoría ANTES de eliminar
     req.skipAudit = true;
@@ -20000,29 +20034,21 @@ router.delete('/aula-virtual/examenes/:examenId/resultados/todos', async (req, r
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { examenId } = req.params;
 
-    // Verificar que el examen existe y el docente tiene acceso
-    const examen = await query(
-      `SELECT 
-        ae.*,
+    const examenInfo = await verificarAccesoExamen(
+      req,
+      res,
+      examenId,
+      `ae.*,
         a.grupo_id,
         c.nombre as curso_nombre,
         g.grado,
         g.seccion,
-        n.nombre as nivel_nombre
-       FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
+        n.nombre as nivel_nombre`,
+      'No tienes acceso a este examen',
+      403,
+      ' INNER JOIN cursos c ON c.id = a.curso_id INNER JOIN niveles n ON n.id = g.nivel_id'
     );
-
-    if (examen.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este examen' });
-    }
-
-    const examenInfo = examen[0];
+    if (!examenInfo) return;
 
     // Obtener todos los resultados del examen para auditoría
     const resultados = await query(
@@ -20101,20 +20127,8 @@ router.post('/aula-virtual/examenes/:examenId/calificar', async (req, res) => {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { examenId } = req.params;
 
-    // Verificar que el examen existe y el docente tiene acceso
-    const examen = await query(
-      `SELECT ae.* FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
-    );
-
-    if (examen.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este examen' });
-    }
-
-    const examenInfo = examen[0];
+    const examenInfo = await verificarAccesoExamen(req, res, examenId);
+    if (!examenInfo) return;
 
     // Obtener todas las pruebas (resultados) del examen
     const pruebas = await query(
@@ -20481,17 +20495,13 @@ router.post('/aula-virtual/examenes/:examenId/reparar-estados-inconsistentes', a
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { examenId } = req.params;
 
-    const examen = await query(
-      `SELECT ae.id, ae.titulo FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
+    const examenReparar = await verificarAccesoExamen(
+      req,
+      res,
+      examenId,
+      'ae.id, ae.titulo'
     );
-
-    if (examen.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este examen' });
-    }
+    if (!examenReparar) return;
 
     const result = await execute(
       `UPDATE asignaturas_examenes_pruebas
@@ -20511,7 +20521,7 @@ router.post('/aula-virtual/examenes/:examenId/reparar-estados-inconsistentes', a
       modulo: 'Aula Virtual',
       entidad: 'Examen',
       entidad_id: parseInt(examenId, 10),
-      descripcion: `Reparó estados inconsistentes en examen "${examen[0].titulo}" (${arreglados} fila(s)).`,
+      descripcion: `Reparó estados inconsistentes en examen "${examenReparar.titulo}" (${arreglados} fila(s)).`,
       url: req.originalUrl,
       metodo_http: req.method,
       ip_address: req.ip,
@@ -20543,30 +20553,22 @@ router.get('/aula-virtual/examenes/:examenId/resultados/pdf', async (req, res) =
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { examenId } = req.params;
 
-    // Verificar que el examen existe y el docente tiene acceso
-    // Incluir información de curso, grado y nivel
-    const examen = await query(
-      `SELECT 
-        ae.*,
+    const examenInfo = await verificarAccesoExamen(
+      req,
+      res,
+      examenId,
+      `ae.*,
         a.grupo_id,
         c.nombre as curso_nombre,
         g.grado,
         g.seccion,
-        n.nombre as nivel_nombre
-       FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       INNER JOIN cursos c ON c.id = a.curso_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
+        n.nombre as nivel_nombre`,
+      'No tienes acceso a este examen',
+      403,
+      ' INNER JOIN cursos c ON c.id = a.curso_id INNER JOIN niveles n ON n.id = g.nivel_id'
     );
+    if (!examenInfo) return;
 
-    if (examen.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este examen' });
-    }
-
-    const examenInfo = examen[0];
     const grupoId = examenInfo.grupo_id;
     
     if (!grupoId) {
@@ -20824,24 +20826,19 @@ router.delete('/aula-virtual/examenes/:examenId', async (req, res) => {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { examenId } = req.params;
 
-    // Verificar que el examen existe y pertenece a una asignatura del docente
-    const examen = await query(
-      `SELECT ae.* FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
+    const examenActual = await verificarAccesoExamen(
+      req,
+      res,
+      examenId,
+      'ae.*',
+      'Examen no encontrado o sin permisos',
+      404
     );
-
-    if (examen.length === 0) {
-      return res.status(404).json({ error: 'Examen no encontrado o sin permisos' });
-    }
+    if (!examenActual) return;
 
     if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, examenId))) {
       return;
     }
-
-    const examenActual = examen[0];
 
     // Obtener todas las preguntas del examen para la auditoría
     const preguntas = await query(
@@ -21643,65 +21640,75 @@ router.put('/aula-virtual/archivos/ordenar', async (req, res) => {
       return res.status(400).json({ error: 'ciclo debe ser un número válido' });
     }
 
-    // Verificar que el docente tiene acceso a esta asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, personal_id, colegio_id, anio_activo]
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.id',
+      'No tienes acceso a esta asignatura'
     );
-
-    if (asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
-    }
+    if (!asignaturaAcceso) return;
 
     // Validar que cada ordenItem tenga id y orden
     for (const ordenItem of ordenes) {
-      if (!ordenItem.id || ordenItem.orden === undefined || ordenItem.orden === null) {
-        return res.status(400).json({ 
+      const itemId = parseInt(ordenItem.id, 10);
+      if (!Number.isFinite(itemId) || ordenItem.orden === undefined || ordenItem.orden === null) {
+        return res.status(400).json({
           error: 'Cada elemento de ordenes debe tener id y orden',
-          item_invalido: ordenItem
+          item_invalido: ordenItem,
         });
       }
     }
 
-    // Verificar que todos los archivos existan y pertenezcan a esta asignatura y ciclo
-    const archivosIds = ordenes.map(item => parseInt(item.id));
+    const asignaturaIdNum = parseInt(asignatura_id, 10);
+    const archivosIds = ordenes.map((item) => parseInt(item.id, 10));
     const archivosExistentes = await query(
-      `SELECT id FROM asignaturas_archivos 
-       WHERE id IN (${archivosIds.map(() => '?').join(',')}) 
-       AND asignatura_id = ? AND ciclo = ?`,
-      [...archivosIds, parseInt(asignatura_id), cicloNum]
+      `SELECT id, ciclo FROM asignaturas_archivos
+       WHERE id IN (${archivosIds.map(() => '?').join(',')})
+       AND asignatura_id = ?`,
+      [...archivosIds, asignaturaIdNum]
     );
 
     if (archivosExistentes.length !== archivosIds.length) {
-      const idsExistentes = archivosExistentes.map(a => a.id);
-      const idsFaltantes = archivosIds.filter(id => !idsExistentes.includes(id));
-      return res.status(400).json({ 
-        error: 'Algunos archivos no existen o no pertenecen a esta asignatura/ciclo',
+      const idsExistentesSet = new Set(archivosExistentes.map((a) => Number(a.id)));
+      const idsFaltantes = archivosIds.filter((id) => !idsExistentesSet.has(id));
+      return res.status(400).json({
+        error: 'Algunos archivos no existen o no pertenecen a esta asignatura',
         ids_faltantes: idsFaltantes,
-        ids_enviados: archivosIds,
-        ids_encontrados: idsExistentes
       });
     }
 
-    // Actualizar el orden de cada tema en una transacción
+    const cicloPorId = new Map(archivosExistentes.map((a) => [a.id, parseInt(a.ciclo, 10)]));
+    const idsCicloDistinto = archivosIds.filter((id) => cicloPorId.get(id) !== cicloNum);
+    if (idsCicloDistinto.length > 0) {
+      return res.status(400).json({
+        error: 'Algunos temas no pertenecen al bimestre seleccionado',
+        ids_ciclo_distinto: idsCicloDistinto,
+      });
+    }
+
+    let actualizados = 0;
     try {
       for (const ordenItem of ordenes) {
         const resultado = await execute(
-          `UPDATE asignaturas_archivos 
-           SET orden = ? 
-           WHERE id = ? AND asignatura_id = ? AND ciclo = ?`,
-          [parseInt(ordenItem.orden), parseInt(ordenItem.id), parseInt(asignatura_id), cicloNum]
+          `UPDATE asignaturas_archivos
+           SET orden = ?
+           WHERE id = ? AND asignatura_id = ?`,
+          [parseInt(ordenItem.orden, 10), parseInt(ordenItem.id, 10), asignaturaIdNum]
         );
-        
-        if (resultado.affectedRows === 0) {
-          console.warn(`No se actualizó el archivo ${ordenItem.id} - puede que no pertenezca al ciclo ${cicloNum}`);
-        }
+        if (resultado.affectedRows > 0) actualizados += 1;
       }
     } catch (error) {
       console.error('Error actualizando orden individual:', error);
       throw error;
+    }
+
+    if (actualizados !== ordenes.length) {
+      return res.status(400).json({
+        error: 'No se pudo guardar el orden de todos los temas. Recargue e intente de nuevo.',
+        actualizados,
+        esperados: ordenes.length,
+      });
     }
 
     // Registrar auditoría ANTES de actualizar
@@ -22868,19 +22875,8 @@ router.get('/aula-virtual/examenes/:examenId/preguntas', async (req, res) => {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { examenId } = req.params;
 
-    // Verificar que el examen existe y pertenece al docente
-    const examen = await query(
-      `SELECT ae.*, a.personal_id, a.colegio_id, g.anio 
-       FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
-    );
-
-    if (examen.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este examen' });
-    }
+    const examenAcceso = await verificarAccesoExamen(req, res, examenId);
+    if (!examenAcceso) return;
 
     // Obtener preguntas ordenadas por orden
     const preguntas = await query(
@@ -22944,17 +22940,7 @@ router.put('/aula-virtual/examenes/:examenId/bloque', uploadExamenBloqueImagen.s
       req.body.remove_imagen === 'true' ||
       req.body.remove_imagen === true;
 
-    const examen = await query(
-      `SELECT ae.id FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
-    );
-
-    if (examen.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este examen' });
-    }
+    if (!(await verificarAccesoExamen(req, res, examenId, 'ae.id'))) return;
 
     if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, examenId))) {
       return;
@@ -23045,19 +23031,8 @@ router.post('/aula-virtual/examenes/:examenId/preguntas', async (req, res) => {
       return res.status(400).json({ error: 'descripcion y tipo son requeridos' });
     }
 
-    // Verificar que el examen existe y pertenece al docente
-    const examen = await query(
-      `SELECT ae.*, a.personal_id, a.colegio_id, g.anio 
-       FROM asignaturas_examenes ae
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ae.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [examenId, personal_id, colegio_id, anio_activo]
-    );
-
-    if (examen.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a este examen' });
-    }
+    const examen = await verificarAccesoExamen(req, res, examenId, 'ae.*');
+    if (!examen) return;
 
     if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, examenId))) {
       return;
@@ -23071,7 +23046,7 @@ router.post('/aula-virtual/examenes/:examenId/preguntas', async (req, res) => {
     const siguienteOrden = (ultimaPregunta[0]?.max_orden || 0) + 1;
 
     // Si el tipo de puntaje es INDIVIDUAL, puntos es requerido
-    const puntosFinal = examen[0].tipo_puntaje === 'INDIVIDUAL' 
+    const puntosFinal = examen.tipo_puntaje === 'INDIVIDUAL' 
       ? (parseFloat(puntos) || 0) 
       : 0;
 
@@ -23135,44 +23110,37 @@ router.put('/aula-virtual/preguntas/:preguntaId', async (req, res) => {
     const { preguntaId } = req.params;
     const { descripcion, tipo, puntos, orden, datos_adicionales } = req.body;
 
-    // Verificar que la pregunta existe y pertenece al docente
-    const pregunta = await query(
-      `SELECT ep.*, ae.asignatura_id, a.personal_id, a.colegio_id, g.anio
-       FROM asignaturas_examenes_preguntas ep
-       INNER JOIN asignaturas_examenes ae ON ae.id = ep.examen_id
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ep.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [preguntaId, personal_id, colegio_id, anio_activo]
+    const pregunta = await verificarAccesoPreguntaExamen(
+      req,
+      res,
+      preguntaId,
+      'ep.*, ae.asignatura_id, ep.examen_id'
     );
+    if (!pregunta) return;
 
-    if (pregunta.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta pregunta' });
-    }
-
-    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, pregunta[0].examen_id))) {
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, pregunta.examen_id))) {
       return;
     }
 
     // Obtener examen para verificar tipo_puntaje
     const examen = await query(
       `SELECT tipo_puntaje FROM asignaturas_examenes WHERE id = ?`,
-      [pregunta[0].examen_id]
+      [pregunta.examen_id]
     );
 
     const puntosFinal = examen[0]?.tipo_puntaje === 'INDIVIDUAL' 
-      ? (parseFloat(puntos) || pregunta[0].puntos) 
-      : pregunta[0].puntos;
+      ? (parseFloat(puntos) || pregunta.puntos) 
+      : pregunta.puntos;
 
     // Preparar datos adicionales como JSON
     const datosAdicionalesJson = datos_adicionales ? JSON.stringify(datos_adicionales) : null;
 
     // Datos anteriores para auditoría
     const datosAnteriores = {
-      descripcion: pregunta[0].descripcion,
-      tipo: pregunta[0].tipo,
-      puntos: pregunta[0].puntos,
-      orden: pregunta[0].orden
+      descripcion: pregunta.descripcion,
+      tipo: pregunta.tipo,
+      puntos: pregunta.puntos,
+      orden: pregunta.orden
     };
 
     // Actualizar pregunta
@@ -23181,10 +23149,10 @@ router.put('/aula-virtual/preguntas/:preguntaId', async (req, res) => {
        SET descripcion = ?, tipo = ?, puntos = ?, orden = ?, datos_adicionales = ?
        WHERE id = ?`,
       [
-        descripcion || pregunta[0].descripcion,
-        tipo || pregunta[0].tipo,
+        descripcion || pregunta.descripcion,
+        tipo || pregunta.tipo,
         puntosFinal,
-        orden !== undefined ? parseInt(orden) : pregunta[0].orden,
+        orden !== undefined ? parseInt(orden) : pregunta.orden,
         datosAdicionalesJson,
         preguntaId
       ]
@@ -23199,7 +23167,7 @@ router.put('/aula-virtual/preguntas/:preguntaId', async (req, res) => {
       modulo: 'AULA_VIRTUAL',
       entidad: 'pregunta',
       entidad_id: parseInt(preguntaId),
-      descripcion: `Editó pregunta tipo ${tipo || pregunta[0].tipo} (ID: ${preguntaId})`,
+      descripcion: `Editó pregunta tipo ${tipo || pregunta.tipo} (ID: ${preguntaId})`,
       url: req.originalUrl,
       metodo_http: 'PUT',
       ip_address: req.ip || req.connection.remoteAddress,
@@ -23230,22 +23198,15 @@ router.delete('/aula-virtual/preguntas/:preguntaId', async (req, res) => {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { preguntaId } = req.params;
 
-    // Verificar que la pregunta existe y pertenece al docente
-    const pregunta = await query(
-      `SELECT ep.*, ae.asignatura_id, a.personal_id, a.colegio_id, g.anio
-       FROM asignaturas_examenes_preguntas ep
-       INNER JOIN asignaturas_examenes ae ON ae.id = ep.examen_id
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ep.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [preguntaId, personal_id, colegio_id, anio_activo]
+    const pregunta = await verificarAccesoPreguntaExamen(
+      req,
+      res,
+      preguntaId,
+      'ep.*, ae.asignatura_id, ep.examen_id'
     );
+    if (!pregunta) return;
 
-    if (pregunta.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta pregunta' });
-    }
-
-    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, pregunta[0].examen_id))) {
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, pregunta.examen_id))) {
       return;
     }
 
@@ -23264,12 +23225,12 @@ router.delete('/aula-virtual/preguntas/:preguntaId', async (req, res) => {
       modulo: 'AULA_VIRTUAL',
       entidad: 'pregunta',
       entidad_id: parseInt(preguntaId),
-      descripcion: `Eliminó pregunta tipo ${pregunta[0].tipo} (ID: ${preguntaId}) con ${alternativas[0]?.total || 0} alternativa(s)`,
+      descripcion: `Eliminó pregunta tipo ${pregunta.tipo} (ID: ${preguntaId}) con ${alternativas[0]?.total || 0} alternativa(s)`,
       url: req.originalUrl,
       metodo_http: 'DELETE',
       ip_address: req.ip || req.connection.remoteAddress,
       user_agent: req.get('user-agent'),
-      datos_anteriores: JSON.stringify(pregunta[0]),
+      datos_anteriores: JSON.stringify(pregunta),
       datos_nuevos: JSON.stringify({}),
       resultado: 'EXITOSO'
     });
@@ -23307,20 +23268,7 @@ router.get('/aula-virtual/preguntas/:preguntaId/alternativas', async (req, res) 
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { preguntaId } = req.params;
 
-    // Verificar que la pregunta existe y pertenece al docente
-    const pregunta = await query(
-      `SELECT ep.*, ae.asignatura_id, a.personal_id, a.colegio_id, g.anio
-       FROM asignaturas_examenes_preguntas ep
-       INNER JOIN asignaturas_examenes ae ON ae.id = ep.examen_id
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ep.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [preguntaId, personal_id, colegio_id, anio_activo]
-    );
-
-    if (pregunta.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta pregunta' });
-    }
+    if (!(await verificarAccesoPreguntaExamen(req, res, preguntaId))) return;
 
     // Obtener alternativas
     const alternativas = await query(
@@ -23351,22 +23299,15 @@ router.post('/aula-virtual/preguntas/:preguntaId/alternativas', async (req, res)
       return res.status(400).json({ error: 'descripcion es requerido' });
     }
 
-    // Verificar que la pregunta existe y pertenece al docente
-    const pregunta = await query(
-      `SELECT ep.*, ae.asignatura_id, a.personal_id, a.colegio_id, g.anio
-       FROM asignaturas_examenes_preguntas ep
-       INNER JOIN asignaturas_examenes ae ON ae.id = ep.examen_id
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE ep.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [preguntaId, personal_id, colegio_id, anio_activo]
+    const preguntaAlt = await verificarAccesoPreguntaExamen(
+      req,
+      res,
+      preguntaId,
+      'ep.*, ep.examen_id'
     );
+    if (!preguntaAlt) return;
 
-    if (pregunta.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta pregunta' });
-    }
-
-    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, pregunta[0].examen_id))) {
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, preguntaAlt.examen_id))) {
       return;
     }
 
@@ -23426,30 +23367,22 @@ router.put('/aula-virtual/alternativas/:alternativaId', async (req, res) => {
     const { alternativaId } = req.params;
     const { descripcion, correcta, orden_posicion, par_id, zona_drop } = req.body;
 
-    // Verificar que la alternativa existe y pertenece al docente
-    const alternativa = await query(
-      `SELECT aa.*, ep.examen_id, ae.asignatura_id, a.personal_id, a.colegio_id, g.anio
-       FROM asignaturas_examenes_preguntas_alternativas aa
-       INNER JOIN asignaturas_examenes_preguntas ep ON ep.id = aa.pregunta_id
-       INNER JOIN asignaturas_examenes ae ON ae.id = ep.examen_id
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE aa.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [alternativaId, personal_id, colegio_id, anio_activo]
+    const alternativa = await verificarAccesoAlternativaExamen(
+      req,
+      res,
+      alternativaId,
+      'aa.*, ep.examen_id, ep.pregunta_id, aa.pregunta_id'
     );
+    if (!alternativa) return;
 
-    if (alternativa.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta alternativa' });
-    }
-
-    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, alternativa[0].examen_id))) {
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, alternativa.examen_id))) {
       return;
     }
 
     // Datos anteriores para auditoría
     const datosAnteriores = {
-      descripcion: alternativa[0].descripcion,
-      correcta: alternativa[0].correcta
+      descripcion: alternativa.descripcion,
+      correcta: alternativa.correcta
     };
 
     // Actualizar alternativa
@@ -23458,11 +23391,11 @@ router.put('/aula-virtual/alternativas/:alternativaId', async (req, res) => {
        SET descripcion = ?, correcta = ?, orden_posicion = ?, par_id = ?, zona_drop = ?
        WHERE id = ?`,
       [
-        descripcion || alternativa[0].descripcion,
-        correcta !== undefined ? (correcta === true || correcta === 'SI' ? 'SI' : 'NO') : alternativa[0].correcta,
-        orden_posicion !== undefined ? orden_posicion : alternativa[0].orden_posicion,
-        par_id !== undefined ? par_id : alternativa[0].par_id,
-        zona_drop !== undefined ? zona_drop : alternativa[0].zona_drop,
+        descripcion || alternativa.descripcion,
+        correcta !== undefined ? (correcta === true || correcta === 'SI' ? 'SI' : 'NO') : alternativa.correcta,
+        orden_posicion !== undefined ? orden_posicion : alternativa.orden_posicion,
+        par_id !== undefined ? par_id : alternativa.par_id,
+        zona_drop !== undefined ? zona_drop : alternativa.zona_drop,
         alternativaId
       ]
     );
@@ -23476,7 +23409,7 @@ router.put('/aula-virtual/alternativas/:alternativaId', async (req, res) => {
       modulo: 'AULA_VIRTUAL',
       entidad: 'alternativa',
       entidad_id: parseInt(alternativaId),
-      descripcion: `Editó alternativa (ID: ${alternativaId}) de pregunta ID: ${alternativa[0].pregunta_id}`,
+      descripcion: `Editó alternativa (ID: ${alternativaId}) de pregunta ID: ${alternativa.pregunta_id}`,
       url: req.originalUrl,
       metodo_http: 'PUT',
       ip_address: req.ip || req.connection.remoteAddress,
@@ -23507,23 +23440,15 @@ router.delete('/aula-virtual/alternativas/:alternativaId', async (req, res) => {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { alternativaId } = req.params;
 
-    // Verificar que la alternativa existe y pertenece al docente
-    const alternativa = await query(
-      `SELECT aa.*, ep.examen_id, ae.asignatura_id, a.personal_id, a.colegio_id, g.anio
-       FROM asignaturas_examenes_preguntas_alternativas aa
-       INNER JOIN asignaturas_examenes_preguntas ep ON ep.id = aa.pregunta_id
-       INNER JOIN asignaturas_examenes ae ON ae.id = ep.examen_id
-       INNER JOIN asignaturas a ON a.id = ae.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE aa.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [alternativaId, personal_id, colegio_id, anio_activo]
+    const alternativa = await verificarAccesoAlternativaExamen(
+      req,
+      res,
+      alternativaId,
+      'aa.*, ep.examen_id, aa.pregunta_id'
     );
+    if (!alternativa) return;
 
-    if (alternativa.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta alternativa' });
-    }
-
-    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, alternativa[0].examen_id))) {
+    if (!(await assertDocentePuedeEditarContenidoExamenVirtual(req, res, query, alternativa.examen_id))) {
       return;
     }
 
@@ -23536,12 +23461,12 @@ router.delete('/aula-virtual/alternativas/:alternativaId', async (req, res) => {
       modulo: 'AULA_VIRTUAL',
       entidad: 'alternativa',
       entidad_id: parseInt(alternativaId),
-      descripcion: `Eliminó alternativa (ID: ${alternativaId}) de pregunta ID: ${alternativa[0].pregunta_id}`,
+      descripcion: `Eliminó alternativa (ID: ${alternativaId}) de pregunta ID: ${alternativa.pregunta_id}`,
       url: req.originalUrl,
       metodo_http: 'DELETE',
       ip_address: req.ip || req.connection.remoteAddress,
       user_agent: req.get('user-agent'),
-      datos_anteriores: JSON.stringify(alternativa[0]),
+      datos_anteriores: JSON.stringify(alternativa),
       datos_nuevos: JSON.stringify({}),
       resultado: 'EXITOSO'
     });

@@ -32,6 +32,15 @@ function subtituloAulaVirtualCurso(curso) {
   return `${nombreCurso} - ${mitad}`;
 }
 
+/** Comparación de bimestre/ciclo (evita 1 !== "1" al filtrar y guardar orden). */
+function mismoCicloAula(cicloArchivo, cicloRef) {
+  return Number(cicloArchivo) === Number(cicloRef);
+}
+
+function mismoIdTema(a, b) {
+  return String(a) === String(b);
+}
+
 /** Inserta imágenes en Quill vía URL (subida a servidor), no base64 — compatible con descripción larga en BD. */
 function attachQuillImageUploadHandler(quill) {
   if (!quill) return;
@@ -453,7 +462,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       });
       // Mantener archivos de otros ciclos y actualizar solo los del ciclo actual
       setArchivos(prevArchivos => {
-        const otrosCiclos = prevArchivos.filter(a => a.ciclo !== cicloFiltro);
+        const otrosCiclos = prevArchivos.filter((a) => !mismoCicloAula(a.ciclo, cicloFiltro));
         return [...otrosCiclos, ...(response.data.archivos || [])];
       });
     } catch (error) {
@@ -928,10 +937,10 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
 
     if (over && active.id !== over.id) {
       // Filtrar archivos por el bimestre actual
-      const archivosFiltrados = archivos.filter(archivo => archivo.ciclo === bimestreGlobal);
-      
-      const oldIndex = archivosFiltrados.findIndex(item => item.id === active.id);
-      const newIndex = archivosFiltrados.findIndex(item => item.id === over.id);
+      const archivosFiltrados = archivos.filter((archivo) => mismoCicloAula(archivo.ciclo, bimestreGlobal));
+
+      const oldIndex = archivosFiltrados.findIndex((item) => mismoIdTema(item.id, active.id));
+      const newIndex = archivosFiltrados.findIndex((item) => mismoIdTema(item.id, over.id));
 
       if (oldIndex === -1 || newIndex === -1) {
         console.error('Índices no encontrados en archivos filtrados');
@@ -941,13 +950,13 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       const nuevosArchivosFiltrados = arrayMove(archivosFiltrados, oldIndex, newIndex);
       
       // Actualizar el estado con los nuevos órdenes, manteniendo los archivos de otros bimestres
-      const otrosArchivos = archivos.filter(archivo => archivo.ciclo !== bimestreGlobal);
+      const otrosArchivos = archivos.filter((archivo) => !mismoCicloAula(archivo.ciclo, bimestreGlobal));
       const nuevosArchivos = [...otrosArchivos, ...nuevosArchivosFiltrados];
       setArchivos(nuevosArchivos);
 
       // Actualizar orden en el backend
       const ordenes = nuevosArchivosFiltrados
-        .filter(archivo => archivo.ciclo === bimestreGlobal) // Asegurar que todos pertenezcan al ciclo
+        .filter((archivo) => mismoCicloAula(archivo.ciclo, bimestreGlobal))
         .map((archivo, index) => ({
           id: parseInt(archivo.id),
           orden: index + 1
@@ -975,6 +984,16 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
         console.log('Cantidad de archivos:', ordenes.length);
 
         await api.put('/docente/aula-virtual/archivos/ordenar', datosEnviar);
+        Swal.fire({
+          icon: 'success',
+          title: 'Orden guardado',
+          text: 'Alumnos y apoderados verán los temas en este orden.',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 2500,
+          timerProgressBar: true,
+        });
       } catch (error) {
         console.error('Error actualizando orden:', error);
         console.error('Respuesta del servidor:', error.response?.data);
@@ -1692,7 +1711,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
 
   const renderTemasContent = () => {
     // Filtrar archivos por el bimestre global
-    const archivosFiltrados = archivos.filter(archivo => archivo.ciclo === bimestreGlobal);
+    const archivosFiltrados = archivos.filter((archivo) => mismoCicloAula(archivo.ciclo, bimestreGlobal));
 
     const temasTable = (
       <table>

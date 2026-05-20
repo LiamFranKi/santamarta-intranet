@@ -66,8 +66,8 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Verificar deudas (si aplica)
-    const tieneDeudas = await verificarDeudas(usuarioDB, anioActivo);
+    // Verificar deudas en login: solo ALUMNO y APODERADO (el docente no pierde acceso laboral)
+    const tieneDeudas = await verificarDeudas(usuarioDB, anioActivo, { contexto: 'login' });
     
     if (tieneDeudas) {
       // Mensaje genérico: no revelar bloqueo por pensiones/deudas al usuario final
@@ -336,8 +336,12 @@ router.get('/me', authenticateToken, async (req, res) => {
 /**
  * Función auxiliar para verificar deudas (solo aplica si colegios.bloquear_deudores === 'SI').
  * Con NO: no bloquea login ni submenús; con SI: usa dias_tolerancia y pensiones_vencimiento.
+ * @param {object} [opciones]
+ * @param {'login'|'sesion'} [opciones.contexto='sesion'] — en login solo bloquea ALUMNO/APODERADO;
+ *   en sesión el DOCENTE con hijos en deuda puede marcar restricciones en vista apoderado (p. ej. notas).
  */
-async function verificarDeudas(usuario, anioActivo) {
+async function verificarDeudas(usuario, anioActivo, opciones = {}) {
+  const contexto = opciones.contexto === 'login' ? 'login' : 'sesion';
   try {
     // Validar que anioActivo esté definido
     if (!anioActivo || isNaN(anioActivo)) {
@@ -351,7 +355,9 @@ async function verificarDeudas(usuario, anioActivo) {
       return false;
     }
     
-    console.log(`[VERIFICAR DEUDAS] Iniciando verificación para usuario ID: ${usuario.id}, tipo: ${usuario.tipo}, colegio_id: ${usuario.colegio_id}, anioActivo: ${anioActivo}`);
+    console.log(
+      `[VERIFICAR DEUDAS] Iniciando verificación para usuario ID: ${usuario.id}, tipo: ${usuario.tipo}, contexto: ${contexto}, colegio_id: ${usuario.colegio_id}, anioActivo: ${anioActivo}`
+    );
     
     // Obtener configuración del colegio
     const colegios = await query(
@@ -384,12 +390,17 @@ async function verificarDeudas(usuario, anioActivo) {
 
     console.log(`[VERIFICAR DEUDAS] Continuando verificación de deudas vencidas (bloquear_deudores: SI)`);
 
-    // Verificar para ALUMNOS, APODERADOS y DOCENTES que también son APODERADOS
-    if (usuario.tipo !== 'ALUMNO' && usuario.tipo !== 'APODERADO' && usuario.tipo !== 'DOCENTE') {
-      console.log(`[VERIFICAR DEUDAS] Tipo de usuario no aplica para verificación: ${usuario.tipo}`);
+    const tiposEnLogin = ['ALUMNO', 'APODERADO'];
+    const tiposEnSesion = ['ALUMNO', 'APODERADO', 'DOCENTE'];
+    const tiposPermitidos = contexto === 'login' ? tiposEnLogin : tiposEnSesion;
+
+    if (!tiposPermitidos.includes(usuario.tipo)) {
+      console.log(
+        `[VERIFICAR DEUDAS] Tipo ${usuario.tipo} no aplica en contexto ${contexto} (permitidos: ${tiposPermitidos.join(', ')})`
+      );
       return false;
     }
-    
+
     console.log(`[VERIFICAR DEUDAS] Tipo de usuario válido: ${usuario.tipo}`);
 
     const colegio = colegios[0];
@@ -671,8 +682,8 @@ async function verificarDeudas(usuario, anioActivo) {
       return false; // Ningún hijo tiene deudas
     }
 
-    // Verificar deudas para DOCENTE que también es APODERADO
-    if (usuario.tipo === 'DOCENTE') {
+    // Sesión: docente con mismo DNI en apoderados — restricciones en vista hijos (no bloquea login)
+    if (usuario.tipo === 'DOCENTE' && contexto === 'sesion') {
       try {
         // Asegurar que tenemos usuario_id (puede venir como id o usuario_id)
         const docenteUsuarioId = usuario.usuario_id || usuario.id;

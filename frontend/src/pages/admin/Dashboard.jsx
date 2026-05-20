@@ -38,6 +38,9 @@ function rutaAdminPermitidaPsicologa(pathname) {
   if (pathname === '/admin/perfil' || pathname.startsWith('/admin/perfil/')) return true;
   if (pathname === '/admin/mensajes' || pathname.startsWith('/admin/mensajes/')) return true;
   if (pathname.startsWith('/admin/comunicaciones/')) return true;
+  if (pathname === '/admin/reportes/incidencias' || pathname.startsWith('/admin/reportes/incidencias/')) {
+    return true;
+  }
   if (pathname === '/admin/vanguarcito' || pathname === '/admin/comunicaciones/chat-vanguard') return true;
   if (pathname === '/admin/notificaciones' || pathname.startsWith('/admin/notificaciones/')) return true;
   return PSICOLOGA_RUTAS_ADMIN.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -164,7 +167,7 @@ function Dashboard() {
       description: 'Gestiona las conexiones entre familias y el colegio',
       icon: '🔗'
     },
-    '/admin/comunicaciones/incidencias': {
+    '/admin/reportes/incidencias': {
       title: '⚠️ Incidencias',
       description: 'Registro y seguimiento de incidencias',
       icon: '⚠️'
@@ -253,6 +256,31 @@ function Dashboard() {
       title: '🧾 Auditoría',
       description: 'Visualiza los logs de auditoría del sistema',
       icon: '🧾'
+    },
+    '/admin/pagos-facturas/buscar-pagos': {
+      title: '🔍 Buscar Pagos',
+      description: 'Consulta y gestión de pagos del colegio',
+      icon: '🔍'
+    },
+    '/admin/pagos-facturas/productos': {
+      title: '📦 Productos',
+      description: 'Catálogo de productos y servicios facturables',
+      icon: '📦'
+    },
+    '/admin/pagos-facturas/ventas': {
+      title: '🛒 Ventas',
+      description: 'Registro de ventas',
+      icon: '🛒'
+    },
+    '/admin/pagos-facturas/compras': {
+      title: '🧾 Compras',
+      description: 'Registro de compras',
+      icon: '🧾'
+    },
+    '/admin/pagos-facturas/caja-chica': {
+      title: '💵 Caja Chica',
+      description: 'Movimientos de caja chica',
+      icon: '💵'
     },
     '/admin/psicologia': {
       title: '🧠 Psicología',
