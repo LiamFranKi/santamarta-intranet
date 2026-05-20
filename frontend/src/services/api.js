@@ -170,6 +170,10 @@ api.interceptors.response.use(
     const is403DocenteAulaVirtual =
       status === 403 &&
       (reqUrl.includes('docente/aula-virtual') || reqUrl.includes('/docente/aula-virtual'));
+    /** Aula virtual docente: 500 por bug de API no debe cerrar sesión (p. ej. SQL puntual). */
+    const skipLogoutDocenteAulaVirtual500 =
+      status === 500 &&
+      (reqUrl.includes('docente/aula-virtual') || reqUrl.includes('/docente/aula-virtual'));
     const isPublicacionesRoute = error.config?.url?.includes('/publicaciones');
     const isPushRoute = error.config?.url?.includes('/push/');
     const isNotificacionesRoute = error.config?.url?.includes('/notificaciones');
@@ -221,6 +225,7 @@ api.interceptors.response.use(
       !isHijosProxyRoute &&
       !isTutoriaProxyRoute &&
       !is403DocenteAulaVirtual &&
+      !skipLogoutDocenteAulaVirtual500 &&
       !isPublicacionesRoute &&
       !isPushRoute &&
       !isNotificacionesRoute &&

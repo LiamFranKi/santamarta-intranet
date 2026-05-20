@@ -144,7 +144,7 @@ async function verificarAccesoAlternativaExamen(
   req,
   res,
   alternativaId,
-  selectSql = 'aa.*, ep.examen_id, ep.pregunta_id, aa.pregunta_id',
+  selectSql = 'aa.*, ep.examen_id, aa.pregunta_id',
   errorMsg = 'No tienes acceso a esta alternativa',
   statusCode = 403
 ) {
@@ -23371,7 +23371,7 @@ router.put('/aula-virtual/alternativas/:alternativaId', async (req, res) => {
       req,
       res,
       alternativaId,
-      'aa.*, ep.examen_id, ep.pregunta_id, aa.pregunta_id'
+      'aa.*, ep.examen_id, aa.pregunta_id'
     );
     if (!alternativa) return;
 
