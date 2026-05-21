@@ -15,6 +15,7 @@ const {
   estructurarContenidoConGemini,
   contenidoDesdeFormulario,
   probarConexionVanguarcito,
+  modelosAProbar,
 } = require('../services/fichasIa/geminiFichaService');
 const { renderFichaHtml } = require('../services/fichasIa/renderFichaHtml');
 const { renderFichaPdfYHtml } = require('../services/fichasIa/renderFichaPdf');
@@ -475,7 +476,13 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         ia_proveedor = gem.proveedor;
         ia_modelo = gem.modelo;
       } catch (gemErr) {
-        console.warn('[fichas-ia] Gemini falló, usando formulario:', gemErr.message);
+        console.warn(
+          '[fichas-ia] Gemini falló, usando formulario:',
+          gemErr.message,
+          gemErr.code ? `(${gemErr.code})` : '',
+          'modelos:',
+          modelosAProbar().join(', ')
+        );
         aviso_ia = String(gemErr.message || gemErr).slice(0, 2000);
         contenido = contenidoDesdeFormulario({
           titulo: trabajo.titulo,

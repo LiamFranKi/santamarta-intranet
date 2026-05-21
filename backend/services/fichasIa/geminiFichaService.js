@@ -1,15 +1,32 @@
 const axios = require('axios');
 
-const MODELOS_FALLBACK = [
-  process.env.FICHAS_IA_GEMINI_MODEL,
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
+/** Modelos retirados en API nuevas (404). Se sustituyen al probar. */
+const MODELO_SUSTITUTO = {
+  'gemini-2.0-flash': 'gemini-2.5-flash',
+  'gemini-1.5-flash': 'gemini-2.5-flash',
+  'gemini-1.5-pro': 'gemini-2.5-flash',
+};
+
+const MODELOS_POR_DEFECTO = [
   'gemini-2.5-flash',
-].filter(Boolean);
+  'gemini-2.5-flash-lite',
+  'gemini-2.0-flash-001',
+  'gemini-1.5-flash-8b',
+];
+
+function normalizarNombreModelo(nombre) {
+  const m = String(nombre || '').trim();
+  if (!m) return null;
+  return MODELO_SUSTITUTO[m] || m;
+}
 
 function modelosAProbar() {
   const vistos = new Set();
-  return MODELOS_FALLBACK.filter((m) => {
+  const lista = [];
+  const envModel = normalizarNombreModelo(process.env.FICHAS_IA_GEMINI_MODEL);
+  if (envModel) lista.push(envModel);
+  for (const m of MODELOS_POR_DEFECTO) lista.push(m);
+  return lista.filter((m) => {
     if (vistos.has(m)) return false;
     vistos.add(m);
     return true;
@@ -30,12 +47,22 @@ function extraerErrorGoogle(err) {
 }
 
 async function llamarGemini(apiKey, modelo, body, timeout = 120000) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`;
-  const res = await axios.post(url, body, {
-    timeout,
-    headers: { 'Content-Type': 'application/json' },
-  });
-  return { data: res.data, modelo };
+  const versiones = ['v1beta', 'v1'];
+  let ultimoErr;
+  for (const ver of versiones) {
+    const url = `https://generativelanguage.googleapis.com/${ver}/models/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    try {
+      const res = await axios.post(url, body, {
+        timeout,
+        headers: { 'Content-Type': 'application/json' },
+      });
+      return { data: res.data, modelo, apiVersion: ver };
+    } catch (err) {
+      ultimoErr = err;
+      if (err.response?.status !== 404) throw err;
+    }
+  }
+  throw ultimoErr;
 }
 
 function errorGeminiAmigable(err, modelo) {
@@ -158,7 +185,11 @@ ${(textoOrigen || '').slice(0, 12000)}
     }
   }
   if (!data) {
-    const e = new Error(errores.join(' | ') || 'Ningún modelo Gemini respondió');
+    const probados = modelosAProbar().join(', ');
+    const e = new Error(
+      (errores.join(' | ') || 'Ningún modelo Gemini respondió') +
+        ` (probados: ${probados}). Si usa gemini-2.0-flash en .env, cámbielo a gemini-2.5-flash.`
+    );
     e.code = 'GEMINI_ALL_MODELS_FAILED';
     throw e;
   }
@@ -385,7 +416,7 @@ async function probarConexionVanguarcito() {
     mensaje: errores.join(' | '),
     modelo: modelosAProbar()[0],
     clave_sufijo: sufijo,
-    ayuda: 'Pruebe FICHAS_IA_GEMINI_MODEL=gemini-1.5-flash en .env',
+    ayuda: 'En backend/.env use FICHAS_IA_GEMINI_MODEL=gemini-2.5-flash (gemini-2.0-flash da 404 en proyectos nuevos).',
   };
 }
 

@@ -16,7 +16,7 @@ Edita `backend/.env`:
 ```env
 GOOGLE_AI_API_KEY=AIzaSy................................
 FICHAS_IA_PROVIDER=google
-FICHAS_IA_GEMINI_MODEL=gemini-2.0-flash
+FICHAS_IA_GEMINI_MODEL=gemini-2.5-flash
 PUBLIC_FILES_URL=https://sistema.vanguardschools.edu.pe
 ```
 
