@@ -3,6 +3,68 @@ const path = require('path');
 const { renderFichaHtml } = require('./renderFichaHtml');
 const { dirs } = require('../../utils/fichasIaPaths');
 
+const CHROMIUM_PATHS = [
+  process.env.PUPPETEER_EXECUTABLE_PATH,
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+  '/usr/bin/google-chrome-stable',
+  '/snap/bin/chromium',
+].filter(Boolean);
+
+const APT_DEPS_HINT = `En el VPS (PuTTY) instale Chromium y dependencias:
+sudo apt-get update && sudo apt-get install -y chromium-browser fonts-liberation libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libgbm1 libgtk-3-0 libnss3 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libxss1 libasound2
+Luego en backend/.env opcional: PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+y: pm2 restart all`;
+
+/**
+ * Rutas de Chromium del sistema (preferidas al Chrome empaquetado de Puppeteer).
+ */
+function rutasChromium() {
+  const vistos = new Set();
+  const lista = [];
+  for (const p of CHROMIUM_PATHS) {
+    if (!p || vistos.has(p)) continue;
+    vistos.add(p);
+    if (fs.existsSync(p)) lista.push(p);
+  }
+  return lista;
+}
+
+async function lanzarNavegador(puppeteer) {
+  const launchArgs = {
+    headless: true,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--font-render-hinting=none',
+    ],
+  };
+
+  const errores = [];
+  const rutas = rutasChromium();
+
+  for (const executablePath of rutas) {
+    try {
+      return await puppeteer.launch({ ...launchArgs, executablePath });
+    } catch (err) {
+      errores.push(`${executablePath}: ${err.message}`);
+    }
+  }
+
+  try {
+    return await puppeteer.launch(launchArgs);
+  } catch (err) {
+    errores.push(`chrome-puppeteer: ${err.message}`);
+    const e = new Error(
+      `No se pudo abrir Chromium para el PDF. ${errores[0] || err.message}\n\n${APT_DEPS_HINT}`
+    );
+    e.code = 'PUPPETEER_CHROME_LIBS';
+    throw e;
+  }
+}
+
 /**
  * Convierte el mismo HTML de vista previa a PDF (misma maquetación, colores y mascotas).
  */
@@ -18,17 +80,7 @@ async function htmlStringToPdf(html, pdfPath) {
     throw err;
   }
 
-  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
-  const browser = await puppeteer.launch({
-    headless: true,
-    executablePath,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--font-render-hinting=none',
-    ],
-  });
+  const browser = await lanzarNavegador(puppeteer);
 
   try {
     const page = await browser.newPage();
@@ -66,4 +118,4 @@ async function renderFichaPdfYHtml(ctx, archivoPlantilla, trabajoId) {
   };
 }
 
-module.exports = { renderFichaPdfYHtml, htmlStringToPdf };
+module.exports = { renderFichaPdfYHtml, htmlStringToPdf, APT_DEPS_HINT };

@@ -561,11 +561,16 @@ router.post('/trabajos/:id/generar', async (req, res) => {
           trabajoId,
         ]
       );
+      const esChromeLibs = pdfErr.code === 'PUPPETEER_CHROME_LIBS';
       return res.status(500).json({
-        error:
-          pdfErr.code === 'PUPPETEER_MISSING'
+        error: esChromeLibs
+          ? 'Falta Chromium en el VPS (libatk). Ejecute en PuTTY: sudo apt-get install -y chromium-browser libatk1.0-0 libnss3 libgbm1 && pm2 restart all'
+          : pdfErr.code === 'PUPPETEER_MISSING'
             ? 'Falta instalar dependencias PDF en el servidor (npm install en backend).'
             : pdfErr.message || 'Error al generar PDF',
+        ayuda_pdf_vps: esChromeLibs
+          ? 'Ver docs/FICHAS_IA_PDF_VPS.md en el repositorio.'
+          : undefined,
       });
     }
 
