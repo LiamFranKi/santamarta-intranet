@@ -91,7 +91,18 @@ function renderFichaHtml(ctx, archivoPlantilla) {
 
   const urlMascota = (m) => (m?.archivo ? assetSrc(m.archivo, inline) : null);
 
-  const actividades = (ctx.actividades || []).map((act, index) => ({
+  const teoria = ctx.teoria || {
+    titulo_seccion: 'Aprendemos el tema',
+    parrafos: ctx.intro ? [ctx.intro] : ['Lee con atención el tema de esta unidad.'],
+    recuerda: ctx.recuerda || [],
+  };
+  const aplicacion = ctx.aplicacion || {
+    titulo_seccion: 'FICHA DE APLICACIÓN',
+    instruccion_general: 'Demuestra lo que aprendiste en la teoría.',
+    actividades: ctx.actividades || [],
+  };
+
+  const actividades = (aplicacion.actividades || []).map((act, index) => ({
     ...act,
     mascotaUrl: index === 0 ? urlMascota(mascotas.actividad) : null,
   }));
@@ -102,6 +113,8 @@ function renderFichaHtml(ctx, archivoPlantilla) {
 
   return compile({
     ...ctx,
+    teoria,
+    aplicacion,
     actividades,
     logoUrl,
     mascotaIntroUrl: urlMascota(mascotas.intro),

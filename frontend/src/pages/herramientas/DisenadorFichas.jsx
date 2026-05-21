@@ -348,10 +348,10 @@ export default function DisenadorFichas() {
     <DashboardLayout>
       <div className="voc-page">
         <header className="voc-page-header">
-          <h1>Diseñador de fichas pedagógicas</h1>
+          <h1>Fichas IA</h1>
           <p>
-            Biblioteca de fichas del colegio para vincular luego a temas del aula virtual. Formato Vanguard con logo y
-            mascotas en cada hoja.
+            Biblioteca de fichas del colegio (teoría + ficha de aplicación). Vanguarcito estructura el contenido;
+            la plantilla Vanguard aplica diseño, logo y mascotas.
           </p>
           {!config.vanguarcito_disponible ? (
             <div className="voc-alert">

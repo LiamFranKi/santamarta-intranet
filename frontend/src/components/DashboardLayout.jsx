@@ -560,15 +560,7 @@ export default function DashboardLayout({ children }) {
                     </span>
                     <span className="sidebar-label">Vocabularios</span>
                   </NavLink>
-                  <NavLink
-                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
-                    to="/docente/herramientas/disenador-fichas"
-                  >
-                    <span className="sidebar-icon" aria-hidden>
-                      ✨
-                    </span>
-                    <span className="sidebar-label">Diseñador de fichas</span>
-                  </NavLink>
+                  {/* Fichas IA: oculto en docente hasta lanzamiento */}
                   <NavLink
                     className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
                     to="/docente/psicologia/derivaciones"
@@ -1346,7 +1338,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/disenador-fichas">
                     <span className="sidebar-icon" aria-hidden>✨</span>
-                    <span className="sidebar-label">Diseñador de fichas</span>
+                    <span className="sidebar-label">Fichas IA</span>
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/supervision">
                     <span className="sidebar-icon" aria-hidden>🎯</span>

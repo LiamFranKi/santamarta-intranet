@@ -497,6 +497,8 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       grupoEtiqueta: trabajo.grupo_etiqueta || '',
       area: trabajo.area || 'Área curricular',
       unidad: trabajo.unidad || '1',
+      teoria: contenido.teoria,
+      aplicacion: contenido.aplicacion,
       intro: contenido.intro,
       recuerda: contenido.recuerda,
       actividades: contenido.actividades,
@@ -568,6 +570,8 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
         grupoEtiqueta: trabajo.grupo_etiqueta || '',
         area: trabajo.area || '',
         unidad: trabajo.unidad || '1',
+        teoria: contenido.teoria,
+        aplicacion: contenido.aplicacion,
         intro: contenido.intro,
         recuerda: contenido.recuerda,
         actividades: contenido.actividades,
@@ -641,6 +645,8 @@ async function contenidoDesdeTrabajo(trabajoId) {
     recuerda: [],
     actividades: [],
     pie_motivacional: '',
+    teoria: null,
+    aplicacion: null,
   };
   for (const row of rows || []) {
     let j;
@@ -649,10 +655,35 @@ async function contenidoDesdeTrabajo(trabajoId) {
     } catch (_e) {
       continue;
     }
-    if (row.tipo === 'INTRO') contenido.intro = j.texto || j.intro || '';
-    else if (row.tipo === 'RECUERDA') contenido.recuerda = j.items || j.recuerda || [];
+    if (row.tipo === 'INTRO') {
+      contenido.intro = j.texto || j.intro || '';
+      if (j.teoria) contenido.teoria = j.teoria;
+      if (j.aplicacion_meta) {
+        contenido.aplicacion = {
+          titulo_seccion: j.aplicacion_meta.titulo_seccion || 'FICHA DE APLICACIÓN',
+          instruccion_general: j.aplicacion_meta.instruccion_general || '',
+          actividades: [],
+        };
+      }
+    } else if (row.tipo === 'RECUERDA') contenido.recuerda = j.items || j.recuerda || [];
     else if (row.tipo === 'PIE_MOTIVACIONAL') contenido.pie_motivacional = j.texto || '';
     else if (String(row.tipo).startsWith('ACTIVIDAD')) contenido.actividades.push(j);
+  }
+  if (!contenido.teoria && contenido.intro) {
+    contenido.teoria = {
+      titulo_seccion: 'Aprendemos el tema',
+      parrafos: [contenido.intro],
+      recuerda: contenido.recuerda,
+    };
+  }
+  if (!contenido.aplicacion) {
+    contenido.aplicacion = {
+      titulo_seccion: 'FICHA DE APLICACIÓN',
+      instruccion_general: 'Demuestra lo que aprendiste.',
+      actividades: contenido.actividades,
+    };
+  } else {
+    contenido.aplicacion.actividades = contenido.actividades;
   }
   if (!contenido.intro && contenido.actividades.length === 0) {
     const introRow = await query(
@@ -678,8 +709,21 @@ async function guardarSeccionesDesdeContenido(trabajoId, contenido) {
   let orden = 1;
   await execute(
     `INSERT INTO fichas_ia_trabajo_secciones (trabajo_id, orden, tipo, titulo, contenido_json)
-     VALUES (?, ?, 'INTRO', 'Introducción', ?)`,
-    [trabajoId, orden++, JSON.stringify({ texto: contenido.intro })]
+     VALUES (?, ?, 'INTRO', 'Teoría', ?)`,
+    [
+      trabajoId,
+      orden++,
+      JSON.stringify({
+        texto: contenido.intro,
+        teoria: contenido.teoria,
+        aplicacion_meta: contenido.aplicacion
+          ? {
+              titulo_seccion: contenido.aplicacion.titulo_seccion,
+              instruccion_general: contenido.aplicacion.instruccion_general,
+            }
+          : null,
+      }),
+    ]
   );
   await execute(
     `INSERT INTO fichas_ia_trabajo_secciones (trabajo_id, orden, tipo, titulo, contenido_json)

@@ -7,7 +7,7 @@ function geminiDisponible() {
 }
 
 /**
- * Pide a Gemini estructurar el contenido en JSON para la plantilla Vanguard.
+ * Pide a Vanguarcito (Gemini) estructurar teoría + ficha de aplicación en JSON.
  */
 async function estructurarContenidoConGemini({ titulo, grado, area, unidad, textoOrigen, puntosClave }) {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -17,39 +17,54 @@ async function estructurarContenidoConGemini({ titulo, grado, area, unidad, text
     throw err;
   }
 
-  const prompt = `Eres un diseñador pedagógico para colegios en Perú. A partir del material del docente, genera SOLO un JSON válido (sin markdown) con esta forma exacta:
-{
-  "intro": "párrafo introductorio corto para estudiantes",
-  "recuerda": ["bullet 1", "bullet 2", "bullet 3"],
-  "actividades": [
-    {
-      "tipo": "tabla_partes",
-      "titulo": "1. Observa y completa la tabla",
-      "instruccion": "texto breve",
-      "columnas": ["Parte", "Función"],
-      "filas": [{"parte": "Raíz", "funcion": ""}, {"parte": "Tallo", "funcion": ""}]
-    },
-    {
-      "tipo": "preguntas",
-      "titulo": "2. Responde",
-      "preguntas": ["pregunta a", "pregunta b"]
-    }
-  ],
-  "pie_motivacional": "frase corta motivacional sobre el tema"
-}
-Reglas: español de Perú, máximo 4 actividades, adecuado al grado indicado, no inventar datos científicos falsos.
-Los "puntos clave" deben ser contenido CURRICULAR del tema (ej. plantas, fotosíntesis), NO instrucciones de diseño gráfico (colores, tipografía, imágenes realistas).
-Si los puntos clave parecen pedidos de maquetación, ignóralos y genera contenido pedagógico del título y área.
-El intro debe ser un párrafo claro de 4-8 líneas, no una sola palabra repetida.
+  const prompt = `Eres un diseñador pedagógico para colegios en Perú. Genera SOLO JSON válido (sin markdown) con DOS partes: primero TEORÍA para que el niño aprenda, luego FICHA DE APLICACIÓN para practicar.
 
-Datos del formulario:
+Formato exacto:
+{
+  "teoria": {
+    "titulo_seccion": "Aprendemos: [tema corto]",
+    "parrafos": [
+      "Párrafo 1 explicativo (3-5 oraciones, lenguaje del grado).",
+      "Párrafo 2 con ejemplos concretos del entorno del niño."
+    ],
+    "recuerda": ["idea clave 1", "idea clave 2", "idea clave 3"]
+  },
+  "aplicacion": {
+    "titulo_seccion": "FICHA DE APLICACIÓN",
+    "instruccion_general": "Instrucción breve: el niño debe demostrar lo aprendido en la teoría.",
+    "actividades": [
+      {
+        "tipo": "tabla_partes",
+        "titulo": "1. Observa y completa",
+        "instruccion": "texto breve",
+        "columnas": ["Columna A", "Columna B"],
+        "filas": [{"parte": "Ejemplo", "funcion": ""}]
+      },
+      {
+        "tipo": "preguntas",
+        "titulo": "2. Piensa y responde",
+        "preguntas": ["Pregunta que exige razonar sobre el tema", "Otra pregunta con ejemplo del aula"]
+      }
+    ]
+  },
+  "pie_motivacional": "frase motivacional corta sobre el tema"
+}
+
+Reglas:
+- Español de Perú, máximo 4 actividades en aplicacion, adecuado al grado.
+- La TEORÍA debe enseñar el tema (no solo listar palabras sueltas).
+- La APLICACIÓN debe tener preguntas/ejercicios donde el niño use lo aprendido (no repetir literalmente los bullets de recuerda).
+- Puntos clave = contenido curricular (fotosíntesis, plantas…), NO instrucciones de diseño gráfico.
+- Si el PDF o puntos clave son pobres, desarrolla el tema desde el título y el área.
+
+Datos:
 - Título: ${titulo || 'Sin título'}
 - Grado: ${grado || '—'}
 - Área: ${area || '—'}
 - Unidad: ${unidad || '—'}
-- Puntos clave del docente: ${puntosClave || '—'}
+- Puntos clave: ${puntosClave || '—'}
 
-Texto extraído del PDF (puede estar vacío):
+Texto del PDF (puede estar vacío):
 ---
 ${(textoOrigen || '').slice(0, 12000)}
 ---`;
@@ -59,8 +74,8 @@ ${(textoOrigen || '').slice(0, 12000)}
   const body = {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
-      temperature: 0.4,
-      maxOutputTokens: 4096,
+      temperature: 0.45,
+      maxOutputTokens: 6144,
       responseMimeType: 'application/json',
     },
   };
@@ -89,8 +104,7 @@ ${(textoOrigen || '').slice(0, 12000)}
     throw err;
   }
 
-  const text =
-    data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
+  const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
   const usage = data?.usageMetadata || {};
 
   let parsed;
@@ -114,13 +128,62 @@ ${(textoOrigen || '').slice(0, 12000)}
 }
 
 function normalizarContenido(raw) {
-  const intro = String(raw?.intro || '').trim();
-  const recuerda = Array.isArray(raw?.recuerda)
-    ? raw.recuerda.map((x) => String(x).trim()).filter(Boolean)
-    : [];
-  const actividades = Array.isArray(raw?.actividades) ? raw.actividades : [];
+  let teoria;
+  let aplicacion;
+
+  if (raw?.teoria && raw?.aplicacion) {
+    teoria = {
+      titulo_seccion: String(raw.teoria.titulo_seccion || 'Aprendemos el tema').trim(),
+      parrafos: Array.isArray(raw.teoria.parrafos)
+        ? raw.teoria.parrafos.map((p) => String(p).trim()).filter(Boolean)
+        : [String(raw.teoria.texto || raw.intro || '').trim()].filter(Boolean),
+      recuerda: Array.isArray(raw.teoria.recuerda)
+        ? raw.teoria.recuerda.map((x) => String(x).trim()).filter(Boolean)
+        : [],
+    };
+    aplicacion = {
+      titulo_seccion: String(raw.aplicacion.titulo_seccion || 'FICHA DE APLICACIÓN').trim(),
+      instruccion_general: String(
+        raw.aplicacion.instruccion_general || raw.aplicacion.instruccion || ''
+      ).trim(),
+      actividades: Array.isArray(raw.aplicacion.actividades) ? raw.aplicacion.actividades : [],
+    };
+  } else {
+    const intro = String(raw?.intro || '').trim();
+    const recuerda = Array.isArray(raw?.recuerda)
+      ? raw.recuerda.map((x) => String(x).trim()).filter(Boolean)
+      : [];
+    teoria = {
+      titulo_seccion: 'Aprendemos el tema',
+      parrafos: intro ? [intro] : ['Lee con atención el tema de esta unidad.'],
+      recuerda,
+    };
+    aplicacion = {
+      titulo_seccion: 'FICHA DE APLICACIÓN',
+      instruccion_general: 'Demuestra lo que aprendiste en la teoría.',
+      actividades: Array.isArray(raw?.actividades) ? raw.actividades : [],
+    };
+  }
+
+  if (!teoria.parrafos.length) {
+    teoria.parrafos = ['Exploramos este tema con ejemplos del aula.'];
+  }
+  if (!teoria.recuerda.length) {
+    teoria.recuerda = ['Lee con atención', 'Observa los ejemplos', 'Pregunta a tu docente si tienes dudas'];
+  }
+
+  const intro = teoria.parrafos.join('\n\n');
+  const actividades = aplicacion.actividades;
   const pie_motivacional = String(raw?.pie_motivacional || '').trim();
-  return { intro, recuerda, actividades, pie_motivacional };
+
+  return {
+    teoria,
+    aplicacion,
+    intro,
+    recuerda: teoria.recuerda,
+    actividades,
+    pie_motivacional,
+  };
 }
 
 function pareceInstruccionesDiseno(lineas) {
@@ -131,7 +194,7 @@ function pareceInstruccionesDiseno(lineas) {
   return hits >= Math.max(1, Math.ceil(lineas.length * 0.5));
 }
 
-/** Contenido mínimo sin Vanguarcito (formulario + puntos clave). */
+/** Contenido sin Vanguarcito: teoría breve + aplicación simple. */
 function contenidoDesdeFormulario({ titulo, puntosClave, textoOrigen, area }) {
   const bullets = String(puntosClave || '')
     .split(/\n+/)
@@ -140,45 +203,73 @@ function contenidoDesdeFormulario({ titulo, puntosClave, textoOrigen, area }) {
   const esDiseno = pareceInstruccionesDiseno(bullets);
   const tema = titulo || area || 'el tema de la unidad';
 
-  const intro =
-    String(textoOrigen || '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 900) ||
-    `En esta ficha conoceremos ${tema}. Lee con atención, observa los ejemplos y responde las actividades en tu cuaderno. Tu docente te guiará en el aula.`;
+  const textoPdf = String(textoOrigen || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 900);
+
+  const parrafos = textoPdf
+    ? [textoPdf]
+    : [
+        `En esta unidad conoceremos ${tema}. Es un tema importante en ${area || 'tu curso'}.`,
+        `Observa, escucha a tu docente y participa en las actividades del aula para comprender mejor.`,
+      ];
 
   const recuerdaCurricular = esDiseno
     ? [
-        `Identifica las ideas principales sobre ${tema}`,
-        'Lee cada pregunta antes de responder',
-        'Usa tus propias palabras y ejemplos del aula',
+        `Ideas principales sobre ${tema}`,
+        'Participa en clase con respeto y atención',
+        'Relaciona lo aprendido con tu entorno',
       ]
-    : bullets.slice(0, 5);
+    : bullets.length
+      ? bullets.slice(0, 5)
+      : ['Lee con atención', 'Responde con tus palabras', 'Consulta a tu docente'];
 
   const preguntas = esDiseno
     ? [
         `¿Qué aprendiste sobre ${tema}?`,
-        '¿Por qué es importante este tema en tu vida y en el medio ambiente?',
-        'Menciona un ejemplo que hayas visto en clase o en tu entorno.',
+        `¿Cómo se relaciona ${tema} con tu vida diaria?`,
+        'Menciona un ejemplo que viste en clase.',
       ]
     : bullets.length
-      ? bullets.slice(0, 3).map((b) => `Explica con tus palabras: ${b}`)
+      ? [
+          `Explica con tus palabras qué es ${bullets[0] || tema} y por qué es importante.`,
+          bullets[1]
+            ? `Da un ejemplo de ${bullets[1]} relacionado con ${tema}.`
+            : `¿Qué más te gustaría saber sobre ${tema}?`,
+          `¿Cómo cuidarías o protegerías algo relacionado con ${tema}?`,
+        ]
       : [
           `¿Qué aprendiste sobre ${tema}?`,
           '¿Por qué es importante este tema?',
-          'Da un ejemplo relacionado con lo leído.',
+          'Da un ejemplo del aula o de tu casa.',
         ];
 
-  return {
-    intro,
+  const teoria = {
+    titulo_seccion: `Aprendemos: ${tema}`,
+    parrafos,
     recuerda: recuerdaCurricular,
+  };
+
+  const aplicacion = {
+    titulo_seccion: 'FICHA DE APLICACIÓN',
+    instruccion_general:
+      'Usa lo que leíste en la teoría. Responde con tus propias palabras y dibujos si tu docente lo indica.',
     actividades: [
       {
         tipo: 'preguntas',
-        titulo: '1. Responde según lo leído',
+        titulo: '1. Aplica lo aprendido',
         preguntas,
       },
     ],
+  };
+
+  return {
+    teoria,
+    aplicacion,
+    intro: parrafos.join('\n\n'),
+    recuerda: recuerdaCurricular,
+    actividades: aplicacion.actividades,
     pie_motivacional: '¡Sigue aprendiendo con esfuerzo y curiosidad!',
   };
 }
