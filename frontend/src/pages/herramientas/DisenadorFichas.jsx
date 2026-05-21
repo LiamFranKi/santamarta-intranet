@@ -18,7 +18,7 @@ import '../VocabulariosPage.css';
 const ESTADO_LABEL = {
   BORRADOR: 'Borrador',
   EXTRAYENDO: 'Extrayendo PDF…',
-  IA_PROCESANDO: 'IA…',
+  IA_PROCESANDO: 'Vanguarcito…',
   MAQUETANDO: 'Maquetando…',
   LISTO: 'Listo',
   ERROR: 'Error',
@@ -45,9 +45,20 @@ function opcionGrupoLabel(o) {
   return `${o.nivel_nombre} — ${o.grado}°${parteSec}`;
 }
 
-function previewUrl(id) {
-  const base = (api.defaults.baseURL || '').replace(/\/api\/?$/, '') || window.location.origin;
-  return `${base}/api/fichas-ia/trabajos/${id}/preview-html`;
+async function abrirPreviewHtml(id) {
+  try {
+    const res = await api.get(`/fichas-ia/trabajos/${id}/preview-html`, { responseType: 'text' });
+    const blob = new Blob([res.data], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+  } catch (e) {
+    Swal.fire({
+      icon: 'error',
+      title: 'No se pudo abrir la vista previa',
+      text: e.response?.data?.error || e.message || '',
+    });
+  }
 }
 
 export default function DisenadorFichas() {
@@ -55,7 +66,7 @@ export default function DisenadorFichas() {
   const esAdmin = user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA';
 
   const [loading, setLoading] = useState(true);
-  const [config, setConfig] = useState({ gemini_configurado: false });
+  const [config, setConfig] = useState({ vanguarcito_disponible: false });
   const [trabajos, setTrabajos] = useState([]);
   const [opcionesGrupo, setOpcionesGrupo] = useState([]);
   const [cursosGrupo, setCursosGrupo] = useState([]);
@@ -113,7 +124,9 @@ export default function DisenadorFichas() {
       ]);
       setConfig(cfg.data || {});
       setOpcionesGrupo(grupos.data?.opciones || []);
-      if (!cfg.data?.gemini_configurado) {
+      const vanguarcitoOk = Boolean(cfg.data?.vanguarcito_disponible ?? cfg.data?.gemini_configurado);
+      setConfig((c) => ({ ...c, vanguarcito_disponible: vanguarcitoOk }));
+      if (!vanguarcitoOk) {
         setForm((f) => ({ ...f, usar_ia: false }));
       }
       await cargarTrabajos();
@@ -166,7 +179,7 @@ export default function DisenadorFichas() {
       titulo: row?.titulo || '',
       unidad: row?.unidad || '1',
       puntos_clave: puntos,
-      usar_ia: config.gemini_configurado,
+      usar_ia: config.vanguarcito_disponible,
     });
     setModalOpen(true);
   };
@@ -206,7 +219,7 @@ export default function DisenadorFichas() {
         if (form.asignatura_id) fd.append('asignatura_id', form.asignatura_id);
         fd.append('unidad', form.unidad.trim());
         fd.append('puntos_clave', form.puntos_clave.trim());
-        fd.append('usar_ia', form.usar_ia && config.gemini_configurado ? '1' : '0');
+        fd.append('usar_ia', form.usar_ia && config.vanguarcito_disponible ? '1' : '0');
         if (archivoPdf) fd.append('archivo_pdf', archivoPdf);
 
         const { data: creado } = await api.post('/fichas-ia/trabajos', fd, {
@@ -218,15 +231,15 @@ export default function DisenadorFichas() {
       Swal.fire({
         title: 'Generando ficha…',
         html:
-          form.usar_ia && config.gemini_configurado
-            ? 'Estructurando contenido y maquetando PDF.'
-            : 'Maquetando sin IA (modo formulario).',
+          form.usar_ia && config.vanguarcito_disponible
+            ? 'Vanguarcito está estructurando la ficha y generando el PDF…'
+            : 'Maquetando la ficha (modo formulario, sin Vanguarcito).',
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading(),
       });
 
       await api.post(`/fichas-ia/trabajos/${trabajoId}/generar`, {
-        usar_ia: form.usar_ia && config.gemini_configurado,
+        usar_ia: form.usar_ia && config.vanguarcito_disponible,
       });
 
       Swal.close();
@@ -240,7 +253,7 @@ export default function DisenadorFichas() {
         confirmButtonText: 'Vista previa',
         cancelButtonText: 'Cerrar',
       }).then((r) => {
-        if (r.isConfirmed) window.open(previewUrl(trabajoId), '_blank', 'noopener,noreferrer');
+        if (r.isConfirmed) abrirPreviewHtml(trabajoId);
       });
     } catch (err) {
       Swal.close();
@@ -250,7 +263,7 @@ export default function DisenadorFichas() {
         title: 'No se pudo generar la ficha',
         text:
           det.includes('429') || det.includes('límite')
-            ? `${det} Puede desmarcar «Usar IA» e intentar de nuevo.`
+            ? `${det} Puede desmarcar «Usar Vanguarcito» e intentar de nuevo.`
             : det,
       });
       await cargarTrabajos();
@@ -262,7 +275,7 @@ export default function DisenadorFichas() {
   const regenerar = async (row) => {
     const ok = await Swal.fire({
       icon: 'question',
-      title: '¿Regenerar esta ficha?',
+      title: '¿Regenerar esta ficha con Vanguarcito?',
       text: 'Se volverá a procesar el contenido y el PDF.',
       showCancelButton: true,
       confirmButtonText: 'Regenerar',
@@ -271,7 +284,7 @@ export default function DisenadorFichas() {
     setGenerando(true);
     try {
       Swal.fire({ title: 'Generando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-      await api.post(`/fichas-ia/trabajos/${row.id}/generar`, { usar_ia: config.gemini_configurado });
+      await api.post(`/fichas-ia/trabajos/${row.id}/generar`, { usar_ia: config.vanguarcito_disponible });
       Swal.close();
       Swal.fire({ icon: 'success', title: 'Regenerada', timer: 1500, showConfirmButton: false });
       await cargarTrabajos();
@@ -303,12 +316,30 @@ export default function DisenadorFichas() {
   };
 
   const verPreview = (row) => {
-    window.open(previewUrl(row.id), '_blank', 'noopener,noreferrer');
+    abrirPreviewHtml(row.id);
   };
 
-  const descargarPdf = (row) => {
-    const base = api.defaults.baseURL || '/api';
-    window.open(`${base}/fichas-ia/trabajos/${row.id}/descargar-pdf`, '_blank', 'noopener,noreferrer');
+  const descargarPdf = async (row) => {
+    try {
+      const res = await api.get(`/fichas-ia/trabajos/${row.id}/descargar-pdf`, { responseType: 'blob' });
+      const nombre =
+        row.archivo_generado_nombre || res.headers['content-disposition']?.match(/filename="?([^"]+)"?/)?.[1] || `ficha-${row.id}.pdf`;
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombre;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo descargar el PDF',
+        text: e.response?.data?.error || e.message || '',
+      });
+    }
   };
 
   const sinGrupos = !loading && opcionesGrupo.length === 0;
@@ -322,14 +353,14 @@ export default function DisenadorFichas() {
             Biblioteca de fichas del colegio para vincular luego a temas del aula virtual. Formato Vanguard con logo y
             mascotas en cada hoja.
           </p>
-          {!config.gemini_configurado ? (
+          {!config.vanguarcito_disponible ? (
             <div className="voc-alert">
-              <strong>Gemini no configurado.</strong> Puede generar en modo formulario. Agregue{' '}
-              <code>GOOGLE_AI_API_KEY</code> en el servidor (ver <code>docs/GEMINI_API_KEY.md</code>).
+              <strong>Vanguarcito no está activo.</strong> Puede crear fichas en modo formulario (sin asistente).
+              Contacte al administrador del sistema para activarlo en el servidor.
             </div>
           ) : (
             <div className="voc-alert" style={{ background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}>
-              Gemini disponible — puede usar IA al generar.
+              Vanguarcito disponible — puede usarlo al crear o regenerar fichas.
             </div>
           )}
         </header>
@@ -489,7 +520,7 @@ export default function DisenadorFichas() {
                                 </IconButton>
                               </Tooltip>
                               {row.estado === 'LISTO' && (
-                                <Tooltip title="Regenerar">
+                                <Tooltip title="Regenerar con Vanguarcito">
                                   <IconButton
                                     size="small"
                                     color="secondary"
@@ -654,11 +685,11 @@ export default function DisenadorFichas() {
                   <input
                     type="checkbox"
                     checked={form.usar_ia}
-                    disabled={!config.gemini_configurado}
+                    disabled={!config.vanguarcito_disponible}
                     onChange={(e) => setForm((f) => ({ ...f, usar_ia: e.target.checked }))}
                   />
                   <span className="voc-label-text" style={{ margin: 0 }}>
-                    Usar IA (Gemini) para estructurar actividades
+                    Usar Vanguarcito para estructurar actividades
                   </span>
                 </label>
               </div>
@@ -678,7 +709,11 @@ export default function DisenadorFichas() {
                   </button>
                 )}
                 <button type="button" className="voc-btn-primary" onClick={() => guardarYGenerar(false)} disabled={generando}>
-                  {generando ? 'Procesando…' : editItem ? 'Guardar y regenerar' : 'Crear y generar ficha'}
+                  {generando
+                    ? 'Procesando…'
+                    : editItem
+                      ? 'Guardar y regenerar con Vanguarcito'
+                      : 'Crear ficha con Vanguarcito'}
                 </button>
               </div>
             </div>

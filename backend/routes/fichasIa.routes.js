@@ -68,8 +68,10 @@ router.get('/config', async (req, res) => {
        FROM fichas_ia_plantillas WHERE colegio_id = ? AND activo = 1 ORDER BY nombre`,
       [colegio_id]
     );
+    const vanguarcitoOk = geminiDisponible();
     res.json({
-      gemini_configurado: geminiDisponible(),
+      vanguarcito_disponible: vanguarcitoOk,
+      gemini_configurado: vanguarcitoOk,
       plantillas: plantillas || [],
       assets_nota:
         'Coloque logo-vanguard.png en backend/public/assets/fichas-ia/ para el encabezado.',
@@ -375,7 +377,7 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
 
     if (usar_ia && !geminiDisponible()) {
       return res.status(400).json({
-        error: 'IA no disponible: configure GOOGLE_AI_API_KEY en el servidor.',
+        error: 'Vanguarcito no está disponible. El administrador debe activarlo en el servidor.',
         trabajo_id: trabajoId,
       });
     }
@@ -459,7 +461,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         });
         await execute(
           `UPDATE fichas_ia_trabajos SET error_mensaje = ? WHERE id = ?`,
-          [`IA: ${gemErr.message}. Se usó modo sin IA.`, trabajoId]
+          [`Vanguarcito: ${gemErr.message}. Se usó modo formulario.`, trabajoId]
         );
       }
     } else {

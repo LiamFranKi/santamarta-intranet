@@ -73,13 +73,13 @@ ${(textoOrigen || '').slice(0, 12000)}
     const status = err.response?.status;
     if (status === 429) {
       const e = new Error(
-        'Gemini alcanzó el límite de solicitudes (429). Espere 1–2 minutos, use otra clave con facturación, o genere sin IA.'
+        'Vanguarcito alcanzó el límite de solicitudes (429). Espere 1–2 minutos o genere la ficha sin Vanguarcito.'
       );
       e.code = 'GEMINI_RATE_LIMIT';
       throw e;
     }
     if (status === 403) {
-      const e = new Error('API key de Gemini inválida o sin permiso (403). Revise GOOGLE_AI_API_KEY.');
+      const e = new Error('Vanguarcito no está configurado correctamente en el servidor (403).');
       e.code = 'GEMINI_FORBIDDEN';
       throw e;
     }
@@ -95,7 +95,7 @@ ${(textoOrigen || '').slice(0, 12000)}
     const cleaned = text.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
     parsed = JSON.parse(cleaned);
   } catch (e) {
-    const err = new Error('Gemini no devolvió JSON válido');
+    const err = new Error('Vanguarcito no devolvió una respuesta válida');
     err.code = 'GEMINI_JSON_INVALID';
     err.raw = text.slice(0, 500);
     throw err;
