@@ -168,7 +168,7 @@ Reglas obligatorias:
 - Español de Perú; vocabulario acorde al grado ${grado || 'indicado'}.
 - TEORÍA: mínimo 4 párrafos sustantivos; glosario con 4-6 términos; 2-3 ilustraciones con emoji representativo del concepto (no mascotas del colegio).
 - RECUERDA: frases completas con contenido, no listas de una palabra.
-- APLICACIÓN: 3-4 actividades variadas (tabla + preguntas + al menos una pregunta de análisis o situación real).
+- APLICACIÓN: mínimo 5 actividades variadas (mezcla: tabla_partes, preguntas, completar, dibujo_descrito, situación real). Máximo 6.
 - No copies instrucciones de diseño gráfico (colores, tipografía, logos).
 - Si faltan datos, investiga el tema desde el título y el área curricular con rigor escolar.
 ${bloqueInstrucciones}

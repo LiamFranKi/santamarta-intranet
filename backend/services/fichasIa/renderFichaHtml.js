@@ -9,7 +9,11 @@ const MAX_MASCOTAS_FICHA = 3;
 if (!Handlebars.helpers.eq) {
   Handlebars.registerHelper('eq', (a, b) => a === b);
   Handlebars.registerHelper('add', (a, b) => Number(a) + Number(b));
+  Handlebars.registerHelper('mod', (a, b) => Number(a) % Number(b));
 }
+
+const ESTILOS_PARRAFO = ['caja-verde', 'caja-azul', 'caja-amarilla', 'caja-lila', 'caja-coral'];
+const ESTILOS_ACTIVIDAD = ['act-verde', 'act-azul', 'act-amarilla', 'act-lila', 'act-coral', 'act-mint'];
 
 function assetSrc(filename, inlineAssets) {
   if (!filename) return null;
@@ -108,8 +112,15 @@ function renderFichaHtml(ctx, archivoPlantilla) {
     actividades: ctx.actividades || [],
   };
 
+  const parrafos = (teoria.parrafos || []).map((texto, index) => ({
+    texto,
+    estilo: ESTILOS_PARRAFO[index % ESTILOS_PARRAFO.length],
+    mascotaUrl: index === 0 ? urlMascota(mascotas.intro) : null,
+  }));
+
   const actividades = (aplicacion.actividades || []).map((act, index) => ({
     ...act,
+    estilo: ESTILOS_ACTIVIDAD[index % ESTILOS_ACTIVIDAD.length],
     mascotaUrl: index === 0 ? urlMascota(mascotas.actividad) : null,
   }));
 
@@ -119,11 +130,10 @@ function renderFichaHtml(ctx, archivoPlantilla) {
 
   return compile({
     ...ctx,
-    teoria,
+    teoria: { ...teoria, parrafos },
     aplicacion,
     actividades,
     logoUrl,
-    mascotaIntroUrl: urlMascota(mascotas.intro),
     mascotaRecuerdaUrl: urlMascota(mascotas.recuerda),
     tieneLogo: Boolean(logoUrl),
     subtituloLinea: subtituloExtra,

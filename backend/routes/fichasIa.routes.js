@@ -582,6 +582,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
     await execute(
       `UPDATE fichas_ia_trabajos SET
         estado = 'LISTO',
+        error_mensaje = NULL,
         archivo_generado_nombre = ?,
         ia_proveedor = ?,
         ia_modelo = ?,

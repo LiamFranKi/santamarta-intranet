@@ -506,7 +506,7 @@ export default function DisenadorFichas() {
                                 : 'Solo formulario (sin Vanguarcito)'}
                           </div>
                         )}
-                        {row.error_mensaje && (
+                        {row.error_mensaje && row.estado !== 'LISTO' && (
                           <div className="voc-file-meta" style={{ color: '#b91c1c', maxWidth: 280 }}>
                             {row.error_mensaje}
                           </div>
