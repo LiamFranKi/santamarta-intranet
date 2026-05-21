@@ -228,10 +228,10 @@ Formato:
 {
   "teoria": {
     "titulo_seccion": "Aprendemos: [tema matemático]",
-    "parrafos": ["3-4 párrafos con conceptos, procedimientos y ejemplos numéricos del grado"],
-    "glosario": [{"termino": "Suma", "definicion": "..."}],
-    "recuerda": ["5 reglas o pasos en frases completas"],
-    "ilustraciones": [{"titulo": "...", "descripcion": "...", "emoji": "🔢"}]
+    "parrafos": ["Mínimo 4 párrafos (4-6 oraciones cada uno) con conceptos, procedimientos y ejemplos numéricos del grado"],
+    "glosario": [{"termino": "Suma", "definicion": "Definición clara para el grado"}],
+    "recuerda": ["5 a 7 reglas o pasos en frases completas"],
+    "ilustraciones": [{"titulo": "Nombre del concepto", "descripcion": "Qué debe observar el niño (2-3 oraciones)", "emoji": "🔢"}]
   },
   "aplicacion": {
     "titulo_seccion": "FICHA DE APLICACIÓN — MATEMÁTICA",
@@ -251,12 +251,14 @@ Formato:
       {
         "tipo": "completar",
         "numero": 8,
+        "enunciado": "Completa:",
         "oracion": "El doble de 15 es ___."
       },
       {
         "tipo": "verdadero_falso",
         "numero": 10,
-        "items": [{"enunciado": "Afirmación matemática completa."}]
+        "enunciado": "Completa V o F:",
+        "items": [{"enunciado": "Afirmación matemática completa."}, {"enunciado": "Otra afirmación del tema."}]
       }
     ]
   },
@@ -268,7 +270,9 @@ Reglas:
 - Operaciones acordes al grado ${grado || ''} y tema "${titulo}" (${area || ''}).
 - Cada problema y pregunta: oración COMPLETA, nunca frases cortadas.
 - PROHIBIDO: cuaderno, libreta, agenda, en casa, otra hoja.
-- Teoría breve pero clara (3-4 párrafos); enfoque matemático del tema.
+- TEORÍA: mínimo 4 párrafos sustantivos; glosario 4-6 términos matemáticos; 2-3 ilustraciones con emoji (🔢➕📐); recuerda con frases completas.
+- En "completar" usa solo guiones bajos ___ para el hueco (nunca HTML).
+- En "verdadero_falso" el enunciado del ejercicio debe ser "Completa V o F:" y al menos 2 ítems en items.
 ${bloqueInstrucciones}
 Título: ${titulo || '—'} | Grado: ${grado || '—'} | Área: ${area || '—'} | Unidad: ${unidad || '—'}
 Puntos clave: ${puntosClave || '—'}
@@ -455,6 +459,22 @@ function normalizarContenido(raw, { estiloFicha = 'general', titulo, grado } = {
     teoria.recuerda = ['Lee con atención', 'Observa los ejemplos', 'Pregunta a tu docente si tienes dudas'];
   }
 
+  const esMathContenido =
+    esEstiloMatematica(estiloFicha) || Boolean(aplicacion.ejercicios?.length);
+  if (esMathContenido) {
+    if (!teoria.glosario?.length) {
+      teoria.glosario = [
+        { termino: 'Operación', definicion: 'Acción matemática como sumar, restar, multiplicar o dividir.' },
+        { termino: 'Resultado', definicion: 'Respuesta obtenida al resolver correctamente.' },
+      ];
+    }
+    if (!teoria.ilustraciones?.length) {
+      teoria.ilustraciones = [
+        { titulo: 'Números', descripcion: 'Usa cifras alineadas por columnas al calcular.', emoji: '🔢' },
+      ];
+    }
+  }
+
   const intro = teoria.parrafos.join('\n\n');
   let actividades = [];
   let ejercicios_matematicos = [];
@@ -505,12 +525,28 @@ function contenidoDesdeFormularioMatematica({ titulo, puntosClave, textoOrigen, 
 
   const teoria = {
     titulo_seccion: `Aprendemos: ${tema}`,
-    parrafos,
+    parrafos:
+      parrafos.length >= 2
+        ? parrafos
+        : [
+            ...parrafos,
+            `Para resolver problemas de ${tema} identificamos los datos, elegimos la operación y comprobamos el resultado.`,
+            `En el valor posicional cada cifra tiene un lugar: unidades, decenas, centenas y así sucesivamente.`,
+          ],
     recuerda: bullets.length
-      ? bullets.slice(0, 6)
+      ? bullets.slice(0, 7)
       : ['Lee cada enunciado', 'Escribe la operación', 'Revisa tu resultado'],
-    glosario: [],
-    ilustraciones: [{ titulo: 'Operaciones', descripcion: 'Practica sumas, restas y problemas del tema.', emoji: '🔢' }],
+    glosario: [
+      { termino: 'Suma', definicion: 'Juntar cantidades para obtener un total.' },
+      { termino: 'Resta', definicion: 'Hallar la diferencia entre dos cantidades.' },
+      { termino: 'Valor posicional', definicion: 'El valor de cada dígito según su columna.' },
+      { termino: 'Estimación', definicion: 'Aproximar un resultado antes de calcular exacto.' },
+    ],
+    ilustraciones: [
+      { titulo: 'Operaciones', descripcion: `Practica sumas y restas de ${tema} en la ficha.`, emoji: '➕' },
+      { titulo: 'Problemas', descripcion: 'Lee el enunciado, escribe los datos y la operación.', emoji: '📝' },
+      { titulo: 'Comprobar', descripcion: 'Verifica tu respuesta con la operación inversa.', emoji: '✅' },
+    ],
   };
 
   const ejercicios = normalizarEjerciciosMatematica([], { titulo: tema, grado });

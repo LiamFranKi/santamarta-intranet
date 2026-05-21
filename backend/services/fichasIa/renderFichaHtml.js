@@ -87,6 +87,65 @@ function subtituloGrado(grado, grupoEtiqueta) {
   return '';
 }
 
+/** Partes de oración para completar (evita HTML escapado en Handlebars). */
+function oracionAFragmentos(oracion) {
+  const limpio = String(oracion || '')
+    .replace(/<[^>]*>/g, '')
+    .trim();
+  const partes = [];
+  const re = /_{2,}|___+/g;
+  let last = 0;
+  let m;
+  while ((m = re.exec(limpio)) !== null) {
+    if (m.index > last) partes.push({ tipo: 'texto', valor: limpio.slice(last, m.index) });
+    partes.push({ tipo: 'hueco' });
+    last = m.index + m[0].length;
+  }
+  if (last < limpio.length) partes.push({ tipo: 'texto', valor: limpio.slice(last) });
+  if (!partes.length) partes.push({ tipo: 'texto', valor: limpio || 'Completa: ' });
+  return partes;
+}
+
+function enriquecerTeoriaMatematica(teoria, ctx) {
+  const t = { ...teoria };
+  const tema = ctx.titulo || ctx.area || 'números';
+  if (!t.glosario?.length) {
+    t.glosario = [
+      { termino: 'Suma', definicion: 'Juntar cantidades para obtener un total mayor.' },
+      { termino: 'Resta', definicion: 'Quitar o comparar cantidades para hallar la diferencia.' },
+      { termino: 'Valor posicional', definicion: 'Cada cifra vale según su lugar (unidades, decenas, centenas…).' },
+      { termino: 'Problema', definicion: 'Situación de la vida real que se resuelve con operaciones.' },
+    ];
+  }
+  if (!t.ilustraciones?.length) {
+    t.ilustraciones = [
+      {
+        titulo: 'Operaciones',
+        descripcion: `Practica sumas y restas del tema «${tema}» escribiendo cada paso con orden.`,
+        emoji: '➕',
+      },
+      {
+        titulo: 'Tabla de valor',
+        descripcion: 'Observa cómo cada dígito cambia de valor según la columna donde está.',
+        emoji: '🔢',
+      },
+      {
+        titulo: 'Comprobar',
+        descripcion: 'Revisa tu resultado estimando o haciendo la operación inversa.',
+        emoji: '✅',
+      },
+    ];
+  }
+  if (!t.recuerda?.length) {
+    t.recuerda = [
+      'Lee el enunciado dos veces antes de calcular',
+      'Alinea las cifras por columnas (unidades con unidades)',
+      'Escribe el procedimiento en la ficha',
+    ];
+  }
+  return t;
+}
+
 /**
  * @param {object} ctx — titulo, actividades, trabajoId, usoVanguarcito, inlineAssets, grupoEtiqueta
  */
@@ -115,7 +174,21 @@ function renderFichaHtml(ctx, archivoPlantilla) {
     actividades: ctx.actividades || [],
   };
 
-  const parrafos = (teoria.parrafos || []).map((texto, index) => ({
+  const esMatematicaPre =
+    ctx.esMatematica ||
+    esPlantillaMatematica(archivoPlantilla) ||
+    Boolean(
+      (ctx.aplicacion || {}).ejercicios?.length ||
+        ctx.ejercicios_matematicos?.length ||
+        ctx.contenido?.ejercicios_matematicos?.length
+    );
+
+  let teoriaRender = teoria;
+  if (esMatematicaPre) {
+    teoriaRender = enriquecerTeoriaMatematica(teoria, ctx);
+  }
+
+  const parrafos = (teoriaRender.parrafos || []).map((texto, index) => ({
     texto,
     num: index + 1,
     estilo: ESTILOS_PARRAFO[index % ESTILOS_PARRAFO.length],
@@ -143,8 +216,14 @@ function renderFichaHtml(ctx, archivoPlantilla) {
       grado: ctx.grado,
     }).map((ej) => {
       if (ej.tipo === 'completar' && ej.oracion) {
-        const oracionHtml = ej.oracion.replace(/_{2,}|___+/g, '<span class="hueco"></span>');
-        return { ...ej, oracionHtml };
+        return { ...ej, oracionPartes: oracionAFragmentos(ej.oracion) };
+      }
+      if (ej.tipo === 'verdadero_falso') {
+        return {
+          ...ej,
+          enunciado: ej.enunciado || 'Completa V o F:',
+          instruccion_vf: 'Marca V o F en cada casillero de la tabla.',
+        };
       }
       return ej;
     });
@@ -156,7 +235,7 @@ function renderFichaHtml(ctx, archivoPlantilla) {
 
   return compile({
     ...ctx,
-    teoria: { ...teoria, parrafos },
+    teoria: { ...teoriaRender, parrafos },
     aplicacion,
     actividades,
     ejerciciosMatematicos,

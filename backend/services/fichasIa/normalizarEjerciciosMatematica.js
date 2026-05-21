@@ -22,17 +22,23 @@ function normalizarEjerciciosMatematica(ejercicios, { titulo, grado } = {}) {
     }
 
     if (tipo === 'completar') {
-      return {
-        ...base,
-        oracion: sanitizarTextoFicha(raw.oracion || raw.texto || ''),
-      };
+      let oracion = sanitizarTextoFicha(raw.oracion || raw.texto || '');
+      oracion = oracion.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+      if (!/_{2,}|___+/.test(oracion)) {
+        oracion = oracion.replace(/\.\s*$/, '') + ' ___.';
+      }
+      return { ...base, oracion };
     }
 
     if (tipo === 'verdadero_falso') {
       const items = (raw.items || [raw.enunciado]).filter(Boolean).map((it) => ({
         enunciado: sanitizarTextoFicha(typeof it === 'string' ? it : it.enunciado || it.texto),
       }));
-      return { ...base, items };
+      return {
+        ...base,
+        enunciado: sanitizarTextoFicha(raw.enunciado || 'Completa V o F:'),
+        items,
+      };
     }
 
     const operaciones = raw.operaciones || raw.lineas || [];

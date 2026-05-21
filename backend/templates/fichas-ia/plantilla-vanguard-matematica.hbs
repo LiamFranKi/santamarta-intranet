@@ -21,35 +21,56 @@
     .logo-text { font-weight: 800; color: #1d4ed8; font-size: 12px; text-align: right; line-height: 1.2; }
     .seccion-titulo-wrap { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 8px 12px; background: #1d4ed8; border-radius: 10px; color: #fff; }
     .seccion-titulo-wrap h2 { margin: 0; font-size: 13px; font-weight: 700; text-transform: uppercase; }
-    .parrafo-teoria { display: flex; gap: 10px; margin: 0 0 9px; padding: 10px 12px; border-radius: 11px; font-size: 11.5px; line-height: 1.62; text-align: justify; break-inside: avoid; border-left: 5px solid #3b82f6; background: linear-gradient(135deg, #eff6ff, #dbeafe); }
-    .parrafo-num { flex: 0 0 26px; width: 26px; height: 26px; border-radius: 8px; background: #1d4ed8; color: #fff; font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center; }
-    .recuerda-box { margin: 10px 0; padding: 10px 12px; background: #fef9c3; border: 2px solid #eab308; border-radius: 10px; font-size: 11px; }
-    .recuerda-box h3 { margin: 0 0 6px; font-size: 12px; color: #a16207; }
-    .recuerda-box ul { margin: 0; padding-left: 18px; }
-    .aplicacion-banner { background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #fff; padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; }
+    .parrafo-teoria { display: flex; align-items: flex-end; gap: 10px; margin: 0 0 9px; padding: 10px 12px; border-radius: 11px; font-size: 11.5px; line-height: 1.62; text-align: justify; break-inside: avoid; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06); }
+    .parrafo-num { flex: 0 0 26px; width: 26px; height: 26px; border-radius: 8px; background: #1d4ed8; color: #fff; font-weight: 800; font-size: 12px; display: flex; align-items: center; justify-content: center; align-self: flex-start; margin-top: 2px; }
+    .parrafo-texto { flex: 1; min-width: 0; }
+    .caja-verde { background: linear-gradient(135deg, #f0fdf4, #dcfce7); border-left: 5px solid #22c55e; }
+    .caja-azul { background: linear-gradient(135deg, #eff6ff, #dbeafe); border-left: 5px solid #3b82f6; }
+    .caja-amarilla { background: linear-gradient(135deg, #fffbeb, #fef9c3); border-left: 5px solid #eab308; }
+    .caja-lila { background: linear-gradient(135deg, #faf5ff, #ede9fe); border-left: 5px solid #a855f7; }
+    .caja-coral { background: linear-gradient(135deg, #fff7ed, #ffedd5); border-left: 5px solid #f97316; }
+    .mascota-inline { flex: 0 0 62px; }
+    .mascota-inline img { width: 62px; max-height: 70px; object-fit: contain; display: block; }
+    .ilustraciones-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0; break-inside: avoid; }
+    .ilustracion-card { border-radius: 10px; padding: 8px; text-align: center; border: 2px solid #93c5fd; background: #fff; }
+    .ilustracion-emoji { font-size: 26px; margin-bottom: 4px; }
+    .ilustracion-card h4 { margin: 0 0 4px; font-size: 9.5px; color: #1d4ed8; text-transform: uppercase; }
+    .ilustracion-card p { margin: 0; font-size: 9px; line-height: 1.4; text-align: justify; color: #475569; }
+    .glosario-box { margin: 8px 0; padding: 10px 12px; background: linear-gradient(180deg, #fffbeb, #fff); border: 2px solid #fbbf24; border-radius: 11px; break-inside: avoid; }
+    .glosario-box h3 { margin: 0 0 8px; font-size: 12px; color: #b45309; }
+    .glosario-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; }
+    .glosario-item { margin: 0; font-size: 10px; line-height: 1.4; }
+    .glosario-item strong { color: #92400e; }
+    .recuerda-box { background: linear-gradient(135deg, #eff6ff, #e0f2fe); border: 2px solid #60a5fa; border-radius: 11px; padding: 10px 12px; break-inside: avoid; }
+    .recuerda-box h3 { margin: 0 0 8px; font-size: 12px; color: #1d4ed8; }
+    .recuerda-inner { display: flex; gap: 8px; align-items: flex-end; }
+    .recuerda-box ul { flex: 1; margin: 0; padding-left: 18px; font-size: 10.5px; color: #1e3a8a; }
+    .recuerda-box li { margin-bottom: 4px; }
+    .aplicacion-banner { background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #fff; padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; text-align: center; break-inside: avoid; }
     .aplicacion-banner h2 { margin: 0 0 4px; font-size: 14px; text-transform: uppercase; }
     .aplicacion-banner p { margin: 0; font-size: 10.5px; opacity: 0.95; }
     .ejercicio-math { margin: 0 0 10px; padding: 8px 10px 10px; border-radius: 10px; border: 2px solid #bfdbfe; background: #f8fafc; break-inside: avoid; page-break-inside: avoid; }
     .ejercicio-math:nth-child(odd) { background: #f0f9ff; }
     .ej-num { display: inline-block; min-width: 28px; height: 28px; line-height: 28px; text-align: center; background: #1d4ed8; color: #fff; font-weight: 800; border-radius: 8px; font-size: 13px; margin-right: 8px; vertical-align: top; }
     .ej-titulo { font-size: 11px; font-weight: 600; color: #1e40af; margin-bottom: 6px; }
+    .inst-vf { margin: 4px 0 6px 36px; font-size: 10.5px; font-weight: 700; color: #1d4ed8; }
     .operacion-linea { font-size: 14px; font-weight: 600; font-family: 'Consolas', 'Courier New', monospace; margin: 6px 0 6px 36px; letter-spacing: 0.05em; }
     .problema-texto { font-size: 11px; line-height: 1.55; margin: 4px 0 8px 36px; text-align: justify; }
     .espacio-resp { min-height: 52px; margin: 6px 0 4px 36px; border: 2px dashed #94a3b8; border-radius: 8px; background: #fff; }
     .espacio-resp--alto { min-height: 72px; }
-    .oracion-completar { font-size: 11.5px; margin: 4px 0 8px 36px; }
-    .hueco { display: inline-block; min-width: 70px; border-bottom: 2px solid #64748b; margin: 0 4px; }
-    .tabla-vf { width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 6px; }
+    .oracion-completar { font-size: 11.5px; line-height: 1.8; margin: 4px 0 8px 36px; }
+    .hueco { display: inline-block; min-width: 90px; border-bottom: 2px solid #64748b; margin: 0 4px; vertical-align: bottom; height: 16px; }
+    .tabla-vf { width: calc(100% - 36px); margin: 4px 0 4px 36px; border-collapse: collapse; font-size: 10px; }
     .tabla-vf th, .tabla-vf td { border: 1px solid #cbd5e1; padding: 5px 6px; }
     .tabla-vf .vf-col { width: 32px; text-align: center; }
     .tabla-vf .casillero { text-align: center; font-size: 14px; }
+    .tabla-vf .enunciado { text-align: left; }
     .pie { margin-top: 8px; text-align: center; background: #fef3c7; border: 2px solid #fbbf24; border-radius: 10px; padding: 8px; font-size: 11px; font-weight: 600; color: #92400e; }
     .footer-meta { margin-top: auto; padding: 8px 14px 4px; border-top: 2px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 8.5px; color: #94a3b8; }
-    .mascota-inline img { width: 52px; height: auto; }
     @media print {
       .sheet { border: none; min-height: 268mm; page-break-after: always; }
       .hoja-aplicacion.sheet { page-break-after: auto; }
-      .ejercicio-math { break-inside: avoid; page-break-inside: avoid; }
+      .ejercicio-math, .parrafo-teoria, .glosario-box, .recuerda-box, .ilustraciones-grid { break-inside: avoid; page-break-inside: avoid; }
     }
   </style>
 </head>
@@ -68,19 +89,49 @@
             {{#if tieneLogo}}<img class="logo" src="{{logoUrl}}" alt="Vanguard" />{{else}}<div class="logo-text">VANGUARD<br/>Schools</div>{{/if}}
           </div>
         </div>
+
         <div class="seccion-titulo-wrap"><span>🔢</span><h2>{{teoria.titulo_seccion}}</h2></div>
+
         {{#each teoria.parrafos}}
-        <div class="parrafo-teoria">
+        <div class="parrafo-teoria {{estilo}}">
           <div class="parrafo-num">{{num}}</div>
-          <div>{{texto}}</div>
+          <div class="parrafo-texto">{{texto}}</div>
+          {{#if mascotaUrl}}<div class="mascota-inline"><img src="{{mascotaUrl}}" alt="" /></div>{{/if}}
         </div>
         {{/each}}
-        {{#if teoria.recuerda}}
-        <div class="recuerda-box">
-          <h3>💡 RECUERDA</h3>
-          <ul>{{#each teoria.recuerda}}<li>{{this}}</li>{{/each}}</ul>
+
+        {{#if teoria.ilustraciones}}
+        <div class="ilustraciones-grid">
+          {{#each teoria.ilustraciones}}
+          <div class="ilustracion-card">
+            <div class="ilustracion-emoji">{{emoji}}</div>
+            <h4>{{titulo}}</h4>
+            <p>{{descripcion}}</p>
+          </div>
+          {{/each}}
         </div>
         {{/if}}
+
+        {{#if teoria.glosario}}
+        <div class="glosario-box">
+          <h3>📖 Palabras importantes</h3>
+          <div class="glosario-grid">
+            {{#each teoria.glosario}}
+            <p class="glosario-item"><strong>{{termino}}:</strong> {{definicion}}</p>
+            {{/each}}
+          </div>
+        </div>
+        {{/if}}
+
+        <div class="recuerda-box">
+          <h3>💡 RECUERDA</h3>
+          <div class="recuerda-inner">
+            <ul>
+              {{#each teoria.recuerda}}<li>{{this}}</li>{{/each}}
+            </ul>
+            {{#if mascotaRecuerdaUrl}}<div class="mascota-inline"><img src="{{mascotaRecuerdaUrl}}" alt="" /></div>{{/if}}
+          </div>
+        </div>
       </div>
       <div class="footer-meta"><span>{{area}} · Teoría · Hoja 1</span><span>Vanguard Schools</span></div>
     </div>
@@ -112,15 +163,26 @@
           {{/if}}
 
           {{#if (eq tipo "completar")}}
-          <p class="oracion-completar">{{oracionHtml}}</p>
+          <p class="oracion-completar">
+            {{#each oracionPartes}}
+              {{#if (eq tipo "hueco")}}<span class="hueco"></span>{{else}}{{valor}}{{/if}}
+            {{/each}}
+          </p>
           {{/if}}
 
           {{#if (eq tipo "verdadero_falso")}}
+          <p class="inst-vf">{{instruccion_vf}}</p>
           <table class="tabla-vf">
-            <thead><tr><th>Affirmación</th><th class="vf-col">V</th><th class="vf-col">F</th></tr></thead>
+            <thead>
+              <tr><th class="enunciado">Enunciado</th><th class="vf-col">V</th><th class="vf-col">F</th></tr>
+            </thead>
             <tbody>
               {{#each items}}
-              <tr><td>{{enunciado}}</td><td class="casillero">○</td><td class="casillero">○</td></tr>
+              <tr>
+                <td class="enunciado">{{enunciado}}</td>
+                <td class="casillero">○</td>
+                <td class="casillero">○</td>
+              </tr>
               {{/each}}
             </tbody>
           </table>
