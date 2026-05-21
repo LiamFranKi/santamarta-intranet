@@ -161,6 +161,9 @@ if (!fs.existsSync(uploadsPath)) {
       fs.mkdirSync(path.join(uploadsPath, 'gestion-documentos'), { recursive: true }); // PDFs Documento De Gestión
       fs.mkdirSync(path.join(uploadsPath, 'vocabularios'), { recursive: true }); // PDFs vocabularios (herramientas)
       fs.mkdirSync(path.join(uploadsPath, 'elecciones'), { recursive: true }); // Logos y fotos elecciones escolares
+      fs.mkdirSync(path.join(uploadsPath, 'fichas-ia', 'origen'), { recursive: true });
+      fs.mkdirSync(path.join(uploadsPath, 'fichas-ia', 'generados'), { recursive: true });
+      fs.mkdirSync(path.join(uploadsPath, 'fichas-ia', 'trabajo'), { recursive: true });
     }
 const gestionDocsUploadPath = path.join(uploadsPath, 'gestion-documentos');
 if (!fs.existsSync(gestionDocsUploadPath)) {
@@ -284,6 +287,7 @@ const encuestasRoutes = require('./routes/encuestas.routes');
 const herramientasExamenesRoutes = require('./routes/herramientasExamenes.routes');
 const vocabulariosRoutes = require('./routes/vocabularios.routes');
 const eleccionesRoutes = require('./routes/elecciones.routes');
+const fichasIaRoutes = require('./routes/fichasIa.routes');
 
 const docentePsicologiaRoutes = require('./routes/docente.psicologia.routes');
 app.use('/api/docente/psicologia', docentePsicologiaRoutes);
@@ -314,6 +318,7 @@ app.use('/api/encuestas', encuestasRoutes);
 app.use('/api/herramientas-examenes', herramientasExamenesRoutes);
 app.use('/api/vocabularios', vocabulariosRoutes);
 app.use('/api/elecciones', eleccionesRoutes);
+app.use('/api/fichas-ia', fichasIaRoutes);
 
 // Rutas de prueba (solo desarrollo)
 if (process.env.NODE_ENV === 'development') {

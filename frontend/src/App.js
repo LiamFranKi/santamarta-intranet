@@ -55,6 +55,7 @@ import HerramientasExamenEstadisticas from './pages/herramientas/HerramientasExa
 import MisHerramientasExamenes from './pages/herramientas/MisHerramientasExamenes';
 import HerramientasExamenRealizar from './pages/herramientas/HerramientasExamenRealizar';
 import HerramientasExamenMiResultado from './pages/herramientas/HerramientasExamenMiResultado';
+import DisenadorFichas from './pages/herramientas/DisenadorFichas';
 import AdminSupervision from './pages/admin/AdminSupervision';
 import AdminEncuestas from './pages/admin/AdminEncuestas';
 import AdminEncuestaEditor from './pages/admin/AdminEncuestaEditor';
@@ -490,6 +491,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/herramientas/disenador-fichas"
+        element={
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'DOCENTE']}>
+            <DisenadorFichas />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/admin/herramientas/elecciones"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA']}>
@@ -612,6 +621,14 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA']}>
             <DocenteVocabularios />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/herramientas/disenador-fichas"
+        element={
+          <PrivateRoute requiredTypes={['DOCENTE', 'PSICOLOGA', 'ADMINISTRADOR', 'PROMOTORIA']}>
+            <DisenadorFichas />
           </PrivateRoute>
         }
       />
