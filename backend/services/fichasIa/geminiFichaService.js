@@ -1,9 +1,71 @@
 const axios = require('axios');
 
-const MODEL = process.env.FICHAS_IA_GEMINI_MODEL || 'gemini-2.0-flash';
+const MODELOS_FALLBACK = [
+  process.env.FICHAS_IA_GEMINI_MODEL,
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-2.5-flash',
+].filter(Boolean);
+
+function modelosAProbar() {
+  const vistos = new Set();
+  return MODELOS_FALLBACK.filter((m) => {
+    if (vistos.has(m)) return false;
+    vistos.add(m);
+    return true;
+  });
+}
 
 function geminiDisponible() {
   return Boolean(String(process.env.GOOGLE_AI_API_KEY || '').trim());
+}
+
+function extraerErrorGoogle(err) {
+  return (
+    err.response?.data?.error?.message ||
+    err.response?.data?.error?.status ||
+    err.message ||
+    'Error desconocido'
+  );
+}
+
+async function llamarGemini(apiKey, modelo, body, timeout = 120000) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const res = await axios.post(url, body, {
+    timeout,
+    headers: { 'Content-Type': 'application/json' },
+  });
+  return { data: res.data, modelo };
+}
+
+function errorGeminiAmigable(err, modelo) {
+  const status = err.response?.status;
+  const googleMsg = extraerErrorGoogle(err);
+  if (status === 429) {
+    const e = new Error(`Vanguarcito: límite (429). ${googleMsg}`);
+    e.code = 'GEMINI_RATE_LIMIT';
+    return e;
+  }
+  if (status === 403) {
+    const e = new Error(
+      `Vanguarcito rechazó la clave (403) con modelo ${modelo}. ${googleMsg} Active «Generative Language API» en Google Cloud para el proyecto de la API key.`
+    );
+    e.code = 'GEMINI_FORBIDDEN';
+    return e;
+  }
+  if (status === 404) {
+    const e = new Error(`Modelo ${modelo} no disponible (404). ${googleMsg}`);
+    e.code = 'GEMINI_MODEL_NOT_FOUND';
+    return e;
+  }
+  if (status === 400) {
+    const e = new Error(`Solicitud inválida (400) en ${modelo}. ${googleMsg}`);
+    e.code = 'GEMINI_BAD_REQUEST';
+    return e;
+  }
+  const e = new Error(`Vanguarcito (${status || 'sin código'}) en ${modelo}: ${googleMsg}`);
+  e.code = 'GEMINI_ERROR';
+  return e;
 }
 
 /**
@@ -69,8 +131,6 @@ Texto del PDF (puede estar vacío):
 ${(textoOrigen || '').slice(0, 12000)}
 ---`;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
-
   const body = {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
@@ -81,42 +141,25 @@ ${(textoOrigen || '').slice(0, 12000)}
   };
 
   let data;
-  try {
-    const res = await axios.post(url, body, {
-      timeout: 120000,
-      headers: { 'Content-Type': 'application/json' },
-    });
-    data = res.data;
-  } catch (err) {
-    const status = err.response?.status;
-    const googleMsg =
-      err.response?.data?.error?.message ||
-      err.response?.data?.error?.status ||
-      err.message ||
-      'Error desconocido';
-    if (status === 429) {
-      const e = new Error(
-        `Vanguarcito: límite de solicitudes (429). ${googleMsg}`
-      );
-      e.code = 'GEMINI_RATE_LIMIT';
-      throw e;
+  let modeloUsado;
+  const errores = [];
+  for (const modelo of modelosAProbar()) {
+    try {
+      const res = await llamarGemini(apiKey, modelo, body);
+      data = res.data;
+      modeloUsado = res.modelo;
+      break;
+    } catch (err) {
+      const amig = errorGeminiAmigable(err, modelo);
+      errores.push(amig.message);
+      if (amig.code !== 'GEMINI_MODEL_NOT_FOUND' && amig.code !== 'GEMINI_BAD_REQUEST') {
+        throw amig;
+      }
     }
-    if (status === 403) {
-      const e = new Error(
-        `Vanguarcito rechazó la clave o el proyecto (403). ${googleMsg} Verifique que la API key sea del proyecto con prepago (sistema-intranet) y que Generative Language API esté habilitada.`
-      );
-      e.code = 'GEMINI_FORBIDDEN';
-      throw e;
-    }
-    if (status === 400) {
-      const e = new Error(`Vanguarcito: solicitud inválida (400). ${googleMsg}`);
-      e.code = 'GEMINI_BAD_REQUEST';
-      throw e;
-    }
-    const e = new Error(
-      `Vanguarcito no respondió${status ? ` (${status})` : ''}: ${googleMsg}`
-    );
-    e.code = 'GEMINI_ERROR';
+  }
+  if (!data) {
+    const e = new Error(errores.join(' | ') || 'Ningún modelo Gemini respondió');
+    e.code = 'GEMINI_ALL_MODELS_FAILED';
     throw e;
   }
 
@@ -138,7 +181,7 @@ ${(textoOrigen || '').slice(0, 12000)}
     contenido: normalizarContenido(parsed),
     tokens_entrada: usage.promptTokenCount || null,
     tokens_salida: usage.candidatesTokenCount || null,
-    modelo: MODEL,
+    modelo: modeloUsado,
     proveedor: 'google',
   };
 }
@@ -302,40 +345,48 @@ async function probarConexionVanguarcito() {
     };
   }
   const sufijo = key.length > 8 ? `${key.slice(0, 4)}…${key.slice(-4)}` : '****';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(key)}`;
-  try {
-    await axios.post(
-      url,
-      {
-        contents: [{ parts: [{ text: 'Responde solo este JSON: {"prueba":true}' }] }],
-        generationConfig: { maxOutputTokens: 32, responseMimeType: 'application/json' },
-      },
-      { timeout: 45000, headers: { 'Content-Type': 'application/json' } }
-    );
-    return {
-      ok: true,
-      codigo: 'OK',
-      mensaje: 'Vanguarcito respondió correctamente. Puede generar fichas con IA.',
-      modelo: MODEL,
-      clave_sufijo: sufijo,
-    };
-  } catch (err) {
-    const status = err.response?.status;
-    const googleMsg = err.response?.data?.error?.message || err.message || '';
-    return {
-      ok: false,
-      codigo: status ? `HTTP_${status}` : 'ERROR',
-      mensaje: googleMsg || err.message,
-      modelo: MODEL,
-      clave_sufijo: sufijo,
-      ayuda:
-        status === 403
-          ? 'Cree una API key nueva en AI Studio (proyecto sistema-intranet) después del prepago, habilite Generative Language API en Google Cloud y actualice backend/.env.'
-          : status === 429
-            ? 'Espere 1–2 minutos e intente de nuevo.'
-            : 'Revise la clave en el VPS y ejecute pm2 restart all.',
-    };
+  const body = {
+    contents: [{ parts: [{ text: 'Responde solo este JSON: {"prueba":true}' }] }],
+    generationConfig: { maxOutputTokens: 32, responseMimeType: 'application/json' },
+  };
+  const errores = [];
+  for (const modelo of modelosAProbar()) {
+    try {
+      await llamarGemini(key, modelo, body, 45000);
+      return {
+        ok: true,
+        codigo: 'OK',
+        mensaje: 'Vanguarcito respondió correctamente. Puede generar fichas con IA.',
+        modelo,
+        clave_sufijo: sufijo,
+        modelos_probados: modelosAProbar(),
+      };
+    } catch (err) {
+      const amig = errorGeminiAmigable(err, modelo);
+      errores.push(amig.message);
+      if (amig.code !== 'GEMINI_MODEL_NOT_FOUND' && amig.code !== 'GEMINI_BAD_REQUEST') {
+        return {
+          ok: false,
+          codigo: amig.code,
+          mensaje: amig.message,
+          modelo,
+          clave_sufijo: sufijo,
+          ayuda:
+            amig.code === 'GEMINI_FORBIDDEN'
+              ? 'En console.cloud.google.com → APIs → habilite «Generative Language API» en el proyecto de la API key (sistema-intranet).'
+              : 'Revise backend/.env y pm2 restart all.',
+        };
+      }
+    }
   }
+  return {
+    ok: false,
+    codigo: 'GEMINI_ALL_MODELS_FAILED',
+    mensaje: errores.join(' | '),
+    modelo: modelosAProbar()[0],
+    clave_sufijo: sufijo,
+    ayuda: 'Pruebe FICHAS_IA_GEMINI_MODEL=gemini-1.5-flash en .env',
+  };
 }
 
 module.exports = {
@@ -343,5 +394,5 @@ module.exports = {
   estructurarContenidoConGemini,
   contenidoDesdeFormulario,
   probarConexionVanguarcito,
-  MODEL,
+  modelosAProbar,
 };

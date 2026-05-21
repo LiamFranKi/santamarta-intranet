@@ -248,7 +248,7 @@ export default function DisenadorFichas() {
         didOpen: () => Swal.showLoading(),
       });
 
-      await api.post(`/fichas-ia/trabajos/${trabajoId}/generar`, {
+      const { data: gen } = await api.post(`/fichas-ia/trabajos/${trabajoId}/generar`, {
         usar_ia: form.usar_ia && config.vanguarcito_disponible,
       });
 
@@ -256,9 +256,18 @@ export default function DisenadorFichas() {
       setModalOpen(false);
       await cargarTrabajos();
 
+      if (gen?.aviso_ia) {
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Ficha creada sin Vanguarcito',
+          text: `Se usó el formulario automático (no la IA).\n\nMotivo:\n${gen.aviso_ia}`,
+          confirmButtonText: 'Entendido',
+        });
+      }
+
       await Swal.fire({
-        icon: 'success',
-        title: 'Ficha lista',
+        icon: gen?.aviso_ia ? 'info' : 'success',
+        title: gen?.uso_vanguarcito ? 'Ficha lista (con Vanguarcito)' : 'Ficha lista',
         showCancelButton: true,
         confirmButtonText: 'Vista previa',
         cancelButtonText: 'Cerrar',

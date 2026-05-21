@@ -455,6 +455,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
     let tokens_salida = null;
     let ia_proveedor = null;
     let ia_modelo = null;
+    let aviso_ia = null;
 
     await execute(`UPDATE fichas_ia_trabajos SET estado = 'IA_PROCESANDO' WHERE id = ?`, [trabajoId]);
 
@@ -475,6 +476,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         ia_modelo = gem.modelo;
       } catch (gemErr) {
         console.warn('[fichas-ia] Gemini falló, usando formulario:', gemErr.message);
+        aviso_ia = String(gemErr.message || gemErr).slice(0, 2000);
         contenido = contenidoDesdeFormulario({
           titulo: trabajo.titulo,
           puntosClave,
@@ -483,7 +485,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         });
         await execute(
           `UPDATE fichas_ia_trabajos SET error_mensaje = ? WHERE id = ?`,
-          [`Vanguarcito: ${gemErr.message}. Se usó modo formulario.`, trabajoId]
+          [`Vanguarcito: ${aviso_ia}. Se usó modo formulario.`, trabajoId]
         );
       }
     } else {
@@ -555,7 +557,9 @@ router.post('/trabajos/:id/generar', async (req, res) => {
 
     const actualizado = await cargarTrabajo(req, trabajoId);
     res.json({
-      mensaje: 'Ficha generada correctamente',
+      mensaje: aviso_ia ? 'Ficha generada en modo formulario (Vanguarcito falló)' : 'Ficha generada correctamente',
+      uso_vanguarcito: ia_proveedor === 'google',
+      aviso_ia,
       trabajo: enrichTrabajo(actualizado, req.user.usuario_id),
       preview_url: `/api/fichas-ia/trabajos/${trabajoId}/preview-html`,
       pdf_url: urlUploads(`generados/${pdfFilename}`),
