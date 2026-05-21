@@ -14,6 +14,7 @@ const {
   geminiDisponible,
   estructurarContenidoConGemini,
   contenidoDesdeFormulario,
+  probarConexionVanguarcito,
 } = require('../services/fichasIa/geminiFichaService');
 const { renderFichaHtml } = require('../services/fichasIa/renderFichaHtml');
 const { renderFichaPdfYHtml } = require('../services/fichasIa/renderFichaPdf');
@@ -68,17 +69,31 @@ router.get('/config', async (req, res) => {
        FROM fichas_ia_plantillas WHERE colegio_id = ? AND activo = 1 ORDER BY nombre`,
       [colegio_id]
     );
-    const vanguarcitoOk = geminiDisponible();
+    const tieneClave = geminiDisponible();
+    let verificacion = null;
+    if (req.query.verificar === '1' && tieneClave) {
+      verificacion = await probarConexionVanguarcito();
+    }
     res.json({
-      vanguarcito_disponible: vanguarcitoOk,
-      gemini_configurado: vanguarcitoOk,
+      vanguarcito_disponible: tieneClave && (verificacion ? verificacion.ok : true),
+      gemini_configurado: tieneClave,
+      tiene_clave_servidor: tieneClave,
+      verificacion,
       plantillas: plantillas || [],
-      assets_nota:
-        'Coloque logo-vanguard.png en backend/public/assets/fichas-ia/ para el encabezado.',
     });
   } catch (e) {
     console.error('[fichas-ia/config]', e);
     res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.get('/vanguarcito/probar', async (req, res) => {
+  try {
+    const resultado = await probarConexionVanguarcito();
+    res.json(resultado);
+  } catch (e) {
+    console.error('[fichas-ia/vanguarcito/probar]', e);
+    res.status(500).json({ ok: false, mensaje: e.message || 'Error al probar' });
   }
 });
 
@@ -472,6 +487,15 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         );
       }
     } else {
+      const motivo = !geminiDisponible()
+        ? 'No hay GOOGLE_AI_API_KEY en el servidor (backend/.env).'
+        : !usar_ia
+          ? 'Generación sin Vanguarcito (casilla desmarcada).'
+          : 'Modo sin IA forzado.';
+      await execute(
+        `UPDATE fichas_ia_trabajos SET error_mensaje = ? WHERE id = ?`,
+        [`Modo formulario: ${motivo}`, trabajoId]
+      ).catch(() => {});
       contenido = contenidoDesdeFormulario({
         titulo: trabajo.titulo,
         puntosClave,

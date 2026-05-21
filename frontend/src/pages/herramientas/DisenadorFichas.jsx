@@ -66,7 +66,11 @@ export default function DisenadorFichas() {
   const esAdmin = user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA';
 
   const [loading, setLoading] = useState(true);
-  const [config, setConfig] = useState({ vanguarcito_disponible: false });
+  const [config, setConfig] = useState({
+    vanguarcito_disponible: false,
+    verificacion: null,
+    tiene_clave_servidor: false,
+  });
   const [trabajos, setTrabajos] = useState([]);
   const [opcionesGrupo, setOpcionesGrupo] = useState([]);
   const [cursosGrupo, setCursosGrupo] = useState([]);
@@ -119,13 +123,19 @@ export default function DisenadorFichas() {
     try {
       setLoading(true);
       const [cfg, grupos] = await Promise.all([
-        api.get('/fichas-ia/config'),
+        api.get('/fichas-ia/config', { params: { verificar: '1' } }),
         api.get('/fichas-ia/meta/grupos'),
       ]);
-      setConfig(cfg.data || {});
+      const cfgData = cfg.data || {};
       setOpcionesGrupo(grupos.data?.opciones || []);
-      const vanguarcitoOk = Boolean(cfg.data?.vanguarcito_disponible ?? cfg.data?.gemini_configurado);
-      setConfig((c) => ({ ...c, vanguarcito_disponible: vanguarcitoOk }));
+      const ver = cfgData.verificacion;
+      const vanguarcitoOk = Boolean(
+        cfgData.vanguarcito_disponible ?? (ver?.ok && cfgData.tiene_clave_servidor)
+      );
+      setConfig({
+        ...cfgData,
+        vanguarcito_disponible: vanguarcitoOk,
+      });
       if (!vanguarcitoOk) {
         setForm((f) => ({ ...f, usar_ia: false }));
       }
@@ -353,15 +363,39 @@ export default function DisenadorFichas() {
             Biblioteca de fichas del colegio (teoría + ficha de aplicación). Vanguarcito estructura el contenido;
             la plantilla Vanguard aplica diseño, logo y mascotas.
           </p>
-          {!config.vanguarcito_disponible ? (
+          {!config.tiene_clave_servidor ? (
             <div className="voc-alert">
-              <strong>Vanguarcito no está activo.</strong> Puede crear fichas en modo formulario (sin asistente).
-              Contacte al administrador del sistema para activarlo en el servidor.
+              <strong>Sin clave en el servidor.</strong> El prepago en Google AI Studio no basta: debe agregar{' '}
+              <code>GOOGLE_AI_API_KEY</code> en <code>backend/.env</code> del VPS (clave del proyecto{' '}
+              <em>sistema-intranet</em>) y ejecutar <code>pm2 restart all</code>.
+            </div>
+          ) : config.verificacion && !config.verificacion.ok ? (
+            <div className="voc-alert">
+              <strong>Vanguarcito no conecta.</strong> {config.verificacion.mensaje}
+              {config.verificacion.ayuda && (
+                <>
+                  <br />
+                  <span style={{ fontSize: '0.9em' }}>{config.verificacion.ayuda}</span>
+                </>
+              )}
+              {config.verificacion.clave_sufijo && (
+                <>
+                  <br />
+                  <span style={{ fontSize: '0.85em' }}>Clave en servidor (sufijo): {config.verificacion.clave_sufijo}</span>
+                </>
+              )}
+            </div>
+          ) : config.vanguarcito_disponible ? (
+            <div className="voc-alert" style={{ background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}>
+              Vanguarcito conectado — puede usarlo al crear o regenerar fichas.
+              {config.verificacion?.clave_sufijo && (
+                <span style={{ display: 'block', fontSize: '0.85em', marginTop: 4 }}>
+                  Clave verificada ({config.verificacion.clave_sufijo})
+                </span>
+              )}
             </div>
           ) : (
-            <div className="voc-alert" style={{ background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}>
-              Vanguarcito disponible — puede usarlo al crear o regenerar fichas.
-            </div>
+            <div className="voc-alert">Comprobando Vanguarcito…</div>
           )}
         </header>
 
@@ -456,6 +490,11 @@ export default function DisenadorFichas() {
                               : row.generado_con === 'vanguarcito_parcial'
                                 ? 'Vanguarcito + formulario'
                                 : 'Solo formulario (sin Vanguarcito)'}
+                          </div>
+                        )}
+                        {row.error_mensaje && (
+                          <div className="voc-file-meta" style={{ color: '#b91c1c', maxWidth: 280 }}>
+                            {row.error_mensaje}
                           </div>
                         )}
                       </td>

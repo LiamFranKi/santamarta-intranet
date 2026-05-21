@@ -89,19 +89,35 @@ ${(textoOrigen || '').slice(0, 12000)}
     data = res.data;
   } catch (err) {
     const status = err.response?.status;
+    const googleMsg =
+      err.response?.data?.error?.message ||
+      err.response?.data?.error?.status ||
+      err.message ||
+      'Error desconocido';
     if (status === 429) {
       const e = new Error(
-        'Vanguarcito alcanzó el límite de solicitudes (429). Espere 1–2 minutos o genere la ficha sin Vanguarcito.'
+        `Vanguarcito: límite de solicitudes (429). ${googleMsg}`
       );
       e.code = 'GEMINI_RATE_LIMIT';
       throw e;
     }
     if (status === 403) {
-      const e = new Error('Vanguarcito no está configurado correctamente en el servidor (403).');
+      const e = new Error(
+        `Vanguarcito rechazó la clave o el proyecto (403). ${googleMsg} Verifique que la API key sea del proyecto con prepago (sistema-intranet) y que Generative Language API esté habilitada.`
+      );
       e.code = 'GEMINI_FORBIDDEN';
       throw e;
     }
-    throw err;
+    if (status === 400) {
+      const e = new Error(`Vanguarcito: solicitud inválida (400). ${googleMsg}`);
+      e.code = 'GEMINI_BAD_REQUEST';
+      throw e;
+    }
+    const e = new Error(
+      `Vanguarcito no respondió${status ? ` (${status})` : ''}: ${googleMsg}`
+    );
+    e.code = 'GEMINI_ERROR';
+    throw e;
   }
 
   const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
@@ -274,9 +290,58 @@ function contenidoDesdeFormulario({ titulo, puntosClave, textoOrigen, area }) {
   };
 }
 
+/** Prueba real contra la API (no solo que exista la variable en .env). */
+async function probarConexionVanguarcito() {
+  const key = String(process.env.GOOGLE_AI_API_KEY || '').trim();
+  if (!key) {
+    return {
+      ok: false,
+      codigo: 'SIN_CLAVE',
+      mensaje:
+        'No hay GOOGLE_AI_API_KEY en backend/.env del servidor. El prepago en AI Studio no alcanza: debe pegar la clave ahí y reiniciar pm2.',
+    };
+  }
+  const sufijo = key.length > 8 ? `${key.slice(0, 4)}…${key.slice(-4)}` : '****';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+  try {
+    await axios.post(
+      url,
+      {
+        contents: [{ parts: [{ text: 'Responde solo este JSON: {"prueba":true}' }] }],
+        generationConfig: { maxOutputTokens: 32, responseMimeType: 'application/json' },
+      },
+      { timeout: 45000, headers: { 'Content-Type': 'application/json' } }
+    );
+    return {
+      ok: true,
+      codigo: 'OK',
+      mensaje: 'Vanguarcito respondió correctamente. Puede generar fichas con IA.',
+      modelo: MODEL,
+      clave_sufijo: sufijo,
+    };
+  } catch (err) {
+    const status = err.response?.status;
+    const googleMsg = err.response?.data?.error?.message || err.message || '';
+    return {
+      ok: false,
+      codigo: status ? `HTTP_${status}` : 'ERROR',
+      mensaje: googleMsg || err.message,
+      modelo: MODEL,
+      clave_sufijo: sufijo,
+      ayuda:
+        status === 403
+          ? 'Cree una API key nueva en AI Studio (proyecto sistema-intranet) después del prepago, habilite Generative Language API en Google Cloud y actualice backend/.env.'
+          : status === 429
+            ? 'Espere 1–2 minutos e intente de nuevo.'
+            : 'Revise la clave en el VPS y ejecute pm2 restart all.',
+    };
+  }
+}
+
 module.exports = {
   geminiDisponible,
   estructurarContenidoConGemini,
   contenidoDesdeFormulario,
+  probarConexionVanguarcito,
   MODEL,
 };
