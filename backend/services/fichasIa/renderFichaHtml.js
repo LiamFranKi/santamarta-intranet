@@ -3,6 +3,8 @@ const path = require('path');
 const Handlebars = require('handlebars');
 const { templatesDir, urlAssets, assetsDir } = require('../../utils/fichasIaPaths');
 const { normalizarActividades } = require('./normalizarActividades');
+const { normalizarEjerciciosMatematica } = require('./normalizarEjerciciosMatematica');
+const { esPlantillaMatematica } = require('./estilosFicha');
 
 const DEFAULT_TEMPLATE = 'plantilla-vanguard-default.hbs';
 const MAX_MASCOTAS_FICHA = 3;
@@ -127,6 +129,27 @@ function renderFichaHtml(ctx, archivoPlantilla) {
     mascotaUrl: index === 0 ? urlMascota(mascotas.actividad) : null,
   }));
 
+  const esMatematica =
+    ctx.esMatematica ||
+    esPlantillaMatematica(archivoPlantilla) ||
+    Boolean(aplicacion.ejercicios?.length || ctx.ejercicios_matematicos?.length);
+
+  let ejerciciosMatematicos = [];
+  if (esMatematica) {
+    const rawEj =
+      aplicacion.ejercicios || ctx.ejercicios_matematicos || ctx.contenido?.ejercicios_matematicos || [];
+    ejerciciosMatematicos = normalizarEjerciciosMatematica(rawEj, {
+      titulo: ctx.titulo,
+      grado: ctx.grado,
+    }).map((ej) => {
+      if (ej.tipo === 'completar' && ej.oracion) {
+        const oracionHtml = ej.oracion.replace(/_{2,}|___+/g, '<span class="hueco"></span>');
+        return { ...ej, oracionHtml };
+      }
+      return ej;
+    });
+  }
+
   const subtituloExtra = [subtituloGrado(ctx.grado, ctx.grupoEtiqueta), ctx.area, 'Vanguard Schools', String(ctx.anio || new Date().getFullYear())]
     .filter(Boolean)
     .join(' · ');
@@ -136,6 +159,8 @@ function renderFichaHtml(ctx, archivoPlantilla) {
     teoria: { ...teoria, parrafos },
     aplicacion,
     actividades,
+    ejerciciosMatematicos,
+    esMatematica,
     logoUrl,
     mascotaRecuerdaUrl: urlMascota(mascotas.recuerda),
     tieneLogo: Boolean(logoUrl),

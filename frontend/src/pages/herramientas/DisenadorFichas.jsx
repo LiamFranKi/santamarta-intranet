@@ -48,6 +48,31 @@ function opcionGrupoLabel(o) {
   return `${o.nivel_nombre} — ${o.grado}°${parteSec}`;
 }
 
+const ESTILOS_FICHA_FALLBACK = [
+  {
+    codigo: 'general',
+    nombre: 'General (ciencias, comunicación, personal social…)',
+    descripcion: 'Preguntas, tablas, dibujo y V/F en la misma ficha.',
+  },
+  {
+    codigo: 'matematica',
+    nombre: 'Matemática / Números',
+    descripcion: 'Mínimo 10 ejercicios: operaciones, problemas y completar.',
+  },
+];
+
+const PATRON_MATEMATICA =
+  /matem|n[uú]mer|numeraci|aritm|álgebra|algebra|geometr|razonamiento\s*matem|estad[ií]stica|medida|fracci|decimal|porcentaje/i;
+
+function detectarEstiloPorCurso(nombreCurso) {
+  return PATRON_MATEMATICA.test(String(nombreCurso || '')) ? 'matematica' : 'general';
+}
+
+function etiquetaEstilo(codigo) {
+  const e = ESTILOS_FICHA_FALLBACK.find((x) => x.codigo === codigo);
+  return e?.nombre || (codigo === 'matematica' ? 'Matemática' : 'General');
+}
+
 async function abrirPreviewHtml(id) {
   try {
     const res = await api.get(`/fichas-ia/trabajos/${id}/preview-html`, { responseType: 'text' });
@@ -93,6 +118,7 @@ export default function DisenadorFichas() {
     instrucciones_ia: '',
     puntos_clave: '',
     usar_ia: true,
+    estilo_ficha: 'auto',
   });
   const [archivoPdf, setArchivoPdf] = useState(null);
 
@@ -201,9 +227,19 @@ export default function DisenadorFichas() {
       instrucciones_ia: instrucciones,
       puntos_clave: puntos,
       usar_ia: config.vanguarcito_disponible,
+      estilo_ficha: row?.estilo_ficha || 'auto',
     });
     setModalOpen(true);
   };
+
+  const cursoSeleccionado = cursosGrupo.find((c) => String(c.asignatura_id) === String(form.asignatura_id));
+  const estiloResuelto =
+    form.estilo_ficha === 'auto'
+      ? detectarEstiloPorCurso(cursoSeleccionado?.curso_nombre)
+      : form.estilo_ficha === 'matematica'
+        ? 'matematica'
+        : 'general';
+  const estilosOpciones = config.estilos_ficha?.length ? config.estilos_ficha : ESTILOS_FICHA_FALLBACK;
 
   const guardarYGenerar = async (soloGuardar = false) => {
     if (!form.titulo.trim()) {
@@ -227,6 +263,7 @@ export default function DisenadorFichas() {
           unidad: form.unidad.trim(),
           puntos_clave: form.puntos_clave.trim(),
           instrucciones_ia: form.instrucciones_ia.trim(),
+          estilo_ficha: form.estilo_ficha,
         });
         if (soloGuardar) {
           Swal.fire({ icon: 'success', title: 'Guardado', timer: 1400, showConfirmButton: false });
@@ -242,6 +279,7 @@ export default function DisenadorFichas() {
         fd.append('unidad', form.unidad.trim());
         fd.append('puntos_clave', form.puntos_clave.trim());
         fd.append('instrucciones_ia', form.instrucciones_ia.trim());
+        fd.append('estilo_ficha', form.estilo_ficha || 'auto');
         fd.append('usar_ia', form.usar_ia && config.vanguarcito_disponible ? '1' : '0');
         if (archivoPdf) fd.append('archivo_pdf', archivoPdf);
 
@@ -503,6 +541,7 @@ export default function DisenadorFichas() {
                     <th>Título</th>
                     <th>Grupo</th>
                     <th>Curso</th>
+                    <th>Tipo ficha</th>
                     <th>Estado</th>
                     <th aria-label="Acciones" />
                   </tr>
@@ -533,6 +572,9 @@ export default function DisenadorFichas() {
                         <span className="voc-badge-grado">{row.grupo_display || '—'}</span>
                       </td>
                       <td className="voc-desc">{row.curso_display || '—'}</td>
+                      <td>
+                        <span className="voc-file-meta">{row.tipo_ficha || 'General'}</span>
+                      </td>
                       <td>
                         <span
                           className={`voc-badge-mio ${
@@ -699,6 +741,38 @@ export default function DisenadorFichas() {
                           </option>
                         ))}
                       </select>
+                    </label>
+                    <label className="voc-label-block">
+                      <span className="voc-label-text">Tipo de ficha</span>
+                      <select
+                        className="voc-input voc-select"
+                        value={form.estilo_ficha}
+                        onChange={(e) => setForm((f) => ({ ...f, estilo_ficha: e.target.value }))}
+                      >
+                        <option value="auto">Automático (según curso)</option>
+                        {estilosOpciones.map((e) => (
+                          <option key={e.codigo} value={e.codigo}>
+                            {e.nombre}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="voc-file-hint" style={{ display: 'block', marginTop: 4 }}>
+                        {form.estilo_ficha === 'auto' ? (
+                          form.asignatura_id ? (
+                            <>
+                              Se detectará: <strong>{etiquetaEstilo(estiloResuelto)}</strong>
+                              {estiloResuelto === 'matematica'
+                                ? ' — hoja de aplicación con mínimo 10 ejercicios numéricos.'
+                                : ' — preguntas, dibujo y actividades variadas.'}
+                            </>
+                          ) : (
+                            'Elija un curso para detectar Matemática o General, o seleccione el tipo manualmente.'
+                          )
+                        ) : (
+                          estilosOpciones.find((e) => e.codigo === form.estilo_ficha)?.descripcion ||
+                          'Plantilla fija para esta ficha.'
+                        )}
+                      </span>
                     </label>
                   </div>
                 </div>

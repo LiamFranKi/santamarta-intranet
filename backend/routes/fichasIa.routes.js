@@ -19,7 +19,8 @@ const {
 } = require('../services/fichasIa/geminiFichaService');
 const { renderFichaHtml } = require('../services/fichasIa/renderFichaHtml');
 const { renderFichaPdfYHtml } = require('../services/fichasIa/renderFichaPdf');
-const { ensurePlantillaDefault } = require('../services/fichasIa/ensurePlantillaDefault');
+const { ensurePlantillasColegio, ensurePlantillaPorEstilo } = require('../services/fichasIa/ensurePlantillas');
+const { resolverEstiloFicha, listarEstilosFicha, metaEstilo, esPlantillaMatematica } = require('../services/fichasIa/estilosFicha');
 const {
   listarGruposOpciones,
   listarCursosPorGrupo,
@@ -65,6 +66,7 @@ router.use((req, res, next) => {
 router.get('/config', async (req, res) => {
   try {
     const { colegio_id } = req.user;
+    await ensurePlantillasColegio(colegio_id);
     const plantillas = await query(
       `SELECT id, codigo, nombre, grado, area, archivo_plantilla, version
        FROM fichas_ia_plantillas WHERE colegio_id = ? AND activo = 1 ORDER BY nombre`,
@@ -84,6 +86,7 @@ router.get('/config', async (req, res) => {
       tiene_clave_servidor: tieneClave,
       verificacion,
       plantillas: plantillas || [],
+      estilos_ficha: listarEstilosFicha(),
     });
   } catch (e) {
     console.error('[fichas-ia/config]', e);
@@ -137,10 +140,11 @@ router.get('/trabajos', async (req, res) => {
       SELECT t.id, t.titulo, t.grado, t.area, t.unidad, t.estado, t.origen_tipo,
              t.archivo_generado_nombre, t.ia_proveedor, t.creado_en, t.completado_en,
              t.usuario_id, t.grupo_id, t.asignatura_id, t.grupo_etiqueta, t.error_mensaje,
-             c.nombre AS curso_nombre
+             c.nombre AS curso_nombre, p.codigo AS plantilla_codigo, p.nombre AS plantilla_nombre
       FROM fichas_ia_trabajos t
       LEFT JOIN asignaturas a ON a.id = t.asignatura_id
       LEFT JOIN cursos c ON c.id = a.curso_id
+      LEFT JOIN fichas_ia_plantillas p ON p.id = t.plantilla_id
       WHERE t.colegio_id = ?`;
     const params = [colegio_id];
 
@@ -170,6 +174,7 @@ router.get('/trabajos', async (req, res) => {
           : r.error_mensaje && String(r.error_mensaje).includes('Vanguarcito')
             ? 'vanguarcito_parcial'
             : 'formulario',
+      tipo_ficha: esPlantillaMatematica(r.plantilla_codigo) ? 'Matemática' : 'General',
     }));
     res.json({ data });
   } catch (e) {
@@ -253,6 +258,20 @@ router.put('/trabajos/:id', async (req, res) => {
       await upsertSeccionCustom(trabajoId, 'Instrucciones docente', { instrucciones_ia });
     }
 
+    let cursoNombrePut = null;
+    if (Number.isFinite(asigFinal) && Number.isFinite(grupo_id)) {
+      const cr = await query(
+        `SELECT c.nombre FROM asignaturas a INNER JOIN cursos c ON c.id = a.curso_id WHERE a.id = ? LIMIT 1`,
+        [asigFinal]
+      );
+      cursoNombrePut = cr[0]?.nombre || null;
+    }
+    if (req.body.estilo_ficha != null && req.body.estilo_ficha !== '') {
+      const estilo = resolverEstiloFicha(req.body.estilo_ficha, area, cursoNombrePut);
+      const plantilla_id = await ensurePlantillaPorEstilo(colegio_id, estilo);
+      await execute(`UPDATE fichas_ia_trabajos SET plantilla_id = ? WHERE id = ?`, [plantilla_id, trabajoId]);
+    }
+
     const actualizado = await cargarTrabajo(req, trabajoId, { requierePropiedad: false });
     res.json({ mensaje: 'Ficha actualizada', trabajo: enrichTrabajo(actualizado, req.user.usuario_id) });
   } catch (e) {
@@ -309,7 +328,7 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
     const titulo = String(req.body.titulo || '').trim();
     if (!titulo) return res.status(400).json({ error: 'Indique el título de la ficha' });
 
-    const plantilla_id = await ensurePlantillaDefault(colegio_id);
+    await ensurePlantillasColegio(colegio_id);
     const grupo_id = parseInt(req.body.grupo_id, 10);
     const asignatura_id = parseInt(req.body.asignatura_id, 10);
     if (!Number.isFinite(grupo_id)) {
@@ -330,6 +349,7 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
 
     let area = String(req.body.area || '').trim() || null;
     let curso_id = null;
+    let cursoNombre = null;
     if (Number.isFinite(asignatura_id)) {
       const asigRows = await query(
         `SELECT a.curso_id, c.nombre AS curso_nombre
@@ -339,9 +359,13 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
       );
       if (asigRows.length) {
         curso_id = asigRows[0].curso_id;
-        if (!area) area = asigRows[0].curso_nombre;
+        cursoNombre = asigRows[0].curso_nombre;
+        if (!area) area = cursoNombre;
       }
     }
+
+    const estiloFicha = resolverEstiloFicha(req.body.estilo_ficha, area, cursoNombre);
+    const plantilla_id = await ensurePlantillaPorEstilo(colegio_id, estiloFicha);
 
     const unidad = String(req.body.unidad || '').trim() || '1';
     const puntos_clave = String(req.body.puntos_clave || '').trim();
@@ -456,6 +480,12 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       }
     }
 
+    const plantillaMeta = await query(
+      `SELECT archivo_plantilla, codigo FROM fichas_ia_plantillas WHERE id = ? LIMIT 1`,
+      [trabajo.plantilla_id]
+    );
+    const estiloFicha = esPlantillaMatematica(plantillaMeta[0]?.codigo) ? 'matematica' : 'general';
+
     let contenido;
     let tokens_entrada = null;
     let tokens_salida = null;
@@ -475,6 +505,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
           textoOrigen,
           puntosClave,
           instruccionesDocente,
+          estiloFicha,
         });
         contenido = gem.contenido;
         tokens_entrada = gem.tokens_entrada;
@@ -495,6 +526,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
           puntosClave,
           textoOrigen,
           area: trabajo.area,
+          estiloFicha,
         });
         await execute(
           `UPDATE fichas_ia_trabajos SET error_mensaje = ? WHERE id = ?`,
@@ -516,6 +548,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         puntosClave,
         textoOrigen,
         area: trabajo.area,
+        estiloFicha,
       });
     }
 
@@ -523,11 +556,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
 
     await execute(`UPDATE fichas_ia_trabajos SET estado = 'MAQUETANDO' WHERE id = ?`, [trabajoId]);
 
-    const plantillaRows = await query(
-      `SELECT archivo_plantilla FROM fichas_ia_plantillas WHERE id = ? LIMIT 1`,
-      [trabajo.plantilla_id]
-    );
-    const archivoPlantilla = plantillaRows[0]?.archivo_plantilla;
+    const archivoPlantilla = plantillaMeta[0]?.archivo_plantilla;
 
     const ctx = {
       trabajoId,
@@ -541,6 +570,8 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       intro: contenido.intro,
       recuerda: contenido.recuerda,
       actividades: contenido.actividades,
+      ejercicios_matematicos: contenido.ejercicios_matematicos,
+      esMatematica: estiloFicha === 'matematica',
       pie_motivacional: contenido.pie_motivacional,
       glosario: contenido.glosario,
       ilustraciones: contenido.ilustraciones,
@@ -626,7 +657,7 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
     if (!trabajo) return res.status(404).send('No encontrado');
     const contenido = await contenidoDesdeTrabajo(trabajo.id);
     const plantillaRows = await query(
-      `SELECT archivo_plantilla FROM fichas_ia_plantillas WHERE id = ? LIMIT 1`,
+      `SELECT archivo_plantilla, codigo FROM fichas_ia_plantillas WHERE id = ? LIMIT 1`,
       [trabajo.plantilla_id]
     );
     const html = renderFichaHtml(
@@ -642,6 +673,8 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
         intro: contenido.intro,
         recuerda: contenido.recuerda,
         actividades: contenido.actividades,
+        ejercicios_matematicos: contenido.ejercicios_matematicos,
+        esMatematica: esPlantillaMatematica(plantillaRows[0]?.codigo),
         pie_motivacional: contenido.pie_motivacional,
         glosario: contenido.glosario || contenido.teoria?.glosario,
         ilustraciones: contenido.ilustraciones || contenido.teoria?.ilustraciones,
@@ -675,7 +708,7 @@ router.get('/trabajos/:id/descargar-pdf', async (req, res) => {
 async function cargarTrabajo(req, id, { requierePropiedad = true } = {}) {
   const { colegio_id, usuario_id, tipo } = req.user;
   const rows = await query(
-    `SELECT t.*, p.archivo_plantilla
+    `SELECT t.*, p.archivo_plantilla, p.codigo AS plantilla_codigo
      FROM fichas_ia_trabajos t
      LEFT JOIN fichas_ia_plantillas p ON p.id = t.plantilla_id
      WHERE t.id = ? AND t.colegio_id = ? LIMIT 1`,
@@ -691,8 +724,11 @@ async function cargarTrabajo(req, id, { requierePropiedad = true } = {}) {
 
 function enrichTrabajo(t, usuario_id) {
   if (!t) return t;
+  const estilo = esPlantillaMatematica(t.plantilla_codigo) ? 'matematica' : 'general';
   return {
     ...t,
+    estilo_ficha: estilo,
+    tipo_ficha: metaEstilo(estilo).nombre,
     pdf_url: t.archivo_generado_nombre
       ? urlUploads(`generados/${t.archivo_generado_nombre}`)
       : null,
@@ -729,12 +765,26 @@ async function contenidoDesdeTrabajo(trabajoId) {
       if (j.teoria) contenido.teoria = j.teoria;
       if (j.glosario) contenido.glosario = j.glosario;
       if (j.ilustraciones) contenido.ilustraciones = j.ilustraciones;
+      if (j.ejercicios_matematicos?.length) contenido.ejercicios_matematicos = j.ejercicios_matematicos;
+      if (j.estilo_ficha) contenido.estilo_ficha = j.estilo_ficha;
       if (j.aplicacion_meta) {
         contenido.aplicacion = {
           titulo_seccion: j.aplicacion_meta.titulo_seccion || 'FICHA DE APLICACIÓN',
           instruccion_general: j.aplicacion_meta.instruccion_general || '',
           actividades: [],
+          ejercicios: j.ejercicios_matematicos,
         };
+      }
+    } else if (row.tipo === 'ACTIVIDAD_EJERCICIOS') {
+      contenido.ejercicios_matematicos = j.ejercicios || [];
+      if (!contenido.aplicacion) {
+        contenido.aplicacion = {
+          titulo_seccion: 'FICHA DE APLICACIÓN — MATEMÁTICA',
+          instruccion_general: '',
+          ejercicios: j.ejercicios,
+        };
+      } else {
+        contenido.aplicacion.ejercicios = j.ejercicios;
       }
     } else if (row.tipo === 'RECUERDA') contenido.recuerda = j.items || j.recuerda || [];
     else if (row.tipo === 'PIE_MOTIVACIONAL') contenido.pie_motivacional = j.texto || '';
@@ -749,12 +799,18 @@ async function contenidoDesdeTrabajo(trabajoId) {
   }
   if (!contenido.aplicacion) {
     contenido.aplicacion = {
-      titulo_seccion: 'FICHA DE APLICACIÓN',
+      titulo_seccion: contenido.ejercicios_matematicos?.length
+        ? 'FICHA DE APLICACIÓN — MATEMÁTICA'
+        : 'FICHA DE APLICACIÓN',
       instruccion_general: 'Demuestra lo que aprendiste.',
       actividades: contenido.actividades,
+      ejercicios: contenido.ejercicios_matematicos,
     };
   } else {
     contenido.aplicacion.actividades = contenido.actividades;
+    if (contenido.ejercicios_matematicos?.length) {
+      contenido.aplicacion.ejercicios = contenido.ejercicios_matematicos;
+    }
   }
   if (!contenido.intro && contenido.actividades.length === 0) {
     const introRow = await query(
@@ -815,6 +871,8 @@ async function guardarSeccionesDesdeContenido(trabajoId, contenido) {
               instruccion_general: contenido.aplicacion.instruccion_general,
             }
           : null,
+        ejercicios_matematicos: contenido.ejercicios_matematicos || contenido.aplicacion?.ejercicios || [],
+        estilo_ficha: contenido.estilo_ficha || 'general',
       }),
     ]
   );
@@ -823,6 +881,14 @@ async function guardarSeccionesDesdeContenido(trabajoId, contenido) {
      VALUES (?, ?, 'RECUERDA', 'Recuerda', ?)`,
     [trabajoId, orden++, JSON.stringify({ items: contenido.recuerda })]
   );
+  const ejercicios = contenido.ejercicios_matematicos || contenido.aplicacion?.ejercicios;
+  if (ejercicios?.length) {
+    await execute(
+      `INSERT INTO fichas_ia_trabajo_secciones (trabajo_id, orden, tipo, titulo, contenido_json)
+       VALUES (?, ?, 'ACTIVIDAD_EJERCICIOS', 'Ejercicios matemática', ?)`,
+      [trabajoId, orden++, JSON.stringify({ ejercicios })]
+    );
+  }
   for (const act of contenido.actividades || []) {
     const tipo =
       act.tipo === 'tabla_partes' ? 'ACTIVIDAD_TABLA' : 'ACTIVIDAD_PREGUNTAS';

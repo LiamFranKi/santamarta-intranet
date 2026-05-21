@@ -1,5 +1,7 @@
 const axios = require('axios');
 const { normalizarActividades, sanitizarTextoFicha } = require('./normalizarActividades');
+const { normalizarEjerciciosMatematica } = require('./normalizarEjerciciosMatematica');
+const { esEstiloMatematica } = require('./estilosFicha');
 
 /** Modelos retirados en API nuevas (404). Se sustituyen al probar. */
 const MODELO_SUSTITUTO = {
@@ -99,27 +101,12 @@ function errorGeminiAmigable(err, modelo) {
 /**
  * Pide a Vanguarcito (Gemini) estructurar teoría + ficha de aplicación en JSON.
  */
-async function estructurarContenidoConGemini({
-  titulo,
-  grado,
-  area,
-  unidad,
-  textoOrigen,
-  puntosClave,
-  instruccionesDocente,
-}) {
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
-  if (!apiKey) {
-    const err = new Error('GOOGLE_AI_API_KEY no configurada');
-    err.code = 'GEMINI_NO_CONFIG';
-    throw err;
-  }
-
+function buildPromptGeneral({ titulo, grado, area, unidad, puntosClave, textoOrigen, instruccionesDocente }) {
   const bloqueInstrucciones = instruccionesDocente
     ? `\nInstrucciones del docente (prioridad alta — intégralas sin contradecir el currículo):\n${instruccionesDocente.slice(0, 4000)}\n`
     : '';
 
-  const prompt = `Eres un especialista en didáctica para colegios en Perú (Vanguarcito). Genera SOLO JSON válido (sin markdown).
+  return `Eres un especialista en didáctica para colegios en Perú (Vanguarcito). Genera SOLO JSON válido (sin markdown).
 
 Objetivo: ficha PROFUNDA y pedagógica (como mini capítulo de estudio), no texto genérico ni plantilla vacía.
 
@@ -226,6 +213,107 @@ Texto extraído del PDF de apoyo (puede estar vacío):
 ---
 ${(textoOrigen || '').slice(0, 14000)}
 ---`;
+}
+
+function buildPromptMatematica({ titulo, grado, area, unidad, puntosClave, textoOrigen, instruccionesDocente }) {
+  const bloqueInstrucciones = instruccionesDocente
+    ? `\nInstrucciones del docente:\n${instruccionesDocente.slice(0, 4000)}\n`
+    : '';
+
+  return `Eres especialista en didáctica de MATEMÁTICA para colegios en Perú (Vanguarcito). Genera SOLO JSON válido.
+
+La HOJA 2 es ficha de MATEMÁTICA: mínimo 10 ejercicios numéricos en esta misma ficha (nunca cuaderno ni libreta).
+
+Formato:
+{
+  "teoria": {
+    "titulo_seccion": "Aprendemos: [tema matemático]",
+    "parrafos": ["3-4 párrafos con conceptos, procedimientos y ejemplos numéricos del grado"],
+    "glosario": [{"termino": "Suma", "definicion": "..."}],
+    "recuerda": ["5 reglas o pasos en frases completas"],
+    "ilustraciones": [{"titulo": "...", "descripcion": "...", "emoji": "🔢"}]
+  },
+  "aplicacion": {
+    "titulo_seccion": "FICHA DE APLICACIÓN — MATEMÁTICA",
+    "instruccion_general": "Resuelve en esta hoja. Escribe operaciones y procedimiento cuando corresponda.",
+    "ejercicios": [
+      {
+        "tipo": "operacion",
+        "numero": 1,
+        "enunciado": "Calcula:",
+        "operaciones": ["34 + 27 =", "58 - 19 =", "6 × 4 ="]
+      },
+      {
+        "tipo": "problema",
+        "numero": 5,
+        "texto": "Problema narrado completo (mínimo 2 oraciones) relacionado con el tema; pide mostrar operación en el espacio de la ficha."
+      },
+      {
+        "tipo": "completar",
+        "numero": 8,
+        "oracion": "El doble de 15 es ___."
+      },
+      {
+        "tipo": "verdadero_falso",
+        "numero": 10,
+        "items": [{"enunciado": "Afirmación matemática completa."}]
+      }
+    ]
+  },
+  "pie_motivacional": "frase breve"
+}
+
+Reglas:
+- Mínimo 10 ejercicios con campo "numero" del 1 al 10+; mezcla: operacion (varias líneas), problema (texto completo), completar, verdadero_falso.
+- Operaciones acordes al grado ${grado || ''} y tema "${titulo}" (${area || ''}).
+- Cada problema y pregunta: oración COMPLETA, nunca frases cortadas.
+- PROHIBIDO: cuaderno, libreta, agenda, en casa, otra hoja.
+- Teoría breve pero clara (3-4 párrafos); enfoque matemático del tema.
+${bloqueInstrucciones}
+Título: ${titulo || '—'} | Grado: ${grado || '—'} | Área: ${area || '—'} | Unidad: ${unidad || '—'}
+Puntos clave: ${puntosClave || '—'}
+Texto PDF:
+---
+${(textoOrigen || '').slice(0, 12000)}
+---`;
+}
+
+async function estructurarContenidoConGemini({
+  titulo,
+  grado,
+  area,
+  unidad,
+  textoOrigen,
+  puntosClave,
+  instruccionesDocente,
+  estiloFicha = 'general',
+}) {
+  const apiKey = process.env.GOOGLE_AI_API_KEY;
+  if (!apiKey) {
+    const err = new Error('GOOGLE_AI_API_KEY no configurada');
+    err.code = 'GEMINI_NO_CONFIG';
+    throw err;
+  }
+
+  const prompt = esEstiloMatematica(estiloFicha)
+    ? buildPromptMatematica({
+        titulo,
+        grado,
+        area,
+        unidad,
+        puntosClave,
+        textoOrigen,
+        instruccionesDocente,
+      })
+    : buildPromptGeneral({
+        titulo,
+        grado,
+        area,
+        unidad,
+        puntosClave,
+        textoOrigen,
+        instruccionesDocente,
+      });
 
   const body = {
     contents: [{ parts: [{ text: prompt }] }],
@@ -278,7 +366,7 @@ ${(textoOrigen || '').slice(0, 14000)}
   }
 
   return {
-    contenido: normalizarContenido(parsed),
+    contenido: normalizarContenido(parsed, { estiloFicha, titulo, grado }),
     tokens_entrada: usage.promptTokenCount || null,
     tokens_salida: usage.candidatesTokenCount || null,
     modelo: modeloUsado,
@@ -286,7 +374,7 @@ ${(textoOrigen || '').slice(0, 14000)}
   };
 }
 
-function normalizarContenido(raw) {
+function normalizarContenido(raw, { estiloFicha = 'general', titulo, grado } = {}) {
   let teoria;
   let aplicacion;
 
@@ -318,15 +406,31 @@ function normalizarContenido(raw) {
         ? raw.teoria.recuerda.map((x) => String(x).trim()).filter(Boolean)
         : [],
     };
-    aplicacion = {
-      titulo_seccion: String(raw.aplicacion.titulo_seccion || 'FICHA DE APLICACIÓN').trim(),
-      instruccion_general: sanitizarTextoFicha(
-        raw.aplicacion.instruccion_general ||
-          raw.aplicacion.instruccion ||
-          'Usa lo que leíste en la teoría y responde en esta hoja.'
-      ),
-      actividades: normalizarActividades(raw.aplicacion.actividades),
-    };
+    const ejerciciosRaw = raw.aplicacion.ejercicios;
+    const esMath =
+      esEstiloMatematica(estiloFicha) ||
+      (Array.isArray(ejerciciosRaw) && ejerciciosRaw.length > 0);
+    if (esMath) {
+      const ejercicios = normalizarEjerciciosMatematica(ejerciciosRaw, { titulo, grado });
+      aplicacion = {
+        titulo_seccion: String(raw.aplicacion.titulo_seccion || 'FICHA DE APLICACIÓN — MATEMÁTICA').trim(),
+        instruccion_general: sanitizarTextoFicha(
+          raw.aplicacion.instruccion_general ||
+            'Resuelve en esta hoja. Escribe las operaciones y el procedimiento cuando corresponda.'
+        ),
+        ejercicios,
+      };
+    } else {
+      aplicacion = {
+        titulo_seccion: String(raw.aplicacion.titulo_seccion || 'FICHA DE APLICACIÓN').trim(),
+        instruccion_general: sanitizarTextoFicha(
+          raw.aplicacion.instruccion_general ||
+            raw.aplicacion.instruccion ||
+            'Usa lo que leíste en la teoría y responde en esta hoja.'
+        ),
+        actividades: normalizarActividades(raw.aplicacion.actividades),
+      };
+    }
   } else {
     const intro = String(raw?.intro || '').trim();
     const recuerda = Array.isArray(raw?.recuerda)
@@ -352,9 +456,16 @@ function normalizarContenido(raw) {
   }
 
   const intro = teoria.parrafos.join('\n\n');
-  aplicacion.actividades = normalizarActividades(aplicacion.actividades);
-  const actividades = aplicacion.actividades;
+  let actividades = [];
+  let ejercicios_matematicos = [];
+  if (aplicacion.ejercicios?.length) {
+    ejercicios_matematicos = aplicacion.ejercicios;
+  } else {
+    aplicacion.actividades = normalizarActividades(aplicacion.actividades || []);
+    actividades = aplicacion.actividades;
+  }
   const pie_motivacional = String(raw?.pie_motivacional || '').trim();
+  const estilo_ficha = aplicacion.ejercicios?.length ? 'matematica' : estiloFicha;
 
   return {
     teoria,
@@ -364,6 +475,8 @@ function normalizarContenido(raw) {
     glosario: teoria.glosario || [],
     ilustraciones: teoria.ilustraciones || [],
     actividades,
+    ejercicios_matematicos,
+    estilo_ficha,
     pie_motivacional,
   };
 }
@@ -376,8 +489,56 @@ function pareceInstruccionesDiseno(lineas) {
   return hits >= Math.max(1, Math.ceil(lineas.length * 0.5));
 }
 
+function contenidoDesdeFormularioMatematica({ titulo, puntosClave, textoOrigen, area, grado }) {
+  const bullets = String(puntosClave || '')
+    .split(/\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const tema = titulo || area || 'operaciones numéricas';
+
+  const parrafos = textoOrigen
+    ? [String(textoOrigen).replace(/\s+/g, ' ').trim().slice(0, 900)]
+    : [
+        `En esta unidad trabajamos ${tema}. Repasamos conceptos y procedimientos de ${area || 'matemática'} acordes al grado.`,
+        `Observa los ejemplos, practica con calma y escribe tus operaciones en la ficha de aplicación.`,
+      ];
+
+  const teoria = {
+    titulo_seccion: `Aprendemos: ${tema}`,
+    parrafos,
+    recuerda: bullets.length
+      ? bullets.slice(0, 6)
+      : ['Lee cada enunciado', 'Escribe la operación', 'Revisa tu resultado'],
+    glosario: [],
+    ilustraciones: [{ titulo: 'Operaciones', descripcion: 'Practica sumas, restas y problemas del tema.', emoji: '🔢' }],
+  };
+
+  const ejercicios = normalizarEjerciciosMatematica([], { titulo: tema, grado });
+  const aplicacion = {
+    titulo_seccion: 'FICHA DE APLICACIÓN — MATEMÁTICA',
+    instruccion_general: 'Resuelve todos los ejercicios en esta hoja. Muestra el procedimiento cuando lo pida el enunciado.',
+    ejercicios,
+  };
+
+  return {
+    teoria,
+    aplicacion,
+    intro: parrafos.join('\n\n'),
+    recuerda: teoria.recuerda,
+    glosario: [],
+    ilustraciones: teoria.ilustraciones,
+    actividades: [],
+    ejercicios_matematicos: ejercicios,
+    estilo_ficha: 'matematica',
+    pie_motivacional: '¡La práctica hace al maestro de los números!',
+  };
+}
+
 /** Contenido sin Vanguarcito: teoría breve + aplicación simple. */
-function contenidoDesdeFormulario({ titulo, puntosClave, textoOrigen, area }) {
+function contenidoDesdeFormulario({ titulo, puntosClave, textoOrigen, area, estiloFicha }) {
+  if (esEstiloMatematica(estiloFicha)) {
+    return contenidoDesdeFormularioMatematica({ titulo, puntosClave, textoOrigen, area });
+  }
   const bullets = String(puntosClave || '')
     .split(/\n+/)
     .map((s) => s.trim())
@@ -460,6 +621,8 @@ function contenidoDesdeFormulario({ titulo, puntosClave, textoOrigen, area }) {
     intro: parrafos.join('\n\n'),
     recuerda: recuerdaCurricular,
     actividades: aplicacion.actividades,
+    ejercicios_matematicos: [],
+    estilo_ficha: 'general',
     pie_motivacional: '¡Sigue aprendiendo con esfuerzo y curiosidad!',
   };
 }
