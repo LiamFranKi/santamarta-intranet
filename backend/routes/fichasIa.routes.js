@@ -145,6 +145,12 @@ router.get('/trabajos', async (req, res) => {
       puede_editar: Number(r.usuario_id) === Number(usuario_id),
       grupo_display: r.grupo_etiqueta || (r.grado ? `${r.grado}°` : '—'),
       curso_display: r.curso_nombre || r.area || '—',
+      generado_con:
+        r.ia_proveedor === 'google'
+          ? 'vanguarcito'
+          : r.error_mensaje && String(r.error_mensaje).includes('Vanguarcito')
+            ? 'vanguarcito_parcial'
+            : 'formulario',
     }));
     res.json({ data });
   } catch (e) {
@@ -458,6 +464,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
           titulo: trabajo.titulo,
           puntosClave,
           textoOrigen,
+          area: trabajo.area,
         });
         await execute(
           `UPDATE fichas_ia_trabajos SET error_mensaje = ? WHERE id = ?`,
@@ -469,6 +476,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         titulo: trabajo.titulo,
         puntosClave,
         textoOrigen,
+        area: trabajo.area,
       });
     }
 
@@ -483,6 +491,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
     const archivoPlantilla = plantillaRows[0]?.archivo_plantilla;
 
     const ctx = {
+      trabajoId,
       titulo: trabajo.titulo,
       grado: trabajo.grado || '',
       area: trabajo.area || 'Área curricular',
@@ -550,6 +559,7 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
     );
     const html = renderFichaHtml(
       {
+        trabajoId: trabajo.id,
         titulo: trabajo.titulo,
         grado: trabajo.grado || '',
         area: trabajo.area || '',

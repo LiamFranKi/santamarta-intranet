@@ -37,7 +37,10 @@ async function estructurarContenidoConGemini({ titulo, grado, area, unidad, text
   ],
   "pie_motivacional": "frase corta motivacional sobre el tema"
 }
-Reglas: español de Perú, máximo 4 actividades, adecuado al grado indicado, no inventar datos científicos falsos, si el texto origen es pobre usa los puntos clave.
+Reglas: español de Perú, máximo 4 actividades, adecuado al grado indicado, no inventar datos científicos falsos.
+Los "puntos clave" deben ser contenido CURRICULAR del tema (ej. plantas, fotosíntesis), NO instrucciones de diseño gráfico (colores, tipografía, imágenes realistas).
+Si los puntos clave parecen pedidos de maquetación, ignóralos y genera contenido pedagógico del título y área.
+El intro debe ser un párrafo claro de 4-8 líneas, no una sola palabra repetida.
 
 Datos del formulario:
 - Título: ${titulo || 'Sin título'}
@@ -120,25 +123,60 @@ function normalizarContenido(raw) {
   return { intro, recuerda, actividades, pie_motivacional };
 }
 
-/** Contenido mínimo sin IA (formulario + puntos clave). */
-function contenidoDesdeFormulario({ titulo, puntosClave, textoOrigen }) {
+function pareceInstruccionesDiseno(lineas) {
+  if (!lineas.length) return false;
+  const patron =
+    /pasteles?|tipograf|letra\s+que|im[aá]gen(es)?\s+real|colores?\s|diseño|maquet|formato\s+visual|realistas?/i;
+  const hits = lineas.filter((l) => patron.test(l)).length;
+  return hits >= Math.max(1, Math.ceil(lineas.length * 0.5));
+}
+
+/** Contenido mínimo sin Vanguarcito (formulario + puntos clave). */
+function contenidoDesdeFormulario({ titulo, puntosClave, textoOrigen, area }) {
   const bullets = String(puntosClave || '')
     .split(/\n+/)
     .map((s) => s.trim())
     .filter(Boolean);
+  const esDiseno = pareceInstruccionesDiseno(bullets);
+  const tema = titulo || area || 'el tema de la unidad';
+
   const intro =
-    String(textoOrigen || '').slice(0, 600) ||
-    `En esta ficha trabajaremos el tema: ${titulo || 'tema del aula'}.`;
+    String(textoOrigen || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 900) ||
+    `En esta ficha conoceremos ${tema}. Lee con atención, observa los ejemplos y responde las actividades en tu cuaderno. Tu docente te guiará en el aula.`;
+
+  const recuerdaCurricular = esDiseno
+    ? [
+        `Identifica las ideas principales sobre ${tema}`,
+        'Lee cada pregunta antes de responder',
+        'Usa tus propias palabras y ejemplos del aula',
+      ]
+    : bullets.slice(0, 5);
+
+  const preguntas = esDiseno
+    ? [
+        `¿Qué aprendiste sobre ${tema}?`,
+        '¿Por qué es importante este tema en tu vida y en el medio ambiente?',
+        'Menciona un ejemplo que hayas visto en clase o en tu entorno.',
+      ]
+    : bullets.length
+      ? bullets.slice(0, 3).map((b) => `Explica con tus palabras: ${b}`)
+      : [
+          `¿Qué aprendiste sobre ${tema}?`,
+          '¿Por qué es importante este tema?',
+          'Da un ejemplo relacionado con lo leído.',
+        ];
+
   return {
     intro,
-    recuerda: bullets.length ? bullets.slice(0, 5) : ['Lee con atención', 'Responde en tu cuaderno', 'Consulta a tu docente si tienes dudas'],
+    recuerda: recuerdaCurricular,
     actividades: [
       {
         tipo: 'preguntas',
         titulo: '1. Responde según lo leído',
-        preguntas: bullets.length
-          ? bullets.slice(0, 3).map((b, i) => `Explica con tus palabras: ${b}`)
-          : ['¿Qué aprendiste hoy?', '¿Por qué es importante este tema?'],
+        preguntas,
       },
     ],
     pie_motivacional: '¡Sigue aprendiendo con esfuerzo y curiosidad!',

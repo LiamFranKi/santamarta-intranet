@@ -13,15 +13,17 @@
     .subtitulo { margin: 4px 0 0; font-size: 11px; color: #6b7280; }
     .logo { max-height: 48px; max-width: 120px; object-fit: contain; }
     .logo-text { font-weight: 800; color: #1d4ed8; font-size: 14px; text-align: right; }
-    .intro-row { display: grid; grid-template-columns: 1fr 280px; gap: 14px; margin-bottom: 16px; align-items: start; }
-    .intro-main { display: flex; gap: 10px; align-items: flex-end; }
-    .intro-text { flex: 1; font-size: 12px; line-height: 1.5; background: #f0fdf4; border-radius: 8px; padding: 12px; border: 1px solid #bbf7d0; }
-    .intro-mascotas { display: flex; gap: 6px; flex-shrink: 0; align-items: flex-end; }
-    .intro-mascotas .mascota { height: 88px; width: auto; max-width: 72px; object-fit: contain; }
-    .recuerda { background: #eff6ff; border: 2px solid #93c5fd; border-radius: 10px; padding: 10px 12px; }
-    .recuerda h3 { margin: 0 0 8px; font-size: 13px; color: #1d4ed8; display: flex; align-items: center; gap: 6px; }
-    .recuerda ul { margin: 0; padding-left: 18px; font-size: 11px; color: #1e3a8a; }
-    .actividad { margin-bottom: 14px; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; }
+    .intro-row { display: grid; grid-template-columns: 1fr 240px; gap: 16px; margin-bottom: 16px; align-items: start; }
+    .intro-block { position: relative; min-height: 80px; padding-right: 88px; }
+    .intro-text { font-size: 12px; line-height: 1.55; background: #f0fdf4; border-radius: 8px; padding: 12px 14px; border: 1px solid #bbf7d0; text-align: justify; }
+    .mascota-flotante { position: absolute; right: 4px; bottom: 0; height: 76px; width: auto; max-width: 80px; object-fit: contain; pointer-events: none; }
+    .recuerda { position: relative; background: #eff6ff; border: 2px solid #93c5fd; border-radius: 10px; padding: 10px 12px 10px 12px; min-height: 100px; }
+    .recuerda .mascota-flotante { right: 6px; bottom: 6px; height: 64px; max-width: 68px; }
+    .recuerda h3 { margin: 0 0 8px; font-size: 13px; color: #1d4ed8; padding-right: 72px; }
+    .recuerda ul { margin: 0; padding-left: 18px; font-size: 11px; color: #1e3a8a; padding-right: 70px; }
+    .actividad { position: relative; margin-bottom: 14px; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; }
+    .actividad.con-mascota { padding-right: 96px; min-height: 72px; }
+    .actividad .mascota-flotante { top: 10px; bottom: auto; right: 10px; height: 68px; max-width: 72px; }
     .actividad h4 { margin: 0 0 8px; color: #047857; font-size: 13px; }
     .actividad p.inst { margin: 0 0 8px; font-size: 11px; color: #6b7280; }
     table { width: 100%; border-collapse: collapse; font-size: 11px; }
@@ -30,7 +32,7 @@
     .pregunta { margin: 8px 0; font-size: 11px; }
     .linea-resp { border-bottom: 1px solid #9ca3af; height: 18px; margin-top: 4px; }
     .pie { margin-top: 16px; text-align: center; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 10px; font-size: 12px; font-weight: 600; color: #92400e; }
-    .footer-meta { margin-top: 12px; display: flex; justify-content: space-between; font-size: 10px; color: #6b7280; }
+    .footer-meta { margin-top: 12px; display: flex; justify-content: space-between; font-size: 10px; color: #6b7280; flex-wrap: wrap; gap: 6px; }
     @media print { body { background: #fff; } .sheet { border: none; } }
   </style>
 </head>
@@ -48,15 +50,9 @@
     </div>
 
     <div class="intro-row">
-      <div class="intro-main">
+      <div class="intro-block">
         <div class="intro-text">{{intro}}</div>
-        {{#if mascotas.length}}
-        <div class="intro-mascotas" aria-hidden="true">
-          {{#each mascotas}}
-          <img class="mascota" src="{{url}}" alt="" />
-          {{/each}}
-        </div>
-        {{/if}}
+        {{#if mascotaIntroUrl}}<img class="mascota-flotante" src="{{mascotaIntroUrl}}" alt="" />{{/if}}
       </div>
       <div class="recuerda">
         <h3>💡 RECUERDA</h3>
@@ -65,13 +61,15 @@
           <li>{{this}}</li>
           {{/each}}
         </ul>
+        {{#if mascotaRecuerdaUrl}}<img class="mascota-flotante" src="{{mascotaRecuerdaUrl}}" alt="" />{{/if}}
       </div>
     </div>
 
     {{#each actividades}}
-    <div class="actividad">
+    <div class="actividad{{#if mascotaUrl}} con-mascota{{/if}}">
       <h4>{{titulo}}</h4>
       {{#if instruccion}}<p class="inst">{{instruccion}}</p>{{/if}}
+      {{#if mascotaUrl}}<img class="mascota-flotante" src="{{mascotaUrl}}" alt="" />{{/if}}
       {{#if (eq tipo "tabla_partes")}}
       <table>
         <thead>

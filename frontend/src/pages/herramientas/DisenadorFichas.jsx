@@ -449,6 +449,15 @@ export default function DisenadorFichas() {
                       <td>
                         <div className="voc-titulo">{row.titulo}</div>
                         {row.unidad && <div className="voc-file-meta">Unidad {row.unidad}</div>}
+                        {row.estado === 'LISTO' && (
+                          <div className="voc-file-meta">
+                            {row.generado_con === 'vanguarcito'
+                              ? 'Con Vanguarcito'
+                              : row.generado_con === 'vanguarcito_parcial'
+                                ? 'Vanguarcito + formulario'
+                                : 'Solo formulario (sin Vanguarcito)'}
+                          </div>
+                        )}
                       </td>
                       <td>
                         <span className="voc-badge-grado">{row.grupo_display || '—'}</span>
@@ -648,14 +657,17 @@ export default function DisenadorFichas() {
                 </div>
 
                 <label className="voc-label-block">
-                  <span className="voc-label-text">Puntos clave (uno por línea)</span>
+                  <span className="voc-label-text">Puntos clave del tema (uno por línea)</span>
                   <textarea
                     className="voc-input voc-textarea"
                     rows={4}
                     value={form.puntos_clave}
                     onChange={(e) => setForm((f) => ({ ...f, puntos_clave: e.target.value }))}
-                    placeholder={'Oxigenan el planeta\nBase de la cadena alimenticia'}
+                    placeholder={'Las plantas producen oxígeno\nSon base de la cadena alimenticia\nTipos: raíz, tallo, hoja'}
                   />
+                  <span className="voc-file-hint" style={{ display: 'block', marginTop: 4 }}>
+                    Contenido curricular del tema, no instrucciones de diseño (colores, tipografía, etc.).
+                  </span>
                 </label>
 
                 {!editItem && (
