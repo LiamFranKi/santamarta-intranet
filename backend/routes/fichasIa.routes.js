@@ -494,6 +494,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       trabajoId,
       titulo: trabajo.titulo,
       grado: trabajo.grado || '',
+      grupoEtiqueta: trabajo.grupo_etiqueta || '',
       area: trabajo.area || 'Área curricular',
       unidad: trabajo.unidad || '1',
       intro: contenido.intro,
@@ -501,6 +502,8 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       actividades: contenido.actividades,
       pie_motivacional: contenido.pie_motivacional,
       contenido,
+      usoVanguarcito: ia_proveedor === 'google',
+      inlineAssets: true,
     };
 
     const { pdfFilename } = await renderFichaPdfYHtml(ctx, archivoPlantilla, trabajoId);
@@ -562,12 +565,15 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
         trabajoId: trabajo.id,
         titulo: trabajo.titulo,
         grado: trabajo.grado || '',
+        grupoEtiqueta: trabajo.grupo_etiqueta || '',
         area: trabajo.area || '',
         unidad: trabajo.unidad || '1',
         intro: contenido.intro,
         recuerda: contenido.recuerda,
         actividades: contenido.actividades,
         pie_motivacional: contenido.pie_motivacional,
+        usoVanguarcito: trabajo.ia_proveedor === 'google',
+        inlineAssets: true,
       },
       plantillaRows[0]?.archivo_plantilla
     );

@@ -11,11 +11,15 @@ if (!Handlebars.helpers.eq) {
   Handlebars.registerHelper('add', (a, b) => Number(a) + Number(b));
 }
 
-function assetUrl(filename) {
+function assetSrc(filename, inlineAssets) {
   if (!filename) return null;
   const full = path.join(assetsDir, filename);
-  if (fs.existsSync(full)) return urlAssets(filename);
-  return null;
+  if (!fs.existsSync(full)) return null;
+  if (inlineAssets) {
+    const buf = fs.readFileSync(full);
+    return `data:image/png;base64,${buf.toString('base64')}`;
+  }
+  return urlAssets(filename);
 }
 
 function listMascotaAssets() {
@@ -24,11 +28,10 @@ function listMascotaAssets() {
     .readdirSync(assetsDir)
     .filter((f) => /\.png$/i.test(f) && /^(avatar-|mascota-)/i.test(f))
     .sort((a, b) => a.localeCompare(b, 'es'))
-    .map((f) => ({ archivo: f, url: assetUrl(f) }))
+    .map((f) => ({ archivo: f, url: urlAssets(f) }))
     .filter((x) => x.url);
 }
 
-/** Máx. 3 mascotas repartidas en intro, recuerda y primera actividad (no todas en fila). */
 function seleccionarMascotasParaFicha(trabajoId) {
   const all = listMascotaAssets();
   if (!all.length) return { intro: null, recuerda: null, actividad: null };
@@ -71,29 +74,42 @@ function loadTemplate(archivoPlantilla) {
   return Handlebars.compile(fs.readFileSync(filePath, 'utf8'));
 }
 
+function subtituloGrado(grado, grupoEtiqueta) {
+  if (grupoEtiqueta) return grupoEtiqueta;
+  if (grado) return `${grado}.º grado`;
+  return '';
+}
+
 /**
- * @param {object} ctx — titulo, grado, area, unidad, actividades, trabajoId opcional
+ * @param {object} ctx — titulo, actividades, trabajoId, usoVanguarcito, inlineAssets, grupoEtiqueta
  */
 function renderFichaHtml(ctx, archivoPlantilla) {
   const compile = loadTemplate(archivoPlantilla);
-  const logoUrl = assetUrl('logo-vanguard.png');
-  const iconoRecuerda = assetUrl('icono-recuerda.png');
+  const inline = ctx.inlineAssets !== false;
+  const logoUrl = assetSrc('logo-vanguard.png', inline);
   const mascotas = seleccionarMascotasParaFicha(ctx.trabajoId);
+
+  const urlMascota = (m) => (m?.archivo ? assetSrc(m.archivo, inline) : null);
 
   const actividades = (ctx.actividades || []).map((act, index) => ({
     ...act,
-    mascotaUrl: index === 0 && mascotas.actividad ? mascotas.actividad.url : null,
+    mascotaUrl: index === 0 ? urlMascota(mascotas.actividad) : null,
   }));
+
+  const subtituloExtra = [subtituloGrado(ctx.grado, ctx.grupoEtiqueta), ctx.area, 'Vanguard Schools', String(ctx.anio || new Date().getFullYear())]
+    .filter(Boolean)
+    .join(' · ');
 
   return compile({
     ...ctx,
     actividades,
     logoUrl,
-    mascotaIntroUrl: mascotas.intro?.url || null,
-    mascotaRecuerdaUrl: mascotas.recuerda?.url || null,
-    iconoRecuerda,
+    mascotaIntroUrl: urlMascota(mascotas.intro),
+    mascotaRecuerdaUrl: urlMascota(mascotas.recuerda),
     tieneLogo: Boolean(logoUrl),
-    anio: new Date().getFullYear(),
+    subtituloLinea: subtituloExtra,
+    usoVanguarcito: Boolean(ctx.usoVanguarcito),
+    anio: ctx.anio || new Date().getFullYear(),
   });
 }
 
