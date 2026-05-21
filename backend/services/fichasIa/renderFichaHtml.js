@@ -17,6 +17,17 @@ function assetUrl(filename) {
   return null;
 }
 
+/** PNG en public/assets/fichas-ia: avatar-*.png, mascota-*.png (biblioteca visual fija) */
+function listMascotaAssets() {
+  if (!fs.existsSync(assetsDir)) return [];
+  return fs
+    .readdirSync(assetsDir)
+    .filter((f) => /\.png$/i.test(f) && /^(avatar-|mascota-)/i.test(f))
+    .sort((a, b) => a.localeCompare(b, 'es'))
+    .map((f) => ({ archivo: f, url: assetUrl(f) }))
+    .filter((x) => x.url);
+}
+
 function loadTemplate(archivoPlantilla) {
   const name = archivoPlantilla || DEFAULT_TEMPLATE;
   const filePath = path.join(templatesDir, name);
@@ -32,15 +43,13 @@ function loadTemplate(archivoPlantilla) {
 function renderFichaHtml(ctx, archivoPlantilla) {
   const compile = loadTemplate(archivoPlantilla);
   const logoUrl = assetUrl('logo-vanguard.png');
-  const avatarNino = assetUrl('avatar-nino.png');
-  const avatarNina = assetUrl('avatar-nina.png');
+  const mascotas = listMascotaAssets();
   const iconoRecuerda = assetUrl('icono-recuerda.png');
 
   return compile({
     ...ctx,
     logoUrl,
-    avatarNino,
-    avatarNina,
+    mascotas,
     iconoRecuerda,
     tieneLogo: Boolean(logoUrl),
     anio: new Date().getFullYear(),

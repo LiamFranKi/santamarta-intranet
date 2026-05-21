@@ -13,8 +13,11 @@
     .subtitulo { margin: 4px 0 0; font-size: 11px; color: #6b7280; }
     .logo { max-height: 48px; max-width: 120px; object-fit: contain; }
     .logo-text { font-weight: 800; color: #1d4ed8; font-size: 14px; text-align: right; }
-    .intro-row { display: grid; grid-template-columns: 1fr 280px; gap: 14px; margin-bottom: 16px; }
-    .intro-text { font-size: 12px; line-height: 1.5; background: #f0fdf4; border-radius: 8px; padding: 12px; border: 1px solid #bbf7d0; }
+    .intro-row { display: grid; grid-template-columns: 1fr 280px; gap: 14px; margin-bottom: 16px; align-items: start; }
+    .intro-main { display: flex; gap: 10px; align-items: flex-end; }
+    .intro-text { flex: 1; font-size: 12px; line-height: 1.5; background: #f0fdf4; border-radius: 8px; padding: 12px; border: 1px solid #bbf7d0; }
+    .intro-mascotas { display: flex; gap: 6px; flex-shrink: 0; align-items: flex-end; }
+    .intro-mascotas .mascota { height: 88px; width: auto; max-width: 72px; object-fit: contain; }
     .recuerda { background: #eff6ff; border: 2px solid #93c5fd; border-radius: 10px; padding: 10px 12px; }
     .recuerda h3 { margin: 0 0 8px; font-size: 13px; color: #1d4ed8; display: flex; align-items: center; gap: 6px; }
     .recuerda ul { margin: 0; padding-left: 18px; font-size: 11px; color: #1e3a8a; }
@@ -45,7 +48,16 @@
     </div>
 
     <div class="intro-row">
-      <div class="intro-text">{{intro}}</div>
+      <div class="intro-main">
+        <div class="intro-text">{{intro}}</div>
+        {{#if mascotas.length}}
+        <div class="intro-mascotas" aria-hidden="true">
+          {{#each mascotas}}
+          <img class="mascota" src="{{url}}" alt="" />
+          {{/each}}
+        </div>
+        {{/if}}
+      </div>
       <div class="recuerda">
         <h3>💡 RECUERDA</h3>
         <ul>

@@ -1,257 +1,690 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import DashboardLayout from '../../components/DashboardLayout';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
-import '../../pages/admin/AdminUsuarios.css';
-import './DisenadorFichas.css';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import PictureAsPdfOutlinedIcon from '@mui/icons-material/PictureAsPdfOutlined';
+import AutoStoriesOutlinedIcon from '@mui/icons-material/AutoStoriesOutlined';
+import GroupsOutlinedIcon from '@mui/icons-material/GroupsOutlined';
+import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import '../VocabulariosPage.css';
 
 const ESTADO_LABEL = {
   BORRADOR: 'Borrador',
   EXTRAYENDO: 'Extrayendo PDF…',
-  IA_PROCESANDO: 'Procesando con IA…',
-  MAQUETANDO: 'Generando diseño…',
+  IA_PROCESANDO: 'IA…',
+  MAQUETANDO: 'Maquetando…',
   LISTO: 'Listo',
   ERROR: 'Error',
   PUBLICADO: 'Publicado',
   CANCELADO: 'Cancelado',
 };
 
+function formatFecha(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
+  return d.toLocaleDateString('es-PE', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function opcionGrupoLabel(o) {
+  const sec = (o.seccion || '').trim();
+  const parteSec = sec ? ` · Sec. ${sec}` : '';
+  return `${o.nivel_nombre} — ${o.grado}°${parteSec}`;
+}
+
+function previewUrl(id) {
+  const base = (api.defaults.baseURL || '').replace(/\/api\/?$/, '') || window.location.origin;
+  return `${base}/api/fichas-ia/trabajos/${id}/preview-html`;
+}
+
 export default function DisenadorFichas() {
-  const [config, setConfig] = useState({ gemini_configurado: false, plantillas: [] });
-  const [trabajos, setTrabajos] = useState([]);
+  const { user } = useAuth();
+  const esAdmin = user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA';
+
   const [loading, setLoading] = useState(true);
+  const [config, setConfig] = useState({ gemini_configurado: false });
+  const [trabajos, setTrabajos] = useState([]);
+  const [opcionesGrupo, setOpcionesGrupo] = useState([]);
+  const [cursosGrupo, setCursosGrupo] = useState([]);
+  const [cursosFiltro, setCursosFiltro] = useState([]);
+
+  const [filtroGrupoId, setFiltroGrupoId] = useState('');
+  const [filtroAsignaturaId, setFiltroAsignaturaId] = useState('');
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editItem, setEditItem] = useState(null);
   const [generando, setGenerando] = useState(false);
-
-  const [titulo, setTitulo] = useState('');
-  const [grado, setGrado] = useState('4');
-  const [area, setArea] = useState('CIENCIA Y TECNOLOGÍA');
-  const [unidad, setUnidad] = useState('1');
-  const [puntosClave, setPuntosClave] = useState('');
+  const [form, setForm] = useState({
+    grupo_id: '',
+    asignatura_id: '',
+    titulo: '',
+    unidad: '1',
+    puntos_clave: '',
+    usar_ia: true,
+  });
   const [archivoPdf, setArchivoPdf] = useState(null);
-  const [usarIa, setUsarIa] = useState(true);
 
-  const cargar = useCallback(async () => {
-    setLoading(true);
+  const puedeEditarFila = (row) => Boolean(row.puede_editar) || esAdmin;
+
+  const cargarCursos = useCallback(async (grupoId, destino) => {
+    if (!grupoId) {
+      if (destino === 'form') setCursosGrupo([]);
+      else setCursosFiltro([]);
+      return;
+    }
     try {
-      const [cfg, list] = await Promise.all([
+      const res = await api.get(`/fichas-ia/meta/grupos/${grupoId}/cursos`);
+      const list = res.data.cursos || [];
+      if (destino === 'form') setCursosGrupo(list);
+      else setCursosFiltro(list);
+    } catch {
+      if (destino === 'form') setCursosGrupo([]);
+      else setCursosFiltro([]);
+    }
+  }, []);
+
+  const cargarTrabajos = useCallback(async () => {
+    const params = {};
+    if (filtroGrupoId) params.grupo_id = filtroGrupoId;
+    if (filtroAsignaturaId) params.asignatura_id = filtroAsignaturaId;
+    const res = await api.get('/fichas-ia/trabajos', { params });
+    setTrabajos(res.data?.data || []);
+  }, [filtroGrupoId, filtroAsignaturaId]);
+
+  const refrescar = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [cfg, grupos] = await Promise.all([
         api.get('/fichas-ia/config'),
-        api.get('/fichas-ia/trabajos'),
+        api.get('/fichas-ia/meta/grupos'),
       ]);
       setConfig(cfg.data || {});
-      setTrabajos(list.data?.data || []);
-      if (!cfg.data?.gemini_configurado) setUsarIa(false);
+      setOpcionesGrupo(grupos.data?.opciones || []);
+      if (!cfg.data?.gemini_configurado) {
+        setForm((f) => ({ ...f, usar_ia: false }));
+      }
+      await cargarTrabajos();
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error || 'No se pudo cargar el módulo', 'error');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [cargarTrabajos]);
 
   useEffect(() => {
-    cargar();
-  }, [cargar]);
+    refrescar();
+  }, [refrescar]);
 
-  const crearYGenerar = async (e) => {
-    e.preventDefault();
-    if (!titulo.trim()) {
-      Swal.fire('Datos incompletos', 'Indique el título de la ficha', 'warning');
+  useEffect(() => {
+    cargarCursos(filtroGrupoId, 'filtro');
+    setFiltroAsignaturaId('');
+  }, [filtroGrupoId, cargarCursos]);
+
+  useEffect(() => {
+    if (modalOpen && form.grupo_id) {
+      cargarCursos(form.grupo_id, 'form');
+    }
+  }, [modalOpen, form.grupo_id, cargarCursos]);
+
+  useEffect(() => {
+    if (loading) return;
+    cargarTrabajos().catch(() => {});
+  }, [filtroGrupoId, filtroAsignaturaId, loading, cargarTrabajos]);
+
+  const abrirModal = async (row = null) => {
+    setEditItem(row);
+    setArchivoPdf(null);
+    let puntos = '';
+    if (row?.id) {
+      try {
+        const det = await api.get(`/fichas-ia/trabajos/${row.id}`);
+        const sec = (det.data?.secciones || []).find((s) => s.titulo === 'Puntos clave');
+        if (sec?.contenido_json) {
+          const j = JSON.parse(sec.contenido_json);
+          puntos = j.puntos_clave || '';
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    setForm({
+      grupo_id: row?.grupo_id ? String(row.grupo_id) : opcionesGrupo[0] ? String(opcionesGrupo[0].grupo_id) : '',
+      asignatura_id: row?.asignatura_id ? String(row.asignatura_id) : '',
+      titulo: row?.titulo || '',
+      unidad: row?.unidad || '1',
+      puntos_clave: puntos,
+      usar_ia: config.gemini_configurado,
+    });
+    setModalOpen(true);
+  };
+
+  const guardarYGenerar = async (soloGuardar = false) => {
+    if (!form.titulo.trim()) {
+      Swal.fire({ icon: 'warning', title: 'Indique el título de la ficha' });
       return;
     }
+    if (!form.grupo_id) {
+      Swal.fire({ icon: 'warning', title: 'Elija el grupo (nivel, grado y sección)' });
+      return;
+    }
+
     setGenerando(true);
     try {
-      const fd = new FormData();
-      fd.append('titulo', titulo.trim());
-      fd.append('grado', grado.trim());
-      fd.append('area', area.trim());
-      fd.append('unidad', unidad.trim());
-      fd.append('puntos_clave', puntosClave.trim());
-      fd.append('usar_ia', usarIa && config.gemini_configurado ? '1' : '0');
-      if (archivoPdf) fd.append('archivo_pdf', archivoPdf);
+      let trabajoId = editItem?.id;
 
-      const { data: creado } = await api.post('/fichas-ia/trabajos', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      if (editItem) {
+        await api.put(`/fichas-ia/trabajos/${editItem.id}`, {
+          titulo: form.titulo.trim(),
+          grupo_id: form.grupo_id,
+          asignatura_id: form.asignatura_id || '',
+          unidad: form.unidad.trim(),
+          puntos_clave: form.puntos_clave.trim(),
+        });
+        if (soloGuardar) {
+          Swal.fire({ icon: 'success', title: 'Guardado', timer: 1400, showConfirmButton: false });
+          setModalOpen(false);
+          await cargarTrabajos();
+          return;
+        }
+      } else {
+        const fd = new FormData();
+        fd.append('titulo', form.titulo.trim());
+        fd.append('grupo_id', form.grupo_id);
+        if (form.asignatura_id) fd.append('asignatura_id', form.asignatura_id);
+        fd.append('unidad', form.unidad.trim());
+        fd.append('puntos_clave', form.puntos_clave.trim());
+        fd.append('usar_ia', form.usar_ia && config.gemini_configurado ? '1' : '0');
+        if (archivoPdf) fd.append('archivo_pdf', archivoPdf);
 
-      const trabajoId = creado.trabajo_id;
+        const { data: creado } = await api.post('/fichas-ia/trabajos', fd, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        trabajoId = creado.trabajo_id;
+      }
+
       Swal.fire({
         title: 'Generando ficha…',
-        html: usarIa && config.gemini_configurado
-          ? 'Extrayendo texto y estructurando con Gemini.'
-          : 'Maquetando sin IA (modo formulario).',
+        html:
+          form.usar_ia && config.gemini_configurado
+            ? 'Estructurando contenido y maquetando PDF.'
+            : 'Maquetando sin IA (modo formulario).',
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading(),
       });
 
-      const { data: gen } = await api.post(`/fichas-ia/trabajos/${trabajoId}/generar`, {
-        usar_ia: usarIa && config.gemini_configurado,
+      await api.post(`/fichas-ia/trabajos/${trabajoId}/generar`, {
+        usar_ia: form.usar_ia && config.gemini_configurado,
       });
 
       Swal.close();
-      await cargar();
-
-      const previewPath = gen.preview_url || `/api/fichas-ia/trabajos/${trabajoId}/preview-html`;
-      const base = (api.defaults.baseURL || '').replace(/\/api\/?$/, '') || window.location.origin;
-      const previewFull = previewPath.startsWith('http') ? previewPath : `${base}${previewPath}`;
+      setModalOpen(false);
+      await cargarTrabajos();
 
       await Swal.fire({
         icon: 'success',
         title: 'Ficha lista',
-        html: `<p>Ya puede ver la vista previa o descargar el PDF.</p>`,
         showCancelButton: true,
         confirmButtonText: 'Vista previa',
         cancelButtonText: 'Cerrar',
       }).then((r) => {
-        if (r.isConfirmed) window.open(previewFull, '_blank', 'noopener,noreferrer');
+        if (r.isConfirmed) window.open(previewUrl(trabajoId), '_blank', 'noopener,noreferrer');
       });
-
-      if (gen.pdf_url) window.open(gen.pdf_url, '_blank', 'noopener,noreferrer');
     } catch (err) {
       Swal.close();
-      const det = err.response?.data?.error || err.message || 'No se pudo generar';
+      const det = err.response?.data?.error || err.message || 'No se pudo completar';
       Swal.fire({
         icon: 'error',
         title: 'No se pudo generar la ficha',
         text:
           det.includes('429') || det.includes('límite')
-            ? `${det} Puede desmarcar «Usar IA» y volver a intentar; la ficha se generará con el formulario.`
+            ? `${det} Puede desmarcar «Usar IA» e intentar de nuevo.`
             : det,
       });
+      await cargarTrabajos();
     } finally {
       setGenerando(false);
     }
   };
 
-  const abrirPreview = (id) => {
-    const base = (api.defaults.baseURL || '').replace(/\/api\/?$/, '') || window.location.origin;
-    window.open(`${base}/api/fichas-ia/trabajos/${id}/preview-html`, '_blank', 'noopener,noreferrer');
+  const regenerar = async (row) => {
+    const ok = await Swal.fire({
+      icon: 'question',
+      title: '¿Regenerar esta ficha?',
+      text: 'Se volverá a procesar el contenido y el PDF.',
+      showCancelButton: true,
+      confirmButtonText: 'Regenerar',
+    });
+    if (!ok.isConfirmed) return;
+    setGenerando(true);
+    try {
+      Swal.fire({ title: 'Generando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+      await api.post(`/fichas-ia/trabajos/${row.id}/generar`, { usar_ia: config.gemini_configurado });
+      Swal.close();
+      Swal.fire({ icon: 'success', title: 'Regenerada', timer: 1500, showConfirmButton: false });
+      await cargarTrabajos();
+    } catch (e) {
+      Swal.close();
+      Swal.fire('Error', e.response?.data?.error || 'No se pudo regenerar', 'error');
+    } finally {
+      setGenerando(false);
+    }
   };
 
-  const descargarPdf = (id) => {
-    const base = api.defaults.baseURL || '/api';
-    window.open(`${base}/fichas-ia/trabajos/${id}/descargar-pdf`, '_blank', 'noopener,noreferrer');
+  const eliminar = async (row) => {
+    const ok = await Swal.fire({
+      icon: 'question',
+      title: '¿Eliminar esta ficha?',
+      text: row.titulo,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, eliminar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/fichas-ia/trabajos/${row.id}`);
+      Swal.fire({ icon: 'success', title: 'Eliminada', timer: 1400, showConfirmButton: false });
+      await cargarTrabajos();
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || '', 'error');
+    }
   };
+
+  const verPreview = (row) => {
+    window.open(previewUrl(row.id), '_blank', 'noopener,noreferrer');
+  };
+
+  const descargarPdf = (row) => {
+    const base = api.defaults.baseURL || '/api';
+    window.open(`${base}/fichas-ia/trabajos/${row.id}/descargar-pdf`, '_blank', 'noopener,noreferrer');
+  };
+
+  const sinGrupos = !loading && opcionesGrupo.length === 0;
 
   return (
     <DashboardLayout>
-      <div className="fichas-ia-wrap">
-        <header className="fichas-ia-header">
+      <div className="voc-page">
+        <header className="voc-page-header">
           <h1>Diseñador de fichas pedagógicas</h1>
           <p>
-            Convierta un PDF simple o sus notas en una ficha con formato Vanguard. Los archivos se guardan solo en
-            este sistema (<code>uploads/fichas-ia</code>).
+            Biblioteca de fichas del colegio para vincular luego a temas del aula virtual. Formato Vanguard con logo y
+            mascotas en cada hoja.
           </p>
-          {!config.gemini_configurado && (
-            <div className="fichas-ia-alert fichas-ia-alert--warn">
-              <strong>Gemini no configurado.</strong> Puede generar fichas en modo formulario. Agregue{' '}
-              <code>GOOGLE_AI_API_KEY</code> en el servidor para usar IA. Ver{' '}
-              <code>docs/GEMINI_API_KEY.md</code>.
+          {!config.gemini_configurado ? (
+            <div className="voc-alert">
+              <strong>Gemini no configurado.</strong> Puede generar en modo formulario. Agregue{' '}
+              <code>GOOGLE_AI_API_KEY</code> en el servidor (ver <code>docs/GEMINI_API_KEY.md</code>).
             </div>
-          )}
-          {config.gemini_configurado && (
-            <div className="fichas-ia-alert fichas-ia-alert--ok">Gemini conectado — puede usar IA al generar.</div>
+          ) : (
+            <div className="voc-alert" style={{ background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}>
+              Gemini disponible — puede usar IA al generar.
+            </div>
           )}
         </header>
 
-        <div className="fichas-ia-grid">
-          <section className="fichas-ia-card">
-            <h2>Nueva ficha</h2>
-            <form onSubmit={crearYGenerar} className="fichas-ia-form">
-              <label>
-                Título *
-                <input
-                  value={titulo}
-                  onChange={(e) => setTitulo(e.target.value)}
-                  placeholder="Ej. Plantas y su importancia"
-                  required
-                />
+        <section className="voc-section">
+          <div className="voc-section-head">
+            <h2>Biblioteca de fichas</h2>
+            {opcionesGrupo.length > 0 && (
+              <button type="button" className="voc-btn-primary" onClick={() => abrirModal(null)} disabled={generando}>
+                + Nueva ficha
+              </button>
+            )}
+          </div>
+
+          <div className="voc-panel" style={{ marginBottom: 16 }}>
+            <div className="voc-panel-head">
+              <FilterListOutlinedIcon sx={{ fontSize: 20, color: '#4a83c1' }} />
+              <div>
+                <div className="voc-panel-title">Filtros</div>
+                <p className="voc-panel-desc">Acote por aula o por curso/asignatura.</p>
+              </div>
+            </div>
+            <div className="voc-modal-grid">
+              <label className="voc-label-block">
+                <span className="voc-label-text">Grado / grupo</span>
+                <select
+                  className="voc-input voc-select"
+                  value={filtroGrupoId}
+                  onChange={(e) => setFiltroGrupoId(e.target.value)}
+                >
+                  <option value="">Todos los grupos</option>
+                  {opcionesGrupo.map((o) => (
+                    <option key={o.grupo_id} value={String(o.grupo_id)}>
+                      {o.etiqueta || opcionGrupoLabel(o)}
+                    </option>
+                  ))}
+                </select>
               </label>
-              <div className="fichas-ia-form-row">
-                <label>
-                  Grado
-                  <input value={grado} onChange={(e) => setGrado(e.target.value)} placeholder="4" />
+              <label className="voc-label-block">
+                <span className="voc-label-text">Curso</span>
+                <select
+                  className="voc-input voc-select"
+                  value={filtroAsignaturaId}
+                  onChange={(e) => setFiltroAsignaturaId(e.target.value)}
+                  disabled={!filtroGrupoId}
+                >
+                  <option value="">Todos los cursos</option>
+                  {cursosFiltro.map((c) => (
+                    <option key={c.asignatura_id} value={String(c.asignatura_id)}>
+                      {c.curso_nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+
+          {sinGrupos && (
+            <div className="voc-alert">
+              No hay grupos disponibles para su perfil en el año lectivo. Asigne grupos o use un perfil con acceso al
+              colegio.
+            </div>
+          )}
+
+          {loading ? (
+            <div className="voc-loading">Cargando…</div>
+          ) : trabajos.length === 0 ? (
+            <div className="voc-empty">No hay fichas con estos filtros. Use «+ Nueva ficha» para crear la primera.</div>
+          ) : (
+            <div className="voc-table-wrap">
+              <table className="voc-table">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Título</th>
+                    <th>Grupo</th>
+                    <th>Curso</th>
+                    <th>Estado</th>
+                    <th aria-label="Acciones" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {trabajos.map((row) => (
+                    <tr key={row.id}>
+                      <td className="voc-fecha">{formatFecha(row.creado_en)}</td>
+                      <td>
+                        <div className="voc-titulo">{row.titulo}</div>
+                        {row.unidad && <div className="voc-file-meta">Unidad {row.unidad}</div>}
+                      </td>
+                      <td>
+                        <span className="voc-badge-grado">{row.grupo_display || '—'}</span>
+                      </td>
+                      <td className="voc-desc">{row.curso_display || '—'}</td>
+                      <td>
+                        <span
+                          className={`voc-badge-mio ${
+                            row.estado === 'LISTO'
+                              ? ''
+                              : row.estado === 'ERROR'
+                                ? ''
+                                : ''
+                          }`}
+                          style={{
+                            background:
+                              row.estado === 'LISTO'
+                                ? '#ecfdf5'
+                                : row.estado === 'ERROR'
+                                  ? '#fef2f2'
+                                  : '#f3f4f6',
+                            color:
+                              row.estado === 'LISTO'
+                                ? '#047857'
+                                : row.estado === 'ERROR'
+                                  ? '#b91c1c'
+                                  : '#4b5563',
+                          }}
+                        >
+                          {ESTADO_LABEL[row.estado] || row.estado}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="voc-icon-actions">
+                          {(row.estado === 'LISTO' || row.estado === 'ERROR') && (
+                            <Tooltip title="Vista previa">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => verPreview(row)}
+                                aria-label="Ver"
+                              >
+                                <VisibilityOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {row.estado === 'LISTO' && (
+                            <Tooltip title="Descargar PDF">
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => descargarPdf(row)}
+                                aria-label="PDF"
+                              >
+                                <PictureAsPdfOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          {puedeEditarFila(row) && (
+                            <>
+                              <Tooltip title="Editar">
+                                <IconButton
+                                  size="small"
+                                  color="primary"
+                                  onClick={() => abrirModal(row)}
+                                  aria-label="Editar"
+                                >
+                                  <EditOutlinedIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                              {row.estado === 'LISTO' && (
+                                <Tooltip title="Regenerar">
+                                  <IconButton
+                                    size="small"
+                                    color="secondary"
+                                    onClick={() => regenerar(row)}
+                                    disabled={generando}
+                                    aria-label="Regenerar"
+                                  >
+                                    <AutoStoriesOutlinedIcon fontSize="small" />
+                                  </IconButton>
+                                </Tooltip>
+                              )}
+                              <Tooltip title="Eliminar">
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  onClick={() => eliminar(row)}
+                                  aria-label="Eliminar"
+                                >
+                                  <DeleteOutlineIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      </div>
+
+      {modalOpen &&
+        createPortal(
+          <div
+            className="voc-modal-overlay"
+            role="presentation"
+            onClick={(e) => {
+              if (e.target === e.currentTarget && !generando) setModalOpen(false);
+            }}
+          >
+            <div className="voc-modal voc-modal--wide" role="dialog" aria-modal="true">
+              <div className="voc-modal-topbar" aria-hidden />
+              <div className="voc-modal-header">
+                <div className="voc-modal-title-row">
+                  <span className="voc-modal-icon-wrap" aria-hidden>
+                    <AutoStoriesOutlinedIcon sx={{ fontSize: 26, color: '#2563eb' }} />
+                  </span>
+                  <div>
+                    <div className="voc-modal-kicker">{editItem ? 'Editar ficha' : 'Nueva ficha'}</div>
+                    <h2 className="voc-modal-h2">{editItem ? 'Editar datos' : 'Crear ficha pedagógica'}</h2>
+                  </div>
+                </div>
+              </div>
+
+              <div className="voc-modal-body">
+                <div className="voc-panel">
+                  <div className="voc-panel-head">
+                    <GroupsOutlinedIcon sx={{ fontSize: 20, color: '#4a83c1' }} />
+                    <div>
+                      <div className="voc-panel-title">Aula y curso</div>
+                      <p className="voc-panel-desc">Nivel, grado y sección; luego el curso del grupo.</p>
+                    </div>
+                  </div>
+                  <div className="voc-modal-grid">
+                    <label className="voc-label-block">
+                      <span className="voc-label-text">Grupo (nivel — grado — sección)</span>
+                      <select
+                        className="voc-input voc-select"
+                        value={form.grupo_id}
+                        onChange={(e) =>
+                          setForm((f) => ({ ...f, grupo_id: e.target.value, asignatura_id: '' }))
+                        }
+                      >
+                        <option value="">Seleccione…</option>
+                        {opcionesGrupo.map((o) => (
+                          <option key={o.grupo_id} value={String(o.grupo_id)}>
+                            {o.etiqueta || opcionGrupoLabel(o)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="voc-label-block">
+                      <span className="voc-label-text">Curso / asignatura</span>
+                      <select
+                        className="voc-input voc-select"
+                        value={form.asignatura_id}
+                        onChange={(e) => setForm((f) => ({ ...f, asignatura_id: e.target.value }))}
+                        disabled={!form.grupo_id}
+                      >
+                        <option value="">Seleccione curso…</option>
+                        {cursosGrupo.map((c) => (
+                          <option key={c.asignatura_id} value={String(c.asignatura_id)}>
+                            {c.curso_nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="voc-modal-grid">
+                  <label className="voc-label-block">
+                    <span className="voc-label-text">Título de la ficha *</span>
+                    <input
+                      className="voc-input"
+                      type="text"
+                      value={form.titulo}
+                      onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
+                      placeholder="Ej. Plantas y su importancia"
+                    />
+                  </label>
+                  <label className="voc-label-block">
+                    <span className="voc-label-text">Unidad</span>
+                    <input
+                      className="voc-input"
+                      type="text"
+                      value={form.unidad}
+                      onChange={(e) => setForm((f) => ({ ...f, unidad: e.target.value }))}
+                      placeholder="1"
+                    />
+                  </label>
+                </div>
+
+                <label className="voc-label-block">
+                  <span className="voc-label-text">Puntos clave (uno por línea)</span>
+                  <textarea
+                    className="voc-input voc-textarea"
+                    rows={4}
+                    value={form.puntos_clave}
+                    onChange={(e) => setForm((f) => ({ ...f, puntos_clave: e.target.value }))}
+                    placeholder={'Oxigenan el planeta\nBase de la cadena alimenticia'}
+                  />
                 </label>
-                <label>
-                  Unidad
-                  <input value={unidad} onChange={(e) => setUnidad(e.target.value)} placeholder="1" />
+
+                {!editItem && (
+                  <div className="voc-file-panel">
+                    <div className="voc-file-panel-head">
+                      <PictureAsPdfOutlinedIcon sx={{ fontSize: 22, color: '#dc2626' }} />
+                      <span className="voc-label-text">PDF origen (opcional)</span>
+                    </div>
+                    <label className="voc-file-drop">
+                      <input
+                        type="file"
+                        accept="application/pdf,.pdf"
+                        className="voc-file-input"
+                        onChange={(e) => setArchivoPdf(e.target.files?.[0] || null)}
+                      />
+                      <div className="voc-file-drop-inner">
+                        <span className="voc-file-drop-title">
+                          {archivoPdf ? archivoPdf.name : 'Elegir PDF de apoyo'}
+                        </span>
+                        <span className="voc-file-hint">Máximo 20 MB</span>
+                      </div>
+                    </label>
+                  </div>
+                )}
+
+                <label className="voc-label-block" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={form.usar_ia}
+                    disabled={!config.gemini_configurado}
+                    onChange={(e) => setForm((f) => ({ ...f, usar_ia: e.target.checked }))}
+                  />
+                  <span className="voc-label-text" style={{ margin: 0 }}>
+                    Usar IA (Gemini) para estructurar actividades
+                  </span>
                 </label>
               </div>
-              <label>
-                Área curricular
-                <input value={area} onChange={(e) => setArea(e.target.value)} />
-              </label>
-              <label>
-                Puntos clave (uno por línea)
-                <textarea
-                  value={puntosClave}
-                  onChange={(e) => setPuntosClave(e.target.value)}
-                  rows={4}
-                  placeholder="Oxigenan el planeta&#10;Base de la cadena alimenticia"
-                />
-              </label>
-              <label>
-                PDF origen (opcional)
-                <input
-                  type="file"
-                  accept=".pdf,application/pdf"
-                  onChange={(e) => setArchivoPdf(e.target.files?.[0] || null)}
-                />
-              </label>
-              <label className="fichas-ia-check">
-                <input
-                  type="checkbox"
-                  checked={usarIa}
-                  disabled={!config.gemini_configurado}
-                  onChange={(e) => setUsarIa(e.target.checked)}
-                />
-                Usar IA (Gemini) para estructurar actividades
-              </label>
-              <button type="submit" className="fichas-ia-btn-primary" disabled={generando || loading}>
-                {generando ? 'Generando…' : 'Crear y generar ficha'}
-              </button>
-            </form>
-          </section>
 
-          <section className="fichas-ia-card">
-            <h2>Mis fichas recientes</h2>
-            {loading ? (
-              <p className="fichas-ia-muted">Cargando…</p>
-            ) : trabajos.length === 0 ? (
-              <p className="fichas-ia-muted">Aún no hay fichas generadas.</p>
-            ) : (
-              <ul className="fichas-ia-lista">
-                {trabajos.map((t) => (
-                  <li key={t.id} className="fichas-ia-lista-item">
-                    <div>
-                      <strong>{t.titulo}</strong>
-                      <span className={`fichas-ia-estado fichas-ia-estado--${String(t.estado || '').toLowerCase()}`}>
-                        {ESTADO_LABEL[t.estado] || t.estado}
-                      </span>
-                      <div className="fichas-ia-meta">
-                        {t.grado && `${t.grado}.º`} {t.area} · {new Date(t.creado_en).toLocaleString('es-PE')}
-                      </div>
-                    </div>
-                    {t.estado === 'LISTO' && (
-                      <div className="fichas-ia-acciones">
-                        <button type="button" onClick={() => abrirPreview(t.id)}>
-                          Vista previa
-                        </button>
-                        <button type="button" onClick={() => descargarPdf(t.id)}>
-                          PDF
-                        </button>
-                        {t.pdf_url && (
-                          <a href={t.pdf_url} target="_blank" rel="noopener noreferrer">
-                            Abrir URL
-                          </a>
-                        )}
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </div>
-      </div>
+              <div className="voc-modal-footer">
+                <button type="button" className="voc-btn-cancel" onClick={() => setModalOpen(false)} disabled={generando}>
+                  Cancelar
+                </button>
+                {editItem && (
+                  <button
+                    type="button"
+                    className="voc-btn-cancel"
+                    onClick={() => guardarYGenerar(true)}
+                    disabled={generando}
+                  >
+                    Solo guardar
+                  </button>
+                )}
+                <button type="button" className="voc-btn-primary" onClick={() => guardarYGenerar(false)} disabled={generando}>
+                  {generando ? 'Procesando…' : editItem ? 'Guardar y regenerar' : 'Crear y generar ficha'}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </DashboardLayout>
   );
 }

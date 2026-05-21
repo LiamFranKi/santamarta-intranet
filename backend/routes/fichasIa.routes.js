@@ -18,6 +18,11 @@ const {
 const { renderFichaHtml } = require('../services/fichasIa/renderFichaHtml');
 const { renderFichaPdfYHtml } = require('../services/fichasIa/renderFichaPdf');
 const { ensurePlantillaDefault } = require('../services/fichasIa/ensurePlantillaDefault');
+const {
+  listarGruposOpciones,
+  listarCursosPorGrupo,
+  etiquetaGrupo,
+} = require('../services/fichasIa/fichasIaMeta');
 
 const router = express.Router();
 
@@ -75,23 +80,69 @@ router.get('/config', async (req, res) => {
   }
 });
 
+router.get('/meta/grupos', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, tipo, personal_id } = req.user;
+    const anio = parseInt(anio_activo, 10) || new Date().getFullYear();
+    const opciones = await listarGruposOpciones(colegio_id, anio, { tipo, personal_id });
+    res.json({ opciones });
+  } catch (e) {
+    console.error('[fichas-ia/meta/grupos]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.get('/meta/grupos/:grupoId/cursos', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const grupoId = parseInt(req.params.grupoId, 10);
+    if (!Number.isFinite(grupoId)) return res.status(400).json({ error: 'Grupo inválido' });
+    const cursos = await listarCursosPorGrupo(colegio_id, grupoId);
+    res.json({ cursos });
+  } catch (e) {
+    console.error('[fichas-ia/meta/cursos]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
 router.get('/trabajos', async (req, res) => {
   try {
     const { colegio_id, usuario_id } = req.user;
-    const limit = Math.min(parseInt(req.query.limit, 10) || 30, 100);
-    const rows = await query(
-      `SELECT id, titulo, grado, area, unidad, estado, origen_tipo,
-              archivo_generado_nombre, ia_proveedor, creado_en, completado_en
-       FROM fichas_ia_trabajos
-       WHERE colegio_id = ? AND usuario_id = ?
-       ORDER BY id DESC LIMIT ?`,
-      [colegio_id, usuario_id, limit]
-    );
+    const limit = Math.min(parseInt(req.query.limit, 10) || 80, 200);
+    const filtroGrupo = parseInt(req.query.grupo_id, 10);
+    const filtroAsig = parseInt(req.query.asignatura_id, 10);
+
+    let sql = `
+      SELECT t.id, t.titulo, t.grado, t.area, t.unidad, t.estado, t.origen_tipo,
+             t.archivo_generado_nombre, t.ia_proveedor, t.creado_en, t.completado_en,
+             t.usuario_id, t.grupo_id, t.asignatura_id, t.grupo_etiqueta, t.error_mensaje,
+             c.nombre AS curso_nombre
+      FROM fichas_ia_trabajos t
+      LEFT JOIN asignaturas a ON a.id = t.asignatura_id
+      LEFT JOIN cursos c ON c.id = a.curso_id
+      WHERE t.colegio_id = ?`;
+    const params = [colegio_id];
+
+    if (Number.isFinite(filtroGrupo)) {
+      sql += ' AND t.grupo_id = ?';
+      params.push(filtroGrupo);
+    }
+    if (Number.isFinite(filtroAsig)) {
+      sql += ' AND t.asignatura_id = ?';
+      params.push(filtroAsig);
+    }
+    sql += ' ORDER BY t.id DESC LIMIT ?';
+    params.push(limit);
+
+    const rows = await query(sql, params);
     const data = (rows || []).map((r) => ({
       ...r,
       pdf_url: r.archivo_generado_nombre
         ? urlUploads(`generados/${r.archivo_generado_nombre}`)
         : null,
+      puede_editar: Number(r.usuario_id) === Number(usuario_id),
+      grupo_display: r.grupo_etiqueta || (r.grado ? `${r.grado}°` : '—'),
+      curso_display: r.curso_nombre || r.area || '—',
     }));
     res.json({ data });
   } catch (e) {
@@ -100,9 +151,128 @@ router.get('/trabajos', async (req, res) => {
   }
 });
 
+router.put('/trabajos/:id', async (req, res) => {
+  try {
+    const trabajoId = parseInt(req.params.id, 10);
+    const trabajo = await cargarTrabajo(req, trabajoId, { requierePropiedad: true });
+    if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado o sin permiso' });
+
+    const titulo = String(req.body.titulo || trabajo.titulo || '').trim();
+    if (!titulo) return res.status(400).json({ error: 'Indique el título' });
+
+    const { colegio_id } = req.user;
+    const grupo_id = parseInt(req.body.grupo_id, 10) || trabajo.grupo_id;
+    const asignatura_id = parseInt(req.body.asignatura_id, 10);
+    const unidad = String(req.body.unidad || trabajo.unidad || '1').trim();
+
+    let grupo_etiqueta = trabajo.grupo_etiqueta;
+    let grado = trabajo.grado;
+    let nivel_id = trabajo.nivel_id;
+    let curso_id = trabajo.curso_id;
+    let area = String(req.body.area || trabajo.area || '').trim() || null;
+
+    if (Number.isFinite(grupo_id)) {
+      const grupoRows = await query(
+        `SELECT g.id, g.nivel_id, g.grado, g.seccion, n.nombre AS nivel_nombre
+         FROM grupos g INNER JOIN niveles n ON n.id = g.nivel_id
+         WHERE g.id = ? AND g.colegio_id = ? LIMIT 1`,
+        [grupo_id, colegio_id]
+      );
+      if (grupoRows.length) {
+        const gRow = grupoRows[0];
+        grupo_etiqueta = etiquetaGrupo(gRow);
+        grado = String(gRow.grado ?? '').trim() || null;
+        nivel_id = gRow.nivel_id;
+      }
+    }
+
+    let asigFinal = Number.isFinite(asignatura_id) ? asignatura_id : trabajo.asignatura_id;
+    if (Number.isFinite(asigFinal) && Number.isFinite(grupo_id)) {
+      const asigRows = await query(
+        `SELECT a.curso_id, c.nombre AS curso_nombre
+         FROM asignaturas a INNER JOIN cursos c ON c.id = a.curso_id
+         WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ? LIMIT 1`,
+        [asigFinal, grupo_id, colegio_id]
+      );
+      if (asigRows.length) {
+        curso_id = asigRows[0].curso_id;
+        if (!area) area = asigRows[0].curso_nombre;
+      }
+    }
+
+    await execute(
+      `UPDATE fichas_ia_trabajos SET
+        titulo = ?, grupo_id = ?, nivel_id = ?, curso_id = ?, asignatura_id = ?,
+        grado = ?, area = ?, unidad = ?, grupo_etiqueta = ?
+       WHERE id = ?`,
+      [
+        titulo,
+        grupo_id || null,
+        nivel_id || null,
+        curso_id || null,
+        asigFinal || null,
+        grado,
+        area,
+        unidad,
+        grupo_etiqueta,
+        trabajoId,
+      ]
+    );
+
+    const puntos_clave = String(req.body.puntos_clave || '').trim();
+    if (puntos_clave) {
+      const exist = await query(
+        `SELECT id FROM fichas_ia_trabajo_secciones WHERE trabajo_id = ? AND titulo = 'Puntos clave' LIMIT 1`,
+        [trabajoId]
+      );
+      if (exist.length) {
+        await execute(`UPDATE fichas_ia_trabajo_secciones SET contenido_json = ? WHERE id = ?`, [
+          JSON.stringify({ puntos_clave }),
+          exist[0].id,
+        ]);
+      } else {
+        await execute(
+          `INSERT INTO fichas_ia_trabajo_secciones (trabajo_id, orden, tipo, titulo, contenido_json)
+           VALUES (?, 0, 'CUSTOM', 'Puntos clave', ?)`,
+          [trabajoId, JSON.stringify({ puntos_clave })]
+        );
+      }
+    }
+
+    const actualizado = await cargarTrabajo(req, trabajoId, { requierePropiedad: false });
+    res.json({ mensaje: 'Ficha actualizada', trabajo: enrichTrabajo(actualizado, req.user.usuario_id) });
+  } catch (e) {
+    console.error('[fichas-ia/trabajos PUT]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
+router.delete('/trabajos/:id', async (req, res) => {
+  try {
+    const trabajoId = parseInt(req.params.id, 10);
+    const trabajo = await cargarTrabajo(req, trabajoId, { requierePropiedad: true });
+    if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado o sin permiso' });
+
+    await execute(`DELETE FROM fichas_ia_trabajo_secciones WHERE trabajo_id = ?`, [trabajoId]);
+    await execute(`DELETE FROM fichas_ia_trabajos WHERE id = ?`, [trabajoId]);
+
+    for (const rel of [trabajo.archivo_origen_nombre, trabajo.archivo_generado_nombre]) {
+      if (!rel) continue;
+      const sub = trabajo.archivo_origen_nombre === rel ? dirs.origen : dirs.generados;
+      const fp = path.join(sub, rel);
+      if (fs.existsSync(fp)) fs.unlinkSync(fp);
+    }
+
+    res.json({ mensaje: 'Ficha eliminada' });
+  } catch (e) {
+    console.error('[fichas-ia/trabajos DELETE]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
 router.get('/trabajos/:id', async (req, res) => {
   try {
-    const trabajo = await cargarTrabajo(req, parseInt(req.params.id, 10));
+    const trabajo = await cargarTrabajo(req, parseInt(req.params.id, 10), { requierePropiedad: false });
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
     const secciones = await query(
       `SELECT id, orden, tipo, titulo, contenido_json FROM fichas_ia_trabajo_secciones
@@ -110,7 +280,7 @@ router.get('/trabajos/:id', async (req, res) => {
       [trabajo.id]
     );
     res.json({
-      trabajo: enrichTrabajo(trabajo),
+      trabajo: enrichTrabajo(trabajo, req.user.usuario_id),
       secciones: secciones || [],
     });
   } catch (e) {
@@ -126,8 +296,39 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
     if (!titulo) return res.status(400).json({ error: 'Indique el título de la ficha' });
 
     const plantilla_id = await ensurePlantillaDefault(colegio_id);
-    const grado = String(req.body.grado || '').trim() || null;
-    const area = String(req.body.area || '').trim() || null;
+    const grupo_id = parseInt(req.body.grupo_id, 10);
+    const asignatura_id = parseInt(req.body.asignatura_id, 10);
+    if (!Number.isFinite(grupo_id)) {
+      return res.status(400).json({ error: 'Seleccione el grupo (nivel, grado y sección)' });
+    }
+    const grupoRows = await query(
+      `SELECT g.id, g.nivel_id, g.grado, g.seccion, n.nombre AS nivel_nombre
+       FROM grupos g INNER JOIN niveles n ON n.id = g.nivel_id
+       WHERE g.id = ? AND g.colegio_id = ? LIMIT 1`,
+      [grupo_id, colegio_id]
+    );
+    if (!grupoRows.length) return res.status(400).json({ error: 'Grupo no válido' });
+
+    const gRow = grupoRows[0];
+    const grupo_etiqueta = etiquetaGrupo(gRow);
+    const grado = String(gRow.grado ?? '').trim() || null;
+    const nivel_id = gRow.nivel_id;
+
+    let area = String(req.body.area || '').trim() || null;
+    let curso_id = null;
+    if (Number.isFinite(asignatura_id)) {
+      const asigRows = await query(
+        `SELECT a.curso_id, c.nombre AS curso_nombre
+         FROM asignaturas a INNER JOIN cursos c ON c.id = a.curso_id
+         WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ? LIMIT 1`,
+        [asignatura_id, grupo_id, colegio_id]
+      );
+      if (asigRows.length) {
+        curso_id = asigRows[0].curso_id;
+        if (!area) area = asigRows[0].curso_nombre;
+      }
+    }
+
     const unidad = String(req.body.unidad || '').trim() || '1';
     const puntos_clave = String(req.body.puntos_clave || '').trim();
     const usar_ia = req.body.usar_ia === '1' || req.body.usar_ia === 'true';
@@ -141,17 +342,23 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
 
     const ins = await execute(
       `INSERT INTO fichas_ia_trabajos (
-        colegio_id, usuario_id, plantilla_id, titulo, grado, area, unidad,
+        colegio_id, usuario_id, plantilla_id, grupo_id, nivel_id, curso_id, asignatura_id,
+        titulo, grado, area, unidad, grupo_etiqueta,
         estado, origen_tipo, archivo_origen_nombre, prompt_version
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'BORRADOR', ?, ?, 'v1')`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'BORRADOR', ?, ?, 'v1')`,
       [
         colegio_id,
         usuario_id,
         plantilla_id,
+        grupo_id,
+        nivel_id,
+        curso_id,
+        Number.isFinite(asignatura_id) ? asignatura_id : null,
         titulo,
         grado,
         area,
         unidad,
+        grupo_etiqueta,
         origen_tipo,
         archivo_origen,
       ]
@@ -187,8 +394,8 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
 router.post('/trabajos/:id/generar', async (req, res) => {
   try {
     const trabajoId = parseInt(req.params.id, 10);
-    const trabajo = await cargarTrabajo(req, trabajoId);
-    if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado' });
+    const trabajo = await cargarTrabajo(req, trabajoId, { requierePropiedad: true });
+    if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado o sin permiso' });
 
     const usar_ia = req.body.usar_ia !== false && req.body.usar_ia !== '0';
     const forzar_sin_ia = req.body.sin_ia === true || req.body.sin_ia === '1';
@@ -309,7 +516,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
     const actualizado = await cargarTrabajo(req, trabajoId);
     res.json({
       mensaje: 'Ficha generada correctamente',
-      trabajo: enrichTrabajo(actualizado),
+      trabajo: enrichTrabajo(actualizado, req.user.usuario_id),
       preview_url: `/api/fichas-ia/trabajos/${trabajoId}/preview-html`,
       pdf_url: urlUploads(`generados/${pdfFilename}`),
     });
@@ -332,7 +539,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
 
 router.get('/trabajos/:id/preview-html', async (req, res) => {
   try {
-    const trabajo = await cargarTrabajo(req, parseInt(req.params.id, 10));
+    const trabajo = await cargarTrabajo(req, parseInt(req.params.id, 10), { requierePropiedad: false });
     if (!trabajo) return res.status(404).send('No encontrado');
     const contenido = await contenidoDesdeTrabajo(trabajo.id);
     const plantillaRows = await query(
@@ -361,7 +568,7 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
 
 router.get('/trabajos/:id/descargar-pdf', async (req, res) => {
   try {
-    const trabajo = await cargarTrabajo(req, parseInt(req.params.id, 10));
+    const trabajo = await cargarTrabajo(req, parseInt(req.params.id, 10), { requierePropiedad: false });
     if (!trabajo?.archivo_generado_nombre) {
       return res.status(404).json({ error: 'PDF aún no generado' });
     }
@@ -374,7 +581,7 @@ router.get('/trabajos/:id/descargar-pdf', async (req, res) => {
   }
 });
 
-async function cargarTrabajo(req, id) {
+async function cargarTrabajo(req, id, { requierePropiedad = true } = {}) {
   const { colegio_id, usuario_id, tipo } = req.user;
   const rows = await query(
     `SELECT t.*, p.archivo_plantilla
@@ -385,13 +592,13 @@ async function cargarTrabajo(req, id) {
   );
   if (!rows.length) return null;
   const t = rows[0];
-  if (tipo !== 'ADMINISTRADOR' && Number(t.usuario_id) !== Number(usuario_id)) {
-    return null;
-  }
+  const esAdmin = tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA';
+  const esPropio = Number(t.usuario_id) === Number(usuario_id);
+  if (requierePropiedad && !esAdmin && !esPropio) return null;
   return t;
 }
 
-function enrichTrabajo(t) {
+function enrichTrabajo(t, usuario_id) {
   if (!t) return t;
   return {
     ...t,
@@ -401,6 +608,7 @@ function enrichTrabajo(t) {
     origen_url: t.archivo_origen_nombre
       ? urlUploads(`origen/${t.archivo_origen_nombre}`)
       : null,
+    puede_editar: usuario_id != null ? Number(t.usuario_id) === Number(usuario_id) : undefined,
   };
 }
 
