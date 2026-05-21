@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { normalizarActividades, sanitizarTextoFicha } = require('./normalizarActividades');
 
 /** Modelos retirados en API nuevas (404). Se sustituyen al probar. */
 const MODELO_SUSTITUTO = {
@@ -145,19 +146,53 @@ Formato exacto:
   },
   "aplicacion": {
     "titulo_seccion": "FICHA DE APLICACIÓN",
-    "instruccion_general": "Instrucción motivadora para el niño.",
+    "instruccion_general": "Lee la teoría de la hoja anterior y responde aquí. Todo se hace en esta misma ficha.",
     "actividades": [
       {
         "tipo": "tabla_partes",
         "titulo": "1. Observa y relaciona",
-        "instruccion": "texto",
-        "columnas": ["Concepto", "Ejemplo / función"],
-        "filas": [{"parte": "…", "funcion": ""}]
+        "instruccion": "Completa en la tabla.",
+        "columnas": ["Concepto", "Ejemplo"],
+        "filas": [{"parte": "Ejemplo", "funcion": ""}]
       },
       {
         "tipo": "preguntas",
         "titulo": "2. Piensa y responde",
-        "preguntas": ["Preguntas abiertas que exijan razonar y usar la teoría"]
+        "preguntas": [
+          "Escribe una oración completa explicando el concepto principal del tema.",
+          "Menciona un ejemplo del entorno escolar relacionado con lo aprendido."
+        ]
+      },
+      {
+        "tipo": "dibujo",
+        "titulo": "3. Dibuja en la ficha",
+        "instruccion_dibujo": "En el recuadro, dibuja con colores un ejemplo del tema.",
+        "altura_dibujo": 150
+      },
+      {
+        "tipo": "verdadero_falso",
+        "titulo": "4. Verdadero o falso",
+        "instruccion": "Lee cada afirmación y marca V o F en los casilleros.",
+        "items": [
+          {"enunciado": "Afirmación completa y clara sobre el tema."},
+          {"enunciado": "Otra afirmación completa para evaluar."}
+        ]
+      },
+      {
+        "tipo": "opciones",
+        "titulo": "5. Elige la respuesta correcta",
+        "instruccion": "Cada inciso tiene letras a, b, c. Marca la letra correcta en la línea.",
+        "items": [
+          {
+            "letra": "a",
+            "enunciado": "Pregunta completa con contexto del tema estudiado.",
+            "subopciones": [
+              {"letra": "a", "texto": "Primera opción"},
+              {"letra": "b", "texto": "Segunda opción"},
+              {"letra": "c", "texto": "Tercera opción"}
+            ]
+          }
+        ]
       }
     ]
   },
@@ -168,8 +203,16 @@ Reglas obligatorias:
 - Español de Perú; vocabulario acorde al grado ${grado || 'indicado'}.
 - TEORÍA: mínimo 4 párrafos sustantivos; glosario con 4-6 términos; 2-3 ilustraciones con emoji representativo del concepto (no mascotas del colegio).
 - RECUERDA: frases completas con contenido, no listas de una palabra.
-- APLICACIÓN: mínimo 5 actividades variadas (mezcla: tabla_partes, preguntas, completar, dibujo_descrito, situación real). Máximo 6.
-- No copies instrucciones de diseño gráfico (colores, tipografía, logos).
+- APLICACIÓN (mínimo 5 actividades, máximo 6): todo el trabajo es EN ESTA FICHA impresa. PROHIBIDO decir cuaderno, libreta, agenda, "en casa" o "en otra hoja".
+- instruccion_general: indicar que responde en esta hoja usando la teoría de la página anterior.
+- Tipos de actividad (usa el campo "tipo" exacto):
+  * "preguntas": array de strings u objetos {texto} — cada uno debe ser una PREGUNTA u ORDEN COMPLETA (mínimo 12 palabras), nunca frases cortadas.
+  * "dibujo": incluir instruccion_dibujo clara; el niño dibuja en el recuadro de la ficha (altura_dibujo: 120-180).
+  * "verdadero_falso": items con {enunciado} oraciones completas; el niño marca V o F en casilleros (no numerar con 1.2.3 los enunciados).
+  * "opciones": items con letra "a","b","c" en campo letra y enunciado completo; subopciones con letras a,b,c — NO agregues número 1.2.3 además de las letras en subopciones.
+  * "tabla_partes" y "completar" (oraciones con espacio ______).
+- Cada actividad lleva titulo numerado solo una vez (ej. "3. Dibuja..."). Dentro de la actividad usa letras a,b,c) para subítems, no vuelvas a numerar.
+- No copies instrucciones de diseño gráfico (colores de marca, tipografía).
 - Si faltan datos, investiga el tema desde el título y el área curricular con rigor escolar.
 ${bloqueInstrucciones}
 Datos del formulario:
@@ -277,10 +320,12 @@ function normalizarContenido(raw) {
     };
     aplicacion = {
       titulo_seccion: String(raw.aplicacion.titulo_seccion || 'FICHA DE APLICACIÓN').trim(),
-      instruccion_general: String(
-        raw.aplicacion.instruccion_general || raw.aplicacion.instruccion || ''
-      ).trim(),
-      actividades: Array.isArray(raw.aplicacion.actividades) ? raw.aplicacion.actividades : [],
+      instruccion_general: sanitizarTextoFicha(
+        raw.aplicacion.instruccion_general ||
+          raw.aplicacion.instruccion ||
+          'Usa lo que leíste en la teoría y responde en esta hoja.'
+      ),
+      actividades: normalizarActividades(raw.aplicacion.actividades),
     };
   } else {
     const intro = String(raw?.intro || '').trim();
@@ -307,6 +352,7 @@ function normalizarContenido(raw) {
   }
 
   const intro = teoria.parrafos.join('\n\n');
+  aplicacion.actividades = normalizarActividades(aplicacion.actividades);
   const actividades = aplicacion.actividades;
   const pie_motivacional = String(raw?.pie_motivacional || '').trim();
 
@@ -390,14 +436,22 @@ function contenidoDesdeFormulario({ titulo, puntosClave, textoOrigen, area }) {
   const aplicacion = {
     titulo_seccion: 'FICHA DE APLICACIÓN',
     instruccion_general:
-      'Usa lo que leíste en la teoría. Responde con tus propias palabras y dibujos si tu docente lo indica.',
-    actividades: [
+      'Lee la teoría de la hoja anterior y completa todas las actividades en esta misma ficha.',
+    actividades: normalizarActividades([
+      { tipo: 'preguntas', titulo: '1. Piensa y responde', preguntas: preguntas.slice(0, 3) },
       {
-        tipo: 'preguntas',
-        titulo: '1. Aplica lo aprendido',
-        preguntas,
+        tipo: 'dibujo',
+        titulo: '2. Dibuja en la ficha',
+        instruccion_dibujo: `En el recuadro, dibuja un ejemplo relacionado con ${tema}.`,
+        altura_dibujo: 140,
       },
-    ],
+      {
+        tipo: 'verdadero_falso',
+        titulo: '3. Verdadero o falso',
+        instruccion: 'Marca V o F en cada casillero.',
+        items: recuerdaCurricular.slice(0, 4).map((t) => ({ enunciado: `${t}.` })),
+      },
+    ]),
   };
 
   return {

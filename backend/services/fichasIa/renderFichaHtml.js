@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const Handlebars = require('handlebars');
 const { templatesDir, urlAssets, assetsDir } = require('../../utils/fichasIaPaths');
+const { normalizarActividades } = require('./normalizarActividades');
 
 const DEFAULT_TEMPLATE = 'plantilla-vanguard-default.hbs';
 const MAX_MASCOTAS_FICHA = 3;
@@ -114,11 +115,13 @@ function renderFichaHtml(ctx, archivoPlantilla) {
 
   const parrafos = (teoria.parrafos || []).map((texto, index) => ({
     texto,
+    num: index + 1,
     estilo: ESTILOS_PARRAFO[index % ESTILOS_PARRAFO.length],
     mascotaUrl: index === 0 ? urlMascota(mascotas.intro) : null,
   }));
 
-  const actividades = (aplicacion.actividades || []).map((act, index) => ({
+  const actsNorm = normalizarActividades(aplicacion.actividades || ctx.actividades || []);
+  const actividades = actsNorm.map((act, index) => ({
     ...act,
     estilo: ESTILOS_ACTIVIDAD[index % ESTILOS_ACTIVIDAD.length],
     mascotaUrl: index === 0 ? urlMascota(mascotas.actividad) : null,
