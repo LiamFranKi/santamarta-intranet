@@ -215,6 +215,9 @@ api.interceptors.response.use(
       /^\/colegio\/\d+$/.test(reqUrl) || /^\/colegio\/\d+\/nombre-intranet$/.test(reqUrl);
     const skipLogoutPublicColegioServerErrors =
       isPublicColegioBootstrapRoute && [500, 502, 503].includes(status);
+    /** Diseñador de fichas: 500 por bug o Gemini no debe cerrar sesión. */
+    const isFichasIaRoute = /\/fichas-ia\//.test(reqUrl);
+    const skipLogoutFichasIa500 = isFichasIaRoute && status === 500;
 
     if (
       status &&
@@ -240,6 +243,7 @@ api.interceptors.response.use(
       !skipLogoutEleccionesIntranet &&
       !skipLogoutEleccionesAdmin403 &&
       !skipLogoutPublicColegioServerErrors &&
+      !skipLogoutFichasIa500 &&
       !isPublicEventosRoute
     ) {
       const errorInfo = criticalErrors[status];

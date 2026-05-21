@@ -107,7 +107,15 @@ export default function DisenadorFichas() {
       if (gen.pdf_url) window.open(gen.pdf_url, '_blank', 'noopener,noreferrer');
     } catch (err) {
       Swal.close();
-      Swal.fire('Error', err.response?.data?.error || err.message || 'No se pudo generar', 'error');
+      const det = err.response?.data?.error || err.message || 'No se pudo generar';
+      Swal.fire({
+        icon: 'error',
+        title: 'No se pudo generar la ficha',
+        text:
+          det.includes('429') || det.includes('límite')
+            ? `${det} Puede desmarcar «Usar IA» y volver a intentar; la ficha se generará con el formulario.`
+            : det,
+      });
     } finally {
       setGenerando(false);
     }

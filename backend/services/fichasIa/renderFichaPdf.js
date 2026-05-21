@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const PDFDocument = require('pdfkit');
 const { renderFichaHtml } = require('./renderFichaHtml');
 const { dirs } = require('../../utils/fichasIaPaths');

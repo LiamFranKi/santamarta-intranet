@@ -62,10 +62,29 @@ ${(textoOrigen || '').slice(0, 12000)}
     },
   };
 
-  const { data } = await axios.post(url, body, {
-    timeout: 120000,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  let data;
+  try {
+    const res = await axios.post(url, body, {
+      timeout: 120000,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    data = res.data;
+  } catch (err) {
+    const status = err.response?.status;
+    if (status === 429) {
+      const e = new Error(
+        'Gemini alcanzó el límite de solicitudes (429). Espere 1–2 minutos, use otra clave con facturación, o genere sin IA.'
+      );
+      e.code = 'GEMINI_RATE_LIMIT';
+      throw e;
+    }
+    if (status === 403) {
+      const e = new Error('API key de Gemini inválida o sin permiso (403). Revise GOOGLE_AI_API_KEY.');
+      e.code = 'GEMINI_FORBIDDEN';
+      throw e;
+    }
+    throw err;
+  }
 
   const text =
     data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';

@@ -322,7 +322,11 @@ router.post('/trabajos/:id/generar', async (req, res) => {
         [String(e.message || e).slice(0, 2000), trabajoId]
       ).catch(() => {});
     }
-    res.status(500).json({ error: e.message || 'Error al generar la ficha' });
+    const msg = String(e.message || 'Error al generar la ficha');
+    res.status(500).json({
+      error: msg,
+      detalle: e.code || undefined,
+    });
   }
 });
 
