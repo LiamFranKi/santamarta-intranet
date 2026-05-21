@@ -98,7 +98,15 @@ function errorGeminiAmigable(err, modelo) {
 /**
  * Pide a Vanguarcito (Gemini) estructurar teoría + ficha de aplicación en JSON.
  */
-async function estructurarContenidoConGemini({ titulo, grado, area, unidad, textoOrigen, puntosClave }) {
+async function estructurarContenidoConGemini({
+  titulo,
+  grado,
+  area,
+  unidad,
+  textoOrigen,
+  puntosClave,
+  instruccionesDocente,
+}) {
   const apiKey = process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) {
     const err = new Error('GOOGLE_AI_API_KEY no configurada');
@@ -106,63 +114,81 @@ async function estructurarContenidoConGemini({ titulo, grado, area, unidad, text
     throw err;
   }
 
-  const prompt = `Eres un diseñador pedagógico para colegios en Perú. Genera SOLO JSON válido (sin markdown) con DOS partes: primero TEORÍA para que el niño aprenda, luego FICHA DE APLICACIÓN para practicar.
+  const bloqueInstrucciones = instruccionesDocente
+    ? `\nInstrucciones del docente (prioridad alta — intégralas sin contradecir el currículo):\n${instruccionesDocente.slice(0, 4000)}\n`
+    : '';
+
+  const prompt = `Eres un especialista en didáctica para colegios en Perú (Vanguarcito). Genera SOLO JSON válido (sin markdown).
+
+Objetivo: ficha PROFUNDA y pedagógica (como mini capítulo de estudio), no texto genérico ni plantilla vacía.
 
 Formato exacto:
 {
   "teoria": {
-    "titulo_seccion": "Aprendemos: [tema corto]",
+    "titulo_seccion": "Aprendemos: [tema]",
     "parrafos": [
-      "Párrafo 1 explicativo (3-5 oraciones, lenguaje del grado).",
-      "Párrafo 2 con ejemplos concretos del entorno del niño."
+      "Mínimo 4 párrafos distintos; cada uno con 4-6 oraciones claras para el grado.",
+      "Incluye definiciones, causas, consecuencias y ejemplos del Perú/entorno escolar.",
+      "Desarrolla conceptos del título y puntos clave con profundidad (no repitas solo el título)."
     ],
-    "recuerda": ["idea clave 1", "idea clave 2", "idea clave 3"]
+    "glosario": [
+      {"termino": "Palabra clave", "definicion": "Definición breve y comprensible para el grado"}
+    ],
+    "recuerda": ["5 a 7 ideas clave formuladas como frases completas, no solo palabras sueltas"],
+    "ilustraciones": [
+      {
+        "titulo": "Nombre del concepto visual",
+        "descripcion": "Qué debe observar el niño en esta ilustración (2-3 oraciones, lenguaje visual)",
+        "emoji": "🌱"
+      }
+    ]
   },
   "aplicacion": {
     "titulo_seccion": "FICHA DE APLICACIÓN",
-    "instruccion_general": "Instrucción breve: el niño debe demostrar lo aprendido en la teoría.",
+    "instruccion_general": "Instrucción motivadora para el niño.",
     "actividades": [
       {
         "tipo": "tabla_partes",
-        "titulo": "1. Observa y completa",
-        "instruccion": "texto breve",
-        "columnas": ["Columna A", "Columna B"],
-        "filas": [{"parte": "Ejemplo", "funcion": ""}]
+        "titulo": "1. Observa y relaciona",
+        "instruccion": "texto",
+        "columnas": ["Concepto", "Ejemplo / función"],
+        "filas": [{"parte": "…", "funcion": ""}]
       },
       {
         "tipo": "preguntas",
         "titulo": "2. Piensa y responde",
-        "preguntas": ["Pregunta que exige razonar sobre el tema", "Otra pregunta con ejemplo del aula"]
+        "preguntas": ["Preguntas abiertas que exijan razonar y usar la teoría"]
       }
     ]
   },
-  "pie_motivacional": "frase motivacional corta sobre el tema"
+  "pie_motivacional": "frase motivacional sobre el tema"
 }
 
-Reglas:
-- Español de Perú, máximo 4 actividades en aplicacion, adecuado al grado.
-- La TEORÍA debe enseñar el tema (no solo listar palabras sueltas).
-- La APLICACIÓN debe tener preguntas/ejercicios donde el niño use lo aprendido (no repetir literalmente los bullets de recuerda).
-- Puntos clave = contenido curricular (fotosíntesis, plantas…), NO instrucciones de diseño gráfico.
-- Si el PDF o puntos clave son pobres, desarrolla el tema desde el título y el área.
-
-Datos:
+Reglas obligatorias:
+- Español de Perú; vocabulario acorde al grado ${grado || 'indicado'}.
+- TEORÍA: mínimo 4 párrafos sustantivos; glosario con 4-6 términos; 2-3 ilustraciones con emoji representativo del concepto (no mascotas del colegio).
+- RECUERDA: frases completas con contenido, no listas de una palabra.
+- APLICACIÓN: 3-4 actividades variadas (tabla + preguntas + al menos una pregunta de análisis o situación real).
+- No copies instrucciones de diseño gráfico (colores, tipografía, logos).
+- Si faltan datos, investiga el tema desde el título y el área curricular con rigor escolar.
+${bloqueInstrucciones}
+Datos del formulario:
 - Título: ${titulo || 'Sin título'}
 - Grado: ${grado || '—'}
 - Área: ${area || '—'}
 - Unidad: ${unidad || '—'}
 - Puntos clave: ${puntosClave || '—'}
 
-Texto del PDF (puede estar vacío):
+Texto extraído del PDF de apoyo (puede estar vacío):
 ---
-${(textoOrigen || '').slice(0, 12000)}
+${(textoOrigen || '').slice(0, 14000)}
 ---`;
 
   const body = {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
-      temperature: 0.45,
-      maxOutputTokens: 6144,
+      temperature: 0.55,
+      maxOutputTokens: 8192,
       responseMimeType: 'application/json',
     },
   };
@@ -227,6 +253,24 @@ function normalizarContenido(raw) {
       parrafos: Array.isArray(raw.teoria.parrafos)
         ? raw.teoria.parrafos.map((p) => String(p).trim()).filter(Boolean)
         : [String(raw.teoria.texto || raw.intro || '').trim()].filter(Boolean),
+      glosario: Array.isArray(raw.teoria.glosario)
+        ? raw.teoria.glosario
+            .map((g) => ({
+              termino: String(g?.termino || g?.term || '').trim(),
+              definicion: String(g?.definicion || g?.def || '').trim(),
+            }))
+            .filter((g) => g.termino && g.definicion)
+        : [],
+      ilustraciones: Array.isArray(raw.teoria.ilustraciones)
+        ? raw.teoria.ilustraciones
+            .map((il) => ({
+              titulo: String(il?.titulo || '').trim(),
+              descripcion: String(il?.descripcion || il?.texto || '').trim(),
+              emoji: String(il?.emoji || '📘').trim().slice(0, 4) || '📘',
+            }))
+            .filter((il) => il.titulo && il.descripcion)
+            .slice(0, 3)
+        : [],
       recuerda: Array.isArray(raw.teoria.recuerda)
         ? raw.teoria.recuerda.map((x) => String(x).trim()).filter(Boolean)
         : [],
@@ -271,6 +315,8 @@ function normalizarContenido(raw) {
     aplicacion,
     intro,
     recuerda: teoria.recuerda,
+    glosario: teoria.glosario || [],
+    ilustraciones: teoria.ilustraciones || [],
     actividades,
     pie_motivacional,
   };

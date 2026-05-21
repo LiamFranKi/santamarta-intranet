@@ -87,6 +87,7 @@ export default function DisenadorFichas() {
     asignatura_id: '',
     titulo: '',
     unidad: '1',
+    instrucciones_ia: '',
     puntos_clave: '',
     usar_ia: true,
   });
@@ -171,13 +172,19 @@ export default function DisenadorFichas() {
     setEditItem(row);
     setArchivoPdf(null);
     let puntos = '';
+    let instrucciones = '';
     if (row?.id) {
       try {
         const det = await api.get(`/fichas-ia/trabajos/${row.id}`);
-        const sec = (det.data?.secciones || []).find((s) => s.titulo === 'Puntos clave');
-        if (sec?.contenido_json) {
-          const j = JSON.parse(sec.contenido_json);
-          puntos = j.puntos_clave || '';
+        for (const sec of det.data?.secciones || []) {
+          if (!sec?.contenido_json) continue;
+          try {
+            const j = JSON.parse(sec.contenido_json);
+            if (sec.titulo === 'Puntos clave') puntos = j.puntos_clave || '';
+            if (sec.titulo === 'Instrucciones docente') instrucciones = j.instrucciones_ia || '';
+          } catch {
+            /* ignore */
+          }
         }
       } catch {
         /* ignore */
@@ -188,6 +195,7 @@ export default function DisenadorFichas() {
       asignatura_id: row?.asignatura_id ? String(row.asignatura_id) : '',
       titulo: row?.titulo || '',
       unidad: row?.unidad || '1',
+      instrucciones_ia: instrucciones,
       puntos_clave: puntos,
       usar_ia: config.vanguarcito_disponible,
     });
@@ -215,6 +223,7 @@ export default function DisenadorFichas() {
           asignatura_id: form.asignatura_id || '',
           unidad: form.unidad.trim(),
           puntos_clave: form.puntos_clave.trim(),
+          instrucciones_ia: form.instrucciones_ia.trim(),
         });
         if (soloGuardar) {
           Swal.fire({ icon: 'success', title: 'Guardado', timer: 1400, showConfirmButton: false });
@@ -229,6 +238,7 @@ export default function DisenadorFichas() {
         if (form.asignatura_id) fd.append('asignatura_id', form.asignatura_id);
         fd.append('unidad', form.unidad.trim());
         fd.append('puntos_clave', form.puntos_clave.trim());
+        fd.append('instrucciones_ia', form.instrucciones_ia.trim());
         fd.append('usar_ia', form.usar_ia && config.vanguarcito_disponible ? '1' : '0');
         if (archivoPdf) fd.append('archivo_pdf', archivoPdf);
 
@@ -397,11 +407,6 @@ export default function DisenadorFichas() {
           ) : config.vanguarcito_disponible ? (
             <div className="voc-alert" style={{ background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}>
               Vanguarcito conectado — puede usarlo al crear o regenerar fichas.
-              {config.verificacion?.clave_sufijo && (
-                <span style={{ display: 'block', fontSize: '0.85em', marginTop: 4 }}>
-                  Clave verificada ({config.verificacion.clave_sufijo})
-                </span>
-              )}
             </div>
           ) : (
             <div className="voc-alert">Comprobando Vanguarcito…</div>
@@ -703,6 +708,20 @@ export default function DisenadorFichas() {
                     />
                   </label>
                 </div>
+
+                <label className="voc-label-block">
+                  <span className="voc-label-text">Indicaciones para Vanguarcito (opcional)</span>
+                  <textarea
+                    className="voc-input voc-textarea"
+                    rows={4}
+                    value={form.instrucciones_ia}
+                    onChange={(e) => setForm((f) => ({ ...f, instrucciones_ia: e.target.value }))}
+                    placeholder="Ej.: Profundiza en fotosíntesis y cuidado del medio ambiente; incluye ejemplos de plantas del Perú; actividades para 3° de primaria con dibujos."
+                  />
+                  <span className="voc-file-hint" style={{ display: 'block', marginTop: 4 }}>
+                    Complementa el prompt interno (no lo reemplaza): aquí explicas qué quieres enseñar, profundidad y enfoque.
+                  </span>
+                </label>
 
                 <label className="voc-label-block">
                   <span className="voc-label-text">Puntos clave del tema (uno por línea)</span>

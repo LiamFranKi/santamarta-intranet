@@ -95,7 +95,13 @@ function renderFichaHtml(ctx, archivoPlantilla) {
     titulo_seccion: 'Aprendemos el tema',
     parrafos: ctx.intro ? [ctx.intro] : ['Lee con atención el tema de esta unidad.'],
     recuerda: ctx.recuerda || [],
+    glosario: ctx.glosario || [],
+    ilustraciones: ctx.ilustraciones || [],
   };
+  if (!teoria.glosario?.length && ctx.glosario?.length) teoria.glosario = ctx.glosario;
+  if (!teoria.ilustraciones?.length && ctx.ilustraciones?.length) {
+    teoria.ilustraciones = ctx.ilustraciones;
+  }
   const aplicacion = ctx.aplicacion || {
     titulo_seccion: 'FICHA DE APLICACIÓN',
     instruccion_general: 'Demuestra lo que aprendiste en la teoría.',

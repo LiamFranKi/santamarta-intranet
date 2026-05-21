@@ -1,79 +1,62 @@
 const fs = require('fs');
 const path = require('path');
-const PDFDocument = require('pdfkit');
 const { renderFichaHtml } = require('./renderFichaHtml');
 const { dirs } = require('../../utils/fichasIaPaths');
 
 /**
- * Genera PDF con pdfkit (resumen estructurado). También guarda HTML de respaldo para vista previa en navegador.
+ * Convierte el mismo HTML de vista previa a PDF (misma maquetación, colores y mascotas).
+ */
+async function htmlStringToPdf(html, pdfPath) {
+  let puppeteer;
+  try {
+    puppeteer = require('puppeteer');
+  } catch (e) {
+    const err = new Error(
+      'Puppeteer no está instalado en el servidor. Ejecute: cd backend && npm install'
+    );
+    err.code = 'PUPPETEER_MISSING';
+    throw err;
+  }
+
+  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || undefined;
+  const browser = await puppeteer.launch({
+    headless: true,
+    executablePath,
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--font-render-hinting=none',
+    ],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 90000 });
+    await page.emulateMediaType('print');
+    await page.pdf({
+      path: pdfPath,
+      format: 'A4',
+      printBackground: true,
+      preferCSSPageSize: true,
+      margin: { top: '8mm', right: '8mm', bottom: '10mm', left: '8mm' },
+    });
+  } finally {
+    await browser.close();
+  }
+}
+
+/**
+ * Genera PDF desde la plantilla HTML (idéntico a vista previa) y guarda copia .html.
  */
 async function renderFichaPdfYHtml(ctx, archivoPlantilla, trabajoId) {
-  const html = renderFichaHtml(ctx, archivoPlantilla);
+  const html = renderFichaHtml({ ...ctx, inlineAssets: true }, archivoPlantilla);
   const baseName = `ficha-${trabajoId}-${Date.now()}`;
   const htmlPath = path.join(dirs.trabajo, `${baseName}.html`);
   const pdfPath = path.join(dirs.generados, `${baseName}.pdf`);
   fs.writeFileSync(htmlPath, html, 'utf8');
 
-  await new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 40, size: 'A4' });
-    const stream = fs.createWriteStream(pdfPath);
-    doc.pipe(stream);
-
-    const { titulo, grado, area, unidad, contenido } = ctx;
-    const c = contenido || {};
-
-    doc.fillColor('#047857').fontSize(16).text(titulo || 'Ficha pedagógica', { align: 'center' });
-    doc.moveDown(0.3);
-    doc.fillColor('#374151').fontSize(10).text(
-      [grado ? `${grado}.º grado` : null, area, unidad ? `Unidad ${unidad}` : null].filter(Boolean).join(' · '),
-      { align: 'center' }
-    );
-    doc.moveDown(1);
-
-    doc.fillColor('#111827').fontSize(11).text(c.intro || '', { align: 'justify' });
-    doc.moveDown(0.8);
-
-    if (Array.isArray(c.recuerda) && c.recuerda.length) {
-      doc.fillColor('#1d4ed8').fontSize(12).text('RECUERDA', { underline: true });
-      doc.moveDown(0.3);
-      doc.fillColor('#1e3a8a').fontSize(10);
-      c.recuerda.forEach((item) => {
-        doc.text(`• ${item}`);
-      });
-      doc.moveDown(0.8);
-    }
-
-    const acts = Array.isArray(c.actividades) ? c.actividades : [];
-    acts.forEach((act, idx) => {
-      doc.fillColor('#047857').fontSize(11).text(act.titulo || `Actividad ${idx + 1}`);
-      doc.moveDown(0.2);
-      if (act.instruccion) {
-        doc.fillColor('#4b5563').fontSize(9).text(act.instruccion);
-        doc.moveDown(0.2);
-      }
-      doc.fillColor('#111827').fontSize(10);
-      if (act.tipo === 'tabla_partes' && Array.isArray(act.filas)) {
-        act.filas.forEach((row) => {
-          doc.text(`${row.parte || '—'}: ${row.funcion || '________________'}`);
-        });
-      } else if (act.tipo === 'preguntas' && Array.isArray(act.preguntas)) {
-        act.preguntas.forEach((q, qi) => {
-          doc.text(`${String.fromCharCode(97 + qi)}) ${q}`);
-          doc.moveDown(0.4);
-        });
-      }
-      doc.moveDown(0.6);
-    });
-
-    if (c.pie_motivacional) {
-      doc.moveDown(0.5);
-      doc.fillColor('#b45309').fontSize(10).text(c.pie_motivacional, { align: 'center' });
-    }
-
-    doc.end();
-    stream.on('finish', resolve);
-    stream.on('error', reject);
-  });
+  await htmlStringToPdf(html, pdfPath);
 
   return {
     htmlPath,
@@ -83,4 +66,4 @@ async function renderFichaPdfYHtml(ctx, archivoPlantilla, trabajoId) {
   };
 }
 
-module.exports = { renderFichaPdfYHtml };
+module.exports = { renderFichaPdfYHtml, htmlStringToPdf };

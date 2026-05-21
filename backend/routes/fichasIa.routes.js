@@ -74,6 +74,9 @@ router.get('/config', async (req, res) => {
     let verificacion = null;
     if (req.query.verificar === '1' && tieneClave) {
       verificacion = await probarConexionVanguarcito();
+      if (verificacion && verificacion.clave_sufijo) {
+        verificacion = { ok: verificacion.ok, codigo: verificacion.codigo, mensaje: verificacion.mensaje, modelo: verificacion.modelo };
+      }
     }
     res.json({
       vanguarcito_disponible: tieneClave && (verificacion ? verificacion.ok : true),
@@ -244,23 +247,10 @@ router.put('/trabajos/:id', async (req, res) => {
     );
 
     const puntos_clave = String(req.body.puntos_clave || '').trim();
-    if (puntos_clave) {
-      const exist = await query(
-        `SELECT id FROM fichas_ia_trabajo_secciones WHERE trabajo_id = ? AND titulo = 'Puntos clave' LIMIT 1`,
-        [trabajoId]
-      );
-      if (exist.length) {
-        await execute(`UPDATE fichas_ia_trabajo_secciones SET contenido_json = ? WHERE id = ?`, [
-          JSON.stringify({ puntos_clave }),
-          exist[0].id,
-        ]);
-      } else {
-        await execute(
-          `INSERT INTO fichas_ia_trabajo_secciones (trabajo_id, orden, tipo, titulo, contenido_json)
-           VALUES (?, 0, 'CUSTOM', 'Puntos clave', ?)`,
-          [trabajoId, JSON.stringify({ puntos_clave })]
-        );
-      }
+    const instrucciones_ia = String(req.body.instrucciones_ia || '').trim();
+    if (puntos_clave) await upsertSeccionCustom(trabajoId, 'Puntos clave', { puntos_clave });
+    if (instrucciones_ia) {
+      await upsertSeccionCustom(trabajoId, 'Instrucciones docente', { instrucciones_ia });
     }
 
     const actualizado = await cargarTrabajo(req, trabajoId, { requierePropiedad: false });
@@ -355,6 +345,7 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
 
     const unidad = String(req.body.unidad || '').trim() || '1';
     const puntos_clave = String(req.body.puntos_clave || '').trim();
+    const instrucciones_ia = String(req.body.instrucciones_ia || '').trim();
     const usar_ia = req.body.usar_ia === '1' || req.body.usar_ia === 'true';
 
     let origen_tipo = 'FORMULARIO';
@@ -390,11 +381,10 @@ router.post('/trabajos', uploadOrigen.single('archivo_pdf'), async (req, res) =>
     const trabajoId = ins.insertId;
 
     if (puntos_clave) {
-      await execute(
-        `INSERT INTO fichas_ia_trabajo_secciones (trabajo_id, orden, tipo, titulo, contenido_json)
-         VALUES (?, 0, 'CUSTOM', 'Puntos clave', ?)`,
-        [trabajoId, JSON.stringify({ puntos_clave })]
-      );
+      await upsertSeccionCustom(trabajoId, 'Puntos clave', { puntos_clave });
+    }
+    if (instrucciones_ia) {
+      await upsertSeccionCustom(trabajoId, 'Instrucciones docente', { instrucciones_ia });
     }
 
     if (usar_ia && !geminiDisponible()) {
@@ -451,6 +441,21 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       }
     }
 
+    const instrRow = await query(
+      `SELECT contenido_json FROM fichas_ia_trabajo_secciones
+       WHERE trabajo_id = ? AND titulo = 'Instrucciones docente' LIMIT 1`,
+      [trabajoId]
+    );
+    let instruccionesDocente = '';
+    if (instrRow.length) {
+      try {
+        const j = JSON.parse(instrRow[0].contenido_json);
+        instruccionesDocente = j.instrucciones_ia || '';
+      } catch (_e) {
+        /* ignore */
+      }
+    }
+
     let contenido;
     let tokens_entrada = null;
     let tokens_salida = null;
@@ -469,6 +474,7 @@ router.post('/trabajos/:id/generar', async (req, res) => {
           unidad: trabajo.unidad,
           textoOrigen,
           puntosClave,
+          instruccionesDocente,
         });
         contenido = gem.contenido;
         tokens_entrada = gem.tokens_entrada;
@@ -536,12 +542,32 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       recuerda: contenido.recuerda,
       actividades: contenido.actividades,
       pie_motivacional: contenido.pie_motivacional,
+      glosario: contenido.glosario,
+      ilustraciones: contenido.ilustraciones,
       contenido,
       usoVanguarcito: ia_proveedor === 'google',
       inlineAssets: true,
     };
 
-    const { pdfFilename } = await renderFichaPdfYHtml(ctx, archivoPlantilla, trabajoId);
+    let pdfFilename;
+    try {
+      ({ pdfFilename } = await renderFichaPdfYHtml(ctx, archivoPlantilla, trabajoId));
+    } catch (pdfErr) {
+      console.error('[fichas-ia/pdf]', pdfErr);
+      await execute(
+        `UPDATE fichas_ia_trabajos SET estado = 'ERROR', error_mensaje = ? WHERE id = ?`,
+        [
+          `PDF: ${pdfErr.message}. En el servidor ejecute: cd backend && npm install && pm2 restart all`,
+          trabajoId,
+        ]
+      );
+      return res.status(500).json({
+        error:
+          pdfErr.code === 'PUPPETEER_MISSING'
+            ? 'Falta instalar dependencias PDF en el servidor (npm install en backend).'
+            : pdfErr.message || 'Error al generar PDF',
+      });
+    }
 
     const costo =
       tokens_entrada != null && tokens_salida != null
@@ -611,6 +637,8 @@ router.get('/trabajos/:id/preview-html', async (req, res) => {
         recuerda: contenido.recuerda,
         actividades: contenido.actividades,
         pie_motivacional: contenido.pie_motivacional,
+        glosario: contenido.glosario || contenido.teoria?.glosario,
+        ilustraciones: contenido.ilustraciones || contenido.teoria?.ilustraciones,
         usoVanguarcito: trabajo.ia_proveedor === 'google',
         inlineAssets: true,
       },
@@ -693,6 +721,8 @@ async function contenidoDesdeTrabajo(trabajoId) {
     if (row.tipo === 'INTRO') {
       contenido.intro = j.texto || j.intro || '';
       if (j.teoria) contenido.teoria = j.teoria;
+      if (j.glosario) contenido.glosario = j.glosario;
+      if (j.ilustraciones) contenido.ilustraciones = j.ilustraciones;
       if (j.aplicacion_meta) {
         contenido.aplicacion = {
           titulo_seccion: j.aplicacion_meta.titulo_seccion || 'FICHA DE APLICACIÓN',
@@ -737,6 +767,26 @@ async function contenidoDesdeTrabajo(trabajoId) {
   return contenido;
 }
 
+async function upsertSeccionCustom(trabajoId, titulo, data) {
+  const exist = await query(
+    `SELECT id FROM fichas_ia_trabajo_secciones WHERE trabajo_id = ? AND titulo = ? LIMIT 1`,
+    [trabajoId, titulo]
+  );
+  const json = JSON.stringify(data);
+  if (exist.length) {
+    await execute(`UPDATE fichas_ia_trabajo_secciones SET contenido_json = ? WHERE id = ?`, [
+      json,
+      exist[0].id,
+    ]);
+  } else {
+    await execute(
+      `INSERT INTO fichas_ia_trabajo_secciones (trabajo_id, orden, tipo, titulo, contenido_json)
+       VALUES (?, 0, 'CUSTOM', ?, ?)`,
+      [trabajoId, titulo, json]
+    );
+  }
+}
+
 async function guardarSeccionesDesdeContenido(trabajoId, contenido) {
   await execute(`DELETE FROM fichas_ia_trabajo_secciones WHERE trabajo_id = ? AND tipo != 'CUSTOM'`, [
     trabajoId,
@@ -751,6 +801,8 @@ async function guardarSeccionesDesdeContenido(trabajoId, contenido) {
       JSON.stringify({
         texto: contenido.intro,
         teoria: contenido.teoria,
+        glosario: contenido.glosario,
+        ilustraciones: contenido.ilustraciones,
         aplicacion_meta: contenido.aplicacion
           ? {
               titulo_seccion: contenido.aplicacion.titulo_seccion,

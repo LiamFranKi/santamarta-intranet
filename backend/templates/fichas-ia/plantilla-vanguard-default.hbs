@@ -73,14 +73,59 @@
     .teoria-textos { flex: 1; min-width: 0; }
     .parrafo-teoria {
       font-size: 12px;
-      line-height: 1.6;
+      line-height: 1.65;
       text-align: justify;
       margin: 0 0 10px;
-      padding: 10px 12px;
-      background: #f0fdf4;
-      border: 1px solid #bbf7d0;
-      border-radius: 8px;
+      padding: 11px 14px;
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      border: 1px solid #86efac;
+      border-radius: 10px;
+      box-shadow: 0 1px 2px rgba(5, 150, 105, 0.08);
     }
+    .ilustraciones-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+      margin: 12px 0 14px;
+    }
+    .ilustracion-card {
+      border: 2px solid #a7f3d0;
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: linear-gradient(160deg, #fff 0%, #f0fdf4 100%);
+      box-shadow: 0 2px 6px rgba(4, 120, 87, 0.1);
+    }
+    .ilustracion-emoji {
+      font-size: 36px;
+      line-height: 1;
+      text-align: center;
+      margin-bottom: 6px;
+    }
+    .ilustracion-card h4 {
+      margin: 0 0 6px;
+      font-size: 11px;
+      color: #047857;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .ilustracion-card p {
+      margin: 0;
+      font-size: 10px;
+      line-height: 1.5;
+      color: #374151;
+      text-align: justify;
+    }
+    .glosario-box {
+      margin: 10px 0 12px;
+      padding: 10px 12px;
+      background: #fffbeb;
+      border: 2px solid #fcd34d;
+      border-radius: 10px;
+    }
+    .glosario-box h3 { margin: 0 0 8px; font-size: 12px; color: #b45309; }
+    .glosario-item { margin: 0 0 6px; font-size: 10.5px; line-height: 1.45; }
+    .glosario-item strong { color: #92400e; }
     .recuerda-box {
       background: #eff6ff;
       border: 2px solid #93c5fd;
@@ -174,6 +219,28 @@
         {{#each teoria.parrafos}}
         <p class="parrafo-teoria">{{this}}</p>
         {{/each}}
+
+        {{#if teoria.ilustraciones}}
+        <div class="ilustraciones-grid">
+          {{#each teoria.ilustraciones}}
+          <div class="ilustracion-card">
+            <div class="ilustracion-emoji">{{emoji}}</div>
+            <h4>{{titulo}}</h4>
+            <p>{{descripcion}}</p>
+          </div>
+          {{/each}}
+        </div>
+        {{/if}}
+
+        {{#if teoria.glosario}}
+        <div class="glosario-box">
+          <h3>📖 Palabras importantes</h3>
+          {{#each teoria.glosario}}
+          <p class="glosario-item"><strong>{{termino}}:</strong> {{definicion}}</p>
+          {{/each}}
+        </div>
+        {{/if}}
+
         <div class="recuerda-box">
           <h3>💡 RECUERDA</h3>
           <div class="recuerda-inner">
