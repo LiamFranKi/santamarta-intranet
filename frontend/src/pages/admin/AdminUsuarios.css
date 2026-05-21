@@ -1295,6 +1295,23 @@
   vertical-align: middle;
 }
 
+/* Historial de pagos (modal por alumno): mismos colores que lista de pagos */
+.admin-pagos-historial-table tr.admin-pagos-historial-tr--pendiente td {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.admin-pagos-historial-table tr.admin-pagos-historial-tr--anulado td {
+  color: #6b21a8;
+}
+
+.admin-pagos-historial-mora {
+  margin-top: 2px;
+  font-size: 11px;
+  color: #6d28d9;
+  font-weight: 600;
+}
+
 /* Filas con estado PENDIENTE: contenido en rojo */
 .admin-pagos-lista-table tr.admin-pagos-lista-tr--pendiente td {
   color: #b91c1c;

@@ -445,21 +445,32 @@ function buildPanelHtml(m, opts = {}) {
       ? `<div style="margin-top:2px;font-size:12px;color:#6d28d9;font-weight:600">Mora: ${esc(fmtMonto(moraHist))}</div>`
       : '';
   const pagos = Array.isArray(m.pagos) ? m.pagos : [];
+  const tdHist =
+    'padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle';
   const filas = pagos.map((p) => {
     const nroOperacion = [p.nro_movimiento_banco, p.nro_movimiento_importado].filter(Boolean).join(' | ') || '—';
     const serieNumero = p.boleta?.serie_numero || '—';
     const moraFila = parseFloat(p.mora || 0);
-    return `<tr>
-      <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(p.tipo_descripcion || labelTipoPago(p.tipo || ''))}</td>
-      <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">
+    const regEst = String(p.pago_registro_estado || '').toUpperCase();
+    const esAnulado = regEst === 'ANULADO' || Boolean(p.es_anulado_historial);
+    const esPendiente =
+      !esAnulado && String(p.estado_pago || '').toUpperCase() === 'PENDIENTE';
+    const trClass = esAnulado
+      ? 'admin-pagos-historial-tr admin-pagos-historial-tr--anulado'
+      : esPendiente
+        ? 'admin-pagos-historial-tr admin-pagos-historial-tr--pendiente'
+        : 'admin-pagos-historial-tr';
+    return `<tr class="${trClass}">
+      <td style="${tdHist}">${esc(p.tipo_descripcion || labelTipoPago(p.tipo || ''))}</td>
+      <td style="${tdHist}">
         <div>${esc(fmtMonto(p.monto))}</div>
-        ${moraFila > 0 ? `<div style="font-size:11px;color:#6d28d9;font-weight:600">Mora: ${esc(fmtMonto(moraFila))}</div>` : ''}
+        ${moraFila > 0 ? `<div class="admin-pagos-historial-mora">Mora: ${esc(fmtMonto(moraFila))}</div>` : ''}
       </td>
-      <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(fmtFecha(p.fecha_hora))}</td>
-      <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(nroOperacion)}</td>
-      <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(serieNumero)}</td>
-      <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(fmtFecha(p.boleta?.fecha_impresion))}</td>
-      <td style="padding:8px;border-bottom:1px solid #eef2f7;white-space:nowrap;text-align:center;vertical-align:middle">${esc(fmtFecha(p.fecha_cancelado))}</td>
+      <td style="${tdHist}">${esc(fmtFecha(p.fecha_hora))}</td>
+      <td style="${tdHist}">${esc(nroOperacion)}</td>
+      <td style="${tdHist}">${esc(serieNumero)}</td>
+      <td style="${tdHist}">${esc(fmtFecha(p.boleta?.fecha_impresion))}</td>
+      <td style="${tdHist}">${esc(fmtFecha(p.fecha_cancelado))}</td>
     </tr>`;
   }).join('');
 
@@ -488,7 +499,7 @@ function buildPanelHtml(m, opts = {}) {
       </div>
     </div>
     <div style="max-height:330px;overflow:auto;border:1px solid #e5e7eb;border-radius:8px">
-      <table style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff">
+      <table class="admin-pagos-historial-table" style="width:100%;border-collapse:collapse;font-size:12.5px;background:#fff">
         <thead>
           <tr style="background:#f8fafc">
             <th style="text-align:center;padding:8px;position:sticky;top:0;background:#f8fafc">Tipo de pago</th>
