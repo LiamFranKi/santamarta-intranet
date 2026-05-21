@@ -15,6 +15,9 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import '../VocabulariosPage.css';
 
+/** Gemini + PDF en servidor pueden tardar más de 30 s (timeout global de api.js). */
+const GENERAR_FICHA_TIMEOUT_MS = 180000;
+
 const ESTADO_LABEL = {
   BORRADOR: 'Borrador',
   EXTRAYENDO: 'Extrayendo PDF…',
@@ -252,15 +255,17 @@ export default function DisenadorFichas() {
         title: 'Generando ficha…',
         html:
           form.usar_ia && config.vanguarcito_disponible
-            ? 'Vanguarcito está estructurando la ficha y generando el PDF…'
-            : 'Maquetando la ficha (modo formulario, sin Vanguarcito).',
+            ? 'Vanguarcito estructura el contenido y el servidor genera el PDF. Puede tardar 1–2 minutos; no cierre esta ventana.'
+            : 'Maquetando la ficha (modo formulario). Puede tardar hasta 1 minuto.',
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading(),
       });
 
-      const { data: gen } = await api.post(`/fichas-ia/trabajos/${trabajoId}/generar`, {
-        usar_ia: form.usar_ia && config.vanguarcito_disponible,
-      });
+      const { data: gen } = await api.post(
+        `/fichas-ia/trabajos/${trabajoId}/generar`,
+        { usar_ia: form.usar_ia && config.vanguarcito_disponible },
+        { timeout: GENERAR_FICHA_TIMEOUT_MS }
+      );
 
       Swal.close();
       setModalOpen(false);
@@ -286,12 +291,15 @@ export default function DisenadorFichas() {
       });
     } catch (err) {
       Swal.close();
+      const esTimeout =
+        err.code === 'ECONNABORTED' || String(err.message || '').includes('timeout');
       const det = err.response?.data?.error || err.message || 'No se pudo completar';
       Swal.fire({
         icon: 'error',
         title: 'No se pudo generar la ficha',
-        text:
-          det.includes('429') || det.includes('límite')
+        text: esTimeout
+          ? 'La generación tardó más de lo esperado. Espere 1 minuto, recargue la página y revise si la ficha quedó en Listo o Maquetando; si sigue atascada, regenere de nuevo.'
+          : det.includes('429') || det.includes('límite')
             ? `${det} Puede desmarcar «Usar Vanguarcito» e intentar de nuevo.`
             : det,
       });
@@ -312,8 +320,17 @@ export default function DisenadorFichas() {
     if (!ok.isConfirmed) return;
     setGenerando(true);
     try {
-      Swal.fire({ title: 'Generando…', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-      await api.post(`/fichas-ia/trabajos/${row.id}/generar`, { usar_ia: config.vanguarcito_disponible });
+      Swal.fire({
+        title: 'Generando…',
+        html: 'Puede tardar 1–2 minutos. No cierre esta ventana.',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading(),
+      });
+      await api.post(
+        `/fichas-ia/trabajos/${row.id}/generar`,
+        { usar_ia: config.vanguarcito_disponible },
+        { timeout: GENERAR_FICHA_TIMEOUT_MS }
+      );
       Swal.close();
       Swal.fire({ icon: 'success', title: 'Regenerada', timer: 1500, showConfirmButton: false });
       await cargarTrabajos();

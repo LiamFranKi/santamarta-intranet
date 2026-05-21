@@ -84,7 +84,7 @@ async function htmlStringToPdf(html, pdfPath) {
 
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0', timeout: 90000 });
+    await page.setContent(html, { waitUntil: 'load', timeout: 60000 });
     await page.emulateMediaType('print');
     await page.pdf({
       path: pdfPath,
