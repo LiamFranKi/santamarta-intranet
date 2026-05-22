@@ -5,6 +5,9 @@ Coloque aquí imágenes PNG (fondo transparente recomendado):
 | Archivo | Uso |
 |---------|-----|
 | `logo-vanguard.png` | Encabezado derecho |
+| `vanguarcito.png` | Mascota en pantalla Fichas IA y ventana de carga (recomendado; PNG grande ~300–500 px) |
+
+**Nota:** En el login y el menú «Vanguarcito» se usa el emoji 🤖 (no es un archivo). En Fichas IA, si no hay PNG, se usa `avatar-nino.png` y, si falla la carga, el mismo emoji 🤖 grande.
 | `avatar-nino.png`, `avatar-nino1.png` … | Mascotas niño (prefijo `avatar-nino`) |
 | `avatar-nina1.png` … `avatar-nina6.png` | Mascotas niña (prefijo `avatar-nina`) |
 | `mascota-*.png` | Otras ilustraciones con prefijo `mascota-` |

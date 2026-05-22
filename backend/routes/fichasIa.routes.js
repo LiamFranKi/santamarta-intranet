@@ -26,6 +26,7 @@ const {
   listarCursosPorGrupo,
   etiquetaGrupo,
 } = require('../services/fichasIa/fichasIaMeta');
+const { urlMascotaVanguarcito } = require('../services/fichasIa/fichasIaMascota');
 
 const router = express.Router();
 
@@ -87,6 +88,7 @@ router.get('/config', async (req, res) => {
       verificacion,
       plantillas: plantillas || [],
       estilos_ficha: listarEstilosFicha(),
+      mascota_vanguarcito_url: urlMascotaVanguarcito(),
     });
   } catch (e) {
     console.error('[fichas-ia/config]', e);

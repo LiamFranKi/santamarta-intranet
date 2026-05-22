@@ -14,9 +14,88 @@ import FilterListOutlinedIcon from '@mui/icons-material/FilterListOutlined';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import '../VocabulariosPage.css';
+import './DisenadorFichas.css';
 
 /** Gemini + PDF en servidor pueden tardar más de 30 s (timeout global de api.js). */
 const GENERAR_FICHA_TIMEOUT_MS = 180000;
+
+function originServidor() {
+  const base = api.defaults?.baseURL || '';
+  if (base) return String(base).replace(/\/api\/?$/i, '');
+  const { protocol, hostname } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') return 'http://localhost:5000';
+  return `${protocol}//${hostname}`;
+}
+
+function urlMascotaVanguarcito(config) {
+  return config?.mascota_vanguarcito_url || `${originServidor()}/assets/fichas-ia/avatar-nino.png`;
+}
+
+/** Robot del login y menú (emoji 🤖), no es un archivo en el proyecto. */
+function MascotaVanguarcitoVisual({ src, classNameImg, classNameEmoji = 'fia-mascota-emoji' }) {
+  const [sinImagen, setSinImagen] = useState(false);
+  if (sinImagen) {
+    return (
+      <span className={classNameEmoji} aria-hidden>
+        🤖
+      </span>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt=""
+      className={classNameImg}
+      onError={() => setSinImagen(true)}
+    />
+  );
+}
+
+function enlazarFallbackEmojiEnSwal() {
+  const img = Swal.getPopup()?.querySelector('.fia-swal-mascota');
+  if (!img || img.dataset.fiaFallback) return;
+  img.dataset.fiaFallback = '1';
+  img.onerror = () => {
+    const span = document.createElement('span');
+    span.className = 'fia-swal-mascota-emoji';
+    span.setAttribute('aria-hidden', 'true');
+    span.textContent = '🤖';
+    img.replaceWith(span);
+  };
+}
+
+function abrirSwalGenerandoFicha(mascotaUrl, conIa) {
+  const texto = conIa
+    ? 'Vanguarcito organiza la teoría y los ejercicios. Luego el servidor genera tu PDF.'
+    : 'Maquetando tu ficha desde el formulario (sin IA).';
+  const hint = conIa ? 'Puede tardar 1–2 minutos · no cierre esta ventana' : 'Hasta 1 minuto · no cierre esta ventana';
+
+  Swal.fire({
+    html: `
+      <div class="fia-swal-carga">
+        <div class="fia-swal-mascota-wrap">
+          <div class="fia-swal-aura" aria-hidden="true"></div>
+          <img src="${mascotaUrl}" alt="Vanguarcito trabajando" class="fia-swal-mascota" />
+        </div>
+        <h3 class="fia-swal-titulo">${conIa ? 'Vanguarcito está creando tu ficha' : 'Generando tu ficha'}</h3>
+        <p class="fia-swal-texto">${texto}</p>
+        <div class="fia-swal-bar"><div class="fia-swal-bar-inner"></div></div>
+        <p class="fia-swal-hint">${hint}</p>
+        <p class="fia-swal-dots" style="margin-top:0.5rem;font-size:1.2rem;color:#3b82f6">
+          <span>●</span><span> ●</span><span> ●</span>
+        </p>
+      </div>
+    `,
+    showConfirmButton: false,
+    allowOutsideClick: false,
+    customClass: { popup: 'fia-swal-popup' },
+    didOpen: () => {
+      const loader = Swal.getContainer()?.querySelector('.swal2-loader');
+      if (loader) loader.style.display = 'none';
+      enlazarFallbackEmojiEnSwal();
+    },
+  });
+}
 
 const ESTADO_LABEL = {
   BORRADOR: 'Borrador',
@@ -289,15 +368,10 @@ export default function DisenadorFichas() {
         trabajoId = creado.trabajo_id;
       }
 
-      Swal.fire({
-        title: 'Generando ficha…',
-        html:
-          form.usar_ia && config.vanguarcito_disponible
-            ? 'Vanguarcito estructura el contenido y el servidor genera el PDF. Puede tardar 1–2 minutos; no cierre esta ventana.'
-            : 'Maquetando la ficha (modo formulario). Puede tardar hasta 1 minuto.',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading(),
-      });
+      abrirSwalGenerandoFicha(
+        urlMascotaVanguarcito(config),
+        form.usar_ia && config.vanguarcito_disponible
+      );
 
       const { data: gen } = await api.post(
         `/fichas-ia/trabajos/${trabajoId}/generar`,
@@ -358,12 +432,7 @@ export default function DisenadorFichas() {
     if (!ok.isConfirmed) return;
     setGenerando(true);
     try {
-      Swal.fire({
-        title: 'Generando…',
-        html: 'Puede tardar 1–2 minutos. No cierre esta ventana.',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading(),
-      });
+      abrirSwalGenerandoFicha(urlMascotaVanguarcito(config), config.vanguarcito_disponible);
       await api.post(
         `/fichas-ia/trabajos/${row.id}/generar`,
         { usar_ia: config.vanguarcito_disponible },
@@ -431,13 +500,14 @@ export default function DisenadorFichas() {
   return (
     <DashboardLayout>
       <div className="voc-page">
-        <header className="voc-page-header">
-          <h1>Fichas IA</h1>
-          <p>
-            Biblioteca de fichas del colegio (teoría + ficha de aplicación). Vanguarcito estructura el contenido;
-            la plantilla Vanguard aplica diseño, logo y mascotas.
-          </p>
-          {!config.tiene_clave_servidor ? (
+        <header className="voc-page-header fia-hero">
+          <div className="fia-hero-text">
+            <h1>Fichas IA</h1>
+            <p>
+              Biblioteca de fichas del colegio (teoría + ficha de aplicación). Vanguarcito estructura el contenido;
+              la plantilla Vanguard aplica diseño, logo y mascotas en el PDF.
+            </p>
+            {!config.tiene_clave_servidor ? (
             <div className="voc-alert">
               <strong>Sin clave en el servidor.</strong> El prepago en Google AI Studio no basta: debe agregar{' '}
               <code>GOOGLE_AI_API_KEY</code> en <code>backend/.env</code> del VPS (clave del proyecto{' '}
@@ -466,6 +536,38 @@ export default function DisenadorFichas() {
           ) : (
             <div className="voc-alert">Comprobando Vanguarcito…</div>
           )}
+            <details className="fia-tips">
+              <summary>💡 ¿Dónde más usar Vanguarcito sin gastar mucho en IA?</summary>
+              <ul>
+                <li>
+                  <strong>Fichas IA (aquí):</strong> solo al crear o regenerar; reutilice la misma ficha y edite
+                  puntos clave en lugar de regenerar todo.
+                </li>
+                <li>
+                  <strong>Sin IA:</strong> desmarque «Usar Vanguarcito» — la plantilla y mascotas en el PDF siguen
+                  igual; no consume Gemini.
+                </li>
+                <li>
+                  <strong>Docentes:</strong> mensaje de bienvenida en dashboard, tooltip en menú Fichas IA, PDF con
+                  mascotas (ya incluido).
+                </li>
+                <li>
+                  <strong>Alumnos:</strong> mascotas en fichas impresas y, a futuro, resúmenes cortos bajo demanda (no
+                  automáticos).
+                </li>
+                <li>
+                  <strong>Evitar costo:</strong> no regenerar en bucle; un PDF de apoyo claro reduce tokens; use
+                  instrucciones del docente en lugar de pedir todo de nuevo a la IA.
+                </li>
+              </ul>
+            </details>
+          </div>
+          <div className="fia-hero-mascota" aria-hidden="true">
+            <MascotaVanguarcitoVisual
+              src={urlMascotaVanguarcito(config)}
+              classNameImg="fia-hero-mascota-img"
+            />
+          </div>
         </header>
 
         <section className="voc-section">
