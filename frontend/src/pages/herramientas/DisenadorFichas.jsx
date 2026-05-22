@@ -27,13 +27,24 @@ function originServidor() {
   return `${protocol}//${hostname}`;
 }
 
+const ARCHIVO_MASCOTA_DEFECTO = 'vanguarcito.png';
+
+function urlMascotaVanguarcitoPorDefecto() {
+  return `${originServidor()}/assets/fichas-ia/${ARCHIVO_MASCOTA_DEFECTO}`;
+}
+
 function urlMascotaVanguarcito(config) {
-  return config?.mascota_vanguarcito_url || `${originServidor()}/assets/fichas-ia/avatar-nino.png`;
+  return config?.mascota_vanguarcito_url || urlMascotaVanguarcitoPorDefecto();
 }
 
 /** Robot del login y menú (emoji 🤖), no es un archivo en el proyecto. */
 function MascotaVanguarcitoVisual({ src, classNameImg, classNameEmoji = 'fia-mascota-emoji' }) {
   const [sinImagen, setSinImagen] = useState(false);
+
+  useEffect(() => {
+    setSinImagen(false);
+  }, [src]);
+
   if (sinImagen) {
     return (
       <span className={classNameEmoji} aria-hidden>
@@ -173,11 +184,12 @@ export default function DisenadorFichas() {
   const esAdmin = user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA';
 
   const [loading, setLoading] = useState(true);
-  const [config, setConfig] = useState({
+  const [config, setConfig] = useState(() => ({
     vanguarcito_disponible: false,
     verificacion: null,
     tiene_clave_servidor: false,
-  });
+    mascota_vanguarcito_url: urlMascotaVanguarcitoPorDefecto(),
+  }));
   const [trabajos, setTrabajos] = useState([]);
   const [opcionesGrupo, setOpcionesGrupo] = useState([]);
   const [cursosGrupo, setCursosGrupo] = useState([]);
@@ -244,6 +256,8 @@ export default function DisenadorFichas() {
       setConfig({
         ...cfgData,
         vanguarcito_disponible: vanguarcitoOk,
+        mascota_vanguarcito_url:
+          cfgData.mascota_vanguarcito_url || urlMascotaVanguarcitoPorDefecto(),
       });
       if (!vanguarcitoOk) {
         setForm((f) => ({ ...f, usar_ia: false }));
