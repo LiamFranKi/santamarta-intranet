@@ -19,6 +19,7 @@ const { fetchMatriculaVigenteMasReciente, sqlMatriculaIdMasRecientePorAlumno } =
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
+const { obtenerRangosLetrasColegio } = require('../utils/rangosLetrasColegio');
 const {
   fetchRangosCiclosParsed,
   contarInasistenciasBimestre,
@@ -3267,6 +3268,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       }
     };
 
+    const rangos_letras = await obtenerRangosLetrasColegio(query, colegio_id);
+
     res.json({
       alumno: {
         id: alumno.id,
@@ -3286,7 +3289,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       resumen,
       recomendaciones: recomendacionesTexto,
       ciclo,
-      detalle_notas
+      detalle_notas,
+      rangos_letras,
     });
   } catch (error) {
     console.error('Error obteniendo libreta:', error);

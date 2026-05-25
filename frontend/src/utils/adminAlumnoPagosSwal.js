@@ -36,6 +36,7 @@ function parseDatetimeLocalToApi(fechaHoraLocal) {
 function normalizeFechaHoraForDatetimeLocal(raw) {
   if (raw == null || raw === '') return '';
   const s = String(raw).trim();
+  if (isFechaHoraPlaceholder1970(s)) return '';
   const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}):(\d{2})/);
   if (m) return `${m[1]}T${m[2]}:${m[3]}`;
   return '';
@@ -44,9 +45,47 @@ function normalizeFechaHoraForDatetimeLocal(raw) {
 function normalizeFechaForDateInput(raw) {
   if (raw == null || raw === '') return '';
   const s = String(raw).trim();
+  if (isFechaPlaceholder1970(s)) return '';
   const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
   if (m) return m[1];
   return '';
+}
+
+/** Placeholder legado BD (pago pendiente / sin fecha real). */
+function isFechaHoraPlaceholder1970(raw) {
+  if (raw == null || raw === '') return true;
+  const s = String(raw).trim();
+  if (!s) return true;
+  return s.startsWith('1970-01-01');
+}
+
+function isFechaPlaceholder1970(raw) {
+  if (raw == null || raw === '') return true;
+  const s = String(raw).trim();
+  if (!s) return true;
+  return s.startsWith('1970-01-01');
+}
+
+/** Para formulario editar: vacío si es placeholder → el caller usa fecha de hoy. */
+function fechaHoraParaFormularioEditar(pagoEdit, defs) {
+  if (!pagoEdit) return defs.fechaHoraDatetimeLocal;
+  let fh =
+    pagoEdit.fecha_hora_local ||
+    normalizeFechaHoraForDatetimeLocal(pagoEdit.fecha_hora);
+  if (isFechaHoraPlaceholder1970(fh) || isFechaHoraPlaceholder1970(pagoEdit.fecha_hora)) {
+    fh = '';
+  }
+  return fh || defs.fechaHoraDatetimeLocal;
+}
+
+function fechaCanceladaParaFormularioEditar(pagoEdit, defs) {
+  if (!pagoEdit) return defs.fechaCanceladoDate;
+  let fc =
+    pagoEdit.fecha_cancelado_date || normalizeFechaForDateInput(pagoEdit.fecha_cancelado);
+  if (isFechaPlaceholder1970(fc) || isFechaPlaceholder1970(pagoEdit.fecha_cancelado)) {
+    fc = '';
+  }
+  return fc || defs.fechaCanceladoDate;
 }
 
 /** Opciones `<option>` para mes de pensión (nro_pago + etiqueta desde API). */
@@ -94,7 +133,17 @@ function fmtFecha(val) {
   return d.toLocaleDateString('es-PE', { dateStyle: 'short' });
 }
 
-function fmtFechaHoraLista(val) {
+function fmtFechaHoraLista(val, p = {}) {
+  if (isFechaHoraPlaceholder1970(val)) {
+    const fc = p.fecha_cancelado;
+    if (fc && !isFechaPlaceholder1970(fc)) {
+      const d = new Date(`${String(fc).trim().slice(0, 10)}T12:00:00`);
+      if (!Number.isNaN(d.getTime())) {
+        return d.toLocaleDateString('es-PE', { dateStyle: 'short' });
+      }
+    }
+    return '—';
+  }
   if (!val) return '—';
   const d = new Date(val);
   if (Number.isNaN(d.getTime())) return '—';
@@ -120,6 +169,7 @@ function labelEstadoPagoDisplay(estado) {
 function fmtCanceladoLine(val) {
   if (val == null || val === '') return '';
   const s = String(val).trim();
+  if (isFechaPlaceholder1970(s)) return '';
   const d = s.length >= 10 ? s.slice(0, 10) : s;
   return `Cancelado: ${d}`;
 }
@@ -192,7 +242,7 @@ function buildListaPagosPanelHtml(m, ctx = {}) {
     const fechaBlock =
       esPendiente && !esAnulado
         ? '<span class="admin-pagos-lista-fecha-prin">—</span>'
-        : `<span class="admin-pagos-lista-fecha-prin">${esc(fmtFechaHoraLista(p.fecha_hora))}</span>${
+        : `<span class="admin-pagos-lista-fecha-prin">${esc(fmtFechaHoraLista(p.fecha_hora, p))}</span>${
             p.fecha_cancelado
               ? `<div class="admin-pagos-lista-fecha-cancel">${esc(fmtCanceladoLine(p.fecha_cancelado))}</div>`
               : ''
@@ -605,13 +655,8 @@ async function openPagoFormSwal({ nombreAlumno, alumnoId, matriculaId, pagosMatr
   let fechaHoraVal = defs.fechaHoraDatetimeLocal;
   let fechaCancelVal = defs.fechaCanceladoDate;
   if (pagoEdit) {
-    const fh =
-      pagoEdit.fecha_hora_local ||
-      normalizeFechaHoraForDatetimeLocal(pagoEdit.fecha_hora);
-    const fc =
-      pagoEdit.fecha_cancelado_date || normalizeFechaForDateInput(pagoEdit.fecha_cancelado);
-    fechaHoraVal = fh || defs.fechaHoraDatetimeLocal;
-    fechaCancelVal = fc || defs.fechaCanceladoDate;
+    fechaHoraVal = fechaHoraParaFormularioEditar(pagoEdit, defs);
+    fechaCancelVal = fechaCanceladaParaFormularioEditar(pagoEdit, defs);
   }
 
   const montoInputAttrs =

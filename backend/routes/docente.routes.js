@@ -42,6 +42,7 @@ const {
   contarInasistenciasBimestre,
   contarTardanzasBimestre,
 } = require('../utils/libretaResumenBimestres');
+const { obtenerRangosLetrasColegio } = require('../utils/rangosLetrasColegio');
 const { fetchNotasTodosGrupoData } = require('../utils/notasTodosGrupoData');
 const {
   listarAlumnosRecomendacionesPorGrupo,
@@ -13695,6 +13696,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     console.log(`✅ [HIJOS-LIBRETA] Libreta obtenida exitosamente`);
     console.log(`🔵 ========== [HIJOS-LIBRETA] FIN DE PETICIÓN ==========\n`);
 
+    const rangos_letras = await obtenerRangosLetrasColegio(query, colegio_id);
+
     res.json({
       alumno,
       titulo_intranet: tituloIntranet,
@@ -13704,7 +13707,8 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       resumen,
       recomendaciones: recomendacionesTexto,
       ciclo,
-      detalle_notas
+      detalle_notas,
+      rangos_letras,
     });
   } catch (error) {
     console.error('❌ [HIJOS-LIBRETA] Error obteniendo libreta:', error);

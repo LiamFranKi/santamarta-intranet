@@ -81,16 +81,30 @@ function requireAdminOrPsicologaUsuarios(req, res, next) {
 router.use(authenticateToken);
 router.use(requireAdminOrPsicologaUsuarios);
 
+/** Placeholder legado en BD cuando el pago está pendiente o sin fecha real (`NOT NULL`). */
+function esFechaHoraPlaceholder1970(fh) {
+  if (fh == null || fh === '') return true;
+  if (Object.prototype.toString.call(fh) === '[object Date]' && !Number.isNaN(fh.getTime())) {
+    return fh.getFullYear() === 1970 && fh.getMonth() === 0 && fh.getDate() === 1;
+  }
+  return String(fh).trim().startsWith('1970-01-01');
+}
+
+function esFechaPlaceholder1970(fc) {
+  if (fc == null || fc === '') return true;
+  if (Object.prototype.toString.call(fc) === '[object Date]' && !Number.isNaN(fc.getTime())) {
+    return fc.getFullYear() === 1970 && fc.getMonth() === 0 && fc.getDate() === 1;
+  }
+  return String(fc).trim().startsWith('1970-01-01');
+}
+
 /**
  * Línea de matrícula pendiente legada: `fecha_hora` = 1970-01-01 o null → mostrar fecha de registro de matrícula.
  */
 function normalizeFechaHoraMatricula(p, matriculaRow) {
   if (Number(p.tipo) !== 0) return p;
   const fh = p.fecha_hora;
-  const isPlaceholder =
-    fh == null ||
-    fh === '' ||
-    String(fh).trim().startsWith('1970-01-01');
+  const isPlaceholder = fh == null || fh === '' || esFechaHoraPlaceholder1970(fh);
   if (!isPlaceholder) return p;
   const fr = matriculaRow?.fecha_registro;
   if (fr != null && String(fr).trim() !== '') {
@@ -1167,6 +1181,7 @@ async function markBoletaPagoComoImpresa(pagoId) {
  */
 function fechaHoraToDatetimeLocalInput(fh) {
   if (fh == null || fh === '') return '';
+  if (esFechaHoraPlaceholder1970(fh)) return '';
   if (Object.prototype.toString.call(fh) === '[object Date]' && !Number.isNaN(fh.getTime())) {
     const pad = (n) => String(n).padStart(2, '0');
     const y = fh.getFullYear();
@@ -1185,6 +1200,7 @@ function fechaHoraToDatetimeLocalInput(fh) {
 /** Valor para input `type="date"` desde MySQL DATE/DATETIME o `Date` (evita String(Date).slice(0,10) === "Mon Apr 14"). */
 function fechaSqlOrDateToDateInput(fc) {
   if (fc == null || fc === '') return '';
+  if (esFechaPlaceholder1970(fc)) return '';
   if (Object.prototype.toString.call(fc) === '[object Date]' && !Number.isNaN(fc.getTime())) {
     const pad = (n) => String(n).padStart(2, '0');
     return `${fc.getFullYear()}-${pad(fc.getMonth() + 1)}-${pad(fc.getDate())}`;
@@ -3597,8 +3613,12 @@ router.get('/alumnos/:id/matriculas/:matriculaId/pagos/:pagoId', async (req, res
 
     const pr = pagoRows[0];
     const esPendientePago = String(pr.estado_pago || '').toUpperCase() === 'PENDIENTE';
-    const fecha_hora_local = esPendientePago ? '' : fechaHoraToDatetimeLocalInput(pr.fecha_hora);
-    const fecha_cancelado_date = esPendientePago ? '' : fechaSqlOrDateToDateInput(pr.fecha_cancelado);
+    const fecha_hora_local =
+      esPendientePago || esFechaHoraPlaceholder1970(pr.fecha_hora)
+        ? ''
+        : fechaHoraToDatetimeLocalInput(pr.fecha_hora);
+    let fecha_cancelado_date = esPendientePago ? '' : fechaSqlOrDateToDateInput(pr.fecha_cancelado);
+    if (esFechaPlaceholder1970(fecha_cancelado_date)) fecha_cancelado_date = '';
 
     res.json({
       data: {

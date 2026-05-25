@@ -990,10 +990,10 @@ function AdminConfiguracion() {
             </div>
           </div>
 
-          {/* CONVERSIÓN A NOTAS A LETRAS - PRIMARIA */}
+          {/* CONVERSIÓN A NOTAS A LETRAS (todos los niveles) */}
           <div className="config-card config-card-9">
             <div className="config-section">
-              <h2 className="section-title">🔤 CONVERSIÓN A NOTAS A LETRAS - PRIMARIA</h2>
+              <h2 className="section-title">🔤 CONVERSIÓN A NOTAS A LETRAS (todos los niveles)</h2>
             <button type="button" onClick={agregarRangoLetraPrimaria} className="btn-add">
               ➕ Agregar Nuevo
             </button>
@@ -1044,7 +1044,7 @@ function AdminConfiguracion() {
                 type="button" 
                 onClick={() => handleSaveSection([
                   'rangos_letras_primaria'
-                ], 'Conversión a Notas a Letras - Primaria')}
+                ], 'Conversión a Notas a Letras (todos los niveles)')}
                 disabled={saving}
                 className="btn-submit-card"
               >

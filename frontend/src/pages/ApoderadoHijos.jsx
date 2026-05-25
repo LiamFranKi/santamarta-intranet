@@ -11,6 +11,12 @@ import Swal from 'sweetalert2';
 import { generarPDFBoletaDesdeDatos, MSG_NO_IMPRESION_BOLETA } from '../utils/generarPDFBoletaPago';
 import { getLibretaPdfLabelFillRgb } from '../utils/libretaPdfColors';
 import { renderLibretaInicialBoleta } from '../utils/libretaInicialPdf';
+import {
+  buildValoresFilaLibreta,
+  dibujarFilaValoresLibreta,
+  dibujarCeldaNotaLibreta,
+} from '../utils/libretaCuantitativaPdf';
+import { normalizarRangosLetras } from '../utils/notaLetraConversion';
 import './DocenteHijos.css';
 import './AlumnoCursos.css';
 
@@ -2295,18 +2301,9 @@ function ApoderadoHijos() {
       const numCols = 5;
       const colAreaWidth = 80;
       const colBimestreWidth = (contentWidth - colAreaWidth) / numCols;
+      const rangosLetras = normalizarRangosLetras(datosLibreta.rangos_letras);
 
-        // ========== LAYOUT CUANTITATIVO (PRIMARIA/SECUNDARIA) - SIN CAMBIOS ==========
-      const getPromedioFinalHastaCiclo = (obj) => {
-        const vals = [];
-        for (let c = 1; c <= cicloSel; c++) {
-          const v = obj[`promedio_b${c}`];
-          if (v !== null && v !== '' && v !== '-') vals.push(parseFloat(v));
-        }
-        if (vals.length === 0) return null;
-        return Math.round(vals.reduce((s, n) => s + (isNaN(n) ? 0 : n), 0) / vals.length);
-      };
-
+        // ========== LAYOUT CUANTITATIVO (PRIMARIA/SECUNDARIA) ==========
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
       doc.setLineWidth(borderWidth);
@@ -2335,21 +2332,21 @@ function ApoderadoHijos() {
           doc.addPage();
           yPos = margin;
         }
-        const areaValores = [];
-        for (let c = 1; c <= 4; c++) areaValores.push(c <= cicloSel ? area[`promedio_b${c}`] : null);
-        areaValores.push(getPromedioFinalHastaCiclo(area));
+        const areaValores = buildValoresFilaLibreta(area, cicloSel);
 
         doc.setFont('helvetica', 'bold');
         doc.setFillColor(...colorLabel);
         doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
         doc.text(area.area_nombre.toUpperCase(), margin + 2, yPos + 3.5);
-        xPos = margin + colAreaWidth;
-        areaValores.forEach((promedio) => {
-          doc.setFillColor(...colorLabel);
-          doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-          const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
-          doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-          xPos += colBimestreWidth;
+        dibujarFilaValoresLibreta(doc, {
+          xStart: margin + colAreaWidth,
+          y: yPos,
+          colWidth: colBimestreWidth,
+          rowHeight: headerHeight,
+          valores: areaValores,
+          fillRgb: colorLabel,
+          rangosLetras,
+          cicloSel,
         });
         yPos += headerHeight;
 
@@ -2359,20 +2356,20 @@ function ApoderadoHijos() {
             doc.addPage();
             yPos = margin + paddingVertical;
           }
-          const asigValores = [];
-          for (let c = 1; c <= 4; c++) asigValores.push(c <= cicloSel ? asignatura[`promedio_b${c}`] : null);
-          asigValores.push(getPromedioFinalHastaCiclo(asignatura));
+          const asigValores = buildValoresFilaLibreta(asignatura, cicloSel);
 
           doc.setFillColor(...colorData);
           doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
           doc.text(asignatura.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
-          xPos = margin + colAreaWidth;
-          asigValores.forEach((promedio) => {
-            doc.setFillColor(...colorData);
-            doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-            const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
-            doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-            xPos += colBimestreWidth;
+          dibujarFilaValoresLibreta(doc, {
+            xStart: margin + colAreaWidth,
+            y: yPos,
+            colWidth: colBimestreWidth,
+            rowHeight: headerHeight,
+            valores: asigValores,
+            fillRgb: colorData,
+            rangosLetras,
+            cicloSel,
           });
           yPos += headerHeight;
         });
@@ -2384,20 +2381,20 @@ function ApoderadoHijos() {
             doc.addPage();
             yPos = margin + paddingVertical;
           }
-          const asigValores = [];
-          for (let c = 1; c <= 4; c++) asigValores.push(c <= cicloSel ? asignatura[`promedio_b${c}`] : null);
-          asigValores.push(getPromedioFinalHastaCiclo(asignatura));
+          const asigValores = buildValoresFilaLibreta(asignatura, cicloSel);
 
           doc.setFillColor(...colorData);
           doc.rect(margin, yPos, colAreaWidth, headerHeight, 'FD');
           doc.text(asignatura.curso_nombre.toUpperCase(), margin + 2, yPos + 3.5);
-          xPos = margin + colAreaWidth;
-          asigValores.forEach((promedio) => {
-            doc.setFillColor(...colorData);
-            doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-            const valor = promedio !== null && promedio !== '' && promedio !== '-' ? promedio.toString() : '-';
-            doc.text(valor, xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
-            xPos += colBimestreWidth;
+          dibujarFilaValoresLibreta(doc, {
+            xStart: margin + colAreaWidth,
+            y: yPos,
+            colWidth: colBimestreWidth,
+            rowHeight: headerHeight,
+            valores: asigValores,
+            fillRgb: colorData,
+            rangosLetras,
+            cicloSel,
           });
           yPos += headerHeight;
         });
@@ -2449,8 +2446,28 @@ function ApoderadoHijos() {
               : '-');
         }
         doc.setFillColor(...colorData);
-        doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
-        doc.text((label === 'PROMEDIO' || label === 'PROMEDIO CONDUCTA') && col5Val !== '-' ? col5Val : '-', xPos + colBimestreWidth / 2, yPos + 3.5, { align: 'center' });
+        if (label === 'PROMEDIO' && col5Val !== '-') {
+          dibujarCeldaNotaLibreta(doc, {
+            x: xPos,
+            y: yPos,
+            w: colBimestreWidth,
+            h: headerHeight,
+            valor: col5Val,
+            fillRgb: colorData,
+            esPf: true,
+            rangosLetras,
+          });
+        } else {
+          doc.rect(xPos, yPos, colBimestreWidth, headerHeight, 'FD');
+          doc.text(
+            (label === 'PROMEDIO' || label === 'PROMEDIO CONDUCTA') && col5Val !== '-'
+              ? col5Val
+              : '-',
+            xPos + colBimestreWidth / 2,
+            yPos + 3.5,
+            { align: 'center' }
+          );
+        }
         yPos += headerHeight;
       };
 
