@@ -9,34 +9,35 @@
     body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; background: #fff; }
     @page { size: A4; margin: 9mm; }
     .sheet {
-      position: relative;
       width: 100%;
-      height: 268mm;
       min-height: 268mm;
-      max-height: 268mm;
+      display: flex;
+      flex-direction: column;
       box-sizing: border-box;
       background: #fff;
       border: 3px solid #1d4ed8;
       padding: 0;
-      overflow: hidden;
+      overflow: visible;
       page-break-after: always;
       break-after: page;
     }
-    .sheet-top-band { height: 6px; background: linear-gradient(90deg, #1d4ed8 0%, #2563eb 50%, #1d4ed8 100%); }
+    .sheet-top-band { flex: 0 0 auto; height: 6px; background: linear-gradient(90deg, #1d4ed8 0%, #2563eb 50%, #1d4ed8 100%); }
     .sheet-inner {
-      position: relative;
-      height: calc(268mm - 6px);
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
       min-height: calc(268mm - 6px);
-      padding: 12px 14px 88px;
+      padding: 12px 14px 10px;
       box-sizing: border-box;
     }
-    .sheet-body { width: 100%; }
+    .sheet-body { flex: 0 1 auto; width: 100%; }
     .sheet-footer-zone {
-      position: absolute;
-      left: 14px;
-      right: 14px;
-      bottom: 6px;
-      z-index: 5;
+      flex: 0 0 auto;
+      width: 100%;
+      margin-top: auto;
+      padding-top: 14px;
+      break-inside: avoid;
+      page-break-inside: avoid;
       -webkit-print-color-adjust: exact;
       print-color-adjust: exact;
     }
@@ -100,18 +101,26 @@
     @media print {
       .sheet {
         border: none;
-        height: 268mm !important;
-        min-height: 268mm !important;
-        max-height: 268mm !important;
+        min-height: 268mm;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
         page-break-after: always;
       }
       .hoja-aplicacion.sheet { page-break-after: auto; }
       .sheet-inner {
-        height: calc(268mm - 6px) !important;
-        min-height: calc(268mm - 6px) !important;
+        min-height: calc(268mm - 6mm);
+        height: auto !important;
       }
-      .sheet-footer-zone { position: absolute !important; }
-      .ejercicio-math, .parrafo-teoria, .glosario-box, .recuerda-box, .ilustraciones-grid { break-inside: avoid; page-break-inside: avoid; }
+      .sheet-footer-zone {
+        position: static !important;
+        margin-top: auto;
+      }
+      .ejercicio-math, .parrafo-teoria, .glosario-box, .recuerda-box, .ilustraciones-grid, .pie, .sheet-footer-zone {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      .tabla-vf tr { break-inside: avoid; page-break-inside: avoid; }
     }
   </style>
 </head>
@@ -175,7 +184,6 @@
         </div>
       </div>
       <div class="sheet-footer-zone">
-        <div class="pie">{{pie_motivacional}}</div>
         <div class="footer-meta"><span>{{area}} · Teoría · Hoja 1</span><span>Vanguard Schools</span></div>
       </div>
     </div>
