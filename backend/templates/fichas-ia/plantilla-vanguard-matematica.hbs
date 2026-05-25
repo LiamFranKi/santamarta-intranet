@@ -8,12 +8,38 @@
     html, body { margin: 0; padding: 0; width: 100%; }
     body { font-family: 'Segoe UI', Arial, sans-serif; color: #1e293b; background: #fff; }
     @page { size: A4; margin: 9mm; }
-    .sheet { width: 100%; min-height: 268mm; display: flex; flex-direction: column; background: #fff; border: 3px solid #1d4ed8; padding: 0 0 8px; }
+    .sheet {
+      position: relative;
+      width: 100%;
+      height: 268mm;
+      min-height: 268mm;
+      max-height: 268mm;
+      box-sizing: border-box;
+      background: #fff;
+      border: 3px solid #1d4ed8;
+      padding: 0;
+      overflow: hidden;
+      page-break-after: always;
+      break-after: page;
+    }
     .sheet-top-band { height: 6px; background: linear-gradient(90deg, #1d4ed8 0%, #2563eb 50%, #1d4ed8 100%); }
-    .sheet-inner { padding: 12px 14px 6px; flex: 1 1 auto; display: flex; flex-direction: column; min-height: calc(268mm - 14px); }
-    .sheet-body { flex: 0 1 auto; width: 100%; }
-    .sheet-spacer { flex: 1 1 0; min-height: 8px; }
-    .sheet-footer-zone { flex: 0 0 auto; width: 100%; }
+    .sheet-inner {
+      position: relative;
+      height: calc(268mm - 6px);
+      min-height: calc(268mm - 6px);
+      padding: 12px 14px 88px;
+      box-sizing: border-box;
+    }
+    .sheet-body { width: 100%; }
+    .sheet-footer-zone {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 6px;
+      z-index: 5;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
     .page-break { page-break-before: always; break-before: page; }
     .header { display: grid; grid-template-columns: 54px 1fr 108px; gap: 10px; align-items: center; margin-bottom: 14px; padding: 10px 12px; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; border: 1px solid #93c5fd; }
     .unidad-badge { background: linear-gradient(145deg, #1d4ed8, #2563eb); color: #fff; font-weight: 800; font-size: 24px; width: 54px; height: 54px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
@@ -72,8 +98,19 @@
     .ej-mascota { text-align: right; margin-top: 4px; }
     .ej-mascota img { width: 52px; height: auto; object-fit: contain; }
     @media print {
-      .sheet { border: none; min-height: 268mm; page-break-after: always; }
+      .sheet {
+        border: none;
+        height: 268mm !important;
+        min-height: 268mm !important;
+        max-height: 268mm !important;
+        page-break-after: always;
+      }
       .hoja-aplicacion.sheet { page-break-after: auto; }
+      .sheet-inner {
+        height: calc(268mm - 6px) !important;
+        min-height: calc(268mm - 6px) !important;
+      }
+      .sheet-footer-zone { position: absolute !important; }
       .ejercicio-math, .parrafo-teoria, .glosario-box, .recuerda-box, .ilustraciones-grid { break-inside: avoid; page-break-inside: avoid; }
     }
   </style>
@@ -137,7 +174,6 @@
           </div>
         </div>
       </div>
-      <div class="sheet-spacer" aria-hidden="true"></div>
       <div class="sheet-footer-zone">
         <div class="pie">{{pie_motivacional}}</div>
         <div class="footer-meta"><span>{{area}} · Teoría · Hoja 1</span><span>Vanguard Schools</span></div>
@@ -202,7 +238,6 @@
         {{/each}}
 
       </div>
-      <div class="sheet-spacer" aria-hidden="true"></div>
       <div class="sheet-footer-zone">
         <div class="pie">{{pie_motivacional}}</div>
         <div class="footer-meta">

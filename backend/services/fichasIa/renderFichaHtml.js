@@ -7,7 +7,7 @@ const { normalizarEjerciciosMatematica } = require('./normalizarEjerciciosMatema
 const { esPlantillaMatematica } = require('./estilosFicha');
 
 const DEFAULT_TEMPLATE = 'plantilla-vanguard-default.hbs';
-const MAX_MASCOTAS_FICHA = 4;
+const MAX_MASCOTAS_POOL = 12;
 
 if (!Handlebars.helpers.eq) {
   Handlebars.registerHelper('eq', (a, b) => a === b);
@@ -39,60 +39,54 @@ function listMascotaAssets() {
     .filter((x) => x.url);
 }
 
-function seleccionarMascotasParaFicha(trabajoId) {
+function seleccionarMascotasUnicas(trabajoId, cantidad) {
   const all = listMascotaAssets();
-  const vacio = { pool: [], intro: null, parrafoExtra: null, recuerda: null, actividad: null };
-  if (!all.length) return vacio;
+  if (!all.length) return [];
 
   const seed = Number(trabajoId) || 1;
-  const ninos = all.filter((m) => /avatar-nino/i.test(m.archivo));
-  const ninas = all.filter((m) => /avatar-nina/i.test(m.archivo));
   const elegidas = [];
   const usados = new Set();
 
-  const tomar = (lista, offset) => {
-    if (!lista.length || elegidas.length >= MAX_MASCOTAS_FICHA) return;
-    const item = lista[(seed + offset) % lista.length];
+  for (let offset = 0; elegidas.length < cantidad && offset < all.length * 3; offset += 1) {
+    const item = all[(seed + offset) % all.length];
     if (item && !usados.has(item.archivo)) {
       elegidas.push(item);
       usados.add(item.archivo);
     }
-  };
-
-  tomar(ninos, 0);
-  tomar(ninas, 1);
-  tomar(ninos, 2);
-  tomar(ninas, 3);
-  for (let i = 4; elegidas.length < MAX_MASCOTAS_FICHA && i < all.length + 4; i += 1) {
-    const resto = all.filter((m) => !usados.has(m.archivo));
-    tomar(resto, i);
   }
+  return elegidas;
+}
 
-  const pick = (i) => elegidas[i] || elegidas[i % elegidas.length] || null;
+/** Asigna mascotas sin repetir archivo en toda la ficha. */
+function crearAsignadorMascotas(trabajoId) {
+  const pool = seleccionarMascotasUnicas(trabajoId, MAX_MASCOTAS_POOL);
+  let cursor = 0;
+  const usados = new Set();
 
   return {
-    pool: elegidas,
-    intro: pick(0),
-    parrafoExtra: pick(1),
-    recuerda: pick(2),
-    actividad: pick(3),
+    tomar() {
+      while (cursor < pool.length) {
+        const item = pool[cursor];
+        cursor += 1;
+        if (item && !usados.has(item.archivo)) {
+          usados.add(item.archivo);
+          return item;
+        }
+      }
+      return null;
+    },
   };
 }
 
-function mascotaEnParrafo(index, totalParrafos, mascotas, urlMascota) {
-  if (index === 0) return urlMascota(mascotas.intro);
-  if (index === 2) return urlMascota(mascotas.parrafoExtra);
-  if (totalParrafos === 2 && index === 1) return urlMascota(mascotas.parrafoExtra);
-  if (totalParrafos > 3 && index === totalParrafos - 1 && index !== 2) {
-    return urlMascota(mascotas.parrafoExtra);
-  }
-  return null;
+function parrafoLlevaMascota(index, total) {
+  if (index === 0) return true;
+  if (total >= 3 && index === 2) return true;
+  if (total === 2 && index === 1) return true;
+  return false;
 }
 
-function mascotaEnActividad(index, mascotas, urlMascota) {
-  if (index === 0) return urlMascota(mascotas.actividad);
-  if (index === 2) return urlMascota(mascotas.intro);
-  return null;
+function actividadLlevaMascota(index) {
+  return index === 0 || index === 2;
 }
 
 function loadTemplate(archivoPlantilla) {
@@ -176,7 +170,7 @@ function renderFichaHtml(ctx, archivoPlantilla) {
   const compile = loadTemplate(archivoPlantilla);
   const inline = ctx.inlineAssets !== false;
   const logoUrl = assetSrc('logo-vanguard.png', inline);
-  const mascotas = seleccionarMascotasParaFicha(ctx.trabajoId);
+  const mascotas = crearAsignadorMascotas(ctx.trabajoId);
 
   const urlMascota = (m) => (m?.archivo ? assetSrc(m.archivo, inline) : null);
 
@@ -216,14 +210,14 @@ function renderFichaHtml(ctx, archivoPlantilla) {
     texto,
     num: index + 1,
     estilo: ESTILOS_PARRAFO[index % ESTILOS_PARRAFO.length],
-    mascotaUrl: mascotaEnParrafo(index, parrafosRaw.length, mascotas, urlMascota),
+    mascotaUrl: parrafoLlevaMascota(index, parrafosRaw.length) ? urlMascota(mascotas.tomar()) : null,
   }));
 
   const actsNorm = normalizarActividades(aplicacion.actividades || ctx.actividades || []);
   const actividades = actsNorm.map((act, index) => ({
     ...act,
     estilo: ESTILOS_ACTIVIDAD[index % ESTILOS_ACTIVIDAD.length],
-    mascotaUrl: mascotaEnActividad(index, mascotas, urlMascota),
+    mascotaUrl: actividadLlevaMascota(index) ? urlMascota(mascotas.tomar()) : null,
   }));
 
   const esMatematica =
@@ -251,7 +245,7 @@ function renderFichaHtml(ctx, archivoPlantilla) {
       }
       return {
         ...out,
-        mascotaUrl: mascotaEnActividad(index, mascotas, urlMascota),
+        mascotaUrl: actividadLlevaMascota(index) ? urlMascota(mascotas.tomar()) : null,
       };
     });
   }
@@ -271,7 +265,7 @@ function renderFichaHtml(ctx, archivoPlantilla) {
     ejerciciosMatematicos,
     esMatematica,
     logoUrl,
-    mascotaRecuerdaUrl: urlMascota(mascotas.recuerda),
+    mascotaRecuerdaUrl: urlMascota(mascotas.tomar()),
     tieneLogo: Boolean(logoUrl),
     subtituloLinea: subtituloExtra,
     usoVanguarcito: Boolean(ctx.usoVanguarcito),
@@ -280,4 +274,10 @@ function renderFichaHtml(ctx, archivoPlantilla) {
   });
 }
 
-module.exports = { renderFichaHtml, DEFAULT_TEMPLATE, listMascotaAssets, seleccionarMascotasParaFicha };
+module.exports = {
+  renderFichaHtml,
+  DEFAULT_TEMPLATE,
+  listMascotaAssets,
+  seleccionarMascotasUnicas,
+  crearAsignadorMascotas,
+};
