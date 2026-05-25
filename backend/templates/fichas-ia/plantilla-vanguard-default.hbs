@@ -22,8 +22,10 @@
       height: 6px;
       background: linear-gradient(90deg, #059669 0%, #2563eb 50%, #059669 100%);
     }
-    .sheet-inner { padding: 12px 14px 6px; flex: 1; display: flex; flex-direction: column; }
-    .sheet-body { flex: 1 1 auto; width: 100%; }
+    .sheet-inner { padding: 12px 14px 6px; flex: 1 1 auto; display: flex; flex-direction: column; min-height: calc(268mm - 14px); }
+    .sheet-body { flex: 0 1 auto; width: 100%; }
+    .sheet-spacer { flex: 1 1 0; min-height: 8px; }
+    .sheet-footer-zone { flex: 0 0 auto; width: 100%; }
     .page-break { page-break-before: always; break-before: page; }
 
     .header {
@@ -278,21 +280,22 @@
     }
 
     .pie {
-      margin-top: 10px;
+      margin: 0 0 8px;
       text-align: center;
       background: linear-gradient(90deg, #fef3c7, #fde68a);
       border: 2px solid #fbbf24;
       border-radius: 10px;
-      padding: 10px;
+      padding: 10px 12px;
       font-size: 11.5px;
       font-weight: 600;
       color: #92400e;
+      line-height: 1.45;
       break-inside: avoid;
     }
 
     .footer-meta {
-      margin-top: auto;
-      padding: 8px 14px 4px;
+      margin-top: 0;
+      padding: 8px 0 4px;
       border-top: 2px solid #e2e8f0;
       display: flex;
       justify-content: space-between;
@@ -373,9 +376,13 @@
           </div>
         </div>
       </div>
-      <div class="footer-meta">
-        <span>{{area}} · Teoría · Hoja 1</span>
-        <span>Vanguard Schools</span>
+      <div class="sheet-spacer" aria-hidden="true"></div>
+      <div class="sheet-footer-zone">
+        <div class="pie">{{pie_motivacional}}</div>
+        <div class="footer-meta">
+          <span>{{area}} · Teoría · Hoja 1</span>
+          <span>Vanguard Schools</span>
+        </div>
       </div>
     </div>
   </div>
@@ -467,11 +474,14 @@
         </div>
         {{/each}}
 
-        {{#if pie_motivacional}}<div class="pie">{{pie_motivacional}}</div>{{/if}}
       </div>
-      <div class="footer-meta">
-        <span>{{area}} · Aplicación · Hoja 2</span>
-        {{#if usoVanguarcito}}<span>Vanguarcito · Vanguard Schools</span>{{else}}<span>Vanguard Schools</span>{{/if}}
+      <div class="sheet-spacer" aria-hidden="true"></div>
+      <div class="sheet-footer-zone">
+        <div class="pie">{{pie_motivacional}}</div>
+        <div class="footer-meta">
+          <span>{{area}} · Aplicación · Hoja 2</span>
+          {{#if usoVanguarcito}}<span>Vanguarcito · Vanguard Schools</span>{{else}}<span>Vanguard Schools</span>{{/if}}
+        </div>
       </div>
     </div>
   </div>

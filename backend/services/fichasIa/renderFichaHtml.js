@@ -7,7 +7,7 @@ const { normalizarEjerciciosMatematica } = require('./normalizarEjerciciosMatema
 const { esPlantillaMatematica } = require('./estilosFicha');
 
 const DEFAULT_TEMPLATE = 'plantilla-vanguard-default.hbs';
-const MAX_MASCOTAS_FICHA = 3;
+const MAX_MASCOTAS_FICHA = 4;
 
 if (!Handlebars.helpers.eq) {
   Handlebars.registerHelper('eq', (a, b) => a === b);
@@ -41,7 +41,8 @@ function listMascotaAssets() {
 
 function seleccionarMascotasParaFicha(trabajoId) {
   const all = listMascotaAssets();
-  if (!all.length) return { intro: null, recuerda: null, actividad: null };
+  const vacio = { pool: [], intro: null, parrafoExtra: null, recuerda: null, actividad: null };
+  if (!all.length) return vacio;
 
   const seed = Number(trabajoId) || 1;
   const ninos = all.filter((m) => /avatar-nino/i.test(m.archivo));
@@ -60,16 +61,38 @@ function seleccionarMascotasParaFicha(trabajoId) {
 
   tomar(ninos, 0);
   tomar(ninas, 1);
-  if (elegidas.length < MAX_MASCOTAS_FICHA) {
+  tomar(ninos, 2);
+  tomar(ninas, 3);
+  for (let i = 4; elegidas.length < MAX_MASCOTAS_FICHA && i < all.length + 4; i += 1) {
     const resto = all.filter((m) => !usados.has(m.archivo));
-    tomar(resto, 2);
+    tomar(resto, i);
   }
 
+  const pick = (i) => elegidas[i] || elegidas[i % elegidas.length] || null;
+
   return {
-    intro: elegidas[0] || null,
-    recuerda: elegidas[1] || elegidas[0] || null,
-    actividad: elegidas[2] || elegidas[1] || elegidas[0] || null,
+    pool: elegidas,
+    intro: pick(0),
+    parrafoExtra: pick(1),
+    recuerda: pick(2),
+    actividad: pick(3),
   };
+}
+
+function mascotaEnParrafo(index, totalParrafos, mascotas, urlMascota) {
+  if (index === 0) return urlMascota(mascotas.intro);
+  if (index === 2) return urlMascota(mascotas.parrafoExtra);
+  if (totalParrafos === 2 && index === 1) return urlMascota(mascotas.parrafoExtra);
+  if (totalParrafos > 3 && index === totalParrafos - 1 && index !== 2) {
+    return urlMascota(mascotas.parrafoExtra);
+  }
+  return null;
+}
+
+function mascotaEnActividad(index, mascotas, urlMascota) {
+  if (index === 0) return urlMascota(mascotas.actividad);
+  if (index === 2) return urlMascota(mascotas.intro);
+  return null;
 }
 
 function loadTemplate(archivoPlantilla) {
@@ -188,18 +211,19 @@ function renderFichaHtml(ctx, archivoPlantilla) {
     teoriaRender = enriquecerTeoriaMatematica(teoria, ctx);
   }
 
-  const parrafos = (teoriaRender.parrafos || []).map((texto, index) => ({
+  const parrafosRaw = teoriaRender.parrafos || [];
+  const parrafos = parrafosRaw.map((texto, index) => ({
     texto,
     num: index + 1,
     estilo: ESTILOS_PARRAFO[index % ESTILOS_PARRAFO.length],
-    mascotaUrl: index === 0 ? urlMascota(mascotas.intro) : null,
+    mascotaUrl: mascotaEnParrafo(index, parrafosRaw.length, mascotas, urlMascota),
   }));
 
   const actsNorm = normalizarActividades(aplicacion.actividades || ctx.actividades || []);
   const actividades = actsNorm.map((act, index) => ({
     ...act,
     estilo: ESTILOS_ACTIVIDAD[index % ESTILOS_ACTIVIDAD.length],
-    mascotaUrl: index === 0 ? urlMascota(mascotas.actividad) : null,
+    mascotaUrl: mascotaEnActividad(index, mascotas, urlMascota),
   }));
 
   const esMatematica =
@@ -214,24 +238,30 @@ function renderFichaHtml(ctx, archivoPlantilla) {
     ejerciciosMatematicos = normalizarEjerciciosMatematica(rawEj, {
       titulo: ctx.titulo,
       grado: ctx.grado,
-    }).map((ej) => {
+    }).map((ej, index) => {
+      let out = ej;
       if (ej.tipo === 'completar' && ej.oracion) {
-        return { ...ej, oracionPartes: oracionAFragmentos(ej.oracion) };
-      }
-      if (ej.tipo === 'verdadero_falso') {
-        return {
+        out = { ...ej, oracionPartes: oracionAFragmentos(ej.oracion) };
+      } else if (ej.tipo === 'verdadero_falso') {
+        out = {
           ...ej,
           enunciado: ej.enunciado || 'Completa V o F:',
           instruccion_vf: 'Marca V o F en cada casillero de la tabla.',
         };
       }
-      return ej;
+      return {
+        ...out,
+        mascotaUrl: mascotaEnActividad(index, mascotas, urlMascota),
+      };
     });
   }
 
   const subtituloExtra = [subtituloGrado(ctx.grado, ctx.grupoEtiqueta), ctx.area, 'Vanguard Schools', String(ctx.anio || new Date().getFullYear())]
     .filter(Boolean)
     .join(' · ');
+
+  const pieMotivacional =
+    String(ctx.pie_motivacional || '').trim() || '¡Sigue aprendiendo con esfuerzo y curiosidad!';
 
   return compile({
     ...ctx,
@@ -245,6 +275,7 @@ function renderFichaHtml(ctx, archivoPlantilla) {
     tieneLogo: Boolean(logoUrl),
     subtituloLinea: subtituloExtra,
     usoVanguarcito: Boolean(ctx.usoVanguarcito),
+    pie_motivacional: pieMotivacional,
     anio: ctx.anio || new Date().getFullYear(),
   });
 }
