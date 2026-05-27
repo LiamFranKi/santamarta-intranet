@@ -23,6 +23,11 @@ const {
   listarAlumnosRecomendacionesPorGrupo,
   guardarRecomendacionesPorGrupo,
 } = require('../utils/recomendacionesGrupoMatriculas');
+const {
+  fetchGrupoConductaContext,
+  listarAlumnosConductaPorGrupo,
+  guardarConductaPorGrupo,
+} = require('../utils/conductaGrupoMatriculas');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -40,6 +45,9 @@ router.use((req, res, next) => {
     }
     if (p.includes('/asistencia')) {
       return res.status(403).json({ error: 'No autorizado para registro de asistencia.' });
+    }
+    if (p.includes('/conducta')) {
+      return res.status(403).json({ error: 'No autorizado para registro de conducta.' });
     }
     if (p === '/meta' || p.startsWith('/grupos') || p.startsWith('/grados')) {
       return next();
@@ -1066,6 +1074,68 @@ router.post('/grupos/:grupoId/recomendaciones', async (req, res) => {
   } catch (error) {
     console.error('[admin/academico/grupos/:grupoId/recomendaciones POST]', error);
     res.status(500).json({ error: 'Error al guardar recomendaciones' });
+  }
+});
+
+/**
+ * GET /api/admin/academico/grupos/:grupoId/conducta?ciclo=1
+ * Misma carga que tutoría. Solo administrador.
+ */
+router.get('/grupos/:grupoId/conducta', async (req, res) => {
+  try {
+    if (req.user?.tipo !== 'ADMINISTRADOR') {
+      return res.status(403).json({ error: 'Solo el administrador puede ver conducta por grupo.' });
+    }
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const cid = colegio(req);
+    const ciclo = parseInt(req.query.ciclo, 10) || 1;
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'ID de grupo inválido' });
+    }
+    const grupo = await fetchGrupoConductaContext(query, grupoId, cid);
+    if (!grupo) {
+      return res.status(404).json({ error: 'Grupo no encontrado' });
+    }
+    const { lista, ciclo: cicloInt } = await listarAlumnosConductaPorGrupo(query, {
+      grupoId,
+      colegio_id: cid,
+      ciclo,
+    });
+    res.json({ grupo, alumnos: lista, ciclo: cicloInt });
+  } catch (error) {
+    console.error('[admin/academico/grupos/:grupoId/conducta GET]', error);
+    res.status(500).json({ error: 'Error al obtener conducta' });
+  }
+});
+
+/**
+ * POST /api/admin/academico/grupos/:grupoId/conducta
+ * body: { ciclo, notas: { matricula_id: nota } }
+ */
+router.post('/grupos/:grupoId/conducta', async (req, res) => {
+  try {
+    if (req.user?.tipo !== 'ADMINISTRADOR') {
+      return res.status(403).json({ error: 'Solo el administrador puede guardar conducta por grupo.' });
+    }
+    const grupoId = parseInt(req.params.grupoId, 10);
+    const cid = colegio(req);
+    const { ciclo, notas } = req.body;
+    if (!Number.isFinite(grupoId)) {
+      return res.status(400).json({ error: 'ID de grupo inválido' });
+    }
+    const cicloInt = parseInt(ciclo, 10) || 1;
+    if (cicloInt < 1 || cicloInt > 4) {
+      return res.status(400).json({ error: 'Ciclo inválido' });
+    }
+    const grupo = await fetchGrupoConductaContext(query, grupoId, cid);
+    if (!grupo) {
+      return res.status(404).json({ error: 'Grupo no encontrado' });
+    }
+    await guardarConductaPorGrupo(execute, { cicloInt, notas });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[admin/academico/grupos/:grupoId/conducta POST]', error);
+    res.status(500).json({ error: 'Error al guardar conducta' });
   }
 });
 

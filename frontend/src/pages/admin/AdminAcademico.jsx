@@ -8,6 +8,7 @@ import GrupoAlumnosListaView from '../../components/grupoAlumnos/GrupoAlumnosLis
 import { useGrupoReportesConducta } from '../../components/grupoReportes/useGrupoReportesConducta';
 import GrupoHorarioCompletoModal from '../../components/grupoHorario/GrupoHorarioCompletoModal';
 import AdminGrupoAsistenciaModal from '../../components/admin/AdminGrupoAsistenciaModal';
+import AdminGrupoConductaModal from '../../components/admin/AdminGrupoConductaModal';
 import ModalCopiarContenidoAsignatura from '../../components/admin/ModalCopiarContenidoAsignatura';
 import ModalCriteriosIndicadoresAsignatura from '../../components/admin/ModalCriteriosIndicadoresAsignatura';
 import ModalRegistrarNotasAsignatura from '../../components/admin/ModalRegistrarNotasAsignatura';
@@ -556,6 +557,7 @@ const OPCIONES_GRUPO_MENU = [
   { key: 'registro_asistencia', label: 'Registro de Asistencia', icon: '📝' },
   { key: 'imprimir_qr', label: 'Imprimir QR', icon: '🧾' },
   { key: 'registro_notas', label: 'Registro de Notas', icon: '📚' },
+  { key: 'registrar_conducta', label: 'Registrar Conducta', icon: '📝' },
   { key: 'recomendaciones', label: 'Recomendaciones', icon: '💡' },
   { key: 'reporte_incidencias', label: 'Incidencia', icon: '📌' },
   { key: 'reporte_presentacion', label: 'Presentación', icon: '📉' },
@@ -846,6 +848,7 @@ function GruposPanel({ meta }) {
   const [listaAlumnosGrupoRow, setListaAlumnosGrupoRow] = useState(null);
   const [horarioModalGrupo, setHorarioModalGrupo] = useState(null);
   const [grupoAsistenciaAdmin, setGrupoAsistenciaAdmin] = useState(null);
+  const [grupoConductaAdmin, setGrupoConductaAdmin] = useState(null);
   const [mostrarModalRecomendacionesAdmin, setMostrarModalRecomendacionesAdmin] = useState(false);
   const [grupoRecomendacionesAdmin, setGrupoRecomendacionesAdmin] = useState(null);
   const [recomendacionesCicloAdmin, setRecomendacionesCicloAdmin] = useState(1);
@@ -1348,6 +1351,12 @@ function GruposPanel({ meta }) {
       }
       return;
     }
+    if (accion === 'registrar_conducta') {
+      if (vistaSoloLecturaGrados) return;
+      setMenuGrupoId(null);
+      setGrupoConductaAdmin(row);
+      return;
+    }
     if (accion === 'recomendaciones') {
       if (vistaSoloLecturaGrados) return;
       setMenuGrupoId(null);
@@ -1363,6 +1372,7 @@ function GruposPanel({ meta }) {
       registro_asistencia: 'Registro de Asistencia',
       imprimir_qr: 'Imprimir QR',
       registro_notas: 'Registro de Notas',
+      registrar_conducta: 'Registrar Conducta',
       recomendaciones: 'Recomendaciones'
     };
     await Swal.fire({
@@ -1652,6 +1662,11 @@ function GruposPanel({ meta }) {
         open={!!grupoAsistenciaAdmin && !vistaSoloLecturaGrados}
         grupo={grupoAsistenciaAdmin}
         onClose={() => setGrupoAsistenciaAdmin(null)}
+      />
+      <AdminGrupoConductaModal
+        open={!!grupoConductaAdmin && !vistaSoloLecturaGrados}
+        grupo={grupoConductaAdmin}
+        onClose={() => setGrupoConductaAdmin(null)}
       />
       {mostrarModalRecomendacionesAdmin && grupoRecomendacionesAdmin
         ? createPortal(

@@ -48,6 +48,10 @@ const {
   listarAlumnosRecomendacionesPorGrupo,
   guardarRecomendacionesPorGrupo,
 } = require('../utils/recomendacionesGrupoMatriculas');
+const {
+  listarAlumnosConductaPorGrupo,
+  guardarConductaPorGrupo,
+} = require('../utils/conductaGrupoMatriculas');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { lineaAlumnoGrado, etiquetaGradoGrupo } = require('../utils/notificacionExamenApoderadoTexto');
 const { listarDeudoresGrupo, mergeObservacionesTutor } = require('../utils/tutorDeudoresService');
@@ -8871,8 +8875,6 @@ router.post('/tutoria/grupos/:grupoId/recomendaciones', async (req, res) => {
   }
 });
 
-const ASIGNATURA_CONDUCTA = -101;
-
 /**
  * GET /api/docente/tutoria/grupos/:grupoId/conducta?ciclo=1
  * Obtener alumnos del grupo con nota de conducta por bimestre (default 20)
@@ -8882,7 +8884,7 @@ router.get('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
     const { grupoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
-    const ciclo = parseInt(req.query.ciclo) || 1;
+    const ciclo = parseInt(req.query.ciclo, 10) || 1;
 
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
     const grupoTutor = await query(
@@ -8892,33 +8894,13 @@ router.get('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    const matriculas = await query(
-      `SELECT m.id as matricula_id, a.id as alumno_id,
-              CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo
-       FROM matriculas m INNER JOIN alumnos a ON a.id = m.alumno_id
-       WHERE m.grupo_id = ? AND m.colegio_id = ? AND (m.estado = 0)
-       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres`,
-      [grupoId, colegio_id]
-    );
-
-    const promedios = await query(
-      `SELECT matricula_id, promedio FROM promedios WHERE asignatura_id = ? AND ciclo = ? AND matricula_id IN (${matriculas.map(() => '?').join(',')})`,
-      [ASIGNATURA_CONDUCTA, ciclo, ...matriculas.map(m => m.matricula_id)]
-    );
-    const mapaProm = {};
-    promedios.forEach(p => { mapaProm[p.matricula_id] = p.promedio; });
-
-    const lista = matriculas.map((m, i) => {
-      const nota = mapaProm[m.matricula_id];
-      return {
-        numero: i + 1,
-        matricula_id: m.matricula_id,
-        nombre_completo: m.nombre_completo,
-        nota_conducta: nota !== undefined && nota !== null && nota !== '' ? String(nota) : '20'
-      };
+    const { lista, ciclo: cicloInt } = await listarAlumnosConductaPorGrupo(query, {
+      grupoId,
+      colegio_id,
+      ciclo,
     });
 
-    res.json({ grupo: grupoTutor[0], alumnos: lista, ciclo });
+    res.json({ grupo: grupoTutor[0], alumnos: lista, ciclo: cicloInt });
   } catch (error) {
     console.error('Error obteniendo conducta:', error);
     res.status(500).json({ error: 'Error al obtener conducta' });
@@ -8934,10 +8916,10 @@ router.post('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
     const { grupoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
-    const { ciclo, notas } = req.body; // notas: { matricula_id: nota }
+    const { ciclo, notas } = req.body;
 
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
-    const cicloInt = parseInt(ciclo) || 1;
+    const cicloInt = parseInt(ciclo, 10) || 1;
     if (cicloInt < 1 || cicloInt > 4) return res.status(400).json({ error: 'Ciclo inválido' });
 
     const grupoTutor = await query(
@@ -8946,19 +8928,7 @@ router.post('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    for (const [matriculaId, nota] of Object.entries(notas || {})) {
-      const val = String(nota || '20').trim();
-      if (!/^\d{1,2}$/.test(val) || parseInt(val) < 0 || parseInt(val) > 20) continue;
-
-      await execute(
-        `DELETE FROM promedios WHERE matricula_id = ? AND asignatura_id = ? AND ciclo = ?`,
-        [matriculaId, ASIGNATURA_CONDUCTA, cicloInt]
-      );
-      await execute(
-        `INSERT INTO promedios (matricula_id, asignatura_id, ciclo, promedio) VALUES (?, ?, ?, ?)`,
-        [matriculaId, ASIGNATURA_CONDUCTA, cicloInt, val]
-      );
-    }
+    await guardarConductaPorGrupo(execute, { cicloInt, notas });
 
     res.json({ success: true });
   } catch (error) {
