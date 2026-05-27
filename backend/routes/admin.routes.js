@@ -9,6 +9,9 @@ const { mergeObservacionesTutor } = require('../utils/tutorDeudoresService');
 const { authenticateToken } = require('../middleware/auth');
 const { registrarAccion } = require('../utils/auditoria');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
+const { sqlFiltroAnioPago } = require('../utils/pagoFechaHora');
+
+const ANIO_PAGO_SQL = sqlFiltroAnioPago('p');
 const phpSerialize = require('php-serialize');
 
 const personalStorageAdmin = multer.diskStorage({
@@ -450,8 +453,8 @@ router.get('/estadisticas/kpis', async (req, res) => {
         `SELECT COALESCE(SUM(p.monto), 0) as total
          FROM pagos p
          WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.matricula_id IN (${ph}) AND p.tipo > 0 AND YEAR(p.fecha_hora) = ?`,
-        [colegio_id, ...matIdsPagadas, anio]
+           AND p.matricula_id IN (${ph}) AND p.tipo > 0 AND ${ANIO_PAGO_SQL}`,
+        [colegio_id, ...matIdsPagadas, anio, anio]
       );
 
       totalCobrado = parseFloat(rIngMat?.total || 0) + parseFloat(rIngPens?.total || 0);
@@ -478,9 +481,9 @@ router.get('/estadisticas/kpis', async (req, res) => {
         `SELECT p.tipo, p.nro_pago, COALESCE(SUM(p.monto), 0) as total
          FROM pagos p
          WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.matricula_id IN (${ph}) AND p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND YEAR(p.fecha_hora) = ?
+           AND p.matricula_id IN (${ph}) AND p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND ${ANIO_PAGO_SQL}
          GROUP BY p.tipo, p.nro_pago`,
-        [colegio_id, ...matIdsPagadas, totalPensiones, anio]
+        [colegio_id, ...matIdsPagadas, totalPensiones, anio, anio]
       );
       (pagosPensiones || []).forEach((row) => {
         const idx = parseInt(row.nro_pago, 10);
@@ -500,9 +503,9 @@ router.get('/estadisticas/kpis', async (req, res) => {
          FROM pagos p
          WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
            AND p.matricula_id IN (${phDet})
-           AND (p.tipo = 0 OR (p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND YEAR(p.fecha_hora) = ?))
+           AND (p.tipo = 0 OR (p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND ${ANIO_PAGO_SQL}))
          GROUP BY p.matricula_id, p.tipo, p.nro_pago`,
-        [colegio_id, ...matIdsPagadas, totalPensiones, anio]
+        [colegio_id, ...matIdsPagadas, totalPensiones, anio, anio]
       );
       (detRows || []).forEach((row) => {
         const mid = row.matricula_id;
@@ -712,7 +715,7 @@ router.get('/estadisticas/deudas-por-aula', async (req, res) => {
          SELECT p.matricula_id, SUM(p.monto) AS pagado_pens
          FROM pagos p
          WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
-           AND p.tipo = 1 AND p.nro_pago = ? AND YEAR(p.fecha_hora) = ?
+           AND p.tipo = 1 AND p.nro_pago = ? AND ${ANIO_PAGO_SQL}
          GROUP BY p.matricula_id
        ) pg ON pg.matricula_id = m.id
        WHERE m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)
@@ -722,7 +725,7 @@ router.get('/estadisticas/deudas-por-aula', async (req, res) => {
              AND p2.tipo = 0 AND p2.estado_pago = 'CANCELADO'
          )
        GROUP BY m.grupo_id`,
-      [colegio_id, nroPago, anio, colegio_id, anio, colegio_id]
+      [colegio_id, nroPago, anio, anio, colegio_id, anio, colegio_id]
     );
 
     const nombresMes = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -827,7 +830,7 @@ router.get('/estadisticas/deudas-por-aula/alumnos', async (req, res) => {
        (SELECT COALESCE(SUM(p.monto), 0)
         FROM pagos p
         WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
-          AND p.estado_pago = 'CANCELADO' AND p.tipo = 1 AND p.nro_pago = ? AND YEAR(p.fecha_hora) = ?) as pagado
+          AND p.estado_pago = 'CANCELADO' AND p.tipo = 1 AND p.nro_pago = ? AND ${ANIO_PAGO_SQL}) as pagado
        FROM matriculas m
        INNER JOIN costos c ON c.id = m.costo_id
        INNER JOIN alumnos a ON a.id = m.alumno_id
@@ -837,7 +840,7 @@ router.get('/estadisticas/deudas-por-aula/alumnos', async (req, res) => {
            WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
              AND p.tipo = 0 AND p.estado_pago = 'CANCELADO'
          )`,
-      [colegio_id, nroPago, anio, grupoId, colegio_id, colegio_id]
+      [colegio_id, nroPago, anio, anio, grupoId, colegio_id, colegio_id]
     );
     const nombresMes = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     const nombreMes = (2 + nroPago) <= 12 ? (nombresMes[2 + nroPago] || `Mes ${nroPago}`) : `Mes ${nroPago}`;
@@ -1026,9 +1029,9 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
          FROM pagos p
          WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
            AND p.matricula_id IN (${ph})
-           AND (p.tipo = 0 OR (p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND YEAR(p.fecha_hora) = ?))
+           AND (p.tipo = 0 OR (p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND ${ANIO_PAGO_SQL}))
          GROUP BY p.matricula_id, p.tipo, p.nro_pago`,
-        [colegio_id, ...matIds, totalPensiones, anio]
+        [colegio_id, ...matIds, totalPensiones, anio, anio]
       );
       const pagosPorMatricula = {};
       for (const row of detRows || []) {
@@ -1187,10 +1190,10 @@ router.get('/estadisticas/deudores-lista', async (req, res) => {
             COALESCE((
               SELECT SUM(p.monto) FROM pagos p
               WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
-                AND p.estado_pago = 'CANCELADO' AND p.tipo = 1 AND p.nro_pago = ? AND YEAR(p.fecha_hora) = ?
+                AND p.estado_pago = 'CANCELADO' AND p.tipo = 1 AND p.nro_pago = ? AND ${ANIO_PAGO_SQL}
             ), 0) AS pagado
          ${baseMatriculasSql}`,
-        [colegio_id, nroPago, anio, ...baseMatriculaParams()]
+        [colegio_id, nroPago, anio, anio, ...baseMatriculaParams()]
       );
     }
 

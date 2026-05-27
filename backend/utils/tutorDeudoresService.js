@@ -1,6 +1,9 @@
 /**
  * Lista de deudores filtrada por grupo (tutoría), misma lógica de saldos que admin/deudores-lista.
  */
+const { sqlFiltroAnioPago } = require('./pagoFechaHora');
+
+const ANIO_PAGO_SQL = sqlFiltroAnioPago('p');
 
 function nombreAlumno(r) {
   return [r.apellido_paterno, r.apellido_materno, r.nombres].filter(Boolean).join(' ').trim() || '—';
@@ -123,9 +126,9 @@ async function listarDeudoresGrupo(query, ctx) {
        FROM pagos p
        WHERE p.colegio_id = ? AND p.estado = 'ACTIVO' AND p.estado_pago = 'CANCELADO'
          AND p.matricula_id IN (${ph})
-         AND (p.tipo = 0 OR (p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND YEAR(p.fecha_hora) = ?))
+         AND (p.tipo = 0 OR (p.tipo = 1 AND p.nro_pago >= 1 AND p.nro_pago <= ? AND ${ANIO_PAGO_SQL}))
        GROUP BY p.matricula_id, p.tipo, p.nro_pago`,
-      [colegio_id, ...matIds, totalPensiones, anio]
+      [colegio_id, ...matIds, totalPensiones, anio, anio]
     );
     const pagosPorMatricula = {};
     for (const row of detRows || []) {
@@ -261,10 +264,10 @@ async function listarDeudoresGrupo(query, ctx) {
           COALESCE((
             SELECT SUM(p.monto) FROM pagos p
             WHERE p.matricula_id = m.id AND p.colegio_id = ? AND p.estado = 'ACTIVO'
-              AND p.estado_pago = 'CANCELADO' AND p.tipo = 1 AND p.nro_pago = ? AND YEAR(p.fecha_hora) = ?
+              AND p.estado_pago = 'CANCELADO' AND p.tipo = 1 AND p.nro_pago = ? AND ${ANIO_PAGO_SQL}
           ), 0) AS pagado
        ${baseMatriculasSqlGrupo}`,
-      [colegio_id, nroPago, anio, colegio_id, anio, grupo_id, colegio_id]
+      [colegio_id, nroPago, anio, anio, colegio_id, anio, grupo_id, colegio_id]
     );
   }
 

@@ -20,6 +20,11 @@ const { ensureGrupoConn, insertCostoPersonalizado } = require('../utils/matricul
 const { DEFAULT_SEDE_ID } = require('../utils/defaultColegio');
 const { fechaMySQLLima } = require('../utils/fechaHoraLima');
 const { ensurePagosPendientesMatriculaConn, resolverPersonalIdPago } = require('../utils/pagoPendienteInsert');
+const {
+  esFechaHoraPlaceholder1970,
+  esFechaPlaceholder1970,
+  normalizarFechaHoraPagoCancelado,
+} = require('../utils/pagoFechaHora');
 const { etiquetaEstadoMatricula } = require('../utils/matriculaEstados');
 
 /** Valores del ENUM `usuarios.tipo` en MySQL (orden de negocio). */
@@ -80,23 +85,6 @@ function requireAdminOrPsicologaUsuarios(req, res, next) {
 
 router.use(authenticateToken);
 router.use(requireAdminOrPsicologaUsuarios);
-
-/** Placeholder legado en BD cuando el pago está pendiente o sin fecha real (`NOT NULL`). */
-function esFechaHoraPlaceholder1970(fh) {
-  if (fh == null || fh === '') return true;
-  if (Object.prototype.toString.call(fh) === '[object Date]' && !Number.isNaN(fh.getTime())) {
-    return fh.getFullYear() === 1970 && fh.getMonth() === 0 && fh.getDate() === 1;
-  }
-  return String(fh).trim().startsWith('1970-01-01');
-}
-
-function esFechaPlaceholder1970(fc) {
-  if (fc == null || fc === '') return true;
-  if (Object.prototype.toString.call(fc) === '[object Date]' && !Number.isNaN(fc.getTime())) {
-    return fc.getFullYear() === 1970 && fc.getMonth() === 0 && fc.getDate() === 1;
-  }
-  return String(fc).trim().startsWith('1970-01-01');
-}
 
 /**
  * Línea de matrícula pendiente legada: `fecha_hora` = 1970-01-01 o null → mostrar fecha de registro de matrícula.
@@ -1289,6 +1277,7 @@ async function parseAdminPagoRegistroBody(body, reqUser, colegio_id) {
       }
       fecha_cancelado = fc;
     }
+    fecha_hora = normalizarFechaHoraPagoCancelado(fecha_hora, fecha_cancelado);
   }
   const forma_pago = String(b.forma_pago || 'EFECTIVO').toUpperCase();
   const tipo_tarjeta = String(b.tipo_tarjeta || '').trim();
