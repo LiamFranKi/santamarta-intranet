@@ -63,10 +63,26 @@ const {
   fetchAlternativaExamenConAcceso,
   esStaffColegio,
 } = require('../utils/asignaturaAcceso');
+const { verificarAccesoAlumnoHijoDocente } = require('../utils/accesoAlumnoHijoDocente');
 
 /** Administrador o Promotoría: mismos permisos en módulos compartidos (comunicados, actividades, mensajes vía router docente). */
 function esAdminOPromotoria(tipo) {
   return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA';
+}
+
+/** Gate común para /hijos/:hijoId/* (docente-apoderado o staff del colegio). */
+async function gateAlumnoHijoDocente(req, res, hijoId) {
+  const hijoIdNum = parseInt(hijoId, 10);
+  if (!hijoId || Number.isNaN(hijoIdNum)) {
+    res.status(400).json({ error: 'ID de alumno inválido' });
+    return null;
+  }
+  const acc = await verificarAccesoAlumnoHijoDocente(req, hijoIdNum);
+  if (!acc.ok) {
+    res.status(acc.status || 403).json({ error: acc.error });
+    return null;
+  }
+  return { hijoIdNum, ...acc };
 }
 
 /** Docente titular o staff (admin/promotoría) con asignatura en el colegio y año activo. */
@@ -9898,62 +9914,9 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
     console.log(`\n🔵 ========== [HIJOS-QR] NUEVA PETICIÓN ==========`);
     console.log(`📋 [HIJOS-QR] hijoId recibido: ${hijoId}`);
 
-    // Validar que hijoId sea un número válido
-    if (!hijoId || isNaN(parseInt(hijoId))) {
-      console.error(`❌ [HIJOS-QR] Error: hijoId inválido: ${hijoId}`);
-      return res.status(400).json({ error: 'ID de alumno inválido' });
-    }
-
-    const hijoIdNum = parseInt(hijoId);
-
-    if (!personal_id) {
-      console.error('❌ [HIJOS-QR] Error: personal_id no encontrado en req.user');
-      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
-    }
-
-    // Obtener nro_documento del personal (puede estar en personal.nro_documento o en usuarios.usuario)
-    let nroDocumento = null;
-    
-    const personalData = await query(
-      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
-      [personal_id, colegio_id]
-    );
-
-    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
-      nroDocumento = personalData[0].nro_documento;
-    } else {
-      const usuarioData = await query(
-        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
-        [usuario_id, colegio_id, personal_id]
-      );
-      
-      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
-        nroDocumento = usuarioData[0].usuario;
-      }
-    }
-
-    if (!nroDocumento) {
-      console.error(`❌ [HIJOS-QR] Error: No se encontró nro_documento`);
-      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
-    }
-
-    // Verificar que el alumno es hijo del docente
-    const esHijo = await query(
-      `SELECT COUNT(*) as count
-       FROM apoderados ap
-       INNER JOIN familias f ON f.apoderado_id = ap.id
-       INNER JOIN alumnos a ON a.id = f.alumno_id
-       WHERE ap.colegio_id = ?
-         AND ap.nro_documento = ?
-         AND a.id = ?
-         AND a.colegio_id = ?`,
-      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
-    );
-
-    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
-      console.error(`❌ [HIJOS-QR] Error: El alumno ${hijoIdNum} no es hijo del docente`);
-      return res.status(403).json({ error: 'No tienes permisos para ver este QR. El alumno no está registrado como tu hijo.' });
-    }
+    const gate = await gateAlumnoHijoDocente(req, res, hijoId);
+    if (!gate) return;
+    const { hijoIdNum } = gate;
 
     // Obtener datos del alumno (incl. foto para carnet QR)
     const alumno = await query(
@@ -10102,56 +10065,9 @@ router.get('/hijos/:hijoId/incidencias', async (req, res) => {
     console.log(`\n🔵 ========== [HIJOS-INCIDENCIAS] NUEVA PETICIÓN ==========`);
     console.log(`📋 [HIJOS-INCIDENCIAS] hijoId recibido: ${hijoId}`);
 
-    // Validar que hijoId sea un número válido
-    if (!hijoId || isNaN(parseInt(hijoId))) {
-      return res.status(400).json({ error: 'ID de alumno inválido' });
-    }
-
-    const hijoIdNum = parseInt(hijoId);
-
-    if (!personal_id) {
-      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
-    }
-
-    // Obtener nro_documento del personal
-    let nroDocumento = null;
-    const personalData = await query(
-      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
-      [personal_id, colegio_id]
-    );
-
-    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
-      nroDocumento = personalData[0].nro_documento;
-    } else {
-      const usuarioData = await query(
-        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
-        [usuario_id, colegio_id, personal_id]
-      );
-      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
-        nroDocumento = usuarioData[0].usuario;
-      }
-    }
-
-    if (!nroDocumento) {
-      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
-    }
-
-    // Verificar que el alumno es hijo del docente
-    const esHijo = await query(
-      `SELECT COUNT(*) as count
-       FROM apoderados ap
-       INNER JOIN familias f ON f.apoderado_id = ap.id
-       INNER JOIN alumnos a ON a.id = f.alumno_id
-       WHERE ap.colegio_id = ?
-         AND ap.nro_documento = ?
-         AND a.id = ?
-         AND a.colegio_id = ?`,
-      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
-    );
-
-    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
-      return res.status(403).json({ error: 'No tienes permisos para ver estas incidencias. El alumno no está registrado como tu hijo.' });
-    }
+    const gate = await gateAlumnoHijoDocente(req, res, hijoId);
+    if (!gate) return;
+    const { hijoIdNum } = gate;
 
     // Obtener matrícula del alumno para el año activo
     const matricula = await query(
@@ -10331,56 +10247,9 @@ router.get('/hijos/:hijoId/asistencias', async (req, res) => {
     console.log(`\n🔵 ========== [HIJOS-ASISTENCIAS] NUEVA PETICIÓN ==========`);
     console.log(`📋 [HIJOS-ASISTENCIAS] hijoId recibido: ${hijoId}`);
 
-    // Validar que hijoId sea un número válido
-    if (!hijoId || isNaN(parseInt(hijoId))) {
-      return res.status(400).json({ error: 'ID de alumno inválido' });
-    }
-
-    const hijoIdNum = parseInt(hijoId);
-
-    if (!personal_id) {
-      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
-    }
-
-    // Obtener nro_documento del personal
-    let nroDocumento = null;
-    const personalData = await query(
-      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
-      [personal_id, colegio_id]
-    );
-
-    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
-      nroDocumento = personalData[0].nro_documento;
-    } else {
-      const usuarioData = await query(
-        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
-        [usuario_id, colegio_id, personal_id]
-      );
-      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
-        nroDocumento = usuarioData[0].usuario;
-      }
-    }
-
-    if (!nroDocumento) {
-      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
-    }
-
-    // Verificar que el alumno es hijo del docente
-    const esHijo = await query(
-      `SELECT COUNT(*) as count
-       FROM apoderados ap
-       INNER JOIN familias f ON f.apoderado_id = ap.id
-       INNER JOIN alumnos a ON a.id = f.alumno_id
-       WHERE ap.colegio_id = ?
-         AND ap.nro_documento = ?
-         AND a.id = ?
-         AND a.colegio_id = ?`,
-      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
-    );
-
-    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
-      return res.status(403).json({ error: 'No tienes permisos para ver estas asistencias. El alumno no está registrado como tu hijo.' });
-    }
+    const gate = await gateAlumnoHijoDocente(req, res, hijoId);
+    if (!gate) return;
+    const { hijoIdNum } = gate;
 
     // Obtener matrícula del alumno para el año activo
     const matricula = await query(
@@ -12671,56 +12540,9 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
     console.log(`\n🔵 ========== [HIJOS-NOTAS-DETALLADAS] NUEVA PETICIÓN ==========`);
     console.log(`📋 [HIJOS-NOTAS-DETALLADAS] hijoId recibido: ${hijoId}`);
 
-    // Validar que hijoId sea un número válido
-    if (!hijoId || isNaN(parseInt(hijoId))) {
-      return res.status(400).json({ error: 'ID de alumno inválido' });
-    }
-
-    const hijoIdNum = parseInt(hijoId);
-
-    if (!personal_id) {
-      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
-    }
-
-    // Obtener nro_documento del personal
-    let nroDocumento = null;
-    const personalData = await query(
-      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
-      [personal_id, colegio_id]
-    );
-
-    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
-      nroDocumento = personalData[0].nro_documento;
-    } else {
-      const usuarioData = await query(
-        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
-        [usuario_id, colegio_id, personal_id]
-      );
-      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
-        nroDocumento = usuarioData[0].usuario;
-      }
-    }
-
-    if (!nroDocumento) {
-      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
-    }
-
-    // Verificar que el alumno es hijo del docente
-    const esHijo = await query(
-      `SELECT COUNT(*) as count
-       FROM apoderados ap
-       INNER JOIN familias f ON f.apoderado_id = ap.id
-       INNER JOIN alumnos a ON a.id = f.alumno_id
-       WHERE ap.colegio_id = ?
-         AND ap.nro_documento = ?
-         AND a.id = ?
-         AND a.colegio_id = ?`,
-      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
-    );
-
-    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
-      return res.status(403).json({ error: 'No tienes permisos para ver estas notas. El alumno no está registrado como tu hijo.' });
-    }
+    const gate = await gateAlumnoHijoDocente(req, res, hijoId);
+    if (!gate) return;
+    const { hijoIdNum } = gate;
 
     // Obtener matrícula actual del alumno
     const matricula = await query(
@@ -12926,41 +12748,11 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
 router.get('/hijos/:hijoId/libreta-anios', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, usuario_id, personal_id } = req.user;
+    const { colegio_id } = req.user;
 
-    if (!hijoId || isNaN(parseInt(hijoId))) {
-      return res.status(400).json({ error: 'ID de alumno inválido' });
-    }
-
-    const hijoIdNum = parseInt(hijoId);
-    let nroDocumento = null;
-    const personalData = await query(
-      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
-      [personal_id, colegio_id]
-    );
-    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
-      nroDocumento = personalData[0].nro_documento;
-    } else {
-      const usuarioData = await query(
-        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
-        [usuario_id, colegio_id, personal_id]
-      );
-      if (usuarioData && usuarioData.length > 0) nroDocumento = usuarioData[0].usuario;
-    }
-    if (!nroDocumento) {
-      return res.status(403).json({ error: 'No se encontró número de documento.' });
-    }
-
-    const esHijo = await query(
-      `SELECT COUNT(*) as count FROM apoderados ap
-       INNER JOIN familias f ON f.apoderado_id = ap.id
-       INNER JOIN alumnos a ON a.id = f.alumno_id
-       WHERE ap.colegio_id = ? AND ap.nro_documento = ? AND a.id = ? AND a.colegio_id = ?`,
-      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
-    );
-    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
-      return res.status(403).json({ error: 'No tienes permisos.' });
-    }
+    const gate = await gateAlumnoHijoDocente(req, res, hijoId);
+    if (!gate) return;
+    const { hijoIdNum } = gate;
 
     const rows = await query(
       `SELECT g.anio FROM matriculas m
@@ -12992,56 +12784,9 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     console.log(`\n🔵 ========== [HIJOS-LIBRETA] NUEVA PETICIÓN ========== (ciclo=${ciclo})`);
     console.log(`📋 [HIJOS-LIBRETA] hijoId recibido: ${hijoId}`);
 
-    // Validar que hijoId sea un número válido
-    if (!hijoId || isNaN(parseInt(hijoId))) {
-      return res.status(400).json({ error: 'ID de alumno inválido' });
-    }
-
-    const hijoIdNum = parseInt(hijoId);
-
-    if (!personal_id) {
-      return res.status(400).json({ error: 'Información de usuario incompleta. No se encontró personal_id.' });
-    }
-
-    // Obtener nro_documento del personal
-    let nroDocumento = null;
-    const personalData = await query(
-      `SELECT nro_documento FROM personal WHERE id = ? AND colegio_id = ? LIMIT 1`,
-      [personal_id, colegio_id]
-    );
-
-    if (personalData && personalData.length > 0 && personalData[0].nro_documento) {
-      nroDocumento = personalData[0].nro_documento;
-    } else {
-      const usuarioData = await query(
-        `SELECT usuario FROM usuarios WHERE id = ? AND colegio_id = ? AND personal_id = ? LIMIT 1`,
-        [usuario_id, colegio_id, personal_id]
-      );
-      if (usuarioData && usuarioData.length > 0 && usuarioData[0].usuario) {
-        nroDocumento = usuarioData[0].usuario;
-      }
-    }
-
-    if (!nroDocumento) {
-      return res.status(403).json({ error: 'No se encontró tu número de documento. Contacta al administrador.' });
-    }
-
-    // Verificar que el alumno es hijo del docente
-    const esHijo = await query(
-      `SELECT COUNT(*) as count
-       FROM apoderados ap
-       INNER JOIN familias f ON f.apoderado_id = ap.id
-       INNER JOIN alumnos a ON a.id = f.alumno_id
-       WHERE ap.colegio_id = ?
-         AND ap.nro_documento = ?
-         AND a.id = ?
-         AND a.colegio_id = ?`,
-      [colegio_id, nroDocumento, hijoIdNum, colegio_id]
-    );
-
-    if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
-      return res.status(403).json({ error: 'No tienes permisos para ver esta libreta. El alumno no está registrado como tu hijo.' });
-    }
+    const gate = await gateAlumnoHijoDocente(req, res, hijoId);
+    if (!gate) return;
+    const { hijoIdNum } = gate;
 
     // Obtener matrícula del alumno para el año indicado (anio activo o año seleccionado)
     const matricula = await query(

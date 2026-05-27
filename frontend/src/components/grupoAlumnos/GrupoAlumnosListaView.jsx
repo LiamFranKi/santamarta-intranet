@@ -7,16 +7,28 @@ import Swal from 'sweetalert2';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import '../../pages/DocenteGrupos.css';
+import { useGrupoAlumnoAccionesAcademicas } from './useGrupoAlumnoAccionesAcademicas';
+import GrupoAlumnoAccionesAcademicasModals from './GrupoAlumnoAccionesAcademicasModals';
+
+const MENU_ACADEMICO_ALUMNO = [
+  { key: 'asistencias', label: 'Asistencias', icon: '✅' },
+  { key: 'incidencias', label: 'Incidencias', icon: '⚠️' },
+  { key: 'imprimir_qr', label: 'Imprimir QR', icon: '🖨️' },
+  { key: 'notas_detalladas', label: 'Notas Detalladas', icon: '📊' },
+  { key: 'ver_libreta', label: 'Ver Libreta', icon: '📄' },
+];
 
 /**
  * Lista de alumnos de un grupo (misma UX que Docente → Grupos → Lista de alumnos).
  * psicologiaLinkMode: 'docente' → /docente/psicologia/derivar/... ; 'admin' → /admin/psicologia/alumno/...
+ * menuAcademicoAlumno: opciones extra en Opciones (admin → Grados → Lista de alumnos).
  */
 export default function GrupoAlumnosListaView({
   grupoId,
   grupoInfo,
   onVolver,
   psicologiaLinkMode = 'admin',
+  menuAcademicoAlumno = false,
 }) {
   const navigate = useNavigate();
   const [alumnos, setAlumnos] = useState([]);
@@ -45,6 +57,11 @@ export default function GrupoAlumnosListaView({
   const [archivosAdjuntosMensajeApoderados, setArchivosAdjuntosMensajeApoderados] = useState([]);
   const [enviandoMensajeApoderados, setEnviandoMensajeApoderados] = useState(false);
   const quillRefMensajeApoderados = useRef(null);
+
+  const accionesAcademicas = useGrupoAlumnoAccionesAcademicas({
+    grupoId,
+    grupoInfo,
+  });
 
   useEffect(() => {
     if (!grupoId) return undefined;
@@ -530,7 +547,8 @@ export default function GrupoAlumnosListaView({
                                   } else {
                                     // Calcular posición del dropdown
                                     const dropdownWidth = 250;
-                                    const dropdownHeight = 200; // ítems incl. derivación psicológica
+                                    const extraItems = menuAcademicoAlumno ? MENU_ACADEMICO_ALUMNO.length : 0;
+                                    const dropdownHeight = 200 + extraItems * 42;
                                     let left = rect.left;
                                     let top = rect.bottom + 2;
                                     
@@ -626,6 +644,23 @@ export default function GrupoAlumnosListaView({
                                       <span className="dropdown-icon">🧠</span>
                                       <span>Derivación psicológica</span>
                                     </button>
+                                    {menuAcademicoAlumno &&
+                                      MENU_ACADEMICO_ALUMNO.map((item) => (
+                                        <button
+                                          key={item.key}
+                                          className="dropdown-item"
+                                          type="button"
+                                          onClick={async (e) => {
+                                            e.stopPropagation();
+                                            e.preventDefault();
+                                            setOpenDropdownAlumno(null);
+                                            await accionesAcademicas.ejecutarAccion(item.key, alumno);
+                                          }}
+                                        >
+                                          <span className="dropdown-icon">{item.icon}</span>
+                                          <span>{item.label}</span>
+                                        </button>
+                                      ))}
                                   </div>,
                                   document.body
                                 )
@@ -644,6 +679,8 @@ export default function GrupoAlumnosListaView({
               )}
             </div>
           </div>
+
+      {menuAcademicoAlumno ? <GrupoAlumnoAccionesAcademicasModals {...accionesAcademicas} /> : null}
 
       {/* Modal de Información del Alumno */}
       {alumnoInfo && (
