@@ -16,6 +16,7 @@ import {
   dibujarCeldaNotaLibreta,
 } from '../utils/libretaCuantitativaPdf';
 import { normalizarRangosLetras } from '../utils/notaLetraConversion';
+import { esNivelInicial, debeMostrarNotasDetalladas } from '../utils/esNivelInicial';
 import './DocenteHijos.css';
 import './AlumnoCursos.css';
 
@@ -273,6 +274,9 @@ function DocenteHijos() {
         await handleImprimirQR(hijo);
         break;
       case 'notas-detalladas':
+        if (esNivelInicial(hijo)) {
+          return;
+        }
         console.log('[FRONTEND] handleOpcionClick - notas-detalladas, tieneDeudasBloqueadas:', tieneDeudasBloqueadas);
         if (tieneDeudasBloqueadas) {
           console.log('[FRONTEND] BLOQUEANDO acceso a Notas Detalladas (restricción interna)');
@@ -4206,11 +4210,13 @@ function DocenteHijos() {
             <button className="dropdown-item" type="button" onClick={(e) => { e.stopPropagation(); handleOpcionClick('imprimir-qr', hijo); }}>
               <span className="dropdown-icon">🖨️</span><span>Imprimir QR</span>
             </button>
+            {debeMostrarNotasDetalladas(hijo) && (
             <button className={`dropdown-item ${tieneDeudasBloqueadas ? 'disabled' : ''}`} type="button" disabled={tieneDeudasBloqueadas}
               onClick={(e) => { e.stopPropagation(); if (tieneDeudasBloqueadas) { Swal.fire({ icon: 'info', title: 'Problemas con el servidor', text: 'Se está solucionando.', confirmButtonText: 'Entendido' }); return; } handleOpcionClick('notas-detalladas', hijo); }}
               title={tieneDeudasBloqueadas ? 'Temporalmente no disponible' : ''}>
               <span className="dropdown-icon">📊</span><span>Notas Detalladas</span>{tieneDeudasBloqueadas && <span className="bloqueado-badge">🔒</span>}
             </button>
+            )}
             <button className={`dropdown-item ${tieneDeudasBloqueadas ? 'disabled' : ''}`} type="button" disabled={tieneDeudasBloqueadas}
               onClick={(e) => { e.stopPropagation(); if (tieneDeudasBloqueadas) { Swal.fire({ icon: 'info', title: 'Problemas con el servidor', text: 'Se está solucionando.', confirmButtonText: 'Entendido' }); return; } handleOpcionClick('imprimir-notas', hijo); }}
               title={tieneDeudasBloqueadas ? 'Temporalmente no disponible' : ''}>

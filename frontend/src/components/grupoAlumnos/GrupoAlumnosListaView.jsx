@@ -9,6 +9,7 @@ import 'react-quill/dist/quill.snow.css';
 import '../../pages/DocenteGrupos.css';
 import { useGrupoAlumnoAccionesAcademicas } from './useGrupoAlumnoAccionesAcademicas';
 import GrupoAlumnoAccionesAcademicasModals from './GrupoAlumnoAccionesAcademicasModals';
+import { esNivelInicial } from '../../utils/esNivelInicial';
 
 const MENU_ACADEMICO_ALUMNO = [
   { key: 'asistencias', label: 'Asistencias', icon: '✅' },
@@ -17,6 +18,13 @@ const MENU_ACADEMICO_ALUMNO = [
   { key: 'notas_detalladas', label: 'Notas Detalladas', icon: '📊' },
   { key: 'ver_libreta', label: 'Ver Libreta', icon: '📄' },
 ];
+
+function menuAcademicoAlumnoItems(grupoInfo) {
+  if (esNivelInicial(grupoInfo)) {
+    return MENU_ACADEMICO_ALUMNO.filter((item) => item.key !== 'notas_detalladas');
+  }
+  return MENU_ACADEMICO_ALUMNO;
+}
 
 /**
  * Lista de alumnos de un grupo (misma UX que Docente → Grupos → Lista de alumnos).
@@ -547,7 +555,7 @@ export default function GrupoAlumnosListaView({
                                   } else {
                                     // Calcular posición del dropdown
                                     const dropdownWidth = 250;
-                                    const extraItems = menuAcademicoAlumno ? MENU_ACADEMICO_ALUMNO.length : 0;
+                                    const extraItems = menuAcademicoAlumno ? menuAcademicoAlumnoItems(grupoInfo).length : 0;
                                     const dropdownHeight = 200 + extraItems * 42;
                                     let left = rect.left;
                                     let top = rect.bottom + 2;
@@ -645,7 +653,7 @@ export default function GrupoAlumnosListaView({
                                       <span>Derivación psicológica</span>
                                     </button>
                                     {menuAcademicoAlumno &&
-                                      MENU_ACADEMICO_ALUMNO.map((item) => (
+                                      menuAcademicoAlumnoItems(grupoInfo).map((item) => (
                                         <button
                                           key={item.key}
                                           className="dropdown-item"

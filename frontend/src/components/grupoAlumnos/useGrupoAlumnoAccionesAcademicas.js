@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import api from '../../services/api';
+import { esNivelInicial } from '../../utils/esNivelInicial';
 import Swal from 'sweetalert2';
 import { exportGrupoCarnetsPdfA4 } from '../../utils/carnetQrPdf';
 import { fetchYExportarLibretaAlumno } from '../../utils/exportLibretaAlumnoPdf';
@@ -19,6 +20,11 @@ export function useGrupoAlumnoAccionesAcademicas({ grupoId, grupoInfo }) {
   const [modalAsistencias, setModalAsistencias] = useState(false);
   const [asistencias, setAsistencias] = useState([]);
   const [loadingAsistencias, setLoadingAsistencias] = useState(false);
+  const [totalesAsistencias, setTotalesAsistencias] = useState({
+    presentes: 0,
+    tardanzas: 0,
+    faltas: 0,
+  });
   const [modalNotas, setModalNotas] = useState(false);
   const [notasDetalladas, setNotasDetalladas] = useState(null);
   const [cicloNotas, setCicloNotas] = useState(1);
@@ -31,6 +37,7 @@ export function useGrupoAlumnoAccionesAcademicas({ grupoId, grupoInfo }) {
     setAlumnoSel(null);
     setIncidencias([]);
     setAsistencias([]);
+    setTotalesAsistencias({ presentes: 0, tardanzas: 0, faltas: 0 });
     setNotasDetalladas(null);
   }, []);
 
@@ -56,6 +63,11 @@ export function useGrupoAlumnoAccionesAcademicas({ grupoId, grupoInfo }) {
     try {
       const { data } = await api.get(`/docente/hijos/${alumno.id}/asistencias`);
       setAsistencias(data.asistencias || []);
+      setTotalesAsistencias({
+        presentes: data.total_presentes ?? 0,
+        tardanzas: data.total_tardanzas ?? 0,
+        faltas: data.total_faltas ?? 0,
+      });
     } catch (e) {
       setModalAsistencias(false);
       Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudieron cargar asistencias' });
@@ -162,6 +174,14 @@ export function useGrupoAlumnoAccionesAcademicas({ grupoId, grupoInfo }) {
           await abrirQr(alumno);
           break;
         case 'notas_detalladas':
+          if (esNivelInicial(grupoInfo)) {
+            Swal.fire({
+              icon: 'info',
+              title: 'Nivel Inicial',
+              text: 'En Inicial consulte las calificaciones en Ver libreta.',
+            });
+            break;
+          }
           await abrirNotasDetalladas(alumno);
           break;
         case 'ver_libreta':
@@ -187,6 +207,7 @@ export function useGrupoAlumnoAccionesAcademicas({ grupoId, grupoInfo }) {
     setModalAsistencias,
     asistencias,
     loadingAsistencias,
+    totalesAsistencias,
     modalNotas,
     setModalNotas,
     notasDetalladas,
