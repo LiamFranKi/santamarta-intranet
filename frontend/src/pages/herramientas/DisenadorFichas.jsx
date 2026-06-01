@@ -256,43 +256,50 @@ export default function DisenadorFichas() {
     setTrabajos(res.data?.data || []);
   }, [filtroGradoClave, filtroAsignaturaId, gruposAgregados]);
 
+  /** Carga config + catálogo de grupos (sin lista de trabajos; evita bucle con cargarTrabajos). */
+  const cargarMetaFichas = useCallback(async () => {
+    const [cfg, grupos] = await Promise.all([
+      api.get('/fichas-ia/config', { params: { verificar: '1' } }),
+      api.get('/fichas-ia/meta/grupos'),
+    ]);
+    const cfgData = cfg.data || {};
+    setOpcionesGrupo(grupos.data?.opciones || []);
+    const ver = cfgData.verificacion;
+    const vanguarcitoOk = Boolean(
+      cfgData.vanguarcito_disponible ?? (ver?.ok && cfgData.tiene_clave_servidor)
+    );
+    setConfig({
+      ...cfgData,
+      vanguarcito_disponible: vanguarcitoOk,
+      mascota_vanguarcito_url:
+        cfgData.mascota_vanguarcito_url || urlMascotaVanguarcitoPorDefecto(),
+    });
+    if (!vanguarcitoOk) {
+      setForm((f) => ({ ...f, usar_ia: false }));
+    }
+  }, []);
+
   const refrescar = useCallback(async () => {
     try {
       setLoading(true);
-      const [cfg, grupos] = await Promise.all([
-        api.get('/fichas-ia/config', { params: { verificar: '1' } }),
-        api.get('/fichas-ia/meta/grupos'),
-      ]);
-      const cfgData = cfg.data || {};
-      setOpcionesGrupo(grupos.data?.opciones || []);
-      const ver = cfgData.verificacion;
-      const vanguarcitoOk = Boolean(
-        cfgData.vanguarcito_disponible ?? (ver?.ok && cfgData.tiene_clave_servidor)
-      );
-      setConfig({
-        ...cfgData,
-        vanguarcito_disponible: vanguarcitoOk,
-        mascota_vanguarcito_url:
-          cfgData.mascota_vanguarcito_url || urlMascotaVanguarcitoPorDefecto(),
-      });
-      if (!vanguarcitoOk) {
-        setForm((f) => ({ ...f, usar_ia: false }));
-      }
-      await cargarTrabajos();
+      await cargarMetaFichas();
     } catch (e) {
       Swal.fire('Error', e.response?.data?.error || 'No se pudo cargar el módulo', 'error');
     } finally {
       setLoading(false);
     }
-  }, [cargarTrabajos]);
+  }, [cargarMetaFichas]);
 
   useEffect(() => {
     refrescar();
   }, [refrescar]);
 
   useEffect(() => {
-    cargarCursos(filtroGradoClave, 'filtro');
     setFiltroAsignaturaId('');
+  }, [filtroGradoClave]);
+
+  useEffect(() => {
+    cargarCursos(filtroGradoClave, 'filtro');
   }, [filtroGradoClave, cargarCursos]);
 
   useEffect(() => {
@@ -304,7 +311,7 @@ export default function DisenadorFichas() {
   useEffect(() => {
     if (loading) return;
     cargarTrabajos().catch(() => {});
-  }, [filtroGradoClave, filtroAsignaturaId, loading, cargarTrabajos]);
+  }, [filtroGradoClave, filtroAsignaturaId, loading, gruposAgregados, cargarTrabajos]);
 
   const abrirModal = async (row = null) => {
     setEditItem(row);
