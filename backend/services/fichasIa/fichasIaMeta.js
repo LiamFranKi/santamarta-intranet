@@ -72,4 +72,43 @@ async function listarCursosPorGrupo(colegio_id, grupo_id) {
   return rows || [];
 }
 
-module.exports = { listarGruposOpciones, listarCursosPorGrupo, etiquetaGrupo, sortGrupos };
+/** Cursos de varias secciones del mismo grado (sin duplicar asignatura_id). */
+async function listarCursosPorGrupos(colegio_id, grupoIds) {
+  const ids = [...new Set((grupoIds || []).map((id) => parseInt(id, 10)).filter(Number.isFinite))];
+  if (!ids.length) return [];
+  const ph = ids.map(() => '?').join(',');
+  const rows = await query(
+    `SELECT a.id AS asignatura_id, a.grupo_id, a.curso_id, c.nombre AS curso_nombre,
+            (SELECT ar.nombre FROM areas_cursos acr
+             INNER JOIN areas ar ON ar.id = acr.area_id AND ar.colegio_id = c.colegio_id
+             WHERE acr.curso_id = c.id LIMIT 1) AS area_nombre
+     FROM asignaturas a
+     INNER JOIN cursos c ON c.id = a.curso_id AND c.colegio_id = a.colegio_id
+     WHERE a.grupo_id IN (${ph}) AND a.colegio_id = ?
+     ORDER BY c.nombre ASC, a.id ASC`,
+    [...ids, colegio_id]
+  );
+  const vistos = new Set();
+  const unicos = [];
+  for (const r of rows || []) {
+    const aid = parseInt(r.asignatura_id, 10);
+    if (vistos.has(aid)) continue;
+    vistos.add(aid);
+    unicos.push({
+      asignatura_id: r.asignatura_id,
+      grupo_id: r.grupo_id,
+      curso_id: r.curso_id,
+      curso_nombre: r.curso_nombre,
+      area_nombre: r.area_nombre,
+    });
+  }
+  return unicos;
+}
+
+module.exports = {
+  listarGruposOpciones,
+  listarCursosPorGrupo,
+  listarCursosPorGrupos,
+  etiquetaGrupo,
+  sortGrupos,
+};

@@ -3,6 +3,26 @@ const path = require('path');
 const fs = require('fs');
 const { envolverMarcoCumpleanosEmail } = require('../utils/cumpleanosMarcoHtml');
 
+/**
+ * Control global de envío SMTP. Por defecto deshabilitado (solo push/campanita/mensajes internos).
+ * Para reactivar correos: EMAIL_ENVIO_HABILITADO=true en backend/.env y reiniciar PM2.
+ */
+function isEmailEnvioHabilitado() {
+  const v = process.env.EMAIL_ENVIO_HABILITADO;
+  if (v === undefined || v === null || String(v).trim() === '') {
+    return false;
+  }
+  const s = String(v).trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'yes' || s === 'si' || s === 'sí';
+}
+
+function resultadoCorreoDeshabilitado(etiqueta) {
+  console.log(
+    `📧 [EMAIL] Envío omitido (${etiqueta}): correos deshabilitados. Reactivar con EMAIL_ENVIO_HABILITADO=true en backend/.env`
+  );
+  return { success: false, skipped: true, error: 'Envío de correo deshabilitado (EMAIL_ENVIO_HABILITADO)' };
+}
+
 // Configurar transporter de nodemailer
 const emailConfig = {
   host: process.env.EMAIL_HOST || 'smtp.gmail.com',
@@ -23,6 +43,9 @@ console.log(`📧 [EMAIL] Configuración de email:`, {
   user: emailConfig.auth.user ? `${emailConfig.auth.user.substring(0, 3)}***` : 'NO CONFIGURADO',
   hasPassword: !!emailConfig.auth.pass
 });
+console.log(
+  `📧 [EMAIL] Envío SMTP: ${isEmailEnvioHabilitado() ? 'HABILITADO (EMAIL_ENVIO_HABILITADO=true)' : 'DESHABILITADO (solo push/campanita; reactivar con EMAIL_ENVIO_HABILITADO=true)'}`
+);
 
 const transporter = nodemailer.createTransport(emailConfig);
 
@@ -423,6 +446,9 @@ function generarTemplateNotificacion(datos) {
  * Usa EMAIL_ASISTENCIA_* si está configurado; si no, usa la cuenta principal (EMAIL_USER).
  */
 async function enviarCorreoAsistencia(destinatario, datos) {
+  if (!isEmailEnvioHabilitado()) {
+    return resultadoCorreoDeshabilitado('asistencia');
+  }
   try {
     const usoAsistencia = transporterAsistencia ? transporterAsistencia : transporter;
     const fromUser = transporterAsistencia ? process.env.EMAIL_ASISTENCIA_USER : process.env.EMAIL_USER;
@@ -507,6 +533,9 @@ function esEmailValido(email) {
 }
 
 async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNombre = 'Vanguard Schools', categoria = 'GENERAL') {
+  if (!isEmailEnvioHabilitado()) {
+    return resultadoCorreoDeshabilitado(`notificacion/${categoria || 'GENERAL'}`);
+  }
   try {
     const { transporter: trans, fromUser } = getTransporterPorCategoria(categoria || 'GENERAL');
     if (!fromUser) {
@@ -583,6 +612,9 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
  * Úsalo cuando automatices el envío al cumpleañero (asunto sin pasar por generarTemplateNotificacion).
  */
 async function enviarCorreoCumpleanosHtml(destinatario, asunto, innerHtmlBody, colegioNombre = 'Vanguard Schools') {
+  if (!isEmailEnvioHabilitado()) {
+    return resultadoCorreoDeshabilitado('cumpleanos');
+  }
   try {
     const { transporter: trans, fromUser } = getTransporterPorCategoria('GENERAL');
     if (!fromUser) {
@@ -635,6 +667,9 @@ ${bloque}
  * Útil cuando el módulo necesita un diseño propio más rico que la plantilla genérica.
  */
 async function enviarCorreoHtml(destinatario, asunto, htmlBody, colegioNombre = 'Vanguard Schools', categoria = 'GENERAL') {
+  if (!isEmailEnvioHabilitado()) {
+    return resultadoCorreoDeshabilitado(`html/${categoria || 'GENERAL'}`);
+  }
   try {
     const { transporter: trans, fromUser } = getTransporterPorCategoria(categoria || 'GENERAL');
     if (!fromUser) {
@@ -688,6 +723,7 @@ ${htmlBody}
 }
 
 module.exports = {
+  isEmailEnvioHabilitado,
   enviarCorreoAsistencia,
   generarTemplateAsistencia,
   enviarCorreoNotificacion,

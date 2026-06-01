@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import DashboardLayout from '../../components/DashboardLayout';
 import { useAuth } from '../../context/AuthContext';
@@ -15,6 +15,11 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import '../VocabulariosPage.css';
 import './DisenadorFichas.css';
+import {
+  agruparOpcionesGrupoPorGrado,
+  bucketPorClave,
+  claveGradoDesdeGrupoId,
+} from '../../utils/fichasIaGruposAgregados';
 
 /** Gemini + PDF en servidor pueden tardar más de 30 s (timeout global de api.js). */
 const GENERAR_FICHA_TIMEOUT_MS = 180000;
@@ -132,12 +137,6 @@ function formatFecha(iso) {
   });
 }
 
-function opcionGrupoLabel(o) {
-  const sec = (o.seccion || '').trim();
-  const parteSec = sec ? ` · Sec. ${sec}` : '';
-  return `${o.nivel_nombre} — ${o.grado}°${parteSec}`;
-}
-
 const ESTILOS_FICHA_FALLBACK = [
   {
     codigo: 'general',
@@ -195,14 +194,14 @@ export default function DisenadorFichas() {
   const [cursosGrupo, setCursosGrupo] = useState([]);
   const [cursosFiltro, setCursosFiltro] = useState([]);
 
-  const [filtroGrupoId, setFiltroGrupoId] = useState('');
+  const [filtroGradoClave, setFiltroGradoClave] = useState('');
   const [filtroAsignaturaId, setFiltroAsignaturaId] = useState('');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [generando, setGenerando] = useState(false);
   const [form, setForm] = useState({
-    grupo_id: '',
+    grado_clave: '',
     asignatura_id: '',
     titulo: '',
     unidad: '1',
@@ -215,14 +214,28 @@ export default function DisenadorFichas() {
 
   const puedeEditarFila = (row) => Boolean(row.puede_editar) || esAdmin;
 
-  const cargarCursos = useCallback(async (grupoId, destino) => {
-    if (!grupoId) {
+  const gruposAgregados = useMemo(
+    () => agruparOpcionesGrupoPorGrado(opcionesGrupo),
+    [opcionesGrupo]
+  );
+
+  const cargarCursos = useCallback(async (gradoClave, destino) => {
+    if (!gradoClave) {
+      if (destino === 'form') setCursosGrupo([]);
+      else setCursosFiltro([]);
+      return;
+    }
+    const bucket = bucketPorClave(gruposAgregados, gradoClave);
+    const ids = bucket?.grupo_ids?.length ? bucket.grupo_ids : [];
+    if (!ids.length) {
       if (destino === 'form') setCursosGrupo([]);
       else setCursosFiltro([]);
       return;
     }
     try {
-      const res = await api.get(`/fichas-ia/meta/grupos/${grupoId}/cursos`);
+      const res = await api.get('/fichas-ia/meta/grupos/cursos', {
+        params: { grupo_ids: ids.join(',') },
+      });
       const list = res.data.cursos || [];
       if (destino === 'form') setCursosGrupo(list);
       else setCursosFiltro(list);
@@ -230,15 +243,18 @@ export default function DisenadorFichas() {
       if (destino === 'form') setCursosGrupo([]);
       else setCursosFiltro([]);
     }
-  }, []);
+  }, [gruposAgregados]);
 
   const cargarTrabajos = useCallback(async () => {
     const params = {};
-    if (filtroGrupoId) params.grupo_id = filtroGrupoId;
+    if (filtroGradoClave) {
+      const bucket = bucketPorClave(gruposAgregados, filtroGradoClave);
+      if (bucket?.grupo_ids?.length) params.grupo_ids = bucket.grupo_ids.join(',');
+    }
     if (filtroAsignaturaId) params.asignatura_id = filtroAsignaturaId;
     const res = await api.get('/fichas-ia/trabajos', { params });
     setTrabajos(res.data?.data || []);
-  }, [filtroGrupoId, filtroAsignaturaId]);
+  }, [filtroGradoClave, filtroAsignaturaId, gruposAgregados]);
 
   const refrescar = useCallback(async () => {
     try {
@@ -275,20 +291,20 @@ export default function DisenadorFichas() {
   }, [refrescar]);
 
   useEffect(() => {
-    cargarCursos(filtroGrupoId, 'filtro');
+    cargarCursos(filtroGradoClave, 'filtro');
     setFiltroAsignaturaId('');
-  }, [filtroGrupoId, cargarCursos]);
+  }, [filtroGradoClave, cargarCursos]);
 
   useEffect(() => {
-    if (modalOpen && form.grupo_id) {
-      cargarCursos(form.grupo_id, 'form');
+    if (modalOpen && form.grado_clave) {
+      cargarCursos(form.grado_clave, 'form');
     }
-  }, [modalOpen, form.grupo_id, cargarCursos]);
+  }, [modalOpen, form.grado_clave, cargarCursos]);
 
   useEffect(() => {
     if (loading) return;
     cargarTrabajos().catch(() => {});
-  }, [filtroGrupoId, filtroAsignaturaId, loading, cargarTrabajos]);
+  }, [filtroGradoClave, filtroAsignaturaId, loading, cargarTrabajos]);
 
   const abrirModal = async (row = null) => {
     setEditItem(row);
@@ -312,8 +328,11 @@ export default function DisenadorFichas() {
         /* ignore */
       }
     }
+    const claveGrado = row?.grupo_id
+      ? claveGradoDesdeGrupoId(opcionesGrupo, row.grupo_id)
+      : gruposAgregados[0]?.clave || '';
     setForm({
-      grupo_id: row?.grupo_id ? String(row.grupo_id) : opcionesGrupo[0] ? String(opcionesGrupo[0].grupo_id) : '',
+      grado_clave: claveGrado,
       asignatura_id: row?.asignatura_id ? String(row.asignatura_id) : '',
       titulo: row?.titulo || '',
       unidad: row?.unidad || '1',
@@ -339,9 +358,17 @@ export default function DisenadorFichas() {
       Swal.fire({ icon: 'warning', title: 'Indique el título de la ficha' });
       return;
     }
-    if (!form.grupo_id) {
-      Swal.fire({ icon: 'warning', title: 'Elija el grupo (nivel, grado y sección)' });
+    const bucketGrado = bucketPorClave(gruposAgregados, form.grado_clave);
+    if (!form.grado_clave || !bucketGrado?.grupo_id_rep) {
+      Swal.fire({ icon: 'warning', title: 'Elija el grupo (nivel y grado)' });
       return;
+    }
+    let grupoIdGuardar = String(bucketGrado.grupo_id_rep);
+    if (form.asignatura_id) {
+      const curSel = cursosGrupo.find(
+        (c) => String(c.asignatura_id) === String(form.asignatura_id)
+      );
+      if (curSel?.grupo_id != null) grupoIdGuardar = String(curSel.grupo_id);
     }
 
     setGenerando(true);
@@ -351,7 +378,7 @@ export default function DisenadorFichas() {
       if (editItem) {
         await api.put(`/fichas-ia/trabajos/${editItem.id}`, {
           titulo: form.titulo.trim(),
-          grupo_id: form.grupo_id,
+          grupo_id: grupoIdGuardar,
           asignatura_id: form.asignatura_id || '',
           unidad: form.unidad.trim(),
           puntos_clave: form.puntos_clave.trim(),
@@ -367,7 +394,7 @@ export default function DisenadorFichas() {
       } else {
         const fd = new FormData();
         fd.append('titulo', form.titulo.trim());
-        fd.append('grupo_id', form.grupo_id);
+        fd.append('grupo_id', grupoIdGuardar);
         if (form.asignatura_id) fd.append('asignatura_id', form.asignatura_id);
         fd.append('unidad', form.unidad.trim());
         fd.append('puntos_clave', form.puntos_clave.trim());
@@ -509,7 +536,7 @@ export default function DisenadorFichas() {
     }
   };
 
-  const sinGrupos = !loading && opcionesGrupo.length === 0;
+  const sinGrupos = !loading && gruposAgregados.length === 0;
 
   return (
     <DashboardLayout>
@@ -587,7 +614,7 @@ export default function DisenadorFichas() {
         <section className="voc-section">
           <div className="voc-section-head">
             <h2>Biblioteca de fichas</h2>
-            {opcionesGrupo.length > 0 && (
+            {gruposAgregados.length > 0 && (
               <button type="button" className="voc-btn-primary" onClick={() => abrirModal(null)} disabled={generando}>
                 + Nueva ficha
               </button>
@@ -599,21 +626,21 @@ export default function DisenadorFichas() {
               <FilterListOutlinedIcon sx={{ fontSize: 20, color: '#4a83c1' }} />
               <div>
                 <div className="voc-panel-title">Filtros</div>
-                <p className="voc-panel-desc">Acote por aula o por curso/asignatura.</p>
+                <p className="voc-panel-desc">Acote por grado (sin sección) o por curso/asignatura.</p>
               </div>
             </div>
             <div className="voc-modal-grid">
               <label className="voc-label-block">
-                <span className="voc-label-text">Grado / grupo</span>
+                <span className="voc-label-text">Grado</span>
                 <select
                   className="voc-input voc-select"
-                  value={filtroGrupoId}
-                  onChange={(e) => setFiltroGrupoId(e.target.value)}
+                  value={filtroGradoClave}
+                  onChange={(e) => setFiltroGradoClave(e.target.value)}
                 >
-                  <option value="">Todos los grupos</option>
-                  {opcionesGrupo.map((o) => (
-                    <option key={o.grupo_id} value={String(o.grupo_id)}>
-                      {o.etiqueta || opcionGrupoLabel(o)}
+                  <option value="">Todos los grados</option>
+                  {gruposAgregados.map((g) => (
+                    <option key={g.clave} value={g.clave}>
+                      {g.etiqueta}
                     </option>
                   ))}
                 </select>
@@ -624,7 +651,7 @@ export default function DisenadorFichas() {
                   className="voc-input voc-select"
                   value={filtroAsignaturaId}
                   onChange={(e) => setFiltroAsignaturaId(e.target.value)}
-                  disabled={!filtroGrupoId}
+                  disabled={!filtroGradoClave}
                 >
                   <option value="">Todos los cursos</option>
                   {cursosFiltro.map((c) => (
@@ -821,23 +848,23 @@ export default function DisenadorFichas() {
                     <GroupsOutlinedIcon sx={{ fontSize: 20, color: '#4a83c1' }} />
                     <div>
                       <div className="voc-panel-title">Aula y curso</div>
-                      <p className="voc-panel-desc">Nivel, grado y sección; luego el curso del grupo.</p>
+                      <p className="voc-panel-desc">Nivel y grado (sin sección); luego el curso.</p>
                     </div>
                   </div>
                   <div className="voc-modal-grid">
                     <label className="voc-label-block">
-                      <span className="voc-label-text">Grupo (nivel — grado — sección)</span>
+                      <span className="voc-label-text">Grado (nivel — grado)</span>
                       <select
                         className="voc-input voc-select"
-                        value={form.grupo_id}
+                        value={form.grado_clave}
                         onChange={(e) =>
-                          setForm((f) => ({ ...f, grupo_id: e.target.value, asignatura_id: '' }))
+                          setForm((f) => ({ ...f, grado_clave: e.target.value, asignatura_id: '' }))
                         }
                       >
                         <option value="">Seleccione…</option>
-                        {opcionesGrupo.map((o) => (
-                          <option key={o.grupo_id} value={String(o.grupo_id)}>
-                            {o.etiqueta || opcionGrupoLabel(o)}
+                        {gruposAgregados.map((g) => (
+                          <option key={g.clave} value={g.clave}>
+                            {g.etiqueta}
                           </option>
                         ))}
                       </select>
@@ -848,7 +875,7 @@ export default function DisenadorFichas() {
                         className="voc-input voc-select"
                         value={form.asignatura_id}
                         onChange={(e) => setForm((f) => ({ ...f, asignatura_id: e.target.value }))}
-                        disabled={!form.grupo_id}
+                        disabled={!form.grado_clave}
                       >
                         <option value="">Seleccione curso…</option>
                         {cursosGrupo.map((c) => (

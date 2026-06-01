@@ -167,6 +167,25 @@ function urlPublicacionPorTipoUsuario(tipoUsuario) {
   return '/docente/dashboard#publicaciones';
 }
 
+/** Ruta SPA al listado de comunicados según rol. */
+function urlComunicadoPorTipoUsuario(tipoUsuario) {
+  const t = String(tipoUsuario || '').toUpperCase();
+  if (t === 'ALUMNO') return '/alumno/comunicados';
+  if (t === 'APODERADO') return '/apoderado/comunicados';
+  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA') return '/admin/comunicaciones/comunicados';
+  return '/docente/comunicados';
+}
+
+/** Ruta SPA a la bandeja Mensajes según rol. */
+function urlMensajesPorTipoUsuario(tipoUsuario) {
+  const t = String(tipoUsuario || '').toUpperCase();
+  if (t === 'ALUMNO') return '/alumno/mensajes';
+  if (t === 'APODERADO') return '/apoderado/mensajes';
+  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA') return '/admin/mensajes';
+  if (t === 'DOCENTE') return '/docente/mensajes';
+  return '/apoderado/mensajes';
+}
+
 /** Ruta SPA a vocabularios (herramientas) según rol. */
 function urlVocabularioPorTipoUsuario(tipoUsuario) {
   const t = String(tipoUsuario || '').toUpperCase();
@@ -183,5 +202,7 @@ module.exports = {
   inferirUrlNotificacionFamiliaPorDestinatario,
   urlPortalHijoPorTipoUsuario,
   urlPublicacionPorTipoUsuario,
+  urlComunicadoPorTipoUsuario,
+  urlMensajesPorTipoUsuario,
   urlVocabularioPorTipoUsuario
 };

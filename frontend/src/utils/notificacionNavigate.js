@@ -190,6 +190,15 @@ export function normalizarUrlNotificacion(notif, user) {
     return '/docente/dashboard#publicaciones';
   }
 
+  if (tipoAccion === 'comunicado') {
+    if (user?.tipo === 'ALUMNO') return '/alumno/comunicados';
+    if (user?.tipo === 'APODERADO') return '/apoderado/comunicados';
+    if (user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA' || user?.tipo === 'PSICOLOGA') {
+      return '/admin/comunicaciones/comunicados';
+    }
+    return '/docente/comunicados';
+  }
+
   if (tipoAccion === 'mensajes_conexiones' || tipoAccion.includes('mensaje')) {
     if (user?.tipo === 'APODERADO') return '/apoderado/mensajes';
     if (user?.tipo === 'DOCENTE') return '/docente/mensajes';

@@ -8,6 +8,7 @@ const { authenticateToken, requireUserType } = require('../middleware/auth');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
 const { enviarCorreoNotificacion } = require('../services/emailService');
+const { urlMensajesPorTipoUsuario } = require('../utils/notificacionUrls');
 const phpSerialize = require('php-serialize');
 const {
   obtenerContextoAlumnoGrupoParaMensaje,
@@ -5144,10 +5145,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               const pushItemsGen = (subsData || []).map((sub) => {
                 const uid = parseInt(sub.usuario_id, 10);
                 const td = mapTipoApoderadoGeneral.get(uid) || 'DOCENTE';
-                let urlPush = '/docente/mensajes';
-                if (td === 'APODERADO') urlPush = '/apoderado/mensajes';
-                else if (td === 'ALUMNO') urlPush = '/alumno/mensajes';
-                else if (td === 'PSICOLOGA') urlPush = '/docente/mensajes';
+                const urlPush = urlMensajesPorTipoUsuario(td);
                 return {
                   subscription: {
                     endpoint: sub.endpoint,

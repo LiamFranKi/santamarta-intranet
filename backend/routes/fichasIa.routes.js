@@ -24,6 +24,7 @@ const { resolverEstiloFicha, listarEstilosFicha, metaEstilo, esPlantillaMatemati
 const {
   listarGruposOpciones,
   listarCursosPorGrupo,
+  listarCursosPorGrupos,
   etiquetaGrupo,
 } = require('../services/fichasIa/fichasIaMeta');
 const { urlMascotaVanguarcito } = require('../services/fichasIa/fichasIaMascota');
@@ -118,6 +119,25 @@ router.get('/meta/grupos', async (req, res) => {
   }
 });
 
+/** Cursos unificados de varias secciones (mismo nivel + grado). Query: grupo_ids=1,2,3 */
+router.get('/meta/grupos/cursos', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const grupoIds = String(req.query.grupo_ids || '')
+      .split(',')
+      .map((x) => parseInt(String(x).trim(), 10))
+      .filter(Number.isFinite);
+    if (!grupoIds.length) {
+      return res.status(400).json({ error: 'Indique grupo_ids (lista separada por comas)' });
+    }
+    const cursos = await listarCursosPorGrupos(colegio_id, grupoIds);
+    res.json({ cursos });
+  } catch (e) {
+    console.error('[fichas-ia/meta/grupos/cursos]', e);
+    res.status(500).json({ error: e.message || 'Error' });
+  }
+});
+
 router.get('/meta/grupos/:grupoId/cursos', async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -136,6 +156,10 @@ router.get('/trabajos', async (req, res) => {
     const { colegio_id, usuario_id } = req.user;
     const limit = Math.min(parseInt(req.query.limit, 10) || 80, 200);
     const filtroGrupo = parseInt(req.query.grupo_id, 10);
+    const filtroGrupoIds = String(req.query.grupo_ids || '')
+      .split(',')
+      .map((x) => parseInt(String(x).trim(), 10))
+      .filter(Number.isFinite);
     const filtroAsig = parseInt(req.query.asignatura_id, 10);
 
     let sql = `
@@ -150,7 +174,10 @@ router.get('/trabajos', async (req, res) => {
       WHERE t.colegio_id = ?`;
     const params = [colegio_id];
 
-    if (Number.isFinite(filtroGrupo)) {
+    if (filtroGrupoIds.length > 0) {
+      sql += ` AND t.grupo_id IN (${filtroGrupoIds.map(() => '?').join(',')})`;
+      params.push(...filtroGrupoIds);
+    } else if (Number.isFinite(filtroGrupo)) {
       sql += ' AND t.grupo_id = ?';
       params.push(filtroGrupo);
     }

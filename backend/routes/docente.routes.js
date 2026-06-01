@@ -15,8 +15,10 @@ const {
   obtenerUrlExamenActivado,
   inferirUrlApoderadoNotificacion,
   inferirUrlNotificacionFamiliaPorDestinatario,
-  urlPublicacionPorTipoUsuario
+  urlPublicacionPorTipoUsuario,
+  urlMensajesPorTipoUsuario
 } = require('../utils/notificacionUrls');
+const { notificarComunicadoNuevo } = require('../utils/comunicadosNotificar');
 const { enviarCorreoNotificacion } = require('../services/emailService');
 const mensajesConfig = require('../config/mensajes.json');
 const moment = require('moment-timezone');
@@ -1038,6 +1040,88 @@ async function crearNotificacionesApoderados(params) {
             `📬 [NOTIFICACIONES APODERADOS] Mensajes internos (bandeja) enviados a ${todosDestinatarios.length} destinatario(s)`
           );
         }
+
+        // Examen con nota oculta en campanita: aviso por push + campanita hacia Mensajes (sustituye correo)
+        if (soloMensajesInternos) try {
+          const tituloBell =
+            (mensajeInterno && String(mensajeInterno.asunto || '').trim()) ||
+            String(tituloNotificacion || 'Comprobante de examen');
+          const contenidoBell =
+            'Revise Mensajes para ver el comprobante del examen (la nota puede estar pendiente según el docente).';
+          const usuarioIdNum = parseInt(usuario_id, 10);
+
+          for (const destinatarioId of todosDestinatarios) {
+            const destinatarioIdNum = parseInt(destinatarioId, 10);
+            if (isNaN(destinatarioIdNum) || isNaN(usuarioIdNum)) continue;
+            const tipoDest = tipoPorDestinatario.get(destinatarioIdNum) || 'APODERADO';
+            const urlMensajes = urlMensajesPorTipoUsuario(tipoDest);
+            try {
+              await insertNotificacionUsuario(execute, {
+                usuario_id: usuarioIdNum,
+                destinatario_id: destinatarioIdNum,
+                asunto: String(tituloBell).slice(0, 200),
+                contenido: contenidoBell,
+                estado: 'NO ENVIADO',
+                accion_tipo: 'mensaje_comprobante_examen',
+                accion_payload: { alumno_id: alumnoIdNum, ...dataExtra },
+                url_destino: urlMensajes
+              });
+            } catch (bellEx) {
+              console.warn(
+                `[NOTIFICACIONES APODERADOS] Campanita comprobante examen → ${destinatarioIdNum}:`,
+                bellEx.message
+              );
+            }
+          }
+
+          const subscriptionsSoloMi = await query(
+            `SELECT usuario_id, endpoint, p256dh, auth
+             FROM push_subscriptions
+             WHERE usuario_id IN (${todosDestinatarios.map(() => '?').join(',')})
+               AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
+            [...todosDestinatarios.map((id) => parseInt(id, 10)), parseInt(colegio_id, 10)]
+          );
+          if ((subscriptionsSoloMi || []).length > 0) {
+            const bodyPush = contenidoBell.substring(0, 160);
+            const pushSoloMi = subscriptionsSoloMi.map((sub) => {
+              const uid = parseInt(sub.usuario_id, 10);
+              const tipoDestPush = tipoPorDestinatario.get(uid) || 'APODERADO';
+              return {
+                subscription: {
+                  endpoint: sub.endpoint,
+                  keys: { p256dh: sub.p256dh, auth: sub.auth }
+                },
+                payload: {
+                  title: String(tituloBell).slice(0, 80),
+                  body: bodyPush,
+                  icon: '/icons/icon-192x192.png',
+                  badge: '/icons/icon-192x192.png',
+                  vibrate: [200, 100, 200],
+                  tag: `examen-comprobante-${alumnoIdNum}-${uid}`,
+                  data: {
+                    url: urlMensajesPorTipoUsuario(tipoDestPush),
+                    tipo: 'mensaje_comprobante_examen',
+                    alumno_id: alumnoIdNum,
+                    ...dataExtra
+                  }
+                }
+              };
+            });
+            enviarPushNotificacionesIndividuales(pushSoloMi)
+              .then((res) => {
+                const ok = res.filter((r) => r.resultado && r.resultado.success).length;
+                console.log(
+                  `📱 [NOTIFICACIONES APODERADOS] Push comprobante examen (solo Mensajes): ${ok}/${pushSoloMi.length}`
+                );
+              })
+              .catch((err) =>
+                console.error('[NOTIFICACIONES APODERADOS] Error push comprobante examen:', err)
+              );
+          }
+        } catch (soloMiErr) {
+          console.error('[NOTIFICACIONES APODERADOS] Error aviso solo Mensajes:', soloMiErr);
+        }
+      }
       }
     } else {
       console.log('⚠️ [NOTIFICACIONES APODERADOS] No se encontraron destinatarios para notificar');
@@ -13650,70 +13734,17 @@ router.post('/comunicados', uploadComunicado.single('archivo'), async (req, res)
       }
     });
 
-    // Push y correo en segundo plano (alumnos, apoderados, docentes)
+    // Campanita + push en segundo plano (alumnos, apoderados, docentes). Correo deshabilitado vía emailService.
     setImmediate(async () => {
       try {
-        const colegioInfo = await query(`SELECT nombre FROM colegios WHERE id = ?`, [colegio_id]);
-        const colegioNombre = colegioInfo.length > 0 ? colegioInfo[0].nombre : 'Vanguard Schools';
-        const tituloNotif = 'Nuevo comunicado';
-        const descripcionCorta = (descripcion || '').substring(0, 100);
-
-        // Usuarios a notificar: alumnos + apoderados + docentes
-        const usuariosNotificar = await query(
-          `SELECT id FROM usuarios WHERE colegio_id = ? AND estado = 'ACTIVO' AND tipo IN ('ALUMNO', 'APODERADO', 'DOCENTE')`,
-          [colegio_id]
-        );
-        const usuarioIds = (usuariosNotificar || []).map(u => u.id);
-        if (usuarioIds.length > 0) {
-          const subsData = await query(
-            `SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE usuario_id IN (${usuarioIds.map(() => '?').join(',')}) AND colegio_id = ? AND (activo = 1 OR activo IS NULL)`,
-            [...usuarioIds, colegio_id]
-          );
-          const subscriptions = (subsData || []).map(s => ({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }));
-          if (subscriptions.length > 0) {
-            enviarPushNotificationMultiple(subscriptions, {
-              title: 'Nuevo comunicado',
-              body: descripcionCorta,
-              icon: '/icons/icon-192x192.png',
-              badge: '/icons/icon-192x192.png',
-              vibrate: [200, 100, 200],
-              tag: `comunicado-${result.insertId}-${Date.now()}`,
-              data: { url: '/comunicados', tipo: 'comunicado', comunicado_id: result.insertId }
-            }).catch(err => console.error('❌ [COMUNICADOS] Error push:', err));
-            console.log(`📱 [COMUNICADOS] Push enviado a ${subscriptions.length} suscripción(es)`);
-          }
-        }
-
-        // Correo solo a apoderados y docentes (cuenta COMUNICADOS)
-        const usuariosConEmail = await query(
-          `SELECT u.id, COALESCE(ap.email, p.email) as email
-           FROM usuarios u
-           LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
-           LEFT JOIN personal p ON p.id = u.personal_id
-           WHERE u.colegio_id = ? AND u.estado = 'ACTIVO'
-             AND (u.tipo = 'APODERADO' OR u.tipo = 'DOCENTE')
-             AND COALESCE(ap.email, p.email) IS NOT NULL
-             AND TRIM(COALESCE(ap.email, p.email)) != ''`,
-          [colegio_id]
-        );
-        const emailsUnicos = new Map();
-        (usuariosConEmail || []).forEach(u => {
-          const email = (u.email || '').toLowerCase().trim();
-          if (email && email.includes('@') && !emailsUnicos.has(email)) emailsUnicos.set(email, u.email);
+        await notificarComunicadoNuevo({
+          query,
+          execute,
+          colegio_id,
+          usuario_emisor_id: usuario_id,
+          comunicadoId: result.insertId,
+          descripcion
         });
-        const contenidoNotif = `Nuevo comunicado: "${descripcionCorta}". Ingrese a Comunicados para ver el contenido.`;
-        let enviadosCorreo = 0;
-        for (const email of emailsUnicos.values()) {
-          try {
-            const res = await enviarCorreoNotificacion(email, tituloNotif, contenidoNotif, colegioNombre, 'COMUNICADOS');
-            if (res && res.success) enviadosCorreo++;
-          } catch (e) {
-            console.warn(`❌ [COMUNICADOS] Error correo a ${email}:`, e.message);
-          }
-        }
-        if (emailsUnicos.size > 0) {
-          console.log(`📧 [COMUNICADOS] Correos enviados a ${enviadosCorreo}/${emailsUnicos.size} apoderado(s)/docente(s) (cuenta COMUNICADOS)`);
-        }
       } catch (err) {
         console.error('❌ [COMUNICADOS] Error notificaciones:', err);
       }
@@ -15517,11 +15548,9 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
               const pushItemsDoc = (subsData || []).map((sub) => {
                 const uid = parseInt(sub.usuario_id, 10);
                 const td = mapPushDocenteMsg.get(uid) || 'DOCENTE';
-                let urlPush = '/docente/mensajes';
-                if (td === 'APODERADO') urlPush = '/apoderado/mensajes';
-                else if (td === 'ALUMNO') urlPush = '/alumno/mensajes';
-                else if (td === 'ADMINISTRADOR' || td === 'PROMOTORIA') {
-                  urlPush = esConexionEnvio ? '/admin/conexiones' : '/admin/mensajes';
+                let urlPush = urlMensajesPorTipoUsuario(td);
+                if ((td === 'ADMINISTRADOR' || td === 'PROMOTORIA') && esConexionEnvio) {
+                  urlPush = '/admin/conexiones';
                 }
                 return {
                   subscription: {

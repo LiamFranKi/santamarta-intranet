@@ -1,5 +1,21 @@
 # Cuentas de correo por módulo y relación con las notificaciones push
 
+## Desactivar / reactivar todos los correos (React)
+
+Por defecto el backend **no envía correos** (`EMAIL_ENVIO_HABILITADO` vacío o ausente). Las avisos van por **campanita**, **push** y, cuando aplica, **Mensajes** internos.
+
+```env
+# Deshabilitado (por defecto si no defines la variable):
+# EMAIL_ENVIO_HABILITADO=false
+
+# Para volver a enviar correos SMTP:
+EMAIL_ENVIO_HABILITADO=true
+```
+
+Tras cambiar `.env`: `pm2 restart intranet2026-backend` (o el proceso que use el backend).
+
+---
+
 ## Cuatro cuentas opcionales
 
 Puedes usar **hasta 4 cuentas** para repartir el límite diario de Gmail (~500/día por cuenta):
