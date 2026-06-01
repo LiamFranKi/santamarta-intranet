@@ -1122,7 +1122,6 @@ async function crearNotificacionesApoderados(params) {
           console.error('[NOTIFICACIONES APODERADOS] Error aviso solo Mensajes:', soloMiErr);
         }
       }
-      }
     } else {
       console.log('⚠️ [NOTIFICACIONES APODERADOS] No se encontraron destinatarios para notificar');
     }
