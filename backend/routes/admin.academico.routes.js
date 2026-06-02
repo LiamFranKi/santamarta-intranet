@@ -1392,14 +1392,18 @@ router.get('/areas', async (req, res) => {
       return res.status(500).json({ error: 'Estructura de tabla areas no reconocida' });
     }
     const countSql = `(SELECT COUNT(*) FROM areas_cursos ac WHERE ac.area_id = a.id) AS cursos_count`;
+    const cursosNombresSql = `(SELECT GROUP_CONCAT(DISTINCT c.nombre ORDER BY c.nombre SEPARATOR ' ')
+             FROM areas_cursos ac
+             INNER JOIN cursos c ON c.id = ac.curso_id AND c.colegio_id = a.colegio_id
+             WHERE ac.area_id = a.id) AS cursos_nombres`;
     let sql;
     if (cols.has('nivel_id')) {
-      sql = `SELECT ${base.map((c) => `a.${c}`).join(', ')}, n.nombre AS nivel_nombre, ${countSql}
+      sql = `SELECT ${base.map((c) => `a.${c}`).join(', ')}, n.nombre AS nivel_nombre, ${countSql}, ${cursosNombresSql}
              FROM areas a
              LEFT JOIN niveles n ON n.id = a.nivel_id AND n.colegio_id = a.colegio_id
              WHERE a.colegio_id = ? ORDER BY n.nombre, a.nombre`;
     } else {
-      sql = `SELECT ${base.map((c) => `a.${c}`).join(', ')}, ${countSql} FROM areas a WHERE a.colegio_id = ? ORDER BY a.nombre`;
+      sql = `SELECT ${base.map((c) => `a.${c}`).join(', ')}, ${countSql}, ${cursosNombresSql} FROM areas a WHERE a.colegio_id = ? ORDER BY a.nombre`;
     }
     const rows = await query(sql, [cid]);
     res.json({ areas: rows || [] });
@@ -1430,7 +1434,7 @@ router.get('/areas/:id/cursos', async (req, res) => {
   }
 });
 
-/** Cursos del mismo nivel elegibles para el área (sin asignar a otra área); incluye los ya vinculados a esta. */
+/** Cursos del mismo nivel elegibles para el área; incluye siempre los ya vinculados a esta (aunque estén en otra área por datos legacy). */
 router.get('/areas/:id/cursos-disponibles', async (req, res) => {
   try {
     const areaId = parseInt(req.params.id, 10);
@@ -1448,49 +1452,62 @@ router.get('/areas/:id/cursos-disponibles', async (req, res) => {
     const [areaRow] = await query(areaSql, [areaId, cid]);
     if (!areaRow) return res.status(404).json({ error: 'Área no encontrada' });
 
+    const selectExtra = `
+      CASE WHEN ac_self.area_id IS NOT NULL THEN 1 ELSE 0 END AS selected,
+      CASE WHEN EXISTS (
+        SELECT 1 FROM areas_cursos acx
+        INNER JOIN areas ax ON ax.id = acx.area_id AND ax.colegio_id = ?
+        WHERE acx.curso_id = c.id AND acx.area_id <> ?
+      ) THEN 1 ELSE 0 END AS en_otra_area,
+      (SELECT GROUP_CONCAT(DISTINCT ax.nombre ORDER BY ax.nombre SEPARATOR ', ')
+       FROM areas_cursos acx
+       INNER JOIN areas ax ON ax.id = acx.area_id AND ax.colegio_id = ?
+       WHERE acx.curso_id = c.id AND acx.area_id <> ?
+      ) AS otras_areas_nombres`;
+
+    const whereElegible = `
+      AND (
+        EXISTS (SELECT 1 FROM areas_cursos ac0 WHERE ac0.curso_id = c.id AND ac0.area_id = ?)
+        OR NOT EXISTS (SELECT 1 FROM areas_cursos ac2 WHERE ac2.curso_id = c.id)
+      )`;
+
+    const mapCursosResponse = (rows) => {
+      const list = rows || [];
+      return {
+        area: areaRow,
+        cursos: list,
+        curso_ids_seleccionados: list.filter((r) => Number(r.selected) === 1).map((r) => r.id),
+        tiene_conflictos: list.some((r) => Number(r.en_otra_area) === 1),
+      };
+    };
+
     if (acols.has('nivel_id') && ccols.has('nivel_id') && areaRow.nivel_id != null) {
       const nid = parseInt(areaRow.nivel_id, 10);
       if (!Number.isFinite(nid)) {
         return res.status(400).json({ error: 'El área no tiene un nivel válido' });
       }
       const rows = await query(
-        `SELECT c.id, c.nombre, c.abreviatura,
-                CASE WHEN ac_self.area_id IS NOT NULL THEN 1 ELSE 0 END AS selected
+        `SELECT c.id, c.nombre, c.abreviatura, ${selectExtra}
          FROM cursos c
          LEFT JOIN areas_cursos ac_self ON ac_self.curso_id = c.id AND ac_self.area_id = ?
          WHERE c.colegio_id = ? AND c.nivel_id = ?
-           AND NOT EXISTS (
-             SELECT 1 FROM areas_cursos ac2
-             WHERE ac2.curso_id = c.id AND ac2.area_id <> ?
-           )
-         ORDER BY c.nombre`,
-        [areaId, cid, nid, areaId]
+         ${whereElegible}
+         ORDER BY selected DESC, c.nombre`,
+        [cid, areaId, cid, areaId, areaId, cid, nid, areaId]
       );
-      return res.json({
-        area: areaRow,
-        cursos: rows || [],
-        curso_ids_seleccionados: (rows || []).filter((r) => Number(r.selected) === 1).map((r) => r.id),
-      });
+      return res.json(mapCursosResponse(rows));
     }
 
     const rows = await query(
-      `SELECT c.id, c.nombre, c.abreviatura,
-              CASE WHEN ac_self.area_id IS NOT NULL THEN 1 ELSE 0 END AS selected
+      `SELECT c.id, c.nombre, c.abreviatura, ${selectExtra}
        FROM cursos c
        LEFT JOIN areas_cursos ac_self ON ac_self.curso_id = c.id AND ac_self.area_id = ?
        WHERE c.colegio_id = ?
-         AND NOT EXISTS (
-           SELECT 1 FROM areas_cursos ac2
-           WHERE ac2.curso_id = c.id AND ac2.area_id <> ?
-         )
-       ORDER BY c.nombre`,
-      [areaId, cid, areaId]
+       ${whereElegible}
+       ORDER BY selected DESC, c.nombre`,
+      [cid, areaId, cid, areaId, areaId, cid, areaId]
     );
-    res.json({
-      area: areaRow,
-      cursos: rows || [],
-      curso_ids_seleccionados: (rows || []).filter((r) => Number(r.selected) === 1).map((r) => r.id),
-    });
+    res.json(mapCursosResponse(rows));
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: e.message || 'Error al listar cursos disponibles' });
@@ -1592,23 +1609,11 @@ router.put('/areas/:id/cursos', async (req, res) => {
           return res.status(400).json({ error: 'Todos los cursos deben ser del mismo nivel que el área' });
         }
       }
-      const ocupados = await query(
-        `SELECT ac.curso_id, a.nombre AS area_nombre
-         FROM areas_cursos ac
-         INNER JOIN areas a ON a.id = ac.area_id AND a.colegio_id = ?
-         WHERE ac.curso_id IN (${ph}) AND ac.area_id <> ?`,
-        [cid, ...cursoIds, areaId]
-      );
-      if (ocupados.length > 0) {
-        const nom = ocupados[0].area_nombre || 'otra área';
-        return res.status(400).json({
-          error: `Uno o más cursos ya pertenecen a otra área (p. ej. «${nom}»).`,
-        });
-      }
     }
 
     await execute('DELETE FROM areas_cursos WHERE area_id = ?', [areaId]);
     for (const cursoId of cursoIds) {
+      await execute('DELETE FROM areas_cursos WHERE curso_id = ? AND area_id <> ?', [cursoId, areaId]);
       await execute('INSERT INTO areas_cursos (area_id, curso_id) VALUES (?, ?)', [areaId, cursoId]);
     }
 

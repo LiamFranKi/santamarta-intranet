@@ -2041,6 +2041,32 @@ function AreasPanel({ meta }) {
   const [busquedaCursosArea, setBusquedaCursosArea] = useState('');
   const [loadingCursosArea, setLoadingCursosArea] = useState(false);
   const [savingCursosArea, setSavingCursosArea] = useState(false);
+  const [areasCursosTieneConflictos, setAreasCursosTieneConflictos] = useState(false);
+  const [filtroNivelId, setFiltroNivelId] = useState('');
+  const [filtroBusqueda, setFiltroBusqueda] = useState('');
+
+  const nivelesLista = useMemo(
+    () => ordenarNivelesInicialPrimariaSecundaria(meta?.niveles),
+    [meta]
+  );
+
+  const areasFiltradas = useMemo(() => {
+    let list = areas;
+    if (filtroNivelId) {
+      list = list.filter((a) => String(a.nivel_id) === String(filtroNivelId));
+    }
+    const q = filtroBusqueda.trim().toLowerCase();
+    if (q) {
+      list = list.filter((a) => {
+        const nomArea = String(a.nombre || '').toLowerCase();
+        const nomCursos = String(a.cursos_nombres || '').toLowerCase();
+        return nomArea.includes(q) || nomCursos.includes(q);
+      });
+    }
+    return list;
+  }, [areas, filtroNivelId, filtroBusqueda]);
+
+  const hayFiltrosActivos = Boolean(filtroNivelId || filtroBusqueda.trim());
 
   const loadAreas = useCallback(async () => {
     const { data } = await api.get('/admin/academico/areas');
@@ -2161,11 +2187,13 @@ function AreasPanel({ meta }) {
     setCursosDisponiblesArea([]);
     setInfoAreaCursos(null);
     setSelectedCursoIds([]);
+    setAreasCursosTieneConflictos(false);
     try {
       const { data } = await api.get(`/admin/academico/areas/${area.id}/cursos-disponibles`);
       setInfoAreaCursos(data.area || area);
       setCursosDisponiblesArea(data.cursos || []);
       setSelectedCursoIds((data.curso_ids_seleccionados || []).map((id) => String(id)));
+      setAreasCursosTieneConflictos(Boolean(data.tiene_conflictos));
     } catch (e) {
       SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudieron cargar los cursos' });
       setLinkModal(null);
@@ -2239,16 +2267,45 @@ function AreasPanel({ meta }) {
 
   return (
     <section className="dg-section">
-      <div className="dg-section-title">
-        <span>Áreas curriculares</span>
-        <Btn
-          onClick={() => {
-            setAreaForm({ nombre: '', nivel_id: meta?.niveles?.[0]?.id != null ? String(meta.niveles[0].id) : '' });
-            setModalArea('new');
-          }}
-        >
-          + Nueva área
-        </Btn>
+      <div className="admin-academico-areas-toolbar dg-section-title">
+        <span className="admin-academico-areas-toolbar__title">Áreas curriculares</span>
+        <div className="admin-academico-areas-toolbar__actions">
+          {areaTieneNivel && (
+            <label className="admin-academico-areas-filter-field">
+              <span>Nivel</span>
+              <select
+                value={filtroNivelId}
+                onChange={(e) => setFiltroNivelId(e.target.value)}
+                aria-label="Filtrar por nivel"
+              >
+                <option value="">Todos los niveles</option>
+                {nivelesLista.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="admin-academico-areas-filter-field admin-academico-areas-filter-field--search">
+            <span>Buscar</span>
+            <input
+              type="search"
+              value={filtroBusqueda}
+              onChange={(e) => setFiltroBusqueda(e.target.value)}
+              placeholder="Nombre de área o curso…"
+              aria-label="Buscar por nombre de área o curso"
+            />
+          </label>
+          <Btn
+            onClick={() => {
+              setAreaForm({ nombre: '', nivel_id: meta?.niveles?.[0]?.id != null ? String(meta.niveles[0].id) : '' });
+              setModalArea('new');
+            }}
+          >
+            + Nueva área
+          </Btn>
+        </div>
       </div>
       {loading ? (
         <p>Cargando…</p>
@@ -2270,8 +2327,29 @@ function AreasPanel({ meta }) {
                     No hay áreas registradas. Use «+ Nueva área» para crear una.
                   </td>
                 </tr>
+              ) : areasFiltradas.length === 0 ? (
+                <tr>
+                  <td colSpan={areaTieneNivel ? 4 : 3} className="admin-academico-areas-empty">
+                    Ningún área coincide con los filtros.
+                    {hayFiltrosActivos ? (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          className="admin-academico-areas-clear-filters"
+                          onClick={() => {
+                            setFiltroNivelId('');
+                            setFiltroBusqueda('');
+                          }}
+                        >
+                          Ver todas
+                        </button>
+                      </>
+                    ) : null}
+                  </td>
+                </tr>
               ) : (
-                areas.map((a) => (
+                areasFiltradas.map((a) => (
                   <tr key={a.id}>
                     {areaTieneNivel && <td>{a.nivel_nombre || '—'}</td>}
                     <td>{a.nombre}</td>
@@ -2360,8 +2438,13 @@ function AreasPanel({ meta }) {
         <>
           <h3>Lista de cursos — {linkModal?.nombre}</h3>
           <p className="admin-academico-hint">
-            Solo se muestran cursos del mismo nivel que el área. Un curso ya asignado a otra área no aparece aquí.
+            Cursos del mismo nivel que el área. Los vinculados a esta área aparecen marcados. Al guardar, un curso solo puede quedar en un área.
           </p>
+          {areasCursosTieneConflictos ? (
+            <p className="admin-academico-areas-cursos-warn">
+              Hay cursos marcados que también figuran en otra área (datos del sistema anterior). Al guardar aquí se reasignan solo a esta área.
+            </p>
+          ) : null}
           {loadingCursosArea ? (
             <p className="admin-academico-asignaturas-cursos-empty">Cargando cursos…</p>
           ) : cursosDisponiblesArea.length === 0 ? (
@@ -2405,18 +2488,27 @@ function AreasPanel({ meta }) {
                   aria-label="Cursos del área. Pulse para seleccionar o quitar."
                 >
                   {cursosFiltradosArea.map((c) => {
-                    const selected = selectedCursoIds.map(String).includes(String(c.id));
+                    const selected =
+                      selectedCursoIds.map(String).includes(String(c.id)) || Number(c.selected) === 1;
+                    const enOtraArea = Number(c.en_otra_area) === 1;
                     return (
                       <button
                         key={c.id}
                         type="button"
-                        className={`admin-academico-asignaturas-curso-tab${selected ? ' admin-academico-asignaturas-curso-tab--selected' : ''}`}
+                        className={`admin-academico-asignaturas-curso-tab admin-academico-areas-curso-tab${
+                          selected ? ' admin-academico-areas-curso-tab--selected' : ''
+                        }${enOtraArea ? ' admin-academico-areas-curso-tab--conflicto' : ''}`}
                         aria-pressed={selected}
                         onClick={() => toggleCursoArea(c.id)}
                       >
                         <span className="admin-academico-asignaturas-curso-tab__nombre">{c.nombre}</span>
                         {c.abreviatura ? (
                           <span className="admin-academico-areas-curso-tab__abr">{c.abreviatura}</span>
+                        ) : null}
+                        {enOtraArea && c.otras_areas_nombres ? (
+                          <span className="admin-academico-areas-curso-tab__otra-area">
+                            También en: {c.otras_areas_nombres}
+                          </span>
                         ) : null}
                       </button>
                     );
