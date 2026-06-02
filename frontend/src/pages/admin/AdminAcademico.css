@@ -196,16 +196,17 @@
   line-height: 1.45;
 }
 
-/* SweetAlert2 por encima de modales académico (overlay z-index 25000) */
+/* SweetAlert2 por encima de modales académico (overlay z-index 25000) y navbar/sidebar (~9999) */
 body.admin-academico-page.swal2-shown .swal2-container,
 body.admin-academico-page .swal2-container.admin-academico-swal-over-modal,
 .swal2-container.admin-academico-swal-over-modal {
-  z-index: 50000 !important;
+  z-index: 500000 !important;
   position: fixed !important;
 }
 
-body.admin-academico-modal-open.admin-academico-page.swal2-shown .swal2-container {
-  z-index: 50000 !important;
+body.admin-academico-modal-open.admin-academico-page.swal2-shown .swal2-container,
+body.admin-academico-modal-open .swal2-container.admin-academico-swal-over-modal {
+  z-index: 500000 !important;
 }
 
 /* ——— Niveles: tarjetas (vista tipo tarjetas, colores pasteles) ——— */
@@ -1501,4 +1502,13 @@ body.admin-academico-modal-open.admin-academico-page.swal2-shown .swal2-containe
   font-weight: 600;
   line-height: 1.25;
   color: #c2410c;
+}
+
+.admin-academico-cursos-descripcion {
+  max-width: 320px;
+  font-size: 0.88rem;
+  color: #475569;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

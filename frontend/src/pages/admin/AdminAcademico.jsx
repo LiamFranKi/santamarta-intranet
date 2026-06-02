@@ -21,13 +21,13 @@ import { jsPDF } from 'jspdf';
 import './AdminDocumentosGestion.css';
 import './AdminAcademico.css';
 
-/** SweetAlert2 siempre por encima de modales académico (overlay ~25000). */
+/** SweetAlert2 siempre por encima de modales académico (overlay ~25000) y navbar (sidebar ~9999). Swal v11 ignora zIndex en .fire(). */
 const SwalAcademico = Swal.mixin({
   target: document.body,
   customClass: { container: 'admin-academico-swal-over-modal' },
   didOpen: (popup) => {
     const root = popup?.closest?.('.swal2-container');
-    if (root) root.style.setProperty('z-index', '50000', 'important');
+    if (root) root.style.setProperty('z-index', '500000', 'important');
   },
 });
 
@@ -1826,6 +1826,11 @@ function GruposPanel({ meta }) {
   );
 }
 
+const OPCIONES_CURSO_MENU = [
+  { key: 'editar', label: 'Editar curso', icon: '✏️' },
+  { key: 'eliminar', label: 'Eliminar curso', icon: '🗑️', danger: true },
+];
+
 function CursosPanel({ meta }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1838,6 +1843,10 @@ function CursosPanel({ meta }) {
     imagen: '',
     link_libro: ''
   });
+  const [menuCursoRow, setMenuCursoRow] = useState(null);
+  const [menuAnchorRect, setMenuAnchorRect] = useState(null);
+  const [menuCoords, setMenuCoords] = useState(null);
+  const menuPortalRef = useRef(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1858,6 +1867,91 @@ function CursosPanel({ meta }) {
   const cursoTieneNivel =
     meta?.schema?.cursos_nivel_id ??
     (rows.length === 0 || rows.some((r) => Object.prototype.hasOwnProperty.call(r, 'nivel_id')));
+
+  const cerrarMenuCurso = useCallback(() => {
+    setMenuCursoRow(null);
+    setMenuAnchorRect(null);
+    setMenuCoords(null);
+  }, []);
+
+  const abrirMenuCurso = useCallback((e, row) => {
+    e.stopPropagation();
+    if (menuCursoRow?.id === row.id) {
+      cerrarMenuCurso();
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuW = 220;
+    setMenuAnchorRect(rect);
+    setMenuCoords({
+      top: rect.bottom + 6,
+      left: Math.max(8, Math.min(rect.right - menuW, window.innerWidth - menuW - 8)),
+      minWidth: menuW,
+    });
+    setMenuCursoRow(row);
+  }, [menuCursoRow?.id, cerrarMenuCurso]);
+
+  useEffect(() => {
+    if (!menuCursoRow || !menuAnchorRect || !menuPortalRef.current) return undefined;
+    const menuRect = menuPortalRef.current.getBoundingClientRect();
+    const menuW = menuRect.width || menuCoords?.minWidth || 220;
+    const menuH = menuRect.height || 88;
+    const gap = 6;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const preferBelow = menuAnchorRect.bottom + gap;
+    const preferAbove = menuAnchorRect.top - menuH - gap;
+    const top =
+      preferBelow + menuH > vh - 8 && preferAbove >= 8
+        ? preferAbove
+        : Math.max(8, Math.min(preferBelow, vh - menuH - 8));
+    const left = Math.max(8, Math.min(menuAnchorRect.right - menuW, vw - menuW - 8));
+    setMenuCoords((prev) =>
+      prev && prev.top === top && prev.left === left ? prev : { top, left, minWidth: menuW }
+    );
+  }, [menuCursoRow, menuAnchorRect]);
+
+  useEffect(() => {
+    if (!menuCursoRow) return undefined;
+    const close = (ev) => {
+      if (ev.target?.closest?.('.admin-academico-asignaturas-dropdown-portal')) return;
+      if (ev.target?.closest?.('.admin-academico-cursos-opciones-btn')) return;
+      cerrarMenuCurso();
+    };
+    const onScroll = () => cerrarMenuCurso();
+    document.addEventListener('mousedown', close);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [menuCursoRow, cerrarMenuCurso]);
+
+  const abrirEditarCurso = (r) => {
+    setForm({
+      nivel_id: r.nivel_id != null ? String(r.nivel_id) : meta?.niveles?.[0]?.id || '',
+      nombre: r.nombre || '',
+      abreviatura: r.abreviatura || '',
+      descripcion: r.descripcion || '',
+      imagen: r.imagen || '',
+      link_libro: r.link_libro || ''
+    });
+    setModal({ edit: r });
+  };
+
+  const abrirNuevoCurso = () => {
+    setForm({
+      nivel_id: meta?.niveles?.[0]?.id || '',
+      nombre: '',
+      abreviatura: '',
+      descripcion: '',
+      imagen: '',
+      link_libro: ''
+    });
+    setModal('new');
+  };
 
   const guardar = async () => {
     if (!form.nombre.trim()) {
@@ -1894,84 +1988,105 @@ function CursosPanel({ meta }) {
     }
   };
 
+  const accionCursoMenu = (key, row) => {
+    cerrarMenuCurso();
+    if (key === 'editar') abrirEditarCurso(row);
+    else if (key === 'eliminar') eliminar(row);
+  };
+
+  const colCount = (cursoTieneNivel ? 1 : 0) + 4;
+
   return (
     <section className="dg-section">
       <div className="dg-section-title">
         <span>Cursos</span>
-        <Btn
-          onClick={() => {
-            setForm({
-              nivel_id: meta?.niveles?.[0]?.id || '',
-              nombre: '',
-              abreviatura: '',
-              descripcion: '',
-              imagen: '',
-              link_libro: ''
-            });
-            setModal('new');
-          }}
-        >
-          + Nuevo curso
-        </Btn>
+        <Btn onClick={abrirNuevoCurso}>+ Nuevo curso</Btn>
       </div>
       {loading ? (
         <p>Cargando…</p>
       ) : (
-        <div className="admin-academico-table-wrap">
-          <table className="admin-academico-table">
+        <div className="admin-academico-table-wrap admin-academico-areas-table-wrap">
+          <table className="admin-academico-table admin-academico-areas-table admin-academico-cursos-table">
             <thead>
               <tr>
-                <th>ID</th>
                 {cursoTieneNivel && <th>Nivel</th>}
                 <th>Nombre</th>
-                <th>Abrev.</th>
-                <th>Imagen</th>
-                <th>Link libro</th>
-                <th />
+                <th>Abreviatura</th>
+                <th>Descripción</th>
+                <th className="admin-academico-areas-th-opciones">Opciones</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.id}</td>
-                  {cursoTieneNivel && <td>{r.nivel_nombre || '—'}</td>}
-                  <td>{r.nombre}</td>
-                  <td>{r.abreviatura || '—'}</td>
-                  <td style={{ fontSize: '0.8rem', color: '#64748b' }}>{r.imagen || '—'}</td>
-                  <td style={{ fontSize: '0.8rem', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.link_libro || ''}>
-                    {r.link_libro || '—'}
-                  </td>
-                  <td>
-                    <div className="admin-academico-actions">
-                      <Btn
-                        variant="ghost"
-                        onClick={() => {
-                          setForm({
-                            nivel_id: r.nivel_id != null ? String(r.nivel_id) : meta?.niveles?.[0]?.id || '',
-                            nombre: r.nombre || '',
-                            abreviatura: r.abreviatura || '',
-                            descripcion: r.descripcion || '',
-                            imagen: r.imagen || '',
-                            link_libro: r.link_libro || ''
-                          });
-                          setModal({ edit: r });
-                        }}
-                      >
-                        Editar
-                      </Btn>
-                      <Btn variant="ghost" onClick={() => eliminar(r)}>Eliminar</Btn>
-                    </div>
+              {rows.length === 0 ? (
+                <tr>
+                  <td colSpan={colCount} className="admin-academico-areas-empty">
+                    No hay cursos registrados.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                rows.map((r) => (
+                  <tr key={r.id}>
+                    {cursoTieneNivel && <td>{r.nivel_nombre || '—'}</td>}
+                    <td>{r.nombre}</td>
+                    <td>{r.abreviatura || '—'}</td>
+                    <td className="admin-academico-cursos-descripcion" title={r.descripcion || ''}>
+                      {r.descripcion || '—'}
+                    </td>
+                    <td className="admin-academico-areas-td-opciones">
+                      <button
+                        type="button"
+                        className="admin-academico-grupo-card__opciones admin-academico-areas-opciones-btn admin-academico-cursos-opciones-btn"
+                        aria-expanded={menuCursoRow?.id === r.id}
+                        aria-haspopup="menu"
+                        onClick={(e) => abrirMenuCurso(e, r)}
+                      >
+                        Opciones
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       )}
+
+      {menuCursoRow &&
+        menuCoords &&
+        createPortal(
+          <div
+            ref={menuPortalRef}
+            className="admin-academico-asignaturas-dropdown-portal"
+            role="menu"
+            style={{
+              top: menuCoords.top,
+              left: menuCoords.left,
+              minWidth: menuCoords.minWidth,
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {OPCIONES_CURSO_MENU.map((op) => (
+              <button
+                key={op.key}
+                type="button"
+                role="menuitem"
+                className={`admin-academico-asignaturas-dropdown-item${op.danger ? ' admin-academico-asignaturas-dropdown-item--danger' : ''}`}
+                onClick={() => accionCursoMenu(op.key, menuCursoRow)}
+              >
+                <span className="admin-academico-grupo-card__dropdown-icon" aria-hidden>
+                  {op.icon}
+                </span>
+                {op.label}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
+
       <ModalRoot open={!!modal} onClose={() => setModal(null)} wide>
         <>
           <h3>{modal?.edit ? 'Editar curso' : 'Nuevo curso'}</h3>
-          <p className="admin-academico-hint">En el sistema anterior cada curso pertenece a un nivel. Descripción y link del libro son opcionales.</p>
+          <p className="admin-academico-hint">En el sistema anterior cada curso pertenece a un nivel. La descripción es opcional.</p>
           <div className="admin-academico-modal-grid">
             {cursoTieneNivel && (
               <div className="admin-academico-field admin-academico-field--full">
@@ -1999,14 +2114,6 @@ function CursosPanel({ meta }) {
                 value={form.descripcion}
                 onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
               />
-            </div>
-            <div className="admin-academico-field">
-              <label>Imagen (archivo en /Static/Archivos)</label>
-              <input value={form.imagen} onChange={(e) => setForm({ ...form, imagen: e.target.value })} placeholder="ej. curso-mate.png" />
-            </div>
-            <div className="admin-academico-field">
-              <label>Link libro</label>
-              <input value={form.link_libro} onChange={(e) => setForm({ ...form, link_libro: e.target.value })} placeholder="https://…" />
             </div>
           </div>
           <div className="admin-academico-modal-actions">
