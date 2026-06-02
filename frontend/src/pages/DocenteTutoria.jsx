@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
 import Swal from 'sweetalert2';
+import SwalSobreModal from '../utils/swalSobreModal';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { generarPDFNotasTutoria } from '../utils/pdfNotasTutoria';
@@ -16,6 +17,7 @@ import './AlumnoHorario.css';
 import './DocenteHijos.css';
 /* Debe ir al final: fuerza .swal2-container por encima de overlays de tutoría */
 import './DocenteTutoria-swal-layer.css';
+import '../styles/docente-swal-over-modal.css';
 import TutoriaModalDeudores from '../components/tutoria/TutoriaModalDeudores';
 
 /** Rango inicial (año calendario del año lectivo hasta hoy) para reportes tutor evidencias */
@@ -899,7 +901,7 @@ function DocenteTutoria() {
     const gid = getGrupoIdTutoria();
     if (!gid || !alumnoSeleccionadoTutoria?.id) return;
     if (!formIncidenciasTutoria.description?.trim()) {
-      Swal.fire({ title: 'Error', text: 'La descripción es requerida', icon: 'error', zIndex: 100001 });
+      SwalSobreModal.fire({ title: 'Error', text: 'La descripción es requerida', icon: 'error' });
       return;
     }
     try {
@@ -908,16 +910,15 @@ function DocenteTutoria() {
         `/docente/tutoria/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/incidencias`,
         { description: formIncidenciasTutoria.description.trim() }
       );
-      Swal.fire({ title: '¡Éxito!', text: 'Incidencia registrada correctamente', icon: 'success', zIndex: 100001 });
+      SwalSobreModal.fire({ title: '¡Éxito!', text: 'Incidencia registrada correctamente', icon: 'success' });
       setFormIncidenciasTutoria({ description: '' });
       await recargarIncidenciasTutoria();
     } catch (error) {
       console.error(error);
-      Swal.fire({
+      SwalSobreModal.fire({
         title: 'Error',
         text: error.response?.data?.error || 'No se pudo registrar la incidencia',
         icon: 'error',
-        zIndex: 100001
       });
     } finally {
       setGuardandoIncidenciasTutoria(false);
@@ -927,7 +928,7 @@ function DocenteTutoria() {
   const handleEliminarIncidenciaTutoria = async (incidentId) => {
     const gid = getGrupoIdTutoria();
     if (!gid || !alumnoSeleccionadoTutoria?.id) return;
-    const result = await Swal.fire({
+    const result = await SwalSobreModal.fire({
       title: '¿Estás seguro?',
       text: 'Se eliminará esta incidencia. Esta acción no se puede deshacer.',
       icon: 'warning',
@@ -936,22 +937,20 @@ function DocenteTutoria() {
       cancelButtonColor: '#3085d6',
       confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar',
-      zIndex: 100001
     });
     if (!result.isConfirmed) return;
     try {
       await api.delete(
         `/docente/tutoria/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/incidencias/${incidentId}`
       );
-      Swal.fire({ title: '¡Eliminado!', text: 'La incidencia ha sido eliminada correctamente', icon: 'success', zIndex: 100001 });
+      SwalSobreModal.fire({ title: '¡Eliminado!', text: 'La incidencia ha sido eliminada correctamente', icon: 'success' });
       await recargarIncidenciasTutoria();
     } catch (error) {
       console.error(error);
-      Swal.fire({
+      SwalSobreModal.fire({
         title: 'Error',
         text: error.response?.data?.error || 'No se pudo eliminar la incidencia',
         icon: 'error',
-        zIndex: 100001
       });
     }
   };
@@ -962,11 +961,11 @@ function DocenteTutoria() {
     if (!gid || !alumnoSeleccionadoTutoria?.id) return;
     const pts = parseInt(formEstrellasTutoria.points, 10);
     if (!pts || pts <= 0) {
-      Swal.fire({ title: 'Error', text: 'La cantidad de estrellas debe ser mayor a 0', icon: 'error', zIndex: 100001 });
+      SwalSobreModal.fire({ title: 'Error', text: 'La cantidad de estrellas debe ser mayor a 0', icon: 'error' });
       return;
     }
     if (!formEstrellasTutoria.description?.trim()) {
-      Swal.fire({ title: 'Error', text: 'La descripción es requerida', icon: 'error', zIndex: 100001 });
+      SwalSobreModal.fire({ title: 'Error', text: 'La descripción es requerida', icon: 'error' });
       return;
     }
     try {
@@ -975,16 +974,15 @@ function DocenteTutoria() {
         points: pts,
         description: formEstrellasTutoria.description.trim()
       });
-      Swal.fire({ title: '¡Éxito!', text: `${pts} estrella(s) asignada(s) correctamente`, icon: 'success', zIndex: 100001 });
+      SwalSobreModal.fire({ title: '¡Éxito!', text: `${pts} estrella(s) asignada(s) correctamente`, icon: 'success' });
       setFormEstrellasTutoria({ points: '', description: '' });
       await recargarEstrellasTutoria();
     } catch (error) {
       console.error(error);
-      Swal.fire({
+      SwalSobreModal.fire({
         title: 'Error',
         text: error.response?.data?.error || 'No se pudieron asignar las estrellas',
         icon: 'error',
-        zIndex: 100001
       });
     } finally {
       setGuardandoEstrellasTutoria(false);
@@ -994,7 +992,7 @@ function DocenteTutoria() {
   const handleEliminarEstrellasTutoria = async (incidentId, points) => {
     const gid = getGrupoIdTutoria();
     if (!gid || !alumnoSeleccionadoTutoria?.id) return;
-    const result = await Swal.fire({
+    const result = await SwalSobreModal.fire({
       title: '¿Estás seguro?',
       text: `Se eliminarán ${points} estrella(s). Esta acción no se puede deshacer.`,
       icon: 'warning',
@@ -1003,22 +1001,20 @@ function DocenteTutoria() {
       cancelButtonColor: '#3085d6',
       confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar',
-      zIndex: 100001
     });
     if (!result.isConfirmed) return;
     try {
       await api.delete(
         `/docente/tutoria/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/estrellas/${incidentId}`
       );
-      Swal.fire({ title: '¡Eliminado!', text: 'Las estrellas han sido eliminadas correctamente', icon: 'success', zIndex: 100001 });
+      SwalSobreModal.fire({ title: '¡Eliminado!', text: 'Las estrellas han sido eliminadas correctamente', icon: 'success' });
       await recargarEstrellasTutoria();
     } catch (error) {
       console.error(error);
-      Swal.fire({
+      SwalSobreModal.fire({
         title: 'Error',
         text: error.response?.data?.error || 'No se pudieron eliminar las estrellas',
         icon: 'error',
-        zIndex: 100001
       });
     }
   };

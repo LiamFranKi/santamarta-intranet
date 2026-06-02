@@ -7,10 +7,12 @@ import ModalCopiarContenidoAsignatura from '../components/admin/ModalCopiarConte
 import ModalCriteriosIndicadoresAsignatura from '../components/admin/ModalCriteriosIndicadoresAsignatura';
 import api from '../services/api';
 import Swal from 'sweetalert2';
+import SwalSobreModal from '../utils/swalSobreModal';
 import jsPDF from 'jspdf';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import './DocenteCursos.css';
+import '../styles/docente-swal-over-modal.css';
 
 function DocenteCursos() {
   const navigate = useNavigate();
@@ -123,6 +125,11 @@ function DocenteCursos() {
 
   useEffect(() => {
     cargarCursos();
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.add('docente-cursos-route');
+    return () => document.body.classList.remove('docente-cursos-route');
   }, []);
 
   const adminAsignaturaPendienteRef = useRef(null);
@@ -845,21 +852,19 @@ function DocenteCursos() {
     e.preventDefault();
     
     if (!formEstrellas.points || formEstrellas.points <= 0) {
-      Swal.fire({
+      SwalSobreModal.fire({
         title: 'Error',
         text: 'La cantidad de estrellas debe ser mayor a 0',
         icon: 'error',
-        zIndex: 100001
       });
       return;
     }
 
     if (!formEstrellas.description || formEstrellas.description.trim() === '') {
-      Swal.fire({
+      SwalSobreModal.fire({
         title: 'Error',
         text: 'La descripción es requerida',
         icon: 'error',
-        zIndex: 100001
       });
       return;
     }
@@ -874,11 +879,10 @@ function DocenteCursos() {
         }
       );
 
-      Swal.fire({
+      SwalSobreModal.fire({
         title: '¡Éxito!',
         text: `${formEstrellas.points} estrella(s) asignada(s) correctamente`,
         icon: 'success',
-        zIndex: 100001
       });
       setFormEstrellas({ points: '', description: '' });
       
@@ -887,11 +891,10 @@ function DocenteCursos() {
       await cargarAlumnos(selectedCurso);
     } catch (error) {
       console.error('Error dando estrellas:', error);
-      Swal.fire({
+      SwalSobreModal.fire({
         title: 'Error',
         text: error.response?.data?.error || 'No se pudieron asignar las estrellas',
         icon: 'error',
-        zIndex: 100001
       });
     } finally {
       setGuardandoEstrellas(false);
@@ -899,7 +902,7 @@ function DocenteCursos() {
   };
 
   const handleEliminarEstrellas = async (incidentId, points) => {
-    const result = await Swal.fire({
+    const result = await SwalSobreModal.fire({
       title: '¿Estás seguro?',
       text: `Se eliminarán ${points} estrella(s). Esta acción no se puede deshacer.`,
       icon: 'warning',
@@ -908,7 +911,6 @@ function DocenteCursos() {
       cancelButtonColor: '#3085d6',
       confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar',
-      zIndex: 100001 // Mayor que el modal de estrellas (100000)
     });
 
     if (result.isConfirmed) {
@@ -917,11 +919,10 @@ function DocenteCursos() {
           `/docente/cursos/${selectedCurso}/alumnos/${alumnoSeleccionado.id}/estrellas/${incidentId}`
         );
 
-        Swal.fire({
+        SwalSobreModal.fire({
           title: '¡Eliminado!',
           text: 'Las estrellas han sido eliminadas correctamente',
           icon: 'success',
-          zIndex: 100001
         });
         
         // Recargar historial y actualizar lista de alumnos
@@ -929,11 +930,10 @@ function DocenteCursos() {
         await cargarAlumnos(selectedCurso);
       } catch (error) {
         console.error('Error eliminando estrellas:', error);
-        Swal.fire({
+        SwalSobreModal.fire({
           title: 'Error',
           text: error.response?.data?.error || 'No se pudieron eliminar las estrellas',
           icon: 'error',
-          zIndex: 100001
         });
       }
     }
@@ -949,11 +949,10 @@ function DocenteCursos() {
       setTotalIncidencias(response.data.total_incidencias || 0);
     } catch (error) {
       console.error('Error cargando historial de incidencias:', error);
-      Swal.fire({
+      SwalSobreModal.fire({
         title: 'Error',
         text: 'No se pudo cargar el historial de incidencias',
         icon: 'error',
-        zIndex: 100001
       });
     } finally {
       setLoadingIncidencias(false);
@@ -1025,11 +1024,10 @@ function DocenteCursos() {
     e.preventDefault();
     
     if (!formIncidencias.description || formIncidencias.description.trim() === '') {
-      Swal.fire({
+      SwalSobreModal.fire({
         title: 'Error',
         text: 'La descripción es requerida',
         icon: 'error',
-        zIndex: 100001
       });
       return;
     }
@@ -1043,11 +1041,10 @@ function DocenteCursos() {
         }
       );
 
-      Swal.fire({
+      SwalSobreModal.fire({
         title: '¡Éxito!',
         text: 'Incidencia registrada correctamente',
         icon: 'success',
-        zIndex: 100001
       });
       setFormIncidencias({ description: '' });
       
@@ -1056,11 +1053,10 @@ function DocenteCursos() {
       await cargarAlumnos(selectedCurso);
     } catch (error) {
       console.error('Error registrando incidencia:', error);
-      Swal.fire({
+      SwalSobreModal.fire({
         title: 'Error',
         text: error.response?.data?.error || 'No se pudo registrar la incidencia',
         icon: 'error',
-        zIndex: 100001
       });
     } finally {
       setGuardandoIncidencias(false);
@@ -1068,7 +1064,7 @@ function DocenteCursos() {
   };
 
   const handleEliminarIncidencia = async (incidentId) => {
-    const result = await Swal.fire({
+    const result = await SwalSobreModal.fire({
       title: '¿Estás seguro?',
       text: 'Se eliminará esta incidencia. Esta acción no se puede deshacer.',
       icon: 'warning',
@@ -1077,7 +1073,6 @@ function DocenteCursos() {
       cancelButtonColor: '#3085d6',
       confirmButtonText: 'Sí, eliminar',
       cancelButtonText: 'Cancelar',
-      zIndex: 100001
     });
 
     if (result.isConfirmed) {
@@ -1086,11 +1081,10 @@ function DocenteCursos() {
           `/docente/cursos/${selectedCurso}/alumnos/${alumnoSeleccionado.id}/incidencias/${incidentId}`
         );
 
-        Swal.fire({
+        SwalSobreModal.fire({
           title: '¡Eliminado!',
           text: 'La incidencia ha sido eliminada correctamente',
           icon: 'success',
-          zIndex: 100001
         });
         
         // Recargar historial y actualizar lista de alumnos
@@ -1098,11 +1092,10 @@ function DocenteCursos() {
         await cargarAlumnos(selectedCurso);
       } catch (error) {
         console.error('Error eliminando incidencia:', error);
-        Swal.fire({
+        SwalSobreModal.fire({
           title: 'Error',
           text: error.response?.data?.error || 'No se pudo eliminar la incidencia',
           icon: 'error',
-          zIndex: 100001
         });
       }
     }

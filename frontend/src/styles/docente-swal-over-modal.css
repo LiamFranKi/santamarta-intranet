@@ -1,0 +1,7 @@
+/* SweetAlert2 por encima de modales docente (incidencias, estrellas, tutoría: z-index ~100000) */
+body.docente-cursos-route.swal2-shown .swal2-container,
+body.docente-tutoria-route.swal2-shown .swal2-container,
+.swal2-container.docente-swal-over-modal {
+  z-index: 500000 !important;
+  position: fixed !important;
+}
