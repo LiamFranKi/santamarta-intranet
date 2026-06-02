@@ -16,6 +16,7 @@ import LibretaInicialAreasModal from '../../components/libretaInicial/LibretaIni
 import LibretaInicialRegistroModal from '../../components/libretaInicial/LibretaInicialRegistroModal';
 import { exportGrupoCarnetsPdfA4 } from '../../utils/carnetQrPdf';
 import { generarPDFNotasTutoria } from '../../utils/pdfNotasTutoria';
+import { ETIQUETA_CO_TUTOR, ETIQUETA_TUTOR, ERROR_TUTORES_MISMA_PERSONA } from '../../utils/tutoresGrupoTexto';
 import { jsPDF } from 'jspdf';
 import './AdminDocumentosGestion.css';
 import './AdminAcademico.css';
@@ -106,7 +107,7 @@ export default function AdminAcademico() {
 
   const titles = {
     niveles: { title: 'Niveles', desc: 'Niveles de enseñanza (Inicial, Primaria, Secundaria, etc.)' },
-    grados: { title: 'Grados', desc: 'Aulas por año: grado, sección, turno, sede, Maestro Tutor y Tutor (equivalente a grupos del año activo).' },
+    grados: { title: 'Grados', desc: `Aulas por año: grado, sección, turno, sede, ${ETIQUETA_TUTOR} y ${ETIQUETA_CO_TUTOR} (equivalente a grupos del año activo).` },
     cursos: { title: 'Cursos', desc: 'Cursos o espacios curriculares (Matemática, Comunicación, etc.).' },
     asignaturas: { title: 'Asignaturas', desc: 'Asignación docente por grupo y curso.' },
     areas: { title: 'Áreas', desc: 'Áreas curriculares y su vínculo con cursos (para libretas y reportes).' }
@@ -997,7 +998,7 @@ function GruposPanel({ meta }) {
     const t1 = form.tutor_id ? String(form.tutor_id) : '';
     const t2 = form.tutor_id_2 ? String(form.tutor_id_2) : '';
     if (t1 && t2 && t1 === t2) {
-      SwalAcademico.fire({ icon: 'warning', text: 'El Maestro Tutor y el Tutor no pueden ser la misma persona.' });
+      SwalAcademico.fire({ icon: 'warning', text: ERROR_TUTORES_MISMA_PERSONA });
       return;
     }
     try {
@@ -1502,13 +1503,13 @@ function GruposPanel({ meta }) {
                   <span className="admin-academico-grupo-card__v">{r.turno_nombre || '—'}</span>
                 </p>
                 <p className="admin-academico-grupo-card__line">
-                  <span className="admin-academico-grupo-card__k">Maestro Tutor</span>
+                  <span className="admin-academico-grupo-card__k">{ETIQUETA_TUTOR}</span>
                   <span className="admin-academico-grupo-card__v">
                     {(r.maestro_tutor_nombre || r.tutor_nombre || '').trim() || '—'}
                   </span>
                 </p>
                 <p className="admin-academico-grupo-card__line">
-                  <span className="admin-academico-grupo-card__k">Tutor</span>
+                  <span className="admin-academico-grupo-card__k">{ETIQUETA_CO_TUTOR}</span>
                   <span className="admin-academico-grupo-card__v">{(r.tutor2_nombre || '').trim() || '—'}</span>
                 </p>
                 <div className="admin-academico-grupo-card__alumnos">
@@ -1575,7 +1576,7 @@ function GruposPanel({ meta }) {
             {modal?.edit ? 'Editar grupo' : 'Nuevo grado'}
           </h3>
           <p className="admin-academico-nivel-form-card__lead">
-            Sede, nivel y aula (grado, sección, turno); año, Maestro Tutor y Tutor.
+            Sede, nivel y aula (grado, sección, turno); año, {ETIQUETA_TUTOR} y {ETIQUETA_CO_TUTOR}.
           </p>
           <div className="admin-academico-nivel-form-grid">
             <div className="admin-academico-grupo-form-row-sede-nivel">
@@ -1658,7 +1659,7 @@ function GruposPanel({ meta }) {
                 </select>
               </div>
               <div className="admin-academico-nivel-form-field">
-                <label>Maestro Tutor</label>
+                <label>{ETIQUETA_TUTOR}</label>
                 <select value={form.tutor_id} onChange={(e) => setForm({ ...form, tutor_id: e.target.value })}>
                   <option value="">— Sin asignar —</option>
                   {personalLista
@@ -1671,7 +1672,7 @@ function GruposPanel({ meta }) {
                 </select>
               </div>
               <div className="admin-academico-nivel-form-field">
-                <label>Tutor</label>
+                <label>{ETIQUETA_CO_TUTOR}</label>
                 <select value={form.tutor_id_2} onChange={(e) => setForm({ ...form, tutor_id_2: e.target.value })}>
                   <option value="">— Sin asignar —</option>
                   {personalLista

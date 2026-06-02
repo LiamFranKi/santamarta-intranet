@@ -1,10 +1,13 @@
 /**
  * Dos tutores por grupo (grupos.tutor_id + grupos.tutor_id_2).
- * - tutor_id: Maestro Tutor
- * - tutor_id_2: Tutor (segundo; 0 = sin asignar)
+ * - tutor_id: Tutor
+ * - tutor_id_2: Co-Tutor (segundo; 0 = sin asignar)
  */
 
-/** Condición SQL: personal_id es Maestro Tutor o Tutor del grupo (alias g). */
+const ETIQUETA_TUTOR = 'Tutor';
+const ETIQUETA_CO_TUTOR = 'Co-Tutor';
+
+/** Condición SQL: personal_id es Tutor o Co-Tutor del grupo (alias g). */
 const SQL_G_PERSONAL_ES_TUTOR = '(g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?))';
 
 function sqlPersonalEsTutor(alias = 'g') {
@@ -76,7 +79,7 @@ function parseTutorIdsFromBody(body) {
   const t2 = tutor_id_2 && tutor_id_2 > 0 ? tutor_id_2 : 0;
   if (t1 && t2 && t1 === t2) {
     return {
-      error: 'El Maestro Tutor y el Tutor no pueden ser la misma persona.',
+      error: `El ${ETIQUETA_TUTOR} y el ${ETIQUETA_CO_TUTOR} no pueden ser la misma persona.`,
       tutor_id: null,
       tutor_id_2: null,
       tutor_id_save: 0,
@@ -96,8 +99,8 @@ function formatearTutoresLibreta(maestroNombre, tutor2Nombre) {
   const m = String(maestroNombre || '').trim();
   const t = String(tutor2Nombre || '').trim();
   const partes = [];
-  if (m) partes.push(`Maestro Tutor: ${m}`);
-  if (t) partes.push(`Tutor: ${t}`);
+  if (m) partes.push(`${ETIQUETA_TUTOR}: ${m}`);
+  if (t) partes.push(`${ETIQUETA_CO_TUTOR}: ${t}`);
   return partes.length ? partes.join(' · ') : 'No asignado';
 }
 

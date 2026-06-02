@@ -1,4 +1,4 @@
--- Segundo tutor por grupo: tutor_id = Maestro Tutor, tutor_id_2 = Tutor
+-- Segundo tutor por grupo: tutor_id = Tutor, tutor_id_2 = Co-Tutor
 -- Ejecutar en phpMyAdmin sobre vanguard_intranet (o la BD del colegio).
 
 ALTER TABLE `grupos`
