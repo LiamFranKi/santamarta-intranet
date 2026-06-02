@@ -1847,6 +1847,32 @@ function CursosPanel({ meta }) {
   const [menuAnchorRect, setMenuAnchorRect] = useState(null);
   const [menuCoords, setMenuCoords] = useState(null);
   const menuPortalRef = useRef(null);
+  const [filtroNivelId, setFiltroNivelId] = useState('');
+  const [filtroBusqueda, setFiltroBusqueda] = useState('');
+
+  const nivelesLista = useMemo(
+    () => ordenarNivelesInicialPrimariaSecundaria(meta?.niveles),
+    [meta]
+  );
+
+  const cursosFiltrados = useMemo(() => {
+    let list = rows;
+    if (filtroNivelId) {
+      list = list.filter((r) => String(r.nivel_id) === String(filtroNivelId));
+    }
+    const q = filtroBusqueda.trim().toLowerCase();
+    if (q) {
+      list = list.filter((r) => {
+        const nom = String(r.nombre || '').toLowerCase();
+        const abr = String(r.abreviatura || '').toLowerCase();
+        const desc = String(r.descripcion || '').toLowerCase();
+        return nom.includes(q) || abr.includes(q) || desc.includes(q);
+      });
+    }
+    return list;
+  }, [rows, filtroNivelId, filtroBusqueda]);
+
+  const hayFiltrosActivos = Boolean(filtroNivelId || filtroBusqueda.trim());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -1998,9 +2024,38 @@ function CursosPanel({ meta }) {
 
   return (
     <section className="dg-section">
-      <div className="dg-section-title">
-        <span>Cursos</span>
-        <Btn onClick={abrirNuevoCurso}>+ Nuevo curso</Btn>
+      <div className="admin-academico-areas-toolbar dg-section-title">
+        <span className="admin-academico-areas-toolbar__title">Cursos</span>
+        <div className="admin-academico-areas-toolbar__actions">
+          {cursoTieneNivel && (
+            <label className="admin-academico-areas-filter-field">
+              <span>Nivel</span>
+              <select
+                value={filtroNivelId}
+                onChange={(e) => setFiltroNivelId(e.target.value)}
+                aria-label="Filtrar por nivel"
+              >
+                <option value="">Todos los niveles</option>
+                {nivelesLista.map((n) => (
+                  <option key={n.id} value={n.id}>
+                    {n.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="admin-academico-areas-filter-field admin-academico-areas-filter-field--search">
+            <span>Buscar</span>
+            <input
+              type="search"
+              value={filtroBusqueda}
+              onChange={(e) => setFiltroBusqueda(e.target.value)}
+              placeholder="Nombre, abreviatura o descripción…"
+              aria-label="Buscar curso"
+            />
+          </label>
+          <Btn onClick={abrirNuevoCurso}>+ Nuevo curso</Btn>
+        </div>
       </div>
       {loading ? (
         <p>Cargando…</p>
@@ -2020,11 +2075,32 @@ function CursosPanel({ meta }) {
               {rows.length === 0 ? (
                 <tr>
                   <td colSpan={colCount} className="admin-academico-areas-empty">
-                    No hay cursos registrados.
+                    No hay cursos registrados. Use «+ Nuevo curso» para crear uno.
+                  </td>
+                </tr>
+              ) : cursosFiltrados.length === 0 ? (
+                <tr>
+                  <td colSpan={colCount} className="admin-academico-areas-empty">
+                    Ningún curso coincide con los filtros.
+                    {hayFiltrosActivos ? (
+                      <>
+                        {' '}
+                        <button
+                          type="button"
+                          className="admin-academico-areas-clear-filters"
+                          onClick={() => {
+                            setFiltroNivelId('');
+                            setFiltroBusqueda('');
+                          }}
+                        >
+                          Ver todos
+                        </button>
+                      </>
+                    ) : null}
                   </td>
                 </tr>
               ) : (
-                rows.map((r) => (
+                cursosFiltrados.map((r) => (
                   <tr key={r.id}>
                     {cursoTieneNivel && <td>{r.nivel_nombre || '—'}</td>}
                     <td>{r.nombre}</td>
