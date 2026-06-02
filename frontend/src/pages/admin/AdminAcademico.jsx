@@ -90,7 +90,7 @@ export default function AdminAcademico() {
 
   const titles = {
     niveles: { title: 'Niveles', desc: 'Niveles de enseñanza (Inicial, Primaria, Secundaria, etc.)' },
-    grados: { title: 'Grados', desc: 'Aulas por año: grado, sección, turno, sede y tutor (equivalente a grupos del año activo).' },
+    grados: { title: 'Grados', desc: 'Aulas por año: grado, sección, turno, sede, Maestro Tutor y Tutor (equivalente a grupos del año activo).' },
     cursos: { title: 'Cursos', desc: 'Cursos o espacios curriculares (Matemática, Comunicación, etc.).' },
     asignaturas: { title: 'Asignaturas', desc: 'Asignación docente por grupo y curso.' },
     areas: { title: 'Áreas', desc: 'Áreas curriculares y su vínculo con cursos (para libretas y reportes).' }
@@ -946,7 +946,8 @@ function GruposPanel({ meta }) {
       seccion: 'UNICA',
       turno_id: meta?.turnos?.[0]?.id || '',
       sede_id: meta?.sedes?.[0]?.id || '',
-      tutor_id: ''
+      tutor_id: '',
+      tutor_id_2: ''
     });
     setModal('new');
   };
@@ -961,7 +962,8 @@ function GruposPanel({ meta }) {
       seccion: SECCIONES_GRUPO.some((s) => s.v === sec) ? sec : 'A',
       turno_id: r.turno_id,
       sede_id: r.sede_id,
-      tutor_id: r.tutor_id || ''
+      tutor_id: r.tutor_id || '',
+      tutor_id_2: r.tutor_id_2 || ''
     });
     setModal({ edit: r });
   };
@@ -976,6 +978,12 @@ function GruposPanel({ meta }) {
   };
 
   const guardar = async () => {
+    const t1 = form.tutor_id ? String(form.tutor_id) : '';
+    const t2 = form.tutor_id_2 ? String(form.tutor_id_2) : '';
+    if (t1 && t2 && t1 === t2) {
+      Swal.fire({ icon: 'warning', text: 'El Maestro Tutor y el Tutor no pueden ser la misma persona.' });
+      return;
+    }
     try {
       const body = {
         sede_id: form.sede_id,
@@ -984,7 +992,8 @@ function GruposPanel({ meta }) {
         seccion: form.seccion,
         turno_id: form.turno_id,
         anio: parseInt(form.anio, 10),
-        tutor_id: form.tutor_id
+        tutor_id: form.tutor_id,
+        tutor_id_2: form.tutor_id_2
       };
       if (modal?.edit) {
         await api.put(`/admin/academico/grupos/${modal.edit.id}`, body);
@@ -1477,8 +1486,14 @@ function GruposPanel({ meta }) {
                   <span className="admin-academico-grupo-card__v">{r.turno_nombre || '—'}</span>
                 </p>
                 <p className="admin-academico-grupo-card__line">
+                  <span className="admin-academico-grupo-card__k">Maestro Tutor</span>
+                  <span className="admin-academico-grupo-card__v">
+                    {(r.maestro_tutor_nombre || r.tutor_nombre || '').trim() || '—'}
+                  </span>
+                </p>
+                <p className="admin-academico-grupo-card__line">
                   <span className="admin-academico-grupo-card__k">Tutor</span>
-                  <span className="admin-academico-grupo-card__v">{r.tutor_nombre || '—'}</span>
+                  <span className="admin-academico-grupo-card__v">{(r.tutor2_nombre || '').trim() || '—'}</span>
                 </p>
                 <div className="admin-academico-grupo-card__alumnos">
                   <span className="admin-academico-grupo-card__alumnos-label">Alumnos matriculados</span>
@@ -1544,7 +1559,7 @@ function GruposPanel({ meta }) {
             {modal?.edit ? 'Editar grupo' : 'Nuevo grado'}
           </h3>
           <p className="admin-academico-nivel-form-card__lead">
-            Sede, nivel y aula (grado, sección, turno); año y tutor.
+            Sede, nivel y aula (grado, sección, turno); año, Maestro Tutor y Tutor.
           </p>
           <div className="admin-academico-nivel-form-grid">
             <div className="admin-academico-grupo-form-row-sede-nivel">
@@ -1627,14 +1642,29 @@ function GruposPanel({ meta }) {
                 </select>
               </div>
               <div className="admin-academico-nivel-form-field">
-                <label>tutor</label>
+                <label>Maestro Tutor</label>
                 <select value={form.tutor_id} onChange={(e) => setForm({ ...form, tutor_id: e.target.value })}>
                   <option value="">— Sin asignar —</option>
-                  {personalLista.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.nombre}
-                    </option>
-                  ))}
+                  {personalLista
+                    .filter((d) => String(d.id) !== String(form.tutor_id_2 || ''))
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.nombre}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="admin-academico-nivel-form-field">
+                <label>Tutor</label>
+                <select value={form.tutor_id_2} onChange={(e) => setForm({ ...form, tutor_id_2: e.target.value })}>
+                  <option value="">— Sin asignar —</option>
+                  {personalLista
+                    .filter((d) => String(d.id) !== String(form.tutor_id || ''))
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.nombre}
+                      </option>
+                    ))}
                 </select>
               </div>
             </div>

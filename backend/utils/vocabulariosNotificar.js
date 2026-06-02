@@ -2,7 +2,7 @@
  * Push, correo y registro en `notificaciones` al publicar un vocabulario (PDF) para un grupo.
  */
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
-const { enviarCorreoNotificacion } = require('../services/emailService');
+const { enviarCorreoNotificacion, isEmailEnvioHabilitado } = require('../services/emailService');
 const { insertNotificacionUsuario } = require('./notificacionInsert');
 const { urlVocabularioPorTipoUsuario } = require('./notificacionUrls');
 
@@ -83,9 +83,12 @@ async function recolectarDestinatariosGrupo(query, colegio_id, grupo_id) {
   const tutores = await query(
     `SELECT DISTINCT u.id, u.tipo
      FROM grupos g
-     INNER JOIN usuarios u ON u.personal_id = g.tutor_id AND u.colegio_id = g.colegio_id
-     WHERE g.id = ? AND g.colegio_id = ?
-       AND u.estado = 'ACTIVO'`,
+     INNER JOIN usuarios u ON u.colegio_id = g.colegio_id AND u.estado = 'ACTIVO'
+       AND (
+         (g.tutor_id > 0 AND u.personal_id = g.tutor_id)
+         OR (COALESCE(g.tutor_id_2, 0) > 0 AND u.personal_id = g.tutor_id_2)
+       )
+     WHERE g.id = ? AND g.colegio_id = ?`,
     [grupo_id, colegio_id]
   );
 
@@ -260,21 +263,28 @@ async function notificarVocabularioNuevo(ctx) {
         .join('\n\n');
 
       let enviados = 0;
-      for (const email of emailsUnicos.values()) {
-        try {
-          const res = await enviarCorreoNotificacion(
-            email,
-            tituloNotif,
-            cuerpoCorreo,
-            colegioNombre,
-            'COMUNICADOS'
-          );
-          if (res && res.success) enviados += 1;
-        } catch (e) {
-          console.warn(`📚 [VOCABULARIOS] Correo error ${email}:`, e.message);
+      if (isEmailEnvioHabilitado()) {
+        for (const email of emailsUnicos.values()) {
+          try {
+            const res = await enviarCorreoNotificacion(
+              email,
+              tituloNotif,
+              cuerpoCorreo,
+              colegioNombre,
+              'COMUNICADOS'
+            );
+            if (res && res.success) enviados += 1;
+          } catch (e) {
+            console.warn(`📚 [VOCABULARIOS] Correo error ${email}:`, e.message);
+          }
         }
       }
-      console.log(`📚 [VOCABULARIOS] Correos: ${enviados}/${emailsUnicos.size} · Push subs: ${(subsData || []).length} · Destinatarios: ${destinatarios.length}`);
+      const parteCorreo = isEmailEnvioHabilitado()
+        ? `Correos: ${enviados}/${emailsUnicos.size} · `
+        : '';
+      console.log(
+        `📚 [VOCABULARIOS] ${parteCorreo}Push subs: ${(subsData || []).length} · Destinatarios: ${destinatarios.length}`
+      );
     }
   } catch (err) {
     console.error('📚 [VOCABULARIOS] notificarVocabularioNuevo:', err);

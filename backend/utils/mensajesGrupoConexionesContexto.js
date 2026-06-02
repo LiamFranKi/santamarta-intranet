@@ -2,6 +2,7 @@
  * Contexto de grupo(s) para mensajes de Conexiones familiares (docente / tutor).
  */
 const { query } = require('./mysql');
+const { personalEsTutorDeGrupoMeta } = require('./grupoTutores');
 
 /**
  * @param {number} colegio_id
@@ -14,7 +15,7 @@ async function obtenerMetaGruposConexiones(colegio_id, grupoIds) {
   if (ids.length === 0) return [];
 
   const rows = await query(
-    `SELECT g.id AS grupo_id, g.grado, g.seccion, g.tutor_id, n.nombre AS nivel_nombre
+    `SELECT g.id AS grupo_id, g.grado, g.seccion, g.tutor_id, g.tutor_id_2, n.nombre AS nivel_nombre
      FROM grupos g
      INNER JOIN niveles n ON n.id = g.nivel_id
      WHERE g.colegio_id = ? AND g.id IN (${ids.map(() => '?').join(',')})
@@ -59,8 +60,7 @@ function enriquecerMensajeConexionesFamiliares({
     const sec = (g.seccion && String(g.seccion).trim()) || '';
     const gradoSeccion = [gradoPart, sec].filter(Boolean).join(' ') || '—';
     const nivel = (g.nivel_nombre && String(g.nivel_nombre).trim()) || '—';
-    const esTutor =
-      !Number.isNaN(pid) && g.tutor_id != null && parseInt(g.tutor_id, 10) === pid;
+    const esTutor = !Number.isNaN(pid) && personalEsTutorDeGrupoMeta(pid, g);
     const origen = esTutor ? 'Tutoría' : 'Grupo';
     return {
       origen,

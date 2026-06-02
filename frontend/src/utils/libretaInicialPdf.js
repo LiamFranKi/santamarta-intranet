@@ -1,3 +1,5 @@
+import { formatearTutoresLibreta } from './tutoresGrupoTexto';
+
 /**
  * Libreta PDF Nivel Inicial (cualitativa): informe de progreso, tabla por áreas/indicadores
  * (NL / Prom), registro de asistencia, escala extendida y firmas. Misma plantilla para
@@ -282,10 +284,10 @@ export function renderLibretaInicialBoleta(doc, opts) {
   }
   yPos += rowBase;
 
-  const tutorTxt = String(a.tutor_nombre || 'No asignado').trim();
+  const tutorTxt = formatearTutoresLibreta(a);
   const lineasTutor = lineasParaCelda(doc, tutorTxt, Math.max(4, M - padTxt), 8, false);
   const hRow3 = Math.max(rowBase, 2.2 + lineasTutor.length * 3.28);
-  drawCellCentered(doc, margin, yPos, L, hRow3, verde, 'TUTOR', { fontSize: 7.6, bold: true });
+  drawCellCentered(doc, margin, yPos, L, hRow3, verde, 'TUTORES', { fontSize: 7.6, bold: true });
   drawCell(doc, margin + L, yPos, M, hRow3, blanco, lineasTutor, { fontSize: 8, bold: true });
   drawCellCentered(doc, segundoBloqueX, yPos, L, hRow3, verde, 'AÑO', { fontSize: 7.6, bold: true });
   drawCellCentered(doc, segundoBloqueX + L, yPos, S, hRow3, blanco, String(a.anio ?? '—'), { fontSize: 8, bold: true });

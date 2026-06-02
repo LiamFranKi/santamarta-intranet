@@ -155,8 +155,9 @@ async function obtenerGruposUsuario(user, colegio_id, anio) {
     );
     const tut = await query(
       `SELECT g.id AS grupo_id FROM grupos g
-       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [user.personal_id, colegio_id, anio]
+       WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?))
+         AND g.colegio_id = ? AND g.anio = ?`,
+      [user.personal_id, user.personal_id, colegio_id, anio]
     );
     const ids = [...new Set([...(asig || []), ...(tut || [])].map((x) => Number(x.grupo_id)))];
     return { todos: false, ids };
@@ -498,8 +499,9 @@ router.get('/meta/grupos', authenticateToken, async (req, res) => {
         `SELECT g.id, g.grado, g.seccion, n.nombre AS nivel_nombre
          FROM grupos g
          INNER JOIN niveles n ON n.id = g.nivel_id
-         WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-        [personal_id, colegio_id, anio]
+         WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?))
+         AND g.colegio_id = ? AND g.anio = ?`,
+        [personal_id, personal_id, colegio_id, anio]
       );
       const map = new Map();
       for (const g of [...(asig || []), ...(tut || [])]) {

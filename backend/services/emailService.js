@@ -16,10 +16,7 @@ function isEmailEnvioHabilitado() {
   return s === '1' || s === 'true' || s === 'yes' || s === 'si' || s === 'sí';
 }
 
-function resultadoCorreoDeshabilitado(etiqueta) {
-  console.log(
-    `📧 [EMAIL] Envío omitido (${etiqueta}): correos deshabilitados. Reactivar con EMAIL_ENVIO_HABILITADO=true en backend/.env`
-  );
+function resultadoCorreoDeshabilitado() {
   return { success: false, skipped: true, error: 'Envío de correo deshabilitado (EMAIL_ENVIO_HABILITADO)' };
 }
 
@@ -447,7 +444,7 @@ function generarTemplateNotificacion(datos) {
  */
 async function enviarCorreoAsistencia(destinatario, datos) {
   if (!isEmailEnvioHabilitado()) {
-    return resultadoCorreoDeshabilitado('asistencia');
+    return resultadoCorreoDeshabilitado();
   }
   try {
     const usoAsistencia = transporterAsistencia ? transporterAsistencia : transporter;
@@ -534,7 +531,7 @@ function esEmailValido(email) {
 
 async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNombre = 'Vanguard Schools', categoria = 'GENERAL') {
   if (!isEmailEnvioHabilitado()) {
-    return resultadoCorreoDeshabilitado(`notificacion/${categoria || 'GENERAL'}`);
+    return resultadoCorreoDeshabilitado();
   }
   try {
     const { transporter: trans, fromUser } = getTransporterPorCategoria(categoria || 'GENERAL');
@@ -613,7 +610,7 @@ async function enviarCorreoNotificacion(destinatario, titulo, mensaje, colegioNo
  */
 async function enviarCorreoCumpleanosHtml(destinatario, asunto, innerHtmlBody, colegioNombre = 'Vanguard Schools') {
   if (!isEmailEnvioHabilitado()) {
-    return resultadoCorreoDeshabilitado('cumpleanos');
+    return resultadoCorreoDeshabilitado();
   }
   try {
     const { transporter: trans, fromUser } = getTransporterPorCategoria('GENERAL');
@@ -668,7 +665,7 @@ ${bloque}
  */
 async function enviarCorreoHtml(destinatario, asunto, htmlBody, colegioNombre = 'Vanguard Schools', categoria = 'GENERAL') {
   if (!isEmailEnvioHabilitado()) {
-    return resultadoCorreoDeshabilitado(`html/${categoria || 'GENERAL'}`);
+    return resultadoCorreoDeshabilitado();
   }
   try {
     const { transporter: trans, fromUser } = getTransporterPorCategoria(categoria || 'GENERAL');

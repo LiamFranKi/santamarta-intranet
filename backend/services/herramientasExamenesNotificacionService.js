@@ -82,7 +82,9 @@ async function obtenerDestinatariosHerramientasExamen(colegio_id, anio, audienci
              WHERE a.personal_id = p.id AND g.colegio_id = ? AND g.anio = ? AND g.id IN (${ph})
            )
            OR EXISTS (
-             SELECT 1 FROM grupos g WHERE g.tutor_id = p.id AND g.colegio_id = ? AND g.anio = ? AND g.id IN (${ph})
+             SELECT 1 FROM grupos g
+             WHERE g.colegio_id = ? AND g.anio = ? AND g.id IN (${ph})
+               AND (g.tutor_id = p.id OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = p.id))
            )
          )`,
       [colegio_id, colegio_id, anio, ...gids, colegio_id, anio, ...gids]

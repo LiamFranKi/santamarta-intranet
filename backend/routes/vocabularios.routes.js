@@ -49,10 +49,10 @@ async function gruposAlcanceDocente(colegio_id, anio_activo, personal_id) {
            SELECT 1 FROM asignaturas a
            WHERE a.grupo_id = g.id AND a.personal_id = ? AND a.colegio_id = ?
          )
-         OR g.tutor_id = ?
+         OR g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)
        )
      ORDER BY n.nombre, g.grado, g.seccion`,
-    [colegio_id, anio_activo, personal_id, colegio_id, personal_id]
+    [colegio_id, anio_activo, personal_id, colegio_id, personal_id, personal_id]
   );
   return rows || [];
 }
@@ -78,10 +78,10 @@ async function docentePuedeGrupo(colegio_id, anio, personal_id, grupo_id) {
            SELECT 1 FROM asignaturas a
            WHERE a.grupo_id = g.id AND a.personal_id = ? AND a.colegio_id = ?
          )
-         OR g.tutor_id = ?
+         OR g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)
        )
      LIMIT 1`,
-    [grupo_id, colegio_id, anio, personal_id, colegio_id, personal_id]
+    [grupo_id, colegio_id, anio, personal_id, colegio_id, personal_id, personal_id]
   );
   return rows && rows.length > 0;
 }

@@ -108,9 +108,10 @@ async function cursosDocenteEnGrupo(personal_id, grupo_id, colegio_id) {
 async function esTutorDeGrupo(personal_id, grupo_id, colegio_id, anio_activo) {
   const r = await query(
     `SELECT 1 AS ok FROM grupos g
-     WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?
+     WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?))
+       AND g.colegio_id = ? AND g.anio = ?
      LIMIT 1`,
-    [grupo_id, personal_id, colegio_id, anio_activo]
+    [grupo_id, personal_id, personal_id, colegio_id, anio_activo]
   );
   return !!(r && r[0]);
 }

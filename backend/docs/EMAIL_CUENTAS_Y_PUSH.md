@@ -14,6 +14,8 @@ EMAIL_ENVIO_HABILITADO=true
 
 Tras cambiar `.env`: `pm2 restart intranet2026-backend` (o el proceso que use el backend).
 
+Con correos deshabilitados, el backend **no intenta SMTP** en asistencia ni en notificaciones masivas, así que no deberían aparecer en `backend-error.log` líneas del tipo `Correo fallido … deshabilitado` ni `Envío omitido` por cada destinatario. Al arrancar sigue saliendo una sola línea: `Envío SMTP: DESHABILITADO`.
+
 ---
 
 ## Cuatro cuentas opcionales

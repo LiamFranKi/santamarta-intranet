@@ -9,6 +9,7 @@ import {
   dibujarCeldaNotaLibreta,
 } from './libretaCuantitativaPdf';
 import { normalizarRangosLetras } from './notaLetraConversion';
+import { formatearTutoresLibreta } from './tutoresGrupoTexto';
 
 export async function fetchYExportarLibretaAlumno(hijoId, ciclo = 1, anio = null) {
   try {
@@ -222,9 +223,15 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1) {
       doc.rect(margin + 165, yPos, 35, headerHeight, 'FD');
       
       doc.setFont('helvetica', 'bold');
-      doc.text('TUTOR', margin + 20, yPos + 3.5, { align: 'center' });
+      doc.text('TUTORES', margin + 20, yPos + 3.5, { align: 'center' });
       doc.setFont('helvetica', 'normal');
-      doc.text(datosLibreta.alumno.tutor_nombre || 'NO SE ASIGNÓ TUTOR', margin + 87.5, yPos + 3.5, { align: 'center' });
+      const tutorLibretaTxt = formatearTutoresLibreta(datosLibreta.alumno);
+      doc.text(
+        tutorLibretaTxt.length > 72 ? `${tutorLibretaTxt.slice(0, 69)}…` : tutorLibretaTxt,
+        margin + 87.5,
+        yPos + 3.5,
+        { align: 'center' }
+      );
       doc.setFont('helvetica', 'bold');
       doc.text('AÑO', margin + 150, yPos + 3.5, { align: 'center' });
       doc.setFont('helvetica', 'normal');

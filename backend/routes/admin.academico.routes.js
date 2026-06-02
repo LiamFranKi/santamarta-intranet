@@ -319,6 +319,7 @@ router.delete('/niveles/:id', async (req, res) => {
 
 // ——— Grupos (menú "Grados" / aulas por año) ———
 const GRUPO_EXTRA_KEYS = ['enlace_archivos', 'aula_virtual', 'horario_virtual'];
+const { parseTutorIdsFromBody } = require('../utils/grupoTutores');
 
 /** Lista grupos con SQL según columnas reales en MySQL (evita 500 si falta p. ej. sede_id). Alias GET /grados = /grupos (UI). */
 async function listGrupos(req, res) {
@@ -329,7 +330,7 @@ async function listGrupos(req, res) {
     const [cRow] = await query('SELECT anio_activo FROM colegios WHERE id = ? LIMIT 1', [cid]);
     const anioF = Number.isFinite(anio) ? anio : parseInt(cRow?.anio_activo || new Date().getFullYear(), 10);
     const gcols = await getTableColumns('grupos');
-    const core = pickExisting(gcols, ['id', 'anio', 'nivel_id', 'grado', 'seccion', 'turno_id', 'tutor_id', 'sede_id']);
+    const core = pickExisting(gcols, ['id', 'anio', 'nivel_id', 'grado', 'seccion', 'turno_id', 'tutor_id', 'tutor_id_2', 'sede_id']);
     const extras = pickExisting(gcols, GRUPO_EXTRA_KEYS);
     const gFields = [...new Set([...core, ...extras])];
     if (!gFields.length || !gFields.includes('id')) {
@@ -345,7 +346,11 @@ async function listGrupos(req, res) {
     if (gcols.has('turno_id')) sql += `, t.nombre AS turno_nombre`;
     if (gcols.has('sede_id')) sql += `, s.nombre AS sede_nombre`;
     if (gcols.has('tutor_id')) {
+      sql += `, TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))) AS maestro_tutor_nombre`;
       sql += `, TRIM(CONCAT(COALESCE(p.nombres,''), ' ', COALESCE(p.apellidos,''))) AS tutor_nombre`;
+    }
+    if (gcols.has('tutor_id_2')) {
+      sql += `, TRIM(CONCAT(COALESCE(p2.nombres,''), ' ', COALESCE(p2.apellidos,''))) AS tutor2_nombre`;
     }
 
     sql += ` FROM grupos g`;
@@ -361,7 +366,10 @@ async function listGrupos(req, res) {
       sql += ` LEFT JOIN sedes s ON s.id = g.sede_id`;
     }
     if (gcols.has('tutor_id')) {
-      sql += ` LEFT JOIN personal p ON p.id = g.tutor_id`;
+      sql += ` LEFT JOIN personal p ON p.id = g.tutor_id AND (g.tutor_id IS NOT NULL AND g.tutor_id > 0)`;
+    }
+    if (gcols.has('tutor_id_2')) {
+      sql += ` LEFT JOIN personal p2 ON p2.id = g.tutor_id_2 AND (g.tutor_id_2 IS NOT NULL AND g.tutor_id_2 > 0)`;
     }
     sql += ` WHERE g.colegio_id = ?`;
     params.push(cid);
@@ -1148,13 +1156,18 @@ router.post('/grupos', async (req, res) => {
     const seccion = String(req.body?.seccion || '').trim().toUpperCase();
     const turno_id = parseInt(req.body?.turno_id, 10);
     const sede_id = parseInt(req.body?.sede_id, 10);
-    const tutor_id = req.body?.tutor_id != null && req.body.tutor_id !== '' ? parseInt(req.body.tutor_id, 10) : null;
+    const parsedTutores = parseTutorIdsFromBody(req.body);
+    if (parsedTutores.error) return res.status(400).json({ error: parsedTutores.error });
     if (!Number.isFinite(anio) || !Number.isFinite(nivel_id) || !Number.isFinite(grado) || !seccion || !Number.isFinite(turno_id) || !Number.isFinite(sede_id)) {
       return res.status(400).json({ error: 'Año, nivel, grado, sección, turno y sede son obligatorios' });
     }
     const gcols = await getTableColumns('grupos');
     const fields = ['colegio_id', 'anio', 'nivel_id', 'grado', 'seccion', 'turno_id', 'tutor_id', 'sede_id'];
-    const values = [cid, anio, nivel_id, grado, seccion, turno_id, tutor_id, sede_id];
+    const values = [cid, anio, nivel_id, grado, seccion, turno_id, parsedTutores.tutor_id, sede_id];
+    if (gcols.has('tutor_id_2')) {
+      fields.push('tutor_id_2');
+      values.push(parsedTutores.tutor_id_2_save);
+    }
     for (const key of GRUPO_EXTRA_KEYS) {
       if (!gcols.has(key)) continue;
       const v = req.body?.[key];
@@ -1168,7 +1181,9 @@ router.post('/grupos', async (req, res) => {
       r = await execute(`INSERT INTO grupos (${fields.join(', ')}) VALUES (${placeholders})`, values);
     } catch (e1) {
       const tIdx = fields.indexOf('tutor_id');
-      if (tIdx >= 0) values[tIdx] = tutor_id || 0;
+      if (tIdx >= 0) values[tIdx] = parsedTutores.tutor_id_save;
+      const t2Idx = fields.indexOf('tutor_id_2');
+      if (t2Idx >= 0) values[t2Idx] = parsedTutores.tutor_id_2_save;
       r = await execute(`INSERT INTO grupos (${fields.join(', ')}) VALUES (${placeholders})`, values);
     }
     res.json({ success: true, id: r.insertId });
@@ -1190,7 +1205,8 @@ router.put('/grupos/:id', async (req, res) => {
     const seccion = String(req.body?.seccion || '').trim().toUpperCase();
     const turno_id = parseInt(req.body?.turno_id, 10);
     const sede_id = parseInt(req.body?.sede_id, 10);
-    const tutor_id = req.body?.tutor_id != null && req.body.tutor_id !== '' ? parseInt(req.body.tutor_id, 10) : null;
+    const parsedTutores = parseTutorIdsFromBody(req.body);
+    if (parsedTutores.error) return res.status(400).json({ error: parsedTutores.error });
     const anio = parseInt(req.body?.anio, 10);
     if (!id || !Number.isFinite(nivel_id) || !Number.isFinite(grado) || !seccion || !Number.isFinite(turno_id) || !Number.isFinite(sede_id) || !Number.isFinite(anio)) {
       return res.status(400).json({ error: 'Datos incompletos' });
@@ -1198,8 +1214,14 @@ router.put('/grupos/:id', async (req, res) => {
     const [ex] = await query('SELECT id FROM grupos WHERE id = ? AND colegio_id = ?', [id, cid]);
     if (!ex) return res.status(404).json({ error: 'Grupo no encontrado' });
     const gcols = await getTableColumns('grupos');
-    const sets = ['anio = ?', 'nivel_id = ?', 'grado = ?', 'seccion = ?', 'turno_id = ?', 'tutor_id = ?', 'sede_id = ?'];
-    const vals = [anio, nivel_id, grado, seccion, turno_id, tutor_id, sede_id];
+    const sets = ['anio = ?', 'nivel_id = ?', 'grado = ?', 'seccion = ?', 'turno_id = ?', 'tutor_id = ?'];
+    const vals = [anio, nivel_id, grado, seccion, turno_id, parsedTutores.tutor_id];
+    if (gcols.has('tutor_id_2')) {
+      sets.push('tutor_id_2 = ?');
+      vals.push(parsedTutores.tutor_id_2_save);
+    }
+    sets.push('sede_id = ?');
+    vals.push(sede_id);
     for (const key of GRUPO_EXTRA_KEYS) {
       if (!gcols.has(key)) continue;
       if (!Object.prototype.hasOwnProperty.call(req.body ?? {}, key)) continue;
@@ -1212,7 +1234,10 @@ router.put('/grupos/:id', async (req, res) => {
     try {
       await execute(`UPDATE grupos SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, vals);
     } catch (e2) {
-      vals[5] = tutor_id || 0;
+      const tIdx = sets.indexOf('tutor_id = ?');
+      if (tIdx >= 0) vals[tIdx] = parsedTutores.tutor_id_save;
+      const t2Idx = sets.indexOf('tutor_id_2 = ?');
+      if (t2Idx >= 0) vals[t2Idx] = parsedTutores.tutor_id_2_save;
       await execute(`UPDATE grupos SET ${sets.join(', ')} WHERE id = ? AND colegio_id = ?`, vals);
     }
     res.json({ success: true });

@@ -1684,10 +1684,10 @@ router.get('/equipo/:personalId', async (req, res) => {
       `SELECT g.id, g.anio, g.grado, g.seccion, n.nombre AS nivel
        FROM grupos g
        LEFT JOIN niveles n ON n.id = g.nivel_id
-       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?
-       ORDER BY g.grado ASC, g.seccion ASC
-       LIMIT 1`,
-      [personalId, colegio_id, anio_activo]
+       WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?))
+         AND g.colegio_id = ? AND g.anio = ?
+       ORDER BY g.grado ASC, g.seccion ASC`,
+      [personalId, personalId, colegio_id, anio_activo]
     );
 
     const gruposMap = new Map();
@@ -1812,11 +1812,14 @@ router.get('/equipo/:personalId', async (req, res) => {
       ...rows[0],
       grupos_cargo: Array.from(gruposMap.values()),
       cursos_ensena: Array.from(cursosSet.values()),
-      tutoria: tutoriaRows[0]
-        ? `${tutoriaRows[0].nivel || ''} ${tutoriaRows[0].grado ? `${tutoriaRows[0].grado}°` : ''} ${tutoriaRows[0].seccion || ''} - ${tutoriaRows[0].anio || ''}`
+      tutoria: (tutoriaRows || [])
+        .map((t) =>
+          `${t.nivel || ''} ${t.grado ? `${t.grado}°` : ''} ${t.seccion || ''} - ${t.anio || ''}`
             .replace(/\s+/g, ' ')
             .trim()
-        : '',
+        )
+        .filter(Boolean)
+        .join(' · '),
       hijos_como_alumnos,
       otros_apoderados_hijos,
       /** Ficha apoderado (mismo DNI que personal) para POST/DELETE familias desde el modal de personal */

@@ -393,7 +393,8 @@ async function enviarFelicitacionesCorreoYMensajeCumpleanos() {
     return;
   }
 
-  const { enviarCorreoCumpleanosHtml } = require('./emailService');
+  const { enviarCorreoCumpleanosHtml, isEmailEnvioHabilitado } = require('./emailService');
+  const correosSmtpActivos = isEmailEnvioHabilitado();
 
   let correosOk = 0;
   let mensajesPares = 0;
@@ -446,7 +447,7 @@ async function enviarFelicitacionesCorreoYMensajeCumpleanos() {
       const nombre = c.nombre;
       const vars = { nombre, colegio: nombreColegio, mesNombre };
 
-      if (plantillaCorreo && c.email) {
+      if (plantillaCorreo && c.email && correosSmtpActivos) {
         const innerHtml = aplicarPlantillaCumpleanosHtml(plantillaCorreo, vars);
         const asunto = aplicarPlantillaCumpleanosTexto(
           plantillaAsunto || '🎂 ¡Feliz cumpleaños, {nombre}! — {colegio}',
@@ -487,7 +488,10 @@ async function enviarFelicitacionesCorreoYMensajeCumpleanos() {
     await execute(`INSERT INTO config (clave, valor) VALUES (?, ?)`, [DEDUP_FELICITACIONES_CLAVE, ymd]);
   }
 
-  console.log(`🎂 [CUMPLEANOS-FELIC] Correos enviados: ${correosOk} | Mensajes (pares enviado+recibido): ${mensajesPares}`);
+  const resumenCumple = correosSmtpActivos
+    ? `Correos enviados: ${correosOk} | Mensajes (pares enviado+recibido): ${mensajesPares}`
+    : `Mensajes (pares enviado+recibido): ${mensajesPares} (correos SMTP deshabilitados)`;
+  console.log(`🎂 [CUMPLEANOS-FELIC] ${resumenCumple}`);
 }
 
 function htmlBienvenidaVacioEfectivo(html) {

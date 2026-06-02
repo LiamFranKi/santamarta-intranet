@@ -3,7 +3,7 @@ const router = express.Router();
 const { query, execute } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
 const moment = require('moment-timezone');
-const { enviarCorreoAsistencia } = require('../services/emailService');
+const { enviarCorreoAsistencia, isEmailEnvioHabilitado } = require('../services/emailService');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { urlPortalHijoPorTipoUsuario } = require('../utils/notificacionUrls');
@@ -20,9 +20,10 @@ router.use(async (req, res, next) => {
     if (t === 'DOCENTE' && req.user.personal_id) {
       const ok = await query(
         `SELECT 1 AS ok FROM grupos g
-         WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?
+         WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?))
+           AND g.colegio_id = ? AND g.anio = ?
          LIMIT 1`,
-        [req.user.personal_id, req.user.colegio_id, req.user.anio_activo]
+        [req.user.personal_id, req.user.personal_id, req.user.colegio_id, req.user.anio_activo]
       );
       if (ok.length > 0) return next();
     }
@@ -764,7 +765,7 @@ router.post('/registrar', async (req, res) => {
         // Una sola ejecución por escaneo: solo ENTRADA envía correo a apoderados; SALIDA y todo lo demás solo push.
         setImmediate(async () => {
           // 1) Correos: SOLO en ENTRADA de alumnos (no en SALIDA; ~500 alumnos = no superar límite Gmail)
-          if (tipo_registro === 'ENTRADA') {
+          if (tipo_registro === 'ENTRADA' && isEmailEnvioHabilitado()) {
             try {
               const apoderadosConEmail = (apoderados || []).filter(ap => ap && ap.email && String(ap.email).trim());
               if (apoderadosConEmail.length > 0) {
@@ -786,10 +787,12 @@ router.post('/registrar', async (req, res) => {
                   if (resultadoCorreo.success) {
                     console.log(`✅ [ASISTENCIA] Correo enviado a ${email}`);
                     return { ok: true, email };
-                  } else {
-                    console.error(`❌ [ASISTENCIA] Correo fallido a ${email}:`, resultadoCorreo.error);
-                    return { ok: false, email, error: resultadoCorreo.error };
                   }
+                  if (resultadoCorreo.skipped) {
+                    return { ok: false, email, skipped: true };
+                  }
+                  console.error(`❌ [ASISTENCIA] Correo fallido a ${email}:`, resultadoCorreo.error);
+                  return { ok: false, email, error: resultadoCorreo.error };
                 } catch (error) {
                   console.error(`❌ [ASISTENCIA] Excepción enviando a ${email}:`, error.message);
                   return { ok: false, email, error: error.message };
@@ -797,7 +800,7 @@ router.post('/registrar', async (req, res) => {
               });
               const resultados = await Promise.all(promesasCorreos);
               const enviados = resultados.filter(r => r.ok).length;
-              const fallidos = resultados.filter(r => !r.ok).length;
+              const fallidos = resultados.filter(r => !r.ok && !r.skipped).length;
               console.log(`📧 [ASISTENCIA] Correos: ${enviados} enviados, ${fallidos} fallidos`);
               } else {
                 console.log(`⚠️ [ASISTENCIA] No hay apoderados con email válido (total: ${(apoderados || []).length})`);
@@ -805,7 +808,7 @@ router.post('/registrar', async (req, res) => {
             } catch (error) {
               console.error(`❌ [ASISTENCIA] Error en envío de correos (push se enviará igual):`, error.message);
             }
-          } else {
+          } else if (tipo_registro === 'SALIDA') {
             console.log(`📧 [ASISTENCIA] SALIDA: solo notificaciones push (sin correo)`);
           }
 

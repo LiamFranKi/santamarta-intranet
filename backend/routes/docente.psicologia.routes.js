@@ -44,10 +44,10 @@ async function assertDocentePuedeAlumno(req, alumnoId) {
            SELECT 1 FROM asignaturas a
            WHERE a.grupo_id = g.id AND a.personal_id = ? AND a.colegio_id = g.colegio_id
          )
-         OR g.tutor_id = ?
+         OR g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)
        )
      LIMIT 1`,
-    [anio, alumnoId, colegio_id, pid, pid]
+    [anio, alumnoId, colegio_id, pid, pid, pid]
   );
   return rows.length > 0;
 }
@@ -338,11 +338,11 @@ async function assertDocentePuedeVerPiar(colegio_id, pid, piarId) {
                SELECT 1 FROM asignaturas a
                WHERE a.grupo_id = g.id AND a.personal_id = ? AND a.colegio_id = g.colegio_id
              )
-             OR g.tutor_id = ?
+             OR g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)
            )
        )
      LIMIT 1`,
-    [piarId, colegio_id, pid, pid]
+    [piarId, colegio_id, pid, pid, pid]
   );
   return rows[0] || null;
 }
@@ -373,12 +373,12 @@ router.get('/mis-piar', async (req, res) => {
                  SELECT 1 FROM asignaturas a2
                  WHERE a2.grupo_id = g.id AND a2.personal_id = ? AND a2.colegio_id = g.colegio_id
                )
-               OR g.tutor_id = ?
+               OR g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)
              )
          )
        ORDER BY p.id DESC
        LIMIT 300`,
-      [colegio_id, pid, pid]
+      [colegio_id, pid, pid, pid]
     );
     res.json({ piar_lista: rows || [] });
   } catch (e) {

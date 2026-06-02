@@ -45,8 +45,9 @@ async function listarGruposOpciones(colegio_id, anio, { tipo, personal_id }) {
               COALESCE(n.grado_minimo, 0) AS nivel_orden
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE g.colegio_id = ? AND g.anio = ? AND g.tutor_id = ?`,
-      [colegio_id, anio, personal_id, colegio_id, anio, personal_id]
+       WHERE g.colegio_id = ? AND g.anio = ?
+         AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?))`,
+      [colegio_id, anio, personal_id, colegio_id, anio, personal_id, personal_id]
     );
   } else {
     rows = [];

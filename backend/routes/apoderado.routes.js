@@ -2665,16 +2665,19 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
               n.tipo_calificacion,
               t.nombre as turno_nombre,
               g.anio,
-              CONCAT(p_tutor.nombres, ' ', p_tutor.apellidos) as tutor_nombre
+              TRIM(CONCAT(COALESCE(p_mt.nombres,''), ' ', COALESCE(p_mt.apellidos,''))) AS maestro_tutor_nombre,
+              TRIM(CONCAT(COALESCE(p_t2.nombres,''), ' ', COALESCE(p_t2.apellidos,''))) AS tutor2_nombre,
+              TRIM(CONCAT(COALESCE(p_mt.nombres,''), ' ', COALESCE(p_mt.apellidos,''))) AS tutor_nombre
        FROM alumnos a
        INNER JOIN matriculas m ON m.alumno_id = a.id
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
        LEFT JOIN usuarios u ON u.alumno_id = a.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'
-       LEFT JOIN personal p_tutor ON p_tutor.id = g.tutor_id AND p_tutor.colegio_id = ?
+       LEFT JOIN personal p_mt ON p_mt.id = g.tutor_id AND g.tutor_id > 0 AND p_mt.colegio_id = ?
+       LEFT JOIN personal p_t2 ON p_t2.id = g.tutor_id_2 AND COALESCE(g.tutor_id_2, 0) > 0 AND p_t2.colegio_id = ?
        WHERE m.id = ? AND m.colegio_id = ?`,
-      [colegio_id, colegio_id, matriculaId, colegio_id]
+      [colegio_id, colegio_id, colegio_id, matriculaId, colegio_id]
     );
 
     if (!alumnoInfo || alumnoInfo.length === 0) {

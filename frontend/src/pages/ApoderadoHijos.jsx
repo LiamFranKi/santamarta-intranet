@@ -18,6 +18,7 @@ import {
 } from '../utils/libretaCuantitativaPdf';
 import { normalizarRangosLetras } from '../utils/notaLetraConversion';
 import { esNivelInicial, debeMostrarNotasDetalladas } from '../utils/esNivelInicial';
+import { formatearTutoresLibreta } from '../utils/tutoresGrupoTexto';
 import './DocenteHijos.css';
 import './AlumnoCursos.css';
 
@@ -2293,9 +2294,17 @@ function ApoderadoHijos() {
       doc.rect(margin + 165, yPos, 35, headerHeight, 'FD');
       
       doc.setFont('helvetica', 'bold');
-      doc.text('TUTOR', margin + 20, yPos + 3.5, { align: 'center' });
+      doc.text('TUTORES', margin + 20, yPos + 3.5, { align: 'center' });
       doc.setFont('helvetica', 'normal');
-      doc.text(datosLibreta.alumno.tutor_nombre || 'NO SE ASIGNÓ TUTOR', margin + 87.5, yPos + 3.5, { align: 'center' });
+      doc.text(
+        (() => {
+          const t = formatearTutoresLibreta(datosLibreta.alumno);
+          return t.length > 72 ? `${t.slice(0, 69)}…` : t;
+        })(),
+        margin + 87.5,
+        yPos + 3.5,
+        { align: 'center' }
+      );
       doc.setFont('helvetica', 'bold');
       doc.text('AÑO', margin + 150, yPos + 3.5, { align: 'center' });
       doc.setFont('helvetica', 'normal');

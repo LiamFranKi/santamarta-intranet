@@ -19,7 +19,7 @@ const {
   urlMensajesPorTipoUsuario
 } = require('../utils/notificacionUrls');
 const { notificarComunicadoNuevo } = require('../utils/comunicadosNotificar');
-const { enviarCorreoNotificacion } = require('../services/emailService');
+const { enviarCorreoNotificacion, isEmailEnvioHabilitado } = require('../services/emailService');
 const mensajesConfig = require('../config/mensajes.json');
 const moment = require('moment-timezone');
 const { fechaHoraMySQLLima, fechaMySQLLima, horaMySQLLima } = require('../utils/fechaHoraLima');
@@ -234,8 +234,8 @@ async function assertAccesoReporteGrupoGeneral(req, grupoId) {
   );
   const esTutorDelGrupo = await query(
     `SELECT 1 FROM grupos g
-     WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
-    [grupoId, personalId, colegio_id, anio_activo]
+     WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+    [grupoId, personalId, personalId, colegio_id, anio_activo]
   );
 
   if (!tieneAccesoAsignatura?.length && !esTutorDelGrupo?.length) {
@@ -263,8 +263,8 @@ async function obtenerGruposIdsAlcancePublicaciones(colegio_id, anio_activo, per
   );
   const gruposTutoria = await query(
     `SELECT g.id FROM grupos g
-     WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-    [personalId, colegio_id, anio_activo]
+     WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+    [personalId, personalId, colegio_id, anio_activo]
   );
   const ids = new Set([
     ...gruposAsignados.map((g) => g.id),
@@ -968,7 +968,7 @@ async function crearNotificacionesApoderados(params) {
       const enviarCorreo = tiposConCorreoGENERAL.includes(tipoNotificacion) || esAsistenciaManual;
       const categoriaCorreo = esAsistenciaManual ? 'ASISTENCIA' : 'GENERAL';
 
-      if (enviarCorreo) {
+      if (enviarCorreo && isEmailEnvioHabilitado()) {
         try {
           const colegioInfo = await query(`SELECT nombre FROM colegios WHERE id = ?`, [colegio_id]);
           const colegioNombre = colegioInfo.length > 0 ? colegioInfo[0].nombre : 'Vanguard Schools';
@@ -988,12 +988,25 @@ async function crearNotificacionesApoderados(params) {
             const email = (u.email || '').toLowerCase().trim();
             if (email && !emailsUnicos.has(email)) emailsUnicos.set(email, u.email);
           });
+          let enviadosCorreo = 0;
           for (const email of emailsUnicos.values()) {
-            enviarCorreoNotificacion(email, tituloNotificacion, mensajeNotificacionFinal, colegioNombre, categoriaCorreo)
-              .catch(err => console.error(`❌ [NOTIFICACIONES APODERADOS] Error correo:`, err));
+            try {
+              const res = await enviarCorreoNotificacion(
+                email,
+                tituloNotificacion,
+                mensajeNotificacionFinal,
+                colegioNombre,
+                categoriaCorreo
+              );
+              if (res && res.success) enviadosCorreo += 1;
+            } catch (err) {
+              console.error(`❌ [NOTIFICACIONES APODERADOS] Error correo:`, err);
+            }
           }
-          if (emailsUnicos.size > 0) {
-            console.log(`📧 [NOTIFICACIONES APODERADOS] Correos enviados a ${emailsUnicos.size} apoderado(s) (${tipoNotificacion}, cuenta: ${categoriaCorreo})`);
+          if (enviadosCorreo > 0) {
+            console.log(
+              `📧 [NOTIFICACIONES APODERADOS] Correos enviados: ${enviadosCorreo}/${emailsUnicos.size} (${tipoNotificacion}, cuenta: ${categoriaCorreo})`
+            );
           }
         } catch (err) {
           console.error(`❌ [NOTIFICACIONES APODERADOS] Error envío correos:`, err);
@@ -1610,8 +1623,8 @@ router.get('/dashboard', async (req, res) => {
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [docente.id, colegio_id, anio_activo]
+       WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [docente.id, docente.id, colegio_id, anio_activo]
     );
 
     const esTutor = gruposTutor.length > 0;
@@ -2302,8 +2315,8 @@ router.get('/grupos', async (req, res) => {
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [colegio_id, personalId, colegio_id, anio_activo]
+       WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [colegio_id, personalId, personalId, colegio_id, anio_activo]
     );
 
     // Docente + tutoría sin duplicar (un salón donde enseña y es tutor = una entrada, tipo asignado)
@@ -2363,8 +2376,8 @@ router.get('/grupos/:grupoId/alumnos', async (req, res) => {
       );
       const esTutorDelGrupo = await query(
         `SELECT 1 FROM grupos g
-         WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
-        [grupoId, personalId, colegio_id, anio_activo]
+         WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+        [grupoId, personalId, personalId, colegio_id, anio_activo]
       );
 
       if (!tieneAccesoAsignatura?.length && !esTutorDelGrupo?.length) {
@@ -2597,8 +2610,8 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
     );
     const esTutorDelGrupo = await query(
       `SELECT 1 FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
-      [grupoId, personal_id, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+      [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
 
     if ((!tieneAccesoAsignatura || tieneAccesoAsignatura.length === 0) &&
@@ -6295,9 +6308,9 @@ router.get('/tutoria', async (req, res) => {
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?
+       WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?
        ORDER BY n.nombre, g.grado, g.seccion`,
-      [colegio_id, personalId, colegio_id, anio_activo]
+      [colegio_id, personalId, personalId, colegio_id, anio_activo]
     );
 
     res.json({
@@ -6324,8 +6337,8 @@ router.get('/tutoria/grupos/:grupoId/deudores/conceptos', async (req, res) => {
     }
     const ok = await query(
       `SELECT g.id FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!ok || ok.length === 0) {
       return res.status(403).json({ error: 'No eres tutor de este grupo' });
@@ -6391,8 +6404,8 @@ router.get('/tutoria/grupos/:grupoId/deudores', async (req, res) => {
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!grupoTutor.length) {
       return res.status(403).json({ error: 'No eres tutor de este grupo' });
@@ -6464,8 +6477,8 @@ router.put('/tutoria/grupos/:grupoId/deudores/observaciones', async (req, res) =
     }
     const grupoTutor = await query(
       `SELECT g.id FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!grupoTutor.length) {
       return res.status(403).json({ error: 'No eres tutor de este grupo' });
@@ -6543,8 +6556,8 @@ router.get('/tutoria/grupos/:grupoId/cursos', async (req, res) => {
     const grupoTutor = await query(
       `SELECT g.*
        FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
     if (grupoTutor.length === 0) {
@@ -6636,8 +6649,8 @@ router.get('/tutoria/grupos/:grupoId/notas-todos', async (req, res) => {
               n.nota_aprobatoria, n.nota_maxima, n.nota_minima
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personal_id, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
 
     if (grupoTutor.length === 0) {
@@ -6691,8 +6704,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas', async (req, res) => {
     const grupoTutor = await query(
       `SELECT g.*
        FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
     console.log('🔵 [TUTOR-TAREAS] Resultado verificación tutor:', {
@@ -6707,8 +6720,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas', async (req, res) => {
     if (grupoTutor.length === 0) {
       // Intentar verificar sin anio para debug
       const grupoSinAnio = await query(
-        `SELECT g.* FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?`,
-        [grupoId, personalId, colegio_id]
+        `SELECT g.* FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ?`,
+        [grupoId, personalId, personalId, colegio_id]
       );
       // También verificar si el grupo existe pero con otro tutor_id
       const grupoExiste = await query(
@@ -6827,8 +6840,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas/:tareaId', async (req, 
     const grupoTutor = await query(
       `SELECT g.id
        FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!grupoTutor || grupoTutor.length === 0) {
       return res.status(403).json({ error: 'No eres tutor de este grupo' });
@@ -6930,8 +6943,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/config', async (req, res) => {
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
     const grupoTutor = await query(
       `SELECT g.id FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     const colegio = await query(`SELECT total_notas FROM colegios WHERE id = ?`, [colegio_id]);
@@ -6954,8 +6967,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/temas', async (req, res) => {
     const { asignatura_id, ciclo } = req.query;
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
     const grupoTutor = await query(
-      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     if (!asignatura_id) return res.status(400).json({ error: 'asignatura_id es requerido' });
@@ -6986,8 +6999,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/sesiones', async (req, res) =>
     const { asignatura_id, ciclo } = req.query;
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
     const grupoTutor = await query(
-      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     if (!asignatura_id) return res.status(400).json({ error: 'asignatura_id es requerido' });
@@ -7037,8 +7050,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas/:tareaId/entregas', asy
     const personalId = req.user.personal_id;
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
     const grupoTutor = await query(
-      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     const tarea = await query(
@@ -7139,8 +7152,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultados'
     const personalId = req.user.personal_id;
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
     const grupoTutor = await query(
-      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     const examen = await query(
@@ -7182,8 +7195,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/resultados/:resultadoId/detall
     const personalId = req.user.personal_id;
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
     const grupoTutor = await query(
-      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     const resultado = await query(
@@ -7320,8 +7333,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes', async (req, res) =>
     const grupoTutor = await query(
       `SELECT g.*
        FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
     console.log('🔵 [TUTOR-EXAMENES] Resultado verificación tutor:', {
@@ -7336,8 +7349,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes', async (req, res) =>
     if (grupoTutor.length === 0) {
       // Intentar verificar sin anio para debug
       const grupoSinAnio = await query(
-        `SELECT g.* FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?`,
-        [grupoId, personalId, colegio_id]
+        `SELECT g.* FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ?`,
+        [grupoId, personalId, personalId, colegio_id]
       );
       
       // También verificar si el grupo existe pero con otro tutor_id
@@ -7439,8 +7452,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/archivos', async (req, res) =>
     const grupoTutor = await query(
       `SELECT g.*
        FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
     console.log('🔵 [TUTOR-ARCHIVOS] Resultado verificación tutor:', {
@@ -7455,8 +7468,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/archivos', async (req, res) =>
     if (grupoTutor.length === 0) {
       // Intentar verificar sin anio para debug
       const grupoSinAnio = await query(
-        `SELECT g.* FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?`,
-        [grupoId, personalId, colegio_id]
+        `SELECT g.* FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ?`,
+        [grupoId, personalId, personalId, colegio_id]
       );
       
       // También verificar si el grupo existe pero con otro tutor_id
@@ -7566,8 +7579,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/videos', async (req, res) => {
     const grupoTutor = await query(
       `SELECT g.*
        FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
     console.log('🔵 [TUTOR-VIDEOS] Resultado verificación tutor:', {
@@ -7582,8 +7595,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/videos', async (req, res) => {
     if (grupoTutor.length === 0) {
       // Intentar verificar sin anio para debug
       const grupoSinAnio = await query(
-        `SELECT g.* FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?`,
-        [grupoId, personalId, colegio_id]
+        `SELECT g.* FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ?`,
+        [grupoId, personalId, personalId, colegio_id]
       );
       
       // También verificar si el grupo existe pero con otro tutor_id
@@ -7668,8 +7681,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/enlaces', async (req, res) => 
     const grupoTutor = await query(
       `SELECT g.*
        FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
     console.log('🔵 [TUTOR-ENLACES] Resultado verificación tutor:', {
@@ -7684,8 +7697,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/enlaces', async (req, res) => 
     if (grupoTutor.length === 0) {
       // Intentar verificar sin anio para debug
       const grupoSinAnio = await query(
-        `SELECT g.* FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?`,
-        [grupoId, personalId, colegio_id]
+        `SELECT g.* FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ?`,
+        [grupoId, personalId, personalId, colegio_id]
       );
       
       // También verificar si el grupo existe pero con otro tutor_id
@@ -7759,8 +7772,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado',
     const grupoTutor = await query(
       `SELECT g.*
        FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
     if (grupoTutor.length === 0) {
@@ -7822,8 +7835,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado/d
     const grupoTutor = await query(
       `SELECT g.*
        FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
     if (grupoTutor.length === 0) {
@@ -7950,8 +7963,8 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId', async (req, re
     const grupoTutor = await query(
       `SELECT g.*
        FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
     console.log('🔵 [TUTOR-AULA-VIRTUAL] Resultado verificación tutor:', {
@@ -8022,8 +8035,8 @@ router.get('/tutoria/grupos/:grupoId/horario', async (req, res) => {
     const grupoTutor = await query(
       `SELECT g.*, n.nombre as nivel_nombre FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
     if (!grupoTutor || grupoTutor.length === 0) {
@@ -8110,8 +8123,8 @@ router.get('/tutoria/grupos/:grupoId/alumnos', async (req, res) => {
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
     if (grupoTutor.length === 0) {
@@ -8190,8 +8203,8 @@ router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req,
 
     const grupoTutor = await query(
       `SELECT g.id FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personal_id, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -8246,8 +8259,8 @@ router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas', async (req, r
 
     const grupoTutor = await query(
       `SELECT g.id FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personal_id, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -8308,8 +8321,8 @@ router.post('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req
 
     const grupoTutor = await query(
       `SELECT g.id FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personal_id, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -8398,8 +8411,8 @@ router.delete('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentI
 
     const grupoTutor = await query(
       `SELECT g.id FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personal_id, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -8465,8 +8478,8 @@ router.post('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas', async (req, 
 
     const grupoTutor = await query(
       `SELECT g.id FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personal_id, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -8556,8 +8569,8 @@ router.delete('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas/:incidentId'
 
     const grupoTutor = await query(
       `SELECT g.id FROM grupos g
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personal_id, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -8620,8 +8633,8 @@ router.get('/tutoria/grupos/:grupoId/orden-merito', async (req, res) => {
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -8667,8 +8680,8 @@ router.get('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
     const grupoTutor = await query(
       `SELECT g.*, n.nombre as nivel_nombre FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -8727,8 +8740,8 @@ router.post('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
     if (!tiposValidos.includes(tipo)) return res.status(400).json({ error: 'Tipo inválido' });
 
     const grupoTutor = await query(
-      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -8823,8 +8836,8 @@ router.post('/tutoria/grupos/:grupoId/asistencia/guardar-todo', async (req, res)
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
 
     const grupoTutor = await query(
-      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -8921,8 +8934,8 @@ router.get('/tutoria/grupos/:grupoId/recomendaciones', async (req, res) => {
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
     const grupoTutor = await query(
       `SELECT g.*, n.nombre as nivel_nombre FROM grupos g INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -8955,8 +8968,8 @@ router.post('/tutoria/grupos/:grupoId/recomendaciones', async (req, res) => {
     if (cicloInt < 1 || cicloInt > 4) return res.status(400).json({ error: 'Ciclo inválido' });
 
     const grupoTutor = await query(
-      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -8988,8 +9001,8 @@ router.get('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
     const grupoTutor = await query(
       `SELECT g.*, n.nombre as nivel_nombre FROM grupos g INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -9022,8 +9035,8 @@ router.post('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
     if (cicloInt < 1 || cicloInt > 4) return res.status(400).json({ error: 'Ciclo inválido' });
 
     const grupoTutor = await query(
-      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -9056,8 +9069,8 @@ router.get('/tutoria/grupos/:grupoId/evidencias-tutor/resumen', async (req, res)
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
 
     const gRow = await query(
-      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -9098,10 +9111,10 @@ router.get('/tutoria/grupos/:grupoId/evidencias-tutor/resumen', async (req, res)
          FROM enrollment_incidents ei
          INNER JOIN matriculas m ON m.id = ei.enrollment_id
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?
+         WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ?
            AND ei.type = 1 AND g.anio = ?
            AND DATE(ei.created_at) BETWEEN ? AND ?`,
-        [grupoId, personalId, colegio_id, anioEsc, fechaDesde, fechaHasta]
+        [grupoId, personalId, personalId, colegio_id, anioEsc, fechaDesde, fechaHasta]
       );
       cuentaIncidencias = Number(ir?.c || 0);
     } catch (eInc) {
@@ -9133,8 +9146,8 @@ router.get('/tutoria/grupos/:grupoId/reporte-descuentos-presentacion', async (re
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
 
     const gRow = await query(
-      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -9227,8 +9240,8 @@ router.get('/tutoria/grupos/:grupoId/reporte-incidencias-grupo', async (req, res
     if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
 
     const gRow = await query(
-      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [grupoId, personalId, colegio_id, anio_activo]
+      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
     if (!gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
@@ -9257,11 +9270,11 @@ router.get('/tutoria/grupos/:grupoId/reporte-incidencias-grupo', async (req, res
        LEFT JOIN personal p ON p.id = ei.worker_id
        LEFT JOIN asignaturas a ON a.id = ei.assignment_id
        LEFT JOIN cursos c ON c.id = a.curso_id
-       WHERE g.id = ? AND g.tutor_id = ? AND g.colegio_id = ?
+       WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ?
          AND ei.type = 1 AND g.anio = ?
          AND DATE(ei.created_at) BETWEEN ? AND ?
        ORDER BY alumno_nombre ASC, ei.created_at DESC`,
-      [ASSIGNMENT_ID_TUTORIA, grupoId, personalId, colegio_id, anioEsc, fechaDesde, fechaHasta]
+      [ASSIGNMENT_ID_TUTORIA, grupoId, personalId, personalId, colegio_id, anioEsc, fechaDesde, fechaHasta]
     );
 
     const porAlumno = new Map();
@@ -9424,8 +9437,8 @@ router.get('/roles-adicionales', async (req, res) => {
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE g.tutor_id = ? AND g.colegio_id = ? AND g.anio = ?`,
-      [personalId, colegio_id, anio_activo]
+       WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
+      [personalId, personalId, colegio_id, anio_activo]
     );
 
     const esTutor = gruposTutor.length > 0;
@@ -12911,16 +12924,19 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
               n.tipo_calificacion,
               t.nombre as turno_nombre,
               g.anio,
-              CONCAT(p_tutor.nombres, ' ', p_tutor.apellidos) as tutor_nombre
+              TRIM(CONCAT(COALESCE(p_mt.nombres,''), ' ', COALESCE(p_mt.apellidos,''))) AS maestro_tutor_nombre,
+              TRIM(CONCAT(COALESCE(p_t2.nombres,''), ' ', COALESCE(p_t2.apellidos,''))) AS tutor2_nombre,
+              TRIM(CONCAT(COALESCE(p_mt.nombres,''), ' ', COALESCE(p_mt.apellidos,''))) AS tutor_nombre
        FROM alumnos a
        INNER JOIN matriculas m ON m.alumno_id = a.id
        INNER JOIN grupos g ON g.id = m.grupo_id
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN turnos t ON t.id = g.turno_id
        LEFT JOIN usuarios u ON u.alumno_id = a.id AND u.colegio_id = ? AND u.estado = 'ACTIVO'
-       LEFT JOIN personal p_tutor ON p_tutor.id = g.tutor_id AND p_tutor.colegio_id = ?
+       LEFT JOIN personal p_mt ON p_mt.id = g.tutor_id AND g.tutor_id > 0 AND p_mt.colegio_id = ?
+       LEFT JOIN personal p_t2 ON p_t2.id = g.tutor_id_2 AND COALESCE(g.tutor_id_2, 0) > 0 AND p_t2.colegio_id = ?
        WHERE m.id = ? AND m.colegio_id = ?`,
-      [colegio_id, colegio_id, matriculaId, colegio_id]
+      [colegio_id, colegio_id, colegio_id, matriculaId, colegio_id]
     );
 
     if (!alumnoInfo || alumnoInfo.length === 0) {
@@ -16864,7 +16880,7 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
 
               // ========== ENVIAR CORREOS (solo apoderados y docentes-apoderados) con cuenta PUBLICACIONES ==========
               const destinatariosCorreo = destinatarios.filter(d => d.tipo === 'APODERADO' || d.tipo === 'DOCENTE');
-              if (destinatariosCorreo.length > 0) {
+              if (destinatariosCorreo.length > 0 && isEmailEnvioHabilitado()) {
                 let enviadosCorreo = 0;
                 for (const dest of destinatariosCorreo) {
                   let email = null;
@@ -16890,7 +16906,9 @@ router.post('/publicaciones', uploadPublicacionesCompleto.fields([
                     }
                   }
                 }
-                console.log(`📧 [PUBLICACIONES] Correos enviados a apoderados/docentes: ${enviadosCorreo}/${destinatariosCorreo.length}`);
+                if (enviadosCorreo > 0) {
+                  console.log(`📧 [PUBLICACIONES] Correos enviados: ${enviadosCorreo}/${destinatariosCorreo.length}`);
+                }
               }
             }
           } catch (error) {
@@ -23584,7 +23602,7 @@ async function verificarTareasPorVencer() {
         }
 
         // Correo solo a apoderados (cuenta principal GENERAL)
-        if (apoderadoUsuarioIds.length > 0) {
+        if (apoderadoUsuarioIds.length > 0 && isEmailEnvioHabilitado()) {
           try {
             const colegioInfo = await query(`SELECT nombre FROM colegios WHERE id = ?`, [tarea.colegio_id]);
             const colegioNombre = colegioInfo.length > 0 ? colegioInfo[0].nombre : 'Vanguard Schools';
@@ -23606,13 +23624,24 @@ async function verificarTareasPorVencer() {
                 emailsUnicos.set(email, { emailOriginal: u.email, usuarioId: parseInt(u.id, 10) });
               }
             });
+            let enviadosCorreo = 0;
             for (const dataEmail of emailsUnicos.values()) {
               const contenidoEmail = mensajePorDestinatario.get(dataEmail.usuarioId) || mensajeNotificacion;
-              enviarCorreoNotificacion(dataEmail.emailOriginal, tituloNotificacion, contenidoEmail, colegioNombre, 'GENERAL')
-                .catch(err => console.error(`❌ [TAREAS POR VENCER] Error correo:`, err));
+              try {
+                const res = await enviarCorreoNotificacion(
+                  dataEmail.emailOriginal,
+                  tituloNotificacion,
+                  contenidoEmail,
+                  colegioNombre,
+                  'GENERAL'
+                );
+                if (res && res.success) enviadosCorreo += 1;
+              } catch (err) {
+                console.error(`❌ [TAREAS POR VENCER] Error correo:`, err);
+              }
             }
-            if (emailsUnicos.size > 0) {
-              console.log(`📧 [TAREAS POR VENCER] Correos enviados a ${emailsUnicos.size} apoderado(s) para "${tarea.titulo}"`);
+            if (enviadosCorreo > 0) {
+              console.log(`📧 [TAREAS POR VENCER] Correos enviados: ${enviadosCorreo}/${emailsUnicos.size} para "${tarea.titulo}"`);
             }
           } catch (err) {
             console.error(`❌ [TAREAS POR VENCER] Error envío correos:`, err);
@@ -23887,37 +23916,52 @@ async function verificarTareasVencidasSinEntrega() {
         }
 
         // Correo solo a apoderados (cuenta principal GENERAL)
-        try {
-          const colegioInfo = await query(`SELECT nombre FROM colegios WHERE id = ?`, [tarea.colegio_id]);
-          const colegioNombre = colegioInfo[0]?.nombre || 'Vanguard Schools';
-          const usuariosConEmail = await query(
-            `SELECT DISTINCT u.id, COALESCE(ap.email, p.email) as email
-             FROM usuarios u
-             LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
-             LEFT JOIN personal p ON p.id = u.personal_id
-             WHERE u.id IN (${apoderadoUsuarioIds.map(() => '?').join(',')})
-               AND u.colegio_id = ? AND u.estado = 'ACTIVO'
-               AND COALESCE(ap.email, p.email) IS NOT NULL
-               AND TRIM(COALESCE(ap.email, p.email)) != ''`,
-            [...apoderadoUsuarioIds, tarea.colegio_id]
-          );
-          const emailsUnicos = new Map();
-          usuariosConEmail.forEach(u => {
-            const email = (u.email || '').toLowerCase().trim();
-            if (email && !emailsUnicos.has(email)) {
-              emailsUnicos.set(email, { emailOriginal: u.email, usuarioId: parseInt(u.id, 10) });
+        if (isEmailEnvioHabilitado()) {
+          try {
+            const colegioInfo = await query(`SELECT nombre FROM colegios WHERE id = ?`, [tarea.colegio_id]);
+            const colegioNombre = colegioInfo[0]?.nombre || 'Vanguard Schools';
+            const usuariosConEmail = await query(
+              `SELECT DISTINCT u.id, COALESCE(ap.email, p.email) as email
+               FROM usuarios u
+               LEFT JOIN apoderados ap ON ap.id = u.apoderado_id
+               LEFT JOIN personal p ON p.id = u.personal_id
+               WHERE u.id IN (${apoderadoUsuarioIds.map(() => '?').join(',')})
+                 AND u.colegio_id = ? AND u.estado = 'ACTIVO'
+                 AND COALESCE(ap.email, p.email) IS NOT NULL
+                 AND TRIM(COALESCE(ap.email, p.email)) != ''`,
+              [...apoderadoUsuarioIds, tarea.colegio_id]
+            );
+            const emailsUnicos = new Map();
+            usuariosConEmail.forEach(u => {
+              const email = (u.email || '').toLowerCase().trim();
+              if (email && !emailsUnicos.has(email)) {
+                emailsUnicos.set(email, { emailOriginal: u.email, usuarioId: parseInt(u.id, 10) });
+              }
+            });
+            let enviadosCorreo = 0;
+            for (const dataEmail of emailsUnicos.values()) {
+              const contenidoEmail = mensajePorApoderado.get(dataEmail.usuarioId) || mensajeNotificacionBase;
+              try {
+                const res = await enviarCorreoNotificacion(
+                  dataEmail.emailOriginal,
+                  tituloNotificacion,
+                  contenidoEmail,
+                  colegioNombre,
+                  'GENERAL'
+                );
+                if (res && res.success) enviadosCorreo += 1;
+              } catch (err) {
+                console.error(`❌ [TAREAS VENCIDAS SIN ENTREGA] Error correo:`, err);
+              }
             }
-          });
-          for (const dataEmail of emailsUnicos.values()) {
-            const contenidoEmail = mensajePorApoderado.get(dataEmail.usuarioId) || mensajeNotificacionBase;
-            enviarCorreoNotificacion(dataEmail.emailOriginal, tituloNotificacion, contenidoEmail, colegioNombre, 'GENERAL')
-              .catch(err => console.error(`❌ [TAREAS VENCIDAS SIN ENTREGA] Error correo:`, err));
+            if (enviadosCorreo > 0) {
+              console.log(
+                `📧 [TAREAS VENCIDAS SIN ENTREGA] Correos enviados: ${enviadosCorreo}/${emailsUnicos.size} para "${tarea.titulo}"`
+              );
+            }
+          } catch (err) {
+            console.error(`❌ [TAREAS VENCIDAS SIN ENTREGA] Error correos:`, err);
           }
-          if (emailsUnicos.size > 0) {
-            console.log(`📧 [TAREAS VENCIDAS SIN ENTREGA] Correos enviados a ${emailsUnicos.size} apoderado(s) para "${tarea.titulo}"`);
-          }
-        } catch (err) {
-          console.error(`❌ [TAREAS VENCIDAS SIN ENTREGA] Error correos:`, err);
         }
       } catch (error) {
         console.error(`❌ [TAREAS VENCIDAS SIN ENTREGA] Error tarea ${tarea.id}:`, error);
