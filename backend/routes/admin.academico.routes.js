@@ -1391,14 +1391,15 @@ router.get('/areas', async (req, res) => {
     if (!base.includes('id') || !base.includes('nombre')) {
       return res.status(500).json({ error: 'Estructura de tabla areas no reconocida' });
     }
+    const countSql = `(SELECT COUNT(*) FROM areas_cursos ac WHERE ac.area_id = a.id) AS cursos_count`;
     let sql;
     if (cols.has('nivel_id')) {
-      sql = `SELECT ${base.map((c) => `a.${c}`).join(', ')}, n.nombre AS nivel_nombre
+      sql = `SELECT ${base.map((c) => `a.${c}`).join(', ')}, n.nombre AS nivel_nombre, ${countSql}
              FROM areas a
              LEFT JOIN niveles n ON n.id = a.nivel_id AND n.colegio_id = a.colegio_id
              WHERE a.colegio_id = ? ORDER BY n.nombre, a.nombre`;
     } else {
-      sql = `SELECT ${base.map((c) => `a.${c}`).join(', ')} FROM areas a WHERE a.colegio_id = ? ORDER BY a.nombre`;
+      sql = `SELECT ${base.map((c) => `a.${c}`).join(', ')}, ${countSql} FROM areas a WHERE a.colegio_id = ? ORDER BY a.nombre`;
     }
     const rows = await query(sql, [cid]);
     res.json({ areas: rows || [] });
@@ -1426,6 +1427,73 @@ router.get('/areas/:id/cursos', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Error al listar cursos del área' });
+  }
+});
+
+/** Cursos del mismo nivel elegibles para el área (sin asignar a otra área); incluye los ya vinculados a esta. */
+router.get('/areas/:id/cursos-disponibles', async (req, res) => {
+  try {
+    const areaId = parseInt(req.params.id, 10);
+    const cid = colegio(req);
+    const acols = await getTableColumns('areas');
+    const ccols = await getTableColumns('cursos');
+    const aFields = pickExisting(acols, ['id', 'nombre', 'nivel_id']);
+    let areaSql = `SELECT ${aFields.map((c) => `a.${c}`).join(', ')} FROM areas a WHERE a.id = ? AND a.colegio_id = ?`;
+    if (acols.has('nivel_id')) {
+      areaSql = `SELECT ${aFields.map((c) => `a.${c}`).join(', ')}, n.nombre AS nivel_nombre
+                  FROM areas a
+                  LEFT JOIN niveles n ON n.id = a.nivel_id AND n.colegio_id = a.colegio_id
+                  WHERE a.id = ? AND a.colegio_id = ?`;
+    }
+    const [areaRow] = await query(areaSql, [areaId, cid]);
+    if (!areaRow) return res.status(404).json({ error: 'Área no encontrada' });
+
+    if (acols.has('nivel_id') && ccols.has('nivel_id') && areaRow.nivel_id != null) {
+      const nid = parseInt(areaRow.nivel_id, 10);
+      if (!Number.isFinite(nid)) {
+        return res.status(400).json({ error: 'El área no tiene un nivel válido' });
+      }
+      const rows = await query(
+        `SELECT c.id, c.nombre, c.abreviatura,
+                CASE WHEN ac_self.area_id IS NOT NULL THEN 1 ELSE 0 END AS selected
+         FROM cursos c
+         LEFT JOIN areas_cursos ac_self ON ac_self.curso_id = c.id AND ac_self.area_id = ?
+         WHERE c.colegio_id = ? AND c.nivel_id = ?
+           AND NOT EXISTS (
+             SELECT 1 FROM areas_cursos ac2
+             WHERE ac2.curso_id = c.id AND ac2.area_id <> ?
+           )
+         ORDER BY c.nombre`,
+        [areaId, cid, nid, areaId]
+      );
+      return res.json({
+        area: areaRow,
+        cursos: rows || [],
+        curso_ids_seleccionados: (rows || []).filter((r) => Number(r.selected) === 1).map((r) => r.id),
+      });
+    }
+
+    const rows = await query(
+      `SELECT c.id, c.nombre, c.abreviatura,
+              CASE WHEN ac_self.area_id IS NOT NULL THEN 1 ELSE 0 END AS selected
+       FROM cursos c
+       LEFT JOIN areas_cursos ac_self ON ac_self.curso_id = c.id AND ac_self.area_id = ?
+       WHERE c.colegio_id = ?
+         AND NOT EXISTS (
+           SELECT 1 FROM areas_cursos ac2
+           WHERE ac2.curso_id = c.id AND ac2.area_id <> ?
+         )
+       ORDER BY c.nombre`,
+      [areaId, cid, areaId]
+    );
+    res.json({
+      area: areaRow,
+      cursos: rows || [],
+      curso_ids_seleccionados: (rows || []).filter((r) => Number(r.selected) === 1).map((r) => r.id),
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message || 'Error al listar cursos disponibles' });
   }
 });
 
@@ -1478,6 +1546,76 @@ router.put('/areas/:id', async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: e.message || 'No se pudo actualizar' });
+  }
+});
+
+/** Reemplaza los cursos vinculados al área (multiselección). */
+router.put('/areas/:id/cursos', async (req, res) => {
+  try {
+    const areaId = parseInt(req.params.id, 10);
+    const cid = colegio(req);
+    if (!areaId) return res.status(400).json({ error: 'Área inválida' });
+
+    const rawIds = req.body?.curso_ids;
+    const cursoIds = [...new Set(
+      (Array.isArray(rawIds) ? rawIds : [])
+        .map((x) => parseInt(x, 10))
+        .filter((n) => Number.isFinite(n) && n > 0)
+    )];
+
+    const acols = await getTableColumns('areas');
+    const ccols = await getTableColumns('cursos');
+    const aFields = pickExisting(acols, ['id', 'nombre', 'nivel_id']);
+    let areaSql = `SELECT ${aFields.map((c) => `a.${c}`).join(', ')} FROM areas a WHERE a.id = ? AND a.colegio_id = ?`;
+    if (acols.has('nivel_id')) {
+      areaSql = `SELECT ${aFields.map((c) => `a.${c}`).join(', ')}, n.nombre AS nivel_nombre
+                  FROM areas a
+                  LEFT JOIN niveles n ON n.id = a.nivel_id AND n.colegio_id = a.colegio_id
+                  WHERE a.id = ? AND a.colegio_id = ?`;
+    }
+    const [areaRow] = await query(areaSql, [areaId, cid]);
+    if (!areaRow) return res.status(404).json({ error: 'Área no encontrada' });
+
+    if (cursoIds.length > 0) {
+      const ph = cursoIds.map(() => '?').join(', ');
+      const cursosRows = await query(
+        `SELECT id, nivel_id FROM cursos WHERE colegio_id = ? AND id IN (${ph})`,
+        [cid, ...cursoIds]
+      );
+      if (cursosRows.length !== cursoIds.length) {
+        return res.status(400).json({ error: 'Uno o más cursos no existen en este colegio' });
+      }
+      if (acols.has('nivel_id') && ccols.has('nivel_id') && areaRow.nivel_id != null) {
+        const nid = parseInt(areaRow.nivel_id, 10);
+        const fueraNivel = cursosRows.some((c) => parseInt(c.nivel_id, 10) !== nid);
+        if (fueraNivel) {
+          return res.status(400).json({ error: 'Todos los cursos deben ser del mismo nivel que el área' });
+        }
+      }
+      const ocupados = await query(
+        `SELECT ac.curso_id, a.nombre AS area_nombre
+         FROM areas_cursos ac
+         INNER JOIN areas a ON a.id = ac.area_id AND a.colegio_id = ?
+         WHERE ac.curso_id IN (${ph}) AND ac.area_id <> ?`,
+        [cid, ...cursoIds, areaId]
+      );
+      if (ocupados.length > 0) {
+        const nom = ocupados[0].area_nombre || 'otra área';
+        return res.status(400).json({
+          error: `Uno o más cursos ya pertenecen a otra área (p. ej. «${nom}»).`,
+        });
+      }
+    }
+
+    await execute('DELETE FROM areas_cursos WHERE area_id = ?', [areaId]);
+    for (const cursoId of cursoIds) {
+      await execute('INSERT INTO areas_cursos (area_id, curso_id) VALUES (?, ?)', [areaId, cursoId]);
+    }
+
+    res.json({ success: true, count: cursoIds.length });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: e.message || 'No se pudieron guardar los cursos del área' });
   }
 });
 

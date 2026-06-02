@@ -20,8 +20,24 @@ import { jsPDF } from 'jspdf';
 import './AdminDocumentosGestion.css';
 import './AdminAcademico.css';
 
+/** SweetAlert2 siempre por encima de modales académico (overlay ~25000). */
+const SwalAcademico = Swal.mixin({
+  target: document.body,
+  customClass: { container: 'admin-academico-swal-over-modal' },
+  didOpen: (popup) => {
+    const root = popup?.closest?.('.swal2-container');
+    if (root) root.style.setProperty('z-index', '50000', 'important');
+  },
+});
+
 /** Evita que el sidebar (z-index 9999) cubra el modal: render fuera de .dashboard-content. */
 function ModalRoot({ open, onClose, children, wide, modalClassName }) {
+  useEffect(() => {
+    if (!open) return undefined;
+    document.body.classList.add('admin-academico-modal-open');
+    return () => document.body.classList.remove('admin-academico-modal-open');
+  }, [open]);
+
   if (!open) return null;
   const modalCls = [
     'admin-academico-modal',
@@ -73,7 +89,7 @@ export default function AdminAcademico() {
       setMeta(data);
     } catch (e) {
       console.error(e);
-      Swal.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar el catálogo base' });
+      SwalAcademico.fire({ icon: 'error', title: 'Error', text: e.response?.data?.error || 'No se pudo cargar el catálogo base' });
     } finally {
       setLoadingMeta(false);
     }
@@ -586,7 +602,7 @@ function NivelesPanel({ onRefreshMeta }) {
       const { data } = await api.get('/admin/academico/niveles');
       setRows(data.niveles || []);
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error al cargar' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'Error al cargar' });
     } finally {
       setLoading(false);
     }
@@ -639,7 +655,7 @@ function NivelesPanel({ onRefreshMeta }) {
 
   const guardar = async () => {
     if (!form.nombre.trim()) {
-      Swal.fire({ icon: 'warning', title: 'Indique el nombre' });
+      SwalAcademico.fire({ icon: 'warning', title: 'Indique el nombre' });
       return;
     }
     const gmin = parseInt(form.grado_minimo, 10);
@@ -651,11 +667,11 @@ function NivelesPanel({ onRefreshMeta }) {
       gmin < 1 ||
       gmax > 10
     ) {
-      Swal.fire({ icon: 'warning', title: 'Revise mínimo y máximo (01 a 10)' });
+      SwalAcademico.fire({ icon: 'warning', title: 'Revise mínimo y máximo (01 a 10)' });
       return;
     }
     if (form.tipo_calificacion === '' || form.tipo_calificacion == null) {
-      Swal.fire({ icon: 'warning', title: 'Seleccione el tipo de calificación' });
+      SwalAcademico.fire({ icon: 'warning', title: 'Seleccione el tipo de calificación' });
       return;
     }
     const cuant = esCuantitativaForm(form);
@@ -670,21 +686,21 @@ function NivelesPanel({ onRefreshMeta }) {
     try {
       if (modal?.edit) {
         await api.put(`/admin/academico/niveles/${modal.edit.id}`, body);
-        Swal.fire({ icon: 'success', title: 'Actualizado', timer: 1400, showConfirmButton: false });
+        SwalAcademico.fire({ icon: 'success', title: 'Actualizado', timer: 1400, showConfirmButton: false });
       } else {
         await api.post('/admin/academico/niveles', body);
-        Swal.fire({ icon: 'success', title: 'Creado', timer: 1400, showConfirmButton: false });
+        SwalAcademico.fire({ icon: 'success', title: 'Creado', timer: 1400, showConfirmButton: false });
       }
       setModal(null);
       await load();
       onRefreshMeta();
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo guardar' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo guardar' });
     }
   };
 
   const eliminar = async (r) => {
-    const ok = await Swal.fire({
+    const ok = await SwalAcademico.fire({
       icon: 'question',
       title: '¿Eliminar nivel?',
       text: r.nombre,
@@ -696,9 +712,9 @@ function NivelesPanel({ onRefreshMeta }) {
       await api.delete(`/admin/academico/niveles/${r.id}`);
       await load();
       onRefreshMeta();
-      Swal.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
+      SwalAcademico.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo eliminar' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo eliminar' });
     }
   };
 
@@ -890,7 +906,7 @@ function GruposPanel({ meta }) {
       const { data } = await api.get('/admin/academico/grupos', { params });
       setRows(data.grupos || []);
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
     } finally {
       setLoading(false);
     }
@@ -981,7 +997,7 @@ function GruposPanel({ meta }) {
     const t1 = form.tutor_id ? String(form.tutor_id) : '';
     const t2 = form.tutor_id_2 ? String(form.tutor_id_2) : '';
     if (t1 && t2 && t1 === t2) {
-      Swal.fire({ icon: 'warning', text: 'El Maestro Tutor y el Tutor no pueden ser la misma persona.' });
+      SwalAcademico.fire({ icon: 'warning', text: 'El Maestro Tutor y el Tutor no pueden ser la misma persona.' });
       return;
     }
     try {
@@ -1002,14 +1018,14 @@ function GruposPanel({ meta }) {
       }
       setModal(null);
       await load();
-      Swal.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
+      SwalAcademico.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo guardar' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo guardar' });
     }
   };
 
   const eliminar = async (r) => {
-    const ok = await Swal.fire({
+    const ok = await SwalAcademico.fire({
       icon: 'warning',
       title: '¿Eliminar grupo?',
       text: `${r.nivel_nombre} ${r.grado}° ${r.seccion}`,
@@ -1019,9 +1035,9 @@ function GruposPanel({ meta }) {
     try {
       await api.delete(`/admin/academico/grupos/${r.id}`);
       await load();
-      Swal.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
+      SwalAcademico.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo eliminar' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo eliminar' });
     }
   };
 
@@ -1039,7 +1055,7 @@ function GruposPanel({ meta }) {
       setRecomendacionesAlumnosAdmin(res.data.alumnos || []);
     } catch (error) {
       console.error('Error cargando recomendaciones:', error);
-      Swal.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudieron cargar' });
+      SwalAcademico.fire({ icon: 'error', title: 'Error', text: error.response?.data?.error || 'No se pudieron cargar' });
       setRecomendacionesAlumnosAdmin([]);
     } finally {
       setLoadingRecomendacionesAdmin(false);
@@ -1071,7 +1087,7 @@ function GruposPanel({ meta }) {
         ciclo: recomendacionesCicloAdmin,
         recomendaciones: rec,
       });
-      Swal.fire({
+      SwalAcademico.fire({
         icon: 'success',
         title: 'Guardado',
         text: 'Recomendaciones guardadas correctamente',
@@ -1080,7 +1096,7 @@ function GruposPanel({ meta }) {
       });
     } catch (error) {
       console.error('Error guardando recomendaciones:', error);
-      Swal.fire({
+      SwalAcademico.fire({
         icon: 'error',
         title: 'Error',
         text: error.response?.data?.error || 'No se pudo guardar',
@@ -1092,7 +1108,7 @@ function GruposPanel({ meta }) {
 
   const exportarPDFRecomendacionesAdmin = async () => {
     if (!recomendacionesAlumnosAdmin.length) {
-      Swal.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
+      SwalAcademico.fire({ icon: 'info', title: 'Sin datos', text: 'No hay alumnos para exportar' });
       return;
     }
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -1161,7 +1177,7 @@ function GruposPanel({ meta }) {
     doc.setTextColor(150, 150, 150);
     doc.text(`Generado: ${new Date().toLocaleString('es-PE')}`, margin, pageHeight - 8);
     doc.save(`Recomendaciones_${grupoNombre.replace(/\s+/g, '_')}_B${recomendacionesCicloAdmin}.pdf`);
-    Swal.fire({
+    SwalAcademico.fire({
       icon: 'success',
       title: 'PDF generado',
       text: 'El reporte se descargó correctamente',
@@ -1223,19 +1239,19 @@ function GruposPanel({ meta }) {
       if (vistaSoloLecturaGrados) return;
       setMenuGrupoId(null);
       try {
-        Swal.fire({
+        SwalAcademico.fire({
           title: 'Generando carnets…',
           allowOutsideClick: false,
           didOpen: () => {
-            Swal.showLoading();
+            SwalAcademico.showLoading();
           },
         });
         const { data } = await api.get(`/admin/academico/grupos/${row.id}/qr-carnets`);
-        Swal.close();
+        SwalAcademico.close();
         const carnets = data.carnets || [];
         const totalMatriculas = typeof data.total_matriculas === 'number' ? data.total_matriculas : null;
         if (!carnets.length) {
-          await Swal.fire({
+          await SwalAcademico.fire({
             icon: totalMatriculas > 0 ? 'warning' : 'info',
             title: totalMatriculas > 0 ? 'No se generaron carnets' : 'Sin alumnos',
             text:
@@ -1248,14 +1264,14 @@ function GruposPanel({ meta }) {
         const sec = String(etiquetaSeccionGrupo(row.seccion)).replace(/\s+/g, '_');
         const fileBase = `Carnets_QR_${String(row.nivel_nombre || 'Grupo').replace(/\s+/g, '_')}_${row.grado}_${sec}`;
         await exportGrupoCarnetsPdfA4(carnets, { fileBase });
-        await Swal.fire({
+        await SwalAcademico.fire({
           icon: 'success',
           title: 'PDF listo',
           text: `Se exportaron ${carnets.length} carnet(es) en A4 (2×4 por hoja). Cada código corresponde al alumno del carnet.`,
         });
       } catch (e) {
-        Swal.close();
-        await Swal.fire({
+        SwalAcademico.close();
+        await SwalAcademico.fire({
           icon: 'error',
           title: 'Error',
           text: e.response?.data?.error || e.message || 'No se pudo generar el PDF',
@@ -1268,14 +1284,14 @@ function GruposPanel({ meta }) {
       setMenuGrupoId(null);
       const anioEsperado = row.anio != null ? parseInt(row.anio, 10) : parseInt(anio, 10);
       if (!Number.isFinite(anioEsperado)) {
-        await Swal.fire({ icon: 'error', title: 'Error', text: 'No se pudo determinar el año del grupo.' });
+        await SwalAcademico.fire({ icon: 'error', title: 'Error', text: 'No se pudo determinar el año del grupo.' });
         return;
       }
       const añosParaExport = [...new Set([...añosSelect, anioEsperado])].sort((a, b) => b - a);
       const optsAnio = añosParaExport
         .map((y) => `<option value="${y}"${y === anioEsperado ? ' selected' : ''}>${y}</option>`)
         .join('');
-      const { isConfirmed, value } = await Swal.fire({
+      const { isConfirmed, value } = await SwalAcademico.fire({
         title: 'Exportar Notas',
         width: 'min(46rem, calc(100vw - 2rem))',
         padding: '1.4rem 1.85rem 1.1rem',
@@ -1310,11 +1326,11 @@ function GruposPanel({ meta }) {
           const anioSel = parseInt(document.getElementById('swal-notas-anio')?.value, 10);
           const cicloSel = parseInt(document.getElementById('swal-notas-ciclo')?.value, 10) || 1;
           if (!Number.isFinite(anioSel)) {
-            Swal.showValidationMessage('Seleccione un año válido');
+            SwalAcademico.showValidationMessage('Seleccione un año válido');
             return false;
           }
           if (anioSel !== anioEsperado) {
-            Swal.showValidationMessage(`El año debe ser ${anioEsperado} (año de esta aula en el catálogo).`);
+            SwalAcademico.showValidationMessage(`El año debe ser ${anioEsperado} (año de esta aula en el catálogo).`);
             return false;
           }
           return { anio: anioSel, ciclo: cicloSel };
@@ -1328,7 +1344,7 @@ function GruposPanel({ meta }) {
         const cursosData = response.data?.cursos || [];
         const grupoInfo = response.data?.grupo || row;
         if (cursosData.length === 0) {
-          await Swal.fire({
+          await SwalAcademico.fire({
             icon: 'info',
             title: 'Sin datos',
             text: 'No hay cursos con notas para este grupo',
@@ -1338,7 +1354,7 @@ function GruposPanel({ meta }) {
         }
         const ok = generarPDFNotasTutoria(cursosData, grupoInfo);
         if (ok) {
-          await Swal.fire({
+          await SwalAcademico.fire({
             icon: 'success',
             title: '¡PDF Generado!',
             text: `Se descargó el reporte de notas de ${cursosData.length} curso(s)`,
@@ -1351,7 +1367,7 @@ function GruposPanel({ meta }) {
         }
       } catch (error) {
         console.error('Error generando PDF de notas:', error);
-        await Swal.fire({
+        await SwalAcademico.fire({
           icon: 'error',
           title: 'Error',
           text: error.response?.data?.error || 'No se pudo generar el PDF de notas',
@@ -1384,7 +1400,7 @@ function GruposPanel({ meta }) {
       registrar_conducta: 'Registrar Conducta',
       recomendaciones: 'Recomendaciones'
     };
-    await Swal.fire({
+    await SwalAcademico.fire({
       icon: 'info',
       title: titulos[accion] || 'Opción',
       text: `Esta opción para ${row.nivel_nombre} ${row.grado}° ${etiquetaSeccionGrupo(row.seccion)} se activará en el siguiente paso.`
@@ -1828,7 +1844,7 @@ function CursosPanel({ meta }) {
       const { data } = await api.get('/admin/academico/cursos');
       setRows(data.cursos || []);
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
     } finally {
       setLoading(false);
     }
@@ -1844,11 +1860,11 @@ function CursosPanel({ meta }) {
 
   const guardar = async () => {
     if (!form.nombre.trim()) {
-      Swal.fire({ icon: 'warning', title: 'Nombre requerido' });
+      SwalAcademico.fire({ icon: 'warning', title: 'Nombre requerido' });
       return;
     }
     if (cursoTieneNivel && !String(form.nivel_id || '').trim()) {
-      Swal.fire({ icon: 'warning', title: 'Seleccione el nivel del curso' });
+      SwalAcademico.fire({ icon: 'warning', title: 'Seleccione el nivel del curso' });
       return;
     }
     try {
@@ -1859,21 +1875,21 @@ function CursosPanel({ meta }) {
       }
       setModal(null);
       await load();
-      Swal.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
+      SwalAcademico.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
     }
   };
 
   const eliminar = async (r) => {
-    const ok = await Swal.fire({ icon: 'question', title: '¿Eliminar curso?', text: r.nombre, showCancelButton: true });
+    const ok = await SwalAcademico.fire({ icon: 'question', title: '¿Eliminar curso?', text: r.nombre, showCancelButton: true });
     if (!ok.isConfirmed) return;
     try {
       await api.delete(`/admin/academico/cursos/${r.id}`);
       await load();
-      Swal.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
+      SwalAcademico.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo eliminar' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo eliminar' });
     }
   };
 
@@ -2002,47 +2018,124 @@ function CursosPanel({ meta }) {
   );
 }
 
+const OPCIONES_AREA_MENU = [
+  { key: 'lista_cursos', label: 'Lista de Cursos', icon: '📚' },
+  { key: 'editar', label: 'Editar área', icon: '✏️' },
+  { key: 'eliminar', label: 'Eliminar área', icon: '🗑️', danger: true },
+];
+
 function AreasPanel({ meta }) {
   const [areas, setAreas] = useState([]);
-  const [cursos, setCursos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalArea, setModalArea] = useState(null);
   const [areaForm, setAreaForm] = useState({ nombre: '', nivel_id: '' });
+  const [menuAreaRow, setMenuAreaRow] = useState(null);
+  const [menuAnchorRect, setMenuAnchorRect] = useState(null);
+  const [menuCoords, setMenuCoords] = useState(null);
+  const menuPortalRef = useRef(null);
   const [linkModal, setLinkModal] = useState(null);
-  const [vinculados, setVinculados] = useState([]);
-  const [addCursoId, setAddCursoId] = useState('');
+  const [cursosDisponiblesArea, setCursosDisponiblesArea] = useState([]);
+  const [infoAreaCursos, setInfoAreaCursos] = useState(null);
+  const [selectedCursoIds, setSelectedCursoIds] = useState([]);
+  const [busquedaCursosArea, setBusquedaCursosArea] = useState('');
+  const [loadingCursosArea, setLoadingCursosArea] = useState(false);
+  const [savingCursosArea, setSavingCursosArea] = useState(false);
 
   const loadAreas = useCallback(async () => {
     const { data } = await api.get('/admin/academico/areas');
     setAreas(data.areas || []);
   }, []);
 
-  const loadCursos = useCallback(async () => {
-    const { data } = await api.get('/admin/academico/cursos');
-    setCursos(data.cursos || []);
-  }, []);
-
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        await Promise.all([loadAreas(), loadCursos()]);
+        await loadAreas();
       } catch (e) {
-        Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
+        SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
       } finally {
         setLoading(false);
       }
     })();
-  }, [loadAreas, loadCursos]);
+  }, [loadAreas]);
 
   const areaTieneNivel =
     meta?.schema?.areas_nivel_id ??
     (areas.length === 0 || areas.some((a) => Object.prototype.hasOwnProperty.call(a, 'nivel_id')));
 
+  const cerrarMenuArea = useCallback(() => {
+    setMenuAreaRow(null);
+    setMenuAnchorRect(null);
+    setMenuCoords(null);
+  }, []);
+
+  const abrirMenuArea = useCallback((e, row) => {
+    e.stopPropagation();
+    if (menuAreaRow?.id === row.id) {
+      cerrarMenuArea();
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuW = 220;
+    setMenuAnchorRect(rect);
+    setMenuCoords({
+      top: rect.bottom + 6,
+      left: Math.max(8, Math.min(rect.right - menuW, window.innerWidth - menuW - 8)),
+      minWidth: menuW,
+    });
+    setMenuAreaRow(row);
+  }, [menuAreaRow?.id, cerrarMenuArea]);
+
+  useEffect(() => {
+    if (!menuAreaRow || !menuAnchorRect || !menuPortalRef.current) return undefined;
+    const menuRect = menuPortalRef.current.getBoundingClientRect();
+    const menuW = menuRect.width || menuCoords?.minWidth || 220;
+    const menuH = menuRect.height || 120;
+    const gap = 6;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const preferBelow = menuAnchorRect.bottom + gap;
+    const preferAbove = menuAnchorRect.top - menuH - gap;
+    const top =
+      preferBelow + menuH > vh - 8 && preferAbove >= 8
+        ? preferAbove
+        : Math.max(8, Math.min(preferBelow, vh - menuH - 8));
+    const left = Math.max(8, Math.min(menuAnchorRect.right - menuW, vw - menuW - 8));
+    setMenuCoords((prev) =>
+      prev && prev.top === top && prev.left === left ? prev : { top, left, minWidth: menuW }
+    );
+  }, [menuAreaRow, menuAnchorRect]);
+
+  useEffect(() => {
+    if (!menuAreaRow) return undefined;
+    const close = (ev) => {
+      if (ev.target?.closest?.('.admin-academico-asignaturas-dropdown-portal')) return;
+      if (ev.target?.closest?.('.admin-academico-areas-opciones-btn')) return;
+      cerrarMenuArea();
+    };
+    const onScroll = () => cerrarMenuArea();
+    document.addEventListener('mousedown', close);
+    window.addEventListener('scroll', onScroll, true);
+    window.addEventListener('resize', onScroll);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', onScroll, true);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, [menuAreaRow, cerrarMenuArea]);
+
+  const abrirEditarArea = (a) => {
+    setAreaForm({
+      nombre: a.nombre || '',
+      nivel_id: a.nivel_id != null ? String(a.nivel_id) : meta?.niveles?.[0]?.id != null ? String(meta.niveles[0].id) : '',
+    });
+    setModalArea({ edit: a });
+  };
+
   const guardarArea = async () => {
     if (!areaForm.nombre.trim()) return;
     if (areaTieneNivel && !String(areaForm.nivel_id || '').trim()) {
-      Swal.fire({ icon: 'warning', title: 'Seleccione el nivel del área' });
+      SwalAcademico.fire({ icon: 'warning', title: 'Seleccione el nivel del área' });
       return;
     }
     try {
@@ -2054,57 +2147,94 @@ function AreasPanel({ meta }) {
       }
       setModalArea(null);
       await loadAreas();
-      Swal.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
+      SwalAcademico.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
     }
   };
 
-  const openVinculos = async (area) => {
+  const openListaCursos = async (area) => {
     setLinkModal(area);
-    setAddCursoId('');
-    const { data } = await api.get(`/admin/academico/areas/${area.id}/cursos`);
-    setVinculados(data.cursos || []);
-  };
-
-  const agregarVinculo = async () => {
-    if (!addCursoId) return;
+    setBusquedaCursosArea('');
+    setLoadingCursosArea(true);
+    setCursosDisponiblesArea([]);
+    setInfoAreaCursos(null);
+    setSelectedCursoIds([]);
     try {
-      await api.post(`/admin/academico/areas/${linkModal.id}/cursos`, { curso_id: addCursoId });
-      const { data } = await api.get(`/admin/academico/areas/${linkModal.id}/cursos`);
-      setVinculados(data.cursos || []);
-      setAddCursoId('');
+      const { data } = await api.get(`/admin/academico/areas/${area.id}/cursos-disponibles`);
+      setInfoAreaCursos(data.area || area);
+      setCursosDisponiblesArea(data.cursos || []);
+      setSelectedCursoIds((data.curso_ids_seleccionados || []).map((id) => String(id)));
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo vincular' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudieron cargar los cursos' });
+      setLinkModal(null);
+    } finally {
+      setLoadingCursosArea(false);
     }
   };
 
-  const quitarVinculo = async (cursoId) => {
+  const cursosFiltradosArea = useMemo(() => {
+    const q = busquedaCursosArea.trim().toLowerCase();
+    if (!q) return cursosDisponiblesArea;
+    return cursosDisponiblesArea.filter((c) => {
+      const nom = String(c.nombre || '').toLowerCase();
+      const abr = String(c.abreviatura || '').toLowerCase();
+      return nom.includes(q) || abr.includes(q);
+    });
+  }, [cursosDisponiblesArea, busquedaCursosArea]);
+
+  const toggleCursoArea = (cursoId) => {
+    const sid = String(cursoId);
+    setSelectedCursoIds((prev) =>
+      prev.map(String).includes(sid) ? prev.filter((x) => String(x) !== sid) : [...prev, sid]
+    );
+  };
+
+  const marcarTodosCursosArea = () => {
+    const ids = cursosFiltradosArea.map((c) => String(c.id));
+    setSelectedCursoIds((prev) => [...new Set([...prev.map(String), ...ids])]);
+  };
+
+  const desmarcarTodosCursosArea = () => {
+    const filtrados = new Set(cursosFiltradosArea.map((c) => String(c.id)));
+    setSelectedCursoIds((prev) => prev.filter((id) => !filtrados.has(String(id))));
+  };
+
+  const guardarCursosArea = async () => {
+    if (!linkModal) return;
+    setSavingCursosArea(true);
     try {
-      await api.delete(`/admin/academico/areas/${linkModal.id}/cursos/${cursoId}`);
-      setVinculados((v) => v.filter((c) => c.id !== cursoId));
+      await api.put(`/admin/academico/areas/${linkModal.id}/cursos`, {
+        curso_ids: selectedCursoIds.map((id) => parseInt(id, 10)).filter((n) => Number.isFinite(n)),
+      });
+      await loadAreas();
+      setLinkModal(null);
+      SwalAcademico.fire({ icon: 'success', title: 'Cursos guardados', timer: 1400, showConfirmButton: false });
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudieron guardar los cursos' });
+    } finally {
+      setSavingCursosArea(false);
     }
   };
 
   const eliminarArea = async (a) => {
-    const ok = await Swal.fire({ icon: 'question', title: '¿Eliminar área?', text: a.nombre, showCancelButton: true });
+    const ok = await SwalAcademico.fire({ icon: 'question', title: '¿Eliminar área?', text: a.nombre, showCancelButton: true });
     if (!ok.isConfirmed) return;
     try {
       await api.delete(`/admin/academico/areas/${a.id}`);
       await loadAreas();
-      Swal.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
+      SwalAcademico.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
     }
   };
 
-  const cursosDisponibles = useMemo(() => {
-    if (!linkModal) return [];
-    const ids = new Set(vinculados.map((c) => c.id));
-    return cursos.filter((c) => !ids.has(c.id));
-  }, [cursos, vinculados, linkModal]);
+  const accionAreaMenu = (key, row) => {
+    cerrarMenuArea();
+    if (key === 'lista_cursos') openListaCursos(row);
+    else if (key === 'editar') abrirEditarArea(row);
+    else if (key === 'eliminar') eliminarArea(row);
+  };
 
   return (
     <section className="dg-section">
@@ -2122,46 +2252,83 @@ function AreasPanel({ meta }) {
       {loading ? (
         <p>Cargando…</p>
       ) : (
-        <div className="admin-academico-table-wrap">
-          <table className="admin-academico-table">
+        <div className="admin-academico-table-wrap admin-academico-areas-table-wrap">
+          <table className="admin-academico-table admin-academico-areas-table">
             <thead>
               <tr>
-                <th>ID</th>
                 {areaTieneNivel && <th>Nivel</th>}
                 <th>Nombre</th>
-                <th />
+                <th>Cursos</th>
+                <th className="admin-academico-areas-th-opciones">Opciones</th>
               </tr>
             </thead>
             <tbody>
-              {areas.map((a) => (
-                <tr key={a.id}>
-                  <td>{a.id}</td>
-                  {areaTieneNivel && <td>{a.nivel_nombre || '—'}</td>}
-                  <td>{a.nombre}</td>
-                  <td>
-                    <div className="admin-academico-actions">
-                      <Btn
-                        variant="ghost"
-                        onClick={() => {
-                          setAreaForm({
-                            nombre: a.nombre || '',
-                            nivel_id: a.nivel_id != null ? String(a.nivel_id) : meta?.niveles?.[0]?.id != null ? String(meta.niveles[0].id) : ''
-                          });
-                          setModalArea({ edit: a });
-                        }}
-                      >
-                        Editar
-                      </Btn>
-                      <Btn variant="ghost" onClick={() => openVinculos(a)}>Cursos del área</Btn>
-                      <Btn variant="ghost" onClick={() => eliminarArea(a)}>Eliminar</Btn>
-                    </div>
+              {areas.length === 0 ? (
+                <tr>
+                  <td colSpan={areaTieneNivel ? 4 : 3} className="admin-academico-areas-empty">
+                    No hay áreas registradas. Use «+ Nueva área» para crear una.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                areas.map((a) => (
+                  <tr key={a.id}>
+                    {areaTieneNivel && <td>{a.nivel_nombre || '—'}</td>}
+                    <td>{a.nombre}</td>
+                    <td>
+                      <span className="admin-academico-areas-cursos-badge">
+                        {Number(a.cursos_count) || 0}
+                      </span>
+                    </td>
+                    <td className="admin-academico-areas-td-opciones">
+                      <button
+                        type="button"
+                        className="admin-academico-grupo-card__opciones admin-academico-areas-opciones-btn"
+                        aria-expanded={menuAreaRow?.id === a.id}
+                        aria-haspopup="menu"
+                        onClick={(e) => abrirMenuArea(e, a)}
+                      >
+                        Opciones
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
       )}
+
+      {menuAreaRow &&
+        menuCoords &&
+        createPortal(
+          <div
+            ref={menuPortalRef}
+            className="admin-academico-asignaturas-dropdown-portal"
+            role="menu"
+            style={{
+              top: menuCoords.top,
+              left: menuCoords.left,
+              minWidth: menuCoords.minWidth,
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {OPCIONES_AREA_MENU.map((op) => (
+              <button
+                key={op.key}
+                type="button"
+                role="menuitem"
+                className={`admin-academico-asignaturas-dropdown-item${op.danger ? ' admin-academico-asignaturas-dropdown-item--danger' : ''}`}
+                onClick={() => accionAreaMenu(op.key, menuAreaRow)}
+              >
+                <span className="admin-academico-grupo-card__dropdown-icon" aria-hidden>
+                  {op.icon}
+                </span>
+                {op.label}
+              </button>
+            ))}
+          </div>,
+          document.body
+        )}
 
       <ModalRoot open={!!modalArea} onClose={() => setModalArea(null)}>
         <>
@@ -2188,31 +2355,86 @@ function AreasPanel({ meta }) {
         </>
       </ModalRoot>
 
-      <ModalRoot open={!!linkModal} onClose={() => setLinkModal(null)} wide>
+      <ModalRoot open={!!linkModal} onClose={() => setLinkModal(null)} wide modalClassName="admin-academico-areas-cursos-modal">
         <>
-          <h3>Cursos en: {linkModal?.nombre}</h3>
-          <p className="admin-academico-hint">Vincule cursos del área para libretas y reportes (tabla areas_cursos).</p>
-          <ul className="admin-academico-link-list">
-            {vinculados.map((c) => (
-              <li key={c.id}>
-                <span>{c.nombre}</span>
-                <Btn variant="ghost" onClick={() => quitarVinculo(c.id)}>Quitar</Btn>
-              </li>
-            ))}
-            {vinculados.length === 0 && <li className="admin-academico-link-empty">Ningún curso vinculado.</li>}
-          </ul>
-          <div className="admin-academico-field">
-            <label>Añadir curso</label>
-            <select value={addCursoId} onChange={(e) => setAddCursoId(e.target.value)}>
-              <option value="">— Seleccione —</option>
-              {cursosDisponibles.map((c) => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
-          </div>
+          <h3>Lista de cursos — {linkModal?.nombre}</h3>
+          <p className="admin-academico-hint">
+            Solo se muestran cursos del mismo nivel que el área. Un curso ya asignado a otra área no aparece aquí.
+          </p>
+          {loadingCursosArea ? (
+            <p className="admin-academico-asignaturas-cursos-empty">Cargando cursos…</p>
+          ) : cursosDisponiblesArea.length === 0 ? (
+            <p className="admin-academico-asignaturas-cursos-empty">
+              No hay cursos disponibles
+              {infoAreaCursos?.nivel_nombre ? ` en el nivel «${infoAreaCursos.nivel_nombre}»` : ''}
+              {' '}para vincular a esta área.
+            </p>
+          ) : (
+            <>
+              <p className="admin-academico-asignaturas-cursos-meta">
+                Nivel: <strong>{infoAreaCursos?.nivel_nombre || linkModal?.nivel_nombre || '—'}</strong>
+                {' · '}
+                {cursosDisponiblesArea.length} curso{cursosDisponiblesArea.length !== 1 ? 's' : ''} elegible
+                {cursosDisponiblesArea.length !== 1 ? 's' : ''}
+              </p>
+              <div className="admin-academico-areas-cursos-toolbar">
+                <input
+                  type="search"
+                  className="admin-academico-areas-cursos-search"
+                  placeholder="Buscar curso…"
+                  value={busquedaCursosArea}
+                  onChange={(e) => setBusquedaCursosArea(e.target.value)}
+                  aria-label="Buscar curso"
+                />
+                <div className="admin-academico-areas-cursos-toolbar-actions">
+                  <Btn variant="ghost" type="button" onClick={marcarTodosCursosArea} disabled={cursosFiltradosArea.length === 0}>
+                    Marcar todos
+                  </Btn>
+                  <Btn variant="ghost" type="button" onClick={desmarcarTodosCursosArea} disabled={cursosFiltradosArea.length === 0}>
+                    Desmarcar todos
+                  </Btn>
+                </div>
+              </div>
+              {cursosFiltradosArea.length === 0 ? (
+                <p className="admin-academico-asignaturas-cursos-empty">Ningún curso coincide con la búsqueda.</p>
+              ) : (
+                <div
+                  className="admin-academico-areas-cursos-list"
+                  role="group"
+                  aria-label="Cursos del área. Pulse para seleccionar o quitar."
+                >
+                  {cursosFiltradosArea.map((c) => {
+                    const selected = selectedCursoIds.map(String).includes(String(c.id));
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        className={`admin-academico-asignaturas-curso-tab${selected ? ' admin-academico-asignaturas-curso-tab--selected' : ''}`}
+                        aria-pressed={selected}
+                        onClick={() => toggleCursoArea(c.id)}
+                      >
+                        <span className="admin-academico-asignaturas-curso-tab__nombre">{c.nombre}</span>
+                        {c.abreviatura ? (
+                          <span className="admin-academico-areas-curso-tab__abr">{c.abreviatura}</span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {selectedCursoIds.length > 0 && (
+                <p className="admin-academico-asignaturas-cursos-selected">
+                  {selectedCursoIds.length} curso{selectedCursoIds.length !== 1 ? 's' : ''} seleccionado
+                  {selectedCursoIds.length !== 1 ? 's' : ''}
+                </p>
+              )}
+            </>
+          )}
           <div className="admin-academico-modal-actions">
-            <Btn variant="ghost" onClick={() => setLinkModal(null)}>Cerrar</Btn>
-            <Btn onClick={agregarVinculo} disabled={!addCursoId}>Añadir</Btn>
+            <Btn variant="ghost" onClick={() => setLinkModal(null)} disabled={savingCursosArea}>Cancelar</Btn>
+            <Btn onClick={guardarCursosArea} disabled={loadingCursosArea || savingCursosArea}>
+              {savingCursosArea ? 'Guardando…' : 'Guardar cursos'}
+            </Btn>
           </div>
         </>
       </ModalRoot>
@@ -2370,7 +2592,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
     } catch (e) {
       setCursosDisponibles([]);
       setInfoCursosGrupo(null);
-      Swal.fire({
+      SwalAcademico.fire({
         icon: 'error',
         text: e.response?.data?.error || 'No se pudieron cargar los cursos disponibles',
       });
@@ -2386,7 +2608,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
       setRows(data.asignaturas || []);
       setBuscado(true);
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error al buscar asignaturas' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'Error al buscar asignaturas' });
     } finally {
       setLoading(false);
     }
@@ -2491,7 +2713,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
         setInfoCursosGrupo(null);
       }
     } catch {
-      Swal.fire({ icon: 'error', text: 'No se pudieron cargar los grupos' });
+      SwalAcademico.fire({ icon: 'error', text: 'No se pudieron cargar los grupos' });
     }
   }, [filtros, loadGruposModal, loadCursosDisponibles, meta?.docentes]);
 
@@ -2517,7 +2739,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
       setModal({ edit: r });
       await loadCursosDisponibles(r.grupo_id, r.id);
     } catch {
-      Swal.fire({ icon: 'error', text: 'No se pudieron cargar los datos del formulario' });
+      SwalAcademico.fire({ icon: 'error', text: 'No se pudieron cargar los datos del formulario' });
     }
   };
 
@@ -2545,14 +2767,14 @@ function AsignaturasPanel({ meta, accionesRef }) {
     const grupo_id = parseInt(form.grupo_id, 10);
     const personal_id = parseInt(form.personal_id, 10);
     if (!grupo_id || !personal_id) {
-      Swal.fire({ icon: 'warning', title: 'Complete grupo y docente' });
+      SwalAcademico.fire({ icon: 'warning', title: 'Complete grupo y docente' });
       return;
     }
     try {
       if (modal?.edit) {
         const curso_id = parseInt(form.curso_id, 10);
         if (!curso_id) {
-          Swal.fire({ icon: 'warning', title: 'Seleccione un curso' });
+          SwalAcademico.fire({ icon: 'warning', title: 'Seleccione un curso' });
           return;
         }
         await api.put(`/admin/academico/asignaturas/${modal.edit.id}`, {
@@ -2562,7 +2784,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
         });
         setModal(null);
         if (filtrosAplicados) await load(filtrosAplicados);
-        Swal.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
+        SwalAcademico.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
         return;
       }
 
@@ -2570,7 +2792,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
         .map((x) => parseInt(x, 10))
         .filter((n) => Number.isFinite(n));
       if (!curso_ids.length) {
-        Swal.fire({
+        SwalAcademico.fire({
           icon: 'warning',
           title: 'Seleccione al menos un curso',
           text: 'Marque los cursos que dictará el docente en este grupo.',
@@ -2592,7 +2814,7 @@ function AsignaturasPanel({ meta, accionesRef }) {
         data.omitidos?.length || data.errores?.length
           ? ` (${data.omitidos?.length || 0} omitidos, ${data.errores?.length || 0} con error)`
           : '';
-      Swal.fire({
+      SwalAcademico.fire({
         icon: 'success',
         title: n === 1 ? 'Asignatura creada' : `${n} asignaturas creadas`,
         text: extra ? extra.replace(/^\s/, '') : undefined,
@@ -2600,12 +2822,12 @@ function AsignaturasPanel({ meta, accionesRef }) {
         showConfirmButton: !!data.omitidos?.length,
       });
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'Error' });
     }
   };
 
   const eliminar = async (r) => {
-    const ok = await Swal.fire({
+    const ok = await SwalAcademico.fire({
       icon: 'warning',
       title: '¿Borrar asignatura?',
       html: `${r.nivel_nombre} ${r.grado}° ${r.seccion} — ${r.curso_nombre}`,
@@ -2615,9 +2837,9 @@ function AsignaturasPanel({ meta, accionesRef }) {
     try {
       await api.delete(`/admin/academico/asignaturas/${r.id}`);
       if (filtrosAplicados) await load(filtrosAplicados);
-      Swal.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
+      SwalAcademico.fire({ icon: 'success', timer: 1200, showConfirmButton: false });
     } catch (e) {
-      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo eliminar (puede haber notas o contenidos).' });
+      SwalAcademico.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo eliminar (puede haber notas o contenidos).' });
     }
   };
 
