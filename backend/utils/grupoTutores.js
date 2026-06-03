@@ -104,6 +104,38 @@ function formatearTutoresLibreta(maestroNombre, tutor2Nombre) {
   return partes.length ? partes.join(' · ') : 'No asignado';
 }
 
+/** Condición JOIN u.personal_id ↔ Tutor o Co-Tutor del grupo (alias g, u). */
+function sqlUsuarioEsTutorDeGrupo(aliasGrupo = 'g', aliasUsuario = 'u') {
+  const g = aliasGrupo;
+  const u = aliasUsuario;
+  return `((${g}.tutor_id > 0 AND ${u}.personal_id = ${g}.tutor_id)
+    OR (COALESCE(${g}.tutor_id_2, 0) > 0 AND ${u}.personal_id = ${g}.tutor_id_2))`;
+}
+
+/**
+ * Usuarios DOCENTE activos que son Tutor o Co-Tutor de los grupos indicados.
+ * @param {Function} queryFn
+ * @param {number} colegio_id
+ * @param {number[]} grupoIds
+ */
+async function fetchUsuariosTutoresGrupos(queryFn, colegio_id, grupoIds) {
+  const ids = [...new Set((grupoIds || []).map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n) && n > 0))];
+  if (ids.length === 0) return [];
+  const ph = ids.map(() => '?').join(',');
+  const rows = await queryFn(
+    `SELECT DISTINCT u.id AS usuario_id
+     FROM grupos g
+     INNER JOIN usuarios u ON u.colegio_id = g.colegio_id
+       AND u.estado = 'ACTIVO'
+       AND u.tipo = 'DOCENTE'
+       AND ${sqlUsuarioEsTutorDeGrupo('g', 'u')}
+     WHERE g.id IN (${ph})
+       AND g.colegio_id = ?`,
+    [...ids, colegio_id]
+  );
+  return rows || [];
+}
+
 module.exports = {
   SQL_G_PERSONAL_ES_TUTOR,
   sqlPersonalEsTutor,
@@ -117,5 +149,7 @@ module.exports = {
   fetchEsTutorDelGrupo,
   personalEsTutorDeGrupoMeta,
   parseTutorIdsFromBody,
-  formatearTutoresLibreta
+  formatearTutoresLibreta,
+  sqlUsuarioEsTutorDeGrupo,
+  fetchUsuariosTutoresGrupos
 };

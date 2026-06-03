@@ -31,6 +31,7 @@ const {
   obtenerMetaGruposConexiones,
   enriquecerMensajeConexionesFamiliares
 } = require('../utils/mensajesGrupoConexionesContexto');
+const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
@@ -15216,17 +15217,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                 }
               });
 
-              const tutoresGrupo = await query(
-                `SELECT DISTINCT u.id as usuario_id
-                 FROM grupos g
-                 INNER JOIN usuarios u ON u.personal_id = g.tutor_id
-                 WHERE g.id IN (${gruposArray.map(() => '?').join(',')})
-                   AND g.colegio_id = ?
-                   AND u.colegio_id = ?
-                   AND u.estado = 'ACTIVO'
-                   AND u.tipo = 'DOCENTE'`,
-                [...gruposArray, colegio_id, colegio_id]
-              );
+              const tutoresGrupo = await fetchUsuariosTutoresGrupos(query, colegio_id, gruposArray);
               (tutoresGrupo || []).forEach((d) => {
                 if (!usuariosDestinatarios.includes(d.usuario_id)) {
                   usuariosDestinatarios.push(d.usuario_id);

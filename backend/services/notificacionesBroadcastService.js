@@ -6,6 +6,7 @@ const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { urlDashboardPorTipoUsuario } = require('../utils/notificacionUrls');
 const { enviarPushNotificacionesIndividuales } = require('./pushNotificationService');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
+const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
 
 const TIPOS_PERSONAL = ['ADMINISTRADOR', 'SECRETARIA', 'PROMOTORIA', 'PSICOLOGA', 'DOCENTE', 'ASISTENCIA'];
 
@@ -190,14 +191,7 @@ async function resolverDestinatariosBroadcast(query, params) {
         }
       });
 
-      const tutoresGrupo = await query(
-        `SELECT DISTINCT u.id AS usuario_id
-         FROM grupos g
-         INNER JOIN usuarios u ON u.personal_id = g.tutor_id
-         WHERE g.id IN (${gruposArray.map(() => '?').join(',')})
-           AND g.colegio_id = ? AND u.colegio_id = ? AND u.estado = 'ACTIVO' AND u.tipo = 'DOCENTE'`,
-        [...gruposArray, colegio_id, colegio_id]
-      );
+      const tutoresGrupo = await fetchUsuariosTutoresGrupos(query, colegio_id, gruposArray);
       (tutoresGrupo || []).forEach((d) => {
         if (!usuariosDestinatarios.includes(d.usuario_id)) {
           usuariosDestinatarios.push(d.usuario_id);
