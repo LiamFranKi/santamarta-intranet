@@ -186,6 +186,15 @@ function urlMensajesPorTipoUsuario(tipoUsuario) {
   return '/apoderado/mensajes';
 }
 
+/** Dashboard por rol (clic en aviso manual / campanita genérica). */
+function urlDashboardPorTipoUsuario(tipoUsuario) {
+  const t = String(tipoUsuario || '').toUpperCase();
+  if (t === 'ALUMNO') return '/alumno/dashboard';
+  if (t === 'APODERADO') return '/apoderado/dashboard';
+  if (t === 'ADMINISTRADOR' || t === 'PROMOTORIA' || t === 'PSICOLOGA') return '/admin/dashboard';
+  return '/docente/dashboard';
+}
+
 /** Ruta SPA a vocabularios (herramientas) según rol. */
 function urlVocabularioPorTipoUsuario(tipoUsuario) {
   const t = String(tipoUsuario || '').toUpperCase();
@@ -204,5 +213,6 @@ module.exports = {
   urlPublicacionPorTipoUsuario,
   urlComunicadoPorTipoUsuario,
   urlMensajesPorTipoUsuario,
-  urlVocabularioPorTipoUsuario
+  urlVocabularioPorTipoUsuario,
+  urlDashboardPorTipoUsuario,
 };

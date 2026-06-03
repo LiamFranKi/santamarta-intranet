@@ -35,6 +35,7 @@ import AdminPerfil from './pages/admin/AdminPerfil';
 import AdminInstitucional from './pages/admin/AdminInstitucional';
 import AdminPublicaciones from './pages/admin/AdminPublicaciones';
 import AdminConexiones from './pages/admin/AdminConexiones';
+import AdminNotificacionesEnvio from './pages/admin/AdminNotificacionesEnvio';
 import AdminHerramientasDinamicas from './pages/admin/AdminHerramientasDinamicas';
 import AdminHerramientasAcademicas from './pages/admin/AdminHerramientasAcademicas';
 import AdminHerramientasEmocionales from './pages/admin/AdminHerramientasEmocionales';
@@ -336,7 +337,7 @@ function AppRoutes() {
         path="/admin/comunicaciones/notificaciones"
         element={
           <PrivateRoute requiredTypes={['ADMINISTRADOR', 'PROMOTORIA', 'PSICOLOGA']}>
-            <Dashboard />
+            <AdminNotificacionesEnvio />
           </PrivateRoute>
         }
       />

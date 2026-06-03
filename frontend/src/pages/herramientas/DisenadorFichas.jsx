@@ -181,6 +181,7 @@ async function abrirPreviewHtml(id) {
 export default function DisenadorFichas() {
   const { user } = useAuth();
   const esAdmin = user?.tipo === 'ADMINISTRADOR' || user?.tipo === 'PROMOTORIA';
+  const esDocente = user?.tipo === 'DOCENTE';
 
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState(() => ({
@@ -212,7 +213,9 @@ export default function DisenadorFichas() {
   });
   const [archivoPdf, setArchivoPdf] = useState(null);
 
-  const puedeEditarFila = (row) => Boolean(row.puede_editar) || esAdmin;
+  const puedeEditarFila = (row) => !esDocente && (Boolean(row.puede_editar) || esAdmin);
+  const puedeDescargarFila = (row) =>
+    row.estado === 'LISTO' && (esAdmin || Boolean(row.puede_editar));
 
   const gruposAgregados = useMemo(
     () => agruparOpcionesGrupoPorGrado(opcionesGrupo),
@@ -754,7 +757,7 @@ export default function DisenadorFichas() {
                       </td>
                       <td>
                         <div className="voc-icon-actions">
-                          {(row.estado === 'LISTO' || row.estado === 'ERROR') && (
+                          {!esDocente && (row.estado === 'LISTO' || row.estado === 'ERROR') && (
                             <Tooltip title="Vista previa">
                               <IconButton
                                 size="small"
@@ -766,7 +769,7 @@ export default function DisenadorFichas() {
                               </IconButton>
                             </Tooltip>
                           )}
-                          {row.estado === 'LISTO' && (
+                          {puedeDescargarFila(row) && (
                             <Tooltip title="Descargar PDF">
                               <IconButton
                                 size="small"

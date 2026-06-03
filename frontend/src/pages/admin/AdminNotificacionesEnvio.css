@@ -1,0 +1,98 @@
+.admin-notif-envio-page .admin-notif-envio-stats small {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+.admin-notif-envio-overlay {
+  z-index: 100000 !important;
+}
+
+.admin-notif-envio-modal {
+  max-height: 92vh;
+  overflow: auto;
+}
+
+.admin-notif-envio-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.admin-notif-envio-iconos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.admin-notif-envio-icon-btn {
+  width: 42px;
+  height: 42px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  padding: 0;
+}
+
+.admin-notif-envio-icon-btn:hover {
+  border-color: #4a83c1;
+  transform: translateY(-1px);
+}
+
+.admin-notif-envio-icon-btn.is-selected {
+  border-color: #4a83c1;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(74, 131, 193, 0.25);
+}
+
+.admin-notif-envio-icon-char {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.admin-notif-envio-icon-none {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+.admin-notif-envio-preview {
+  margin-top: 0.45rem;
+  padding: 0.55rem 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.92rem;
+  color: #334155;
+}
+
+.admin-notif-envio-counter {
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  text-align: right;
+}
+
+.admin-notif-envio-textarea {
+  min-height: 120px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.45;
+}
+
+.admin-notif-envio-detalle-msg {
+  margin: 0.45rem 0 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.admin-notif-envio-page .historial-mensajes-table td:nth-child(5) {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

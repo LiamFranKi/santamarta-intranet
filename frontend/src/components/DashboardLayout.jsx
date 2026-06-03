@@ -560,7 +560,15 @@ export default function DashboardLayout({ children }) {
                     </span>
                     <span className="sidebar-label">Vocabularios</span>
                   </NavLink>
-                  {/* Fichas IA: oculto en docente hasta lanzamiento */}
+                  <NavLink
+                    className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
+                    to="/docente/herramientas/disenador-fichas"
+                  >
+                    <span className="sidebar-icon" aria-hidden>
+                      ✨
+                    </span>
+                    <span className="sidebar-label">Fichas IA</span>
+                  </NavLink>
                   <NavLink
                     className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
                     to="/docente/psicologia/derivaciones"
@@ -599,7 +607,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>
                       🗳️
                     </span>
-                    <span className="sidebar-label">Elecciones escolares</span>
+                    <span className="sidebar-label">Elecciones</span>
                   </NavLink>
                 </div>
               </div>
@@ -764,7 +772,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>
                       🗳️
                     </span>
-                    <span className="sidebar-label">Elecciones escolares</span>
+                    <span className="sidebar-label">Elecciones</span>
                   </NavLink>
                   <NavLink
                     className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`}
@@ -855,7 +863,7 @@ export default function DashboardLayout({ children }) {
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/herramientas/elecciones">
                   <span className="sidebar-icon">🗳️</span>
-                  <span className="sidebar-label">Elecciones escolares</span>
+                  <span className="sidebar-label">Elecciones</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
@@ -1003,7 +1011,7 @@ export default function DashboardLayout({ children }) {
                   to="/elecciones-campana"
                 >
                   <span className="sidebar-icon">🗳️</span>
-                  <span className="sidebar-label">Elecciones escolares</span>
+                  <span className="sidebar-label">Elecciones</span>
                 </NavLink>
               </div>
               <div className="sidebar-item">
@@ -1336,7 +1344,7 @@ export default function DashboardLayout({ children }) {
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/elecciones">
                     <span className="sidebar-icon" aria-hidden>🗳️</span>
-                    <span className="sidebar-label">Elecciones escolares</span>
+                    <span className="sidebar-label">Elecciones</span>
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/vocabularios">
                     <span className="sidebar-icon" aria-hidden>📚</span>

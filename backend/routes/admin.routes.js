@@ -6,6 +6,12 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { query, execute } = require('../utils/mysql');
 const { mergeObservacionesTutor } = require('../utils/tutorDeudoresService');
+const {
+  enviarNotificacionBroadcast,
+  ensureTablaNotificacionesEnvios,
+  tituloCompleto,
+  ICONOS_PERMITIDOS,
+} = require('../services/notificacionesBroadcastService');
 const { authenticateToken } = require('../middleware/auth');
 const { registrarAccion } = require('../utils/auditoria');
 const { fechaHoraMySQLLima } = require('../utils/fechaHoraLima');
@@ -3221,6 +3227,232 @@ router.put('/perfil/password', async (req, res) => {
   } catch (error) {
     console.error('Error cambiando contraseña admin:', error);
     res.status(500).json({ error: 'Error al cambiar la contraseña' });
+  }
+});
+
+/**
+ * GET /api/admin/notificaciones-envios
+ * Historial de envíos masivos manuales (campanita + push).
+ */
+router.get('/notificaciones/envios', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const { remitente_id, grupo_id, fecha_desde, fecha_hasta } = req.query || {};
+    await ensureTablaNotificacionesEnvios(execute);
+
+    const where = ['ne.colegio_id = ?'];
+    const params = [colegio_id];
+    if (remitente_id) {
+      where.push('ne.remitente_id = ?');
+      params.push(remitente_id);
+    }
+    if (fecha_desde) {
+      where.push('ne.fecha_hora >= ?');
+      params.push(`${fecha_desde} 00:00:00`);
+    }
+    if (fecha_hasta) {
+      where.push('ne.fecha_hora <= ?');
+      params.push(`${fecha_hasta} 23:59:59`);
+    }
+
+    const rows = await query(
+      `SELECT
+         ne.id,
+         DATE_FORMAT(ne.fecha_hora, '%Y-%m-%d %H:%i:%s') AS fecha_hora,
+         ne.icono_emoji,
+         ne.titulo,
+         ne.mensaje,
+         ne.alcance,
+         ne.perfil_destino,
+         ne.grupos_json,
+         ne.total_destinatarios,
+         ne.total_campanita,
+         ne.total_push_enviados,
+         ne.remitente_id,
+         COALESCE(CONCAT(p.nombres, ' ', p.apellidos), u.usuario, 'Administrador') AS remitente
+       FROM notificaciones_envios ne
+       LEFT JOIN usuarios u ON u.id = ne.remitente_id
+       LEFT JOIN personal p ON p.id = u.personal_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY ne.fecha_hora DESC, ne.id DESC
+       LIMIT 500`,
+      params
+    );
+
+    const allGroupIds = new Set();
+    const parsed = (rows || []).map((r) => {
+      let ids = [];
+      try {
+        ids = JSON.parse(r.grupos_json || '[]');
+        if (!Array.isArray(ids)) ids = [];
+      } catch {
+        ids = [];
+      }
+      ids.forEach((id) => {
+        const n = parseInt(id, 10);
+        if (!isNaN(n) && n > 0) allGroupIds.add(n);
+      });
+      return { ...r, _grupo_ids: ids };
+    });
+
+    let gruposMap = {};
+    if (allGroupIds.size > 0) {
+      const ids = Array.from(allGroupIds);
+      const rowsG = await query(
+        `SELECT g.id, n.nombre AS nivel, g.grado, g.seccion
+         FROM grupos g
+         INNER JOIN niveles n ON n.id = g.nivel_id
+         WHERE g.id IN (${ids.map(() => '?').join(',')}) AND g.colegio_id = ?`,
+        [...ids, colegio_id]
+      );
+      (rowsG || []).forEach((g) => {
+        gruposMap[g.id] = `${g.grado}° ${g.seccion} ${g.nivel}`.trim();
+      });
+    }
+
+    const filtroGrupoNum = parseInt(grupo_id, 10);
+    let envios = parsed.map((r) => {
+      const gruposIds = (r._grupo_ids || []).map((x) => parseInt(x, 10)).filter((n) => !isNaN(n) && n > 0);
+      const gruposTexto = gruposIds.length
+        ? gruposIds.map((id) => gruposMap[id] || `Grupo ${id}`).join(', ')
+        : String(r.alcance || '').toUpperCase() === 'TODOS'
+          ? 'Todo el colegio'
+          : '—';
+      return {
+        id: r.id,
+        fecha_hora: r.fecha_hora,
+        remitente: r.remitente,
+        remitente_id: r.remitente_id,
+        icono_emoji: r.icono_emoji || '',
+        titulo: tituloCompleto(r.icono_emoji, r.titulo),
+        titulo_texto: r.titulo,
+        mensaje: r.mensaje,
+        alcance: r.alcance || 'GRUPOS',
+        perfil_destino: r.perfil_destino || 'TODOS',
+        grupos_ids: gruposIds,
+        grupo: gruposTexto,
+        total_destinatarios: r.total_destinatarios || 0,
+        total_campanita: r.total_campanita || 0,
+        total_push_enviados: r.total_push_enviados || 0,
+      };
+    });
+
+    if (Number.isFinite(filtroGrupoNum) && filtroGrupoNum > 0) {
+      envios = envios.filter((e) => e.grupos_ids.includes(filtroGrupoNum));
+    }
+
+    res.json({ envios, iconos_permitidos: ICONOS_PERMITIDOS.filter(Boolean) });
+  } catch (error) {
+    console.error('Error listando notificaciones-envios:', error);
+    res.status(500).json({ error: error.message || 'Error al cargar historial' });
+  }
+});
+
+router.get('/notificaciones/envios/:id', async (req, res) => {
+  try {
+    const { colegio_id } = req.user;
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
+    await ensureTablaNotificacionesEnvios(execute);
+
+    const rows = await query(
+      `SELECT
+         ne.*,
+         DATE_FORMAT(ne.fecha_hora, '%Y-%m-%d %H:%i:%s') AS fecha_hora_fmt,
+         COALESCE(CONCAT(p.nombres, ' ', p.apellidos), u.usuario, 'Administrador') AS remitente
+       FROM notificaciones_envios ne
+       LEFT JOIN usuarios u ON u.id = ne.remitente_id
+       LEFT JOIN personal p ON p.id = u.personal_id
+       WHERE ne.id = ? AND ne.colegio_id = ? LIMIT 1`,
+      [id, colegio_id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Envío no encontrado' });
+
+    const r = rows[0];
+    let gruposIds = [];
+    try {
+      gruposIds = JSON.parse(r.grupos_json || '[]');
+      if (!Array.isArray(gruposIds)) gruposIds = [];
+    } catch {
+      gruposIds = [];
+    }
+    let grupoTexto = 'Todo el colegio';
+    if (gruposIds.length > 0) {
+      const ids = gruposIds.map((x) => parseInt(x, 10)).filter((n) => !isNaN(n) && n > 0);
+      if (ids.length) {
+        const rowsG = await query(
+          `SELECT g.id, n.nombre AS nivel, g.grado, g.seccion
+           FROM grupos g INNER JOIN niveles n ON n.id = g.nivel_id
+           WHERE g.id IN (${ids.map(() => '?').join(',')}) AND g.colegio_id = ?`,
+          [...ids, colegio_id]
+        );
+        grupoTexto = (rowsG || [])
+          .map((g) => `${g.grado}° ${g.seccion} ${g.nivel}`.trim())
+          .join(', ');
+      }
+    }
+
+    res.json({
+      envio: {
+        id: r.id,
+        fecha_hora: r.fecha_hora_fmt || r.fecha_hora,
+        remitente: r.remitente,
+        icono_emoji: r.icono_emoji || '',
+        titulo: tituloCompleto(r.icono_emoji, r.titulo),
+        titulo_texto: r.titulo,
+        mensaje: r.mensaje,
+        alcance: r.alcance,
+        perfil_destino: r.perfil_destino,
+        grupo: grupoTexto,
+        total_destinatarios: r.total_destinatarios,
+        total_campanita: r.total_campanita,
+        total_push_enviados: r.total_push_enviados,
+      },
+    });
+  } catch (error) {
+    console.error('Error detalle notificaciones-envios:', error);
+    res.status(500).json({ error: error.message || 'Error al cargar detalle' });
+  }
+});
+
+router.post('/notificaciones/envios', async (req, res) => {
+  try {
+    const { colegio_id, usuario_id } = req.user;
+    const { titulo, icono_emoji, mensaje, alcance, perfil_destino, grupos_ids } = req.body || {};
+
+    let gruposArray = grupos_ids;
+    if (typeof gruposArray === 'string') {
+      try {
+        gruposArray = JSON.parse(gruposArray);
+      } catch {
+        gruposArray = [];
+      }
+    }
+    if (!Array.isArray(gruposArray)) gruposArray = [];
+
+    const resultado = await enviarNotificacionBroadcast({
+      query,
+      execute,
+      colegio_id,
+      remitente_id: usuario_id,
+      titulo,
+      icono_emoji,
+      mensaje,
+      alcance: alcance === 'grupos' ? 'grupos' : 'todos',
+      perfil_destino: perfil_destino || 'todos',
+      grupos_ids: gruposArray.map((x) => parseInt(x, 10)).filter((n) => !isNaN(n) && n > 0),
+    });
+
+    res.json({
+      success: true,
+      message: `Notificación enviada a ${resultado.total_destinatarios} destinatario(s)`,
+      envio_id: resultado.envioId,
+      total_destinatarios: resultado.total_destinatarios,
+      total_campanita: resultado.total_campanita,
+    });
+  } catch (error) {
+    console.error('Error enviando notificación masiva:', error);
+    res.status(400).json({ error: error.message || 'No se pudo enviar la notificación' });
   }
 });
 

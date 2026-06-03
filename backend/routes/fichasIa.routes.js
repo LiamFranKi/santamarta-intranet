@@ -214,6 +214,9 @@ router.get('/trabajos', async (req, res) => {
 
 router.put('/trabajos/:id', async (req, res) => {
   try {
+    if (req.user.tipo === 'DOCENTE') {
+      return res.status(403).json({ error: 'Los docentes no pueden editar fichas' });
+    }
     const trabajoId = parseInt(req.params.id, 10);
     const trabajo = await cargarTrabajo(req, trabajoId, { requierePropiedad: true });
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado o sin permiso' });
@@ -311,6 +314,9 @@ router.put('/trabajos/:id', async (req, res) => {
 
 router.delete('/trabajos/:id', async (req, res) => {
   try {
+    if (req.user.tipo === 'DOCENTE') {
+      return res.status(403).json({ error: 'Los docentes no pueden eliminar fichas' });
+    }
     const trabajoId = parseInt(req.params.id, 10);
     const trabajo = await cargarTrabajo(req, trabajoId, { requierePropiedad: true });
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado o sin permiso' });
@@ -463,6 +469,13 @@ router.post('/trabajos/:id/generar', async (req, res) => {
     const trabajoId = parseInt(req.params.id, 10);
     const trabajo = await cargarTrabajo(req, trabajoId, { requierePropiedad: true });
     if (!trabajo) return res.status(404).json({ error: 'Trabajo no encontrado o sin permiso' });
+
+    if (
+      req.user.tipo === 'DOCENTE' &&
+      (trabajo.estado === 'LISTO' || trabajo.archivo_generado_nombre)
+    ) {
+      return res.status(403).json({ error: 'Los docentes no pueden regenerar una ficha ya generada' });
+    }
 
     const usar_ia = req.body.usar_ia !== false && req.body.usar_ia !== '0';
     const forzar_sin_ia = req.body.sin_ia === true || req.body.sin_ia === '1';

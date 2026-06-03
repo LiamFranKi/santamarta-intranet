@@ -23,8 +23,6 @@ import AdminPsicologiaExpediente from './AdminPsicologiaExpediente';
 import AdminReportesDeudores from './AdminReportesDeudores';
 import AdminReportesTemas from './AdminReportesTemas';
 import AdminReportesNotas from './AdminReportesNotas';
-import NotificacionesWidget from '../../components/NotificacionesWidget';
-
 const PSICOLOGA_RUTAS_ADMIN = [
   '/admin/psicologia',
   '/admin/usuarios/alumnos',
@@ -154,7 +152,7 @@ function Dashboard() {
     },
     '/admin/comunicaciones/notificaciones': {
       title: '🔔 Notificaciones',
-      description: 'Gestiona las notificaciones del sistema',
+      description: 'Envío masivo a campanita y dispositivos (push)',
       icon: '🔔'
     },
     '/admin/comunicaciones/publicaciones': {
@@ -424,18 +422,6 @@ function Dashboard() {
         <DashboardLayout>
           <div className="dashboard-container">
             <AdminAcademico />
-          </div>
-        </DashboardLayout>
-      );
-    }
-    if (
-      location.pathname === '/admin/comunicaciones/notificaciones'
-      || location.pathname === '/admin/notificaciones'
-    ) {
-      return (
-        <DashboardLayout>
-          <div className="dashboard-container">
-            <NotificacionesWidget variant="page" />
           </div>
         </DashboardLayout>
       );
