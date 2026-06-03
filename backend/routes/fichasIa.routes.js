@@ -153,7 +153,8 @@ router.get('/meta/grupos/:grupoId/cursos', async (req, res) => {
 
 router.get('/trabajos', async (req, res) => {
   try {
-    const { colegio_id, usuario_id } = req.user;
+    const { colegio_id, usuario_id, tipo } = req.user;
+    const esDocente = tipo === 'DOCENTE';
     const limit = Math.min(parseInt(req.query.limit, 10) || 80, 200);
     const filtroGrupo = parseInt(req.query.grupo_id, 10);
     const filtroGrupoIds = String(req.query.grupo_ids || '')
@@ -173,6 +174,11 @@ router.get('/trabajos', async (req, res) => {
       LEFT JOIN fichas_ia_plantillas p ON p.id = t.plantilla_id
       WHERE t.colegio_id = ?`;
     const params = [colegio_id];
+
+    if (esDocente) {
+      sql += ' AND t.usuario_id = ?';
+      params.push(usuario_id);
+    }
 
     if (filtroGrupoIds.length > 0) {
       sql += ` AND t.grupo_id IN (${filtroGrupoIds.map(() => '?').join(',')})`;
@@ -760,6 +766,7 @@ async function cargarTrabajo(req, id, { requierePropiedad = true } = {}) {
   const t = rows[0];
   const esAdmin = tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA';
   const esPropio = Number(t.usuario_id) === Number(usuario_id);
+  if (tipo === 'DOCENTE' && !esPropio) return null;
   if (requierePropiedad && !esAdmin && !esPropio) return null;
   return t;
 }
