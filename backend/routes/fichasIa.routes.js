@@ -28,6 +28,11 @@ const {
   etiquetaGrupo,
 } = require('../services/fichasIa/fichasIaMeta');
 const { urlMascotaVanguarcito } = require('../services/fichasIa/fichasIaMascota');
+const {
+  jsonParaMysql,
+  tipoSeccionDesdeActividad,
+  normalizarRecuerdaItems,
+} = require('../services/fichasIa/jsonParaMysql');
 
 const router = express.Router();
 
@@ -696,8 +701,12 @@ router.post('/trabajos/:id/generar', async (req, res) => {
       ).catch(() => {});
     }
     const msg = String(e.message || 'Error al generar la ficha');
+    const amigable =
+      msg.includes('contenido_json') || msg.includes('CONSTRAINT')
+        ? 'No se pudo guardar el contenido de la ficha (texto con caracteres no válidos). Intente acortar instrucciones o regenerar.'
+        : msg;
     res.status(500).json({
-      error: msg,
+      error: amigable,
       detalle: e.code || undefined,
     });
   }
@@ -887,7 +896,7 @@ async function upsertSeccionCustom(trabajoId, titulo, data) {
     `SELECT id FROM fichas_ia_trabajo_secciones WHERE trabajo_id = ? AND titulo = ? LIMIT 1`,
     [trabajoId, titulo]
   );
-  const json = JSON.stringify(data);
+  const json = jsonParaMysql(data);
   if (exist.length) {
     await execute(`UPDATE fichas_ia_trabajo_secciones SET contenido_json = ? WHERE id = ?`, [
       json,
@@ -903,6 +912,7 @@ async function upsertSeccionCustom(trabajoId, titulo, data) {
 }
 
 async function guardarSeccionesDesdeContenido(trabajoId, contenido) {
+  const recuerdaItems = normalizarRecuerdaItems(contenido.recuerda);
   await execute(`DELETE FROM fichas_ia_trabajo_secciones WHERE trabajo_id = ? AND tipo != 'CUSTOM'`, [
     trabajoId,
   ]);
@@ -913,7 +923,7 @@ async function guardarSeccionesDesdeContenido(trabajoId, contenido) {
     [
       trabajoId,
       orden++,
-      JSON.stringify({
+      jsonParaMysql({
         texto: contenido.intro,
         teoria: contenido.teoria,
         glosario: contenido.glosario,
@@ -932,30 +942,29 @@ async function guardarSeccionesDesdeContenido(trabajoId, contenido) {
   await execute(
     `INSERT INTO fichas_ia_trabajo_secciones (trabajo_id, orden, tipo, titulo, contenido_json)
      VALUES (?, ?, 'RECUERDA', 'Recuerda', ?)`,
-    [trabajoId, orden++, JSON.stringify({ items: contenido.recuerda })]
+    [trabajoId, orden++, jsonParaMysql({ items: recuerdaItems })]
   );
   const ejercicios = contenido.ejercicios_matematicos || contenido.aplicacion?.ejercicios;
   if (ejercicios?.length) {
     await execute(
       `INSERT INTO fichas_ia_trabajo_secciones (trabajo_id, orden, tipo, titulo, contenido_json)
        VALUES (?, ?, 'ACTIVIDAD_EJERCICIOS', 'Ejercicios matemática', ?)`,
-      [trabajoId, orden++, JSON.stringify({ ejercicios })]
+      [trabajoId, orden++, jsonParaMysql({ ejercicios })]
     );
   }
   for (const act of contenido.actividades || []) {
-    const tipo =
-      act.tipo === 'tabla_partes' ? 'ACTIVIDAD_TABLA' : 'ACTIVIDAD_PREGUNTAS';
+    const tipo = tipoSeccionDesdeActividad(act);
     await execute(
       `INSERT INTO fichas_ia_trabajo_secciones (trabajo_id, orden, tipo, titulo, contenido_json)
        VALUES (?, ?, ?, ?, ?)`,
-      [trabajoId, orden++, tipo, act.titulo || 'Actividad', JSON.stringify(act)]
+      [trabajoId, orden++, tipo, act.titulo || 'Actividad', jsonParaMysql(act)]
     );
   }
   if (contenido.pie_motivacional) {
     await execute(
       `INSERT INTO fichas_ia_trabajo_secciones (trabajo_id, orden, tipo, titulo, contenido_json)
        VALUES (?, ?, 'PIE_MOTIVACIONAL', 'Pie', ?)`,
-      [trabajoId, orden++, JSON.stringify({ texto: contenido.pie_motivacional })]
+      [trabajoId, orden++, jsonParaMysql({ texto: contenido.pie_motivacional })]
     );
   }
 }
