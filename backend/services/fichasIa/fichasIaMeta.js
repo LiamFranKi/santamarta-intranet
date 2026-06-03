@@ -33,21 +33,15 @@ async function listarGruposOpciones(colegio_id, anio, { tipo, personal_id }) {
       [colegio_id, anio]
     );
   } else if (tipo === 'DOCENTE' && personal_id) {
+    /* Solo cursos asignados (asignaturas); no tutoría — distinto a Conexiones u otros módulos. */
     rows = await query(
       `SELECT DISTINCT g.id AS grupo_id, g.nivel_id, g.grado, g.seccion, n.nombre AS nivel_nombre,
               COALESCE(n.grado_minimo, 0) AS nivel_orden
        FROM grupos g
        INNER JOIN niveles n ON n.id = g.nivel_id
        INNER JOIN asignaturas a ON a.grupo_id = g.id AND a.colegio_id = g.colegio_id
-       WHERE g.colegio_id = ? AND g.anio = ? AND a.personal_id = ?
-       UNION
-       SELECT DISTINCT g.id AS grupo_id, g.nivel_id, g.grado, g.seccion, n.nombre AS nivel_nombre,
-              COALESCE(n.grado_minimo, 0) AS nivel_orden
-       FROM grupos g
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       WHERE g.colegio_id = ? AND g.anio = ?
-         AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?))`,
-      [colegio_id, anio, personal_id, colegio_id, anio, personal_id, personal_id]
+       WHERE g.colegio_id = ? AND g.anio = ? AND a.personal_id = ?`,
+      [colegio_id, anio, personal_id]
     );
   } else {
     rows = [];
