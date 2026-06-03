@@ -296,7 +296,7 @@ async function enviarNotificacionBroadcast(ctx) {
       colegio_id,
       remitente_id,
       fechaHora,
-      icon || null,
+      icono || null,
       tituloLimpio,
       mensajeLimpio,
       alcanceNorm,
