@@ -889,18 +889,22 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📊</span>
                     <span className="sidebar-label">Notas</span>
                   </NavLink>
+                  {false && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/estadisticas">
                     <span className="sidebar-icon" aria-hidden>📈</span>
                     <span className="sidebar-label">Estadísticas</span>
                   </NavLink>
+                  )}
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/deudores">
                     <span className="sidebar-icon" aria-hidden>📋</span>
                     <span className="sidebar-label">Deudores</span>
                   </NavLink>
+                  {false && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/incidencias">
                     <span className="sidebar-icon" aria-hidden>⚠️</span>
                     <span className="sidebar-label">Incidencias</span>
                   </NavLink>
+                  )}
                 </div>
               </div>
               {rolesAdicionales.es_apoderado && (
@@ -1173,6 +1177,7 @@ export default function DashboardLayout({ children }) {
                     </span>
                     <span className="sidebar-label">Incidencias</span>
                   </NavLink>
+                  {false && (
                   <NavLink
                     className={({ isActive }) =>
                       `sidebar-sublink ${isActive || location.pathname === '/admin/vanguarcito' ? 'active' : ''}`
@@ -1184,6 +1189,7 @@ export default function DashboardLayout({ children }) {
                     </span>
                     <span className="sidebar-label">Chat Vanguard</span>
                   </NavLink>
+                  )}
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/comunicados">
                     <span className="sidebar-icon" aria-hidden>
                       📢
@@ -1344,6 +1350,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🎯</span>
                     <span className="sidebar-label">Supervisión</span>
                   </NavLink>
+                  {false && (
                   <NavLink
                     className={({ isActive }) =>
                       `sidebar-sublink ${isActive || location.pathname === '/admin/vanguarcito' ? 'active' : ''}`
@@ -1353,6 +1360,7 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🤖</span>
                     <span className="sidebar-label">Vanguarcito</span>
                   </NavLink>
+                  )}
                 </div>
               </div>
               <div className="sidebar-menu-item">
@@ -1376,10 +1384,12 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>🔗</span>
                     <span className="sidebar-label">Conexiones</span>
                   </NavLink>
+                  {false && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/chat-vanguard">
                     <span className="sidebar-icon" aria-hidden>💬</span>
                     <span className="sidebar-label">Chat Vanguard</span>
                   </NavLink>
+                  )}
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/comunicaciones/comunicados">
                     <span className="sidebar-icon" aria-hidden>📢</span>
                     <span className="sidebar-label">Comunicados</span>
@@ -1489,18 +1499,22 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📊</span>
                     <span className="sidebar-label">Notas</span>
                   </NavLink>
+                  {false && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/estadisticas">
                     <span className="sidebar-icon" aria-hidden>📈</span>
                     <span className="sidebar-label">Estadísticas</span>
                   </NavLink>
+                  )}
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/deudores">
                     <span className="sidebar-icon" aria-hidden>📋</span>
                     <span className="sidebar-label">Deudores</span>
                   </NavLink>
+                  {false && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/incidencias">
                     <span className="sidebar-icon" aria-hidden>⚠️</span>
                     <span className="sidebar-label">Incidencias</span>
                   </NavLink>
+                  )}
                 </div>
               </div>
               {MOSTRAR_MENU_AUDITORIA && (
