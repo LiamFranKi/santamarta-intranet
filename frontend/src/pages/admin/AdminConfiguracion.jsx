@@ -1,7 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import ReactQuill from 'react-quill';
+import 'react-quill/dist/quill.snow.css';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './AdminConfiguracion.css';
+
+const CONFIG_TABS = [
+  { id: 'general', label: 'General', icon: '📋' },
+  { id: 'recaudo', label: 'Recaudo', icon: '💰' },
+  { id: 'anio', label: 'Año académico', icon: '📅' },
+  { id: 'pagos', label: 'Pagos', icon: '💳' },
+  { id: 'notas', label: 'Notas', icon: '📝' },
+  { id: 'facturacion', label: 'Facturación', icon: '🧾' },
+  { id: 'matricula', label: 'Matrícula online', icon: '✉️' },
+];
+
+const QUILL_MODULES_MATRICULA = {
+  toolbar: [
+    [{ header: [1, 2, 3, false] }],
+    ['bold', 'italic', 'underline'],
+    [{ color: [] }, { background: [] }],
+    [{ list: 'ordered' }, { list: 'bullet' }],
+    [{ align: [] }],
+    ['link'],
+    ['clean'],
+  ],
+};
+
+const QUILL_FORMATS_MATRICULA = [
+  'header', 'bold', 'italic', 'underline', 'color', 'background',
+  'list', 'bullet', 'align', 'link',
+];
 
 const CICLOS = [
   { value: 0, label: 'Mensual' },
@@ -33,6 +62,8 @@ const MESES = [
 function AdminConfiguracion() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState('general');
+  const quillModulesMatricula = useMemo(() => QUILL_MODULES_MATRICULA, []);
   const [config, setConfig] = useState({
     // Información General
     titulo_intranet: '',
@@ -61,6 +92,7 @@ function AdminConfiguracion() {
     moneda: 'S/.',
     monto_adicional: 0,
     bloquear_deudores: 'NO',
+    bloquear_deudores_hasta_mes: '',
     
     // Notas
     ciclo_notas: 0,
@@ -157,8 +189,17 @@ function AdminConfiguracion() {
       console.log('rangos_letras_primaria recibido:', data.rangos_letras_primaria);
       console.log('rangos_letras_primaria procesado:', rangosLetrasPrimaria);
 
+      // bloquear_deudores_hasta_mes: null/vacío = sin límite (0-11, mismo criterio que inicio_pensiones)
+      let bloquearDeudoresHastaMes = '';
+      if (data.bloquear_deudores_hasta_mes !== undefined && data.bloquear_deudores_hasta_mes !== null && data.bloquear_deudores_hasta_mes !== '') {
+        const parsed = parseInt(data.bloquear_deudores_hasta_mes, 10);
+        if (!Number.isNaN(parsed) && parsed >= 0 && parsed <= 11) {
+          bloquearDeudoresHastaMes = parsed;
+        }
+      }
+
       // Separar data para evitar que sobrescriba rangos_letras_primaria e inicio_pensiones
-      const { rangos_letras_primaria: _, inicio_pensiones: __, inicio_notas: ___, ...restData } = data;
+      const { rangos_letras_primaria: _, inicio_pensiones: __, inicio_notas: ___, bloquear_deudores_hasta_mes: __bdhm, ...restData } = data;
       
       // Asegurar que inicio_notas también sea un número
       let inicioNotas = 1;
@@ -182,11 +223,16 @@ function AdminConfiguracion() {
         delete restData.inicio_notas;
       }
       
+      if (restData.bloquear_deudores_hasta_mes !== undefined) {
+        delete restData.bloquear_deudores_hasta_mes;
+      }
+      
       // Crear el objeto de configuración con los valores parseados explícitamente
       const configData = {
         ...restData,
         inicio_pensiones: Number(inicioPensiones), // Forzar a número
         inicio_notas: Number(inicioNotas), // Forzar a número
+        bloquear_deudores_hasta_mes: bloquearDeudoresHastaMes,
         rangos_letras_primaria: rangosLetrasPrimaria,
         login_fondo: null,
         libreta_logo: null,
@@ -326,6 +372,10 @@ function AdminConfiguracion() {
         }
       }
     }));
+  };
+
+  const handleMatriculaMensajeChange = (html) => {
+    setConfig((prev) => ({ ...prev, email_matricula_apoderado: html }));
   };
 
   const handleVencimientoPensionChange = (pension, value) => {
@@ -473,14 +523,30 @@ function AdminConfiguracion() {
 
   return (
     <div className="admin-configuracion">
-        <div className="config-header">
-          <h1>⚙️ Configuración General</h1>
-          <p>Administra la configuración general del sistema</p>
-        </div>
+      <div className="config-header">
+        <h1>Configuración General</h1>
+        <p>Administra la configuración del colegio por secciones</p>
+      </div>
 
-        <div className="config-form">
-          {/* INFORMACIÓN GENERAL */}
-          <div className="config-card config-card-1">
+      <nav className="config-tabs" role="tablist" aria-label="Secciones de configuración">
+        {CONFIG_TABS.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={`config-tab${activeTab === tab.id ? ' config-tab--active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            <span className="config-tab-icon" aria-hidden="true">{tab.icon}</span>
+            <span className="config-tab-label">{tab.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="config-tab-panel">
+          {activeTab === 'general' && (
+          <div className="config-panel-card">
             <div className="config-section">
               <h2 className="section-title">📋 INFORMACIÓN GENERAL</h2>
             <div className="form-grid">
@@ -561,11 +627,12 @@ function AdminConfiguracion() {
             </div>
             </div>
           </div>
+          )}
 
-          {/* INFORMACIÓN RECAUDO */}
-          <div className="config-card config-card-2">
+          {activeTab === 'recaudo' && (
+          <div className="config-panel-card">
             <div className="config-section">
-              <h2 className="section-title">💰 INFORMACIÓN RECAUDO</h2>
+              <h2 className="section-title">💰 Información Recaudo</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>N° de Sucursal</label>
@@ -609,52 +676,13 @@ function AdminConfiguracion() {
             </div>
             </div>
           </div>
-
-          {/* DATOS UGEL/DRE - OCULTO */}
-          {false && (
-          <div className="config-card config-card-3">
-            <div className="config-section">
-              <h2 className="section-title">🏛️ DATOS - UGEL / DRE</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Código (UGEL - DRE)</label>
-                <input
-                  type="text"
-                  name="ugel_codigo"
-                  value={config.ugel_codigo}
-                  onChange={handleInputChange}
-                />
-              </div>
-              <div className="form-group">
-                <label>Nombre (UGEL - DRE)</label>
-                <input
-                  type="text"
-                  name="ugel_nombre"
-                  value={config.ugel_nombre}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
-            <div className="card-actions">
-              <button 
-                type="button" 
-                onClick={() => handleSaveSection([
-                  'ugel_codigo', 'ugel_nombre'
-                ], 'Datos UGEL/DRE')}
-                disabled={saving}
-                className="btn-submit-card"
-              >
-                {saving ? 'Guardando...' : '💾 Guardar'}
-              </button>
-            </div>
-            </div>
-          </div>
           )}
 
-          {/* DISEÑO LIBRETA DE NOTAS */}
-          <div className="config-card config-card-4">
+          {/* DISEÑO LIBRETA — legacy PHP; la libreta React no usa libreta_logo/libreta_fondo de aquí */}
+          {false && (
+          <div className="config-panel-card config-panel-card--hidden">
             <div className="config-section">
-              <h2 className="section-title">📓 DISEÑO LIBRETA DE NOTAS</h2>
+              <h2 className="section-title">📓 Diseño Libreta de Notas</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>Logo</label>
@@ -701,11 +729,12 @@ function AdminConfiguracion() {
             </div>
             </div>
           </div>
+          )}
 
-          {/* AÑO ACADÉMICO */}
-          <div className="config-card config-card-5">
+          {activeTab === 'anio' && (
+          <div className="config-panel-card">
             <div className="config-section">
-              <h2 className="section-title">📅 AÑO ACADÉMICO</h2>
+              <h2 className="section-title">📅 Año Académico</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>Año Activo</label>
@@ -725,26 +754,54 @@ function AdminConfiguracion() {
                   onChange={handleInputChange}
                 />
               </div>
+              <div className="form-group">
+                <label>Mostrar ventana de cumpleaños</label>
+                <select
+                  name="show_birthday_window"
+                  value={config.show_birthday_window}
+                  onChange={handleInputChange}
+                >
+                  <option value="NO">NO</option>
+                  <option value="SI">SI</option>
+                </select>
+              </div>
             </div>
+
+            <div className="config-subsection config-subsection--danger">
+              <h3 className="config-subsection-title">Reiniciar contraseñas de usuarios</h3>
+              <p className="config-subsection-desc">
+                Reinicia las contraseñas de todos los usuarios (excepto administradores) y las establece como su número de DNI.
+              </p>
+              <button
+                type="button"
+                onClick={handleReiniciarAccesos}
+                className="btn-warning btn-warning--inline"
+              >
+                Reiniciar contraseñas
+              </button>
+            </div>
+
             <div className="card-actions">
               <button 
                 type="button" 
                 onClick={() => handleSaveSection([
-                  'anio_activo', 'anio_matriculas'
+                  'anio_activo', 'anio_matriculas', 'show_birthday_window'
                 ], 'Año Académico')}
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : '💾 Guardar'}
+                {saving ? 'Guardando...' : 'Guardar cambios'}
               </button>
             </div>
             </div>
           </div>
+          )}
 
-          {/* PAGOS */}
-          <div className="config-card config-card-6">
+          {activeTab === 'pagos' && (
+          <>
+          <div className="config-panel-card">
             <div className="config-section">
-              <h2 className="section-title">💳 PAGOS</h2>
+              <h2 className="section-title">💳 Pagos</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>Ciclo de Pensiones</label>
@@ -813,27 +870,107 @@ function AdminConfiguracion() {
                   <option value="SI">SI</option>
                 </select>
               </div>
+              {config.bloquear_deudores === 'SI' && (
+                <div className="form-group">
+                  <label>Bloquear deudores hasta el mes de</label>
+                  <select
+                    name="bloquear_deudores_hasta_mes"
+                    value={config.bloquear_deudores_hasta_mes === '' || config.bloquear_deudores_hasta_mes === null || config.bloquear_deudores_hasta_mes === undefined ? '' : config.bloquear_deudores_hasta_mes}
+                    onChange={handleInputChange}
+                  >
+                    <option value="">Sin límite (todas las pensiones vencidas)</option>
+                    {MESES.map((mes) => (
+                      <option key={mes.value} value={mes.value}>{mes.label}</option>
+                    ))}
+                  </select>
+                  <small style={{ display: 'block', marginTop: '4px', color: '#64748b' }}>
+                    Si elige un mes, solo bloquea quien debe pensiones hasta ese mes. Ej.: en agosto, con corte junio, quien debe solo julio puede ingresar.
+                  </small>
+                </div>
+              )}
             </div>
             <div className="card-actions">
               <button 
                 type="button" 
                 onClick={() => handleSaveSection([
                   'ciclo_pensiones', 'inicio_pensiones', 'total_pensiones',
-                  'moneda', 'monto_adicional', 'bloquear_deudores'
+                  'moneda', 'monto_adicional', 'bloquear_deudores', 'bloquear_deudores_hasta_mes'
                 ], 'Pagos')}
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : '💾 Guardar'}
+                {saving ? 'Guardando...' : 'Guardar pagos'}
               </button>
             </div>
             </div>
           </div>
 
-          {/* NOTAS */}
-          <div className="config-card config-card-7">
+          <div className="config-panel-card config-panel-card--spaced">
             <div className="config-section">
-              <h2 className="section-title">📝 NOTAS</h2>
+              <h2 className="section-title">📆 Vencimiento de pensiones</h2>
+            <div className="config-table-wrap">
+            <table className="rangos-table rangos-table--vencimientos">
+              <tbody>
+                <tr>
+                  <th>Matrícula</th>
+                  <td>
+                    <input
+                      type="text"
+                      placeholder="dd-mm"
+                      value={config.pensiones_vencimiento[-1] || ''}
+                      onChange={(e) => handleVencimientoPensionChange(-1, e.target.value)}
+                    />
+                  </td>
+                </tr>
+                {opcionesPago.slice(1).map((pago, index) => (
+                  <tr key={index}>
+                    <th>{pago}</th>
+                    <td>
+                      <input
+                        type="text"
+                        placeholder="dd-mm"
+                        value={config.pensiones_vencimiento[index + 1] || ''}
+                        onChange={(e) => handleVencimientoPensionChange(index + 1, e.target.value)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>Días de tolerancia</label>
+                <input
+                  type="number"
+                  name="dias_tolerancia"
+                  value={config.dias_tolerancia}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
+            <div className="card-actions">
+              <button 
+                type="button" 
+                onClick={() => handleSaveSection([
+                  'pensiones_vencimiento', 'dias_tolerancia'
+                ], 'Vencimiento de Pensiones')}
+                disabled={saving}
+                className="btn-submit-card"
+              >
+                {saving ? 'Guardando...' : 'Guardar vencimientos'}
+              </button>
+            </div>
+            </div>
+          </div>
+          </>
+          )}
+
+          {activeTab === 'notas' && (
+          <>
+          <div className="config-panel-card">
+            <div className="config-section">
+              <h2 className="section-title">📝 Notas</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>Ciclo de Notas</label>
@@ -874,7 +1011,8 @@ function AdminConfiguracion() {
             </div>
             {config.ciclo_notas !== 0 && (
               <div className="rangos-ciclos-notas">
-                <h3>Rangos de Ciclos de Notas</h3>
+                <h3>Rangos de ciclos de notas</h3>
+                <div className="config-table-wrap">
                 <table className="rangos-table">
                   <thead>
                     <tr>
@@ -893,7 +1031,6 @@ function AdminConfiguracion() {
                             placeholder="dd-mm"
                             value={config.rangos_ciclos_notas[ciclo]?.inicio || ''}
                             onChange={(e) => handleRangoCicloNotaChange(ciclo, 'inicio', e.target.value)}
-                            style={{ width: '90px' }}
                           />
                         </td>
                         <td>
@@ -902,13 +1039,13 @@ function AdminConfiguracion() {
                             placeholder="dd-mm"
                             value={config.rangos_ciclos_notas[ciclo]?.final || ''}
                             onChange={(e) => handleRangoCicloNotaChange(ciclo, 'final', e.target.value)}
-                            style={{ width: '90px' }}
                           />
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
             )}
             <div className="card-actions">
@@ -920,16 +1057,83 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : '💾 Guardar'}
+                {saving ? 'Guardando...' : 'Guardar notas'}
               </button>
             </div>
             </div>
           </div>
 
-          {/* APRECIACIONES */}
-          <div className="config-card config-card-8">
+          <div className="config-panel-card config-panel-card--spaced">
             <div className="config-section">
-              <h2 className="section-title">⭐ APRECIACIONES</h2>
+              <h2 className="section-title">🔤 Conversión a notas a letras</h2>
+            <button type="button" onClick={agregarRangoLetraPrimaria} className="btn-add">
+              Agregar rango
+            </button>
+            <div className="config-table-wrap">
+            <table className="rangos-table">
+              <thead>
+                <tr>
+                  <th>Rango</th>
+                  <th>Letra</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                {config.rangos_letras_primaria.map((rango, index) => (
+                  <tr key={index}>
+                    <td>
+                      <input
+                        type="text"
+                        value={rango.rango || ''}
+                        onChange={(e) => handleRangoLetraPrimariaChange(index, 'rango', e.target.value)}
+                        placeholder="Rango"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="text"
+                        value={rango.letra || ''}
+                        onChange={(e) => handleRangoLetraPrimariaChange(index, 'letra', e.target.value)}
+                        placeholder="Letra"
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        onClick={() => eliminarRangoLetraPrimaria(index)}
+                        className="btn-delete"
+                        aria-label="Eliminar"
+                      >
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+            <div className="card-actions">
+              <button 
+                type="button" 
+                onClick={() => handleSaveSection([
+                  'rangos_letras_primaria'
+                ], 'Conversión a Notas a Letras')}
+                disabled={saving}
+                className="btn-submit-card"
+              >
+                {saving ? 'Guardando...' : 'Guardar conversión'}
+              </button>
+            </div>
+            </div>
+          </div>
+          </>
+          )}
+
+          {/* APRECIACIONES — oculto; las tutoras ingresan apreciaciones manualmente */}
+          {false && (
+          <div className="config-panel-card config-panel-card--hidden">
+            <div className="config-section">
+              <h2 className="section-title">⭐ Apreciaciones</h2>
             <button type="button" onClick={agregarRangoMensaje} className="btn-add">
               ➕ Agregar Nuevo
             </button>
@@ -989,178 +1193,12 @@ function AdminConfiguracion() {
             </div>
             </div>
           </div>
-
-          {/* CONVERSIÓN A NOTAS A LETRAS (todos los niveles) */}
-          <div className="config-card config-card-9">
-            <div className="config-section">
-              <h2 className="section-title">🔤 CONVERSIÓN A NOTAS A LETRAS (todos los niveles)</h2>
-            <button type="button" onClick={agregarRangoLetraPrimaria} className="btn-add">
-              ➕ Agregar Nuevo
-            </button>
-            <table className="rangos-table">
-              <thead>
-                <tr>
-                  <th>Rango</th>
-                  <th>Letra</th>
-                  <th>Acción</th>
-                </tr>
-              </thead>
-              <tbody>
-                {config.rangos_letras_primaria.map((rango, index) => (
-                  <tr key={index}>
-                    <td>
-                      <input
-                        type="text"
-                        value={rango.rango || ''}
-                        onChange={(e) => handleRangoLetraPrimariaChange(index, 'rango', e.target.value)}
-                        placeholder="Rango"
-                        style={{ width: '90px' }}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={rango.letra || ''}
-                        onChange={(e) => handleRangoLetraPrimariaChange(index, 'letra', e.target.value)}
-                        placeholder="Letra"
-                        style={{ width: '300px' }}
-                      />
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        onClick={() => eliminarRangoLetraPrimaria(index)}
-                        className="btn-delete"
-                      >
-                        🗑️
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="card-actions">
-              <button 
-                type="button" 
-                onClick={() => handleSaveSection([
-                  'rangos_letras_primaria'
-                ], 'Conversión a Notas a Letras (todos los niveles)')}
-                disabled={saving}
-                className="btn-submit-card"
-              >
-                {saving ? 'Guardando...' : '💾 Guardar'}
-              </button>
-            </div>
-            </div>
-          </div>
-
-          {/* VENCIMIENTO DE PENSIONES */}
-          <div className="config-card config-card-10">
-            <div className="config-section">
-              <h2 className="section-title">📆 VENCIMIENTO DE PENSIONES</h2>
-            <table className="rangos-table">
-              <tbody>
-                <tr>
-                  <th>Matrícula</th>
-                  <td>
-                    <input
-                      type="text"
-                      placeholder="dd-mm"
-                      value={config.pensiones_vencimiento[-1] || ''}
-                      onChange={(e) => handleVencimientoPensionChange(-1, e.target.value)}
-                      style={{ width: '70px' }}
-                    />
-                  </td>
-                </tr>
-                {opcionesPago.slice(1).map((pago, index) => (
-                  <tr key={index}>
-                    <th>{pago}</th>
-                    <td>
-                      <input
-                        type="text"
-                        placeholder="dd-mm"
-                        value={config.pensiones_vencimiento[index + 1] || ''}
-                        onChange={(e) => handleVencimientoPensionChange(index + 1, e.target.value)}
-                        style={{ width: '70px' }}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Días de Tolerancia</label>
-                <input
-                  type="number"
-                  name="dias_tolerancia"
-                  value={config.dias_tolerancia}
-                  onChange={handleInputChange}
-                />
-              </div>
-            </div>
-            <div className="card-actions">
-              <button 
-                type="button" 
-                onClick={() => handleSaveSection([
-                  'pensiones_vencimiento', 'dias_tolerancia'
-                ], 'Vencimiento de Pensiones')}
-                disabled={saving}
-                className="btn-submit-card"
-              >
-                {saving ? 'Guardando...' : '💾 Guardar'}
-              </button>
-            </div>
-            </div>
-          </div>
-
-          {/* COMISIÓN PAGO CON TARJETA - OCULTO */}
-          {false && (
-          <div className="config-card config-card-11">
-            <div className="config-section">
-              <h2 className="section-title">💳 COMISIÓN PAGO CON TARJETA</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Tarjeta de Débito %</label>
-                <input
-                  type="number"
-                  name="comision_tarjeta_debito"
-                  value={config.comision_tarjeta_debito}
-                  onChange={handleInputChange}
-                  step="0.01"
-                />
-              </div>
-              <div className="form-group">
-                <label>Tarjeta de Crédito %</label>
-                <input
-                  type="number"
-                  name="comision_tarjeta_credito"
-                  value={config.comision_tarjeta_credito}
-                  onChange={handleInputChange}
-                  step="0.01"
-                />
-              </div>
-            </div>
-            <div className="card-actions">
-              <button 
-                type="button" 
-                onClick={() => handleSaveSection([
-                  'comision_tarjeta_debito', 'comision_tarjeta_credito'
-                ], 'Comisión Pago con Tarjeta')}
-                disabled={saving}
-                className="btn-submit-card"
-              >
-                {saving ? 'Guardando...' : '💾 Guardar'}
-              </button>
-            </div>
-            </div>
-          </div>
           )}
 
-          {/* FACTURACIÓN */}
-          <div className="config-card config-card-13">
+          {activeTab === 'facturacion' && (
+          <div className="config-panel-card">
             <div className="config-section">
-              <h2 className="section-title">🧾 FACTURACIÓN</h2>
+              <h2 className="section-title">🧾 Facturación</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>RUC</label>
@@ -1223,46 +1261,44 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : '💾 Guardar'}
+                {saving ? 'Guardando...' : 'Guardar facturación'}
               </button>
             </div>
             </div>
           </div>
+          )}
 
-          {/* MATRÍCULA ONLINE */}
-          <div className="config-card config-card-14">
+          {activeTab === 'matricula' && (
+          <div className="config-panel-card">
             <div className="config-section">
-              <h2 className="section-title">📝 MATRÍCULA ONLINE</h2>
-            <div className="form-grid">
+              <h2 className="section-title">✉️ Matrícula online</h2>
+              <p className="config-section-desc">
+                Configura los correos y el mensaje que recibirán los apoderados al completar la matrícula online.
+              </p>
+            <div className="form-grid form-grid--matricula">
               <div className="form-group full-width">
-                <label>Correos Notificación</label>
+                <label>Correos de notificación</label>
                 <textarea
                   name="email_notificacion_matricula_online"
                   value={config.email_notificacion_matricula_online}
                   onChange={handleInputChange}
                   rows="3"
+                  placeholder="correo1@colegio.edu.pe, correo2@colegio.edu.pe"
                 />
+                <small>Separe varios correos con coma.</small>
               </div>
               <div className="form-group">
-                <label>Remitente Emails</label>
+                <label>Remitente de emails</label>
                 <input
                   type="text"
                   name="remitente_emails"
                   value={config.remitente_emails}
                   onChange={handleInputChange}
-                />
-              </div>
-              <div className="form-group full-width">
-                <label>Mensaje Matrícula Apoderado</label>
-                <textarea
-                  name="email_matricula_apoderado"
-                  value={config.email_matricula_apoderado}
-                  onChange={handleInputChange}
-                  rows="10"
+                  placeholder="Nombre del colegio"
                 />
               </div>
               <div className="form-group">
-                <label>Habilitar Formulario</label>
+                <label>Habilitar formulario</label>
                 <select
                   name="enable_enrollment_form"
                   value={config.enable_enrollment_form}
@@ -1271,6 +1307,21 @@ function AdminConfiguracion() {
                   <option value="NO">NO</option>
                   <option value="SI">SI</option>
                 </select>
+              </div>
+              <div className="form-group full-width">
+                <label>Mensaje para el apoderado</label>
+                <div className="config-quill-wrap">
+                  <ReactQuill
+                    theme="snow"
+                    value={config.email_matricula_apoderado || ''}
+                    onChange={handleMatriculaMensajeChange}
+                    modules={quillModulesMatricula}
+                    formats={QUILL_FORMATS_MATRICULA}
+                    placeholder="Escriba el mensaje que se enviará al apoderado..."
+                    className="config-quill-editor"
+                  />
+                </div>
+                <small>El contenido se guardará con formato para usarlo en correos (función de envío en desarrollo).</small>
               </div>
             </div>
             <div className="card-actions">
@@ -1283,70 +1334,16 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : '💾 Guardar'}
+                {saving ? 'Guardando...' : 'Guardar matrícula online'}
               </button>
             </div>
             </div>
           </div>
+          )}
 
-          {/* OTROS */}
-          <div className="config-card config-card-15">
-            <div className="config-section">
-              <h2 className="section-title">⚙️ OTROS</h2>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Mostrar Ventana Cumpleaños</label>
-                <select
-                  name="show_birthday_window"
-                  value={config.show_birthday_window}
-                  onChange={handleInputChange}
-                >
-                  <option value="NO">NO</option>
-                  <option value="SI">SI</option>
-                </select>
-              </div>
-            </div>
-            <div className="card-actions">
-              <button 
-                type="button" 
-                onClick={() => handleSaveSection([
-                  'show_birthday_window'
-                ], 'Otros')}
-                disabled={saving}
-                className="btn-submit-card"
-              >
-                {saving ? 'Guardando...' : '💾 Guardar'}
-              </button>
-            </div>
-            
-            {/* Separador para Reiniciar Accesos */}
-            <div className="reiniciar-accesos-section">
-              <div className="section-divider"></div>
-              <div className="form-grid">
-                <div className="form-group full-width">
-                  <label style={{ marginBottom: '0.5rem', color: '#dc2626', fontWeight: '600' }}>
-                    🔄 Reiniciar Contraseñas de Usuarios
-                  </label>
-                  <p style={{ fontSize: '0.8rem', color: '#6b7280', marginBottom: '0.75rem' }}>
-                    Esto reiniciará las contraseñas de TODOS los usuarios (excepto administradores) y las establecerá como su número de DNI.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={handleReiniciarAccesos}
-                    className="btn-warning"
-                  >
-                    ⚠️ Reiniciar Contraseñas
-                  </button>
-                </div>
-              </div>
-            </div>
-            </div>
-          </div>
-
-        </div>
       </div>
+    </div>
   );
 }
 
 export default AdminConfiguracion;
-

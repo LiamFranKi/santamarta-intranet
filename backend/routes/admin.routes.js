@@ -1291,7 +1291,8 @@ router.get('/configuracion', async (req, res) => {
         comision_tarjeta_debito,
         comision_tarjeta_credito,
         clave_bloques,
-        bloquear_deudores
+        bloquear_deudores,
+        bloquear_deudores_hasta_mes
       FROM colegios 
       WHERE id = ?`,
       [colegio_id]
@@ -1481,26 +1482,36 @@ router.put('/configuracion', uploadConfig.fields([
       'anio_activo', 'anio_matriculas', 'ciclo_pensiones', 'inicio_pensiones', 'total_pensiones',
       'moneda', 'monto_adicional', 'ciclo_notas', 'inicio_notas', 'total_notas',
       'dias_tolerancia', 'ruc', 'razon_social', 'direccion',
-      'comision_tarjeta_debito', 'comision_tarjeta_credito', 'clave_bloques', 'bloquear_deudores'
+      'comision_tarjeta_debito', 'comision_tarjeta_credito', 'clave_bloques', 'bloquear_deudores',
+      'bloquear_deudores_hasta_mes'
     ];
 
     colegioFields.forEach(field => {
       if (body[field] !== undefined) {
         let value = body[field];
-        
-        // Campos numéricos que deben ser números
-        const numericFields = ['inicio_pensiones', 'inicio_notas', 'total_pensiones', 'total_notas', 
-                              'ciclo_pensiones', 'ciclo_notas', 'monto_adicional', 'dias_tolerancia',
-                              'comision_tarjeta_debito', 'comision_tarjeta_credito', 'anio_activo', 'anio_matriculas'];
-        
-        if (numericFields.includes(field)) {
-          // Convertir a número explícitamente
-          const numValue = Number(value);
-          if (!isNaN(numValue)) {
-            value = numValue;
-            console.log(`🔧 Campo numérico ${field}: valor recibido "${body[field]}", convertido a ${value} (tipo: ${typeof value})`);
+
+        if (field === 'bloquear_deudores_hasta_mes') {
+          if (value === '' || value === null || value === 'null' || value === undefined) {
+            value = null;
           } else {
-            console.warn(`⚠️ Campo numérico ${field}: valor "${body[field]}" no es un número válido, usando valor original`);
+            const numValue = parseInt(value, 10);
+            value = !Number.isNaN(numValue) && numValue >= 0 && numValue <= 11 ? numValue : null;
+          }
+        } else {
+          // Campos numéricos que deben ser números
+          const numericFields = ['inicio_pensiones', 'inicio_notas', 'total_pensiones', 'total_notas', 
+                                'ciclo_pensiones', 'ciclo_notas', 'monto_adicional', 'dias_tolerancia',
+                                'comision_tarjeta_debito', 'comision_tarjeta_credito', 'anio_activo', 'anio_matriculas'];
+          
+          if (numericFields.includes(field)) {
+            // Convertir a número explícitamente
+            const numValue = Number(value);
+            if (!isNaN(numValue)) {
+              value = numValue;
+              console.log(`🔧 Campo numérico ${field}: valor recibido "${body[field]}", convertido a ${value} (tipo: ${typeof value})`);
+            } else {
+              console.warn(`⚠️ Campo numérico ${field}: valor "${body[field]}" no es un número válido, usando valor original`);
+            }
           }
         }
         

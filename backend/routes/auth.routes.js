@@ -7,6 +7,7 @@ const { query, getAnioActivo } = require('../utils/mysql');
 const { getColegioData } = require('../utils/colegio');
 const { registrarAccion } = require('../utils/auditoria');
 const { authenticateToken } = require('../middleware/auth');
+const { calcularPensionesAVerificar } = require('../utils/deudaPensiones');
 
 /**
  * POST /api/auth/login
@@ -361,7 +362,7 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
     
     // Obtener configuración del colegio
     const colegios = await query(
-      `SELECT bloquear_deudores, dias_tolerancia, pensiones_vencimiento, inicio_pensiones, anio_activo
+      `SELECT bloquear_deudores, bloquear_deudores_hasta_mes, dias_tolerancia, pensiones_vencimiento, inicio_pensiones, anio_activo
        FROM colegios WHERE id = ?`,
       [usuario.colegio_id]
     );
@@ -526,13 +527,14 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
       // Verificar todas las pensiones que tengan configuración de vencimiento
       // O si nroPago > 0, verificar desde 1 hasta nroPago
       // Esto permite detectar pensiones con fechas de vencimiento anteriores al mes actual
-      const pensionesAVerificar = nroPago > 0 
-        ? Array.from({ length: nroPago }, (_, i) => i + 1)
-        : Object.keys(vencimientosPensiones)
-            .map(k => parseInt(k))
-            .filter(k => k > 0 && !isNaN(k)); // Solo pensiones (excluir -1 que es matrícula)
+      const pensionesAVerificar = calcularPensionesAVerificar({
+        nroPago,
+        vencimientosPensiones,
+        bloquearDeudoresHastaMes: colegio.bloquear_deudores_hasta_mes,
+        inicioPensiones,
+      });
 
-      console.log(`[VERIFICAR DEUDAS] nroPago: ${nroPago}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
+      console.log(`[VERIFICAR DEUDAS] nroPago: ${nroPago}, bloquear_deudores_hasta_mes: ${colegio.bloquear_deudores_hasta_mes ?? 'NULL'}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
       console.log(`[VERIFICAR DEUDAS] pensionesAVerificar calculado (ALUMNO):`, pensionesAVerificar);
       console.log(`[VERIFICAR DEUDAS] Total pensiones a verificar (ALUMNO): ${pensionesAVerificar.length}`);
 
@@ -620,11 +622,12 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
       // Verificar todas las pensiones que tengan configuración de vencimiento
       // O si nroPago > 0, verificar desde 1 hasta nroPago
       console.log(`[VERIFICAR DEUDAS] nroPago: ${nroPago}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
-      const pensionesAVerificar = nroPago > 0 
-        ? Array.from({ length: nroPago }, (_, i) => i + 1)
-        : Object.keys(vencimientosPensiones)
-            .map(k => parseInt(k))
-            .filter(k => k > 0 && !isNaN(k)); // Solo pensiones (excluir -1 que es matrícula)
+      const pensionesAVerificar = calcularPensionesAVerificar({
+        nroPago,
+        vencimientosPensiones,
+        bloquearDeudoresHastaMes: colegio.bloquear_deudores_hasta_mes,
+        inicioPensiones,
+      });
 
       console.log(`[VERIFICAR DEUDAS] pensionesAVerificar calculado (APODERADO):`, pensionesAVerificar);
       console.log(`[VERIFICAR DEUDAS] Total pensiones a verificar (APODERADO): ${pensionesAVerificar.length}`);
@@ -772,11 +775,12 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
       // Verificar todas las pensiones que tengan configuración de vencimiento
       // O si nroPago > 0, verificar desde 1 hasta nroPago
       console.log(`[VERIFICAR DEUDAS] nroPago: ${nroPago}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
-      const pensionesAVerificar = nroPago > 0 
-        ? Array.from({ length: nroPago }, (_, i) => i + 1)
-        : Object.keys(vencimientosPensiones)
-            .map(k => parseInt(k))
-            .filter(k => k > 0 && !isNaN(k)); // Solo pensiones (excluir -1 que es matrícula)
+      const pensionesAVerificar = calcularPensionesAVerificar({
+        nroPago,
+        vencimientosPensiones,
+        bloquearDeudoresHastaMes: colegio.bloquear_deudores_hasta_mes,
+        inicioPensiones,
+      });
 
       console.log(`[VERIFICAR DEUDAS] pensionesAVerificar calculado (DOCENTE/APODERADO):`, pensionesAVerificar);
       console.log(`[VERIFICAR DEUDAS] Total pensiones a verificar (DOCENTE/APODERADO): ${pensionesAVerificar.length}`);
@@ -917,7 +921,7 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
     
     // Obtener configuración del colegio
     const colegios = await query(
-      `SELECT bloquear_deudores, dias_tolerancia, pensiones_vencimiento, inicio_pensiones, ciclo_pensiones
+      `SELECT bloquear_deudores, bloquear_deudores_hasta_mes, dias_tolerancia, pensiones_vencimiento, inicio_pensiones, ciclo_pensiones
        FROM colegios WHERE id = ?`,
       [colegio_id]
     );
@@ -1033,12 +1037,14 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
     
     // Verificar todas las pensiones que tengan configuración de vencimiento
     // O si nroPago > 0, verificar desde 1 hasta nroPago
-    const pensionesAVerificar = nroPago > 0 
-      ? Array.from({ length: nroPago }, (_, i) => i + 1)
-      : Object.keys(vencimientosPensiones)
-          .map(k => parseInt(k))
-          .filter(k => k > 0 && !isNaN(k)); // Solo pensiones (excluir -1 que es matrícula)
+    const pensionesAVerificar = calcularPensionesAVerificar({
+      nroPago,
+      vencimientosPensiones,
+      bloquearDeudoresHastaMes: colegio.bloquear_deudores_hasta_mes,
+      inicioPensiones,
+    });
 
+    console.log(`[DIAGNOSTICO] bloquear_deudores_hasta_mes: ${colegio.bloquear_deudores_hasta_mes ?? 'NULL'}`);
     console.log(`[DIAGNOSTICO] Pensiones a verificar:`, pensionesAVerificar);
 
     // Verificar cada pensión
@@ -1120,6 +1126,7 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
       },
       configuracion: {
         bloquear_deudores: colegio.bloquear_deudores,
+        bloquear_deudores_hasta_mes: colegio.bloquear_deudores_hasta_mes,
         dias_tolerancia: diasTolerancia,
         inicio_pensiones: inicioPensiones,
         ciclo_pensiones: cicloPensiones,

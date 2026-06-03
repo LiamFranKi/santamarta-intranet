@@ -10,6 +10,7 @@ const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = requ
 const { enviarCorreoNotificacion } = require('../services/emailService');
 const { urlMensajesPorTipoUsuario } = require('../utils/notificacionUrls');
 const phpSerialize = require('php-serialize');
+const { calcularPensionesAVerificar } = require('../utils/deudaPensiones');
 const {
   obtenerContextoAlumnoGrupoParaMensaje,
   enriquecerMensajeApoderadoADocente
@@ -157,7 +158,7 @@ async function apoderadoTieneDeudaParaAnio(apoderado_id, colegio_id, anioConsult
   if (!apoderado_id || !colegio_id || !anioConsulta || isNaN(anioConsulta)) return { tieneMatriculas: false, tieneDeuda: false };
 
   const colegios = await query(
-    `SELECT bloquear_deudores, dias_tolerancia, pensiones_vencimiento, inicio_pensiones
+    `SELECT bloquear_deudores, bloquear_deudores_hasta_mes, dias_tolerancia, pensiones_vencimiento, inicio_pensiones
      FROM colegios WHERE id = ?`,
     [colegio_id]
   );
@@ -214,11 +215,12 @@ async function apoderadoTieneDeudaParaAnio(apoderado_id, colegio_id, anioConsult
   const currentMonth = new Date().getMonth() + 1; // 1-12
   const nroPago = currentMonth - inicioPensiones;
 
-  const pensionesAVerificar = nroPago > 0
-    ? Array.from({ length: nroPago }, (_, i) => i + 1)
-    : Object.keys(vencimientosPensiones)
-        .map(k => parseInt(k, 10))
-        .filter(k => k > 0 && !isNaN(k));
+  const pensionesAVerificar = calcularPensionesAVerificar({
+    nroPago,
+    vencimientosPensiones,
+    bloquearDeudoresHastaMes: colegio.bloquear_deudores_hasta_mes,
+    inicioPensiones,
+  });
 
   if (pensionesAVerificar.length === 0) {
     // Si no hay pensiones configuradas, no consideramos deuda.

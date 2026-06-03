@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
+import './AdminEstadisticas.css';
 import './AdminReportesTemas.css';
 
 const TYPE_ORDER = [
@@ -288,9 +289,9 @@ export default function AdminReportesTemas() {
     <DashboardLayout>
       <div className="art-root">
         <div className="art-inner">
-          <header className="art-hero">
-            <h1>Reporte · Temas del aula virtual</h1>
-            <p>
+          <header className="admin-estadisticas-header art-header">
+            <h1 className="admin-estadisticas-title">Temas del aula virtual</h1>
+            <p className="admin-estadisticas-desc">
               Consulta centralizada de temas interactivos, sesiones, tareas, videos, enlaces y exámenes del aula,
               filtrados por grupo (nivel · grado · sección), curso y/o docente. Cada salón (A, B, …) es un grupo distinto.
               El bimestre aplica a los contenidos que lo usan en base de datos; los temas históricos sin bimestre siguen listándose aparte.
@@ -315,7 +316,7 @@ export default function AdminReportesTemas() {
             </div>
             {meta?.anio != null && (
               <span className="art-anio">
-                Año lectivo <strong style={{ color: '#e2e8f0' }}>{meta.anio}</strong>
+                Año lectivo <strong>{meta.anio}</strong>
               </span>
             )}
           </div>
@@ -495,7 +496,7 @@ export default function AdminReportesTemas() {
                     <div className="art-bloque-head">
                       <h3>
                         {b.curso_nombre || 'Curso'}{' '}
-                        <span style={{ fontWeight: 500, opacity: 0.9 }}>
+                        <span className="art-bloque-subtitle">
                           · {b.nivel_nombre || ''} {b.grado != null ? `${b.grado}°` : ''} — Secc. {b.seccion || '—'}
                         </span>
                       </h3>
@@ -513,12 +514,12 @@ export default function AdminReportesTemas() {
                             </span>
                             <span className="art-item-titulo">{it.titulo || '—'}</span>
                             {it.tipo === 'tarea' && it.archivos?.length > 1 && (
-                              <span className="art-stat" style={{ border: 'none', padding: '0.2rem 0.5rem' }}>
+                              <span className="art-stat art-item-meta">
                                 +{it.archivos.length - 1} archivo(s)
                               </span>
                             )}
                             {it.tipo === 'examen_aula' && it.estado && (
-                              <span className="art-stat" style={{ border: 'none', padding: '0.2rem 0.5rem' }}>
+                              <span className="art-stat art-item-meta">
                                 {it.estado}
                               </span>
                             )}
