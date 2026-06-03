@@ -587,6 +587,7 @@ export default function DisenadorFichas() {
           ) : (
             <div className="voc-alert">Comprobando Vanguarcito…</div>
           )}
+            {!esDocente && (
             <details className="fia-tips">
               <summary>💡 ¿Dónde más usar Vanguarcito sin gastar mucho en IA?</summary>
               <ul>
@@ -612,6 +613,7 @@ export default function DisenadorFichas() {
                 </li>
               </ul>
             </details>
+            )}
           </div>
           <div className="fia-hero-mascota" aria-hidden="true">
             <MascotaVanguarcitoVisual

@@ -122,7 +122,7 @@ router.get('/meta/grupos', async (req, res) => {
 /** Cursos unificados de varias secciones (mismo nivel + grado). Query: grupo_ids=1,2,3 */
 router.get('/meta/grupos/cursos', async (req, res) => {
   try {
-    const { colegio_id } = req.user;
+    const { colegio_id, tipo, personal_id } = req.user;
     const grupoIds = String(req.query.grupo_ids || '')
       .split(',')
       .map((x) => parseInt(String(x).trim(), 10))
@@ -130,7 +130,11 @@ router.get('/meta/grupos/cursos', async (req, res) => {
     if (!grupoIds.length) {
       return res.status(400).json({ error: 'Indique grupo_ids (lista separada por comas)' });
     }
-    const cursos = await listarCursosPorGrupos(colegio_id, grupoIds);
+    const soloDocente =
+      tipo === 'DOCENTE' && personal_id ? parseInt(personal_id, 10) : null;
+    const cursos = await listarCursosPorGrupos(colegio_id, grupoIds, {
+      personal_id: Number.isFinite(soloDocente) ? soloDocente : null,
+    });
     res.json({ cursos });
   } catch (e) {
     console.error('[fichas-ia/meta/grupos/cursos]', e);
