@@ -112,6 +112,38 @@ async function verificarAccesoAsignatura(
   return row;
 }
 
+function trabajadorIdParaAsignatura(req, asignaturaRow) {
+  if (esAdminOPromotoria(req.user?.tipo)) {
+    const tid = parseInt(asignaturaRow?.personal_id, 10);
+    if (Number.isFinite(tid) && tid > 0) return tid;
+  }
+  const pid = parseInt(req.user?.personal_id, 10);
+  if (Number.isFinite(pid) && pid > 0) return pid;
+  return parseInt(asignaturaRow?.personal_id, 10) || 0;
+}
+
+async function verificarAccesoTemaArchivo(req, res, temaId) {
+  const id = parseInt(temaId, 10);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: 'ID de tema inválido' });
+    return null;
+  }
+  const rows = await query(`SELECT aa.* FROM asignaturas_archivos aa WHERE aa.id = ?`, [id]);
+  if (!rows?.length) {
+    res.status(404).json({ error: 'Tema no encontrado o sin permisos' });
+    return null;
+  }
+  const asignatura = await verificarAccesoAsignatura(
+    req,
+    res,
+    rows[0].asignatura_id,
+    'a.*',
+    'No tienes acceso a esta asignatura'
+  );
+  if (!asignatura) return null;
+  return { tema: rows[0], asignatura };
+}
+
 /** Examen del aula virtual: titular o staff (admin/promotoría) en colegio y año activo. */
 async function verificarAccesoExamen(
   req,
@@ -17169,13 +17201,14 @@ router.get('/aula-virtual/sesiones', async (req, res) => {
 
     const cicloFiltro = ciclo ? parseInt(ciclo) : 1;
 
-    const asignaturaCheck = req.user.tipo === 'ADMINISTRADOR'
-      ? await query(`SELECT a.* FROM asignaturas a INNER JOIN grupos g ON g.id = a.grupo_id WHERE a.id = ? AND a.colegio_id = ? AND g.anio = ?`, [asignatura_id, colegio_id, anio_activo])
-      : await query(`SELECT a.* FROM asignaturas a INNER JOIN grupos g ON g.id = a.grupo_id WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`, [asignatura_id, req.user.personal_id, colegio_id, anio_activo]);
-
-    if (asignaturaCheck.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
-    }
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
+    );
+    if (!asignaturaAcceso) return;
 
     const sesiones = await query(
       `SELECT s.*, aa.nombre as tema_nombre
@@ -17220,13 +17253,16 @@ router.post('/aula-virtual/sesiones', uploadAulaVirtual.single('archivo'), async
       return res.status(400).json({ error: 'Debe subir un archivo PDF' });
     }
 
-    const asignaturaCheck = req.user.tipo === 'ADMINISTRADOR'
-      ? await query(`SELECT a.* FROM asignaturas a INNER JOIN grupos g ON g.id = a.grupo_id WHERE a.id = ? AND a.colegio_id = ? AND g.anio = ?`, [asignatura_id, colegio_id, anio_activo])
-      : await query(`SELECT a.* FROM asignaturas a INNER JOIN grupos g ON g.id = a.grupo_id WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`, [asignatura_id, personal_id, colegio_id, anio_activo]);
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
+    );
+    if (!asignaturaAcceso) return;
 
-    if (asignaturaCheck.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
-    }
+    const trabajadorId = trabajadorIdParaAsignatura(req, asignaturaAcceso);
 
     const tema = await query(`SELECT * FROM asignaturas_archivos WHERE id = ? AND asignatura_id = ?`, [tema_id, asignatura_id]);
     if (tema.length === 0) {
@@ -17240,7 +17276,7 @@ router.post('/aula-virtual/sesiones', uploadAulaVirtual.single('archivo'), async
     await execute(
       `INSERT INTO asignaturas_sesion_pdf (asignatura_id, tema_id, titulo, descripcion, archivo, ciclo, trabajador_id, fecha_hora, colegio_id)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [asignatura_id, tema_id, titulo, descripcion || '', archivoPath, parseInt(ciclo), personal_id, fechaHora, colegio_id]
+      [asignatura_id, tema_id, titulo, descripcion || '', archivoPath, parseInt(ciclo), trabajadorId, fechaHora, colegio_id]
     );
 
     res.json({ success: true, message: 'Sesión creada correctamente' });
@@ -17338,17 +17374,16 @@ router.post('/aula-virtual/tareas', uploadAulaVirtual.single('archivo'), async (
       return res.status(400).json({ error: 'Debe proporcionar al menos un archivo o una URL' });
     }
 
-    // Verificar que el docente tiene acceso a esta asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, personal_id, colegio_id, anio_activo]
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
     );
+    if (!asignaturaAcceso) return;
 
-    if (asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
-    }
+    const trabajadorId = trabajadorIdParaAsignatura(req, asignaturaAcceso);
 
     // IMPORTANTE: Guardar solo el nombre del archivo (como hace el sistema PHP anterior)
     // El sistema PHP construye la URL agregando /Static/Archivos/ al inicio
@@ -17417,7 +17452,7 @@ router.post('/aula-virtual/tareas', uploadAulaVirtual.single('archivo'), async (
         descripcion || '',
         fechaHora,
         fecha_entrega,
-        personal_id,
+        trabajadorId,
         asignatura_id,
         parseInt(ciclo),
         enlace || ''
@@ -21214,17 +21249,16 @@ router.post('/aula-virtual/archivos', uploadAulaVirtual.single('archivo'), async
       return res.status(400).json({ error: 'Debe proporcionar al menos un archivo o una URL' });
     }
 
-    // Verificar que el docente tiene acceso a esta asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, personal_id, colegio_id, anio_activo]
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
     );
+    if (!asignaturaAcceso) return;
 
-    if (asignatura.length === 0) {
-      return res.status(403).json({ error: 'No tienes acceso a esta asignatura' });
-    }
+    const trabajadorId = trabajadorIdParaAsignatura(req, asignaturaAcceso);
 
     // Obtener el máximo orden para este ciclo
     const maxOrden = await query(
@@ -21305,7 +21339,7 @@ router.post('/aula-virtual/archivos', uploadAulaVirtual.single('archivo'), async
        VALUES (?, ?, ?, ?, '', ?, ?, ?, ?)`,
       [
         asignatura_id,
-        personal_id,
+        trabajadorId,
         nombre,
         archivoPath,
         fechaHoraTema,
@@ -21361,20 +21395,11 @@ router.put('/aula-virtual/archivos/:id', uploadAulaVirtual.single('archivo'), as
       return res.status(400).json({ error: 'nombre es requerido' });
     }
 
-    // Verificar que el tema existe y pertenece a una asignatura del docente
-    const tema = await query(
-      `SELECT aa.* FROM asignaturas_archivos aa
-       INNER JOIN asignaturas a ON a.id = aa.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE aa.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [id, personal_id, colegio_id, anio_activo]
-    );
+    // Verificar que el tema existe y el usuario tiene acceso (docente titular o admin/promotoría)
+    const accesoTema = await verificarAccesoTemaArchivo(req, res, id);
+    if (!accesoTema) return;
+    const temaActual = accesoTema.tema;
 
-    if (tema.length === 0) {
-      return res.status(404).json({ error: 'Tema no encontrado o sin permisos' });
-    }
-
-    const temaActual = tema[0];
     let archivoPath = temaActual.archivo;
 
     // Si se subió un nuevo archivo, actualizar (guardar solo el nombre del archivo, como el sistema PHP)
@@ -21459,20 +21484,9 @@ router.delete('/aula-virtual/archivos/:id', async (req, res) => {
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { id } = req.params;
 
-    // Verificar que el tema existe y pertenece a una asignatura del docente
-    const tema = await query(
-      `SELECT aa.* FROM asignaturas_archivos aa
-       INNER JOIN asignaturas a ON a.id = aa.asignatura_id
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE aa.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [id, personal_id, colegio_id, anio_activo]
-    );
-
-    if (tema.length === 0) {
-      return res.status(404).json({ error: 'Tema no encontrado o sin permisos' });
-    }
-
-    const temaActual = tema[0];
+    const accesoTema = await verificarAccesoTemaArchivo(req, res, id);
+    if (!accesoTema) return;
+    const temaActual = accesoTema.tema;
 
     // Registrar auditoría ANTES de eliminar
     registrarAccion({
@@ -21605,53 +21619,16 @@ router.post('/aula-virtual/videos', async (req, res) => {
       return res.status(400).json({ error: 'asignatura_id, descripcion, enlace y ciclo son requeridos' });
     }
 
-    if (!personal_id) {
-      console.error('❌ [VIDEO] personal_id no está disponible en req.user');
-      return res.status(403).json({ error: 'Error de autenticación: personal_id no disponible' });
-    }
-
-    // Verificar que el docente tiene acceso a esta asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, personal_id, colegio_id, anio_activo]
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
     );
+    if (!asignaturaAcceso) return;
 
-    console.log('📹 [VIDEO] Asignatura encontrada:', asignatura.length > 0 ? 'Sí' : 'No');
-
-    if (asignatura.length === 0) {
-      // Intentar obtener más información para debug
-      const asignaturaInfo = await query(
-        `SELECT a.*, a.personal_id as asignatura_personal_id, g.anio as grupo_anio
-         FROM asignaturas a
-         INNER JOIN grupos g ON g.id = a.grupo_id
-         WHERE a.id = ?`,
-        [asignatura_id]
-      );
-      
-      console.error('❌ [VIDEO] No se encontró asignatura con:', { 
-        asignatura_id, 
-        personal_id, 
-        colegio_id, 
-        anio_activo,
-        asignatura_info: asignaturaInfo.length > 0 ? {
-          asignatura_personal_id: asignaturaInfo[0].asignatura_personal_id,
-          grupo_anio: asignaturaInfo[0].grupo_anio,
-          asignatura_colegio_id: asignaturaInfo[0].colegio_id
-        } : 'Asignatura no existe'
-      });
-      
-      return res.status(403).json({ 
-        error: 'No tienes acceso a esta asignatura',
-        debug: asignaturaInfo.length > 0 ? {
-          asignatura_personal_id: asignaturaInfo[0].asignatura_personal_id,
-          grupo_anio: asignaturaInfo[0].grupo_anio,
-          personal_id_usuario: personal_id,
-          anio_activo: anio_activo
-        } : 'Asignatura no encontrada'
-      });
-    }
+    const trabajadorId = trabajadorIdParaAsignatura(req, asignaturaAcceso);
 
     // Preparar datos para auditoría
     const datosNuevos = { asignatura_id, descripcion, enlace, ciclo };
@@ -21672,7 +21649,7 @@ router.post('/aula-virtual/videos', async (req, res) => {
       [
         usuario_id,
         colegio_id,
-        'DOCENTE',
+        req.user.tipo || 'DOCENTE',
         'CREAR',
         'AULA_VIRTUAL',
         'video',
@@ -21699,7 +21676,7 @@ router.post('/aula-virtual/videos', async (req, res) => {
     const result = await execute(
       `INSERT INTO asignaturas_videos (asignatura_id, descripcion, enlace, trabajador_id, fecha_hora, ciclo)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [asignatura_id, descripcion, enlace, personal_id, fechaHoraVideo, ciclo]
+      [asignatura_id, descripcion, enlace, trabajadorId, fechaHoraVideo, ciclo]
     );
 
     // Actualizar auditoría con el ID del video
@@ -21763,12 +21740,14 @@ router.put('/aula-virtual/videos/:videoId', async (req, res) => {
       return res.status(404).json({ error: 'Video no encontrado' });
     }
 
-    // Verificar que el docente tiene acceso
-    if (videoActual[0].personal_id !== personal_id || 
-        videoActual[0].colegio_id !== colegio_id || 
-        videoActual[0].anio !== anio_activo) {
-      return res.status(403).json({ error: 'No tienes acceso a este video' });
-    }
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      videoActual[0].asignatura_id,
+      'a.id',
+      'No tienes acceso a este video'
+    );
+    if (!asignaturaAcceso) return;
 
     // Preparar datos nuevos para auditoría
     const datosNuevos = { descripcion, enlace, ciclo };
@@ -21833,18 +21812,21 @@ router.delete('/aula-virtual/videos/:videoId', async (req, res) => {
       return res.status(404).json({ error: 'Video no encontrado' });
     }
 
-    // Verificar que el docente tiene acceso
-    if (videoActual[0].personal_id !== personal_id || 
-        videoActual[0].colegio_id !== colegio_id || 
-        videoActual[0].anio !== anio_activo) {
-      return res.status(403).json({ error: 'No tienes acceso a este video' });
-    }
+    // Verificar acceso (docente titular o admin/promotoría)
+    const asignaturaAccesoVideoDel = await verificarAccesoAsignatura(
+      req,
+      res,
+      videoActual[0].asignatura_id,
+      'a.id',
+      'No tienes acceso a este video'
+    );
+    if (!asignaturaAccesoVideoDel) return;
 
     // Registrar auditoría ANTES de eliminar
     registrarAccion({
       usuario_id,
       colegio_id,
-      tipo_usuario: 'DOCENTE',
+      tipo_usuario: req.user.tipo || 'DOCENTE',
       accion: 'ELIMINAR',
       modulo: 'AULA_VIRTUAL',
       entidad: 'video',
@@ -21891,53 +21873,16 @@ router.post('/aula-virtual/enlaces', async (req, res) => {
       return res.status(400).json({ error: 'asignatura_id, descripcion, enlace y ciclo son requeridos' });
     }
 
-    if (!personal_id) {
-      console.error('❌ [ENLACE] personal_id no está disponible en req.user');
-      return res.status(403).json({ error: 'Error de autenticación: personal_id no disponible' });
-    }
-
-    // Verificar que el docente tiene acceso a esta asignatura
-    const asignatura = await query(
-      `SELECT a.* FROM asignaturas a
-       INNER JOIN grupos g ON g.id = a.grupo_id
-       WHERE a.id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?`,
-      [asignatura_id, personal_id, colegio_id, anio_activo]
+    const asignaturaAcceso = await verificarAccesoAsignatura(
+      req,
+      res,
+      asignatura_id,
+      'a.*',
+      'No tienes acceso a esta asignatura'
     );
+    if (!asignaturaAcceso) return;
 
-    console.log('🔗 [ENLACE] Asignatura encontrada:', asignatura.length > 0 ? 'Sí' : 'No');
-
-    if (asignatura.length === 0) {
-      // Intentar obtener más información para debug
-      const asignaturaInfo = await query(
-        `SELECT a.*, a.personal_id as asignatura_personal_id, g.anio as grupo_anio
-         FROM asignaturas a
-         INNER JOIN grupos g ON g.id = a.grupo_id
-         WHERE a.id = ?`,
-        [asignatura_id]
-      );
-      
-      console.error('❌ [ENLACE] No se encontró asignatura con:', { 
-        asignatura_id, 
-        personal_id, 
-        colegio_id, 
-        anio_activo,
-        asignatura_info: asignaturaInfo.length > 0 ? {
-          asignatura_personal_id: asignaturaInfo[0].asignatura_personal_id,
-          grupo_anio: asignaturaInfo[0].grupo_anio,
-          asignatura_colegio_id: asignaturaInfo[0].colegio_id
-        } : 'Asignatura no existe'
-      });
-      
-      return res.status(403).json({ 
-        error: 'No tienes acceso a esta asignatura',
-        debug: asignaturaInfo.length > 0 ? {
-          asignatura_personal_id: asignaturaInfo[0].asignatura_personal_id,
-          grupo_anio: asignaturaInfo[0].grupo_anio,
-          personal_id_usuario: personal_id,
-          anio_activo: anio_activo
-        } : 'Asignatura no encontrada'
-      });
-    }
+    const trabajadorId = trabajadorIdParaAsignatura(req, asignaturaAcceso);
 
     // Preparar datos para auditoría
     const datosNuevos = { asignatura_id, descripcion, enlace, ciclo };
@@ -21958,7 +21903,7 @@ router.post('/aula-virtual/enlaces', async (req, res) => {
       [
         usuario_id,
         colegio_id,
-        'DOCENTE',
+        req.user.tipo || 'DOCENTE',
         'CREAR',
         'AULA_VIRTUAL',
         'enlace',
@@ -21985,7 +21930,7 @@ router.post('/aula-virtual/enlaces', async (req, res) => {
     const result = await execute(
       `INSERT INTO asignaturas_enlaces (asignatura_id, descripcion, enlace, trabajador_id, fecha_hora, ciclo)
        VALUES (?, ?, ?, ?, ?, ?)`,
-      [asignatura_id, descripcion, enlace, personal_id, fechaHoraEnlace, ciclo]
+      [asignatura_id, descripcion, enlace, trabajadorId, fechaHoraEnlace, ciclo]
     );
 
     // Actualizar auditoría con el ID del enlace
@@ -22049,12 +21994,14 @@ router.put('/aula-virtual/enlaces/:enlaceId', async (req, res) => {
       return res.status(404).json({ error: 'Enlace no encontrado' });
     }
 
-    // Verificar que el docente tiene acceso
-    if (enlaceActual[0].personal_id !== personal_id || 
-        enlaceActual[0].colegio_id !== colegio_id || 
-        enlaceActual[0].anio !== anio_activo) {
-      return res.status(403).json({ error: 'No tienes acceso a este enlace' });
-    }
+    const asignaturaAccesoEnlacePut = await verificarAccesoAsignatura(
+      req,
+      res,
+      enlaceActual[0].asignatura_id,
+      'a.id',
+      'No tienes acceso a este enlace'
+    );
+    if (!asignaturaAccesoEnlacePut) return;
 
     // Preparar datos nuevos para auditoría
     const datosNuevos = { descripcion, enlace, ciclo };
@@ -22119,18 +22066,20 @@ router.delete('/aula-virtual/enlaces/:enlaceId', async (req, res) => {
       return res.status(404).json({ error: 'Enlace no encontrado' });
     }
 
-    // Verificar que el docente tiene acceso
-    if (enlaceActual[0].personal_id !== personal_id || 
-        enlaceActual[0].colegio_id !== colegio_id || 
-        enlaceActual[0].anio !== anio_activo) {
-      return res.status(403).json({ error: 'No tienes acceso a este enlace' });
-    }
+    const asignaturaAccesoEnlaceDel = await verificarAccesoAsignatura(
+      req,
+      res,
+      enlaceActual[0].asignatura_id,
+      'a.id',
+      'No tienes acceso a este enlace'
+    );
+    if (!asignaturaAccesoEnlaceDel) return;
 
     // Registrar auditoría ANTES de eliminar
     registrarAccion({
       usuario_id,
       colegio_id,
-      tipo_usuario: 'DOCENTE',
+      tipo_usuario: req.user.tipo || 'DOCENTE',
       accion: 'ELIMINAR',
       modulo: 'AULA_VIRTUAL',
       entidad: 'enlace',
