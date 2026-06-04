@@ -14,7 +14,7 @@ function fotoUrlYPath(alumnoFoto, phpSystemUrl, isProduction, baseFotosPath) {
     : `http://localhost:5000/Static/Image/Fotos/${alumnoFoto}`;
   let fotoPath = path.join(baseFotosPath, path.basename(alumnoFoto));
   if (!fs.existsSync(fotoPath) && isProduction) {
-    fotoPath = path.join('/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos', path.basename(alumnoFoto));
+    fotoPath = path.join('/home/vanguard/intranet2026/backend/Static/Image/Fotos', path.basename(alumnoFoto));
   }
   return { foto_url, fotoPath };
 }
@@ -36,7 +36,7 @@ async function leerLogoBoletaBase64(query) {
   if (!configLogo || !configLogo.length || !configLogo[0].valor) {
     return { logo_url: null, logo_base64: null };
   }
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
   const isProduction = process.env.NODE_ENV === 'production';
   const logo_url = isProduction
     ? `${phpSystemUrl}/Static/Archivos/${configLogo[0].valor}`
@@ -44,7 +44,7 @@ async function leerLogoBoletaBase64(query) {
   const baseArchivosPath = process.env.STATIC_ARCHIVOS_PATH || path.join(__dirname, '..', 'Static', 'Archivos');
   let logoPath = path.join(baseArchivosPath, path.basename(configLogo[0].valor));
   if (!fs.existsSync(logoPath) && isProduction) {
-    logoPath = path.join('/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Archivos', path.basename(configLogo[0].valor));
+    logoPath = path.join('/home/vanguard/intranet2026/backend/Static/Archivos', path.basename(configLogo[0].valor));
   }
   let logo_base64 = null;
   try {
@@ -125,7 +125,7 @@ async function buildQrCarnetPayloadForAlumnoEnGrupo(query, { colegio_id, alumno_
 
   const qrDataStr = alumnoData.nro_documento || `ALUMNO-${alumnoData.id}`;
 
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
   const isProduction = process.env.NODE_ENV === 'production';
   const baseFotosPath = process.env.STATIC_FOTOS_PATH || path.join(__dirname, '..', 'Static', 'Image', 'Fotos');
   const { foto_url, fotoPath } = fotoUrlYPath(alumnoData.foto, phpSystemUrl, isProduction, baseFotosPath);

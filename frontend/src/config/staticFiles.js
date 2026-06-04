@@ -8,10 +8,10 @@
 // Dominio base para archivos estáticos (PDFs, imágenes, etc.)
 // NOTA: Este valor puede cambiar cuando se suba al VPS
 // Opciones comunes:
-//   - Desarrollo: 'https://nuevo.vanguardschools.edu.pe'
-//   - Producción (mismo VPS): 'https://nuevo.vanguardschools.edu.pe' o 'https://vanguardschools.edu.pe'
+//   - Desarrollo: 'https://sistema.vanguardschools.edu.pe'
+//   - Producción (mismo VPS): 'https://sistema.vanguardschools.edu.pe' o 'https://vanguardschools.edu.pe'
 //   - Producción (VPS diferente): ajustar según donde estén los archivos
-const STATIC_FILES_DOMAIN = process.env.REACT_APP_STATIC_FILES_DOMAIN || 'https://nuevo.vanguardschools.edu.pe';
+const STATIC_FILES_DOMAIN = process.env.REACT_APP_STATIC_FILES_DOMAIN || 'https://sistema.vanguardschools.edu.pe';
 
 /**
  * Construye la URL completa para un archivo estático

@@ -144,7 +144,7 @@ router.post('/login', async (req, res) => {
     // Por lo tanto, no se puede obtener foto para apoderados
     
     if (fotoNombre && fotoNombre !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       if (isProduction) {
         // En producción: usar la URL completa del servidor PHP
@@ -296,7 +296,7 @@ router.get('/me', authenticateToken, async (req, res) => {
     }
     
     if (fotoNombre && fotoNombre !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       if (isProduction) {
         // En producción: usar la URL completa del servidor PHP

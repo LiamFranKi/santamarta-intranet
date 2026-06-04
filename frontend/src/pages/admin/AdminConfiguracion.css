@@ -397,6 +397,12 @@
   line-height: 1.6;
 }
 
+.config-quill-editor .ql-editor img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
 @media (max-width: 768px) {
   .admin-configuracion {
     padding: 1rem;

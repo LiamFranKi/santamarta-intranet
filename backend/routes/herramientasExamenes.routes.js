@@ -27,7 +27,7 @@ const {
 /** Misma carpeta pública que mensajes / aula virtual (Static/Archivos). */
 const hexEditorImagenStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const primary = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Archivos';
+    const primary = '/home/vanguard/intranet2026/backend/Static/Archivos';
     const fallback = path.join(__dirname, '../uploads/archivos');
     let dir = primary;
     try {

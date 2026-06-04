@@ -182,7 +182,7 @@ function EventoDetalleModal({ evento, tipo, onClose }) {
                   <a 
                     href={evento.archivo_pdf.startsWith('http') 
                       ? evento.archivo_pdf 
-                      : `https://nuevo.vanguardschools.edu.pe/Static/Archivos/${evento.archivo_pdf}`}
+                      : `https://sistema.vanguardschools.edu.pe/Static/Archivos/${evento.archivo_pdf}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ color: '#4a83c1', textDecoration: 'underline' }}

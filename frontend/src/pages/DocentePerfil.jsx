@@ -87,7 +87,7 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
           fotoUrl = data.foto;
         } else if (data.foto.startsWith('/Static/')) {
           // Es una ruta completa del sistema anterior
-          fotoUrl = `https://nuevo.vanguardschools.edu.pe${data.foto}`;
+          fotoUrl = `https://sistema.vanguardschools.edu.pe${data.foto}`;
         } else if (data.foto.startsWith('/uploads/')) {
           // Es una ruta de uploads (compatibilidad con archivos antiguos)
           const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
@@ -95,7 +95,7 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
           fotoUrl = `${currentProtocol}//${currentHost}${data.foto}`;
         } else {
           // Es solo el nombre del archivo (formato del sistema PHP, igual que publicaciones)
-          fotoUrl = `https://nuevo.vanguardschools.edu.pe/Static/Image/Fotos/${data.foto}`;
+          fotoUrl = `https://sistema.vanguardschools.edu.pe/Static/Image/Fotos/${data.foto}`;
         }
         setFotoPreview(fotoUrl);
         console.log('📸 Foto de perfil cargada:', fotoUrl);
@@ -243,7 +243,7 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
               fotoUrlForContext = perfilActualizado.foto;
             } else if (perfilActualizado.foto.startsWith('/Static/')) {
               // Es una ruta completa del sistema anterior
-              fotoUrlForContext = `https://nuevo.vanguardschools.edu.pe${perfilActualizado.foto}`;
+              fotoUrlForContext = `https://sistema.vanguardschools.edu.pe${perfilActualizado.foto}`;
             } else if (perfilActualizado.foto.startsWith('/uploads/')) {
               // Es una ruta de uploads (compatibilidad con archivos antiguos)
               const currentProtocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
@@ -251,7 +251,7 @@ function DocentePerfil({ apiPrefix = '/docente', dashboardPath = '/docente/dashb
               fotoUrlForContext = `${currentProtocol}//${currentHost}${perfilActualizado.foto}`;
             } else {
               // Es solo el nombre del archivo (formato del sistema PHP, igual que publicaciones)
-              fotoUrlForContext = `https://nuevo.vanguardschools.edu.pe/Static/Image/Fotos/${perfilActualizado.foto}`;
+              fotoUrlForContext = `https://sistema.vanguardschools.edu.pe/Static/Image/Fotos/${perfilActualizado.foto}`;
             }
           }
           

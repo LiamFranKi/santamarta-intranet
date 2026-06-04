@@ -1,4 +1,5 @@
 import api from '../services/api';
+import { getPublicStaticBaseUrl } from './staticUrl';
 
 /** Marca al inicio del HTML (cumpleaños desde widget); no depende de columna en BD. */
 export const MARCA_CUMPLEANOS_HTML = '<!-- intranet-cumpleanos -->';
@@ -37,11 +38,9 @@ export function mensajeHtmlTieneContenido(html) {
 export function procesarHTMLMensaje(html) {
   if (!html) return '';
   const baseURL = (api.defaults.baseURL || '').replace(/\/api\/?$/, '');
-  const phpBase = (process.env.REACT_APP_PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe').replace(
-    /\/$/,
-    ''
-  );
+  const phpBase = getPublicStaticBaseUrl();
   let out = String(html);
+  out = out.replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, phpBase);
   out = out.replace(/http:\/\/localhost:\d+\/Static\//gi, `${phpBase}/Static/`);
   out = out.replace(/http:\/\/127\.0\.0\.1:\d+\/Static\//gi, `${phpBase}/Static/`);
   return out.replace(/<img([^>]*)\ssrc=["']([^"']+)["']([^>]*)>/gi, (match, before, src, after) => {
@@ -55,7 +54,7 @@ export function procesarHTMLMensaje(html) {
       return `<img${before} src="${fixed}"${after}>`;
     }
     // Corrige URLs mal concatenadas como:
-    // https://midominio.comhttps://nuevo.vanguardschools.edu.pe/Static/Archivos/...
+    // https://midominio.comhttps://sistema.vanguardschools.edu.pe/Static/Archivos/...
     fixed = fixed.replace(/^(https?:\/\/[^/\s"'<>]+)(https?:\/\/.*)$/i, '$2');
     fixed = fixed
       .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpBase)

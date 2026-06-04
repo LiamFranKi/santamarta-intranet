@@ -4,7 +4,7 @@
 function buildArchivoPdfUrl(archivoPdf) {
   if (!archivoPdf || String(archivoPdf).trim() === '') return null;
 
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
   const isDevelopment = process.env.NODE_ENV !== 'production';
   const s = String(archivoPdf);
 

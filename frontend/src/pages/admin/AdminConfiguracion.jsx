@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
+import { procesarHTMLMensaje } from '../../utils/mensajesHtml';
 import './AdminConfiguracion.css';
 
 const CONFIG_TABS = [
@@ -22,15 +23,23 @@ const QUILL_MODULES_MATRICULA = {
     [{ color: [] }, { background: [] }],
     [{ list: 'ordered' }, { list: 'bullet' }],
     [{ align: [] }],
-    ['link'],
+    ['link', 'image'],
     ['clean'],
   ],
 };
 
 const QUILL_FORMATS_MATRICULA = [
   'header', 'bold', 'italic', 'underline', 'color', 'background',
-  'list', 'bullet', 'align', 'link',
+  'list', 'bullet', 'align', 'link', 'image',
 ];
+
+/** Texto plano legacy → HTML mínimo para Quill */
+function ensureHtmlForQuill(raw) {
+  const t = String(raw ?? '').trim();
+  if (!t) return '';
+  if (/^<[a-z]/i.test(t)) return t;
+  return `<p>${t.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br/>')}</p>`;
+}
 
 const CICLOS = [
   { value: 0, label: 'Mensual' },
@@ -63,6 +72,7 @@ function AdminConfiguracion() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
+  const quillMatriculaRef = useRef(null);
   const quillModulesMatricula = useMemo(() => QUILL_MODULES_MATRICULA, []);
   const [config, setConfig] = useState({
     // Información General
@@ -234,6 +244,7 @@ function AdminConfiguracion() {
         inicio_notas: Number(inicioNotas), // Forzar a número
         bloquear_deudores_hasta_mes: bloquearDeudoresHastaMes,
         rangos_letras_primaria: rangosLetrasPrimaria,
+        email_matricula_apoderado: ensureHtmlForQuill(restData.email_matricula_apoderado || ''),
         login_fondo: null,
         libreta_logo: null,
         libreta_fondo: null,
@@ -407,6 +418,50 @@ function AdminConfiguracion() {
     });
   }, [config.total_notas, config.ciclo_notas]);
 
+  useEffect(() => {
+    if (loading || activeTab !== 'matricula') return;
+    const timer = window.setTimeout(() => {
+      if (!quillMatriculaRef.current) return;
+      const quill = quillMatriculaRef.current.getEditor();
+      const toolbar = quill.getModule('toolbar');
+      if (!toolbar) return;
+      toolbar.addHandler('image', () => {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+        input.onchange = async () => {
+          const file = input.files?.[0];
+          if (!file) return;
+          if (file.size > 5 * 1024 * 1024) {
+            Swal.fire('Error', 'La imagen no puede ser mayor a 5 MB', 'error');
+            return;
+          }
+          if (!file.type.startsWith('image/')) {
+            Swal.fire('Error', 'Solo se permiten archivos de imagen', 'error');
+            return;
+          }
+          try {
+            const formData = new FormData();
+            formData.append('imagen', file);
+            const response = await api.post('/docente/mensajes/subir-imagen', formData, {
+              headers: { 'Content-Type': 'multipart/form-data' },
+            });
+            const imagenUrl = response.data?.url;
+            if (!imagenUrl) throw new Error('Sin URL');
+            const range = quill.getSelection(true);
+            quill.insertEmbed(range.index, 'image', imagenUrl);
+            quill.setSelection(range.index + 1);
+          } catch (err) {
+            console.error(err);
+            Swal.fire('Error', 'No se pudo subir la imagen', 'error');
+          }
+        };
+      });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [loading, activeTab]);
+
   // Función genérica para guardar una sección específica
   const handleSaveSection = async (fields, sectionName) => {
     try {
@@ -444,6 +499,8 @@ function AdminConfiguracion() {
               formData.append(field, JSON.stringify(value));
             } else if (Array.isArray(value)) {
               formData.append(field, JSON.stringify(value));
+            } else if (field === 'email_matricula_apoderado') {
+              formData.append(field, procesarHTMLMensaje(String(value || '')));
             } else {
               formData.append(field, value);
             }
@@ -1312,6 +1369,7 @@ function AdminConfiguracion() {
                 <label>Mensaje para el apoderado</label>
                 <div className="config-quill-wrap">
                   <ReactQuill
+                    ref={quillMatriculaRef}
                     theme="snow"
                     value={config.email_matricula_apoderado || ''}
                     onChange={handleMatriculaMensajeChange}
@@ -1321,7 +1379,10 @@ function AdminConfiguracion() {
                     className="config-quill-editor"
                   />
                 </div>
-                <small>El contenido se guardará con formato para usarlo en correos (función de envío en desarrollo).</small>
+                <small>
+                  Puede insertar imágenes desde la barra del editor; se suben al servidor con URL pública para
+                  mostrarlas en el correo al apoderado (envío automático al completar matrícula: en desarrollo).
+                </small>
               </div>
             </div>
             <div className="card-actions">

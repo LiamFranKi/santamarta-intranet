@@ -90,7 +90,7 @@ async function getBoletaPdfJsonForPago(query, colegio_id, pagoIdNum, ctx) {
 
   let logoUrl = null;
   if (logoFileName) {
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const isProduction = process.env.NODE_ENV === 'production';
     if (isProduction) {
       logoUrl = `${phpSystemUrl}/Static/Archivos/${logoFileName}`;

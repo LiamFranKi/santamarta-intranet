@@ -344,7 +344,7 @@ async function matriculaContextoAlumno(alumnoId, colegioId, anio) {
 
 function fotoUrlAlumnoSistema(fotoNombre) {
   if (!fotoNombre || String(fotoNombre).trim() === '') return null;
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
   const isProduction = process.env.NODE_ENV === 'production';
   if (isProduction) {
     return `${phpSystemUrl}/Static/Image/Fotos/${fotoNombre}`;

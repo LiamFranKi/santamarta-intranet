@@ -18,6 +18,15 @@ const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { findAlternativaMarcadaVF } = require('../utils/examenRespuestaIds');
 const { etiquetaGradoGrupo } = require('../utils/notificacionExamenApoderadoTexto');
 const { enviarCorreoHtml } = require('../services/emailService');
+const {
+  cargarRespuestasMergedDePrueba,
+  persistirRespuestaPregunta,
+  persistirRespuestasBulk
+} = require('../utils/examenRespuestasLinea');
+const {
+  finalizarPruebaConCalificacion,
+  aplicarEstadoFinalizadoPrueba
+} = require('../utils/examenFinalizarPrueba');
 
 /**
  * Lista de IDs de preguntas que el alumno vio (campo preguntas: base64 + PHP serialize).
@@ -299,7 +308,7 @@ function construirHtmlResumenExamenCorreo(params) {
 const mensajesStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     // Guardar en Static/Archivos/ del sistema PHP (compartido con ambos sistemas)
-    const uploadPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Archivos';
+    const uploadPath = '/home/vanguard/intranet2026/backend/Static/Archivos';
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
@@ -435,7 +444,7 @@ router.get('/dashboard', async (req, res) => {
         );
         if (tutorRows.length > 0) {
           const tr = tutorRows[0];
-          const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+          const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
           const isProduction = process.env.NODE_ENV === 'production';
           let fotoTutor = null;
           if (tr.foto && String(tr.foto).trim() !== '') {
@@ -608,11 +617,11 @@ router.get('/dashboard', async (req, res) => {
         const esSistemaNuevo = nombreArchivo.startsWith('/uploads/comunicados/') || 
                                nombreArchivo.startsWith('uploads/comunicados/');
         const isProduction = process.env.NODE_ENV === 'production';
-        const dominioBase = 'https://nuevo.vanguardschools.edu.pe';
+        const dominioBase = 'https://sistema.vanguardschools.edu.pe';
         
         if (esSistemaNuevo) {
           archivoUrl = isProduction
-            ? `https://nuevo.vanguardschools.edu.pe${nombreArchivo.startsWith('/') ? nombreArchivo : '/' + nombreArchivo}`
+            ? `https://sistema.vanguardschools.edu.pe${nombreArchivo.startsWith('/') ? nombreArchivo : '/' + nombreArchivo}`
             : `http://localhost:5000${nombreArchivo.startsWith('/') ? nombreArchivo : '/' + nombreArchivo}`;
         } else {
           if (nombreArchivo.startsWith('/Static/')) {
@@ -689,7 +698,7 @@ router.get('/dashboard', async (req, res) => {
     }
     let avatarUrl = null;
     if (avatarActual.length > 0 && avatarActual[0].image) {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       avatarUrl = process.env.NODE_ENV === 'production'
         ? `${phpSystemUrl}/Static/Image/Avatars/${avatarActual[0].image}`
         : `http://localhost:5000/Static/Image/Avatars/${avatarActual[0].image}`;
@@ -698,7 +707,7 @@ router.get('/dashboard', async (req, res) => {
     // Construir URL de foto
     let fotoUrl = null;
     if (alumnoData.foto && alumnoData.foto !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       if (isProduction) {
         fotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${alumnoData.foto}`;
@@ -862,7 +871,7 @@ router.get('/cursos', async (req, res) => {
       const cursosConImagenes = cursos.map(curso => {
         let cursoImagenUrl = null;
         if (curso.curso_imagen && curso.curso_imagen !== '') {
-          const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+          const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
           const isProduction = process.env.NODE_ENV === 'production';
           if (isProduction) {
             cursoImagenUrl = `${phpSystemUrl}/Static/Image/Cursos/${curso.curso_imagen}`;
@@ -874,7 +883,7 @@ router.get('/cursos', async (req, res) => {
         // Construir URL de foto del docente
         let docenteFotoUrl = null;
         if (curso.docente_foto && curso.docente_foto !== '') {
-          const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+          const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
           const isProduction = process.env.NODE_ENV === 'production';
           if (isProduction) {
             docenteFotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${curso.docente_foto}`;
@@ -1040,7 +1049,7 @@ router.get('/docentes', async (req, res) => {
     const docentesConImagenes = docentes.map(docente => {
       let docenteFotoUrl = null;
       if (docente.docente_foto && docente.docente_foto !== '') {
-        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
         const isProduction = process.env.NODE_ENV === 'production';
         if (isProduction) {
           docenteFotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${docente.docente_foto}`;
@@ -1338,7 +1347,7 @@ router.get('/avatares/resumen', async (req, res) => {
       }
     }
 
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const baseUrl = process.env.NODE_ENV === 'production'
       ? `${phpSystemUrl}/Static/Image/Avatars/`
       : 'http://localhost:5000/Static/Image/Avatars/';
@@ -1431,7 +1440,7 @@ router.get('/avatares/tienda', async (req, res) => {
     );
     const idsComprados = new Set(comprados.map(c => c.item_id));
 
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const baseAvatarUrl = process.env.NODE_ENV === 'production'
       ? `${phpSystemUrl}/Static/Image/Avatars/`
       : 'http://localhost:5000/Static/Image/Avatars/';
@@ -1571,7 +1580,7 @@ router.post('/avatares/comprar/:itemId', async (req, res) => {
         name: item[0].name,
         image: item[0].image,
         image_url: item[0].image
-          ? `${process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe'}/Static/Image/Avatars/${item[0].image}`
+          ? `${process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe'}/Static/Image/Avatars/${item[0].image}`
           : null
       }
     });
@@ -1661,7 +1670,7 @@ const getAvatarBimestreEfectivo = async (colegio_id, anio_activo) => {
 };
 
 const baseAvatarBimestreUrl = () => (process.env.NODE_ENV === 'production'
-  ? `${process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe'}/Static/Image/Avatars/`
+  ? `${process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe'}/Static/Image/Avatars/`
   : 'http://localhost:5000/Static/Image/Avatars/');
 
 /** URL base para imágenes de avatares (misma que admin: /api/static/avatars para que carguen desde Node) */
@@ -2099,7 +2108,7 @@ router.get('/publicaciones', async (req, res) => {
     }
 
     // Procesar publicaciones
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const frontendUrl = process.env.FRONTEND_URL || 'https://sistema.vanguardschools.edu.pe';
     const isProduction = process.env.NODE_ENV === 'production';
 
@@ -2280,7 +2289,7 @@ router.get('/perfil', async (req, res) => {
     // Construir URL de foto
     let fotoUrl = null;
     if (alumnoData.foto && alumnoData.foto !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       if (isProduction) {
         fotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${alumnoData.foto}`;
@@ -2339,7 +2348,7 @@ router.get('/perfil', async (req, res) => {
  */
 const alumnoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos';
+    const uploadPath = '/home/vanguard/intranet2026/backend/Static/Image/Fotos';
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
@@ -2394,7 +2403,7 @@ router.put('/perfil', uploadAlumno.single('foto'), async (req, res) => {
     if (req.file) {
       // Eliminar foto anterior si existe
       if (alumnoData.foto && alumnoData.foto !== '') {
-        const oldFotoPath = `/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos/${path.basename(alumnoData.foto)}`;
+        const oldFotoPath = `/home/vanguard/intranet2026/backend/Static/Image/Fotos/${path.basename(alumnoData.foto)}`;
         if (fs.existsSync(oldFotoPath)) {
           fs.unlinkSync(oldFotoPath);
         }
@@ -2441,7 +2450,7 @@ router.put('/perfil', uploadAlumno.single('foto'), async (req, res) => {
     // Construir URL de foto
     let fotoUrl = null;
     if (alumnoDataActualizado.foto && alumnoDataActualizado.foto !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       if (isProduction) {
         fotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${alumnoDataActualizado.foto}`;
@@ -2584,7 +2593,7 @@ router.get('/qr', async (req, res) => {
     let foto_url = null;
     let foto_base64 = null;
     if (alumnoData.foto && alumnoData.foto.trim() !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       foto_url = isProduction
         ? `${phpSystemUrl}/Static/Image/Fotos/${alumnoData.foto}`
@@ -2592,7 +2601,7 @@ router.get('/qr', async (req, res) => {
       const baseFotosPath = process.env.STATIC_FOTOS_PATH || path.join(__dirname, '..', 'Static', 'Image', 'Fotos');
       let fotoPath = path.join(baseFotosPath, path.basename(alumnoData.foto));
       if (!fs.existsSync(fotoPath) && process.env.NODE_ENV === 'production') {
-        fotoPath = path.join('/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos', path.basename(alumnoData.foto));
+        fotoPath = path.join('/home/vanguard/intranet2026/backend/Static/Image/Fotos', path.basename(alumnoData.foto));
       }
       try {
         if (fs.existsSync(fotoPath)) {
@@ -2608,7 +2617,7 @@ router.get('/qr', async (req, res) => {
     let logo_base64 = null;
     const configLogo = await query(`SELECT valor FROM config WHERE clave = 'boleta_logo' LIMIT 1`);
     if (configLogo && configLogo.length > 0 && configLogo[0].valor) {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       logo_url = isProduction
         ? `${phpSystemUrl}/Static/Archivos/${configLogo[0].valor}`
@@ -2616,7 +2625,7 @@ router.get('/qr', async (req, res) => {
       const baseArchivosPath = process.env.STATIC_ARCHIVOS_PATH || path.join(__dirname, '..', 'Static', 'Archivos');
       let logoPath = path.join(baseArchivosPath, path.basename(configLogo[0].valor));
       if (!fs.existsSync(logoPath) && process.env.NODE_ENV === 'production') {
-        logoPath = path.join('/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Archivos', path.basename(configLogo[0].valor));
+        logoPath = path.join('/home/vanguard/intranet2026/backend/Static/Archivos', path.basename(configLogo[0].valor));
       }
       try {
         if (fs.existsSync(logoPath)) {
@@ -2692,7 +2701,7 @@ router.get('/comunicados', async (req, res) => {
     // Construir URLs de archivos (igual que en docente)
     const fs = require('fs');
     const path = require('path');
-    const staticArchivosPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Archivos';
+    const staticArchivosPath = '/home/vanguard/intranet2026/backend/Static/Archivos';
     
     const comunicadosConUrls = (comunicados || []).map(com => {
       let archivoUrl = null;
@@ -2708,18 +2717,18 @@ router.get('/comunicados', async (req, res) => {
         if (esSistemaNuevo) {
           if (nombreArchivo.startsWith('/uploads/')) {
             archivoUrl = isProduction
-              ? `https://nuevo.vanguardschools.edu.pe${nombreArchivo}`
+              ? `https://sistema.vanguardschools.edu.pe${nombreArchivo}`
               : `http://localhost:5000${nombreArchivo}`;
           } else {
             archivoUrl = isProduction
-              ? `https://nuevo.vanguardschools.edu.pe/${nombreArchivo}`
+              ? `https://sistema.vanguardschools.edu.pe/${nombreArchivo}`
               : `http://localhost:5000/${nombreArchivo}`;
           }
           // Para sistema nuevo, verificar en backend/uploads/comunicados/
           const uploadsPath = path.join(__dirname, '../../uploads/comunicados', nombreArchivo.replace(/^\/?uploads\/comunicados\//, ''));
           archivoExiste = fs.existsSync(uploadsPath);
         } else {
-          const dominioBase = 'https://nuevo.vanguardschools.edu.pe';
+          const dominioBase = 'https://sistema.vanguardschools.edu.pe';
           
           // Extraer solo el nombre del archivo para verificar existencia
           let nombreArchivoLimpio = nombreArchivo;
@@ -3054,7 +3063,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
     const { usuario_id, colegio_id } = req.user;
     const { destinatarios, asunto, mensaje } = req.body;
 
-    const phpBaseMensajes = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpBaseMensajes = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
 
     const destinatariosArray = typeof destinatarios === 'string' ? JSON.parse(destinatarios) : destinatarios;
 
@@ -3531,7 +3540,7 @@ router.get('/aula-virtual/archivos', async (req, res) => {
     );
 
     // Construir URLs completas para los archivos
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const isDevelopment = process.env.NODE_ENV !== 'production';
     const archivosConUrls = archivos.map(archivo => {
       let archivoUrl = null;
@@ -3621,7 +3630,7 @@ router.get('/aula-virtual/tareas', async (req, res) => {
     );
 
     // Obtener archivos de cada tarea y construir URLs
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const isDevelopment = process.env.NODE_ENV !== 'production';
     const tareasConArchivos = await Promise.all(tareas.map(async (tarea) => {
       const archivos = await query(
@@ -3916,11 +3925,15 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
       // Para que el front no re-aleatorice ni sobrescriba guardar-preguntas al recargar
       const pregunta_ids = parsePreguntaIdsVisiblesDesdePrueba(row);
       let respuestasJson = {};
-      if (row.respuestas && String(row.respuestas).trim() !== '') {
-        try {
-          respuestasJson = JSON.parse(row.respuestas);
-        } catch (e) {
-          console.warn('[iniciar examen] respuestas JSON inválidas, usando vacío:', row.id);
+      try {
+        respuestasJson = await cargarRespuestasMergedDePrueba(query, row);
+      } catch (e) {
+        if (row.respuestas && String(row.respuestas).trim() !== '') {
+          try {
+            respuestasJson = JSON.parse(row.respuestas);
+          } catch (e2) {
+            console.warn('[iniciar examen] respuestas JSON inválidas, usando vacío:', row.id);
+          }
         }
       }
       const sessionToken = String(row.exam_session_token || '').trim() || generarExamSessionToken();
@@ -4019,7 +4032,7 @@ router.get('/examenes/:examenId/preguntas', async (req, res) => {
     let bloque = null;
     try {
       const phpBase =
-        String(process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe').replace(/\/$/, '');
+        String(process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe').replace(/\/$/, '');
       const bloqueRows = await query(
         `SELECT contenido, imagen FROM asignaturas_examenes_bloques WHERE examen_id = ? LIMIT 1`,
         [examenId]
@@ -4179,18 +4192,131 @@ router.post('/examenes/:examenId/respuestas', async (req, res) => {
       );
     }
 
-    // Actualizar respuestas
-    await execute(
-      `UPDATE asignaturas_examenes_pruebas
-       SET respuestas = ?
-       WHERE id = ?`,
-      [JSON.stringify(respuestas), prueba[0].id]
-    );
+    // Actualizar respuestas (merge + líneas por pregunta; mantiene JSON legacy)
+    const examenRows = await query(`SELECT * FROM asignaturas_examenes WHERE id = ?`, [examenId]);
+    const preguntasAll = await fetchPreguntasConAlternativas(query, examenId, [], 'SI_NO');
+    const preguntasPorId = {};
+    for (const p of preguntasAll) {
+      preguntasPorId[p.id] = p;
+    }
+    const incoming =
+      respuestas && typeof respuestas === 'object' && !Array.isArray(respuestas) ? respuestas : {};
+    await persistirRespuestasBulk({
+      query,
+      execute,
+      pruebaId: prueba[0].id,
+      respuestasIncoming: incoming,
+      examenRow: examenRows[0] || null,
+      preguntasPorId
+    });
 
     res.json({ success: true });
   } catch (error) {
     console.error('Error guardando respuestas:', error);
     res.status(500).json({ error: 'Error al guardar respuestas' });
+  }
+});
+
+/**
+ * POST /api/alumno/examenes/:examenId/respuesta-linea
+ * Guarda UNA respuesta (pregunta) vinculada al intento activo. Retrocompatible con JSON legacy.
+ */
+router.post('/examenes/:examenId/respuesta-linea', async (req, res) => {
+  try {
+    const { colegio_id, anio_activo, alumno_id } = req.user;
+    const { examenId } = req.params;
+    const { pregunta_id, respuesta } = req.body || {};
+    const tokenSesionHeader = String(req.headers['x-exam-session-token'] || '').trim();
+    const deviceIdHeader = normalizarExamDeviceId(req.headers['x-exam-device-id']);
+
+    const preguntaId = parseInt(pregunta_id, 10);
+    if (Number.isNaN(preguntaId) || preguntaId <= 0) {
+      return res.status(400).json({ error: 'pregunta_id inválido' });
+    }
+
+    const matricula = await query(
+      `SELECT m.id as matricula_id
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0)
+       LIMIT 1`,
+      [alumno_id, colegio_id, anio_activo]
+    );
+
+    if (matricula.length === 0) {
+      return res.status(404).json({ error: 'No se encontró la matrícula del alumno' });
+    }
+
+    const prueba = await query(
+      `SELECT * FROM asignaturas_examenes_pruebas
+       WHERE examen_id = ? AND matricula_id = ? AND estado = 'ACTIVO'
+       ORDER BY fecha_hora DESC
+       LIMIT 1`,
+      [examenId, matricula[0].matricula_id]
+    );
+
+    if (prueba.length === 0) {
+      const ultimaPrueba = await query(
+        `SELECT id, estado, puntaje, correctas, incorrectas
+         FROM asignaturas_examenes_pruebas
+         WHERE examen_id = ? AND matricula_id = ?
+         ORDER BY fecha_hora DESC
+         LIMIT 1`,
+        [examenId, matricula[0].matricula_id]
+      );
+      if (ultimaPrueba.length > 0 && String(ultimaPrueba[0].estado) === 'FINALIZADA') {
+        return res.json({
+          success: true,
+          already_finalized: true,
+          puntaje: Number(ultimaPrueba[0].puntaje || 0)
+        });
+      }
+      return res.status(404).json({ error: 'No hay una prueba en progreso' });
+    }
+
+    if (tieneCamposSesionExamen(prueba[0])) {
+      const tokenGuardado = String(prueba[0].exam_session_token || '').trim();
+      if (tokenGuardado && tokenSesionHeader && tokenGuardado !== tokenSesionHeader) {
+        return res.status(409).json(construirErrorSesionExamen());
+      }
+      if (tokenGuardado && !tokenSesionHeader) {
+        return res.status(409).json(construirErrorSesionExamen());
+      }
+      await actualizarSesionExamenPrueba(
+        prueba[0].id,
+        tokenGuardado || tokenSesionHeader || generarExamSessionToken(),
+        deviceIdHeader || String(prueba[0].exam_session_device_id || '').trim() || null
+      );
+    }
+
+    const examenRows = await query(`SELECT * FROM asignaturas_examenes WHERE id = ?`, [examenId]);
+    const preguntasAll = await fetchPreguntasConAlternativas(query, examenId, [preguntaId], 'SI_NO');
+    const preguntaRow = preguntasAll.find((p) => parseInt(p.id, 10) === preguntaId);
+    if (!preguntaRow) {
+      return res.status(404).json({ error: 'Pregunta no encontrada en este examen' });
+    }
+
+    const { evaluacion } = await persistirRespuestaPregunta({
+      query,
+      execute,
+      pruebaId: prueba[0].id,
+      preguntaId,
+      respuesta,
+      examenRow: examenRows[0] || null,
+      preguntaRow
+    });
+
+    res.json({
+      success: true,
+      prueba_id: prueba[0].id,
+      pregunta_id: preguntaId,
+      es_correcta: evaluacion ? evaluacion.esCorrecta : null,
+      puntos_parciales: evaluacion ? evaluacion.puntosPregunta : null
+    });
+  } catch (error) {
+    console.error('Error guardando respuesta-linea:', error);
+    res.status(500).json({ error: 'Error al guardar respuesta' });
   }
 });
 
@@ -4266,329 +4392,22 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
       );
     }
 
-    // Obtener examen y preguntas
-    const examen = await query(
-      `SELECT * FROM asignaturas_examenes WHERE id = ?`,
-      [examenId]
-    );
+    const calificacion = await finalizarPruebaConCalificacion({
+      query,
+      execute,
+      pruebaRow: prueba[0],
+      examenId
+    });
 
-    if (examen.length === 0) {
-      return res.status(404).json({ error: 'Examen no encontrado' });
-    }
+    await aplicarEstadoFinalizadoPrueba(execute, prueba[0].id, calificacion);
 
-    // Asegurar que puntos_correcta sea un número
-    const puntosCorrecta = parseFloat(examen[0].puntos_correcta) || 0;
-    const tipoPuntaje = examen[0].tipo_puntaje;
-    
-    console.log(`📊 Calificando examen ${examenId}: tipo_puntaje=${tipoPuntaje}, puntos_correcta=${puntosCorrecta}`);
-
-    let respuestas = {};
-    if (prueba[0].respuestas && String(prueba[0].respuestas).trim() !== '') {
-      try {
-        respuestas = JSON.parse(prueba[0].respuestas);
-        if (!respuestas || typeof respuestas !== 'object' || Array.isArray(respuestas)) {
-          respuestas = {};
-        }
-      } catch (e) {
-        console.warn(`[finalizar examen] respuestas JSON inválidas en prueba ${prueba[0].id}:`, e.message);
-        respuestas = {};
-      }
-    }
-    
-    const preguntasConAlternativas = await fetchPreguntasConAlternativas(query, examenId, [], 'SI_NO');
-
-    // Misma lógica que POST .../calificar (docente): solo las preguntas que el alumno vio
-    // (preguntas_max, orden ALEATORIO). Campo prueba.preguntas = base64(serialize(ids)).
-    let preguntaIdsVisibles = [];
-    try {
-      if (prueba[0].preguntas && String(prueba[0].preguntas).trim() !== '') {
-        const decoded = Buffer.from(prueba[0].preguntas, 'base64').toString('utf-8');
-        preguntaIdsVisibles = phpSerialize.unserialize(decoded) || [];
-        if (!Array.isArray(preguntaIdsVisibles)) {
-          preguntaIdsVisibles = [];
-        }
-      }
-    } catch (e) {
-      console.warn(`[finalizar examen] No se pudo leer lista de preguntas de la prueba ${prueba[0].id}:`, e.message);
-      preguntaIdsVisibles = [];
-    }
-    const idsSet = new Set(
-      preguntaIdsVisibles.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n))
-    );
-    let preguntas =
-      idsSet.size > 0
-        ? preguntasConAlternativas.filter((p) => idsSet.has(parseInt(p.id, 10)))
-        : preguntasConAlternativas;
-    if (idsSet.size > 0 && preguntas.length === 0) {
-      console.warn(
-        `[finalizar examen] prueba ${prueba[0].id}: IDs de preguntas visibles no coinciden; usando todas (fallback)`
-      );
-      preguntas = preguntasConAlternativas;
-    }
-
-    // Calificar examen
-    let puntosTotal = 0;
-    let puntosObtenidos = 0;
-    let correctas = 0;
-    let incorrectas = 0;
-    const detalles = [];
-
-    for (const pregunta of preguntas) {
-      const respuestaAlumno = respuestas[pregunta.id.toString()] || respuestas[pregunta.id];
-      let puntosPregunta = 0;
-      let esCorrecta = false;
-
-      // Calcular puntos totales de la pregunta
-      puntosTotal += tipoPuntaje === 'GENERAL' 
-        ? puntosCorrecta
-        : (parseFloat(pregunta.puntos) || 0);
-
-      const alternativas = pregunta.alternativas || [];
-
-      // Evaluar según el tipo de pregunta
-      switch (pregunta.tipo) {
-        case 'ALTERNATIVAS':
-        case 'VERDADERO_FALSO':
-          if (respuestaAlumno !== null && respuestaAlumno !== undefined && respuestaAlumno !== '') {
-            const alternativaMarcada = findAlternativaMarcadaVF(alternativas, respuestaAlumno);
-            if (alternativaMarcada && alternativaMarcada.correcta === 'SI') {
-              esCorrecta = true;
-              puntosPregunta = tipoPuntaje === 'GENERAL'
-                ? puntosCorrecta
-                : (parseFloat(pregunta.puntos) || 0);
-            } else if (examen[0].penalizar_incorrecta === 'SI') {
-              puntosPregunta = -(parseFloat(examen[0].penalizacion_incorrecta) || 0);
-            }
-          }
-          break;
-
-        case 'COMPLETAR':
-          // Objeto {0: "...", 1: "..."} alineado al orden de [[...]] ; [[a|b]] acepta varias formas por hueco
-          if (respuestaAlumno && typeof respuestaAlumno === 'object') {
-            const tieneAlgunaRespuesta = Object.keys(respuestaAlumno).length > 0;
-            const todasCorrectas = esCompletarCorrecto(respuestaAlumno, pregunta.descripcion);
-            if (todasCorrectas) {
-              esCorrecta = true;
-              puntosPregunta = tipoPuntaje === 'GENERAL' 
-                ? puntosCorrecta
-                : (parseFloat(pregunta.puntos) || 0);
-            } else if (examen[0].penalizar_incorrecta === 'SI' && tieneAlgunaRespuesta) {
-              puntosPregunta = -(parseFloat(examen[0].penalizacion_incorrecta) || 0);
-            }
-          }
-          break;
-
-        case 'ORDENAR':
-          // La respuesta es un array de IDs: [id1, id2, id3, ...]
-          if (respuestaAlumno && Array.isArray(respuestaAlumno) && respuestaAlumno.length > 0) {
-            // Obtener todas las alternativas que tienen orden_posicion
-            const alternativasConOrden = alternativas.filter(alt => alt.orden_posicion !== null && alt.orden_posicion !== undefined);
-            
-            // Verificar que el orden sea correcto comparando con orden_posicion
-            let ordenCorrecto = true;
-            if (respuestaAlumno.length === alternativasConOrden.length) {
-              for (let i = 0; i < respuestaAlumno.length; i++) {
-                const altId = parseInt(respuestaAlumno[i]);
-                const alternativa = alternativas.find(alt => {
-                  const altIdComp = typeof alt.id === 'number' ? alt.id : parseInt(alt.id);
-                  return altIdComp === altId;
-                });
-                
-                if (!alternativa) {
-                  ordenCorrecto = false;
-                  break;
-                }
-                
-                const ordenEsperado = typeof alternativa.orden_posicion === 'number' 
-                  ? alternativa.orden_posicion 
-                  : parseInt(alternativa.orden_posicion);
-                
-                if (ordenEsperado !== (i + 1)) {
-                  ordenCorrecto = false;
-                  break;
-                }
-              }
-            } else {
-              ordenCorrecto = false;
-            }
-            
-            if (ordenCorrecto) {
-              esCorrecta = true;
-              puntosPregunta = tipoPuntaje === 'GENERAL' 
-                ? puntosCorrecta
-                : (parseFloat(pregunta.puntos) || 0);
-            } else if (examen[0].penalizar_incorrecta === 'SI' && respuestaAlumno.length > 0) {
-              puntosPregunta = -(parseFloat(examen[0].penalizacion_incorrecta) || 0);
-            }
-          }
-          break;
-
-        case 'EMPAREJAR':
-          // La respuesta es un objeto con pares: {altId1: parId1, altId2: parId2}
-          if (respuestaAlumno && typeof respuestaAlumno === 'object' && Object.keys(respuestaAlumno).length > 0) {
-            // Obtener todas las alternativas que tienen par_id (son las que deben emparejarse)
-            const alternativasConPar = alternativas.filter(alt => alt.par_id !== null && alt.par_id !== undefined);
-            
-            // Verificar que todos los pares sean correctos
-            let todosParesCorrectos = true;
-            let paresVerificados = 0;
-            
-            for (const [altId, parId] of Object.entries(respuestaAlumno)) {
-              const altIdNum = parseInt(altId);
-              const parIdNum = parseInt(parId);
-              const alternativa = alternativas.find(alt => {
-                const altIdComp = typeof alt.id === 'number' ? alt.id : parseInt(alt.id);
-                return altIdComp === altIdNum;
-              });
-              
-              if (!alternativa) {
-                todosParesCorrectos = false;
-                break;
-              }
-              
-              const parEsperado = alternativa.par_id ? (typeof alternativa.par_id === 'number' ? alternativa.par_id : parseInt(alternativa.par_id)) : null;
-              
-              if (!parEsperado || parIdNum !== parEsperado) {
-                todosParesCorrectos = false;
-                break;
-              }
-              
-              paresVerificados++;
-            }
-            
-            // Verificar que se hayan emparejado todas las alternativas que requieren par
-            if (todosParesCorrectos && paresVerificados === alternativasConPar.length) {
-              esCorrecta = true;
-              puntosPregunta = tipoPuntaje === 'GENERAL' 
-                ? puntosCorrecta
-                : (parseFloat(pregunta.puntos) || 0);
-            } else if (examen[0].penalizar_incorrecta === 'SI' && Object.keys(respuestaAlumno).length > 0) {
-              puntosPregunta = -(parseFloat(examen[0].penalizacion_incorrecta) || 0);
-            }
-          }
-          break;
-
-        case 'ARRASTRAR_Y_SOLTAR':
-          // La respuesta puede ser:
-          // Formato 1: {altId: zona} - ejemplo: {"222286": "Mamiferos"}
-          // Formato 2: {altId: {zona: zona}} - ejemplo: {"222286": {"zona": "Mamiferos"}}
-          if (respuestaAlumno && typeof respuestaAlumno === 'object' && Object.keys(respuestaAlumno).length > 0) {
-            // Obtener todas las alternativas que tienen zona_drop (son las que deben arrastrarse)
-            const alternativasConZona = alternativas.filter(alt => alt.zona_drop && alt.zona_drop.trim() !== '');
-            
-            // Verificar que todas las zonas sean correctas
-            let todasZonasCorrectas = true;
-            let zonasVerificadas = 0;
-            
-            for (const [altId, zonaValue] of Object.entries(respuestaAlumno)) {
-              const altIdNum = parseInt(altId);
-              const alternativa = alternativas.find(alt => {
-                const altIdComp = typeof alt.id === 'number' ? alt.id : parseInt(alt.id);
-                return altIdComp === altIdNum;
-              });
-              
-              if (!alternativa) {
-                todasZonasCorrectas = false;
-                break;
-              }
-              
-              // Manejar ambos formatos: string directo o objeto con propiedad zona
-              let zonaAlumno;
-              if (typeof zonaValue === 'string') {
-                zonaAlumno = zonaValue.trim().toLowerCase();
-              } else if (typeof zonaValue === 'object' && zonaValue !== null && zonaValue.zona) {
-                zonaAlumno = String(zonaValue.zona).trim().toLowerCase();
-              } else {
-                todasZonasCorrectas = false;
-                break;
-              }
-              
-              const zonaEsperada = alternativa.zona_drop ? alternativa.zona_drop.trim().toLowerCase() : null;
-              
-              if (!zonaEsperada || zonaAlumno !== zonaEsperada) {
-                todasZonasCorrectas = false;
-                break;
-              }
-              
-              zonasVerificadas++;
-            }
-            
-            // Verificar que se hayan arrastrado todas las alternativas que requieren zona
-            if (todasZonasCorrectas && zonasVerificadas === alternativasConZona.length) {
-              esCorrecta = true;
-              puntosPregunta = tipoPuntaje === 'GENERAL' 
-                ? puntosCorrecta
-                : (parseFloat(pregunta.puntos) || 0);
-            } else if (examen[0].penalizar_incorrecta === 'SI' && Object.keys(respuestaAlumno).length > 0) {
-              puntosPregunta = -(parseFloat(examen[0].penalizacion_incorrecta) || 0);
-            }
-          }
-          break;
-
-        case 'RESPUESTA_CORTA':
-          // La respuesta es un string
-          if (respuestaAlumno) {
-            const respuestaNormalizada = String(respuestaAlumno).trim().toLowerCase();
-            const alternativaCorrecta = alternativas.find(alt => alt.correcta === 'SI');
-            if (alternativaCorrecta) {
-              const correctaNormalizada = alternativaCorrecta.descripcion.replace(/<[^>]*>/g, '').trim().toLowerCase();
-              if (respuestaNormalizada === correctaNormalizada) {
-                esCorrecta = true;
-                puntosPregunta = tipoPuntaje === 'GENERAL' 
-                  ? puntosCorrecta
-                  : (parseFloat(pregunta.puntos) || 0);
-              } else if (examen[0].penalizar_incorrecta === 'SI') {
-                puntosPregunta = -(parseFloat(examen[0].penalizacion_incorrecta) || 0);
-              }
-            }
-          }
-          break;
-      }
-
-      puntosObtenidos += puntosPregunta;
-      
-      // Contar correctas e incorrectas
-      // IMPORTANTE: Solo contar como incorrecta si hay respuesta y no es correcta
-      // Si no hay respuesta, no contar como incorrecta (pregunta sin responder)
-      const tieneRespuesta = respuestaAlumno !== null && 
-                             respuestaAlumno !== undefined && 
-                             respuestaAlumno !== '' &&
-                             !(typeof respuestaAlumno === 'object' && Object.keys(respuestaAlumno).length === 0) &&
-                             !(Array.isArray(respuestaAlumno) && respuestaAlumno.length === 0);
-      
-      if (esCorrecta) {
-        correctas++;
-      } else if (tieneRespuesta) {
-        // Solo contar como incorrecta si el alumno respondió pero está mal
-        incorrectas++;
-      }
-      // Si no hay respuesta, no se cuenta ni como correcta ni como incorrecta
-
-      detalles.push({
-        pregunta_id: pregunta.id,
-        es_correcta: esCorrecta,
-        puntos: puntosPregunta
-      });
-      
-      // Debug: log detallado para verificar evaluación
-      console.log(`📝 Pregunta ${pregunta.id} (${pregunta.tipo}): esCorrecta=${esCorrecta}, puntos=${puntosPregunta}, tieneRespuesta=${tieneRespuesta}, respuestaAlumno=`, JSON.stringify(respuestaAlumno));
-    }
-    
-    console.log(`📊 Resumen final: correctas=${correctas}, incorrectas=${incorrectas}, puntosObtenidos=${puntosObtenidos}, puntosTotal=${puntosTotal}, totalPreguntas=${preguntas.length}`);
-
-    // Limitar puntaje entre 0 y 20 (escala del sistema; si correctas * puntos_correcta > 20 se capa a 20)
-    const puntajeFinal = Math.min(20, Math.max(0, Math.round(puntosObtenidos)));
-
-    // Actualizar prueba con puntaje, correctas e incorrectas
-    await execute(
-      `UPDATE asignaturas_examenes_pruebas
-       SET estado = 'FINALIZADA',
-           puntaje = ?,
-           correctas = ?,
-           incorrectas = ?
-       WHERE id = ?`,
-      [puntajeFinal, correctas, incorrectas, prueba[0].id]
-    );
+    const examen = [calificacion.examenRow];
+    const preguntas = calificacion.preguntas;
+    const respuestas = calificacion.respuestas;
+    const puntajeFinal = calificacion.puntajeFinal;
+    const correctas = calificacion.correctas;
+    const incorrectas = calificacion.incorrectas;
+    const detalles = calificacion.detalles;
 
     // Enviar notificaciones a apoderados de forma asíncrona
     // Solo si el examen permite ver la nota inmediatamente
@@ -4929,48 +4748,30 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
     const umbralParaCerrar =
       esEventoInternet ? EXAM_VIOLACION_INTERNET_CIERRE : EXAM_VIOLACION_GENERAL_CIERRE;
     if (cierreInmediato || violacionesCount >= umbralParaCerrar) {
-      const parsePreguntaIdsVisibles = () => {
-        try {
-          if (!pruebaActiva.preguntas || String(pruebaActiva.preguntas).trim() === '') return [];
-          const decoded = Buffer.from(pruebaActiva.preguntas, 'base64').toString('utf-8');
-          const phpSerialize = require('php-serialize');
-          const ids = phpSerialize.unserialize(decoded) || [];
-          return Array.isArray(ids) ? ids.map((id) => parseInt(id, 10)).filter((n) => Number.isFinite(n)) : [];
-        } catch (e) {
-          return [];
-        }
-      };
-
-      const preguntaIdsVisibles = parsePreguntaIdsVisibles();
-      let totalPreguntas = preguntaIdsVisibles.length;
-      if (totalPreguntas === 0) {
-        const [rowTotal] = await query(
-          `SELECT COUNT(*) AS total
-           FROM asignaturas_examenes_preguntas
-           WHERE examen_id = ?`,
-          [examenId]
-        );
-        totalPreguntas = Number(rowTotal?.total || 0);
-      }
-
       const motivoCierre = esEventoInternet
         ? 'CERRADO_POR_INTERNET'
         : esCierreInmediatoPorFoco
           ? 'FUERA_DE_FOCO'
           : 'SALIDA_DE_PANTALLA';
 
-      await execute(
-        `UPDATE asignaturas_examenes_pruebas
-         SET estado = 'FINALIZADA',
-             puntaje = 0,
-             correctas = 0,
-             incorrectas = ?,
-             finalizado_por_salida = 'SI',
-             motivo_cierre = ?,
-             fecha_cierre_forzado = NOW()
-         WHERE id = ?`,
-        [totalPreguntas, motivoCierre, pruebaActiva.id]
+      const pruebaFullRows = await query(
+        `SELECT * FROM asignaturas_examenes_pruebas WHERE id = ? LIMIT 1`,
+        [pruebaActiva.id]
       );
+      const pruebaFull = pruebaFullRows[0];
+      if (pruebaFull) {
+        const calificacion = await finalizarPruebaConCalificacion({
+          query,
+          execute,
+          pruebaRow: pruebaFull,
+          examenId
+        });
+        await aplicarEstadoFinalizadoPrueba(execute, pruebaActiva.id, calificacion, {
+          finalizado_por_salida: 'SI',
+          motivo_cierre: motivoCierre,
+          fecha_cierre_forzado: true
+        });
+      }
 
       accion = 'AUTO_FINALIZED';
       mensajeAccion = esEventoInternet
@@ -5160,7 +4961,7 @@ router.get('/aula-virtual/tareas/:tareaId', async (req, res) => {
     );
 
     // Construir URLs de archivos
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const isDevelopment = process.env.NODE_ENV !== 'production';
     const archivosConUrls = archivos.map(archivo => {
       let archivoUrl = null;
@@ -5364,33 +5165,31 @@ router.get('/examenes/:examenId/resultado/detalles', async (req, res) => {
       'boolean'
     );
 
-    // Parsear respuestas del alumno
+    // Respuestas: líneas por pregunta + JSON legacy (retrocompatible)
     let respuestasAlumno = {};
     try {
-      if (resultadoInfo.respuestas && resultadoInfo.respuestas.trim() !== '') {
-        try {
-          respuestasAlumno = JSON.parse(resultadoInfo.respuestas);
-        } catch (jsonError) {
+      respuestasAlumno = await cargarRespuestasMergedDePrueba(query, resultadoInfo);
+    } catch (mergeErr) {
+      console.warn('[resultado/detalles] merge respuestas:', mergeErr.message);
+      try {
+        if (resultadoInfo.respuestas && resultadoInfo.respuestas.trim() !== '') {
           try {
+            respuestasAlumno = JSON.parse(resultadoInfo.respuestas);
+          } catch (jsonError) {
             const phpSerialize = require('php-serialize');
             const decoded = Buffer.from(resultadoInfo.respuestas, 'base64').toString('utf-8');
             respuestasAlumno = phpSerialize.unserialize(decoded) || {};
-          } catch (phpError) {
-            console.warn('Error parseando respuestas:', phpError);
-            respuestasAlumno = {};
           }
         }
-        
-        // Normalizar claves a strings
         const respuestasNormalizadas = {};
-        Object.keys(respuestasAlumno).forEach(key => {
+        Object.keys(respuestasAlumno).forEach((key) => {
           respuestasNormalizadas[key.toString()] = respuestasAlumno[key];
         });
         respuestasAlumno = respuestasNormalizadas;
+      } catch (parseError) {
+        console.error('Error parseando respuestas del alumno:', parseError);
+        respuestasAlumno = {};
       }
-    } catch (parseError) {
-      console.error('Error parseando respuestas del alumno:', parseError);
-      respuestasAlumno = {};
     }
 
     res.json({

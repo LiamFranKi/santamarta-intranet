@@ -71,9 +71,9 @@ function MensajeModalContent({ mensaje, vista, onClose, onMensajeLeido }) {
               const archivoUrl = archivo.archivo_url 
                 ? (archivo.archivo_url.startsWith('http') 
                     ? archivo.archivo_url 
-                    : `${process.env.REACT_APP_PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe'}${archivo.archivo_url}`)
+                    : `${process.env.REACT_APP_PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe'}${archivo.archivo_url}`)
                 : archivo.archivo
-                ? `${process.env.REACT_APP_PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe'}/Static/Archivos/${archivo.archivo}`
+                ? `${process.env.REACT_APP_PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe'}/Static/Archivos/${archivo.archivo}`
                 : null;
               
               if (!archivoUrl) {

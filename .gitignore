@@ -68,3 +68,15 @@ backend/.env.save
 frontend/public/icons/logoboleta.png
 frontend/public/icons/logo-original.png
 
+# Static: solo estructura + avatares en repo; subidas de usuarios solo en servidor
+backend/Static/Archivos/*
+!backend/Static/Archivos/.gitkeep
+backend/Static/Image/Fotos/*
+!backend/Static/Image/Fotos/.gitkeep
+backend/Static/Image/Fondos/*
+!backend/Static/Image/Fondos/.gitkeep
+backend/Static/Image/Publicaciones/*
+!backend/Static/Image/Publicaciones/.gitkeep
+backend/Static/Documentos/*
+!backend/Static/Documentos/.gitkeep
+

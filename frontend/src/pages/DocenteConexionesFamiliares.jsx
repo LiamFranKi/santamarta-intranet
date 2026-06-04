@@ -208,7 +208,7 @@ function DocenteConexionesFamiliares() {
 
   const procesarHTMLMensaje = (html) => {
     if (!html) return '';
-    const baseURL = (api.defaults.baseURL || '').replace('/api', '') || (process.env.REACT_APP_PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe');
+    const baseURL = (api.defaults.baseURL || '').replace('/api', '') || (process.env.REACT_APP_PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe');
     return html.replace(
       /<img([^>]*)\ssrc=["']([^"']+)["']([^>]*)>/gi,
       (match, before, src, after) => {
@@ -481,7 +481,7 @@ function DocenteConexionesFamiliares() {
                   <h4>Archivos Adjuntos ({mensajeVer.archivos.length}):</h4>
                   <div className="archivos-lista-modal" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', marginTop: '0.5rem' }}>
                     {mensajeVer.archivos.map((archivo, index) => {
-                      const archivoUrl = archivo.archivo_url || (archivo.archivo ? `${process.env.REACT_APP_PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe'}/Static/Archivos/${archivo.archivo}` : null);
+                      const archivoUrl = archivo.archivo_url || (archivo.archivo ? `${process.env.REACT_APP_PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe'}/Static/Archivos/${archivo.archivo}` : null);
                       if (!archivoUrl) return null;
                       const nombreArchivo = archivo.nombre_archivo || archivo.archivo || '';
                       const esImagen = /\.(jpg|jpeg|png|gif|webp)$/i.test(nombreArchivo);

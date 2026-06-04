@@ -21,7 +21,7 @@ function colegioId(req) {
 function buildArchivoUrl(raw) {
   if (!raw || String(raw).trim() === '') return null;
   const s = String(raw).trim();
-  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+  const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
   const isDevelopment = process.env.NODE_ENV !== 'production';
   if (/^https?:\/\//i.test(s)) {
     return s

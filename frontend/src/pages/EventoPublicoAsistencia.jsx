@@ -27,7 +27,7 @@ function buildFotoUrl(fotoRaw) {
   const foto = String(fotoRaw).trim();
   if (foto.startsWith('http')) return foto;
   if (foto.startsWith('/Static/')) {
-    return `https://nuevo.vanguardschools.edu.pe${foto}`;
+    return `https://sistema.vanguardschools.edu.pe${foto}`;
   }
   if (foto.startsWith('/uploads/')) {
     const { protocol, hostname } = window.location;

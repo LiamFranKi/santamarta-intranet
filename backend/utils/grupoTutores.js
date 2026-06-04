@@ -94,14 +94,12 @@ function parseTutorIdsFromBody(body) {
   };
 }
 
-/** Texto para libretas / reportes */
+/** Texto para libretas / reportes (solo nombres, separados por "  /  "). */
 function formatearTutoresLibreta(maestroNombre, tutor2Nombre) {
   const m = String(maestroNombre || '').trim();
   const t = String(tutor2Nombre || '').trim();
-  const partes = [];
-  if (m) partes.push(`${ETIQUETA_TUTOR}: ${m}`);
-  if (t) partes.push(`${ETIQUETA_CO_TUTOR}: ${t}`);
-  return partes.length ? partes.join(' · ') : 'No asignado';
+  const partes = [m, t].filter(Boolean);
+  return partes.length ? partes.join('  /  ') : 'No asignado';
 }
 
 /** Condición JOIN u.personal_id ↔ Tutor o Co-Tutor del grupo (alias g, u). */

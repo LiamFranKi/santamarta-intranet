@@ -1,3 +1,5 @@
+import { getPublicStaticBaseUrl } from './staticUrl';
+
 function limpiarUrlCandidata(url) {
   return String(url || '').trim().replace(/[),.;!?]+$/g, '');
 }
@@ -76,11 +78,13 @@ export function normalizarUrlImagenPublicacion(url) {
     normalized = normalized.replace(/https?:\/\/vanguardschools\.edu\.pe\/uploads/g, `${currentProtocol}//${currentHost}/uploads`);
   }
 
+  const staticBase = getPublicStaticBaseUrl();
   if (normalized.includes('vanguardschools.edu.pe/Static')) {
-    normalized = normalized.replace(/https?:\/\/vanguardschools\.edu\.pe\/Static/g, 'https://nuevo.vanguardschools.edu.pe/Static');
+    normalized = normalized.replace(/https?:\/\/vanguardschools\.edu\.pe\/Static/g, `${staticBase}/Static`);
   }
+  normalized = normalized.replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, staticBase);
 
-  normalized = normalized.replace(/vanguardschools\.com(static|uploads)/gi, () => 'https://nuevo.vanguardschools.edu.pe/Static');
+  normalized = normalized.replace(/vanguardschools\.com(static|uploads)/gi, () => `${staticBase}/Static`);
 
   return normalized;
 }
@@ -89,6 +93,7 @@ export function construirUrlArchivoPublicacion(archivo) {
   const valor = String(archivo || '').trim();
   if (!valor) return '';
   if (valor.startsWith('http')) return valor;
-  if (valor.startsWith('/Static/')) return `https://nuevo.vanguardschools.edu.pe${valor}`;
-  return `https://nuevo.vanguardschools.edu.pe/Static/Archivos/${valor}`;
+  const base = getPublicStaticBaseUrl();
+  if (valor.startsWith('/Static/')) return `${base}${valor}`;
+  return `${base}/Static/Archivos/${valor}`;
 }

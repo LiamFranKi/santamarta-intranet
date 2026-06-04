@@ -369,7 +369,7 @@ export default function DashboardLayout({ children }) {
         if (fotoUrl.includes('/uploads/')) {
           fotoUrl = fotoUrl.replace(/https?:\/\/vanguardschools\.edu\.pe\/uploads/g, `${currentProtocol}//${currentHost}/uploads`);
         } else if (fotoUrl.includes('/Static/')) {
-          fotoUrl = fotoUrl.replace(/https?:\/\/vanguardschools\.edu\.pe\/Static/g, 'https://nuevo.vanguardschools.edu.pe/Static');
+          fotoUrl = fotoUrl.replace(/https?:\/\/vanguardschools\.edu\.pe\/Static/g, 'https://sistema.vanguardschools.edu.pe/Static');
         }
       }
       return fotoUrl;
@@ -384,7 +384,7 @@ export default function DashboardLayout({ children }) {
     // IMPORTANTE: Las fotos se guardan en Static/Image/Fotos/ (compartido con sistema PHP)
     // Usar el mismo dominio del sistema PHP para servir fotos (igual que publicaciones)
     const fotoNombre = user.foto_nombre || user.foto;
-    const phpSystemUrl = 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = 'https://sistema.vanguardschools.edu.pe';
     const isProduction = currentHost !== 'localhost' && currentHost !== '127.0.0.1';
     
     if (isProduction) {

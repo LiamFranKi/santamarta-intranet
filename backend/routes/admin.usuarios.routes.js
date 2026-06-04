@@ -1387,7 +1387,7 @@ function mapMatriculaListAdminRows(rows) {
 
 const personalFotoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos';
+    const uploadPath = '/home/vanguard/intranet2026/backend/Static/Image/Fotos';
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }

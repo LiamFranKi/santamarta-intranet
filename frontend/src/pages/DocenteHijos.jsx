@@ -3716,7 +3716,7 @@ function DocenteHijos() {
     }
     
     // Si solo tenemos el nombre del archivo
-    const phpSystemUrl = 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = 'https://sistema.vanguardschools.edu.pe';
     const isProduction = currentHost !== 'localhost' && currentHost !== '127.0.0.1';
     
     if (isProduction) {

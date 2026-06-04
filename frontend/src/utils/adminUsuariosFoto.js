@@ -10,7 +10,7 @@ export function fotoUsuarioAdmin(foto) {
     return `${protocol}//${hostname}${nombre}`;
   }
   const host = window.location.hostname || '';
-  const phpSystemUrl = 'https://nuevo.vanguardschools.edu.pe';
+  const phpSystemUrl = 'https://sistema.vanguardschools.edu.pe';
   const isLocal = host === 'localhost' || host === '127.0.0.1';
   if (isLocal) {
     return `http://localhost:5000/Static/Image/Fotos/${nombre}`;

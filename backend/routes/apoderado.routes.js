@@ -27,11 +27,17 @@ const {
   contarInasistenciasBimestre,
   contarTardanzasBimestre,
 } = require('../utils/libretaResumenBimestres');
+const {
+  fetchAsignaturasLibretaConArea,
+  fetchAreasLibretaConAsignaturas,
+  dedupeAsignaturasPorId,
+  filtrarAsignaturasDeArea
+} = require('../utils/libretaCuantitativaAreas');
 
 // Configurar multer para subir archivos de mensajes
 const mensajesStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Archivos';
+    const uploadPath = '/home/vanguard/intranet2026/backend/Static/Archivos';
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
@@ -56,7 +62,7 @@ const uploadMensajes = multer({
 // Configurar multer para subir fotos de perfil
 const personalStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos';
+    const uploadPath = '/home/vanguard/intranet2026/backend/Static/Image/Fotos';
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
@@ -89,7 +95,7 @@ const uploadPersonal = multer({
 // Configurar multer para fotos de alumnos (editar datos del hijo)
 const alumnoStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos';
+    const uploadPath = '/home/vanguard/intranet2026/backend/Static/Image/Fotos';
     if (!fs.existsSync(uploadPath)) {
       fs.mkdirSync(uploadPath, { recursive: true });
     }
@@ -530,11 +536,11 @@ router.get('/dashboard', async (req, res) => {
         const esSistemaNuevo = nombreArchivo.startsWith('/uploads/comunicados/') || 
                                nombreArchivo.startsWith('uploads/comunicados/');
         const isProduction = process.env.NODE_ENV === 'production';
-        const dominioBase = 'https://nuevo.vanguardschools.edu.pe';
+        const dominioBase = 'https://sistema.vanguardschools.edu.pe';
         
         if (esSistemaNuevo) {
           archivoUrl = isProduction
-            ? `https://nuevo.vanguardschools.edu.pe${nombreArchivo.startsWith('/') ? nombreArchivo : '/' + nombreArchivo}`
+            ? `https://sistema.vanguardschools.edu.pe${nombreArchivo.startsWith('/') ? nombreArchivo : '/' + nombreArchivo}`
             : `http://localhost:5000${nombreArchivo.startsWith('/') ? nombreArchivo : '/' + nombreArchivo}`;
         } else {
           if (nombreArchivo.startsWith('/Static/')) {
@@ -556,7 +562,7 @@ router.get('/dashboard', async (req, res) => {
     // Construir URL de foto
     let fotoUrl = null;
     if (apoderadoData.foto && apoderadoData.foto !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       if (isProduction) {
         fotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${apoderadoData.foto}`;
@@ -669,7 +675,7 @@ router.get('/hijos', async (req, res) => {
     const hijosConFotos = hijos.map(hijo => {
       let fotoUrl = null;
       if (hijo.foto && hijo.foto !== '') {
-        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
         const isProduction = process.env.NODE_ENV === 'production';
         if (isProduction) {
           fotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${hijo.foto}`;
@@ -892,7 +898,7 @@ router.put('/perfil/foto', uploadPersonal.single('foto'), async (req, res) => {
     const oldFoto = apoderado[0].foto;
     if (oldFoto && String(oldFoto).trim() !== '') {
       const oldFotoPath = path.join(
-        '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos',
+        '/home/vanguard/intranet2026/backend/Static/Image/Fotos',
         path.basename(String(oldFoto))
       );
       if (fs.existsSync(oldFotoPath)) {
@@ -1006,7 +1012,7 @@ router.get('/comunicados', async (req, res) => {
 
     // Construir URLs de archivos
     const fs = require('fs');
-    const staticArchivosPath = '/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Archivos';
+    const staticArchivosPath = '/home/vanguard/intranet2026/backend/Static/Archivos';
     
     const comunicadosConUrls = (comunicados || []).map(com => {
       let archivoUrl = null;
@@ -1022,15 +1028,15 @@ router.get('/comunicados', async (req, res) => {
         if (esSistemaNuevo) {
           if (nombreArchivo.startsWith('/uploads/')) {
             archivoUrl = isProduction
-              ? `https://nuevo.vanguardschools.edu.pe${nombreArchivo}`
+              ? `https://sistema.vanguardschools.edu.pe${nombreArchivo}`
               : `http://localhost:5000${nombreArchivo}`;
           } else {
             archivoUrl = isProduction
-              ? `https://nuevo.vanguardschools.edu.pe/${nombreArchivo}`
+              ? `https://sistema.vanguardschools.edu.pe/${nombreArchivo}`
               : `http://localhost:5000/${nombreArchivo}`;
           }
         } else {
-          const dominioBase = 'https://nuevo.vanguardschools.edu.pe';
+          const dominioBase = 'https://sistema.vanguardschools.edu.pe';
           if (nombreArchivo.startsWith('/Static/')) {
             archivoUrl = `${dominioBase}${nombreArchivo}`;
           } else if (nombreArchivo.startsWith('Static/')) {
@@ -1381,7 +1387,7 @@ router.get('/hijos/:hijoId/cursos', async (req, res) => {
     const cursosConImagenes = cursos.map(curso => {
       let cursoImagenUrl = null;
       if (curso.curso_imagen && curso.curso_imagen !== '') {
-        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
         const isProduction = process.env.NODE_ENV === 'production';
         if (isProduction) {
           cursoImagenUrl = `${phpSystemUrl}/Static/Image/Cursos/${curso.curso_imagen}`;
@@ -1393,7 +1399,7 @@ router.get('/hijos/:hijoId/cursos', async (req, res) => {
       // Construir URL de foto del docente
       let docenteFotoUrl = null;
       if (curso.docente_foto && curso.docente_foto !== '') {
-        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
         const isProduction = process.env.NODE_ENV === 'production';
         if (isProduction) {
           docenteFotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${curso.docente_foto}`;
@@ -1830,7 +1836,7 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
     let foto_url = null;
     let foto_base64 = null;
     if (alumnoData.foto && alumnoData.foto.trim() !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       foto_url = isProduction
         ? `${phpSystemUrl}/Static/Image/Fotos/${alumnoData.foto}`
@@ -1838,7 +1844,7 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
       const baseFotosPath = process.env.STATIC_FOTOS_PATH || path.join(__dirname, '..', 'Static', 'Image', 'Fotos');
       let fotoPath = path.join(baseFotosPath, path.basename(alumnoData.foto));
       if (!fs.existsSync(fotoPath) && process.env.NODE_ENV === 'production') {
-        fotoPath = path.join('/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos', path.basename(alumnoData.foto));
+        fotoPath = path.join('/home/vanguard/intranet2026/backend/Static/Image/Fotos', path.basename(alumnoData.foto));
       }
       try {
         if (fs.existsSync(fotoPath)) {
@@ -1854,7 +1860,7 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
     let logo_base64 = null;
     const configLogo = await query(`SELECT valor FROM config WHERE clave = 'boleta_logo' LIMIT 1`);
     if (configLogo && configLogo.length > 0 && configLogo[0].valor) {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
       logo_url = isProduction
         ? `${phpSystemUrl}/Static/Archivos/${configLogo[0].valor}`
@@ -1862,7 +1868,7 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
       const baseArchivosPath = process.env.STATIC_ARCHIVOS_PATH || path.join(__dirname, '..', 'Static', 'Archivos');
       let logoPath = path.join(baseArchivosPath, path.basename(configLogo[0].valor));
       if (!fs.existsSync(logoPath) && process.env.NODE_ENV === 'production') {
-        logoPath = path.join('/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Archivos', path.basename(configLogo[0].valor));
+        logoPath = path.join('/home/vanguard/intranet2026/backend/Static/Archivos', path.basename(configLogo[0].valor));
       }
       try {
         if (fs.existsSync(logoPath)) {
@@ -2628,7 +2634,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
 
     // Obtener matrícula del alumno para el año indicado (explícito, o último año de matrícula vigente)
     const matricula = await query(
-      `SELECT m.id as matricula_id, m.grupo_id, m.alumno_id
+      `SELECT m.id as matricula_id, m.grupo_id, m.alumno_id, g.nivel_id
        FROM matriculas m
        INNER JOIN grupos g ON g.id = m.grupo_id
        WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? 
@@ -2648,6 +2654,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
 
     const matriculaId = matricula[0].matricula_id;
     const grupoId = matricula[0].grupo_id;
+    const nivelId = matricula[0].nivel_id;
     const rangosLibretaAsis = await fetchRangosCiclosParsed(query, colegio_id);
 
     // Obtener información del alumno y grupo (incluye tipo_calificacion para INICIAL cualitativa)
@@ -2909,7 +2916,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
       const fotoLibretaUrl = (() => {
         const f = alumno.foto;
         if (!f || String(f).trim() === '') return null;
-        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+        const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
         return process.env.NODE_ENV === 'production'
           ? `${phpSystemUrl}/Static/Image/Fotos/${f}`
           : `http://localhost:5000/Static/Image/Fotos/${f}`;
@@ -2944,33 +2951,10 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     }
 
     // === LIBRETA CUANTITATIVA (PRIMARIA / SECUNDARIA) ===
-    // Obtener todas las asignaturas del grupo, agrupadas por área
-    const areas = await query(
-      `SELECT DISTINCT ar.id as area_id, ar.nombre as area_nombre
-       FROM areas ar
-       INNER JOIN areas_cursos ac ON ac.area_id = ar.id
-       INNER JOIN cursos c ON c.id = ac.curso_id
-       INNER JOIN asignaturas a ON a.curso_id = c.id
-       WHERE a.grupo_id = ? AND a.colegio_id = ? AND ar.colegio_id = ?
-       ORDER BY ar.nombre ASC`,
-      [grupoId, colegio_id, colegio_id]
-    );
-
-    // Obtener todas las asignaturas
-    const asignaturas = await query(
-      `SELECT 
-              a.id as asignatura_id,
-              c.id as curso_id,
-              c.nombre as curso_nombre,
-              ar.id as area_id,
-              ar.nombre as area_nombre
-       FROM asignaturas a
-       INNER JOIN cursos c ON c.id = a.curso_id
-       LEFT JOIN areas_cursos ac ON ac.curso_id = c.id
-       LEFT JOIN areas ar ON ar.id = ac.area_id AND ar.colegio_id = ?
-       WHERE a.grupo_id = ? AND a.colegio_id = ?
-       ORDER BY ar.nombre ASC, c.nombre ASC`,
-      [colegio_id, grupoId, colegio_id]
+    const libretaAreaOpts = { colegio_id, grupoId, nivelId };
+    const areas = await fetchAreasLibretaConAsignaturas(query, libretaAreaOpts);
+    const asignaturas = dedupeAsignaturasPorId(
+      await fetchAsignaturasLibretaConArea(query, libretaAreaOpts)
     );
 
     // Obtener todos los promedios por bimestre
@@ -3014,9 +2998,11 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     // Agrupar asignaturas por área y calcular promedios
     const areasConAsignaturas = [];
     const asignaturasSinArea = [];
+    const asignaturasYaUsadas = new Set();
 
     areas.forEach(area => {
-      const asignaturasArea = asignaturas.filter(a => a.area_id === area.area_id);
+      const asignaturasArea = filtrarAsignaturasDeArea(asignaturas, area.area_id, asignaturasYaUsadas);
+      asignaturasArea.forEach((a) => asignaturasYaUsadas.add(a.asignatura_id));
       if (asignaturasArea.length > 0) {
         const asignaturasConPromedios = asignaturasArea.map(asignatura => {
           const promedios = promediosPorAsignatura[asignatura.asignatura_id] || {};
@@ -3081,7 +3067,9 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
     });
 
     // Asignaturas sin área
-    const asignaturasSinAreaList = asignaturas.filter(a => !a.area_id);
+    const asignaturasSinAreaList = asignaturas.filter(
+      (a) => !a.area_id && !asignaturasYaUsadas.has(a.asignatura_id)
+    );
     if (asignaturasSinAreaList.length > 0) {
       asignaturasSinArea.push(...asignaturasSinAreaList.map(asignatura => {
         const promedios = promediosPorAsignatura[asignatura.asignatura_id] || {};
@@ -3594,7 +3582,7 @@ router.post('/hijos/:hijoId/mensajes/subir-imagen', uploadMensajes.single('image
       return res.status(400).json({ error: 'No se proporcionó ninguna imagen' });
     }
 
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const isProduction = process.env.NODE_ENV === 'production';
     
     let imagenUrl;
@@ -3668,7 +3656,7 @@ router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, r
     );
 
     // Construir URLs de archivos
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const isDevelopment = process.env.NODE_ENV !== 'production';
     const tareasConArchivos = await Promise.all(tareas.map(async (tarea) => {
       const archivos = await query(
@@ -3771,7 +3759,7 @@ router.get('/hijos/:hijoId/aula-virtual/tareas/:tareaId', soloLecturaProxy, asyn
     );
 
     // Construir URLs de archivos
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const isDevelopment = process.env.NODE_ENV !== 'production';
     const archivosConUrls = archivos.map(archivo => {
       let archivoUrl = null;
@@ -4211,7 +4199,7 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
     );
 
     // Construir URLs
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const isDevelopment = process.env.NODE_ENV !== 'production';
     const archivosConUrls = archivos.map(archivo => {
       let archivoUrl = null;
@@ -4504,7 +4492,7 @@ router.get('/publicaciones', async (req, res) => {
     }
 
     // Procesar publicaciones (igual que alumno)
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const frontendUrl = process.env.FRONTEND_URL || 'https://sistema.vanguardschools.edu.pe';
     const isProduction = process.env.NODE_ENV === 'production';
 
@@ -4962,7 +4950,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
     const { usuario_id, colegio_id } = req.user;
     const { destinatarios, grupos, asunto, mensaje } = req.body;
 
-    const phpBaseMensajes = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpBaseMensajes = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
 
     const destinatariosArray = typeof destinatarios === 'string' ? JSON.parse(destinatarios) : destinatarios;
     const gruposArray = typeof grupos === 'string' ? JSON.parse(grupos || '[]') : (grupos || []);
@@ -5583,7 +5571,7 @@ router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, 
     // Si se subió una nueva foto
     if (req.file) {
       if (alumnoData.foto && alumnoData.foto !== '') {
-        const oldFotoPath = `/home/vanguard/nuevo.vanguardschools.edu.pe/Static/Image/Fotos/${path.basename(alumnoData.foto)}`;
+        const oldFotoPath = `/home/vanguard/intranet2026/backend/Static/Image/Fotos/${path.basename(alumnoData.foto)}`;
         if (fs.existsSync(oldFotoPath)) {
           fs.unlinkSync(oldFotoPath);
         }
@@ -5794,7 +5782,7 @@ router.get('/psicologia/psicologa-contacto', async (req, res) => {
       return res.json({ psicologa: null });
     }
     const row = rows[0];
-    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://nuevo.vanguardschools.edu.pe';
+    const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
     const isProduction = process.env.NODE_ENV === 'production';
     let foto_url = null;
     if (row.foto_filename && String(row.foto_filename).trim()) {
