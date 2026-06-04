@@ -72,6 +72,17 @@ export default function MatriculaOnline() {
   const [submitting, setSubmitting] = useState(false);
   const [exito, setExito] = useState(null);
   const fotoInputRef = useRef(null);
+  const [fotoDragOver, setFotoDragOver] = useState(false);
+
+  const apiBaseUrl = useMemo(() => {
+    const hostname = window.location.hostname || '';
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+    if (isLocalhost) return 'http://localhost:5000';
+    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+    return `${protocol}//${hostname}`;
+  }, []);
+
+  const logoUrl = useMemo(() => `${apiBaseUrl}/assets/logos/logo.png`, [apiBaseUrl]);
 
   const docsTotal = catalogo?.documentos?.length ?? 0;
   const docsAceptadosCount = useMemo(
@@ -115,8 +126,7 @@ export default function MatriculaOnline() {
     }
   }, [gradosOpciones]);
 
-  const onFotoChange = (e) => {
-    const file = e.target.files?.[0];
+  const applyFotoFile = (file) => {
     if (!file) return;
     if (!/^image\//i.test(file.type)) {
       setError('La foto DNI debe ser una imagen (JPG o PNG).');
@@ -125,6 +135,16 @@ export default function MatriculaOnline() {
     setFotoDni(file);
     setFotoPreview(URL.createObjectURL(file));
     setError(null);
+  };
+
+  const onFotoChange = (e) => {
+    applyFotoFile(e.target.files?.[0]);
+  };
+
+  const onFotoDrop = (e) => {
+    e.preventDefault();
+    setFotoDragOver(false);
+    applyFotoFile(e.dataTransfer.files?.[0]);
   };
 
   const toggleDoc = (id) => {
@@ -261,6 +281,14 @@ export default function MatriculaOnline() {
     <div className="matricula-online-page">
       <header className="matricula-online-header">
         <div className="matricula-online-header-inner">
+          <img
+            src={logoUrl}
+            alt="Vanguard Schools"
+            className="matricula-online-logo"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
+          />
           <span className="matricula-online-badge">Matrícula {catalogo.anio_matricula}</span>
           <h1>{catalogo.titulo || 'Matrícula online'}</h1>
           <p>{catalogo.colegio_nombre}</p>
@@ -370,7 +398,7 @@ export default function MatriculaOnline() {
           <section className="matricula-online-section matricula-online-section--alumno">
             <h2>Datos del alumno</h2>
             <p className="matricula-online-hint">Todos los campos marcados con * son obligatorios.</p>
-            <div className="matricula-online-grid">
+            <div className="matricula-online-grid matricula-online-grid--3">
               <div className="matricula-online-field">
                 <label>DNI / Código *</label>
                 <input
@@ -378,6 +406,27 @@ export default function MatriculaOnline() {
                   value={alumno.nro_documento}
                   onChange={(e) => setAlumno((p) => ({ ...p, nro_documento: e.target.value }))}
                   placeholder="Número de documento"
+                />
+              </div>
+              <div className="matricula-online-field">
+                <label>Sexo *</label>
+                <select
+                  required
+                  value={alumno.sexo}
+                  onChange={(e) => setAlumno((p) => ({ ...p, sexo: parseInt(e.target.value, 10) }))}
+                >
+                  <option value="">— Seleccione —</option>
+                  <option value={1}>Femenino</option>
+                  <option value={2}>Masculino</option>
+                </select>
+              </div>
+              <div className="matricula-online-field">
+                <label>Fecha de nacimiento *</label>
+                <input
+                  type="date"
+                  required
+                  value={alumno.fecha_nacimiento}
+                  onChange={(e) => setAlumno((p) => ({ ...p, fecha_nacimiento: e.target.value }))}
                 />
               </div>
               <div className="matricula-online-field">
@@ -405,27 +454,6 @@ export default function MatriculaOnline() {
                 />
               </div>
               <div className="matricula-online-field">
-                <label>Fecha de nacimiento *</label>
-                <input
-                  type="date"
-                  required
-                  value={alumno.fecha_nacimiento}
-                  onChange={(e) => setAlumno((p) => ({ ...p, fecha_nacimiento: e.target.value }))}
-                />
-              </div>
-              <div className="matricula-online-field">
-                <label>Sexo *</label>
-                <select
-                  required
-                  value={alumno.sexo}
-                  onChange={(e) => setAlumno((p) => ({ ...p, sexo: parseInt(e.target.value, 10) }))}
-                >
-                  <option value="">— Seleccione —</option>
-                  <option value={1}>Femenino</option>
-                  <option value={2}>Masculino</option>
-                </select>
-              </div>
-              <div className="matricula-online-field">
                 <label>Seguro *</label>
                 <select
                   required
@@ -440,7 +468,7 @@ export default function MatriculaOnline() {
                   ))}
                 </select>
               </div>
-              <div className="matricula-online-field matricula-online-field--full">
+              <div className="matricula-online-field">
                 <label>Correo electrónico *</label>
                 <input
                   type="email"
@@ -449,7 +477,7 @@ export default function MatriculaOnline() {
                   onChange={(e) => setAlumno((p) => ({ ...p, email: e.target.value }))}
                 />
               </div>
-              <div className="matricula-online-field matricula-online-field--full">
+              <div className="matricula-online-field">
                 <label>Domicilio *</label>
                 <input
                   required
@@ -457,41 +485,74 @@ export default function MatriculaOnline() {
                   onChange={(e) => setAlumno((p) => ({ ...p, domicilio: e.target.value }))}
                 />
               </div>
-              <div className="matricula-online-field matricula-online-field--full">
-                <label>Foto DNI *</label>
-                <div className="matricula-online-file">
-                  <button type="button" className="matricula-online-file-btn" onClick={() => fotoInputRef.current?.click()}>
-                    {fotoDni ? 'Cambiar imagen' : 'Seleccionar imagen'}
-                  </button>
-                  <input ref={fotoInputRef} type="file" accept="image/*" hidden onChange={onFotoChange} />
-                  {fotoPreview && (
-                    <img src={fotoPreview} alt="Vista previa DNI" className="matricula-online-foto-preview" />
-                  )}
+            </div>
+
+            <div className="matricula-online-grid--2-center">
+              <div className="matricula-online-grid matricula-online-grid--2">
+                <div className="matricula-online-field">
+                  <label>Nivel a postular *</label>
+                  <select
+                    required
+                    value={nivelId}
+                    onChange={(e) => setNivelId(e.target.value)}
+                  >
+                    {(catalogo.niveles || []).map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="matricula-online-field">
+                  <label>Grado a postular *</label>
+                  <select required value={grado} onChange={(e) => setGrado(e.target.value)}>
+                    {gradosOpciones.map((g) => (
+                      <option key={g.v} value={g.v}>
+                        {g.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
-              <div className="matricula-online-field">
-                <label>Nivel a postular *</label>
-                <select
-                  required
-                  value={nivelId}
-                  onChange={(e) => setNivelId(e.target.value)}
-                >
-                  {(catalogo.niveles || []).map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {n.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="matricula-online-field">
-                <label>Grado a postular *</label>
-                <select required value={grado} onChange={(e) => setGrado(e.target.value)}>
-                  {gradosOpciones.map((g) => (
-                    <option key={g.v} value={g.v}>
-                      {g.label}
-                    </option>
-                  ))}
-                </select>
+            </div>
+
+            <div className="mat-foto-upload-wrap">
+              <label className="mat-foto-upload-label">Foto del DNI del alumno *</label>
+              <div
+                className={`mat-foto-upload${fotoDragOver ? ' mat-foto-upload--drag' : ''}${fotoPreview ? ' mat-foto-upload--has-preview' : ''}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => fotoInputRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') fotoInputRef.current?.click();
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setFotoDragOver(true);
+                }}
+                onDragLeave={() => setFotoDragOver(false)}
+                onDrop={onFotoDrop}
+              >
+                <input ref={fotoInputRef} type="file" accept="image/*" hidden onChange={onFotoChange} />
+                {fotoPreview ? (
+                  <div className="mat-foto-upload-preview">
+                    <img src={fotoPreview} alt="Vista previa DNI" />
+                    <span className="mat-foto-upload-change">Clic para cambiar imagen</span>
+                  </div>
+                ) : (
+                  <div className="mat-foto-upload-empty">
+                    <div className="mat-foto-upload-icon" aria-hidden>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <rect x="3" y="5" width="18" height="14" rx="2" />
+                        <circle cx="12" cy="11" r="3" />
+                        <path d="M8 19l2-2h4l2 2" />
+                      </svg>
+                    </div>
+                    <strong>Subir foto del DNI</strong>
+                    <span>Arrastre una imagen aquí o haga clic para seleccionar</span>
+                    <span className="mat-foto-upload-formats">JPG, PNG · máx. 8 MB</span>
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -500,9 +561,9 @@ export default function MatriculaOnline() {
           <section className="matricula-online-section matricula-online-section--apoderado">
             <h2>Apoderado</h2>
             <p className="matricula-online-hint">Todos los campos marcados con * son obligatorios.</p>
-            <div className="matricula-online-grid">
+            <div className="matricula-online-grid matricula-online-grid--3">
               <div className="matricula-online-field">
-                <label>Tipo documento</label>
+                <label>Tipo documento *</label>
                 <select disabled value={1}>
                   <option value={1}>DNI</option>
                 </select>
@@ -516,17 +577,13 @@ export default function MatriculaOnline() {
                 />
               </div>
               <div className="matricula-online-field">
-                <label>Parentesco *</label>
-                <select
-                  value={apoderado.parentesco}
-                  onChange={(e) => setApoderado((p) => ({ ...p, parentesco: parseInt(e.target.value, 10) }))}
-                >
-                  {(catalogo.parentesco || []).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
+                <label>Fecha nacimiento *</label>
+                <input
+                  type="date"
+                  required
+                  value={apoderado.fecha_nacimiento}
+                  onChange={(e) => setApoderado((p) => ({ ...p, fecha_nacimiento: e.target.value }))}
+                />
               </div>
               <div className="matricula-online-field">
                 <label>Apellido paterno *</label>
@@ -553,13 +610,18 @@ export default function MatriculaOnline() {
                 />
               </div>
               <div className="matricula-online-field">
-                <label>Fecha nacimiento *</label>
-                <input
-                  type="date"
+                <label>Parentesco *</label>
+                <select
                   required
-                  value={apoderado.fecha_nacimiento}
-                  onChange={(e) => setApoderado((p) => ({ ...p, fecha_nacimiento: e.target.value }))}
-                />
+                  value={apoderado.parentesco}
+                  onChange={(e) => setApoderado((p) => ({ ...p, parentesco: parseInt(e.target.value, 10) }))}
+                >
+                  {(catalogo.parentesco || []).map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="matricula-online-field">
                 <label>Correo *</label>
@@ -583,9 +645,21 @@ export default function MatriculaOnline() {
 
           {/* Firma */}
           <section className="matricula-online-section matricula-online-section--firma">
-            <h2>Firma del apoderado</h2>
-            <p className="matricula-online-hint">Dibuje su firma en el recuadro (obligatorio).</p>
-            <PsicologiaSignaturePad width={480} height={140} onChange={setFirmaDataUrl} disabled={submitting} />
+            <div className="mat-firma-header">
+              <div className="mat-firma-header-icon" aria-hidden>✍</div>
+              <div>
+                <h2>Firma del apoderado</h2>
+                <p className="matricula-online-hint mat-firma-hint">
+                  Dibuje su firma manuscrita en el recuadro. Es obligatorio para completar la matrícula.
+                </p>
+              </div>
+            </div>
+            <div className={`mat-firma-pad-box${firmaDataUrl ? ' mat-firma-pad-box--signed' : ''}`}>
+              <PsicologiaSignaturePad width={520} height={160} onChange={setFirmaDataUrl} disabled={submitting} />
+              {firmaDataUrl && (
+                <p className="mat-firma-ok">✓ Firma registrada — puede limpiar y volver a firmar si lo necesita</p>
+              )}
+            </div>
           </section>
 
           <div className="matricula-online-actions">
