@@ -8,13 +8,26 @@ const PLACEHOLDERS_AYUDA = [
   '{{nombre_alumno}}',
   '{{nivel}}',
   '{{grado}}',
+  '{{nivel_postula}}',
+  '{{grado_postula}}',
+  '{{nivel_grado}}',
   '{{anio_matricula}}',
   '{{fecha_registro}}',
   '{{colegio}}',
   '{{seguro}}',
+  '{{dni_alumno}}',
+  '{{dni_apoderado}}',
   '{{email_apoderado}}',
   '{{telefono_apoderado}}',
+  '{{documentos_aceptados_html}}',
 ];
+
+function nombreCompletoPersona(ap, am, nom) {
+  const apellidos = [ap, am].filter(Boolean).join(' ').trim();
+  const nombres = String(nom || '').trim();
+  if (apellidos && nombres) return `${apellidos}, ${nombres}`;
+  return apellidos || nombres;
+}
 
 function aplicarPlaceholders(texto, vars) {
   let s = String(texto || '');
@@ -79,21 +92,29 @@ function gradoLabel(nivelNombre, grado) {
 }
 
 function buildVarsEmail(ctx) {
-  const nombreAlumno = [ctx.alumno.nombres, ctx.alumno.apellido_paterno, ctx.alumno.apellido_materno]
-    .filter(Boolean)
-    .join(' ')
-    .trim();
-  const nombreApoderado = [ctx.apoderado.nombres, ctx.apoderado.apellido_paterno, ctx.apoderado.apellido_materno]
-    .filter(Boolean)
-    .join(' ')
-    .trim();
+  const nombreAlumno = nombreCompletoPersona(
+    ctx.alumno.apellido_paterno,
+    ctx.alumno.apellido_materno,
+    ctx.alumno.nombres
+  );
+  const nombreApoderado = nombreCompletoPersona(
+    ctx.apoderado.apellido_paterno,
+    ctx.apoderado.apellido_materno,
+    ctx.apoderado.nombres
+  );
+  const nivelTxt = ctx.nivelNombre || '';
+  const gradoTxt = gradoLabel(ctx.nivelNombre, ctx.grado);
   return {
     nombre_apoderado: nombreApoderado,
     nombre_alumno: nombreAlumno,
     dni_alumno: ctx.alumno.nro_documento || '',
     dni_apoderado: ctx.apoderado.nro_documento || '',
-    nivel: ctx.nivelNombre || '',
-    grado: gradoLabel(ctx.nivelNombre, ctx.grado),
+    nivel: nivelTxt,
+    grado: gradoTxt,
+    nivel_postula: nivelTxt,
+    grado_postula: gradoTxt,
+    nivel_grado: nivelTxt && gradoTxt ? `${nivelTxt} — ${gradoTxt}` : nivelTxt || gradoTxt,
+    /** Año Matrículas de configuración (no el año interno +1). */
     anio_matricula: String(ctx.anioMatricula || ''),
     fecha_registro: ctx.fechaRegistro || '',
     colegio: ctx.colegioNombre || 'Vanguard Schools',

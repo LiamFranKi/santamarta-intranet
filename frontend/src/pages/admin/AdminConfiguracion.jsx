@@ -1390,9 +1390,9 @@ function AdminConfiguracion() {
                 </div>
                 <small>
                   Use etiquetas como <code>{'{{nombre_apoderado}}'}</code>, <code>{'{{nombre_alumno}}'}</code>,{' '}
-                  <code>{'{{nivel}}'}</code>, <code>{'{{grado}}'}</code>, <code>{'{{anio_matricula}}'}</code>,{' '}
-                  <code>{'{{fecha_registro}}'}</code>, <code>{'{{colegio}}'}</code>, <code>{'{{seguro}}'}</code>.
-                  Si deja vacío, se usa una plantilla predeterminada.
+                  <code>{'{{nivel}}'}</code>, <code>{'{{grado}}'}</code>, <code>{'{{anio_matricula}}'}</code>{' '}
+                  (Año Matrículas de configuración), <code>{'{{fecha_registro}}'}</code>, <code>{'{{colegio}}'}</code>,{' '}
+                  <code>{'{{seguro}}'}</code>. Si deja vacío, se usa una plantilla predeterminada.
                 </small>
               </div>
               <div className="form-group full-width">
@@ -1420,9 +1420,14 @@ function AdminConfiguracion() {
                   />
                 </div>
                 <small>
-                  Etiquetas adicionales: <code>{'{{dni_alumno}}'}</code>, <code>{'{{dni_apoderado}}'}</code>,{' '}
+                  Etiquetas: <code>{'{{nombre_alumno}}'}</code> (apellidos y nombres),{' '}
+                  <code>{'{{nombre_apoderado}}'}</code>, <code>{'{{nivel}}'}</code> / <code>{'{{nivel_postula}}'}</code>,{' '}
+                  <code>{'{{grado}}'}</code> / <code>{'{{grado_postula}}'}</code>, <code>{'{{nivel_grado}}'}</code>,{' '}
+                  <code>{'{{anio_matricula}}'}</code> (Año Matrículas), <code>{'{{seguro}}'}</code>,{' '}
+                  <code>{'{{dni_alumno}}'}</code>, <code>{'{{dni_apoderado}}'}</code>,{' '}
                   <code>{'{{email_apoderado}}'}</code>, <code>{'{{telefono_apoderado}}'}</code>,{' '}
-                  <code>{'{{documentos_aceptados_html}}'}</code>. Foto DNI y firma se adjuntan automáticamente.
+                  <code>{'{{fecha_registro}}'}</code>, <code>{'{{documentos_aceptados_html}}'}</code>.
+                  Foto DNI y firma se adjuntan automáticamente.
                 </small>
               </div>
             </div>

@@ -39,7 +39,7 @@ const emptyAlumno = () => ({
   apellido_paterno: '',
   apellido_materno: '',
   nombres: '',
-  sexo: 0,
+  sexo: '',
   fecha_nacimiento: '',
   email: '',
   domicilio: '',
@@ -52,7 +52,7 @@ const emptyApoderado = () => ({
   nombres: '',
   apellido_paterno: '',
   apellido_materno: '',
-  fecha_nacimiento: '1980-01-01',
+  fecha_nacimiento: '',
   email: '',
   telefono_celular: '',
 });
@@ -72,6 +72,13 @@ export default function MatriculaOnline() {
   const [submitting, setSubmitting] = useState(false);
   const [exito, setExito] = useState(null);
   const fotoInputRef = useRef(null);
+
+  const docsTotal = catalogo?.documentos?.length ?? 0;
+  const docsAceptadosCount = useMemo(
+    () => (catalogo?.documentos || []).filter((d) => docsAceptados[d.id]).length,
+    [catalogo, docsAceptados]
+  );
+  const docsProgressPct = docsTotal > 0 ? Math.round((docsAceptadosCount / docsTotal) * 100) : 0;
 
   const loadCatalogo = useCallback(async () => {
     setLoading(true);
@@ -125,17 +132,30 @@ export default function MatriculaOnline() {
   };
 
   const validar = () => {
-    if (!alumno.nro_documento.trim() || !alumno.apellido_paterno.trim() || !alumno.nombres.trim()) {
-      return 'Complete los datos obligatorios del alumno.';
-    }
-    if (!alumno.seguro_id) return 'Seleccione el seguro del alumno.';
+    if (!alumno.nro_documento.trim()) return 'Indique el DNI / código del alumno.';
+    if (!alumno.apellido_paterno.trim()) return 'Indique el apellido paterno del alumno.';
+    if (!alumno.apellido_materno.trim()) return 'Indique el apellido materno del alumno.';
+    if (!alumno.nombres.trim()) return 'Indique los nombres del alumno.';
     if (!alumno.fecha_nacimiento) return 'Indique la fecha de nacimiento del alumno.';
-    if (!nivelId || !grado) return 'Seleccione nivel y grado.';
-    if (!fotoDni) return 'Adjunte la foto del DNI del alumno.';
-    if (!apoderado.nro_documento.trim() || !apoderado.apellido_paterno.trim() || !apoderado.nombres.trim()) {
-      return 'Complete los datos obligatorios del apoderado.';
+    const sexo = parseInt(alumno.sexo, 10);
+    if (sexo !== 1 && sexo !== 2) return 'Seleccione el sexo del alumno.';
+    if (!alumno.seguro_id) return 'Seleccione el seguro del alumno.';
+    if (!String(alumno.email || '').trim()) return 'Indique el correo electrónico del alumno.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(alumno.email).trim())) {
+      return 'Indique un correo electrónico válido del alumno.';
     }
+    if (!alumno.domicilio.trim()) return 'Indique el domicilio del alumno.';
+    if (!nivelId || !grado) return 'Seleccione nivel y grado a postular.';
+    if (!fotoDni) return 'Adjunte la foto del DNI del alumno.';
+    if (!apoderado.nro_documento.trim()) return 'Indique el DNI del apoderado.';
+    if (!apoderado.apellido_paterno.trim()) return 'Indique el apellido paterno del apoderado.';
+    if (!apoderado.apellido_materno.trim()) return 'Indique el apellido materno del apoderado.';
+    if (!apoderado.nombres.trim()) return 'Indique los nombres del apoderado.';
+    if (!apoderado.fecha_nacimiento) return 'Indique la fecha de nacimiento del apoderado.';
     if (!apoderado.email.trim()) return 'Indique el correo del apoderado.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(apoderado.email.trim())) {
+      return 'Indique un correo electrónico válido del apoderado.';
+    }
     if (!apoderado.telefono_celular.trim()) return 'Indique el teléfono celular del apoderado.';
     if (!firmaDataUrl) return 'Debe firmar en el recuadro de firma.';
     const docs = catalogo?.documentos || [];
@@ -163,7 +183,7 @@ export default function MatriculaOnline() {
       const payload = {
         alumno: {
           ...alumno,
-          sexo: parseInt(alumno.sexo, 10) || 0,
+          sexo: parseInt(alumno.sexo, 10),
           seguro_id: parseInt(alumno.seguro_id, 10),
         },
         apoderado: {
@@ -228,7 +248,7 @@ export default function MatriculaOnline() {
           <h1>¡Solicitud registrada!</h1>
           <p>{exito.mensaje}</p>
           <p className="matricula-online-muted">
-            Año académico: <strong>{exito.anio_matricula}</strong>
+            Proceso de matrícula <strong>{exito.anio_matricula}</strong>
             {exito.grado_label ? <> · Grado: <strong>{exito.grado_label}</strong></> : null}
           </p>
           <p className="matricula-online-muted">Revise su bandeja de correo (incluida spam).</p>
@@ -257,34 +277,99 @@ export default function MatriculaOnline() {
         <form className="matricula-online-form" onSubmit={onSubmit} noValidate>
           {/* Documentos */}
           {catalogo.documentos?.length > 0 && (
-            <section className="matricula-online-section">
-              <h2>Documentos institucionales</h2>
-              <p className="matricula-online-hint">Lea cada documento y marque su aceptación.</p>
+            <section className="matricula-online-section matricula-online-section--docs">
+              <div className="mat-docs-header">
+                <div className="mat-docs-header-icon" aria-hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                </div>
+                <div className="mat-docs-header-text">
+                  <h2>Documentos institucionales</h2>
+                  <p className="matricula-online-hint mat-docs-header-hint">
+                    Lea cada documento, ábralo con el enlace y marque su aceptación para continuar.
+                  </p>
+                </div>
+                <div className="mat-docs-counter" aria-live="polite">
+                  <span className="mat-docs-counter-num">{docsAceptadosCount}</span>
+                  <span className="mat-docs-counter-sep">/</span>
+                  <span className="mat-docs-counter-total">{docsTotal}</span>
+                  <span className="mat-docs-counter-label">aceptados</span>
+                </div>
+              </div>
+
+              <div className="mat-docs-progress" role="progressbar" aria-valuenow={docsProgressPct} aria-valuemin={0} aria-valuemax={100}>
+                <div className="mat-docs-progress-fill" style={{ width: `${docsProgressPct}%` }} />
+              </div>
+
               <ul className="matricula-online-docs">
-                {catalogo.documentos.map((d) => (
-                  <li key={d.id}>
-                    <label className="matricula-online-doc-label">
-                      <input
-                        type="checkbox"
-                        checked={!!docsAceptados[d.id]}
-                        onChange={() => toggleDoc(d.id)}
-                      />
-                      <span>
-                        Reconozco haber leído y aceptado:{' '}
-                        <a href={buildDocUrl(d.archivo_url)} target="_blank" rel="noopener noreferrer">
-                          {d.titulo}
+                {catalogo.documentos.map((d, idx) => {
+                  const aceptado = !!docsAceptados[d.id];
+                  return (
+                    <li key={d.id}>
+                      <label
+                        className={`mat-doc-card${aceptado ? ' mat-doc-card--accepted' : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mat-doc-card-checkbox"
+                          checked={aceptado}
+                          onChange={() => toggleDoc(d.id)}
+                        />
+                        <span className="mat-doc-card-check" aria-hidden>
+                          <svg viewBox="0 0 20 20" fill="currentColor">
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 0 1 0 1.414l-8 8a1 1 0 0 1-1.414 0l-4-4a1 1 0 1 1 1.414-1.414L8 12.586l7.293-7.293a1 1 0 0 1 1.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </span>
+                        <span className="mat-doc-card-pdf" aria-hidden>PDF</span>
+                        <span className="mat-doc-card-body">
+                          <span className="mat-doc-card-index">Documento {idx + 1}</span>
+                          <strong className="mat-doc-card-title">{d.titulo}</strong>
+                          <span className="mat-doc-card-legal">
+                            Reconozco haber leído y aceptado este documento.
+                          </span>
+                        </span>
+                        <a
+                          href={buildDocUrl(d.archivo_url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mat-doc-card-open"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden>
+                            <path d="M11 3H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
+                            <path d="M13 3h4v4M10 10l7-7" />
+                          </svg>
+                          Ver PDF
                         </a>
-                      </span>
-                    </label>
-                  </li>
-                ))}
+                      </label>
+                    </li>
+                  );
+                })}
               </ul>
+
+              {docsAceptadosCount < docsTotal && (
+                <p className="mat-docs-footer-hint">
+                  Debe aceptar los {docsTotal} documentos para enviar la matrícula.
+                </p>
+              )}
+              {docsAceptadosCount === docsTotal && docsTotal > 0 && (
+                <p className="mat-docs-footer-ok">✓ Todos los documentos han sido aceptados</p>
+              )}
             </section>
           )}
 
           {/* Alumno */}
-          <section className="matricula-online-section">
+          <section className="matricula-online-section matricula-online-section--alumno">
             <h2>Datos del alumno</h2>
+            <p className="matricula-online-hint">Todos los campos marcados con * son obligatorios.</p>
             <div className="matricula-online-grid">
               <div className="matricula-online-field">
                 <label>DNI / Código *</label>
@@ -304,8 +389,9 @@ export default function MatriculaOnline() {
                 />
               </div>
               <div className="matricula-online-field">
-                <label>Apellido materno</label>
+                <label>Apellido materno *</label>
                 <input
+                  required
                   value={alumno.apellido_materno}
                   onChange={(e) => setAlumno((p) => ({ ...p, apellido_materno: e.target.value }))}
                 />
@@ -328,12 +414,13 @@ export default function MatriculaOnline() {
                 />
               </div>
               <div className="matricula-online-field">
-                <label>Sexo</label>
+                <label>Sexo *</label>
                 <select
+                  required
                   value={alumno.sexo}
                   onChange={(e) => setAlumno((p) => ({ ...p, sexo: parseInt(e.target.value, 10) }))}
                 >
-                  <option value={0}>—</option>
+                  <option value="">— Seleccione —</option>
                   <option value={1}>Femenino</option>
                   <option value={2}>Masculino</option>
                 </select>
@@ -354,16 +441,18 @@ export default function MatriculaOnline() {
                 </select>
               </div>
               <div className="matricula-online-field matricula-online-field--full">
-                <label>Correo electrónico</label>
+                <label>Correo electrónico *</label>
                 <input
                   type="email"
+                  required
                   value={alumno.email}
                   onChange={(e) => setAlumno((p) => ({ ...p, email: e.target.value }))}
                 />
               </div>
               <div className="matricula-online-field matricula-online-field--full">
-                <label>Domicilio</label>
+                <label>Domicilio *</label>
                 <input
+                  required
                   value={alumno.domicilio}
                   onChange={(e) => setAlumno((p) => ({ ...p, domicilio: e.target.value }))}
                 />
@@ -408,8 +497,9 @@ export default function MatriculaOnline() {
           </section>
 
           {/* Apoderado */}
-          <section className="matricula-online-section">
+          <section className="matricula-online-section matricula-online-section--apoderado">
             <h2>Apoderado</h2>
+            <p className="matricula-online-hint">Todos los campos marcados con * son obligatorios.</p>
             <div className="matricula-online-grid">
               <div className="matricula-online-field">
                 <label>Tipo documento</label>
@@ -447,8 +537,9 @@ export default function MatriculaOnline() {
                 />
               </div>
               <div className="matricula-online-field">
-                <label>Apellido materno</label>
+                <label>Apellido materno *</label>
                 <input
+                  required
                   value={apoderado.apellido_materno}
                   onChange={(e) => setApoderado((p) => ({ ...p, apellido_materno: e.target.value }))}
                 />
@@ -462,9 +553,10 @@ export default function MatriculaOnline() {
                 />
               </div>
               <div className="matricula-online-field">
-                <label>Fecha nacimiento</label>
+                <label>Fecha nacimiento *</label>
                 <input
                   type="date"
+                  required
                   value={apoderado.fecha_nacimiento}
                   onChange={(e) => setApoderado((p) => ({ ...p, fecha_nacimiento: e.target.value }))}
                 />
@@ -490,7 +582,7 @@ export default function MatriculaOnline() {
           </section>
 
           {/* Firma */}
-          <section className="matricula-online-section">
+          <section className="matricula-online-section matricula-online-section--firma">
             <h2>Firma del apoderado</h2>
             <p className="matricula-online-hint">Dibuje su firma en el recuadro (obligatorio).</p>
             <PsicologiaSignaturePad width={480} height={140} onChange={setFirmaDataUrl} disabled={submitting} />

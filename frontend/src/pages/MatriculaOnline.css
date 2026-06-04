@@ -117,10 +117,325 @@
 }
 
 .matricula-online-section {
-  background: #fff;
   border-radius: 14px;
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.07);
   padding: 1.5rem 1.35rem;
+  border: 1px solid transparent;
+}
+
+.matricula-online-section--docs {
+  background: linear-gradient(155deg, #f5f3ff 0%, #eef2ff 55%, #e0e7ff 100%);
+  border-color: #a5b4fc;
+  padding: 1.65rem 1.5rem;
+}
+
+.matricula-online-section--docs .matricula-online-hint {
+  margin-bottom: 0;
+}
+
+/* Documentos institucionales */
+.mat-docs-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.mat-docs-header-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #4f46e5, #2563eb);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+}
+
+.mat-docs-header-icon svg {
+  width: 26px;
+  height: 26px;
+}
+
+.mat-docs-header-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.mat-docs-header-text h2 {
+  margin: 0 0 0.25rem;
+}
+
+.mat-docs-header-hint {
+  line-height: 1.45;
+}
+
+.mat-docs-counter {
+  flex-shrink: 0;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  padding: 0.45rem 0.75rem;
+  min-width: 4.5rem;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.08);
+}
+
+.mat-docs-counter-num {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #4f46e5;
+  line-height: 1;
+}
+
+.mat-docs-counter-sep {
+  font-size: 0.9rem;
+  color: #94a3b8;
+  margin: 0 0.1rem;
+}
+
+.mat-docs-counter-total {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.mat-docs-counter-label {
+  display: block;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+  margin-top: 0.15rem;
+}
+
+.mat-docs-progress {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 1.15rem;
+  border: 1px solid rgba(199, 210, 254, 0.8);
+}
+
+.mat-docs-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #22c55e);
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.matricula-online-docs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.mat-doc-card {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: center;
+  gap: 0 0.85rem;
+  padding: 1rem 1.1rem;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 14px;
+  border: 2px solid rgba(199, 210, 254, 0.65);
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s, background 0.2s;
+  position: relative;
+}
+
+.mat-doc-card:hover {
+  border-color: #818cf8;
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.12);
+  transform: translateY(-1px);
+}
+
+.mat-doc-card--accepted {
+  border-color: #22c55e;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(236, 253, 245, 0.95) 100%);
+  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.12);
+}
+
+.mat-doc-card-checkbox {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.mat-doc-card-check {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 2px solid #cbd5e1;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.mat-doc-card-check svg {
+  width: 16px;
+  height: 16px;
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.mat-doc-card--accepted .mat-doc-card-check {
+  border-color: #22c55e;
+  background: #22c55e;
+}
+
+.mat-doc-card--accepted .mat-doc-card-check svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.mat-doc-card-pdf {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #fef2f2, #fee2e2);
+  color: #dc2626;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border: 1px solid #fecaca;
+  flex-shrink: 0;
+}
+
+.mat-doc-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.mat-doc-card-index {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #6366f1;
+}
+
+.mat-doc-card-title {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.35;
+}
+
+.mat-doc-card-legal {
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.mat-doc-card-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid #bfdbfe;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+}
+
+.mat-doc-card-open svg {
+  width: 14px;
+  height: 14px;
+}
+
+.mat-doc-card-open:hover {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.mat-docs-footer-hint {
+  margin: 1rem 0 0;
+  padding: 0.65rem 0.85rem;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 8px;
+  border-left: 3px solid #f59e0b;
+  font-size: 0.82rem;
+  color: #92400e;
+}
+
+.mat-docs-footer-ok {
+  margin: 1rem 0 0;
+  padding: 0.65rem 0.85rem;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 8px;
+  border-left: 3px solid #22c55e;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #15803d;
+}
+
+@media (max-width: 640px) {
+  .mat-docs-header {
+    flex-wrap: wrap;
+  }
+
+  .mat-docs-counter {
+    margin-left: auto;
+  }
+
+  .mat-doc-card {
+    grid-template-columns: auto auto 1fr;
+    grid-template-rows: auto auto;
+  }
+
+  .mat-doc-card-open {
+    grid-column: 1 / -1;
+    justify-content: center;
+    margin-top: 0.35rem;
+  }
+}
+
+.matricula-online-section--alumno {
+  background: linear-gradient(145deg, #ecfdf5 0%, #f0fdfa 100%);
+  border-color: #a7f3d0;
+}
+
+.matricula-online-section--apoderado {
+  background: linear-gradient(145deg, #fff7ed 0%, #fffbeb 100%);
+  border-color: #fed7aa;
+}
+
+.matricula-online-section--firma {
+  background: linear-gradient(145deg, #faf5ff 0%, #fdf4ff 100%);
+  border-color: #e9d5ff;
+}
+
+.matricula-online-section--alumno .matricula-online-field input,
+.matricula-online-section--alumno .matricula-online-field select,
+.matricula-online-section--apoderado .matricula-online-field input,
+.matricula-online-section--apoderado .matricula-online-field select {
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .matricula-online-section h2 {
@@ -180,40 +495,6 @@
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
   background: #fff;
-}
-
-.matricula-online-docs {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.65rem;
-}
-
-.matricula-online-doc-label {
-  display: flex;
-  gap: 0.65rem;
-  align-items: flex-start;
-  padding: 0.75rem;
-  background: #f8fafc;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  cursor: pointer;
-  font-size: 0.92rem;
-  line-height: 1.45;
-}
-
-.matricula-online-doc-label input {
-  margin-top: 0.2rem;
-  flex-shrink: 0;
-  width: 1rem;
-  height: 1rem;
-}
-
-.matricula-online-doc-label a {
-  color: #2563eb;
-  font-weight: 600;
 }
 
 .matricula-online-file {

@@ -16,6 +16,13 @@ const { enviarEmailsMatriculaOnline, gradoLabel } = require('../utils/matriculaO
 const { staticFsSubdir } = require('../utils/staticStorage');
 const { fechaMySQLLima } = require('../utils/fechaHoraLima');
 
+function resolverAniosMatricula(colegio) {
+  const anioMatriculas = parseInt(colegio?.anio_matriculas, 10);
+  const anioDisplay =
+    Number.isFinite(anioMatriculas) && anioMatriculas > 0 ? anioMatriculas : new Date().getFullYear();
+  return { anioDisplay, anioSistema: anioDisplay + 1 };
+}
+
 function gradosValidos(nivelNombre) {
   const n = String(nivelNombre || '').toUpperCase();
   if (n.includes('INICIAL')) return [3, 4, 5];
@@ -165,9 +172,7 @@ router.get('/', async (req, res) => {
   try {
     const { colegio_id, colegio, configMap } = await loadConfigMatricula();
     const habilitado = String(configMap.enable_enrollment_form || 'NO').trim().toUpperCase() === 'SI';
-    const anioMatriculas = parseInt(colegio.anio_matriculas, 10);
-    const anioMatricula =
-      Number.isFinite(anioMatriculas) && anioMatriculas > 0 ? anioMatriculas + 1 : new Date().getFullYear() + 1;
+    const { anioDisplay } = resolverAniosMatricula(colegio);
 
     const niveles = await query('SELECT id, nombre FROM niveles WHERE colegio_id = ? ORDER BY id ASC', [colegio_id]);
     const documentos = habilitado ? await documentosMatricula(colegio_id) : [];
@@ -176,7 +181,8 @@ router.get('/', async (req, res) => {
       habilitado,
       titulo: configMap.titulo_formulario_matricula || 'Matrícula online',
       colegio_nombre: colegio.titulo_intranet || configMap.remitente_emails || 'Vanguard Schools',
-      anio_matricula: anioMatricula,
+      /** Año Matrículas de configuración (visible en formulario y correos). */
+      anio_matricula: anioDisplay,
       niveles: niveles || [],
       documentos,
       seguros: SEGURO_OPCIONES,
@@ -235,25 +241,38 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
     const nomAp = String(apoderadoIn.nombres || '').trim();
     const emailAp = String(apoderadoIn.email || '').trim();
     const telAp = String(apoderadoIn.telefono_celular || '').trim();
-    const fnAp = String(apoderadoIn.fecha_nacimiento || '1980-01-01').slice(0, 10);
+    const fnAp = String(apoderadoIn.fecha_nacimiento || '').slice(0, 10);
     let parentesco = parseInt(apoderadoIn.parentesco, 10);
     if (Number.isNaN(parentesco) || parentesco < 1 || parentesco > 4) parentesco = 1;
 
-    if (!dniAl || !ap || !nom) {
-      return res.status(400).json({ error: 'Complete DNI, apellido paterno y nombres del alumno.' });
+    const emailOk = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
+    const fechaOk = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '').slice(0, 10));
+
+    if (!dniAl) return res.status(400).json({ error: 'Indique el DNI / código del alumno.' });
+    if (!ap) return res.status(400).json({ error: 'Indique el apellido paterno del alumno.' });
+    if (!am) return res.status(400).json({ error: 'Indique el apellido materno del alumno.' });
+    if (!nom) return res.status(400).json({ error: 'Indique los nombres del alumno.' });
+    if (!fechaOk(fn)) return res.status(400).json({ error: 'Indique la fecha de nacimiento del alumno.' });
+    if (sexoAl !== 1 && sexoAl !== 2) {
+      return res.status(400).json({ error: 'Seleccione el sexo del alumno.' });
     }
     if (!esSeguroIdValido(seguroId)) {
       return res.status(400).json({ error: 'Seleccione el tipo de seguro del alumno.' });
     }
+    if (!emailAl) return res.status(400).json({ error: 'Indique el correo electrónico del alumno.' });
+    if (!emailOk(emailAl)) return res.status(400).json({ error: 'Correo electrónico del alumno no válido.' });
+    if (!domicilioAl) return res.status(400).json({ error: 'Indique el domicilio del alumno.' });
     if (!Number.isFinite(nivelId) || !Number.isFinite(grado)) {
-      return res.status(400).json({ error: 'Seleccione nivel y grado.' });
+      return res.status(400).json({ error: 'Seleccione nivel y grado a postular.' });
     }
-    if (!dniAp || !apAp || !nomAp) {
-      return res.status(400).json({ error: 'Complete DNI, apellido paterno y nombres del apoderado.' });
-    }
-    if (!emailAp) {
-      return res.status(400).json({ error: 'El correo del apoderado es obligatorio.' });
-    }
+    if (!dniAp) return res.status(400).json({ error: 'Indique el DNI del apoderado.' });
+    if (!apAp) return res.status(400).json({ error: 'Indique el apellido paterno del apoderado.' });
+    if (!amAp) return res.status(400).json({ error: 'Indique el apellido materno del apoderado.' });
+    if (!nomAp) return res.status(400).json({ error: 'Indique los nombres del apoderado.' });
+    if (!fechaOk(fnAp)) return res.status(400).json({ error: 'Indique la fecha de nacimiento del apoderado.' });
+    if (!emailAp) return res.status(400).json({ error: 'Indique el correo del apoderado.' });
+    if (!emailOk(emailAp)) return res.status(400).json({ error: 'Correo del apoderado no válido.' });
+    if (!telAp) return res.status(400).json({ error: 'Indique el teléfono celular del apoderado.' });
     if (!req.files?.foto_dni?.[0]) {
       return res.status(400).json({ error: 'Debe adjuntar la foto del DNI del alumno.' });
     }
@@ -270,9 +289,7 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
       }
     }
 
-    const anioMatriculas = parseInt(colegio.anio_matriculas, 10);
-    const anioMat =
-      Number.isFinite(anioMatriculas) && anioMatriculas > 0 ? anioMatriculas + 1 : new Date().getFullYear() + 1;
+    const { anioDisplay, anioSistema } = resolverAniosMatricula(colegio);
     const hoy = fechaMySQLLima();
     const fotoDniFile = req.files.foto_dni[0].filename;
     const firmaFile = req.files.firma[0].filename;
@@ -406,17 +423,17 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
         );
       }
 
-      if (await matriculaDuplicadaAnio(conn, alumnoId, colegio_id, anioMat)) {
+      if (await matriculaDuplicadaAnio(conn, alumnoId, colegio_id, anioSistema)) {
         await conn.rollback();
         return res.status(409).json({
-          error: `Este alumno ya tiene una matrícula registrada para el año ${anioMat}.`,
+          error: `Este alumno ya tiene una solicitud de matrícula registrada para el año ${anioDisplay}.`,
           codigo: 'MATRICULA_DUPLICADA_ANIO',
         });
       }
 
       const grupoId = await ensureGrupoConn(conn, {
         colegio_id,
-        anio: anioMat,
+        anio: anioSistema,
         nivel_id: nivelId,
         grado,
         seccion: 'UNICA',
@@ -552,7 +569,7 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
           },
           nivelNombre: nivelRow.nombre,
           grado,
-          anioMatricula: anioMat,
+          anioMatricula: anioDisplay,
           fechaRegistro: hoy,
           colegioNombre: colegio.titulo_intranet || configMap.remitente_emails,
           documentosAceptados,
@@ -566,7 +583,7 @@ router.post('/', uploadMatricula.fields([{ name: 'foto_dni', maxCount: 1 }, { na
         matricula_id: matriculaId,
         alumno_id: alumnoId,
         alumno_nuevo: alumnoEsNuevo,
-        anio_matricula: anioMat,
+        anio_matricula: anioDisplay,
         grado_label: gradoLabel(nivelRow.nombre, grado),
         mensaje: 'Matrícula online registrada correctamente. Revise su correo electrónico.',
       });
