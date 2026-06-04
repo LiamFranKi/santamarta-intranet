@@ -52,6 +52,30 @@ export default function PsicologiaSignaturePad({ width = 320, height = 120, onCh
     if (c && onChange) onChange(c.toDataURL('image/png'));
   }, [onChange]);
 
+  const touchPos = (e) => {
+    const touch = e.touches[0] || e.changedTouches[0];
+    return pos(touch);
+  };
+
+  const startTouch = (e) => {
+    if (disabled) return;
+    e.preventDefault();
+    drawing.current = true;
+    const ctx = getCtx();
+    const { x, y } = touchPos(e);
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+  };
+
+  const moveTouch = (e) => {
+    if (!drawing.current || disabled) return;
+    e.preventDefault();
+    const ctx = getCtx();
+    const { x, y } = touchPos(e);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
   const clear = () => {
     const c = canvasRef.current;
     if (!c) return;
@@ -73,6 +97,9 @@ export default function PsicologiaSignaturePad({ width = 320, height = 120, onCh
         onMouseMove={move}
         onMouseUp={end}
         onMouseLeave={end}
+        onTouchStart={startTouch}
+        onTouchMove={moveTouch}
+        onTouchEnd={end}
       />
       <button type="button" className="psi-sig-clear" onClick={clear} disabled={disabled}>
         Limpiar firma

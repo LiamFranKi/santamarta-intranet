@@ -273,6 +273,8 @@ const adminAcademicoRoutes = require('./routes/admin.academico.routes');
 const adminIndicadoresPlantillasRoutes = require('./routes/admin.indicadores-plantillas.routes');
 const adminReportesRoutes = require('./routes/admin.reportes.routes');
 const adminUsuariosRoutes = require('./routes/admin.usuarios.routes');
+const adminInscripcionMatriculaRoutes = require('./routes/admin.inscripcion-matricula.routes');
+const matriculaOnlineRoutes = require('./routes/matriculaOnline.routes');
 const adminPsicologiaRoutes = require('./routes/admin.psicologia.routes');
 const eventosRoutes = require('./routes/eventos.routes');
 
@@ -300,7 +302,6 @@ app.use('/api/alumno', alumnoRoutes);
 app.use('/api/asistencia', asistenciaRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/admin/usuarios', adminUsuariosRoutes);
-const adminInscripcionMatriculaRoutes = require('./routes/admin.inscripcion-matricula.routes');
 app.use('/api/admin/usuarios', adminInscripcionMatriculaRoutes);
 app.use('/api/admin/academico', adminAcademicoRoutes);
 app.use('/api/admin/indicadores-plantillas', adminIndicadoresPlantillasRoutes);
@@ -310,6 +311,7 @@ app.use('/api/admin/reportes/notas', adminReportesNotasRoutes);
 app.use('/api/admin/psicologia', adminPsicologiaRoutes);
 /* Eventos antes que /api/admin: si no, admin.routes bloquea PSICOLOGA/Promotoría antes de llegar a eventos.routes */
 app.use('/api/public/eventos', eventosRoutes.publicEventosRouter);
+app.use('/api/public/matricula-online', matriculaOnlineRoutes);
 app.use('/api/admin/eventos', eventosRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/apoderado', apoderadoRoutes);

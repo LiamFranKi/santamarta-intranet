@@ -73,6 +73,7 @@ function AdminConfiguracion() {
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const quillMatriculaRef = useRef(null);
+  const quillMatriculaInternoRef = useRef(null);
   const quillModulesMatricula = useMemo(() => QUILL_MODULES_MATRICULA, []);
   const [config, setConfig] = useState({
     // Información General
@@ -137,6 +138,8 @@ function AdminConfiguracion() {
     email_notificacion_matricula_online: '',
     remitente_emails: '',
     email_matricula_apoderado: '',
+    email_matricula_interno: '',
+    email_matricula_interno_asunto: '',
     enable_enrollment_form: 'NO',
     
     // Otros
@@ -245,6 +248,8 @@ function AdminConfiguracion() {
         bloquear_deudores_hasta_mes: bloquearDeudoresHastaMes,
         rangos_letras_primaria: rangosLetrasPrimaria,
         email_matricula_apoderado: ensureHtmlForQuill(restData.email_matricula_apoderado || ''),
+        email_matricula_interno: ensureHtmlForQuill(restData.email_matricula_interno || ''),
+        email_matricula_interno_asunto: restData.email_matricula_interno_asunto || '',
         login_fondo: null,
         libreta_logo: null,
         libreta_fondo: null,
@@ -389,6 +394,10 @@ function AdminConfiguracion() {
     setConfig((prev) => ({ ...prev, email_matricula_apoderado: html }));
   };
 
+  const handleMatriculaInternoChange = (html) => {
+    setConfig((prev) => ({ ...prev, email_matricula_interno: html }));
+  };
+
   const handleVencimientoPensionChange = (pension, value) => {
     setConfig(prev => ({
       ...prev,
@@ -499,7 +508,7 @@ function AdminConfiguracion() {
               formData.append(field, JSON.stringify(value));
             } else if (Array.isArray(value)) {
               formData.append(field, JSON.stringify(value));
-            } else if (field === 'email_matricula_apoderado') {
+            } else if (field === 'email_matricula_apoderado' || field === 'email_matricula_interno') {
               formData.append(field, procesarHTMLMensaje(String(value || '')));
             } else {
               formData.append(field, value);
@@ -1330,30 +1339,9 @@ function AdminConfiguracion() {
             <div className="config-section">
               <h2 className="section-title">✉️ Matrícula online</h2>
               <p className="config-section-desc">
-                Configura los correos y el mensaje que recibirán los apoderados al completar la matrícula online.
+                Formulario público en <strong>/matricula_online</strong>. Al enviar, se crea matrícula <strong>Temporal</strong> (sin pagos) para el año «Año Matrículas + 1».
               </p>
             <div className="form-grid form-grid--matricula">
-              <div className="form-group full-width">
-                <label>Correos de notificación</label>
-                <textarea
-                  name="email_notificacion_matricula_online"
-                  value={config.email_notificacion_matricula_online}
-                  onChange={handleInputChange}
-                  rows="3"
-                  placeholder="correo1@colegio.edu.pe, correo2@colegio.edu.pe"
-                />
-                <small>Separe varios correos con coma.</small>
-              </div>
-              <div className="form-group">
-                <label>Remitente de emails</label>
-                <input
-                  type="text"
-                  name="remitente_emails"
-                  value={config.remitente_emails}
-                  onChange={handleInputChange}
-                  placeholder="Nombre del colegio"
-                />
-              </div>
               <div className="form-group">
                 <label>Habilitar formulario</label>
                 <select
@@ -1365,6 +1353,27 @@ function AdminConfiguracion() {
                   <option value="SI">SI</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label>Remitente de emails</label>
+                <input
+                  type="text"
+                  name="remitente_emails"
+                  value={config.remitente_emails}
+                  onChange={handleInputChange}
+                  placeholder="Nombre del colegio"
+                />
+              </div>
+              <div className="form-group full-width">
+                <label>Correos internos (notificación al colegio)</label>
+                <textarea
+                  name="email_notificacion_matricula_online"
+                  value={config.email_notificacion_matricula_online}
+                  onChange={handleInputChange}
+                  rows="2"
+                  placeholder="correo1@colegio.edu.pe, correo2@colegio.edu.pe"
+                />
+                <small>Separe varios correos con coma. Reciben el resumen con datos, foto DNI y firma.</small>
+              </div>
               <div className="form-group full-width">
                 <label>Mensaje para el apoderado</label>
                 <div className="config-quill-wrap">
@@ -1375,13 +1384,45 @@ function AdminConfiguracion() {
                     onChange={handleMatriculaMensajeChange}
                     modules={quillModulesMatricula}
                     formats={QUILL_FORMATS_MATRICULA}
-                    placeholder="Escriba el mensaje que se enviará al apoderado..."
+                    placeholder="Estimado/a {{nombre_apoderado}}, hemos recibido la matrícula de {{nombre_alumno}}..."
                     className="config-quill-editor"
                   />
                 </div>
                 <small>
-                  Puede insertar imágenes desde la barra del editor; se suben al servidor con URL pública para
-                  mostrarlas en el correo al apoderado (envío automático al completar matrícula: en desarrollo).
+                  Use etiquetas como <code>{'{{nombre_apoderado}}'}</code>, <code>{'{{nombre_alumno}}'}</code>,{' '}
+                  <code>{'{{nivel}}'}</code>, <code>{'{{grado}}'}</code>, <code>{'{{anio_matricula}}'}</code>,{' '}
+                  <code>{'{{fecha_registro}}'}</code>, <code>{'{{colegio}}'}</code>, <code>{'{{seguro}}'}</code>.
+                  Si deja vacío, se usa una plantilla predeterminada.
+                </small>
+              </div>
+              <div className="form-group full-width">
+                <label>Asunto correo interno (opcional)</label>
+                <input
+                  type="text"
+                  name="email_matricula_interno_asunto"
+                  value={config.email_matricula_interno_asunto || ''}
+                  onChange={handleInputChange}
+                  placeholder="Nueva matrícula online — {{nombre_alumno}} ({{anio_matricula}})"
+                />
+              </div>
+              <div className="form-group full-width">
+                <label>Mensaje correo interno</label>
+                <div className="config-quill-wrap">
+                  <ReactQuill
+                    ref={quillMatriculaInternoRef}
+                    theme="snow"
+                    value={config.email_matricula_interno || ''}
+                    onChange={handleMatriculaInternoChange}
+                    modules={quillModulesMatricula}
+                    formats={QUILL_FORMATS_MATRICULA}
+                    placeholder="Resumen para el equipo administrativo..."
+                    className="config-quill-editor"
+                  />
+                </div>
+                <small>
+                  Etiquetas adicionales: <code>{'{{dni_alumno}}'}</code>, <code>{'{{dni_apoderado}}'}</code>,{' '}
+                  <code>{'{{email_apoderado}}'}</code>, <code>{'{{telefono_apoderado}}'}</code>,{' '}
+                  <code>{'{{documentos_aceptados_html}}'}</code>. Foto DNI y firma se adjuntan automáticamente.
                 </small>
               </div>
             </div>
@@ -1389,8 +1430,9 @@ function AdminConfiguracion() {
               <button 
                 type="button" 
                 onClick={() => handleSaveSection([
-                  'email_notificacion_matricula_online', 'remitente_emails',
-                  'email_matricula_apoderado', 'enable_enrollment_form'
+                  'enable_enrollment_form', 'remitente_emails',
+                  'email_notificacion_matricula_online', 'email_matricula_apoderado',
+                  'email_matricula_interno', 'email_matricula_interno_asunto'
                 ], 'Matrícula Online')}
                 disabled={saving}
                 className="btn-submit-card"

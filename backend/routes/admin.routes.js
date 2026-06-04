@@ -1446,6 +1446,8 @@ router.get('/configuracion', async (req, res) => {
       email_notificacion_matricula_online: configMap['email_notificacion_matricula_online'] || '',
       remitente_emails: configMap['remitente_emails'] || '',
       email_matricula_apoderado: configMap['email_matricula_apoderado'] || '',
+      email_matricula_interno: configMap['email_matricula_interno'] || '',
+      email_matricula_interno_asunto: configMap['email_matricula_interno_asunto'] || '',
       link_consulta_facturas: configMap['link_consulta_facturas'] || '',
       show_birthday_window: configMap['show_birthday_window'] || 'NO',
       cumpleanos_plantilla_push: configMap['cumpleanos_plantilla_push'] || '',
@@ -1634,7 +1636,7 @@ router.put('/configuracion', uploadConfig.fields([
     const configFields = [
       'texto_intranet', 'titulo_formulario_matricula', 'recaudo_nro_sucursal',
       'recaudo_nro_cuenta', 'recaudo_razon_social', 'email_notificacion_matricula_online',
-      'remitente_emails', 'email_matricula_apoderado', 'link_consulta_facturas',
+      'remitente_emails', 'email_matricula_apoderado', 'email_matricula_interno', 'email_matricula_interno_asunto', 'link_consulta_facturas',
       'show_birthday_window',
       'cumpleanos_plantilla_push',
       'cumpleanos_plantilla_ventana',
@@ -1648,6 +1650,9 @@ router.put('/configuracion', uploadConfig.fields([
       if (body[field] !== undefined) {
         let valor = body[field];
         if (field === 'email_matricula_apoderado' && valor != null) {
+          valor = normalizarUrlsImagenesEnHtml(String(valor));
+        }
+        if (field === 'email_matricula_interno' && valor != null) {
           valor = normalizarUrlsImagenesEnHtml(String(valor));
         }
         // Verificar si existe

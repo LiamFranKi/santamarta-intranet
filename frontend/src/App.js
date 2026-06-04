@@ -88,6 +88,7 @@ import AlumnoExamen from './pages/AlumnoExamen';
 import AlumnoExamenResultados from './pages/AlumnoExamenResultados';
 import AsistenciaEscaneo from './pages/AsistenciaEscaneo';
 import EventoPublicoAsistencia from './pages/EventoPublicoAsistencia';
+import MatriculaOnline from './pages/MatriculaOnline';
 import ApoderadoDashboard from './pages/ApoderadoDashboard';
 import ApoderadoPerfil from './pages/ApoderadoPerfil';
 import ApoderadoHijos from './pages/ApoderadoHijos';
@@ -240,6 +241,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/evento/:token" element={<EventoPublicoAsistencia />} />
+      <Route path="/matricula_online" element={<MatriculaOnline />} />
       <Route
         path="/admin/dashboard"
         element={

@@ -1,0 +1,293 @@
+.matricula-online-page {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #eef2ff 0%, #f0fdf4 45%, #f8fafc 100%);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: #0f172a;
+}
+
+.matricula-online-header {
+  background: linear-gradient(135deg, #1e3a5f 0%, #2563eb 100%);
+  color: #fff;
+  padding: 2.5rem 1.25rem 3rem;
+  text-align: center;
+}
+
+.matricula-online-header-inner {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.matricula-online-badge {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  padding: 0.35rem 1rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.matricula-online-header h1 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.matricula-online-header p {
+  margin: 0;
+  opacity: 0.92;
+  font-size: 1.05rem;
+}
+
+.matricula-online-main {
+  max-width: 820px;
+  margin: -1.75rem auto 2rem;
+  padding: 0 1rem 2rem;
+}
+
+.matricula-online-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.1);
+  padding: 2.5rem 2rem;
+  max-width: 520px;
+  margin: 3rem auto;
+}
+
+.matricula-online-card--center {
+  text-align: center;
+}
+
+.matricula-online-card--success {
+  border-top: 4px solid #22c55e;
+}
+
+.matricula-online-icon {
+  font-size: 3rem;
+  margin-bottom: 0.75rem;
+}
+
+.matricula-online-icon--ok {
+  width: 64px;
+  height: 64px;
+  line-height: 64px;
+  border-radius: 50%;
+  background: #dcfce7;
+  color: #16a34a;
+  font-size: 2rem;
+  margin: 0 auto 1rem;
+}
+
+.matricula-online-muted {
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.matricula-online-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: matricula-spin 0.8s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes matricula-spin {
+  to { transform: rotate(360deg); }
+}
+
+.matricula-online-alert {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.matricula-online-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.matricula-online-section {
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.07);
+  padding: 1.5rem 1.35rem;
+}
+
+.matricula-online-section h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.15rem;
+  color: #1e3a5f;
+  font-weight: 700;
+}
+
+.matricula-online-hint {
+  margin: 0 0 1rem;
+  color: #64748b;
+  font-size: 0.88rem;
+}
+
+.matricula-online-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1rem;
+}
+
+@media (max-width: 640px) {
+  .matricula-online-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.matricula-online-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.matricula-online-field--full {
+  grid-column: 1 / -1;
+}
+
+.matricula-online-field label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.matricula-online-field input,
+.matricula-online-field select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.95rem;
+  background: #f8fafc;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.matricula-online-field input:focus,
+.matricula-online-field select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+  background: #fff;
+}
+
+.matricula-online-docs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.matricula-online-doc-label {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.matricula-online-doc-label input {
+  margin-top: 0.2rem;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+}
+
+.matricula-online-doc-label a {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.matricula-online-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.matricula-online-file-btn {
+  background: #eff6ff;
+  border: 1px dashed #93c5fd;
+  color: #1d4ed8;
+  border-radius: 8px;
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.matricula-online-file-btn:hover {
+  background: #dbeafe;
+}
+
+.matricula-online-foto-preview {
+  max-width: 180px;
+  max-height: 120px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  object-fit: cover;
+}
+
+.matricula-online-section .psi-sig-wrap {
+  margin-top: 0.5rem;
+}
+
+.matricula-online-section .psi-sig-canvas {
+  border: 2px dashed #cbd5e1;
+  border-radius: 10px;
+  width: 100%;
+  max-width: 480px;
+  touch-action: none;
+}
+
+.matricula-online-actions {
+  text-align: center;
+  padding: 0.5rem 0 1rem;
+}
+
+.matricula-online-submit {
+  background: linear-gradient(135deg, #1e3a5f, #2563eb);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 0.85rem 2.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+  transition: transform 0.15s, opacity 0.15s;
+}
+
+.matricula-online-submit:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.matricula-online-submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.matricula-online-footer {
+  text-align: center;
+  padding: 1rem;
+  color: #94a3b8;
+  font-size: 0.82rem;
+}

@@ -663,7 +663,14 @@ ${bloque}
  * Enviar correo HTML personalizado con categoría opcional (EXAMEN, etc.).
  * Útil cuando el módulo necesita un diseño propio más rico que la plantilla genérica.
  */
-async function enviarCorreoHtml(destinatario, asunto, htmlBody, colegioNombre = 'Vanguard Schools', categoria = 'GENERAL') {
+async function enviarCorreoHtml(
+  destinatario,
+  asunto,
+  htmlBody,
+  colegioNombre = 'Vanguard Schools',
+  categoria = 'GENERAL',
+  options = {}
+) {
   if (!isEmailEnvioHabilitado()) {
     return resultadoCorreoDeshabilitado();
   }
@@ -705,6 +712,10 @@ ${htmlBody}
       },
       envelope: { from: fromUser, to: emailDestino }
     };
+
+    if (options.attachments && Array.isArray(options.attachments) && options.attachments.length) {
+      mailOptions.attachments = options.attachments;
+    }
 
     const info = await trans.sendMail(mailOptions);
     console.log(`✅ [EMAIL HTML] Enviado a ${emailDestino} MessageId: ${info.messageId}`);
