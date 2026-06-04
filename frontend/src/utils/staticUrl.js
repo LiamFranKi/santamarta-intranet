@@ -13,6 +13,16 @@ export function getPublicStaticBaseUrl() {
   return String(u).replace(/\/$/, '');
 }
 
+/** Reescribe nuevo.vanguard y otros dominios legacy → base actual. */
+export function normalizeLegacyStaticUrl(urlOrPath) {
+  if (urlOrPath == null || urlOrPath === '') return null;
+  const base = getPublicStaticBaseUrl();
+  return String(urlOrPath)
+    .trim()
+    .replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, base)
+    .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, base);
+}
+
 export function urlStaticArchivos(filename) {
   const name = String(filename || '').replace(/^\/+/, '');
   return `${getPublicStaticBaseUrl()}/Static/Archivos/${name}`;

@@ -190,8 +190,10 @@ app.use('/uploads', express.static(uploadsPath, {
 }));
 
 // Servir carpeta Static (Avatares, Fotos, Archivos compartidos con sistema PHP)
-const staticPath = path.join(__dirname, 'Static');
+const { resolveStaticFsRoot } = require('./utils/staticStorage');
+const staticPath = resolveStaticFsRoot();
 if (fs.existsSync(staticPath)) {
+  console.log(`📁 Sirviendo /Static desde: ${staticPath}`);
   app.use('/Static', express.static(staticPath, {
     setHeaders: (res) => {
       res.set('Access-Control-Allow-Origin', '*');

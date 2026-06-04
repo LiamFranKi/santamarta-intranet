@@ -8,6 +8,7 @@ const { getColegioData } = require('../utils/colegio');
 const { registrarAccion } = require('../utils/auditoria');
 const { authenticateToken } = require('../middleware/auth');
 const { calcularPensionesAVerificar } = require('../utils/deudaPensiones');
+const { urlStaticFotos } = require('../utils/staticStorage');
 
 /**
  * POST /api/auth/login
@@ -144,15 +145,10 @@ router.post('/login', async (req, res) => {
     // Por lo tanto, no se puede obtener foto para apoderados
     
     if (fotoNombre && fotoNombre !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
-      if (isProduction) {
-        // En producción: usar la URL completa del servidor PHP
-        fotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${fotoNombre}`;
-      } else {
-        // En desarrollo: usar la ruta local de Node.js
-        fotoUrl = `http://localhost:5000/Static/Image/Fotos/${fotoNombre}`;
-      }
+      fotoUrl = isProduction
+        ? urlStaticFotos(fotoNombre)
+        : `http://localhost:5000/Static/Image/Fotos/${fotoNombre}`;
     }
     
     const userData = {
@@ -296,15 +292,10 @@ router.get('/me', authenticateToken, async (req, res) => {
     }
     
     if (fotoNombre && fotoNombre !== '') {
-      const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
       const isProduction = process.env.NODE_ENV === 'production';
-      if (isProduction) {
-        // En producción: usar la URL completa del servidor PHP
-        fotoUrl = `${phpSystemUrl}/Static/Image/Fotos/${fotoNombre}`;
-      } else {
-        // En desarrollo: usar la ruta local de Node.js
-        fotoUrl = `http://localhost:5000/Static/Image/Fotos/${fotoNombre}`;
-      }
+      fotoUrl = isProduction
+        ? urlStaticFotos(fotoNombre)
+        : `http://localhost:5000/Static/Image/Fotos/${fotoNombre}`;
     }
 
     const userData = {

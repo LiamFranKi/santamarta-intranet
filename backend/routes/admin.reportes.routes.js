@@ -25,7 +25,7 @@ function buildArchivoUrl(raw) {
   const isDevelopment = process.env.NODE_ENV !== 'production';
   if (/^https?:\/\//i.test(s)) {
     return s
-      .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl)
+      .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl).replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, phpSystemUrl)
       .replace(/vanguardschools\.com\/static/gi, `${phpSystemUrl}/Static`)
       .replace(/vanguardschools\.com\/Static/gi, `${phpSystemUrl}/Static`);
   }

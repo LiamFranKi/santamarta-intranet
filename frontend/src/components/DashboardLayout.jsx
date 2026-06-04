@@ -363,14 +363,14 @@ export default function DashboardLayout({ children }) {
     
     // Si ya es una URL completa (http/https), normalizarla
     if (user.foto.startsWith('http')) {
-      fotoUrl = user.foto;
-      // Normalizar: reemplazar dominio antiguo por el actual
-      if (fotoUrl.includes('vanguardschools.edu.pe/uploads') || fotoUrl.includes('vanguardschools.edu.pe/Static')) {
-        if (fotoUrl.includes('/uploads/')) {
-          fotoUrl = fotoUrl.replace(/https?:\/\/vanguardschools\.edu\.pe\/uploads/g, `${currentProtocol}//${currentHost}/uploads`);
-        } else if (fotoUrl.includes('/Static/')) {
-          fotoUrl = fotoUrl.replace(/https?:\/\/vanguardschools\.edu\.pe\/Static/g, 'https://sistema.vanguardschools.edu.pe/Static');
-        }
+      fotoUrl = user.foto
+        .replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, 'https://sistema.vanguardschools.edu.pe')
+        .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, 'https://sistema.vanguardschools.edu.pe');
+      if (fotoUrl.includes('/uploads/')) {
+        fotoUrl = fotoUrl.replace(
+          /https?:\/\/[^/]+\/uploads/g,
+          `${currentProtocol}//${currentHost}/uploads`
+        );
       }
       return fotoUrl;
     }

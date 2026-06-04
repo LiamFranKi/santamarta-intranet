@@ -23,8 +23,9 @@ export const getStaticFileUrl = (filePath) => {
   
   // Si ya es una URL completa, validarla y corregir si es necesario
   if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-    // Corregir dominio si es necesario
-    let url = filePath.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, STATIC_FILES_DOMAIN);
+    let url = filePath
+      .replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, STATIC_FILES_DOMAIN)
+      .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, STATIC_FILES_DOMAIN);
     return url;
   }
   
@@ -58,7 +59,7 @@ export const normalizeStaticFileUrl = (url) => {
   
   // Si ya tiene protocolo, validar dominio
   if (normalizedUrl.startsWith('http://') || normalizedUrl.startsWith('https://')) {
-    // Reemplazar cualquier variación del dominio incorrecto
+    normalizedUrl = normalizedUrl.replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, domainWithProtocol);
     normalizedUrl = normalizedUrl.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, domainWithProtocol);
     normalizedUrl = normalizedUrl.replace(/vanguardschools\.comstatic/gi, `${domainWithProtocol}/Static`);
     normalizedUrl = normalizedUrl.replace(/vanguardschools\.com\/static/gi, `${domainWithProtocol}/Static`);

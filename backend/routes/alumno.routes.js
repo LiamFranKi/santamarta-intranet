@@ -3549,7 +3549,7 @@ router.get('/aula-virtual/archivos', async (req, res) => {
       if (archivo.archivo && archivo.archivo !== '') {
         if (archivo.archivo.startsWith('http')) {
           archivoUrl = archivo.archivo
-            .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl)
+            .replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl).replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, phpSystemUrl)
             .replace(/vanguardschools\.comstatic/gi, `${phpSystemUrl}/Static`)
             .replace(/vanguardschools\.com\/static/gi, `${phpSystemUrl}/Static`)
             .replace(/vanguardschools\.com\/Static/gi, `${phpSystemUrl}/Static`);
@@ -3642,7 +3642,7 @@ router.get('/aula-virtual/tareas', async (req, res) => {
         let archivoUrl = null;
         if (archivo.archivo && archivo.archivo !== '') {
           if (archivo.archivo.startsWith('http')) {
-            archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl);
+            archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl).replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, phpSystemUrl);
           } else if (archivo.archivo.startsWith('/Static/')) {
             const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
             archivoUrl = isDevelopment

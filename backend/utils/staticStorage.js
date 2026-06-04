@@ -22,7 +22,10 @@ function getPublicStaticBaseUrl() {
     process.env.FRONTEND_URL ||
     process.env.PHP_SYSTEM_URL ||
     DEFAULT_PUBLIC_BASE;
-  return String(u).replace(/\/$/, '');
+  let base = String(u).replace(/\/$/, '');
+  // Seguridad: nunca devolver dominio legacy en producción
+  base = base.replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, DEFAULT_PUBLIC_BASE);
+  return base;
 }
 
 function staticFsSubdir(...segments) {
@@ -44,9 +47,56 @@ function urlStaticArchivos(filename) {
 
 function urlStaticFotos(filenameOrPath) {
   const f = String(filenameOrPath || '').replace(/^\/+/, '');
-  if (f.startsWith('http://') || f.startsWith('https://')) return f;
+  if (f.startsWith('http://') || f.startsWith('https://')) {
+    return normalizeLegacyStaticUrl(f);
+  }
   if (f.startsWith('Static/')) return `${getPublicStaticBaseUrl()}/${f}`;
   return `${getPublicStaticBaseUrl()}/Static/Image/Fotos/${path.basename(f)}`;
+}
+
+/** Reescribe dominios legacy (nuevo.vanguard, vanguardschools.edu.pe) → URL pública actual. */
+function normalizeLegacyStaticUrl(urlOrPath) {
+  if (urlOrPath == null || urlOrPath === '') return null;
+  const base = getPublicStaticBaseUrl();
+  let s = String(urlOrPath).trim();
+  s = s.replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, base);
+  s = s.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, base);
+  s = s.replace(/vanguardschools\.comstatic/gi, `${base}/Static`);
+  s = s.replace(/vanguardschools\.com\/static/gi, `${base}/Static`);
+  s = s.replace(/vanguardschools\.com\/Static/gi, `${base}/Static`);
+  s = s.replace(/([^:]\/)\/+/g, '$1');
+  return s;
+}
+
+/**
+ * URL pública de un archivo en Static/Archivos (temas, tareas, PDFs, adjuntos).
+ * Acepta nombre suelto, /Static/Archivos/x, /uploads/... o URL http legacy.
+ */
+function buildStaticArchivoUrl(archivo) {
+  if (archivo == null || String(archivo).trim() === '') return null;
+  const base = getPublicStaticBaseUrl();
+  const isDev =
+    process.env.NODE_ENV !== 'production' &&
+    !process.env.STATIC_PUBLIC_URL &&
+    !process.env.PHP_SYSTEM_URL;
+  const s = String(archivo).trim();
+
+  if (s.startsWith('http://') || s.startsWith('https://')) {
+    return normalizeLegacyStaticUrl(s);
+  }
+  if (s.startsWith('/Static/')) {
+    const nombre = s.replace(/^\/Static\/Archivos\//, '').replace(/^\/Static\//, '');
+    const file = path.basename(nombre);
+    return isDev
+      ? `http://localhost:5000/Static/Archivos/${file}`
+      : `${base}/Static/Archivos/${file}`;
+  }
+  if (s.startsWith('/uploads/')) {
+    return isDev ? `http://localhost:5000${s}` : `${base}${s}`;
+  }
+  return isDev
+    ? `http://localhost:5000/Static/Archivos/${s.replace(/^\/+/, '')}`
+    : `${base}/Static/Archivos/${s.replace(/^\/+/, '')}`;
 }
 
 module.exports = {
@@ -57,4 +107,6 @@ module.exports = {
   joinStaticFs,
   urlStaticArchivos,
   urlStaticFotos,
+  normalizeLegacyStaticUrl,
+  buildStaticArchivoUrl,
 };

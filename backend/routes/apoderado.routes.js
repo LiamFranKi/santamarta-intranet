@@ -3668,7 +3668,7 @@ router.get('/hijos/:hijoId/aula-virtual/tareas', soloLecturaProxy, async (req, r
         let archivoUrl = null;
         if (archivo.archivo && archivo.archivo !== '') {
           if (archivo.archivo.startsWith('http')) {
-            archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl);
+            archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl).replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, phpSystemUrl);
           } else if (archivo.archivo.startsWith('/Static/')) {
             const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
             archivoUrl = isDevelopment
@@ -3765,7 +3765,7 @@ router.get('/hijos/:hijoId/aula-virtual/tareas/:tareaId', soloLecturaProxy, asyn
       let archivoUrl = null;
       if (archivo.archivo && archivo.archivo !== '') {
         if (archivo.archivo.startsWith('http')) {
-          archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl);
+          archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl).replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, phpSystemUrl);
         } else if (archivo.archivo.startsWith('/Static/')) {
           const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
           archivoUrl = isDevelopment
@@ -4205,7 +4205,7 @@ router.get('/hijos/:hijoId/aula-virtual/archivos', soloLecturaProxy, async (req,
       let archivoUrl = null;
       if (archivo.archivo && archivo.archivo !== '') {
         if (archivo.archivo.startsWith('http')) {
-          archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl);
+          archivoUrl = archivo.archivo.replace(/https?:\/\/(www\.)?vanguardschools\.edu\.pe/gi, phpSystemUrl).replace(/https?:\/\/nuevo\.vanguardschools\.edu\.pe/gi, phpSystemUrl);
         } else if (archivo.archivo.startsWith('/Static/')) {
           const nombreArchivo = archivo.archivo.replace(/^\/Static\/Archivos\//, '');
           archivoUrl = isDevelopment
