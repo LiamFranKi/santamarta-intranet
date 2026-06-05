@@ -73,16 +73,21 @@ export default function MatriculaOnline() {
   const [exito, setExito] = useState(null);
   const fotoInputRef = useRef(null);
   const [fotoDragOver, setFotoDragOver] = useState(false);
+  const [firmaSize, setFirmaSize] = useState({ w: 520, h: 160 });
 
-  const apiBaseUrl = useMemo(() => {
-    const hostname = window.location.hostname || '';
-    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
-    if (isLocalhost) return 'http://localhost:5000';
-    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    return `${protocol}//${hostname}`;
+  useEffect(() => {
+    const updateFirmaSize = () => {
+      const vw = window.innerWidth;
+      const mobile = vw <= 640;
+      const tablet = vw <= 900;
+      const w = Math.max(mobile ? vw - 72 : tablet ? 460 : 520, 280);
+      const h = mobile ? 220 : tablet ? 180 : 160;
+      setFirmaSize({ w: Math.min(w, 520), h });
+    };
+    updateFirmaSize();
+    window.addEventListener('resize', updateFirmaSize);
+    return () => window.removeEventListener('resize', updateFirmaSize);
   }, []);
-
-  const logoUrl = useMemo(() => `${apiBaseUrl}/assets/logos/logo.png`, [apiBaseUrl]);
 
   const docsTotal = catalogo?.documentos?.length ?? 0;
   const docsAceptadosCount = useMemo(
@@ -281,14 +286,6 @@ export default function MatriculaOnline() {
     <div className="matricula-online-page">
       <header className="matricula-online-header">
         <div className="matricula-online-header-inner">
-          <img
-            src={logoUrl}
-            alt="Vanguard Schools"
-            className="matricula-online-logo"
-            onError={(e) => {
-              e.currentTarget.style.display = 'none';
-            }}
-          />
           <span className="matricula-online-badge">Matrícula {catalogo.anio_matricula}</span>
           <h1>{catalogo.titulo || 'Matrícula online'}</h1>
           <p>{catalogo.colegio_nombre}</p>
@@ -655,7 +652,7 @@ export default function MatriculaOnline() {
               </div>
             </div>
             <div className={`mat-firma-pad-box${firmaDataUrl ? ' mat-firma-pad-box--signed' : ''}`}>
-              <PsicologiaSignaturePad width={520} height={160} onChange={setFirmaDataUrl} disabled={submitting} />
+              <PsicologiaSignaturePad width={firmaSize.w} height={firmaSize.h} onChange={setFirmaDataUrl} disabled={submitting} />
               {firmaDataUrl && (
                 <p className="mat-firma-ok">✓ Firma registrada — puede limpiar y volver a firmar si lo necesita</p>
               )}
