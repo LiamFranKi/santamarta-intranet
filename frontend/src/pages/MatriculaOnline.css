@@ -704,9 +704,12 @@
 .matricula-online-section .psi-sig-wrap {
   margin-top: 0;
   width: 100%;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: center;
 }
 
 .matricula-online-section .psi-sig-canvas {
@@ -734,6 +737,7 @@
 
 @media (max-width: 640px) {
   .matricula-online-section .psi-sig-wrap {
+    max-width: none;
     align-items: stretch;
   }
 
