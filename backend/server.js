@@ -294,7 +294,9 @@ const eleccionesRoutes = require('./routes/elecciones.routes');
 const fichasIaRoutes = require('./routes/fichasIa.routes');
 
 const docentePsicologiaRoutes = require('./routes/docente.psicologia.routes');
+const { mountTutoriaGeneral } = require('./routes/tutoriaGeneral.mount');
 app.use('/api/docente/psicologia', docentePsicologiaRoutes);
+mountTutoriaGeneral(app, docenteRoutes);
 app.use('/api/docente', docenteRoutes);
 const libretaInicialGrupoRoutes = require('./routes/libretaInicialGrupo.routes');
 app.use('/api/docente', libretaInicialGrupoRoutes);

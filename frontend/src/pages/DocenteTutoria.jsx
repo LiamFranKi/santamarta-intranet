@@ -96,7 +96,13 @@ function calcularPosicionMenuAnclado(rect, menuWidth, menuHeight) {
   return { top, left };
 }
 
-function DocenteTutoria() {
+function DocenteTutoria({
+  apiPrefix = '/docente/tutoria',
+  basePath = '/docente/tutoria',
+  soloLectura = false,
+  titulo = 'Tutoría',
+  subtitulo = 'Gestiona tus grupos como tutor',
+} = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(true);
@@ -561,8 +567,8 @@ function DocenteTutoria() {
   const cargarGruposTutor = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/docente/tutoria');
-      setEsTutor(response.data.es_tutor);
+      const response = await api.get(apiPrefix);
+      setEsTutor(response.data.es_tutoria_general || response.data.es_tutor);
       setGruposTutor(response.data.grupos || []);
     } catch (error) {
       console.error('Error cargando grupos de tutoría:', error);
@@ -717,7 +723,7 @@ function DocenteTutoria() {
   const cargarAlumnos = async (grupoId) => {
     try {
       setLoadingAlumnos(true);
-      const response = await api.get(`/docente/tutoria/grupos/${grupoId}/alumnos`);
+      const response = await api.get(`${apiPrefix}/grupos/${grupoId}/alumnos`);
       setAlumnos(response.data.alumnos || []);
       
       // Guardar información del grupo seleccionado
@@ -790,7 +796,7 @@ function DocenteTutoria() {
     setLoadingIncidenciasTutoria(true);
     setShowModalIncidenciasTutoria(true);
     try {
-      const res = await api.get(`/docente/tutoria/grupos/${gid}/alumnos/${alumno.id}/incidencias`);
+      const res = await api.get(`${apiPrefix}/grupos/${gid}/alumnos/${alumno.id}/incidencias`);
       setIncidenciasTutoria(res.data.incidencias || []);
       setTotalIncidenciasTutoria(res.data.total_incidencias ?? (res.data.incidencias || []).length);
     } catch (err) {
@@ -817,7 +823,7 @@ function DocenteTutoria() {
     setLoadingEstrellasTutoria(true);
     setShowModalEstrellasTutoria(true);
     try {
-      const res = await api.get(`/docente/tutoria/grupos/${gid}/alumnos/${alumno.id}/estrellas`);
+      const res = await api.get(`${apiPrefix}/grupos/${gid}/alumnos/${alumno.id}/estrellas`);
       setEstrellasTutoria(res.data.estrellas || []);
       setTotalEstrellasTutoria(res.data.total_estrellas || 0);
     } catch (err) {
@@ -870,7 +876,7 @@ function DocenteTutoria() {
     if (!gid || !alumno?.id) return;
     try {
       setLoadingIncidenciasTutoria(true);
-      const res = await api.get(`/docente/tutoria/grupos/${gid}/alumnos/${alumno.id}/incidencias`);
+      const res = await api.get(`${apiPrefix}/grupos/${gid}/alumnos/${alumno.id}/incidencias`);
       setIncidenciasTutoria(res.data.incidencias || []);
       setTotalIncidenciasTutoria(res.data.total_incidencias ?? (res.data.incidencias || []).length);
     } catch (err) {
@@ -886,7 +892,7 @@ function DocenteTutoria() {
     if (!gid || !alumno?.id) return;
     try {
       setLoadingEstrellasTutoria(true);
-      const res = await api.get(`/docente/tutoria/grupos/${gid}/alumnos/${alumno.id}/estrellas`);
+      const res = await api.get(`${apiPrefix}/grupos/${gid}/alumnos/${alumno.id}/estrellas`);
       setEstrellasTutoria(res.data.estrellas || []);
       setTotalEstrellasTutoria(res.data.total_estrellas || 0);
     } catch (err) {
@@ -907,7 +913,7 @@ function DocenteTutoria() {
     try {
       setGuardandoIncidenciasTutoria(true);
       await api.post(
-        `/docente/tutoria/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/incidencias`,
+        `${apiPrefix}/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/incidencias`,
         { description: formIncidenciasTutoria.description.trim() }
       );
       SwalSobreModal.fire({ title: '¡Éxito!', text: 'Incidencia registrada correctamente', icon: 'success' });
@@ -941,7 +947,7 @@ function DocenteTutoria() {
     if (!result.isConfirmed) return;
     try {
       await api.delete(
-        `/docente/tutoria/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/incidencias/${incidentId}`
+        `${apiPrefix}/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/incidencias/${incidentId}`
       );
       SwalSobreModal.fire({ title: '¡Eliminado!', text: 'La incidencia ha sido eliminada correctamente', icon: 'success' });
       await recargarIncidenciasTutoria();
@@ -970,7 +976,7 @@ function DocenteTutoria() {
     }
     try {
       setGuardandoEstrellasTutoria(true);
-      await api.post(`/docente/tutoria/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/estrellas`, {
+      await api.post(`${apiPrefix}/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/estrellas`, {
         points: pts,
         description: formEstrellasTutoria.description.trim()
       });
@@ -1005,7 +1011,7 @@ function DocenteTutoria() {
     if (!result.isConfirmed) return;
     try {
       await api.delete(
-        `/docente/tutoria/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/estrellas/${incidentId}`
+        `${apiPrefix}/grupos/${gid}/alumnos/${alumnoSeleccionadoTutoria.id}/estrellas/${incidentId}`
       );
       SwalSobreModal.fire({ title: '¡Eliminado!', text: 'Las estrellas han sido eliminadas correctamente', icon: 'success' });
       await recargarEstrellasTutoria();
@@ -1418,7 +1424,7 @@ function DocenteTutoria() {
       if (!ciclo) return;
 
       const cicloNum = parseInt(ciclo) || 1;
-      const response = await api.get(`/docente/tutoria/grupos/${grupo.id}/notas-todos`, {
+      const response = await api.get(`${apiPrefix}/grupos/${grupo.id}/notas-todos`, {
         params: { ciclo: cicloNum }
       });
 
@@ -1470,7 +1476,7 @@ function DocenteTutoria() {
     if (!grupoId) return;
     try {
       setLoadingAsistencias(true);
-      const res = await api.get(`/docente/tutoria/grupos/${grupoId}/asistencia`, {
+      const res = await api.get(`${apiPrefix}/grupos/${grupoId}/asistencia`, {
         params: { fecha: fecha || asistenciaFecha }
       });
       setAsistenciaAlumnos(res.data.alumnos || []);
@@ -1494,7 +1500,7 @@ function DocenteTutoria() {
     try {
       const now = new Date();
       const hora_dispositivo = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-      await api.post(`/docente/tutoria/grupos/${grupoParaAsistencias.id}/asistencia`, {
+      await api.post(`${apiPrefix}/grupos/${grupoParaAsistencias.id}/asistencia`, {
         matricula_id: matriculaId,
         fecha: asistenciaFecha,
         tipo,
@@ -1519,7 +1525,7 @@ function DocenteTutoria() {
       setLoadingAsistencias(true);
       const now = new Date();
       const hora_dispositivo = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
-      const res = await api.post(`/docente/tutoria/grupos/${grupoParaAsistencias.id}/asistencia/guardar-todo`, {
+      const res = await api.post(`${apiPrefix}/grupos/${grupoParaAsistencias.id}/asistencia/guardar-todo`, {
         fecha: asistenciaFecha,
         hora_dispositivo
       });
@@ -1550,7 +1556,7 @@ function DocenteTutoria() {
     if (!grupoId) return;
     try {
       setLoadingRecomendaciones(true);
-      const res = await api.get(`/docente/tutoria/grupos/${grupoId}/recomendaciones`, { params: { ciclo } });
+      const res = await api.get(`${apiPrefix}/grupos/${grupoId}/recomendaciones`, { params: { ciclo } });
       setRecomendacionesAlumnos(res.data.alumnos || []);
     } catch (error) {
       console.error('Error cargando recomendaciones:', error);
@@ -1578,7 +1584,7 @@ function DocenteTutoria() {
       setGuardandoRecomendaciones(true);
       const rec = {};
       recomendacionesAlumnos.forEach(a => { rec[a.matricula_id] = a.recomendacion || ''; });
-      await api.post(`/docente/tutoria/grupos/${grupoParaRecomendaciones.id}/recomendaciones`, {
+      await api.post(`${apiPrefix}/grupos/${grupoParaRecomendaciones.id}/recomendaciones`, {
         ciclo: recomendacionesCiclo,
         recomendaciones: rec
       });
@@ -1683,7 +1689,7 @@ function DocenteTutoria() {
   // Exportar Nómina PDF (directo, sin modal) - solo nombre del grupo + logo
   const handleExportarNominaGrupo = async (grupo) => {
     try {
-      const res = await api.get(`/docente/tutoria/grupos/${grupo.id}/alumnos`);
+      const res = await api.get(`${apiPrefix}/grupos/${grupo.id}/alumnos`);
       const alumnos = res.data.alumnos || [];
       if (alumnos.length === 0) {
         Swal.fire({ icon: 'info', title: 'Sin alumnos', text: 'No hay alumnos en este grupo' });
@@ -1807,7 +1813,7 @@ function DocenteTutoria() {
     });
     if (!result) return;
     try {
-      const res = await api.get(`/docente/tutoria/grupos/${grupo.id}/orden-merito`);
+      const res = await api.get(`${apiPrefix}/grupos/${grupo.id}/orden-merito`);
       const { grupo: grupoRes, detalle } = res.data;
       const list = (detalle && detalle[`b${result.ciclo}`]) || [];
       const bimestresLabel = ['I', 'II', 'III', 'IV'];
@@ -1876,7 +1882,7 @@ function DocenteTutoria() {
     setLoadingHorario(true);
     setHorarioGrupo([]);
     try {
-      const res = await api.get(`/docente/tutoria/grupos/${grupo.id}/horario`);
+      const res = await api.get(`${apiPrefix}/grupos/${grupo.id}/horario`);
       const horariosRecibidos = res.data.horario || [];
       const dias = horariosRecibidos.map(c => typeof c.dia === 'number' ? c.dia : null).filter(d => d !== null);
       const minDia = dias.length ? Math.min(...dias) : 1;
@@ -2161,7 +2167,7 @@ function DocenteTutoria() {
     if (!grupoId) return;
     try {
       setLoadingConducta(true);
-      const res = await api.get(`/docente/tutoria/grupos/${grupoId}/conducta`, { params: { ciclo } });
+      const res = await api.get(`${apiPrefix}/grupos/${grupoId}/conducta`, { params: { ciclo } });
       setConductaAlumnos(res.data.alumnos || []);
     } catch (error) {
       console.error('Error cargando conducta:', error);
@@ -2192,7 +2198,7 @@ function DocenteTutoria() {
       setGuardandoConducta(true);
       const notas = {};
       conductaAlumnos.forEach(a => { notas[a.matricula_id] = a.nota_conducta || '20'; });
-      await api.post(`/docente/tutoria/grupos/${grupoParaConducta.id}/conducta`, {
+      await api.post(`${apiPrefix}/grupos/${grupoParaConducta.id}/conducta`, {
         ciclo: conductaCiclo,
         notas
       });
@@ -2335,7 +2341,7 @@ function DocenteTutoria() {
     setLoadingDescuentosRep(true);
     try {
       const { data } = await api.get(
-        `/docente/tutoria/grupos/${grupoParaConducta.id}/reporte-descuentos-presentacion`,
+        `${apiPrefix}/grupos/${grupoParaConducta.id}/reporte-descuentos-presentacion`,
         { params: { fecha_desde: fechaDescuentosDesde, fecha_hasta: fechaDescuentosHasta } }
       );
       setDataDescuentosPorAlumno(data.alumnos || []);
@@ -2357,7 +2363,7 @@ function DocenteTutoria() {
     if (!grupoParaConducta) return;
     setLoadingIncidenciasRep(true);
     try {
-      const { data } = await api.get(`/docente/tutoria/grupos/${grupoParaConducta.id}/reporte-incidencias-grupo`, {
+      const { data } = await api.get(`${apiPrefix}/grupos/${grupoParaConducta.id}/reporte-incidencias-grupo`, {
         params: { fecha_desde: fechaIncDesde, fecha_hasta: fechaIncHasta },
       });
       setDataIncidenciasPorAlumno(data.alumnos || []);
@@ -2749,7 +2755,7 @@ function DocenteTutoria() {
       setGrupoSeleccionadoCursos(grupo);
       
       // Cargar cursos del grupo
-      const response = await api.get(`/docente/tutoria/grupos/${grupo.id}/cursos`);
+      const response = await api.get(`${apiPrefix}/grupos/${grupo.id}/cursos`);
       const cursosOrdenados = (response.data.cursos || []).sort((a, b) => {
         const nombreA = (a.curso_nombre || '').toLowerCase();
         const nombreB = (b.curso_nombre || '').toLowerCase();
@@ -2775,9 +2781,9 @@ function DocenteTutoria() {
     if (grupoSeleccionadoCursos && curso.asignatura_id) {
       // Navegar a una ruta especial para tutores (modo solo lectura)
       // Pasamos estado de retorno para reabrir "Cursos Asignados" al volver.
-      navigate(`/docente/tutoria/grupos/${grupoSeleccionadoCursos.id}/aula-virtual/${curso.asignatura_id}?modo=solo-lectura`, {
+      navigate(`${apiPrefix}/grupos/${grupoSeleccionadoCursos.id}/aula-virtual/${curso.asignatura_id}?modo=solo-lectura`, {
         state: {
-          returnTo: '/docente/tutoria',
+          returnTo: basePath,
           reopenCursos: true,
           grupoId: grupoSeleccionadoCursos.id
         }
@@ -2799,7 +2805,7 @@ function DocenteTutoria() {
     const grupo = gruposTutor.find((g) => Number(g.id) === Number(state.grupoId));
     if (!grupo) return;
     handleVerCursos(grupo);
-    navigate('/docente/tutoria', { replace: true, state: null });
+    navigate(basePath, { replace: true, state: null });
   }, [location.state, gruposTutor]);
 
   // Abrir modal para enviar mensaje al docente
@@ -3592,7 +3598,7 @@ function DocenteTutoria() {
                                   key={tipo}
                                   type="button"
                                   className={`btn-asistencia-tipo ${clase} ${isActive ? 'active' : ''}`}
-                                  disabled={guardandoAsistencia === alumno.matricula_id}
+                                  disabled={soloLectura || guardandoAsistencia === alumno.matricula_id}
                                   onClick={() => handleAsistenciaClick(alumno.matricula_id, tipo)}
                                 >
                                   {label}
@@ -3607,6 +3613,7 @@ function DocenteTutoria() {
                 </table>
               )}
             </div>
+            {!soloLectura && (
             <div className="modal-registro-asistencia-footer">
               <button
                 type="button"
@@ -3617,6 +3624,7 @@ function DocenteTutoria() {
                 {loadingAsistencias ? 'Guardando...' : 'Guardar (marcar sin registro como Falta)'}
               </button>
             </div>
+            )}
           </div>
         </div>,
         document.body
@@ -3625,6 +3633,8 @@ function DocenteTutoria() {
       <TutoriaModalDeudores
         open={mostrarModalDeudores}
         grupo={grupoParaDeudores}
+        apiPrefix={apiPrefix}
+        soloLectura={soloLectura}
         onClose={() => {
           setMostrarModalDeudores(false);
           setGrupoParaDeudores(null);
@@ -3657,16 +3667,18 @@ function DocenteTutoria() {
                       <tr key={a.matricula_id}>
                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{a.numero}</td>
                         <td>{a.nombre_completo}</td>
-                        <td><textarea className="input-recomendacion" value={a.recomendacion || ''} onChange={(e) => handleRecomendacionChange(a.matricula_id, e.target.value)} rows={3} placeholder="Escribe la recomendación..." /></td>
+                        <td><textarea className="input-recomendacion" value={a.recomendacion || ''} onChange={(e) => handleRecomendacionChange(a.matricula_id, e.target.value)} rows={3} placeholder="Escribe la recomendación..." readOnly={soloLectura} /></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
             </div>
+            {!soloLectura && (
             <div className="modal-registro-asistencia-footer">
               <button type="button" className="btn-guardar-asistencias" onClick={handleGuardarRecomendaciones} disabled={loadingRecomendaciones || guardandoRecomendaciones}>{guardandoRecomendaciones ? 'Guardando...' : 'Guardar Datos'}</button>
             </div>
+            )}
           </div>
         </div>,
         document.body
@@ -3704,16 +3716,18 @@ function DocenteTutoria() {
                       <tr key={a.matricula_id}>
                         <td style={{ textAlign: 'center', fontWeight: 600 }}>{a.numero}</td>
                         <td>{a.nombre_completo}</td>
-                        <td style={{ textAlign: 'center' }}><input type="text" className="input-conducta" value={a.nota_conducta || ''} onChange={(e) => handleConductaChange(a.matricula_id, e.target.value)} maxLength={2} placeholder="20" style={{ width: 50, textAlign: 'center', padding: '0.5rem' }} /></td>
+                        <td style={{ textAlign: 'center' }}><input type="text" className="input-conducta" value={a.nota_conducta || ''} onChange={(e) => handleConductaChange(a.matricula_id, e.target.value)} maxLength={2} placeholder="20" style={{ width: 50, textAlign: 'center', padding: '0.5rem' }} readOnly={soloLectura} /></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               )}
             </div>
+            {!soloLectura && (
             <div className="modal-registro-asistencia-footer">
               <button type="button" className="btn-guardar-asistencias" onClick={handleGuardarConducta} disabled={loadingConducta || guardandoConducta}>{guardandoConducta ? 'Guardando...' : 'Guardar Datos'}</button>
             </div>
+            )}
           </div>
         </div>,
         document.body
@@ -4016,14 +4030,19 @@ function DocenteTutoria() {
         {!selectedGrupo ? (
           <>
             <div className="page-header">
-              <h1>🎓 Tutoría</h1>
-              <p>Gestiona tus grupos como tutor</p>
+              <h1>🎓 {titulo}</h1>
+              <p>{subtitulo}</p>
+              {soloLectura && (
+                <p className="tutoria-solo-lectura-aviso" style={{ marginTop: '0.5rem', color: '#6b7280', fontSize: '0.9rem' }}>
+                  Modo supervisión: solo lectura en todos los niveles.
+                </p>
+              )}
             </div>
 
             <div className="tutoria-content mundo-card">
               <h2>Grupos a Cargo</h2>
 
-              {gruposTutor.length > 0 && (
+              {gruposTutor.length > 0 && !soloLectura && (
                 <div className="tutoria-escaneo-cta" role="region" aria-label="Escanear asistencia">
                   <div className="tutoria-escaneo-cta__text">
                     <span className="tutoria-escaneo-cta__title">Escanear asistencia</span>
@@ -4091,7 +4110,7 @@ function DocenteTutoria() {
             </div>
           ) : (
             <div className="empty-state">
-              <p>No tienes grupos asignados como tutor</p>
+              <p>{soloLectura ? 'No hay grupos disponibles para supervisión' : 'No tienes grupos asignados como tutor'}</p>
             </div>
           )}
 
@@ -4123,9 +4142,9 @@ function DocenteTutoria() {
                       { id: 'orden-merito', label: 'Orden de Mérito', icon: '🏆' },
                       { id: 'notas-asistencia', label: 'Ver Notas', icon: '📊' },
                       { id: 'conexiones-familiares', label: 'Conexiones Familiares', icon: '✉️' },
-                      { id: 'registrar-asistencia', label: 'Asistencias', icon: '✅' },
-                      { id: 'apreciaciones-recomendaciones', label: 'Recomendaciones', icon: '💬' },
-                      { id: 'registrar-conducta', label: 'Registrar Conducta', icon: '📝' },
+                      { id: 'registrar-asistencia', label: soloLectura ? 'Ver Asistencias' : 'Asistencias', icon: '✅' },
+                      { id: 'apreciaciones-recomendaciones', label: soloLectura ? 'Ver Recomendaciones' : 'Recomendaciones', icon: '💬' },
+                      { id: 'registrar-conducta', label: soloLectura ? 'Ver Conducta' : 'Registrar Conducta', icon: '📝' },
                       { id: 'deudores', label: 'Deudores', icon: '💰' }
                     ];
 
@@ -4231,13 +4250,13 @@ function DocenteTutoria() {
                                       }
                                       onClick={(e) => e.stopPropagation()}
                                     >
+                              {!soloLectura && (
                               <button
                                         className="dropdown-item"
                                         type="button"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           e.preventDefault();
-                                          // Abrir modal de mensaje para el alumno
                                           setAlumnoParaMensaje(alumno);
                                           setMostrarModalMensajeAlumno(true);
                                           setAsuntoMensajeAlumno('');
@@ -4249,6 +4268,7 @@ function DocenteTutoria() {
                                         <span className="dropdown-icon">✉️</span>
                                         <span>Enviar Mensaje</span>
                               </button>
+                              )}
                                       <button
                                         className="dropdown-item"
                                         onClick={(e) => {
@@ -4282,6 +4302,7 @@ function DocenteTutoria() {
                                         <span className="dropdown-icon">⭐</span>
                                         <span>Estrellas</span>
                                       </button>
+                                      {!soloLectura && (
                                       <button
                                         className="dropdown-item"
                                         type="button"
@@ -4296,6 +4317,7 @@ function DocenteTutoria() {
                                         <span className="dropdown-icon">👨‍👩‍👧</span>
                                         <span>{cargandoDestinatariosApoderados ? 'Cargando…' : 'Mensaje Apoderados'}</span>
                                       </button>
+                                      )}
                                     </div>,
                                     document.body
                                   )
@@ -5130,6 +5152,7 @@ function DocenteTutoria() {
             </div>
 
             <div className="modal-incidencias-body">
+              {!soloLectura && (
               <div className="incidencias-form-section">
                 <h3 className="section-title-incidencias">Registrar Incidencia</h3>
                 <form onSubmit={handleRegistrarIncidenciaTutoria} className="form-incidencias">
@@ -5156,6 +5179,7 @@ function DocenteTutoria() {
                   </button>
                 </form>
               </div>
+              )}
 
               <div className="incidencias-historial-section">
                 <h3 className="section-title-incidencias">Historial de Incidencias</h3>
@@ -5183,7 +5207,7 @@ function DocenteTutoria() {
                             <td className="descripcion-cell">{item.description || '-'}</td>
                             <td>{formatearFechaIncEstTutoria(item.created_at)}</td>
                             <td>
-                              {item.puede_eliminar ? (
+                              {!soloLectura && item.puede_eliminar ? (
                                 <button
                                   className="btn-eliminar-incidencia"
                                   onClick={() => handleEliminarIncidenciaTutoria(item.id)}
@@ -5244,6 +5268,7 @@ function DocenteTutoria() {
             </div>
 
             <div className="modal-estrellas-body">
+              {!soloLectura && (
               <div className="estrellas-form-section">
                 <h3 className="section-title-estrellas">Dar Estrellas</h3>
                 <form onSubmit={handleDarEstrellasTutoria} className="form-estrellas">
@@ -5289,6 +5314,7 @@ function DocenteTutoria() {
                   </button>
                 </form>
               </div>
+              )}
 
               <div className="estrellas-historial-section">
                 <h3 className="section-title-estrellas">Historial de Estrellas</h3>
@@ -5316,7 +5342,7 @@ function DocenteTutoria() {
                             <td className="descripcion-cell">{item.description || '-'}</td>
                             <td>{formatearFechaIncEstTutoria(item.created_at)}</td>
                             <td>
-                              {item.puede_eliminar ? (
+                              {!soloLectura && item.puede_eliminar ? (
                                 <button
                                   className="btn-eliminar-estrella"
                                   onClick={() => handleEliminarEstrellasTutoria(item.id, item.points)}

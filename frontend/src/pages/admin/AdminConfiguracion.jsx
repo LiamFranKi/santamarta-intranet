@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { useAuth } from '../../context/AuthContext';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import api from '../../services/api';
@@ -14,6 +15,7 @@ const CONFIG_TABS = [
   { id: 'notas', label: 'Notas', icon: '📝' },
   { id: 'facturacion', label: 'Facturación', icon: '🧾' },
   { id: 'matricula', label: 'Matrícula online', icon: '✉️' },
+  { id: 'tutoria', label: 'Tutoría', icon: '🎓', soloAdmin: true },
 ];
 
 const QUILL_MODULES_MATRICULA = {
@@ -68,13 +70,140 @@ const MESES = [
   { value: 11, label: 'Diciembre' }
 ];
 
+function PanelTutoriaGeneral() {
+  const [list, setList] = useState([]);
+  const [q, setQ] = useState('');
+  const [candidatos, setCandidatos] = useState([]);
+  const load = useCallback(
+    () => api.get('/admin/tutoria-general/personal').then((r) => setList(r.data.personal || [])),
+    []
+  );
+
+  useEffect(() => {
+    load().catch((e) => {
+      if (e.response?.status !== 403) {
+        Swal.fire('Error', e.response?.data?.error || 'No se pudo cargar la lista', 'error');
+      }
+    });
+  }, [load]);
+
+  const buscar = () =>
+    api
+      .get('/admin/tutoria-general/personal-candidatos', { params: { q } })
+      .then((r) => setCandidatos(r.data.personal || []));
+
+  const add = async (personalId) => {
+    try {
+      await api.post('/admin/tutoria-general/personal', { personal_id: personalId });
+      await load();
+      Swal.fire({ icon: 'success', title: 'Asignada', timer: 1200, showConfirmButton: false });
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error, 'error');
+    }
+  };
+
+  const del = async (id) => {
+    const ok = await Swal.fire({
+      title: '¿Quitar tutora general?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Quitar',
+      cancelButtonText: 'Cancelar',
+    });
+    if (!ok.isConfirmed) return;
+    try {
+      await api.delete(`/admin/tutoria-general/personal/${id}`);
+      await load();
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error, 'error');
+    }
+  };
+
+  return (
+    <div>
+      <p className="config-section-desc">
+        Personal autorizado para <strong>Tutoría General</strong>: ve todos los niveles en modo supervisión (solo lectura).
+        No reemplaza el rol de tutor de aula. Solo el perfil Administrador puede gestionar esta lista.
+      </p>
+      <h3 className="section-title" style={{ fontSize: '1.05rem', marginTop: '1rem' }}>Tutoras generales actuales</h3>
+      <div className="admin-usu-table-scroll">
+        <table className="admin-usu-table">
+          <thead>
+            <tr>
+              <th>DNI</th>
+              <th>Nombre</th>
+              <th style={{ width: 120 }}>Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.length === 0 ? (
+              <tr>
+                <td colSpan={3} style={{ textAlign: 'center', color: '#6b7280' }}>
+                  No hay tutoras generales asignadas.
+                </td>
+              </tr>
+            ) : (
+              list.map((row) => (
+                <tr key={row.id}>
+                  <td>{row.dni || row.nro_documento || '—'}</td>
+                  <td style={{ textAlign: 'left' }}>
+                    {row.nombres} {row.apellidos}
+                  </td>
+                  <td>
+                    <button type="button" className="admin-usu-btn admin-usu-btn-danger" onClick={() => del(row.id)}>
+                      Quitar
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      <h3 className="section-title" style={{ fontSize: '1.05rem', marginTop: '1.25rem' }}>Añadir personal</h3>
+      <div className="admin-usu-toolbar" style={{ marginBottom: 12 }}>
+        <input
+          className="admin-usu-grow"
+          type="search"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Buscar por DNI o nombre"
+        />
+        <button type="button" className="admin-usu-btn admin-usu-btn-search" onClick={buscar}>
+          Buscar
+        </button>
+      </div>
+      <ul className="admin-sup-lista-candidatos">
+        {candidatos.map((p) => (
+          <li key={p.personal_id}>
+            <strong>{p.dni || p.nro_documento}</strong> — {p.nombres} {p.apellidos}{' '}
+            <button
+              type="button"
+              className="admin-usu-btn admin-usu-btn-primary"
+              style={{ marginLeft: 8 }}
+              onClick={() => add(p.personal_id)}
+            >
+              Asignar
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function AdminConfiguracion() {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general');
   const quillMatriculaRef = useRef(null);
   const quillMatriculaInternoRef = useRef(null);
   const quillModulesMatricula = useMemo(() => QUILL_MODULES_MATRICULA, []);
+  const visibleTabs = useMemo(
+    () => CONFIG_TABS.filter((tab) => !tab.soloAdmin || user?.tipo === 'ADMINISTRADOR'),
+    [user?.tipo]
+  );
   const [config, setConfig] = useState({
     // Información General
     titulo_intranet: '',
@@ -595,7 +724,7 @@ function AdminConfiguracion() {
       </div>
 
       <nav className="config-tabs" role="tablist" aria-label="Secciones de configuración">
-        {CONFIG_TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
@@ -1445,6 +1574,15 @@ function AdminConfiguracion() {
                 {saving ? 'Guardando...' : 'Guardar matrícula online'}
               </button>
             </div>
+            </div>
+          </div>
+          )}
+
+          {activeTab === 'tutoria' && user?.tipo === 'ADMINISTRADOR' && (
+          <div className="config-panel-card">
+            <div className="config-section">
+              <h2 className="section-title">🎓 Tutoría General</h2>
+              <PanelTutoriaGeneral />
             </div>
           </div>
           )}

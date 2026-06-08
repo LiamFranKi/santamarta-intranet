@@ -21,7 +21,13 @@ function filaKey(r) {
 /**
  * @param {{ open: boolean, grupo: object, onClose: () => void }} props
  */
-export default function TutoriaModalDeudores({ open, grupo, onClose }) {
+export default function TutoriaModalDeudores({
+  open,
+  grupo,
+  onClose,
+  apiPrefix = '/docente/tutoria',
+  soloLectura = false,
+}) {
   const [opcionesConcepto, setOpcionesConcepto] = useState([]);
   const [tipoConcepto, setTipoConcepto] = useState('todos');
   const [anio, setAnio] = useState('');
@@ -36,7 +42,7 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
     if (!grupo?.id) return;
     setLoadingConceptos(true);
     try {
-      const { data } = await api.get(`/docente/tutoria/grupos/${grupo.id}/deudores/conceptos`, {
+      const { data } = await api.get(`${apiPrefix}/grupos/${grupo.id}/deudores/conceptos`, {
         params: { anio: grupo.anio }
       });
       setAnio(String(data.anio || ''));
@@ -65,7 +71,7 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
     setLoadingLista(true);
     try {
       const tipoParam = tipoConcepto === 'todos' ? 'todos' : tipoConcepto;
-      const { data } = await api.get(`/docente/tutoria/grupos/${grupo.id}/deudores`, {
+      const { data } = await api.get(`${apiPrefix}/grupos/${grupo.id}/deudores`, {
         params: { anio: parseInt(anio, 10), tipo: tipoParam }
       });
       setMeta({
@@ -124,7 +130,7 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
         nro_concepto: r.nro_concepto,
         observaciones: r.observaciones ?? ''
       }));
-      const { data } = await api.put(`/docente/tutoria/grupos/${grupo.id}/deudores/observaciones`, {
+      const { data } = await api.put(`${apiPrefix}/grupos/${grupo.id}/deudores/observaciones`, {
         items
       });
       Swal.fire({
@@ -280,6 +286,7 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
                         value={r.observaciones ?? ''}
                         onChange={(e) => handleObsChange(r, e.target.value)}
                         placeholder="Qué conversó con el apoderado sobre esta deuda…"
+                        readOnly={soloLectura}
                       />
                     </td>
                   </tr>
@@ -290,6 +297,7 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
         </div>
 
         <div className="modal-registro-asistencia-footer tutoria-modal-deudores-footer">
+          {!soloLectura && (
           <button
             type="button"
             className="btn-guardar-asistencias"
@@ -298,6 +306,7 @@ export default function TutoriaModalDeudores({ open, grupo, onClose }) {
           >
             {guardando ? 'Guardando…' : 'Guardar'}
           </button>
+          )}
           <button
             type="button"
             className="btn-imprimir-asistencia tutoria-btn-export-pdf"

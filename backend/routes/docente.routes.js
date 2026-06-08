@@ -6309,6 +6309,23 @@ router.put('/cursos/:cursoId/aula-virtual', async (req, res) => {
   }
 });
 
+const {
+  verificarAccesoGrupoTutoria,
+  listarGruposTutoriaGeneral
+} = require('../utils/tutoriaGrupoAcceso');
+const { esTutoriaGeneralActivo } = require('../utils/tutoriaGeneral');
+
+router.use('/tutoria/grupos/:grupoId', async (req, res, next) => {
+  try {
+    const grupoId = req.params.grupoId;
+    if (!(await verificarAccesoGrupoTutoria(req, res, grupoId))) return;
+    next();
+  } catch (e) {
+    console.error('[tutoria/grupo acceso]', e);
+    res.status(500).json({ error: 'Error verificando acceso al grupo' });
+  }
+});
+
 /**
  * GET /api/docente/tutoria
  * Verificar si el docente es tutor y obtener TODOS los grupos donde es tutor
@@ -6317,6 +6334,15 @@ router.get('/tutoria', async (req, res) => {
   try {
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
+
+    if (req._tutoriaAccesoGeneral) {
+      const grupos = await listarGruposTutoriaGeneral(colegio_id, anio_activo);
+      return res.json({
+        es_tutoria_general: true,
+        es_tutor: false,
+        grupos: grupos || []
+      });
+    }
 
     if (!personalId) {
       return res.status(404).json({ error: 'Docente no encontrado' });
@@ -6365,9 +6391,7 @@ router.get('/tutoria/grupos/:grupoId/deudores/conceptos', async (req, res) => {
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!ok || ok.length === 0) {
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
-    }
+    if (!req._tutoriaGrupoAccesoOk && (!ok || ok.length === 0)) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
     const anioParam = parseInt(req.query.anio, 10);
     const [colegio] = await query(
       'SELECT anio_activo, total_pensiones, moneda FROM colegios WHERE id = ? LIMIT 1',
@@ -6432,9 +6456,7 @@ router.get('/tutoria/grupos/:grupoId/deudores', async (req, res) => {
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!grupoTutor.length) {
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
-    }
+    if (!req._tutoriaGrupoAccesoOk && !grupoTutor.length) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
     const anioParam = parseInt(req.query.anio, 10);
     const tipoRaw = req.query.tipo;
     const [colegio] = await query(
@@ -6505,9 +6527,7 @@ router.put('/tutoria/grupos/:grupoId/deudores/observaciones', async (req, res) =
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!grupoTutor.length) {
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
-    }
+    if (!req._tutoriaGrupoAccesoOk && !grupoTutor.length) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
     const gid = parseInt(grupoId, 10);
     const items = Array.isArray(req.body?.items) ? req.body.items : [];
     if (items.length === 0) {
@@ -6585,9 +6605,7 @@ router.get('/tutoria/grupos/:grupoId/cursos', async (req, res) => {
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
-    if (grupoTutor.length === 0) {
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
-    }
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
 
     // Obtener asignaturas (cursos) del grupo (mismo nivel/grado/sección/año para todo el grupo)
     const cursos = await query(
@@ -6678,9 +6696,7 @@ router.get('/tutoria/grupos/:grupoId/notas-todos', async (req, res) => {
       [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
 
-    if (grupoTutor.length === 0) {
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
-    }
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
 
     const anioGrupo = parseInt(grupoTutor[0].anio, 10) || parseInt(anio_activo, 10);
     const { cursos: cursosConNotas, grupo: grupoInfo } = await fetchNotasTodosGrupoData(query, {
@@ -6764,7 +6780,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas', async (req, res) => {
         personalIdEsperado: personalId,
         sonIguales: grupoExiste[0]?.tutor_id == personalId
       });
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+      if (!req._tutoriaGrupoAccesoOk) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
 
     if (!asignatura_id) {
@@ -6868,9 +6884,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas/:tareaId', async (req, 
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!grupoTutor || grupoTutor.length === 0) {
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
-    }
+    if (!req._tutoriaGrupoAccesoOk && (!grupoTutor || grupoTutor.length === 0)) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
 
     const tarea = await query(
       `SELECT t.*,
@@ -6971,7 +6985,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/config', async (req, res) => {
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && !grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     const colegio = await query(`SELECT total_notas FROM colegios WHERE id = ?`, [colegio_id]);
     if (!colegio.length) return res.status(404).json({ error: 'Colegio no encontrado' });
     res.json({ total_notas: colegio[0].total_notas || 4 });
@@ -6995,7 +7009,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/temas', async (req, res) => {
       `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && !grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     if (!asignatura_id) return res.status(400).json({ error: 'asignatura_id es requerido' });
     const asignatura = await query(
       `SELECT a.id FROM asignaturas a WHERE a.id = ? AND a.grupo_id = ? AND a.colegio_id = ?`,
@@ -7027,7 +7041,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/sesiones', async (req, res) =>
       `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && !grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     if (!asignatura_id) return res.status(400).json({ error: 'asignatura_id es requerido' });
     const cicloFiltro = ciclo ? parseInt(ciclo, 10) : 1;
     const asignatura = await query(
@@ -7078,7 +7092,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/tareas/:tareaId/entregas', asy
       `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && !grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     const tarea = await query(
       `SELECT t.*, a.grupo_id, g.grado, g.seccion, g.id as grupo_id_real, c.nombre as curso_nombre,
               n.nota_minima, n.nota_maxima, n.tipo_calificacion, n.nombre as nivel_nombre
@@ -7180,7 +7194,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultados'
       `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && !grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     const examen = await query(
       `SELECT ae.* FROM asignaturas_examenes ae
        INNER JOIN asignaturas a ON a.id = ae.asignatura_id
@@ -7223,7 +7237,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/resultados/:resultadoId/detall
       `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && !grupoTutor.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     const resultado = await query(
       `SELECT aep.*, ae.titulo as examen_titulo, ae.tipo_puntaje, ae.puntos_correcta,
               CONCAT(a.apellido_paterno, ' ', a.apellido_materno, ', ', a.nombres) as nombre_completo
@@ -7393,7 +7407,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes', async (req, res) =>
         personalIdEsperado: personalId,
         sonIguales: grupoExiste[0]?.tutor_id == personalId
       });
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+      if (!req._tutoriaGrupoAccesoOk) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
 
     if (!asignatura_id) {
@@ -7512,7 +7526,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/archivos', async (req, res) =>
         personalIdEsperado: personalId,
         sonIguales: grupoExiste[0]?.tutor_id == personalId
       });
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+      if (!req._tutoriaGrupoAccesoOk) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
 
     if (!asignatura_id) {
@@ -7639,7 +7653,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/videos', async (req, res) => {
         personalIdEsperado: personalId,
         sonIguales: grupoExiste[0]?.tutor_id == personalId
       });
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+      if (!req._tutoriaGrupoAccesoOk) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
 
     if (!asignatura_id) {
@@ -7741,7 +7755,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/enlaces', async (req, res) => 
         personalIdEsperado: personalId,
         sonIguales: grupoExiste[0]?.tutor_id == personalId
       });
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
+      if (!req._tutoriaGrupoAccesoOk) return res.status(403).json({ error: 'No eres tutor de este grupo' });
     }
 
     if (!asignatura_id) {
@@ -7801,9 +7815,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado',
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
-    if (grupoTutor.length === 0) {
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
-    }
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
 
     // Obtener el examen y verificar que pertenece a una asignatura del grupo
     const examen = await query(
@@ -7864,9 +7876,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/examenes/:examenId/resultado/d
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
-    if (grupoTutor.length === 0) {
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
-    }
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
 
     // Obtener el examen y verificar que pertenece a una asignatura del grupo
     const examen = await query(
@@ -8001,9 +8011,7 @@ router.get('/tutoria/grupos/:grupoId/aula-virtual/:asignaturaId', async (req, re
       grupoData: grupoTutor[0] || null
     });
 
-    if (grupoTutor.length === 0) {
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
-    }
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
 
     // Verificar que la asignatura pertenece a este grupo
     const asignatura = await query(
@@ -8064,9 +8072,7 @@ router.get('/tutoria/grupos/:grupoId/horario', async (req, res) => {
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
-    if (!grupoTutor || grupoTutor.length === 0) {
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
-    }
+    if (!req._tutoriaGrupoAccesoOk && (!grupoTutor || grupoTutor.length === 0)) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
 
     const anioActivoInt = parseInt(anio_activo);
 
@@ -8152,9 +8158,7 @@ router.get('/tutoria/grupos/:grupoId/alumnos', async (req, res) => {
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
 
-    if (grupoTutor.length === 0) {
-      return res.status(403).json({ error: 'No eres tutor de este grupo' });
-    }
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
 
     const grupo = grupoTutor[0];
 
@@ -9467,10 +9471,17 @@ router.get('/roles-adicionales', async (req, res) => {
     );
 
     const esTutor = gruposTutor.length > 0;
+    let esTutoriaGeneral = false;
+    try {
+      esTutoriaGeneral = await esTutoriaGeneralActivo(personalId, colegio_id);
+    } catch (errTg) {
+      console.error('Error verificando Tutoría General:', errTg);
+    }
 
     console.log(`📋 [ROLES-ADICIONALES] Preparando respuesta JSON:`);
     console.log(`📋 [ROLES-ADICIONALES] - es_apoderado: ${tieneHijos}`);
     console.log(`📋 [ROLES-ADICIONALES] - es_tutor: ${esTutor}`);
+    console.log(`📋 [ROLES-ADICIONALES] - es_tutoria_general: ${esTutoriaGeneral}`);
     console.log(`📋 [ROLES-ADICIONALES] - hijos: ${hijos?.length || 0} hijos`);
     if (hijos && hijos.length > 0) {
       console.log(`📋 [ROLES-ADICIONALES] - Primer hijo en respuesta:`, JSON.stringify(hijos[0], null, 2));
@@ -9479,6 +9490,7 @@ router.get('/roles-adicionales', async (req, res) => {
     res.json({
       es_apoderado: tieneHijos,
       es_tutor: esTutor,
+      es_tutoria_general: esTutoriaGeneral,
       hijos: hijos || [],
       grupo_tutor: esTutor ? gruposTutor[0] : null
     });

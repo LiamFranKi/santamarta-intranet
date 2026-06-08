@@ -25,6 +25,8 @@ import DocenteActividades from './pages/DocenteActividades';
 import DocenteMensajes from './pages/DocenteMensajes';
 import DocenteHijos from './pages/DocenteHijos';
 import DocenteTutoria from './pages/DocenteTutoria';
+import DocenteTutoriaGeneral from './pages/DocenteTutoriaGeneral';
+import DocenteTutoriaGeneralAulaVirtual from './pages/DocenteTutoriaGeneralAulaVirtual';
 import DocenteTutoriaOrdenMerito from './pages/DocenteTutoriaOrdenMerito';
 import AdminActividades from './pages/admin/AdminActividades';
 import AdminAvatares from './pages/admin/AdminAvatares';
@@ -766,6 +768,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/docente/tutoria-general"
+        element={
+          <PrivateRoute>
+            <DocenteTutoriaGeneral />
+          </PrivateRoute>
+        }
+      />
+      <Route
         path="/docente/cursos/:cursoId/aula"
         element={
           <PrivateRoute>
@@ -827,6 +837,14 @@ function AppRoutes() {
         element={
           <PrivateRoute>
             <DocenteTutorAulaVirtual />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/docente/tutoria-general/grupos/:grupoId/aula-virtual/:asignaturaId"
+        element={
+          <PrivateRoute>
+            <DocenteTutoriaGeneralAulaVirtual />
           </PrivateRoute>
         }
       />

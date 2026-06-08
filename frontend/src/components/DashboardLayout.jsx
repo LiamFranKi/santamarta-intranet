@@ -141,7 +141,8 @@ export default function DashboardLayout({ children }) {
   }, [location.pathname]);
   const [rolesAdicionales, setRolesAdicionales] = useState({
     es_apoderado: false,
-    es_tutor: false
+    es_tutor: false,
+    es_tutoria_general: false,
   });
   const [tieneAsignaciones, setTieneAsignaciones] = useState({
     tiene_grupos: false,
@@ -168,11 +169,12 @@ export default function DashboardLayout({ children }) {
         if (cancelled) return;
         setRolesAdicionales({
           es_apoderado: responseRoles.data.es_apoderado || false,
-          es_tutor: responseRoles.data.es_tutor || false
+          es_tutor: responseRoles.data.es_tutor || false,
+          es_tutoria_general: responseRoles.data.es_tutoria_general || false,
         });
       } catch {
         if (!cancelled) {
-          setRolesAdicionales({ es_apoderado: false, es_tutor: false });
+          setRolesAdicionales({ es_apoderado: false, es_tutor: false, es_tutoria_general: false });
         }
       }
     };
@@ -184,7 +186,8 @@ export default function DashboardLayout({ children }) {
         if (cancelled) return;
         setRolesAdicionales({
           es_apoderado: responseRoles.data.es_apoderado || false,
-          es_tutor: responseRoles.data.es_tutor || false
+          es_tutor: responseRoles.data.es_tutor || false,
+          es_tutoria_general: responseRoles.data.es_tutoria_general || false,
         });
 
         const responseAsignaciones = await api.get('/docente/tiene-asignaciones');
@@ -227,7 +230,7 @@ export default function DashboardLayout({ children }) {
       resetNoDocenteAcademico();
       cargarRolesAdicionalesSolo();
     } else {
-      setRolesAdicionales({ es_apoderado: false, es_tutor: false });
+      setRolesAdicionales({ es_apoderado: false, es_tutor: false, es_tutoria_general: false });
       resetNoDocenteAcademico();
     }
 
@@ -245,7 +248,8 @@ export default function DashboardLayout({ children }) {
     const path = location.pathname || '';
     const matchCursos = path.match(/^\/docente\/cursos\/(\d+)\/aula$/);
     const matchTutor = path.match(/^\/docente\/tutoria\/grupos\/(\d+)\/aula-virtual\/(\d+)/);
-    if (!matchCursos && !matchTutor) {
+    const matchTutoriaGeneral = path.match(/^\/docente\/tutoria-general\/grupos\/(\d+)\/aula-virtual\/(\d+)/);
+    if (!matchCursos && !matchTutor && !matchTutoriaGeneral) {
       setDocenteAulaUbicacion(null);
       return undefined;
     }
@@ -261,9 +265,10 @@ export default function DashboardLayout({ children }) {
             (c) =>
               String(c.id) === String(asigId) || String(c.asignatura_id) === String(asigId)
           );
-        } else if (matchTutor) {
-          const [, grupoId, asigId] = matchTutor;
-          const { data } = await api.get(`/docente/tutoria/grupos/${grupoId}/cursos`);
+        } else if (matchTutor || matchTutoriaGeneral) {
+          const [, grupoId, asigId] = matchTutor || matchTutoriaGeneral;
+          const apiBase = matchTutoriaGeneral ? '/docente/tutoria-general' : '/docente/tutoria';
+          const { data } = await api.get(`${apiBase}/grupos/${grupoId}/cursos`);
           const lista = data.cursos || [];
           found = lista.find(
             (c) =>
@@ -655,6 +660,31 @@ export default function DashboardLayout({ children }) {
                     <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/tutoria">
                       <span className="sidebar-icon">🎓</span>
                       <span className="sidebar-label">Tutoría</span>
+                    </NavLink>
+                  </div>
+                </>
+              )}
+
+              {rolesAdicionales.es_tutoria_general && (
+                <>
+                  {!rolesAdicionales.es_apoderado && !rolesAdicionales.es_tutor && (
+                    <div className="sidebar-section-divider"></div>
+                  )}
+                  <div className="sidebar-section-label" style={{
+                    fontSize: '0.75rem',
+                    color: '#9ca3af',
+                    fontWeight: '600',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    padding: '1rem 1.5rem 0.5rem 1.5rem',
+                    marginTop: (rolesAdicionales.es_apoderado || rolesAdicionales.es_tutor) ? '0' : '0.5rem'
+                  }}>
+                    Supervisión
+                  </div>
+                  <div className="sidebar-item">
+                    <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/docente/tutoria-general">
+                      <span className="sidebar-icon">👁️</span>
+                      <span className="sidebar-label">Tutoría General</span>
                     </NavLink>
                   </div>
                 </>
