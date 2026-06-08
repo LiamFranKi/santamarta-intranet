@@ -280,7 +280,10 @@ async function assertAccesoReporteGrupoGeneral(req, grupoId) {
   );
 
   if (!tieneAccesoAsignatura?.length && !esTutorDelGrupo?.length) {
-    return { ok: false, status: 403, error: 'No tienes acceso a este grupo' };
+    const esTutoriaGeneral = await esTutoriaGeneralUsuario(req);
+    if (!esTutoriaGeneral) {
+      return { ok: false, status: 403, error: 'No tienes acceso a este grupo' };
+    }
   }
 
   const gRow = await query(
@@ -2622,8 +2625,12 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
     const { grupoId } = req.params;
     const { colegio_id, usuario_id, personal_id, anio_activo } = req.user;
 
-    if (!grupoId || !personal_id) {
+    if (!grupoId) {
       return res.status(400).json({ error: 'Parámetros requeridos' });
+    }
+    if (!personal_id) {
+      const esTg = await esTutoriaGeneralUsuario(req);
+      if (!esTg) return res.status(400).json({ error: 'Parámetros requeridos' });
     }
 
     // Verificar que el docente tiene acceso al grupo (asignatura en el grupo O tutor del grupo)
@@ -2638,9 +2645,11 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
       [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
+    const esTutoriaGeneral = await esTutoriaGeneralUsuario(req);
 
     if ((!tieneAccesoAsignatura || tieneAccesoAsignatura.length === 0) &&
-        (!esTutorDelGrupo || esTutorDelGrupo.length === 0)) {
+        (!esTutorDelGrupo || esTutorDelGrupo.length === 0) &&
+        !esTutoriaGeneral) {
       return res.status(403).json({ error: 'No tienes acceso a este grupo' });
     }
 
@@ -2658,13 +2667,23 @@ router.get('/grupos/:grupoId/mensajes-historial', async (req, res) => {
     // Obtener historial de mensajes_grupos (si la tabla existe)
     let mensajes = [];
     try {
-      mensajes = await query(
-        `SELECT id, asunto, mensaje, fecha_hora, mensaje_referencia_id
-         FROM mensajes_grupos
-         WHERE grupo_id = ? AND remitente_id = ?
-         ORDER BY fecha_hora DESC`,
-        [grupoId, usuario_id]
-      );
+      if (esTutoriaGeneral) {
+        mensajes = await query(
+          `SELECT id, asunto, mensaje, fecha_hora, mensaje_referencia_id, remitente_id
+           FROM mensajes_grupos
+           WHERE grupo_id = ?
+           ORDER BY fecha_hora DESC`,
+          [grupoId]
+        );
+      } else {
+        mensajes = await query(
+          `SELECT id, asunto, mensaje, fecha_hora, mensaje_referencia_id
+           FROM mensajes_grupos
+           WHERE grupo_id = ? AND remitente_id = ?
+           ORDER BY fecha_hora DESC`,
+          [grupoId, usuario_id]
+        );
+      }
 
       // Archivos: preferir mensaje_referencia_id (mismo envío que apoderados); fallback legado por asunto+fecha
       const phpSystemUrl = process.env.PHP_SYSTEM_URL || 'https://sistema.vanguardschools.edu.pe';
@@ -6311,7 +6330,9 @@ router.put('/cursos/:cursoId/aula-virtual', async (req, res) => {
 
 const {
   verificarAccesoGrupoTutoria,
-  listarGruposTutoriaGeneral
+  listarGruposTutoriaGeneral,
+  filaGrupoTutoriaOGeneral,
+  esTutoriaGeneralUsuario
 } = require('../utils/tutoriaGrupoAcceso');
 const { esTutoriaGeneralActivo } = require('../utils/tutoriaGeneral');
 
@@ -6383,7 +6404,7 @@ router.get('/tutoria/grupos/:grupoId/deudores/conceptos', async (req, res) => {
     const { grupoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
-    if (!personalId) {
+    if (!personalId && !req._tutoriaGrupoAccesoOk) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
     const ok = await query(
@@ -6445,7 +6466,7 @@ router.get('/tutoria/grupos/:grupoId/deudores', async (req, res) => {
     const { grupoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
-    if (!personalId) {
+    if (!personalId && !req._tutoriaGrupoAccesoOk) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
     const grupoTutor = await query(
@@ -6471,7 +6492,8 @@ router.get('/tutoria/grupos/:grupoId/deudores', async (req, res) => {
     const totalPensiones = parseInt(colegio?.total_pensiones || 10);
     const moneda = colegio?.moneda || 'S/';
     const colegioNombre = (colegio?.razon_social || colegio?.titulo_intranet || 'Colegio').trim();
-    const g = grupoTutor[0];
+    const g = await filaGrupoTutoriaOGeneral(req, grupoId, grupoTutor);
+    if (!g) return res.status(404).json({ error: 'Grupo no encontrado' });
     const grupoEtiqueta = `${g.grado}° ${g.seccion || ''} — ${g.nivel_nombre || ''}`.trim();
 
     let payload;
@@ -6682,7 +6704,7 @@ router.get('/tutoria/grupos/:grupoId/notas-todos', async (req, res) => {
     const { ciclo = 1 } = req.query;
     const cicloInt = parseInt(ciclo) || 1;
 
-    if (!personal_id) {
+    if (!personal_id && !req._tutoriaGrupoAccesoOk) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
@@ -6698,7 +6720,13 @@ router.get('/tutoria/grupos/:grupoId/notas-todos', async (req, res) => {
 
     if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
 
-    const anioGrupo = parseInt(grupoTutor[0].anio, 10) || parseInt(anio_activo, 10);
+    const grupoRow = await filaGrupoTutoriaOGeneral(req, grupoId, grupoTutor, {
+      withTurno: false,
+      extraFields: 'n.tipo_calificacion, n.tipo_calificacion_final, n.nota_aprobatoria, n.nota_maxima, n.nota_minima'
+    });
+    if (!grupoRow) return res.status(404).json({ error: 'Grupo no encontrado' });
+
+    const anioGrupo = parseInt(grupoRow.anio, 10) || parseInt(anio_activo, 10);
     const { cursos: cursosConNotas, grupo: grupoInfo } = await fetchNotasTodosGrupoData(query, {
       grupoId,
       colegio_id,
@@ -8127,7 +8155,7 @@ router.get('/tutoria/grupos/:grupoId/horario', async (req, res) => {
       };
     });
 
-    res.json({ horario, grupo: grupoTutor[0] });
+    res.json({ horario, grupo: await filaGrupoTutoriaOGeneral(req, grupoId, grupoTutor) });
   } catch (error) {
     console.error('Error obteniendo horario del grupo (tutor):', error);
     res.status(500).json({ error: 'Error al obtener horario' });
@@ -8144,7 +8172,7 @@ router.get('/tutoria/grupos/:grupoId/alumnos', async (req, res) => {
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
 
-    if (!personalId) {
+    if (!personalId && !req._tutoriaGrupoAccesoOk) {
       return res.status(404).json({ error: 'Docente no encontrado' });
     }
 
@@ -8160,7 +8188,8 @@ router.get('/tutoria/grupos/:grupoId/alumnos', async (req, res) => {
 
     if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }
 
-    const grupo = grupoTutor[0];
+    const grupo = await filaGrupoTutoriaOGeneral(req, grupoId, grupoTutor);
+    if (!grupo) return res.status(404).json({ error: 'Grupo no encontrado' });
 
     // Obtener alumnos del grupo
     const alumnos = await query(
@@ -8235,7 +8264,7 @@ router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req,
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     const matricula = await query(
       `SELECT m.id FROM matriculas m
@@ -8291,7 +8320,7 @@ router.get('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas', async (req, r
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     const matricula = await query(
       `SELECT m.id FROM matriculas m
@@ -8353,7 +8382,7 @@ router.post('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias', async (req
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     const matricula = await query(
       `SELECT m.id FROM matriculas m
@@ -8443,7 +8472,7 @@ router.delete('/tutoria/grupos/:grupoId/alumnos/:alumnoId/incidencias/:incidentI
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     const incidente = await query(
       `SELECT ei.* FROM enrollment_incidents ei
@@ -8510,7 +8539,7 @@ router.post('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas', async (req, 
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     const matricula = await query(
       `SELECT m.id FROM matriculas m
@@ -8601,7 +8630,7 @@ router.delete('/tutoria/grupos/:grupoId/alumnos/:alumnoId/estrellas/:incidentId'
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personal_id, personal_id, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     const incidente = await query(
       `SELECT ei.* FROM enrollment_incidents ei
@@ -8655,7 +8684,7 @@ router.get('/tutoria/grupos/:grupoId/orden-merito', async (req, res) => {
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
 
-    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!personalId && !req._tutoriaGrupoAccesoOk) return res.status(404).json({ error: 'Docente no encontrado' });
 
     const grupoTutor = await query(
       `SELECT g.*, n.nombre as nivel_nombre, t.nombre as turno_nombre
@@ -8665,9 +8694,10 @@ router.get('/tutoria/grupos/:grupoId/orden-merito', async (req, res) => {
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    const grupo = grupoTutor[0];
+    const grupo = await filaGrupoTutoriaOGeneral(req, grupoId, grupoTutor);
+    if (!grupo) return res.status(404).json({ error: 'Grupo no encontrado' });
     const primeraMatricula = await query(
       `SELECT id FROM matriculas WHERE grupo_id = ? AND (estado = 0) LIMIT 1`,
       [grupoId]
@@ -8704,7 +8734,7 @@ router.get('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
     const personalId = req.user.personal_id;
     const { fecha } = req.query;
 
-    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!personalId && !req._tutoriaGrupoAccesoOk) return res.status(404).json({ error: 'Docente no encontrado' });
 
     const grupoTutor = await query(
       `SELECT g.*, n.nombre as nivel_nombre FROM grupos g
@@ -8712,7 +8742,9 @@ router.get('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+
+    const grupoInfo = await filaGrupoTutoriaOGeneral(req, grupoId, grupoTutor, { withTurno: false });
 
     const fechaQuery = fecha ? moment(fecha).format('YYYY-MM-DD') : moment().tz('America/Lima').format('YYYY-MM-DD');
 
@@ -8744,7 +8776,7 @@ router.get('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
       tipo: mapaAsistencia[m.matricula_id]?.tipo || null
     }));
 
-    res.json({ grupo: grupoTutor[0], alumnos: lista, fecha: fechaQuery });
+    res.json({ grupo: grupoInfo, alumnos: lista, fecha: fechaQuery });
   } catch (error) {
     console.error('Error obteniendo asistencia:', error);
     res.status(500).json({ error: 'Error al obtener asistencia' });
@@ -8772,7 +8804,7 @@ router.post('/tutoria/grupos/:grupoId/asistencia', async (req, res) => {
       `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     const fechaNorm = moment(fecha).format('YYYY-MM-DD');
     let horaActual = moment().tz('America/Lima').format('HH:mm:ss');
@@ -8868,7 +8900,7 @@ router.post('/tutoria/grupos/:grupoId/asistencia/guardar-todo', async (req, res)
       `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     const fechaNorm = fecha ? moment(fecha).format('YYYY-MM-DD') : moment().tz('America/Lima').format('YYYY-MM-DD');
     let horaActual = moment().tz('America/Lima').format('HH:mm:ss');
@@ -8960,13 +8992,13 @@ router.get('/tutoria/grupos/:grupoId/recomendaciones', async (req, res) => {
     const personalId = req.user.personal_id;
     const ciclo = parseInt(req.query.ciclo) || 1;
 
-    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!personalId && !req._tutoriaGrupoAccesoOk) return res.status(404).json({ error: 'Docente no encontrado' });
     const grupoTutor = await query(
       `SELECT g.*, n.nombre as nivel_nombre FROM grupos g INNER JOIN niveles n ON n.id = g.nivel_id
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     const lista = await listarAlumnosRecomendacionesPorGrupo(query, {
       grupoId,
@@ -8974,7 +9006,8 @@ router.get('/tutoria/grupos/:grupoId/recomendaciones', async (req, res) => {
       ciclo,
     });
 
-    res.json({ grupo: grupoTutor[0], alumnos: lista, ciclo });
+    const grupo = await filaGrupoTutoriaOGeneral(req, grupoId, grupoTutor, { withTurno: false });
+    res.json({ grupo, alumnos: lista, ciclo });
   } catch (error) {
     console.error('Error obteniendo recomendaciones:', error);
     res.status(500).json({ error: 'Error al obtener recomendaciones' });
@@ -9000,7 +9033,7 @@ router.post('/tutoria/grupos/:grupoId/recomendaciones', async (req, res) => {
       `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     await guardarRecomendacionesPorGrupo(query, execute, {
       grupoId,
@@ -9027,13 +9060,13 @@ router.get('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
     const personalId = req.user.personal_id;
     const ciclo = parseInt(req.query.ciclo, 10) || 1;
 
-    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!personalId && !req._tutoriaGrupoAccesoOk) return res.status(404).json({ error: 'Docente no encontrado' });
     const grupoTutor = await query(
       `SELECT g.*, n.nombre as nivel_nombre FROM grupos g INNER JOIN niveles n ON n.id = g.nivel_id
        WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     const { lista, ciclo: cicloInt } = await listarAlumnosConductaPorGrupo(query, {
       grupoId,
@@ -9041,7 +9074,8 @@ router.get('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
       ciclo,
     });
 
-    res.json({ grupo: grupoTutor[0], alumnos: lista, ciclo: cicloInt });
+    const grupo = await filaGrupoTutoriaOGeneral(req, grupoId, grupoTutor, { withTurno: false });
+    res.json({ grupo, alumnos: lista, ciclo: cicloInt });
   } catch (error) {
     console.error('Error obteniendo conducta:', error);
     res.status(500).json({ error: 'Error al obtener conducta' });
@@ -9067,7 +9101,7 @@ router.post('/tutoria/grupos/:grupoId/conducta', async (req, res) => {
       `SELECT g.id FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
     await guardarConductaPorGrupo(execute, { cicloInt, notas });
 
@@ -9095,15 +9129,17 @@ router.get('/tutoria/grupos/:grupoId/evidencias-tutor/resumen', async (req, res)
     const { grupoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
-    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!personalId && !req._tutoriaGrupoAccesoOk) return res.status(404).json({ error: 'Docente no encontrado' });
 
     const gRow = await query(
       `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && !gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    const anioEsc = Number(gRow[0].anio);
+    const anioEsc = gRow.length > 0
+      ? Number(gRow[0].anio)
+      : Number(anio_activo);
     const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
       || new Date().toISOString().slice(0, 10);
     let fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
@@ -9172,15 +9208,17 @@ router.get('/tutoria/grupos/:grupoId/reporte-descuentos-presentacion', async (re
     const { grupoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
-    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!personalId && !req._tutoriaGrupoAccesoOk) return res.status(404).json({ error: 'Docente no encontrado' });
 
     const gRow = await query(
       `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && !gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    const anioEsc = Number(gRow[0].anio);
+    const anioEsc = gRow.length > 0
+      ? Number(gRow[0].anio)
+      : Number(anio_activo);
     const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
       || new Date().toISOString().slice(0, 10);
     let fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;
@@ -9266,15 +9304,17 @@ router.get('/tutoria/grupos/:grupoId/reporte-incidencias-grupo', async (req, res
     const { grupoId } = req.params;
     const { colegio_id, anio_activo } = req.user;
     const personalId = req.user.personal_id;
-    if (!personalId) return res.status(404).json({ error: 'Docente no encontrado' });
+    if (!personalId && !req._tutoriaGrupoAccesoOk) return res.status(404).json({ error: 'Docente no encontrado' });
 
     const gRow = await query(
       `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?)) AND g.colegio_id = ? AND g.anio = ?`,
       [grupoId, personalId, personalId, colegio_id, anio_activo]
     );
-    if (!gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
+    if (!req._tutoriaGrupoAccesoOk && !gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });
 
-    const anioEsc = Number(gRow[0].anio);
+    const anioEsc = gRow.length > 0
+      ? Number(gRow[0].anio)
+      : Number(anio_activo);
     const hoyStr = fechaQueryValida(req.query.fecha_hasta || new Date().toISOString().slice(0, 10))
       || new Date().toISOString().slice(0, 10);
     let fechaDesde = fechaQueryValida(req.query.fecha_desde) || `${anioEsc}-03-01`;

@@ -63,8 +63,44 @@ async function listarGruposTutoriaGeneral(colegioId, anioActivo) {
   );
 }
 
+/**
+ * Devuelve fila de grupo: tutor del aula o, en Tutoría General, cualquier grupo del colegio/año.
+ * @param {object} req
+ * @param {string|number} grupoId
+ * @param {object[]} [filasTutor] resultado de query tutor_id
+ * @param {{ extraFields?: string, withTurno?: boolean }} [opts]
+ */
+async function filaGrupoTutoriaOGeneral(req, grupoId, filasTutor = [], opts = {}) {
+  if (filasTutor && filasTutor.length > 0) return filasTutor[0];
+  if (!req._tutoriaGrupoAccesoOk) return null;
+
+  const { colegio_id, anio_activo } = req.user || {};
+  const gid = parseInt(grupoId, 10);
+  if (!colegio_id || !anio_activo || Number.isNaN(gid)) return null;
+
+  const withTurno = opts.withTurno !== false;
+  let sql = 'SELECT g.*, n.nombre as nivel_nombre';
+  if (withTurno) sql += ', t.nombre as turno_nombre';
+  if (opts.extraFields) sql += `, ${opts.extraFields}`;
+  sql += ' FROM grupos g INNER JOIN niveles n ON n.id = g.nivel_id';
+  if (withTurno) sql += ' INNER JOIN turnos t ON t.id = g.turno_id';
+  sql += ' WHERE g.id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1';
+
+  const rows = await query(sql, [gid, colegio_id, anio_activo]);
+  return rows[0] || null;
+}
+
+async function esTutoriaGeneralUsuario(req) {
+  const { colegio_id } = req.user || {};
+  const personalId = await resolvePersonalId(req);
+  if (!personalId || !colegio_id) return false;
+  return esTutoriaGeneralActivo(personalId, colegio_id);
+}
+
 module.exports = {
   assertAccesoTutoriaGrupo,
   verificarAccesoGrupoTutoria,
-  listarGruposTutoriaGeneral
+  listarGruposTutoriaGeneral,
+  filaGrupoTutoriaOGeneral,
+  esTutoriaGeneralUsuario
 };

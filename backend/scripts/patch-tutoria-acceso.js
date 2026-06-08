@@ -32,6 +32,14 @@ chunk = chunk.replace(
   "if (!req._tutoriaGrupoAccesoOk && (!grupoTutor || grupoTutor.length === 0)) { return res.status(403).json({ error: 'No eres tutor de este grupo' }); }"
 );
 chunk = chunk.replace(
+  /if \(grupoTutor\.length === 0\) return res\.status\(403\)\.json\(\{ error: 'No eres tutor de este grupo' \}\);/g,
+  "if (!req._tutoriaGrupoAccesoOk && grupoTutor.length === 0) return res.status(403).json({ error: 'No eres tutor de este grupo' });"
+);
+chunk = chunk.replace(
+  /if \(!gRow\.length\) return res\.status\(403\)\.json\(\{ error: 'No eres tutor de este grupo' \}\);/g,
+  "if (!req._tutoriaGrupoAccesoOk && !gRow.length) return res.status(403).json({ error: 'No eres tutor de este grupo' });"
+);
+chunk = chunk.replace(
   /return res\.status\(403\)\.json\(\{ error: 'No eres tutor de este grupo' \}\);/g,
   (match, offset, str) => {
     const lineStart = str.lastIndexOf('\n', offset) + 1;
