@@ -4408,6 +4408,8 @@ router.post('/examenes/:examenId/finalizar', async (req, res) => {
     const correctas = calificacion.correctas;
     const incorrectas = calificacion.incorrectas;
     const detalles = calificacion.detalles;
+    const puntosObtenidos = calificacion.puntosObtenidos;
+    const puntosTotal = calificacion.puntosTotal;
 
     // Enviar notificaciones a apoderados de forma asíncrona
     // Solo si el examen permite ver la nota inmediatamente

@@ -30,7 +30,7 @@ function filtrarPreguntasVisibles(preguntasConAlternativas, preguntaIdsVisibles)
 }
 
 /**
- * @returns {{ puntajeFinal, correctas, incorrectas, detalles, respuestas, preguntas }}
+ * @returns {{ puntajeFinal, correctas, incorrectas, detalles, respuestas, preguntas, puntosObtenidos, puntosTotal }}
  */
 async function finalizarPruebaConCalificacion({ query, execute, pruebaRow, examenId }) {
   const examenRows = await query(`SELECT * FROM asignaturas_examenes WHERE id = ?`, [examenId]);
@@ -44,11 +44,8 @@ async function finalizarPruebaConCalificacion({ query, execute, pruebaRow, exame
   const preguntaIdsVisibles = parsePreguntaIdsVisibles(pruebaRow);
   const preguntas = filtrarPreguntasVisibles(preguntasConAlternativas, preguntaIdsVisibles);
 
-  const { puntajeFinal, correctas, incorrectas, detalles } = calificarExamenPrueba(
-    examenRow,
-    preguntas,
-    respuestas
-  );
+  const { puntajeFinal, correctas, incorrectas, detalles, puntosObtenidos, puntosTotal } =
+    calificarExamenPrueba(examenRow, preguntas, respuestas);
 
   return {
     examenRow,
@@ -57,7 +54,9 @@ async function finalizarPruebaConCalificacion({ query, execute, pruebaRow, exame
     puntajeFinal,
     correctas,
     incorrectas,
-    detalles
+    detalles,
+    puntosObtenidos,
+    puntosTotal
   };
 }
 
