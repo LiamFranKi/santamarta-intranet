@@ -105,6 +105,24 @@ export function mergeRespuestasMaps(...maps) {
   return out;
 }
 
+/** Fusiona cola pendiente al mapa de respuestas (última marca por pregunta). */
+export function pendingQueueToRespuestasMap(queue) {
+  const out = {};
+  if (!Array.isArray(queue)) return out;
+  for (const item of queue) {
+    if (item && item.pregunta_id != null) {
+      out[String(item.pregunta_id)] = item.respuesta;
+    }
+  }
+  return out;
+}
+
+export function readMergedRespuestas(examenId, pruebaId, servidorMap) {
+  const borrador = readDraft(examenId, pruebaId);
+  const pendiente = pendingQueueToRespuestasMap(readPendingQueue(examenId, pruebaId));
+  return mergeRespuestasMaps(servidorMap, borrador, pendiente);
+}
+
 export function readLastServerSaveAt(examenId, pruebaId) {
   try {
     const meta = safeParse(localStorage.getItem(metaStorageKey(examenId, pruebaId)), {});

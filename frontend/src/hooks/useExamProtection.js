@@ -116,11 +116,12 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
       if (isFocusLostRef.current) return;
       isFocusLostRef.current = true;
       limpiarTimerFoco();
+      /** 12s evita falsos positivos por diálogos del sistema o micro-cortes de WiFi */
       focusLossTimerRef.current = setTimeout(() => {
         if (isFocusLostRef.current) {
           registrarViolacion('OUT_OF_FOCUS_7S', { skipCooldown: true });
         }
-      }, 7000);
+      }, 12000);
     };
 
     const finalizarFueraDeFoco = () => {
@@ -148,16 +149,12 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
       }
     };
 
-    /** Cortes Wi‑Fi típicos revierten antes ; tiempo alto para no crear INTERNET_LOSS en jitter/red congestionado */
-    const OFFLINE_MS_ANTES_VIOLACION_INTERNET = 28000;
-
+    /**
+     * Sin internet: NO se reporta violación ni se cierra el examen.
+     * AlumnoExamen muestra banner y guarda respuestas en local hasta reconectar.
+     */
     const handleOffline = () => {
       limpiarTimerOffline();
-      offlineTimerRef.current = setTimeout(() => {
-        if (navigator.onLine === false) {
-          registrarViolacion('INTERNET_LOSS', { skipCooldown: true });
-        }
-      }, OFFLINE_MS_ANTES_VIOLACION_INTERNET);
     };
 
     const handleOnline = () => {
@@ -167,7 +164,7 @@ export const useExamProtection = (onViolation, autoFinish = false, enabled = tru
     // 4. Prevenir cierre accidental del navegador
     const handleBeforeUnload = (e) => {
       e.preventDefault();
-      e.returnValue = '⚠️ ¿Estás seguro de salir? El examen se finalizará automáticamente.';
+      e.returnValue = '⚠️ ¿Salir del examen? Tus respuestas guardadas en esta pantalla podrían no sincronizarse.';
       return e.returnValue;
     };
 

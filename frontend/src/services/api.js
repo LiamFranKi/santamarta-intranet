@@ -199,7 +199,8 @@ api.interceptors.response.use(
     const skipLogoutAdminPsicologiaCritical =
       isAdminPsicologiaRoute && (status === 500 || status === 503);
     const skipLogoutAlumnoExamen =
-      isAlumnoExamenRoute && (status === 403 || status === 500 || status === 502 || status === 503);
+      isAlumnoExamenRoute &&
+      (status === 401 || status === 403 || status === 500 || status === 502 || status === 503);
     /** Elecciones (alumno / portal intranet): 403/409 por convocatoria, horario o voto duplicado no debe cerrar sesión. */
     const isEleccionesIntranetRoute = /\/elecciones\/(alumno|portal)\//.test(reqUrl);
     const skipLogoutEleccionesIntranet =

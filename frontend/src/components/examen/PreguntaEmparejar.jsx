@@ -1,4 +1,11 @@
 import React, { useState } from 'react';
+import { idsAlternativaExamenIguales } from '../../utils/examenRespuestaIds';
+
+function valorEmparejadoParaAlt(emparejamientos, altId) {
+  return Object.entries(emparejamientos || {}).find(([, v]) =>
+    idsAlternativaExamenIguales(v, altId)
+  );
+}
 
 function PreguntaEmparejar({ pregunta, respuesta, onRespuestaChange }) {
   const alternativas = pregunta.alternativas || [];
@@ -31,7 +38,7 @@ function PreguntaEmparejar({ pregunta, respuesta, onRespuestaChange }) {
     const nuevoEmparejamiento = { ...emparejamientos };
 
     // Clic en la misma pareja: quitar emparejamiento
-    if (nuevoEmparejamiento[izquierdaId] === derechaId) {
+    if (idsAlternativaExamenIguales(nuevoEmparejamiento[izquierdaId], derechaId)) {
       delete nuevoEmparejamiento[izquierdaId];
       onRespuestaChange(nuevoEmparejamiento);
       setSeleccionadoIzquierda(null);
@@ -76,7 +83,7 @@ function PreguntaEmparejar({ pregunta, respuesta, onRespuestaChange }) {
           {colIzqFinal.map((alt) => (
             <div
               key={alt.id}
-              className={`emparejar-item izquierda ${seleccionadoIzquierda === alt.id ? 'seleccionado' : ''} ${emparejamientos[alt.id] ? 'emparejado' : ''}`}
+              className={`emparejar-item izquierda ${seleccionadoIzquierda === alt.id ? 'seleccionado' : ''} ${emparejamientos[alt.id] != null || emparejamientos[String(alt.id)] != null ? 'emparejado' : ''}`}
               onClick={() => handleClicIzquierda(alt.id)}
             >
               <div 
@@ -91,7 +98,7 @@ function PreguntaEmparejar({ pregunta, respuesta, onRespuestaChange }) {
           {colDerFinal.map((alt) => (
             <div
               key={alt.id}
-              className={`emparejar-item derecha ${Object.values(emparejamientos).includes(alt.id) ? 'emparejado' : ''} ${seleccionadoIzquierda && emparejamientos[seleccionadoIzquierda] === alt.id ? 'conectado' : ''}`}
+              className={`emparejar-item derecha ${valorEmparejadoParaAlt(emparejamientos, alt.id) ? 'emparejado' : ''} ${seleccionadoIzquierda && idsAlternativaExamenIguales(emparejamientos[seleccionadoIzquierda] ?? emparejamientos[String(seleccionadoIzquierda)], alt.id) ? 'conectado' : ''}`}
               onClick={() => {
                 if (seleccionadoIzquierda) {
                   handleEmparejar(seleccionadoIzquierda, alt.id);

@@ -15,37 +15,14 @@ import { findAlternativaMarcadaVF } from '../utils/examenRespuestaIds';
 import {
   clearDraft,
   markServerSaveAt,
-  mergeRespuestasMaps,
   queuePendingAnswer,
-  readDraft,
+  readMergedRespuestas,
   readPendingQueue,
   removePendingAnswer,
   writeDraft
 } from '../utils/examenDraftLocal';
-
-/** Acepta ALEATORIO aunque venga con espacios o distinta capitalización desde la API/BD */
-function ordenPreguntasEsAleatorio(val) {
-  return String(val ?? '').trim().toUpperCase() === 'ALEATORIO';
-}
-
-function shuffleArray(source) {
-  const a = [...source];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-function ordenarPreguntasSegunIds(todas, idsOrden) {
-  const map = new Map(todas.map((p) => [Number(p.id), p]));
-  const ordered = [];
-  for (const id of idsOrden) {
-    const p = map.get(Number(id));
-    if (p) ordered.push(p);
-  }
-  return ordered;
-}
+import { resolverPreguntasParaIntento } from '../utils/examenLayout';
+import { normalizarRespuestaParaGuardar } from '../utils/examenRespuestaNormalizar';
 
 function respuestaTieneValor(v) {
   if (v === null || v === undefined) return false;
@@ -112,8 +89,9 @@ function clearStoredExamSessionToken(examenId) {
   }
 }
 
-/** Aulas WiFi: guardado más frecuente; timeout más alto que el global (30s) por latencia / cola de AP */
-const EXAM_AUTOSAVE_INTERVAL_MS = 18000;
+/** Aulas WiFi: guardado frecuente; timeout alto por latencia / cola de AP */
+const EXAM_AUTOSAVE_INTERVAL_MS = 12000;
+const EXAM_LAYOUT_SAVE_MAX_RETRIES = 8;
 const EXAM_SESSION_PING_MS = 42000;
 const EXAM_HTTP_TIMEOUT_MS = 55000;
 
@@ -173,6 +151,7 @@ function AlumnoExamen() {
   const tiempoInicio = useRef(null);
   const tiempoExpiracion = useRef(null);
   const respuestasRef = useRef({});
+  const preguntasRef = useRef([]);
   const cierreForzadoPorSeguridadRef = useRef(false);
   const finalizacionEnCursoRef = useRef(false);
   const examSessionTokenRef = useRef('');
@@ -247,8 +226,11 @@ function AlumnoExamen() {
     syncPendientes();
   }, [examenId, getExamHeaders]);
 
-  /** Evita que un guardado en curso haga que otro salga sin enviar (p. ej. al finalizar justo tras el autosave). */
+  /** Serializa guardados bulk y por línea para evitar carreras y pérdida de la última marca. */
   const guardarRespuestasMutexRef = useRef(Promise.resolve());
+  const guardarLineaMutexRef = useRef(Promise.resolve());
+  const flushPendingSyncRef = useRef(null);
+  const guardarRespuestasRef = useRef(null);
 
   // Función para cargar examen
   const cargarExamen = useCallback(async () => {
@@ -328,43 +310,46 @@ function AlumnoExamen() {
       }
 
       const listaBase = preguntasRes.data.preguntas || [];
-      const esAleatorio = ordenPreguntasEsAleatorio(examenRes.data.orden_preguntas);
-      const idsDesdeServidor = iniciarRes.data.pregunta_ids;
-      let recuperandoSesion = Array.isArray(idsDesdeServidor) && idsDesdeServidor.length > 0;
+      const { preguntas: preguntasOrdenadas, layout, esReanudacion } = resolverPreguntasParaIntento({
+        listaBase,
+        examenMeta: examenRes.data,
+        layoutServidor: iniciarRes.data.layout,
+        preguntaIdsLegacy: iniciarRes.data.pregunta_ids
+      });
 
-      let preguntasOrdenadas;
-      if (recuperandoSesion) {
-        preguntasOrdenadas = ordenarPreguntasSegunIds(listaBase, idsDesdeServidor);
-        if (preguntasOrdenadas.length === 0) {
-          recuperandoSesion = false;
-          preguntasOrdenadas = esAleatorio ? shuffleArray(listaBase) : [...listaBase];
+      if (!esReanudacion && layout?.pregunta_ids?.length) {
+        let layoutGuardado = false;
+        for (let intento = 0; intento < EXAM_LAYOUT_SAVE_MAX_RETRIES; intento++) {
+          try {
+            const layoutRes = await api.post(
+              `/alumno/examenes/${examenId}/guardar-preguntas`,
+              { layout },
+              { ...getExamHeaders(), timeout: EXAM_HTTP_TIMEOUT_MS }
+            );
+            if (layoutRes?.data?.success || layoutRes?.data?.already_saved) {
+              layoutGuardado = true;
+              break;
+            }
+          } catch (layoutErr) {
+            if (errorRedTransitoria(layoutErr) && intento < EXAM_LAYOUT_SAVE_MAX_RETRIES - 1) {
+              await sleep(500 * Math.pow(2, Math.min(intento, 4)));
+              continue;
+            }
+            console.warn('No se pudo guardar layout del examen:', layoutErr?.message);
+          }
         }
-      } else {
-        preguntasOrdenadas = esAleatorio ? shuffleArray(listaBase) : [...listaBase];
-      }
-
-      const maxPreguntas = parseInt(examenRes.data.preguntas_max, 10);
-      if (maxPreguntas > 0 && preguntasOrdenadas.length > maxPreguntas) {
-        preguntasOrdenadas = preguntasOrdenadas.slice(0, maxPreguntas);
-      }
-
-      if (esAleatorio && !recuperandoSesion) {
-        preguntasOrdenadas = preguntasOrdenadas.map((pregunta) => ({
-          ...pregunta,
-          alternativas: pregunta.alternativas ? shuffleArray(pregunta.alternativas) : []
-        }));
-      }
-
-      if (!recuperandoSesion) {
-        const preguntaIds = preguntasOrdenadas.map((p) => p.id);
-        try {
-          await api.post(
-            `/alumno/examenes/${examenId}/guardar-preguntas`,
-            { pregunta_ids: preguntaIds },
-            { ...getExamHeaders(), timeout: EXAM_HTTP_TIMEOUT_MS }
+        if (!layoutGuardado) {
+          setLoading(false);
+          const msg =
+            'No se pudo fijar el orden del examen en el servidor. Revisa tu conexión e intenta de nuevo.';
+          setError(msg);
+          Swal.fire({ icon: 'warning', title: 'Conexión necesaria', text: msg, confirmButtonText: 'Reintentar' }).then(
+            (r) => {
+              if (r.isConfirmed) cargarExamen();
+              else navigate(-1);
+            }
           );
-        } catch (error) {
-          console.warn('No se pudieron guardar las preguntas:', error);
+          return;
         }
       }
 
@@ -372,8 +357,9 @@ function AlumnoExamen() {
         iniciarRes.data.respuestas && typeof iniciarRes.data.respuestas === 'object'
           ? iniciarRes.data.respuestas
           : {};
-      const borradorLocal = pruebaId ? readDraft(examenId, pruebaId) : {};
-      const respuestasCrudas = mergeRespuestasMaps(respuestasServidor, borradorLocal);
+      const respuestasCrudas = pruebaId
+        ? readMergedRespuestas(examenId, pruebaId, respuestasServidor)
+        : respuestasServidor;
       const respuestasLimpias = sanitizarRespuestasExamen(respuestasCrudas);
       setRespuestas(respuestasLimpias);
       respuestasRef.current = respuestasLimpias;
@@ -434,10 +420,36 @@ function AlumnoExamen() {
   // Protección de examen
   const handleViolation = useCallback((violation) => {
     if (cierreForzadoPorSeguridadRef.current) return;
-    const esInternet = violation?.type === 'INTERNET_LOSS';
 
-    // Registrar violación en el backend (sin bloquear si falla)
-    api
+    /** Internet caído: solo aviso + respaldo local; nunca llamar al servidor para cerrar. */
+    if (violation?.type === 'INTERNET_LOSS') {
+      setEstadoConexion('offline');
+      Swal.fire({
+        icon: 'warning',
+        title: 'Sin conexión',
+        html: `
+          <div style="text-align:left;">
+            <p>Se detectó pérdida de internet.</p>
+            <p><strong>El examen sigue activo.</strong> Tus respuestas se guardan en esta pantalla y se enviarán al reconectar.</p>
+          </div>
+        `,
+        timer: 4500,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+      });
+      (async () => {
+        try {
+          await flushPendingSyncRef.current?.();
+          await guardarRespuestasRef.current?.({ exigirExito: false });
+        } catch (_) {
+          // offline: respuestas quedan en borrador local
+        }
+      })();
+      return;
+    }
+
+    const registrarViolacion = () => api
       .post(
         `/alumno/examenes/${examenId}/violaciones`,
         {
@@ -448,15 +460,14 @@ function AlumnoExamen() {
       )
       .then((response) => {
       const data = response?.data || {};
-      if (data.action === 'AUTO_FINALIZED') {
+      if (data.action === 'AUTO_FINALIZED' && data.closes_exam !== false) {
         const motivo = data.reason || 'SALIDA_DE_PANTALLA';
-        const esInternet = motivo === 'CERRADO_POR_INTERNET';
-        const titulo = esInternet ? 'Examen cerrado por internet' : 'Examen cerrado por seguridad';
-        const mensaje = esInternet
-          ? 'Se cerró el examen por pérdida de internet.'
-          : 'Se cerró por estar fuera de foco.';
+        const esFoco = motivo === 'FUERA_DE_FOCO';
+        const titulo = esFoco ? 'Examen cerrado por seguridad' : 'Examen cerrado por seguridad';
+        const mensaje = esFoco
+          ? 'Se cerró por salir de la pantalla del examen varias veces.'
+          : 'Se cerró por incumplir las reglas de seguridad del examen.';
         cierreForzadoPorSeguridadRef.current = true;
-        limpiarDatosLocalesExamen();
         Swal.fire({
           icon: 'error',
           title: titulo,
@@ -472,33 +483,36 @@ function AlumnoExamen() {
       }
 
       // Solo mostrar advertencia cuando backend la devuelve explícitamente
-      if (data.action === 'WARNING' && (data.violations || violation.count || 1) <= 1) {
-        const esWarningInternet = violation?.type === 'INTERNET_LOSS';
+      if (data.action === 'WARNING' && !data.internet_only) {
         Swal.fire({
           icon: 'warning',
-          title: esWarningInternet ? '⚠️ Conexión inestable' : '⚠️ Advertencia',
+          title: '⚠️ Advertencia de seguridad',
           html: `
             <div style="text-align:left;">
-              <p>${esWarningInternet ? 'Se detectó pérdida de conexión a internet.' : 'Saliste de la ventana/pantalla del examen.'}</p>
-              <p><strong>${esWarningInternet ? 'Verifica tu conexión para evitar el cierre automático del examen.' : 'Si vuelve a ocurrir, el examen se cerrará automáticamente.'}</strong></p>
+              <p>Saliste de la ventana o pantalla del examen.</p>
+              <p><strong>Si se repite varias veces, el examen se cerrará automáticamente.</strong> La pérdida de internet no cierra el examen.</p>
             </div>
           `,
-          timer: 3500,
+          timer: 4000,
           showConfirmButton: false,
           toast: true,
           position: 'top-end'
         });
       }
     }).catch(() => {
-      if (esInternet) {
-        pushPendingSecurityEvent({
-          examenId,
-          tipo: violation.type,
-          timestamp: violation.timestamp
-        });
-      }
+      // Sin conexión: no encolar cierre; el borrador local protege las respuestas.
     });
-  }, [examenId, navigate, getExamHeaders, limpiarDatosLocalesExamen]);
+
+    (async () => {
+      try {
+        await flushPendingSyncRef.current?.();
+        await guardarRespuestasRef.current?.({ exigirExito: false });
+      } catch (_) {
+        // seguir con registro de violación
+      }
+      registrarViolacion();
+    })();
+  }, [examenId, navigate, getExamHeaders]);
 
   // Protección de examen (siempre activa, pero solo funciona cuando hay examen)
   // El hook debe estar siempre presente, pero el callback verifica si hay examen
@@ -556,44 +570,53 @@ function AlumnoExamen() {
   );
 
   const postLineaConResiliencia = useCallback(
-    async (preguntaId, respuesta) => {
-      const postOnce = () =>
-        api.post(
-          `/alumno/examenes/${examenId}/respuesta-linea`,
-          { pregunta_id: preguntaId, respuesta },
-          { ...getExamHeaders(), timeout: EXAM_HTTP_TIMEOUT_MS }
-        );
+    async (preguntaId, respuesta, tipoPregunta) => {
+      const respuestaNorm = normalizarRespuestaParaGuardar(respuesta, tipoPregunta);
 
-      let recuperoSesion = false;
-      for (let intento = 0; intento < 8; intento++) {
-        try {
-          const res = await postOnce();
-          if (res?.data?.already_finalized) {
-            return res;
-          }
-          return res;
-        } catch (error) {
-          if (errorEsConflictoSesionExamen(error) && !recuperoSesion) {
-            recuperoSesion = true;
-            const res = await api.post(
-              `/alumno/examenes/${examenId}/iniciar`,
-              {},
-              { ...getExamDeviceOnlyHeaders(), timeout: EXAM_HTTP_TIMEOUT_MS }
-            );
-            aplicarTokenSesionDesdeIniciar(res.data);
-            if (res.data?.prueba_id) pruebaIdRef.current = res.data.prueba_id;
-            continue;
-          }
-          if (errorEsConflictoSesionExamen(error) && recuperoSesion) {
+      const ejecutar = async () => {
+        const postOnce = () =>
+          api.post(
+            `/alumno/examenes/${examenId}/respuesta-linea`,
+            { pregunta_id: preguntaId, respuesta: respuestaNorm },
+            { ...getExamHeaders(), timeout: EXAM_HTTP_TIMEOUT_MS }
+          );
+
+        let recuperoSesion = false;
+        for (let intento = 0; intento < 8; intento++) {
+          try {
+            const res = await postOnce();
+            if (res?.data?.already_finalized) {
+              return { res, guardado: false };
+            }
+            return { res, guardado: true };
+          } catch (error) {
+            if (errorEsConflictoSesionExamen(error) && !recuperoSesion) {
+              recuperoSesion = true;
+              const res = await api.post(
+                `/alumno/examenes/${examenId}/iniciar`,
+                {},
+                { ...getExamDeviceOnlyHeaders(), timeout: EXAM_HTTP_TIMEOUT_MS }
+              );
+              aplicarTokenSesionDesdeIniciar(res.data);
+              if (res.data?.prueba_id) pruebaIdRef.current = res.data.prueba_id;
+              continue;
+            }
+            if (errorEsConflictoSesionExamen(error) && recuperoSesion) {
+              throw error;
+            }
+            if (errorRedTransitoria(error) && intento < 7) {
+              await sleep(450 * Math.pow(2, Math.min(intento, 4)));
+              continue;
+            }
             throw error;
           }
-          if (errorRedTransitoria(error) && intento < 7) {
-            await sleep(450 * Math.pow(2, Math.min(intento, 4)));
-            continue;
-          }
-          throw error;
         }
-      }
+        return { res: null, guardado: false };
+      };
+
+      const encadenado = guardarLineaMutexRef.current.then(ejecutar, ejecutar);
+      guardarLineaMutexRef.current = encadenado.catch(() => {});
+      return encadenado;
     },
     [examenId, getExamHeaders, getExamDeviceOnlyHeaders, aplicarTokenSesionDesdeIniciar]
   );
@@ -607,8 +630,12 @@ function AlumnoExamen() {
     setEstadoConexion('syncing');
     for (const item of pendientes) {
       try {
-        await postLineaConResiliencia(item.pregunta_id, item.respuesta);
-        removePendingAnswer(examenId, pruebaId, item.pregunta_id);
+        const tipo =
+          preguntasRef.current?.find((p) => Number(p.id) === Number(item.pregunta_id))?.tipo || '';
+        const { guardado } = await postLineaConResiliencia(item.pregunta_id, item.respuesta, tipo);
+        if (guardado) {
+          removePendingAnswer(examenId, pruebaId, item.pregunta_id);
+        }
       } catch (_) {
         setEstadoConexion(navigator.onLine ? 'error' : 'offline');
         return false;
@@ -692,6 +719,11 @@ function AlumnoExamen() {
     await guardarRespuestas({ exigirExito: true });
     await guardarRespuestas({ exigirExito: true });
   }, [guardarRespuestas, flushPendingSync]);
+
+  useEffect(() => {
+    flushPendingSyncRef.current = flushPendingSync;
+    guardarRespuestasRef.current = guardarRespuestas;
+  }, [flushPendingSync, guardarRespuestas]);
 
   // Función para finalizar examen automáticamente
   const finalizarExamenAutomatico = useCallback(async () => {
@@ -834,10 +866,14 @@ function AlumnoExamen() {
     }
   }, [tiempoRestante, examen, esExamenPdf]);
 
-  // Actualizar ref cuando cambian las respuestas
+  // Actualizar refs cuando cambian respuestas / preguntas
   useEffect(() => {
     respuestasRef.current = respuestas;
   }, [respuestas]);
+
+  useEffect(() => {
+    preguntasRef.current = preguntas;
+  }, [preguntas]);
 
   /** Autosave más seguido en WiFi congestionado */
   useEffect(() => {
@@ -880,7 +916,18 @@ function AlumnoExamen() {
         });
       }, 400);
     };
-    const onOffline = () => setEstadoConexion('offline');
+    const onOffline = () => {
+      setEstadoConexion('offline');
+      Swal.fire({
+        icon: 'info',
+        title: 'Sin internet',
+        text: 'El examen sigue activo. Tus respuestas se guardan en esta pantalla.',
+        timer: 3500,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+      });
+    };
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     return () => {
@@ -901,6 +948,36 @@ function AlumnoExamen() {
     const t = setTimeout(() => setEstadoConexion(navigator.onLine ? 'online' : 'offline'), 3500);
     return () => clearTimeout(t);
   }, [estadoConexion]);
+
+  /** Último intento de sincronizar al cerrar pestaña / suspender (WiFi inestable). */
+  useEffect(() => {
+    if (!examen || esExamenPdf) return undefined;
+
+    const flushKeepalive = () => {
+      const pruebaId = pruebaIdRef.current;
+      if (!pruebaId) return;
+      const limpio = sanitizarRespuestasExamen(respuestasRef.current);
+      const base = api.defaults.baseURL || '';
+      const url = `${base.replace(/\/$/, '')}/alumno/examenes/${examenId}/respuestas`;
+      const headers = getExamHeaders().headers || {};
+      const token = localStorage.getItem('token');
+      if (token) headers.Authorization = `Bearer ${token}`;
+      try {
+        fetch(url, {
+          method: 'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ respuestas: limpio }),
+          keepalive: true
+        }).catch(() => {});
+      } catch (_) {
+        // ignorar
+      }
+    };
+
+    const onPageHide = () => flushKeepalive();
+    window.addEventListener('pagehide', onPageHide);
+    return () => window.removeEventListener('pagehide', onPageHide);
+  }, [examen, esExamenPdf, examenId, getExamHeaders]);
 
   const handleFinalizarExamen = async () => {
     const result = await Swal.fire({
@@ -1561,30 +1638,38 @@ function AlumnoExamen() {
               pregunta={pregunta}
               respuesta={respuestas[pregunta.id] || null}
               onRespuestaChange={(respuesta) => {
+                const tipoPreg = pregunta.tipo;
+                const respNorm = normalizarRespuestaParaGuardar(respuesta, tipoPreg);
                 setRespuestas((prev) => {
                   const nuevasRespuestas = {
                     ...prev,
-                    [pregunta.id]: respuesta
+                    [pregunta.id]: respNorm
                   };
                   respuestasRef.current = nuevasRespuestas;
                   const pid = pruebaIdRef.current;
                   const limpias = sanitizarRespuestasExamen(nuevasRespuestas);
                   if (pid) {
                     writeDraft(examenId, pid, limpias);
-                    queuePendingAnswer(examenId, pid, pregunta.id, respuesta);
+                    queuePendingAnswer(examenId, pid, pregunta.id, respNorm);
                   }
-                  setTimeout(async () => {
+                  (async () => {
                     try {
-                      await postLineaConResiliencia(pregunta.id, respuesta);
-                      if (pid) {
+                      const { guardado } = await postLineaConResiliencia(
+                        pregunta.id,
+                        respNorm,
+                        tipoPreg
+                      );
+                      if (pid && guardado) {
                         removePendingAnswer(examenId, pid, pregunta.id);
                         markServerSaveAt(examenId, pid);
                         setEstadoConexion(navigator.onLine ? 'synced' : 'offline');
+                      } else if (!guardado) {
+                        setEstadoConexion(navigator.onLine ? 'error' : 'offline');
                       }
                     } catch (_) {
                       setEstadoConexion(navigator.onLine ? 'error' : 'offline');
                     }
-                  }, 350);
+                  })();
                   return nuevasRespuestas;
                 });
               }}

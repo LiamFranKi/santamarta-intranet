@@ -27,6 +27,12 @@ const {
   finalizarPruebaConCalificacion,
   aplicarEstadoFinalizadoPrueba
 } = require('../utils/examenFinalizarPrueba');
+const {
+  parseLayoutFromPruebaRow,
+  buildLayoutPayload,
+  guardarLayoutEnPrueba
+} = require('../utils/examenLayoutPrueba');
+const { normalizarRespuestaParaPersistir } = require('../utils/examenRespuestaNormalizar');
 
 /**
  * Lista de IDs de preguntas que el alumno vio (campo preguntas: base64 + PHP serialize).
@@ -53,13 +59,19 @@ const EXAM_SESSION_STALE_SECONDS = (() => {
   return Math.min(900, Math.max(60, raw));
 })();
 
-/** Pérdidas INTERNET_LOSS antes de poder cerrar el examen (otras violaciones usan umbral más bajo). */
-const EXAM_VIOLACION_INTERNET_CIERRE = Math.max(
-  2,
-  parseInt(process.env.EXAM_VIOLACION_INTERNET_CIERRE || '4', 10) || 4
+/**
+ * Política: pérdida de internet NUNCA cierra el examen (solo aviso + guardado local en el cliente).
+ * Cierre automático solo por salida de foco / pantalla reiterada (umbrales altos para WiFi inestable).
+ */
+const EXAM_VIOLACION_FOCO_CIERRE = Math.max(
+  3,
+  parseInt(process.env.EXAM_VIOLACION_FOCO_CIERRE || '3', 10) || 3
 );
 
-const EXAM_VIOLACION_GENERAL_CIERRE = 2;
+const EXAM_VIOLACION_GENERAL_CIERRE = Math.max(
+  3,
+  parseInt(process.env.EXAM_VIOLACION_GENERAL_CIERRE || '3', 10) || 3
+);
 
 function generarExamSessionToken() {
   return crypto.randomBytes(24).toString('hex');
@@ -3922,8 +3934,9 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
           return res.status(409).json(construirErrorSesionExamen());
         }
       }
-      // Para que el front no re-aleatorice ni sobrescriba guardar-preguntas al recargar
-      const pregunta_ids = parsePreguntaIdsVisiblesDesdePrueba(row);
+      // Layout fijo: preguntas + alternativas (no re-barajar al recargar)
+      const layoutGuardado = parseLayoutFromPruebaRow(row);
+      const pregunta_ids = layoutGuardado?.pregunta_ids || parsePreguntaIdsVisiblesDesdePrueba(row);
       let respuestasJson = {};
       try {
         respuestasJson = await cargarRespuestasMergedDePrueba(query, row);
@@ -3948,6 +3961,7 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
         fecha_expiracion: row.expiracion,
         respuestas: respuestasJson,
         pregunta_ids,
+        layout: layoutGuardado,
         session_token: sessionToken
       });
     }
@@ -3973,6 +3987,7 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
       fecha_expiracion: fechaExpiracion,
       respuestas: {},
       pregunta_ids: null,
+      layout: null,
       session_token: sessionToken
     });
   } catch (error) {
@@ -4068,7 +4083,7 @@ router.post('/examenes/:examenId/guardar-preguntas', async (req, res) => {
   try {
     const { usuario_id, colegio_id, anio_activo, alumno_id } = req.user;
     const { examenId } = req.params;
-    const { pregunta_ids } = req.body;
+    const { pregunta_ids, alternativas_ids, layout: layoutBody } = req.body;
 
     // Obtener matrícula del alumno
     const matricula = await query(
@@ -4098,20 +4113,31 @@ router.post('/examenes/:examenId/guardar-preguntas', async (req, res) => {
       return res.status(404).json({ error: 'No hay una prueba en progreso' });
     }
 
-    // Guardar preguntas en formato PHP serialize (base64) para compatibilidad con sistema antiguo
-    const phpSerialize = require('php-serialize');
-    const preguntasSerializadas = phpSerialize.serialize(pregunta_ids);
-    const preguntasBase64 = Buffer.from(preguntasSerializadas).toString('base64');
+    const layoutExistente = parseLayoutFromPruebaRow(prueba[0]);
+    if (layoutExistente && layoutExistente.pregunta_ids?.length > 0) {
+      return res.json({
+        success: true,
+        already_saved: true,
+        layout: layoutExistente
+      });
+    }
 
-    // Actualizar campo preguntas
-    await execute(
-      `UPDATE asignaturas_examenes_pruebas
-       SET preguntas = ?
-       WHERE id = ?`,
-      [preguntasBase64, prueba[0].id]
-    );
+    const idsEntrada =
+      (layoutBody && Array.isArray(layoutBody.pregunta_ids) && layoutBody.pregunta_ids) ||
+      (Array.isArray(pregunta_ids) ? pregunta_ids : []);
+    const altsEntrada =
+      (layoutBody && layoutBody.alternativas_ids) ||
+      alternativas_ids ||
+      {};
 
-    res.json({ success: true });
+    const layout = buildLayoutPayload(idsEntrada, altsEntrada);
+    if (!layout.pregunta_ids.length) {
+      return res.status(400).json({ error: 'pregunta_ids vacío o inválido' });
+    }
+
+    await guardarLayoutEnPrueba(execute, prueba[0].id, layout);
+
+    res.json({ success: true, layout });
   } catch (error) {
     console.error('Error guardando preguntas:', error);
     res.status(500).json({ error: 'Error al guardar preguntas' });
@@ -4269,6 +4295,7 @@ router.post('/examenes/:examenId/respuesta-linea', async (req, res) => {
         return res.json({
           success: true,
           already_finalized: true,
+          saved: false,
           puntaje: Number(ultimaPrueba[0].puntaje || 0)
         });
       }
@@ -4297,18 +4324,21 @@ router.post('/examenes/:examenId/respuesta-linea', async (req, res) => {
       return res.status(404).json({ error: 'Pregunta no encontrada en este examen' });
     }
 
+    const respuestaNorm = normalizarRespuestaParaPersistir(respuesta, preguntaRow.tipo);
+
     const { evaluacion } = await persistirRespuestaPregunta({
       query,
       execute,
       pruebaId: prueba[0].id,
       preguntaId,
-      respuesta,
+      respuesta: respuestaNorm,
       examenRow: examenRows[0] || null,
       preguntaRow
     });
 
     res.json({
       success: true,
+      saved: true,
       prueba_id: prueba[0].id,
       pregunta_id: preguntaId,
       es_correcta: evaluacion ? evaluacion.esCorrecta : null,
@@ -4702,9 +4732,8 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
       );
     }
     const tipoNormalizado = String(tipo || 'DESCONOCIDA').slice(0, 60);
-    const esCierreInmediatoPorFoco = tipoNormalizado === 'OUT_OF_FOCUS_7S';
     const esEventoInternet = tipoNormalizado === 'INTERNET_LOSS';
-    const cierreInmediato = esCierreInmediatoPorFoco;
+    const esEventoFoco = tipoNormalizado === 'OUT_OF_FOCUS_7S';
 
     const [estadoActualViolaciones] = await query(
       `SELECT id, violaciones_count, ultima_violacion_tipo,
@@ -4723,6 +4752,29 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
         action: 'WARNING',
         violations: Number(estadoActualViolaciones?.violaciones_count || 0),
         message: 'Evento duplicado de seguridad ignorado'
+      });
+    }
+
+    /** Internet: solo registro informativo; no incrementa contador ni cierra el intento. */
+    if (esEventoInternet) {
+      try {
+        await execute(
+          `UPDATE asignaturas_examenes_pruebas
+           SET ultima_violacion_tipo = ?,
+               ultima_violacion_fecha = NOW()
+           WHERE id = ?`,
+          [tipoNormalizado, pruebaActiva.id]
+        );
+      } catch (_) {
+        // ignorar si columnas no existen
+      }
+      return res.json({
+        success: true,
+        action: 'WARNING',
+        violations: Number(estadoActualViolaciones?.violaciones_count || 0),
+        message: 'Sin internet: el examen sigue activo. Tus respuestas se guardan localmente.',
+        internet_only: true,
+        closes_exam: false
       });
     }
 
@@ -4747,14 +4799,12 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
     let accion = 'WARNING';
     let mensajeAccion = 'Advertencia registrada';
 
-    const umbralParaCerrar =
-      esEventoInternet ? EXAM_VIOLACION_INTERNET_CIERRE : EXAM_VIOLACION_GENERAL_CIERRE;
-    if (cierreInmediato || violacionesCount >= umbralParaCerrar) {
-      const motivoCierre = esEventoInternet
-        ? 'CERRADO_POR_INTERNET'
-        : esCierreInmediatoPorFoco
-          ? 'FUERA_DE_FOCO'
-          : 'SALIDA_DE_PANTALLA';
+    const umbralParaCerrar = esEventoFoco
+      ? EXAM_VIOLACION_FOCO_CIERRE
+      : EXAM_VIOLACION_GENERAL_CIERRE;
+
+    if (violacionesCount >= umbralParaCerrar) {
+      const motivoCierre = esEventoFoco ? 'FUERA_DE_FOCO' : 'SALIDA_DE_PANTALLA';
 
       const pruebaFullRows = await query(
         `SELECT * FROM asignaturas_examenes_pruebas WHERE id = ? LIMIT 1`,
@@ -4776,11 +4826,9 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
       }
 
       accion = 'AUTO_FINALIZED';
-      mensajeAccion = esEventoInternet
-        ? 'Examen finalizado por pérdida de internet'
-        : esCierreInmediatoPorFoco
-          ? 'Examen finalizado por estar fuera de foco'
-          : 'Examen finalizado por violaciones de seguridad';
+      mensajeAccion = esEventoFoco
+        ? 'Examen finalizado por estar fuera de foco repetidamente'
+        : 'Examen finalizado por violaciones de seguridad';
     }
 
     // Registrar en auditoría usando la estructura correcta
@@ -4817,12 +4865,9 @@ router.post('/examenes/:examenId/violaciones', async (req, res) => {
       violations: violacionesCount,
       message: mensajeAccion,
       reason: accion === 'AUTO_FINALIZED'
-        ? (esEventoInternet
-            ? 'CERRADO_POR_INTERNET'
-            : esCierreInmediatoPorFoco
-              ? 'FUERA_DE_FOCO'
-              : 'SALIDA_DE_PANTALLA')
-        : null
+        ? (esEventoFoco ? 'FUERA_DE_FOCO' : 'SALIDA_DE_PANTALLA')
+        : null,
+      closes_exam: accion === 'AUTO_FINALIZED'
     });
   } catch (error) {
     console.error('Error registrando violación:', error);

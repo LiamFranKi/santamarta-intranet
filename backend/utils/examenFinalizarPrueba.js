@@ -1,20 +1,15 @@
 /**
  * Finaliza un intento de examen calificando respuestas (líneas + JSON legacy).
  */
-const phpSerialize = require('php-serialize');
 const { fetchPreguntasConAlternativas } = require('./examenPreguntasAlternativas');
 const { calificarExamenPrueba } = require('./examenCalificacion');
 const { cargarRespuestasMergedDePrueba } = require('./examenRespuestasLinea');
+const { parseLayoutFromPruebaRow } = require('./examenLayoutPrueba');
 
 function parsePreguntaIdsVisibles(pruebaRow) {
-  if (!pruebaRow?.preguntas || String(pruebaRow.preguntas).trim() === '') return [];
-  try {
-    const decoded = Buffer.from(pruebaRow.preguntas, 'base64').toString('utf-8');
-    const ids = phpSerialize.unserialize(decoded) || [];
-    return Array.isArray(ids) ? ids.map((id) => parseInt(id, 10)).filter((n) => !Number.isNaN(n)) : [];
-  } catch (_) {
-    return [];
-  }
+  const layout = parseLayoutFromPruebaRow(pruebaRow);
+  if (layout?.pregunta_ids?.length) return layout.pregunta_ids;
+  return [];
 }
 
 function filtrarPreguntasVisibles(preguntasConAlternativas, preguntaIdsVisibles) {

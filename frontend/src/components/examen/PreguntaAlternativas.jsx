@@ -1,6 +1,9 @@
 import React from 'react';
+import { idsAlternativaExamenIguales } from '../../utils/examenRespuestaIds';
 
 function PreguntaAlternativas({ pregunta, respuesta, onRespuestaChange }) {
+  const estaMarcada = (altId) => idsAlternativaExamenIguales(respuesta, altId);
+
   return (
     <div className="pregunta-alternativas">
       <div 
@@ -12,14 +15,14 @@ function PreguntaAlternativas({ pregunta, respuesta, onRespuestaChange }) {
         {pregunta.alternativas && pregunta.alternativas.map((alt) => (
           <label 
             key={alt.id} 
-            className={`alternativa-item ${respuesta === alt.id ? 'selected' : ''}`}
+            className={`alternativa-item ${estaMarcada(alt.id) ? 'selected' : ''}`}
           >
             <input
               type="radio"
               name={`pregunta-${pregunta.id}`}
               value={alt.id}
-              checked={respuesta === alt.id}
-              onChange={(e) => onRespuestaChange(parseInt(e.target.value))}
+              checked={estaMarcada(alt.id)}
+              onChange={(e) => onRespuestaChange(parseInt(e.target.value, 10))}
             />
             <span 
               className="alternativa-texto"

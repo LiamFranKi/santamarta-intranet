@@ -4,6 +4,10 @@
  */
 const phpSerialize = require('php-serialize');
 const { evaluarPreguntaIndividual } = require('./examenCalificacion');
+const {
+  normalizarRespuestaParaPersistir,
+  parseRespuestaDesdeLinea
+} = require('./examenRespuestaNormalizar');
 
 const TABLA = 'asignaturas_examenes_respuestas_linea';
 
@@ -45,15 +49,7 @@ function lineasAMap(lineas) {
   const out = {};
   for (const row of lineas || []) {
     if (!row || row.pregunta_id == null) continue;
-    let val = row.respuesta_json;
-    if (typeof val === 'string') {
-      try {
-        val = JSON.parse(val);
-      } catch (_) {
-        val = val;
-      }
-    }
-    out[String(row.pregunta_id)] = val;
+    out[String(row.pregunta_id)] = parseRespuestaDesdeLinea(row.respuesta_json);
   }
   return out;
 }
@@ -83,9 +79,10 @@ async function cargarRespuestasMergedDePrueba(query, pruebaRow) {
   return mergeRespuestasMaps(jsonMap, lineasAMap(lineas));
 }
 
-async function upsertLineaRespuesta(execute, pruebaId, preguntaId, respuestaJson, evaluacion) {
+async function upsertLineaRespuesta(execute, pruebaId, preguntaId, respuestaJson, evaluacion, tipoPregunta) {
   try {
-    const jsonStr = JSON.stringify(respuestaJson);
+    const normalizada = normalizarRespuestaParaPersistir(respuestaJson, tipoPregunta);
+    const jsonStr = JSON.stringify(normalizada);
     const esCorrecta =
       evaluacion && evaluacion.tieneRespuesta ? (evaluacion.esCorrecta ? 1 : 0) : null;
     const puntos =
@@ -135,15 +132,22 @@ async function persistirRespuestaPregunta({
   const prueba = pruebaRows[0];
   if (!prueba) throw new Error('Prueba no encontrada');
 
-  const jsonMap = parseRespuestasJsonDesdePrueba(prueba.respuestas);
-  jsonMap[String(preguntaId)] = respuesta;
+  const tipoPregunta = preguntaRow?.tipo;
+  const respuestaNorm = normalizarRespuestaParaPersistir(respuesta, tipoPregunta);
+
+  const lineas = await fetchLineasPorPrueba(query, pruebaId);
+  const jsonMap = mergeRespuestasMaps(
+    parseRespuestasJsonDesdePrueba(prueba.respuestas),
+    lineasAMap(lineas)
+  );
+  jsonMap[String(preguntaId)] = respuestaNorm;
 
   let evaluacion = null;
   if (examenRow && preguntaRow) {
-    evaluacion = evaluarPreguntaIndividual(preguntaRow, respuesta, examenRow);
+    evaluacion = evaluarPreguntaIndividual(preguntaRow, respuestaNorm, examenRow);
   }
 
-  await upsertLineaRespuesta(execute, pruebaId, preguntaId, respuesta, evaluacion);
+  await upsertLineaRespuesta(execute, pruebaId, preguntaId, respuestaNorm, evaluacion, tipoPregunta);
   await syncMapToJsonCampo(execute, pruebaId, jsonMap);
 
   return { evaluacion, respuestasMap: jsonMap };
@@ -177,11 +181,14 @@ async function persistirRespuestasBulk({
     const preguntaId = parseInt(preguntaIdStr, 10);
     if (Number.isNaN(preguntaId)) continue;
     const preguntaRow = preguntasPorId?.[preguntaId];
+    const tipoPregunta = preguntaRow?.tipo;
+    const respuestaNorm = normalizarRespuestaParaPersistir(respuesta, tipoPregunta);
+    merged[String(preguntaId)] = respuestaNorm;
     let evaluacion = null;
     if (examenRow && preguntaRow) {
-      evaluacion = evaluarPreguntaIndividual(preguntaRow, respuesta, examenRow);
+      evaluacion = evaluarPreguntaIndividual(preguntaRow, respuestaNorm, examenRow);
     }
-    await upsertLineaRespuesta(execute, pruebaId, preguntaId, respuesta, evaluacion);
+    await upsertLineaRespuesta(execute, pruebaId, preguntaId, respuestaNorm, evaluacion, tipoPregunta);
   }
 
   await syncMapToJsonCampo(execute, pruebaId, merged);
