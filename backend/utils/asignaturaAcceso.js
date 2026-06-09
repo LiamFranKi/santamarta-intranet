@@ -37,6 +37,16 @@ const FROM_RESULTADO_PRUEBA_BASE = `
  INNER JOIN asignaturas a ON a.id = ae.asignatura_id
  INNER JOIN grupos g ON g.id = a.grupo_id`;
 
+const FROM_TAREA_BASE = `
+ FROM asignaturas_tareas t
+ INNER JOIN asignaturas a ON a.id = t.asignatura_id
+ INNER JOIN grupos g ON g.id = a.grupo_id`;
+
+const FROM_SESION_BASE = `
+ FROM asignaturas_sesion_pdf s
+ INNER JOIN asignaturas a ON a.id = s.asignatura_id
+ INNER JOIN grupos g ON g.id = a.grupo_id`;
+
 /**
  * @returns {{ where: string, params: any[] } | null}
  */
@@ -170,6 +180,46 @@ async function fetchAlternativaExamenConAcceso(
   });
 }
 
+/**
+ * @returns {Promise<object|null>} fila de la tarea/proyecto (y joins del FROM) o null
+ */
+async function fetchTareaConAcceso(
+  query,
+  req,
+  tareaId,
+  selectSql = 't.*',
+  extraJoins = ''
+) {
+  return fetchWithAcceso(query, req, {
+    selectSql,
+    fromSql: FROM_TAREA_BASE,
+    idColumn: 't.id',
+    idValue: tareaId,
+    aliasAsignatura: 'a',
+    extraJoins,
+  });
+}
+
+/**
+ * @returns {Promise<object|null>} fila de la sesión PDF (y joins del FROM) o null
+ */
+async function fetchSesionConAcceso(
+  query,
+  req,
+  sesionId,
+  selectSql = 's.*',
+  extraJoins = ''
+) {
+  return fetchWithAcceso(query, req, {
+    selectSql,
+    fromSql: FROM_SESION_BASE,
+    idColumn: 's.id',
+    idValue: sesionId,
+    aliasAsignatura: 'a',
+    extraJoins,
+  });
+}
+
 module.exports = {
   esStaffColegio,
   buildAccesoAsignaturaWhere,
@@ -178,4 +228,6 @@ module.exports = {
   fetchResultadoPruebaConAcceso,
   fetchPreguntaExamenConAcceso,
   fetchAlternativaExamenConAcceso,
+  fetchTareaConAcceso,
+  fetchSesionConAcceso,
 };

@@ -231,6 +231,7 @@ function AlumnoExamen() {
   const guardarLineaMutexRef = useRef(Promise.resolve());
   const flushPendingSyncRef = useRef(null);
   const guardarRespuestasRef = useRef(null);
+  const postFinalizarConResilienciaRef = useRef(null);
 
   // Función para cargar examen
   const cargarExamen = useCallback(async () => {
@@ -468,6 +469,7 @@ function AlumnoExamen() {
           ? 'Se cerró por salir de la pantalla del examen varias veces.'
           : 'Se cerró por incumplir las reglas de seguridad del examen.';
         cierreForzadoPorSeguridadRef.current = true;
+        void postFinalizarConResilienciaRef.current?.().catch(() => {});
         Swal.fire({
           icon: 'error',
           title: titulo,
@@ -723,7 +725,8 @@ function AlumnoExamen() {
   useEffect(() => {
     flushPendingSyncRef.current = flushPendingSync;
     guardarRespuestasRef.current = guardarRespuestas;
-  }, [flushPendingSync, guardarRespuestas]);
+    postFinalizarConResilienciaRef.current = postFinalizarConResiliencia;
+  }, [flushPendingSync, guardarRespuestas, postFinalizarConResiliencia]);
 
   // Función para finalizar examen automáticamente
   const finalizarExamenAutomatico = useCallback(async () => {
