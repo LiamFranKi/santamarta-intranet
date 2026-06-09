@@ -35,7 +35,7 @@ function escaparHtmlBasico(str) {
 }
 
 /**
- * Prefijo de asunto + bloque HTML inicial para apoderados/alumnos.
+ * Asunto limpio (solo texto del remitente) + bloque HTML con contexto de grupo(s).
  * Si el remitente es tutor del grupo, la etiqueta es "Tutoría"; si no, "Grupo".
  */
 function enriquecerMensajeConexionesFamiliares({
@@ -77,8 +77,7 @@ function enriquecerMensajeConexionesFamiliares({
   }
 
   const ASUNTO_MAX = 300;
-  const prefix = `[CF · ${refUnaLinea}] `;
-  let asuntoFinal = prefix + String(asuntoOriginal || '').trim();
+  let asuntoFinal = String(asuntoOriginal || '').trim();
   if (asuntoFinal.length > ASUNTO_MAX) {
     asuntoFinal = asuntoFinal.substring(0, ASUNTO_MAX);
   }

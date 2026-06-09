@@ -15374,7 +15374,7 @@ router.post('/mensajes/enviar', uploadMensajes.array('archivos', 10), async (req
                 anio_activo,
                 personal_id,
                 destinatarioUsuarioId: destinatarioId,
-                asuntoOriginal: asuntoEnviar,
+                asuntoOriginal: asunto,
                 mensajeOriginal: mensajeEnviar,
                 contexto_alumno_id: contextoAlumnoIdEnvio,
                 contexto_grupo_id: contextoGrupoIdEnvio,

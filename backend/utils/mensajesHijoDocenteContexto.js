@@ -44,9 +44,8 @@ function enriquecerMensajeApoderadoADocente({ asuntoOriginal, mensajeOriginal, c
   const nivelTxt = nivel || '—';
 
   const refUnaLinea = `${nombre} — ${gradoSeccion}${nivel ? ` · ${nivel}` : ''}`;
-  const prefix = `[Ref: ${refUnaLinea}] `;
   const MAX = 300;
-  let asuntoFinal = prefix + String(asuntoOriginal || '').trim();
+  let asuntoFinal = String(asuntoOriginal || '').trim();
   if (asuntoFinal.length > MAX) {
     asuntoFinal = asuntoFinal.substring(0, MAX);
   }

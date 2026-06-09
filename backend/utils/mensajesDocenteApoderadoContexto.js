@@ -368,16 +368,8 @@ async function enriquecerMensajeDocenteParaDestinatario({
     lineasInner.push(`</ul>`);
   }
 
-  const refCorta =
-    items.length === 1
-      ? `${items[0].nombre} (${items[0].grado})`
-      : items.length > 1
-        ? `${items.length} estudiantes`
-        : 'Docente';
-
-  const prefix = `[Ref: ${refCorta}] `;
   const MAX = 300;
-  let asuntoFinal = prefix + String(asuntoOriginal || '').trim();
+  let asuntoFinal = String(asuntoOriginal || '').trim();
   if (asuntoFinal.length > MAX) asuntoFinal = asuntoFinal.substring(0, MAX);
 
   const mensajeFinal = bloqueHtml({ docenteNombre, lineasHtmlInternas: lineasInner }) + (mensajeOriginal || '');
