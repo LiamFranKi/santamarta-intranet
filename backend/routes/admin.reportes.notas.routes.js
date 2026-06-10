@@ -4,7 +4,7 @@
  */
 const express = require('express');
 const router = express.Router();
-const { getMeta, runReport, REPORT_TYPES } = require('../utils/adminReportesNotasData');
+const { getMeta, runReport, reportCoberturaDetalle, REPORT_TYPES } = require('../utils/adminReportesNotasData');
 const { authenticateToken } = require('../middleware/auth');
 
 router.use(authenticateToken);
@@ -33,6 +33,21 @@ router.get('/meta', async (req, res) => {
 /** GET /api/admin/reportes/notas/tipos */
 router.get('/tipos', (_req, res) => {
   res.json({ tipos: REPORT_TYPES });
+});
+
+/** GET /api/admin/reportes/notas/cobertura-detalle?grupo_id=&anio=&ciclo= */
+router.get('/cobertura-detalle', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anioQ = req.query.anio != null ? parseInt(req.query.anio, 10) : null;
+    const meta = await getMeta(cid, anioQ);
+    const anio = meta.anio;
+    const data = await reportCoberturaDetalle(cid, { ...req.query, anio });
+    res.json({ ...data, colegio_nombre: meta.colegio_nombre });
+  } catch (e) {
+    console.error('[reportes/notas/cobertura-detalle]', e);
+    res.status(e.status || 500).json({ error: e.message || 'Error al cargar detalle de cobertura.' });
+  }
 });
 
 /** GET /api/admin/reportes/notas/reporte/:tipo */

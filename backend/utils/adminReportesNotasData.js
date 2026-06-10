@@ -46,6 +46,23 @@ function round2(n) {
   return Math.round(n * 100) / 100;
 }
 
+function nombreAlumnoLista(row) {
+  const ap = [row.apellido_paterno, row.apellido_materno]
+    .filter((x) => x != null && String(x).trim())
+    .join(' ')
+    .trim();
+  const nom = String(row.nombres || '').trim();
+  if (ap && nom) return `${ap}, ${nom}`;
+  return ap || nom || '—';
+}
+
+/** ¿Tiene nota registrada en el bimestre? (numérica o cualitativa) */
+function notaEstaRegistrada(eng, matriculaId, asignaturaId, esCualitativo) {
+  const raw = eng.promMap[`${matriculaId}:${asignaturaId}`];
+  if (esCualitativo) return eng.parseLetraPromedio(raw) != null;
+  return eng.parseNumPromedio(raw) != null;
+}
+
 /** Query string / body → entero opcional */
 function optInt(v) {
   if (v == null || v === '') return undefined;
@@ -768,39 +785,154 @@ async function reportCobertura(colegioId, params) {
   });
   const filas = eng.grupos.map((g) => {
     const st = eng.statsSalon(g.grupo_id);
-    const esperados = (eng.alumnosPorGrupo[g.grupo_id] || []).length * (eng.asignPorGrupo[g.grupo_id] || []).filter(
+    const esCualitativo = g.tipo_calificacion === 0;
+    const asigsAcad = (eng.asignPorGrupo[g.grupo_id] || []).filter(
       (a) => a.asignatura_id !== CONDUCTA_ASIGNATURA_ID
-    ).length;
+    );
+    const alumnos = eng.alumnosPorGrupo[g.grupo_id] || [];
+    const esperados = alumnos.length * asigsAcad.length;
     let registrados = 0;
-    (eng.alumnosPorGrupo[g.grupo_id] || []).forEach((al) => {
-      (eng.asignPorGrupo[g.grupo_id] || []).forEach((as) => {
-        if (as.asignatura_id === CONDUCTA_ASIGNATURA_ID) return;
-        if (eng.parseNumPromedio(eng.promMap[`${al.matricula_id}:${as.asignatura_id}`]) != null) registrados++;
+    alumnos.forEach((al) => {
+      asigsAcad.forEach((as) => {
+        if (notaEstaRegistrada(eng, al.matricula_id, as.asignatura_id, esCualitativo)) registrados++;
       });
+    });
+    let cursosIncompletos = 0;
+    asigsAcad.forEach((as) => {
+      let regCurso = 0;
+      alumnos.forEach((al) => {
+        if (notaEstaRegistrada(eng, al.matricula_id, as.asignatura_id, esCualitativo)) regCurso++;
+      });
+      if (alumnos.length > 0 && regCurso < alumnos.length) cursosIncompletos++;
     });
     const pct = esperados > 0 ? round2((registrados / esperados) * 100) : null;
     return {
       grupo_id: g.grupo_id,
       label: eng.grupoMap[g.grupo_id].label,
       alumnos: st?.alumnos_total ?? 0,
-      cursos: (eng.asignPorGrupo[g.grupo_id] || []).filter((a) => a.asignatura_id !== CONDUCTA_ASIGNATURA_ID).length,
+      cursos: asigsAcad.length,
       notas_registradas: registrados,
       notas_esperadas: esperados,
+      cursos_incompletos: cursosIncompletos,
       pct_cobertura: pct,
       promedio_salon: st?.promedio ?? null,
     };
   });
   filas.sort((a, b) => (a.pct_cobertura ?? 0) - (b.pct_cobertura ?? 0));
+  const ranked = filas.map((f, i) => ({ ...f, puesto: i + 1 }));
   return {
     titulo: 'Cobertura de registro de notas',
     ciclo: eng.ciclo,
     anio: eng.anio,
-    filas,
-    chart: filas.map((f) => ({
+    filas: ranked,
+    chart: ranked.map((f) => ({
       label: f.label.length > 22 ? `${f.label.slice(0, 20)}…` : f.label,
       value: f.pct_cobertura,
       pct: f.pct_cobertura ?? 0,
     })),
+  };
+}
+
+async function reportCoberturaDetalle(colegioId, params) {
+  const grupoId = parseInt(params.grupo_id, 10);
+  if (!Number.isFinite(grupoId)) {
+    const err = new Error('Indique un salón válido (grupo_id).');
+    err.status = 400;
+    throw err;
+  }
+
+  const eng = await buildNotasEngine(query, {
+    colegioId,
+    anio: params.anio,
+    ciclo: params.ciclo,
+    grupoId,
+  });
+
+  if (!eng.grupos.length) {
+    const err = new Error('Salón no encontrado para el año indicado.');
+    err.status = 404;
+    throw err;
+  }
+
+  const g = eng.grupos[0];
+  const esCualitativo = g.tipo_calificacion === 0;
+  const st = eng.statsSalon(g.grupo_id);
+  const alumnos = eng.alumnosPorGrupo[grupoId] || [];
+  const asigsAcad = (eng.asignPorGrupo[grupoId] || []).filter(
+    (a) => a.asignatura_id !== CONDUCTA_ASIGNATURA_ID
+  );
+
+  const docRows = await query(
+    `SELECT a.id AS asignatura_id,
+            TRIM(CONCAT(COALESCE(p.apellidos, ''), ', ', COALESCE(p.nombres, ''))) AS docente_nombre
+     FROM asignaturas a
+     LEFT JOIN personal p ON p.id = a.personal_id
+     WHERE a.grupo_id = ? AND a.colegio_id = ?`,
+    [grupoId, colegioId]
+  );
+  const docMap = {};
+  (docRows || []).forEach((r) => {
+    const nom = String(r.docente_nombre || '').replace(/^,\s*|,\s*$/g, '').trim();
+    docMap[r.asignatura_id] = nom || '—';
+  });
+
+  const cursos = asigsAcad.map((as) => {
+    const alumnosPendientes = [];
+    let registradas = 0;
+    alumnos.forEach((al) => {
+      if (notaEstaRegistrada(eng, al.matricula_id, as.asignatura_id, esCualitativo)) {
+        registradas++;
+      } else {
+        alumnosPendientes.push({
+          matricula_id: al.matricula_id,
+          alumno_nombre: nombreAlumnoLista(al),
+        });
+      }
+    });
+    const esperadas = alumnos.length;
+    const pct = esperadas > 0 ? round2((registradas / esperadas) * 100) : null;
+    return {
+      asignatura_id: as.asignatura_id,
+      curso_nombre: as.curso_nombre,
+      docente_nombre: docMap[as.asignatura_id] || '—',
+      registradas,
+      esperadas,
+      faltantes: Math.max(0, esperadas - registradas),
+      pct_cobertura: pct,
+      completo: esperadas > 0 && registradas >= esperadas,
+      alumnos_pendientes: alumnosPendientes,
+    };
+  });
+
+  cursos.sort((a, b) => {
+    const pa = a.pct_cobertura ?? 0;
+    const pb = b.pct_cobertura ?? 0;
+    if (pa !== pb) return pa - pb;
+    return String(a.curso_nombre || '').localeCompare(String(b.curso_nombre || ''), 'es');
+  });
+
+  let totalReg = 0;
+  let totalEsp = 0;
+  cursos.forEach((c) => {
+    totalReg += c.registradas;
+    totalEsp += c.esperadas;
+  });
+
+  return {
+    titulo: 'Detalle de cobertura de registro',
+    grupo_id: grupoId,
+    label: eng.grupoMap[grupoId].label,
+    ciclo: eng.ciclo,
+    anio: eng.anio,
+    es_cualitativo: esCualitativo,
+    notas_registradas: totalReg,
+    notas_esperadas: totalEsp,
+    pct_cobertura: totalEsp > 0 ? round2((totalReg / totalEsp) * 100) : null,
+    promedio_salon: st?.promedio ?? null,
+    alumnos_total: alumnos.length,
+    cursos_total: cursos.length,
+    cursos_incompletos: cursos.filter((c) => !c.completo).length,
+    cursos,
   };
 }
 
@@ -926,5 +1058,6 @@ module.exports = {
   CONDUCTA_ASIGNATURA_ID,
   getMeta,
   runReport,
+  reportCoberturaDetalle,
   REPORT_TYPES: Object.keys(REPORT_HANDLERS),
 };

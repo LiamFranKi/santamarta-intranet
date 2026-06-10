@@ -3,6 +3,7 @@ import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import { generarPdfReporteNotas } from '../../utils/pdfReportesNotas';
+import ModalCoberturaDetalle from './reportesNotas/ModalCoberturaDetalle';
 import './AdminEstadisticas.css';
 import './AdminReportesNotas.css';
 
@@ -68,7 +69,7 @@ const REPORT_CATALOG = [
       {
         tipo: 'cobertura',
         label: 'Cobertura de registro',
-        desc: '% de notas registradas vs esperadas por salón.',
+        desc: '% de notas registradas vs esperadas por salón. Clic en un salón para ver detalle.',
         needs: []
       }
     ]
@@ -349,7 +350,14 @@ function buildPdfPayload(report, data, meta) {
   return base;
 }
 
-function RankingTable({ filas, tipo }) {
+function coberturaPctClass(pct) {
+  if (pct == null) return '';
+  if (pct >= 100) return 'admin-notas-cobertura-pct--ok';
+  if (pct >= 70) return 'admin-notas-cobertura-pct--warn';
+  return 'admin-notas-cobertura-pct--bad';
+}
+
+function RankingTable({ filas, tipo, onRowClick }) {
   if (!filas?.length) return <p className="admin-notas-empty">No hay registros para los filtros seleccionados.</p>;
   const isConducta = tipo === 'conducta-salones';
   const isRankingCurso = tipo === 'ranking-salones-curso';
@@ -357,6 +365,7 @@ function RankingTable({ filas, tipo }) {
   const isCobertura = tipo === 'cobertura';
   const isArea = tipo === 'por-area';
   const isDetalle = tipo === 'detalle';
+  const clickable = isCobertura && typeof onRowClick === 'function';
 
   return (
     <div className="admin-notas-table-wrap">
@@ -369,9 +378,13 @@ function RankingTable({ filas, tipo }) {
               <th>{isArea ? 'Área' : isDetalle ? 'Alumno' : isRankingCurso ? 'Grado / Salón' : 'Salón'}</th>
             )}
             {isCobertura && <th>Salón</th>}
-            <th>{isConducta ? 'Conducta' : isDetalle ? 'Prom. acad.' : 'Promedio'}</th>
+            {!isCobertura && (
+              <th>{isConducta ? 'Conducta' : isDetalle ? 'Prom. acad.' : 'Promedio'}</th>
+            )}
             {isDetalle && <th>Conducta</th>}
             {isCobertura && <th>Cobertura</th>}
+            {isCobertura && <th>Notas</th>}
+            {isCobertura && <th>Cursos</th>}
             {!isMejoresCursos && !isRankingCurso && !isArea && !isCobertura && !isDetalle && (
               <th>% aprob.</th>
             )}
@@ -380,26 +393,70 @@ function RankingTable({ filas, tipo }) {
           </tr>
         </thead>
         <tbody>
-          {filas.map((f) => (
-            <tr key={f.puesto ?? f.grupo_id ?? f.curso_id ?? f.area_id}>
-              <td className="col-puesto">{f.puesto ?? '\u2014'}</td>
-              <td className="col-left">
-                {f.label || f.curso_nombre || f.area_nombre || '\u2014'}
-              </td>
-              <td>{fmtNota(f.promedio ?? f.promedio_academico)}</td>
-              {isDetalle && <td>{fmtNota(f.promedio_conducta)}</td>}
-              {isCobertura && <td>{fmtPct(f.pct_cobertura)}</td>}
-              {!isMejoresCursos && !isRankingCurso && !isArea && !isCobertura && !isDetalle && (
-                <td>{fmtPct(f.pct_aprobados)}</td>
-              )}
-              {!isMejoresCursos && !isRankingCurso && !isCobertura && !isDetalle && (
-                <td>{f.alumnos_total ?? f.alumnos_con_conducta ?? '\u2014'}</td>
-              )}
-              {isMejoresCursos && tipo === 'mejores-cursos-colegio' && (
-                <td>{f.secciones_evaluadas ?? '\u2014'}</td>
-              )}
-            </tr>
-          ))}
+          {filas.map((f, idx) => {
+            const rowKey = f.puesto ?? f.grupo_id ?? f.curso_id ?? f.area_id ?? idx;
+            const incompletos = f.cursos_incompletos ?? 0;
+            return (
+              <tr
+                key={rowKey}
+                className={clickable ? 'is-clickable' : undefined}
+                tabIndex={clickable ? 0 : undefined}
+                role={clickable ? 'button' : undefined}
+                onClick={clickable ? () => onRowClick(f) : undefined}
+                onKeyDown={
+                  clickable
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          onRowClick(f);
+                        }
+                      }
+                    : undefined
+                }
+              >
+                <td className="col-puesto">{f.puesto ?? '\u2014'}</td>
+                <td className="col-left">
+                  {f.label || f.curso_nombre || f.area_nombre || '\u2014'}
+                </td>
+                {!isCobertura && <td>{fmtNota(f.promedio ?? f.promedio_academico)}</td>}
+                {isDetalle && <td>{fmtNota(f.promedio_conducta)}</td>}
+                {isCobertura && (
+                  <td>
+                    <span className={`admin-notas-cobertura-pct ${coberturaPctClass(f.pct_cobertura)}`}>
+                      {fmtPct(f.pct_cobertura)}
+                    </span>
+                  </td>
+                )}
+                {isCobertura && (
+                  <td className="admin-notas-cobertura-count">
+                    {f.notas_registradas ?? '\u2014'} / {f.notas_esperadas ?? '\u2014'}
+                  </td>
+                )}
+                {isCobertura && (
+                  <td>
+                    {incompletos > 0 ? (
+                      <span className="admin-notas-cobertura-badge admin-notas-cobertura-badge--warn">
+                        {incompletos} incompleto{incompletos === 1 ? '' : 's'}
+                      </span>
+                    ) : (
+                      <span className="admin-notas-cobertura-badge admin-notas-cobertura-badge--ok">
+                        Completo
+                      </span>
+                    )}
+                  </td>
+                )}
+                {!isMejoresCursos && !isRankingCurso && !isArea && !isCobertura && !isDetalle && (
+                  <td>{fmtPct(f.pct_aprobados)}</td>
+                )}
+                {!isMejoresCursos && !isRankingCurso && !isCobertura && !isDetalle && (
+                  <td>{f.alumnos_total ?? f.alumnos_con_conducta ?? '\u2014'}</td>
+                )}
+                {isMejoresCursos && tipo === 'mejores-cursos-colegio' && (
+                  <td>{f.secciones_evaluadas ?? '\u2014'}</td>
+                )}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -419,6 +476,9 @@ export default function AdminReportesNotas() {
   const [areaId, setAreaId] = useState('');
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [coberturaModalOpen, setCoberturaModalOpen] = useState(false);
+  const [coberturaDetalle, setCoberturaDetalle] = useState(null);
+  const [coberturaLoading, setCoberturaLoading] = useState(false);
 
   const report = useMemo(() => ALL_REPORTS.find((r) => r.tipo === activeTipo) || ALL_REPORTS[0], [activeTipo]);
 
@@ -543,6 +603,37 @@ export default function AdminReportesNotas() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const abrirCoberturaDetalle = async (fila) => {
+    if (!fila?.grupo_id) return;
+    setCoberturaModalOpen(true);
+    setCoberturaDetalle(null);
+    setCoberturaLoading(true);
+    try {
+      const { data: det } = await api.get('/admin/reportes/notas/cobertura-detalle', {
+        params: {
+          grupo_id: fila.grupo_id,
+          anio: parseInt(anio, 10),
+          ciclo: parseInt(ciclo, 10) || 1,
+        },
+      });
+      setCoberturaDetalle(det);
+    } catch (e) {
+      setCoberturaModalOpen(false);
+      Swal.fire({
+        icon: 'error',
+        title: 'Detalle de cobertura',
+        text: e.response?.data?.error || 'No se pudo cargar el detalle del salón.',
+      });
+    } finally {
+      setCoberturaLoading(false);
+    }
+  };
+
+  const cerrarCoberturaDetalle = () => {
+    setCoberturaModalOpen(false);
+    setCoberturaDetalle(null);
   };
 
   const exportarPdf = () => {
@@ -701,6 +792,11 @@ export default function AdminReportesNotas() {
                 {meta?.colegio_nombre ? `${meta.colegio_nombre} · ` : ''}
                 Año {anio || '—'} · Bimestre {ciclo}
               </p>
+              {report.tipo === 'cobertura' && data?.filas?.length > 0 && (
+                <p className="admin-notas-hint admin-notas-hint--action">
+                  Clic en un salón para ver qué cursos faltan y qué alumnos están pendientes
+                </p>
+              )}
 
               <div className="admin-notas-body">
                 {!data && !loading && (
@@ -820,6 +916,7 @@ export default function AdminReportesNotas() {
                           <RankingTable
                             filas={data.filas}
                             tipo={report.tipo === 'ranking-salones-curso' ? 'ranking-salones-curso' : report.tipo}
+                            onRowClick={report.tipo === 'cobertura' ? abrirCoberturaDetalle : undefined}
                           />
                           {data.chart?.length > 0 && (
                             <BarChart chart={data.chart} variant={chartVariant} title="Comparativo visual" />
@@ -837,6 +934,13 @@ export default function AdminReportesNotas() {
           </div>
         )}
       </div>
+
+      <ModalCoberturaDetalle
+        open={coberturaModalOpen}
+        onClose={cerrarCoberturaDetalle}
+        loading={coberturaLoading}
+        data={coberturaDetalle}
+      />
     </DashboardLayout>
   );
 }
