@@ -3680,6 +3680,26 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
     }
 
     if (examen[0].estado !== 'ACTIVO') {
+      const { cerrarIntentoIndividual, MOTIVO } = require('../utils/examenCerrarIntentosPendientes');
+      const pruebaColgada = await query(
+        `SELECT * FROM asignaturas_examenes_pruebas
+         WHERE examen_id = ? AND matricula_id = ? AND estado = 'ACTIVO'
+         ORDER BY fecha_hora DESC LIMIT 1`,
+        [examenId, matricula[0].matricula_id]
+      );
+      if (pruebaColgada.length > 0) {
+        try {
+          await cerrarIntentoIndividual({
+            query,
+            execute,
+            pruebaRow: pruebaColgada[0],
+            examenId,
+            motivoCierre: MOTIVO.EXAMEN_INACTIVO,
+          });
+        } catch (cerrErr) {
+          console.error('[iniciar examen] Cierre automático intento colgado:', cerrErr?.message || cerrErr);
+        }
+      }
       return res.status(400).json({ error: 'El examen no está activo' });
     }
 

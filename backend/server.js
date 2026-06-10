@@ -446,4 +446,30 @@ app.listen(PORT, () => {
     }
   };
   iniciarInstitucionalVencimiento();
+
+  // Examenes: cerrar intentos ACTIVO vencidos / examen cerrado y notificar apoderados pendientes
+  const iniciarCierreExamenesPendientes = () => {
+    try {
+      const { verificarExamenesIntentosPendientes } = require('./routes/docente.routes');
+      setTimeout(async () => {
+        try {
+          console.log('📝 [EXAMEN-CIERRE-AUTO] Primera verificación de intentos pendientes...');
+          await verificarExamenesIntentosPendientes();
+        } catch (e) {
+          console.error('❌ [EXAMEN-CIERRE-AUTO] Error en primera ejecución:', e);
+        }
+      }, 90000);
+      setInterval(async () => {
+        try {
+          await verificarExamenesIntentosPendientes();
+        } catch (e) {
+          console.error('❌ [EXAMEN-CIERRE-AUTO] Error en ejecución periódica:', e);
+        }
+      }, 2 * 60 * 1000);
+      console.log('📝 [EXAMEN-CIERRE-AUTO] Programado: primera ejecución ~90 s, luego cada 2 min');
+    } catch (error) {
+      console.error('❌ [EXAMEN-CIERRE-AUTO] Error configurando:', error);
+    }
+  };
+  iniciarCierreExamenesPendientes();
 });

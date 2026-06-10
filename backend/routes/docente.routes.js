@@ -59,6 +59,10 @@ const {
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
 const { finalizarPruebaConCalificacion } = require('../utils/examenFinalizarPrueba');
 const {
+  programarCierreIntentosPendientesExamen,
+  MOTIVO: MOTIVO_CIERRE_EXAMEN,
+} = require('../utils/examenCerrarIntentosPendientes');
+const {
   fetchAsignaturasLibretaConArea,
   fetchAreasLibretaConAsignaturas,
   dedupeAsignaturasPorId,
@@ -18700,6 +18704,12 @@ router.get('/aula-virtual/examenes', async (req, res) => {
                 );
                 console.log(`⏰ Examen "${examen.titulo}" (ID: ${examen.id}) desactivado automáticamente (fecha/hora fin ya pasó: ${fechaFin} ${horaFin})`);
                 examen.estado = 'INACTIVO'; // Actualizar en el objeto para la respuesta
+                programarCierreIntentosPendientesExamen({
+                  query,
+                  execute,
+                  examenId: examen.id,
+                  motivoCierre: MOTIVO_CIERRE_EXAMEN.VENTANA_EXAMEN,
+                });
               } catch (error) {
                 console.error(`Error desactivando examen ${examen.id}:`, error);
               }
@@ -19189,6 +19199,27 @@ router.put('/aula-virtual/examenes/:examenId', uploadAulaVirtual.single('archivo
 });
 
 /**
+ * GET /api/docente/examenes/verificar-intentos-pendientes
+ * Cierra intentos ACTIVO vencidos / examen inactivo y reenvía notificaciones pendientes.
+ */
+router.get('/examenes/verificar-intentos-pendientes', async (req, res) => {
+  try {
+    const { verificarExamenesIntentosPendientes } = require('../utils/examenCerrarIntentosPendientes');
+    setImmediate(async () => {
+      try {
+        await verificarExamenesIntentosPendientes();
+      } catch (e) {
+        console.error('[EXAMEN CIERRE AUTO] Error verificación manual:', e);
+      }
+    });
+    res.json({ success: true, message: 'Verificación de intentos pendientes iniciada' });
+  } catch (error) {
+    console.error('Error iniciando verificación intentos examen:', error);
+    res.status(500).json({ error: 'Error al iniciar verificación' });
+  }
+});
+
+/**
  * PUT /api/docente/aula-virtual/examenes/:examenId/estado
  * Cambiar estado de un examen (ACTIVO/INACTIVO)
  */
@@ -19284,6 +19315,15 @@ router.put('/aula-virtual/examenes/:examenId/estado', async (req, res) => {
       `UPDATE asignaturas_examenes SET estado = ? WHERE id = ?`,
       [estado, examenId]
     );
+
+    if (estado === 'INACTIVO') {
+      programarCierreIntentosPendientesExamen({
+        query,
+        execute,
+        examenId,
+        motivoCierre: MOTIVO_CIERRE_EXAMEN.CIERRE_DOCENTE,
+      });
+    }
 
     // Marcar para que el middleware no registre automáticamente
     req.skipAudit = true;
@@ -23659,4 +23699,5 @@ module.exports = router;
 module.exports.crearNotificacionesApoderados = crearNotificacionesApoderados;
 module.exports.verificarTareasPorVencer = verificarTareasPorVencer;
 module.exports.verificarTareasVencidasSinEntrega = verificarTareasVencidasSinEntrega;
+module.exports.verificarExamenesIntentosPendientes = require('../utils/examenCerrarIntentosPendientes').verificarExamenesIntentosPendientes;
 
