@@ -915,6 +915,10 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-menu-arrow">▶</span>
                 </button>
                 <div ref={(el) => { submenuRefs.current.reportes = el; }} className={`sidebar-submenu ${expandedMenus.reportes ? 'expanded' : ''}`}>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/general">
+                    <span className="sidebar-icon" aria-hidden>🗂️</span>
+                    <span className="sidebar-label">General</span>
+                  </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/temas">
                     <span className="sidebar-icon" aria-hidden>📚</span>
                     <span className="sidebar-label">Temas</span>
@@ -1525,6 +1529,10 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-menu-arrow">▶</span>
                 </button>
                 <div ref={(el) => { submenuRefs.current.reportes = el; }} className={`sidebar-submenu ${expandedMenus.reportes ? 'expanded' : ''}`}>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/general">
+                    <span className="sidebar-icon" aria-hidden>🗂️</span>
+                    <span className="sidebar-label">General</span>
+                  </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/temas">
                     <span className="sidebar-icon" aria-hidden>📚</span>
                     <span className="sidebar-label">Temas</span>

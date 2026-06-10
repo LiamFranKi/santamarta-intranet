@@ -21,6 +21,7 @@ import AdminAcademico from './AdminAcademico';
 import AdminPsicologiaLista from './AdminPsicologiaLista';
 import AdminPsicologiaExpediente from './AdminPsicologiaExpediente';
 import AdminReportesDeudores from './AdminReportesDeudores';
+import AdminReportesGeneral from './AdminReportesGeneral';
 import AdminReportesTemas from './AdminReportesTemas';
 import AdminReportesNotas from './AdminReportesNotas';
 const PSICOLOGA_RUTAS_ADMIN = [
@@ -209,6 +210,11 @@ function Dashboard() {
       title: '💬 Chat Vanguard',
       description: 'Asistente y módulo Vanguarcito',
       icon: '💬'
+    },
+    '/admin/reportes/general': {
+      title: '🗂️ Reportes generales',
+      description: 'Consultas y exportaciones transversales del colegio',
+      icon: '🗂️'
     },
     '/admin/reportes/temas': {
       title: '📚 Temas del aula virtual',
@@ -425,6 +431,9 @@ function Dashboard() {
           </div>
         </DashboardLayout>
       );
+    }
+    if (location.pathname === '/admin/reportes/general') {
+      return <AdminReportesGeneral />;
     }
     if (location.pathname === '/admin/reportes/temas') {
       return <AdminReportesTemas />;

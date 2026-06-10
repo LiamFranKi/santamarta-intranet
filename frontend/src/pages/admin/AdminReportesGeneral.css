@@ -1,0 +1,578 @@
+/* Reportes → General: paneles apilados (uno debajo de otro), tonos pastel suaves */
+
+.rg-page {
+  max-width: min(1200px, 100%);
+  margin: 0 auto;
+}
+
+.rg-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.rg-row-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.35rem;
+  align-items: stretch;
+}
+
+@media (max-width: 960px) {
+  .rg-row-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rg-panel--compact .rg-panel__header {
+  padding: 0.85rem 1rem;
+}
+
+.rg-panel--compact .rg-panel__icon {
+  width: 2.1rem;
+  height: 2.1rem;
+  font-size: 1.15rem;
+}
+
+.rg-panel--compact .rg-panel__title {
+  font-size: 1rem;
+}
+
+.rg-panel--compact .rg-panel__desc {
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
+
+.rg-panel--compact .rg-panel__body {
+  padding: 0.9rem 1rem 1.1rem;
+}
+
+.rg-empty {
+  text-align: center;
+  padding: 2.5rem 1.5rem;
+  color: #64748b;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+}
+
+/* ——— Panel de reporte (tab visual apilado) ——— */
+.rg-panel {
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+}
+
+.rg-panel__header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.rg-panel__icon {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.35rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+}
+
+.rg-panel__title {
+  margin: 0;
+  font-size: 1.12rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.3;
+}
+
+.rg-panel__desc {
+  margin: 0.25rem 0 0;
+  font-size: 0.88rem;
+  color: #475569;
+  line-height: 1.45;
+}
+
+.rg-panel__body {
+  padding: 1.15rem 1.25rem 1.35rem;
+  background: rgba(255, 255, 255, 0.72);
+}
+
+/* Tonos pastel (ciclan con tone % 6) */
+.rg-panel--tone-0 {
+  background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+}
+.rg-panel--tone-1 {
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+}
+.rg-panel--tone-2 {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+}
+.rg-panel--tone-3 {
+  background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%);
+}
+.rg-panel--tone-4 {
+  background: linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%);
+}
+.rg-panel--tone-5 {
+  background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+}
+
+@media (max-width: 640px) {
+  .rg-panel__header {
+    padding: 0.9rem 1rem;
+  }
+  .rg-panel__body {
+    padding: 1rem;
+  }
+}
+
+.admin-estadisticas-subtitle {
+  font-size: 0.95rem;
+  color: #64748b;
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* ——— Reporte lista alumnos ——— */
+.rg-alum-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #64748b;
+  font-size: 0.9rem;
+  padding: 0.5rem 0;
+}
+
+.rg-alum-filtros {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.rg-alum-field {
+  min-width: 8.5rem;
+}
+
+.rg-alum-field--grado {
+  min-width: 6.5rem;
+}
+
+.rg-alum-field--sec {
+  min-width: 5.5rem;
+}
+
+.rg-alum-field--anio {
+  width: 5.5rem;
+}
+
+.rg-alum-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  padding-top: 0.15rem;
+}
+
+.rg-alum-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.1rem;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.88rem;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.rg-alum-btn:active {
+  transform: scale(0.98);
+}
+
+.rg-alum-btn--primary {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.rg-alum-btn--primary:hover {
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.45);
+}
+
+.rg-alum-btn--secondary {
+  background: #fff;
+  color: #1e40af;
+  border: 1.5px solid #93c5fd;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.06);
+}
+
+.rg-alum-btn--secondary:hover {
+  background: #eff6ff;
+}
+
+/* Modal */
+.rg-alum-modal__title {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+  padding-right: 0.5rem !important;
+}
+
+.rg-alum-modal__subtitle {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #475569;
+  text-align: right;
+}
+
+.rg-alum-modal__content {
+  background: #f8fafc !important;
+}
+
+.rg-alum-modal__actions {
+  padding: 0.75rem 1.25rem !important;
+  gap: 0.5rem;
+}
+
+.rg-btn-pdf {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%) !important;
+}
+
+.rg-alum-bloque {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px dashed #cbd5e1;
+}
+
+.rg-alum-bloque:last-of-type {
+  border-bottom: none;
+}
+
+.rg-alum-bloque__title {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e40af;
+  text-align: right;
+}
+
+.rg-alum-lista-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05);
+}
+
+.rg-alum-lista-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  min-width: 920px;
+}
+
+.rg-alum-lista-table thead th {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  color: #fff;
+  font-weight: 700;
+  padding: 0.55rem 0.45rem;
+  text-align: center;
+  white-space: nowrap;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.rg-alum-lista-table tbody td {
+  padding: 0.45rem 0.4rem;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #f1f5f9;
+  color: #334155;
+  vertical-align: middle;
+}
+
+.rg-alum-lista-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.rg-alum-lista-table tbody tr:hover {
+  background: #eff6ff;
+}
+
+.rg-alum-lista-table .col-num {
+  text-align: center;
+  font-weight: 600;
+  width: 2.5rem;
+}
+
+.rg-alum-lista-table .col-email {
+  font-size: 0.72rem;
+  word-break: break-all;
+}
+
+.rg-alum-totales {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.65rem;
+  margin-top: 1rem;
+  max-width: 420px;
+  margin-left: auto;
+}
+
+.rg-alum-totales--general {
+  max-width: 100%;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 2px solid #e2e8f0;
+}
+
+.rg-alum-totales-general-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.5rem;
+  text-align: center;
+}
+
+.rg-alum-totales__box {
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(30, 64, 175, 0.08);
+}
+
+.rg-alum-totales__box--total {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-color: #93c5fd;
+}
+
+.rg-alum-totales__label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.rg-alum-totales__box strong {
+  font-size: 1.15rem;
+  color: #1e40af;
+}
+
+.rg-alum-filtros--compact {
+  gap: 0.75rem;
+}
+
+.rg-alum-actions--compact {
+  padding-top: 0;
+}
+
+.rg-alum-field--sede-compact {
+  min-width: 7rem;
+  flex: 1;
+}
+
+.rg-alum-field--nivel-compact {
+  min-width: 7.5rem;
+  flex: 1;
+}
+
+.rg-retirados-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #64748b;
+  padding: 0.45rem 0.65rem;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 8px;
+  border: 1px solid rgba(147, 197, 253, 0.45);
+}
+
+/* Resumen matriculados */
+.rg-resumen-seccion {
+  margin-bottom: 1.25rem;
+}
+
+.rg-resumen-seccion__title {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #1e293b;
+}
+
+.rg-resumen-table {
+  min-width: 640px;
+}
+
+.rg-resumen-table .col-grupo {
+  text-align: left;
+  min-width: 14rem;
+}
+
+.rg-resumen-table .col-num {
+  text-align: center;
+  width: 4.5rem;
+}
+
+.rg-resumen-table__total-row {
+  background: #eff6ff !important;
+}
+
+.rg-resumen-general {
+  margin-top: 0.5rem;
+}
+
+.rg-resumen-general-table {
+  width: 100%;
+  max-width: 520px;
+  margin-left: auto;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #93c5fd;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.rg-resumen-general-table td {
+  padding: 0.65rem 0.75rem;
+  text-align: center;
+  border-right: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-weight: 700;
+}
+
+.rg-resumen-general-table td:first-child {
+  text-align: left;
+  width: 42%;
+}
+
+.rg-retirados-table {
+  min-width: 700px;
+}
+
+/* Deudores / pagadores */
+.rg-deudores-seccion {
+  margin-bottom: 1.35rem;
+}
+
+.rg-deudores-seccion__titulo {
+  margin: 0 0 0.5rem;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #1e3a8a;
+  background: linear-gradient(135deg, #e0e7ff 0%, #dbeafe 100%);
+  border-radius: 8px;
+  border: 1px solid #93c5fd;
+}
+
+.rg-deudores-table {
+  min-width: 1100px;
+  font-size: 0.78rem;
+}
+
+.rg-deudores-table th,
+.rg-deudores-table td {
+  vertical-align: top;
+  padding: 0.45rem 0.5rem;
+}
+
+.rg-alum-field--concepto-compact {
+  min-width: 11rem;
+}
+
+/* Resumen de ingresos */
+.rg-ingresos-hint {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.9rem;
+  background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%);
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #1e3a8a;
+}
+
+.rg-ingresos-hint p {
+  margin: 0 0 0.35rem;
+}
+
+.rg-ingresos-hint p:last-child {
+  margin-bottom: 0;
+}
+
+.rg-ingresos-filtros {
+  margin-bottom: 0.75rem;
+}
+
+.rg-alum-field--fecha {
+  min-width: 11.5rem;
+}
+
+.rg-ingresos-section-title {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #0f172a;
+}
+
+.rg-ingresos-section-title--balance {
+  margin-top: 1.25rem;
+  text-align: center;
+}
+
+.rg-ingresos-table {
+  min-width: 900px;
+  font-size: 0.8rem;
+}
+
+.rg-ingresos-table th,
+.rg-ingresos-table td {
+  border: 1px solid #cbd5e1;
+  padding: 0.4rem 0.5rem;
+}
+
+.rg-ingresos-balance {
+  max-width: 280px;
+  margin: 0.5rem auto 0;
+  border: 1px solid #0f172a;
+  text-align: center;
+}
+
+.rg-ingresos-balance__label {
+  padding: 0.45rem 0.5rem;
+  font-weight: 800;
+  font-size: 0.82rem;
+  border-bottom: 1px solid #0f172a;
+  background: #f8fafc;
+}
+
+.rg-ingresos-balance__value {
+  padding: 0.55rem 0.5rem;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
