@@ -214,7 +214,7 @@ export default function AdminTardanzas() {
         <section className="admin-tardanzas-import" aria-label="Importar Excel">
           <h2 className="admin-tardanzas-import__title">Importar marcaciones del huellero</h2>
           <p className="admin-tardanzas-import__desc">
-            Se usa la primera entrada del día por persona (hora más temprana). Si un día ya fue importado, se actualiza sin duplicar el descuento.
+            Se usa la primera entrada del día por persona (hora más temprana del Excel). Si un día ya fue importado, se actualiza la hora y el descuento. Si editó celdas de hora en Excel, guarde el archivo antes de subirlo.
           </p>
           <div className="admin-tardanzas-import__row">
             <input

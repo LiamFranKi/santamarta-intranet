@@ -74,16 +74,39 @@ function matchPersonal(firstName, lastName, personalList) {
 
 function parseHoraMarcacion(timeVal) {
   if (timeVal == null || timeVal === '') return null;
+
+  if (timeVal instanceof Date && !Number.isNaN(timeVal.getTime())) {
+    const h = timeVal.getHours();
+    const m = timeVal.getMinutes();
+    const s = timeVal.getSeconds();
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
   if (typeof timeVal === 'number' && Number.isFinite(timeVal)) {
     const totalMin = Math.round(timeVal * 24 * 60);
     const h = Math.floor(totalMin / 60) % 24;
     const m = totalMin % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
   }
-  const s = String(timeVal).trim();
-  const m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+
+  let s = String(timeVal).trim();
+  if (!s) return null;
+
+  let m = s.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(a\.?\s*m\.?|p\.?\s*m\.?)?$/i);
+  if (!m) {
+    const embedded = s.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    if (embedded) m = embedded;
+  }
   if (!m) return null;
-  return `${m[1].padStart(2, '0')}:${m[2]}:${(m[3] || '00').padStart(2, '0')}`;
+
+  let h = parseInt(m[1], 10);
+  const min = m[2];
+  const sec = m[3] || '00';
+  const ampm = (m[4] || '').toLowerCase().replace(/\s/g, '');
+  if (ampm.startsWith('p') && h < 12) h += 12;
+  if (ampm.startsWith('a') && h === 12) h = 0;
+
+  return `${String(h).padStart(2, '0')}:${min}:${sec.padStart(2, '0')}`;
 }
 
 function parseFecha(dateVal) {
@@ -263,6 +286,47 @@ async function getAnioActivo(query, colegioId) {
   };
 }
 
+async function findRegistrosMarcacion(query, usuarioId, colegioId, fecha, anio) {
+  return query(
+    `SELECT id, hora_entrada
+     FROM asistencia_registros
+     WHERE usuario_id = ? AND colegio_id = ? AND DATE(fecha) = ? AND anio = ?
+     ORDER BY id DESC`,
+    [usuarioId, colegioId, fecha, anio]
+  );
+}
+
+/** Inserta o actualiza la marcación del día; elimina duplicados previos. */
+async function upsertMarcacionDia(execute, query, { usuarioId, colegioId, anio, fecha, horaMarcacion, auditUserId }) {
+  const existing = await findRegistrosMarcacion(query, usuarioId, colegioId, fecha, anio);
+
+  if (existing.length > 0) {
+    const keepId = existing[0].id;
+    await execute(
+      `UPDATE asistencia_registros
+       SET hora_entrada = ?, tipo_registro = 'ENTRADA', actualizado_por = ?, fecha_actualizacion = NOW()
+       WHERE id = ?`,
+      [horaMarcacion, auditUserId, keepId]
+    );
+    const dupIds = existing.slice(1).map((r) => r.id);
+    if (dupIds.length) {
+      await execute(
+        `DELETE FROM asistencia_registros WHERE id IN (${dupIds.map(() => '?').join(',')})`,
+        dupIds
+      );
+    }
+    return 'actualizado';
+  }
+
+  await execute(
+    `INSERT INTO asistencia_registros
+     (usuario_id, colegio_id, anio, fecha, tipo_registro, hora_entrada, creado_por, fecha_creacion)
+     VALUES (?, ?, ?, ?, 'ENTRADA', ?, ?, NOW())`,
+    [usuarioId, colegioId, anio, fecha, horaMarcacion, auditUserId]
+  );
+  return 'insertado';
+}
+
 function enrichFilaMarcacion(row, personal) {
   const horaEntradaReal = personal?.hora_entrada || null;
   const { minutos_tardanza, descuento } = calcTardanza(horaEntradaReal, row.hora_marcacion);
@@ -318,13 +382,8 @@ async function previewHuelleroImport(query, colegioId, buffer) {
   let nuevos = 0;
   let actualizados = 0;
   for (const c of coincidencias) {
-    const [ex] = await query(
-      `SELECT id FROM asistencia_registros
-       WHERE usuario_id = ? AND colegio_id = ? AND fecha = ? AND anio = ?
-       LIMIT 1`,
-      [c.usuario_id, colegioId, c.fecha, anio]
-    );
-    if (ex) actualizados += 1;
+    const existing = await findRegistrosMarcacion(query, c.usuario_id, colegioId, c.fecha, anio);
+    if (existing.length) actualizados += 1;
     else nuevos += 1;
   }
 
@@ -372,30 +431,16 @@ async function importarHuellero(query, execute, colegioId, adminUsuarioId, buffe
     }
 
     try {
-      const [ex] = await query(
-        `SELECT id FROM asistencia_registros
-         WHERE usuario_id = ? AND colegio_id = ? AND fecha = ? AND anio = ?
-         LIMIT 1`,
-        [match.usuario_id, colegioId, row.fecha, anio]
-      );
-
-      if (ex) {
-        await execute(
-          `UPDATE asistencia_registros
-           SET hora_entrada = ?, tipo_registro = 'ENTRADA', actualizado_por = ?, fecha_actualizacion = NOW()
-           WHERE id = ?`,
-          [row.hora_marcacion, auditUserId, ex.id]
-        );
-        stats.actualizados += 1;
-      } else {
-        await execute(
-          `INSERT INTO asistencia_registros
-           (usuario_id, colegio_id, anio, fecha, tipo_registro, hora_entrada, creado_por, fecha_creacion)
-           VALUES (?, ?, ?, ?, 'ENTRADA', ?, ?, NOW())`,
-          [match.usuario_id, colegioId, anio, row.fecha, row.hora_marcacion, auditUserId]
-        );
-        stats.insertados += 1;
-      }
+      const result = await upsertMarcacionDia(execute, query, {
+        usuarioId: match.usuario_id,
+        colegioId,
+        anio,
+        fecha: row.fecha,
+        horaMarcacion: row.hora_marcacion,
+        auditUserId,
+      });
+      if (result === 'actualizado') stats.actualizados += 1;
+      else stats.insertados += 1;
       stats.procesados += 1;
     } catch (e) {
       stats.errores += 1;
