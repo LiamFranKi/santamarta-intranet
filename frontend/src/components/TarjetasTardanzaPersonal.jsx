@@ -56,7 +56,7 @@ function TarjetasTardanzaPersonal({ onAbrirDetalle }) {
         style={{ background: coloresPasteles[0], cursor: 'pointer' }}
         role="button"
         tabIndex={0}
-        title="Ver detalle de mis asistencias"
+        title="Ver detalle de tardanzas del mes"
         onClick={abrir}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -77,7 +77,7 @@ function TarjetasTardanzaPersonal({ onAbrirDetalle }) {
         style={{ background: coloresPasteles[1], cursor: 'pointer' }}
         role="button"
         tabIndex={0}
-        title="Ver detalle de mis asistencias"
+        title="Ver detalle de tardanzas del mes"
         onClick={abrir}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {

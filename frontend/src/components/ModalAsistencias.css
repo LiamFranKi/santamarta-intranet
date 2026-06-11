@@ -209,24 +209,27 @@
 }
 
 .modal-asistencias-table thead {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
   color: white;
 }
 
 .modal-asistencias-table th {
-  padding: 1rem;
-  text-align: left;
-  font-weight: 600;
-  font-size: 0.875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  padding: 0.65rem 0.75rem;
+  text-align: center;
+  font-weight: 700;
+  font-size: 0.78rem;
 }
 
 .modal-asistencias-table td {
-  padding: 1rem;
+  padding: 0.55rem 0.75rem;
   border-bottom: 1px solid #e5e7eb;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   color: #374151;
+  text-align: center;
+}
+
+.modal-asistencias-table td:first-child {
+  text-align: center;
 }
 
 .modal-asistencias-table tbody tr:hover {
@@ -272,8 +275,34 @@
 }
 
 .text-descuento {
-  color: #dc2626;
+  color: #b45309;
   font-weight: 700;
+}
+
+.modal-asistencias-total {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.85rem;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #93c5fd;
+  border-radius: 10px;
+}
+
+.modal-asistencias-total__label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e3a8a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.modal-asistencias-total__value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1e40af;
 }
 
 .no-data {

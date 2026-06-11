@@ -487,7 +487,7 @@ function DocenteDashboard() {
             style={{ background: coloresPastelesDashboard[3], cursor: 'pointer' }}
             role="button"
             tabIndex={0}
-            title="Ver detalle de mis asistencias"
+            title="Ver detalle de tardanzas del mes"
             onClick={() => window.dispatchEvent(new CustomEvent('vanguard:abrir-asistencias'))}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -508,7 +508,7 @@ function DocenteDashboard() {
             style={{ background: coloresPastelesDashboard[4], cursor: 'pointer' }}
             role="button"
             tabIndex={0}
-            title="Ver detalle de mis asistencias"
+            title="Ver detalle de tardanzas del mes"
             onClick={() => window.dispatchEvent(new CustomEvent('vanguard:abrir-asistencias'))}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {

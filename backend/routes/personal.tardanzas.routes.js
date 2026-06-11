@@ -7,7 +7,9 @@ const { authenticateToken } = require('../middleware/auth');
 const {
   calcularTardanzasMesPersonal,
   calcTardanza,
+  formatHoraDisplay,
   DESCUENTO_POR_MINUTO,
+  MESES_ES,
 } = require('../utils/adminTardanzasHuellero');
 
 router.use(authenticateToken);
@@ -105,14 +107,22 @@ router.get('/asistencias', async (req, res) => {
 
     let totalMinutosTardanza = 0;
     const asistenciasConCalculos = (registrosAsistencia || []).map((registro) => {
-      const { minutos_tardanza: minutosTardanza } = calcTardanza(
+      const { minutos_tardanza: minutosTardanza, descuento } = calcTardanza(
         horaEntradaConfigurada,
         registro.hora_entrada
       );
       totalMinutosTardanza += minutosTardanza;
+      const fechaStr = registro.fecha instanceof Date
+        ? registro.fecha.toISOString().slice(0, 10)
+        : String(registro.fecha).slice(0, 10);
       return {
-        ...registro,
+        fecha: fechaStr,
+        hora_entrada_real: horaEntradaConfigurada,
+        hora_entrada_real_fmt: formatHoraDisplay(horaEntradaConfigurada),
+        hora_marcacion: registro.hora_entrada,
+        hora_marcacion_fmt: formatHoraDisplay(registro.hora_entrada),
         minutos_tardanza: minutosTardanza,
+        descuento,
       };
     });
 
@@ -123,8 +133,11 @@ router.get('/asistencias', async (req, res) => {
       total_minutos_tardanza: totalMinutosTardanza,
       total_descuento: totalDescuento,
       hora_entrada_configurada: horaEntradaConfigurada,
+      hora_entrada_configurada_fmt: formatHoraDisplay(horaEntradaConfigurada),
       mes: mesInt,
       anio: anioInt,
+      mes_nombre: MESES_ES[mesInt - 1] || `Mes ${mesInt}`,
+      tarifa_por_minuto: DESCUENTO_POR_MINUTO,
     });
   } catch (e) {
     console.error('[personal/tardanzas/asistencias]', e);
