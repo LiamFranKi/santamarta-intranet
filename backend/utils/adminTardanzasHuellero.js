@@ -583,6 +583,47 @@ async function listarTardanzas(query, colegioId, params = {}) {
   };
 }
 
+/** Totales de tardanzas y descuento del personal del colegio en un mes calendario. */
+async function calcularTardanzasMesColegio(query, colegioId, params = {}) {
+  const ahora = new Date();
+  const mesNum = params.mes ? parseInt(params.mes, 10) : ahora.getMonth() + 1;
+  const anioCal = params.anio_calendario ? parseInt(params.anio_calendario, 10) : ahora.getFullYear();
+  const { anio } = await getAnioActivo(query, colegioId);
+  const mesNombre = MESES_ES[mesNum - 1] || `Mes ${mesNum}`;
+
+  const rows = await query(
+    `SELECT ar.hora_entrada AS hora_marcacion, p.hora_entrada AS hora_entrada_real
+     FROM asistencia_registros ar
+     INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
+     INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
+     WHERE ar.colegio_id = ?
+       AND ar.anio = ?
+       AND YEAR(ar.fecha) = ?
+       AND MONTH(ar.fecha) = ?
+       AND ar.hora_entrada IS NOT NULL
+       AND u.personal_id > 0
+       AND (ar.tipo_registro = 'ENTRADA' OR ar.tipo_registro = 'ENTRADA_SALIDA')`,
+    [colegioId, anio, anioCal, mesNum]
+  );
+
+  let totalMinutos = 0;
+  (rows || []).forEach((r) => {
+    const { minutos_tardanza } = calcTardanza(r.hora_entrada_real, r.hora_marcacion);
+    totalMinutos += minutos_tardanza;
+  });
+
+  return {
+    mes: mesNum,
+    anio_calendario: anioCal,
+    mes_nombre: mesNombre,
+    anio_academico: anio,
+    minutos_tardanza: totalMinutos,
+    descuento: Math.round(totalMinutos * DESCUENTO_POR_MINUTO * 100) / 100,
+    registros: (rows || []).length,
+    tarifa_por_minuto: DESCUENTO_POR_MINUTO,
+  };
+}
+
 function buildExportWorkbook(lista) {
   const wb = XLSX.utils.book_new();
   const data = [
@@ -612,6 +653,7 @@ module.exports = {
   listarTardanzas,
   actualizarHoraRegistro,
   eliminarRegistroTardanza,
+  calcularTardanzasMesColegio,
   loadPersonalColegio,
   getAnioActivo,
   buildExportWorkbook,

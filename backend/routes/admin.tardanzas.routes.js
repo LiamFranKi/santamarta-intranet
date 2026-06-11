@@ -11,6 +11,7 @@ const {
   listarTardanzas,
   actualizarHoraRegistro,
   eliminarRegistroTardanza,
+  calcularTardanzasMesColegio,
   loadPersonalColegio,
   getAnioActivo,
   buildExportWorkbook,
@@ -59,6 +60,21 @@ router.get('/meta', async (req, res) => {
   } catch (e) {
     console.error('[admin/tardanzas/meta]', e);
     res.status(500).json({ error: e.message || 'Error al cargar metadatos.' });
+  }
+});
+
+/** GET /api/admin/tardanzas/resumen-mes?mes=&anio= — totales del personal en el mes calendario */
+router.get('/resumen-mes', async (req, res) => {
+  try {
+    const { query } = require('../utils/mysql');
+    const data = await calcularTardanzasMesColegio(query, colegioId(req), {
+      mes: req.query.mes ? parseInt(req.query.mes, 10) : undefined,
+      anio_calendario: req.query.anio ? parseInt(req.query.anio, 10) : undefined,
+    });
+    res.json(data);
+  } catch (e) {
+    console.error('[admin/tardanzas/resumen-mes]', e);
+    res.status(500).json({ error: e.message || 'Error al calcular resumen del mes.' });
   }
 });
 
