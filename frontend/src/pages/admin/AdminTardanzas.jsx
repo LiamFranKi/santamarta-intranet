@@ -19,6 +19,13 @@ function fmtFecha(iso) {
   return `${d}/${m}/${y}`;
 }
 
+function toInputTime(horaFmt) {
+  if (!horaFmt) return '';
+  const parts = String(horaFmt).split(':');
+  if (parts.length < 2) return '';
+  return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+}
+
 function buildFiltroEtiqueta({ personalId, personal, desde, hasta }) {
   const parts = [];
   if (personalId) {
@@ -45,6 +52,7 @@ export default function AdminTardanzas() {
   const [lista, setLista] = useState(null);
   const [listaLoading, setListaLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
+  const [rowActionId, setRowActionId] = useState(null);
 
   const loadMeta = useCallback(async () => {
     try {
@@ -146,6 +154,65 @@ export default function AdminTardanzas() {
       Swal.fire({ icon: 'error', title: 'Importar', text: e.response?.data?.error || 'Error al importar.' });
     } finally {
       setImportLoading(false);
+    }
+  };
+
+  const editarHora = async (f) => {
+    const r = await Swal.fire({
+      icon: 'question',
+      title: 'Editar hora de marcación',
+      html: `<p style="margin:0 0 0.75rem;font-size:0.9rem"><strong>${f.personal_nombre}</strong><br>${fmtFecha(f.fecha)} · Entrada real: ${f.hora_entrada_real_fmt}</p>`,
+      input: 'time',
+      inputValue: toInputTime(f.hora_marcacion_fmt),
+      inputLabel: 'Hora de marcación',
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+      inputValidator: (v) => (!v ? 'Indique la hora' : undefined),
+    });
+    if (!r.isConfirmed || !r.value) return;
+
+    setRowActionId(f.id);
+    try {
+      const { data } = await api.patch(`/admin/tardanzas/registro/${f.id}`, {
+        hora_marcacion: r.value,
+      });
+      await Swal.fire({
+        icon: 'success',
+        title: 'Hora actualizada',
+        html: `Min. tarde: <strong>${data.fila.minutos_tardanza}</strong> · Descuento: <strong>${fmtSoles(data.fila.descuento)}</strong>`,
+        timer: 2200,
+        showConfirmButton: false,
+      });
+      loadLista();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Editar', text: e.response?.data?.error || 'No se pudo actualizar.' });
+    } finally {
+      setRowActionId(null);
+    }
+  };
+
+  const eliminarRegistro = async (f) => {
+    const r = await Swal.fire({
+      icon: 'warning',
+      title: 'Eliminar registro',
+      html: `¿Eliminar la marcación de <strong>${f.personal_nombre}</strong> del <strong>${fmtFecha(f.fecha)}</strong>?<br><small>Se recalculará el descuento del mes en el dashboard del personal.</small>`,
+      showCancelButton: true,
+      confirmButtonText: 'Eliminar',
+      cancelButtonText: 'Cancelar',
+      confirmButtonColor: '#dc2626',
+    });
+    if (!r.isConfirmed) return;
+
+    setRowActionId(f.id);
+    try {
+      await api.delete(`/admin/tardanzas/registro/${f.id}`);
+      Swal.fire({ icon: 'success', title: 'Eliminado', timer: 1500, showConfirmButton: false });
+      loadLista();
+    } catch (e) {
+      Swal.fire({ icon: 'error', title: 'Eliminar', text: e.response?.data?.error || 'No se pudo eliminar.' });
+    } finally {
+      setRowActionId(null);
     }
   };
 
@@ -348,6 +415,7 @@ export default function AdminTardanzas() {
                     <th>Hora marcación</th>
                     <th>Min. tarde</th>
                     <th>Descuento</th>
+                    <th aria-label="Acciones">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -360,6 +428,28 @@ export default function AdminTardanzas() {
                       <td>{f.minutos_tardanza > 0 ? f.minutos_tardanza : '—'}</td>
                       <td className={f.descuento > 0 ? 'col-descuento' : 'col-descuento col-descuento--cero'}>
                         {f.descuento > 0 ? fmtSoles(f.descuento) : '—'}
+                      </td>
+                      <td className="col-acciones">
+                        <button
+                          type="button"
+                          className="admin-tardanzas-icon-btn"
+                          title="Editar hora"
+                          aria-label={`Editar hora de ${f.personal_nombre}`}
+                          disabled={rowActionId === f.id}
+                          onClick={() => editarHora(f)}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-tardanzas-icon-btn admin-tardanzas-icon-btn--danger"
+                          title="Eliminar registro"
+                          aria-label={`Eliminar registro de ${f.personal_nombre}`}
+                          disabled={rowActionId === f.id}
+                          onClick={() => eliminarRegistro(f)}
+                        >
+                          🗑️
+                        </button>
                       </td>
                     </tr>
                   ))}

@@ -451,6 +451,82 @@ async function importarHuellero(query, execute, colegioId, adminUsuarioId, buffe
   return stats;
 }
 
+function mapRowToFilaTardanza(r) {
+  const horaMarcacion = r.hora_marcacion ?? r.hora_entrada;
+  const { minutos_tardanza, descuento } = calcTardanza(r.hora_entrada_real, horaMarcacion);
+  return {
+    id: r.id,
+    personal_id: r.personal_id,
+    personal_nombre: nombrePersonal(r),
+    fecha: r.fecha instanceof Date ? r.fecha.toISOString().slice(0, 10) : String(r.fecha).slice(0, 10),
+    hora_entrada_real: r.hora_entrada_real,
+    hora_entrada_real_fmt: formatHoraDisplay(r.hora_entrada_real),
+    hora_marcacion: horaMarcacion,
+    hora_marcacion_fmt: formatHoraDisplay(horaMarcacion),
+    minutos_tardanza,
+    descuento,
+  };
+}
+
+async function getRegistroTardanzaPersonal(query, registroId, colegioId) {
+  const [row] = await query(
+    `SELECT ar.id, ar.fecha, ar.hora_entrada, ar.hora_entrada AS hora_marcacion,
+            p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada AS hora_entrada_real
+     FROM asistencia_registros ar
+     INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
+     INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
+     WHERE ar.id = ? AND ar.colegio_id = ?
+       AND ar.hora_entrada IS NOT NULL
+       AND u.personal_id > 0
+       AND (ar.tipo_registro = 'ENTRADA' OR ar.tipo_registro = 'ENTRADA_SALIDA')
+     LIMIT 1`,
+    [registroId, colegioId]
+  );
+  return row || null;
+}
+
+async function actualizarHoraRegistro(query, execute, colegioId, registroId, horaInput, auditUserId) {
+  const hora = parseHoraMarcacion(horaInput);
+  if (!hora) {
+    const err = new Error('Hora inválida. Use formato HH:MM.');
+    err.status = 400;
+    throw err;
+  }
+
+  const reg = await getRegistroTardanzaPersonal(query, registroId, colegioId);
+  if (!reg) {
+    const err = new Error('Registro no encontrado.');
+    err.status = 404;
+    throw err;
+  }
+
+  await execute(
+    `UPDATE asistencia_registros
+     SET hora_entrada = ?, actualizado_por = ?, fecha_actualizacion = NOW()
+     WHERE id = ? AND colegio_id = ?`,
+    [hora, auditUserId ?? null, registroId, colegioId]
+  );
+
+  const updated = await getRegistroTardanzaPersonal(query, registroId, colegioId);
+  return mapRowToFilaTardanza(updated);
+}
+
+async function eliminarRegistroTardanza(query, execute, colegioId, registroId) {
+  const reg = await getRegistroTardanzaPersonal(query, registroId, colegioId);
+  if (!reg) {
+    const err = new Error('Registro no encontrado.');
+    err.status = 404;
+    throw err;
+  }
+
+  await execute(
+    `DELETE FROM asistencia_registros WHERE id = ? AND colegio_id = ?`,
+    [registroId, colegioId]
+  );
+
+  return { ok: true, id: registroId };
+}
+
 async function listarTardanzas(query, colegioId, params = {}) {
   const { anio, colegio_nombre } = await getAnioActivo(query, colegioId);
   const personalId = params.personal_id ? parseInt(params.personal_id, 10) : null;
@@ -491,21 +567,7 @@ async function listarTardanzas(query, colegioId, params = {}) {
     sqlParams
   );
 
-  const filas = (rows || []).map((r) => {
-    const { minutos_tardanza, descuento } = calcTardanza(r.hora_entrada_real, r.hora_marcacion);
-    return {
-      id: r.id,
-      personal_id: r.personal_id,
-      personal_nombre: nombrePersonal(r),
-      fecha: r.fecha instanceof Date ? r.fecha.toISOString().slice(0, 10) : String(r.fecha).slice(0, 10),
-      hora_entrada_real: r.hora_entrada_real,
-      hora_entrada_real_fmt: formatHoraDisplay(r.hora_entrada_real),
-      hora_marcacion: r.hora_marcacion,
-      hora_marcacion_fmt: formatHoraDisplay(r.hora_marcacion),
-      minutos_tardanza,
-      descuento,
-    };
-  });
+  const filas = (rows || []).map(mapRowToFilaTardanza);
 
   const total_descuento = Math.round(filas.reduce((s, f) => s + (f.descuento || 0), 0) * 100) / 100;
   const total_minutos = filas.reduce((s, f) => s + (f.minutos_tardanza || 0), 0);
@@ -548,6 +610,8 @@ module.exports = {
   previewHuelleroImport,
   importarHuellero,
   listarTardanzas,
+  actualizarHoraRegistro,
+  eliminarRegistroTardanza,
   loadPersonalColegio,
   getAnioActivo,
   buildExportWorkbook,

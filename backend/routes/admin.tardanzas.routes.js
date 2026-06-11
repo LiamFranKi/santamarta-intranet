@@ -9,6 +9,8 @@ const {
   previewHuelleroImport,
   importarHuellero,
   listarTardanzas,
+  actualizarHoraRegistro,
+  eliminarRegistroTardanza,
   loadPersonalColegio,
   getAnioActivo,
   buildExportWorkbook,
@@ -122,6 +124,50 @@ router.post('/importar', upload.single('archivo'), async (req, res) => {
   } catch (e) {
     console.error('[admin/tardanzas/importar]', e);
     res.status(e.status || 500).json({ error: e.message || 'Error al importar.' });
+  }
+});
+
+/** PATCH /api/admin/tardanzas/registro/:id — editar solo hora de marcación */
+router.patch('/registro/:id', async (req, res) => {
+  try {
+    const registroId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(registroId)) {
+      return res.status(400).json({ error: 'ID de registro inválido.' });
+    }
+    const horaMarcacion = req.body?.hora_marcacion ?? req.body?.hora;
+    if (!horaMarcacion) {
+      return res.status(400).json({ error: 'Indique la hora de marcación (HH:MM).' });
+    }
+    const { query, execute } = require('../utils/mysql');
+    const adminUsuarioId = req.user?.usuario_id || req.user?.id || null;
+    const fila = await actualizarHoraRegistro(
+      query,
+      execute,
+      colegioId(req),
+      registroId,
+      horaMarcacion,
+      adminUsuarioId
+    );
+    res.json({ ok: true, fila });
+  } catch (e) {
+    console.error('[admin/tardanzas/registro PATCH]', e);
+    res.status(e.status || 500).json({ error: e.message || 'Error al actualizar la hora.' });
+  }
+});
+
+/** DELETE /api/admin/tardanzas/registro/:id */
+router.delete('/registro/:id', async (req, res) => {
+  try {
+    const registroId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(registroId)) {
+      return res.status(400).json({ error: 'ID de registro inválido.' });
+    }
+    const { query, execute } = require('../utils/mysql');
+    const result = await eliminarRegistroTardanza(query, execute, colegioId(req), registroId);
+    res.json(result);
+  } catch (e) {
+    console.error('[admin/tardanzas/registro DELETE]', e);
+    res.status(e.status || 500).json({ error: e.message || 'Error al eliminar el registro.' });
   }
 });
 

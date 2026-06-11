@@ -219,6 +219,42 @@
   font-weight: 500;
 }
 
+.admin-tardanzas-table .col-acciones {
+  white-space: nowrap;
+}
+
+.admin-tardanzas-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0 0.15rem;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.admin-tardanzas-icon-btn:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
+.admin-tardanzas-icon-btn--danger:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.admin-tardanzas-icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .admin-tardanzas-total {
   display: flex;
   justify-content: flex-end;
