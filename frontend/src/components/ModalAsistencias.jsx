@@ -21,11 +21,11 @@ function ModalAsistencias({ isOpen, onClose }) {
     
     try {
       setLoading(true);
-      const response = await api.get(`/docente/asistencias`, {
+      const response = await api.get('/personal/tardanzas/asistencias', {
         params: {
           mes: mesSeleccionado,
-          anio: anioSeleccionado
-        }
+          anio: anioSeleccionado,
+        },
       });
       
       setAsistencias(response.data.asistencias || []);

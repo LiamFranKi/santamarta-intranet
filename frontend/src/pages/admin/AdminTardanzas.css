@@ -1,0 +1,266 @@
+.admin-tardanzas-page {
+  --tz-blue: #1e40af;
+  --tz-border: #cbd5e1;
+  max-width: min(1200px, 100%);
+  margin: 0 auto;
+}
+
+.admin-tardanzas-import {
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: 14px;
+  padding: 1rem 1.15rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 2px 10px rgba(30, 64, 175, 0.06);
+}
+
+.admin-tardanzas-import__title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1e3a8a;
+}
+
+.admin-tardanzas-import__desc {
+  margin: 0 0 0.85rem;
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.admin-tardanzas-import__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.admin-tardanzas-file {
+  flex: 1;
+  min-width: 200px;
+  font-size: 0.85rem;
+}
+
+.admin-tardanzas-btn {
+  min-height: 2.35rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--tz-border);
+  background: #fff;
+  color: var(--tz-blue);
+}
+
+.admin-tardanzas-btn:hover:not(:disabled) {
+  background: #eff6ff;
+}
+
+.admin-tardanzas-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-tardanzas-btn--primary {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  border-color: #1e40af;
+  color: #fff;
+}
+
+.admin-tardanzas-btn--primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%);
+}
+
+.admin-tardanzas-preview {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed #93c5fd;
+}
+
+.admin-tardanzas-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.admin-tardanzas-kpi {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  text-align: center;
+}
+
+.admin-tardanzas-kpi strong {
+  display: block;
+  font-size: 1.1rem;
+  color: #1e40af;
+}
+
+.admin-tardanzas-kpi span {
+  font-size: 0.68rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-tardanzas-kpi--warn strong {
+  color: #b45309;
+}
+
+.admin-tardanzas-kpi--ok strong {
+  color: #059669;
+}
+
+.admin-tardanzas-warn-list {
+  margin: 0.5rem 0 0;
+  padding: 0.65rem 0.85rem;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 10px;
+  font-size: 0.78rem;
+  color: #92400e;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.admin-tardanzas-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem 1rem;
+  padding: 0.85rem 1rem;
+  background: #fff;
+  border: 1px solid var(--tz-border);
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+
+.admin-tardanzas-toolbar label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.admin-tardanzas-toolbar select,
+.admin-tardanzas-toolbar input[type='date'] {
+  min-height: 2.25rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--tz-border);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  min-width: 10rem;
+}
+
+.admin-tardanzas-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-left: auto;
+}
+
+.admin-tardanzas-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.05);
+}
+
+.admin-tardanzas-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  min-width: 720px;
+}
+
+.admin-tardanzas-table thead th {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+  color: #fff;
+  padding: 0.55rem 0.6rem;
+  text-align: center;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-tardanzas-table tbody td {
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: center;
+  color: #334155;
+}
+
+.admin-tardanzas-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.admin-tardanzas-table tbody tr:hover {
+  background: #eff6ff;
+}
+
+.admin-tardanzas-table .col-personal {
+  text-align: left;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.admin-tardanzas-table .col-descuento {
+  font-weight: 700;
+  color: #b45309;
+}
+
+.admin-tardanzas-table .col-descuento--cero {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.admin-tardanzas-total {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border: 1px solid #93c5fd;
+  border-radius: 0 0 12px 12px;
+  border-top: 2px solid #2563eb;
+}
+
+.admin-tardanzas-total__label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e3a8a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-tardanzas-total__value {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #1e40af;
+}
+
+.admin-tardanzas-empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+.admin-tardanzas-meta {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0 0 0.75rem;
+}
+
+@media (max-width: 700px) {
+  .admin-tardanzas-toolbar__actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}

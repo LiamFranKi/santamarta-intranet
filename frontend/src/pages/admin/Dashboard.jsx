@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/DashboardLayout';
 import BirthdayWidget from '../../components/BirthdayWidget';
 import EleccionesCampanaBanner from '../../components/EleccionesCampanaBanner';
+import TarjetasTardanzaPersonal from '../../components/TarjetasTardanzaPersonal';
 import api from '../../services/api';
 import Swal from 'sweetalert2';
 import './Dashboard.css';
@@ -200,6 +201,11 @@ function Dashboard() {
       title: '🎯 Supervisión',
       description: 'Instrumentos de rúbrica, supervisores y registro por docente',
       icon: '🎯'
+    },
+    '/admin/herramientas/tardanzas': {
+      title: '⏱️ Tardanzas',
+      description: 'Importación huellero y descuentos del personal',
+      icon: '⏱️'
     },
     '/admin/vanguarcito': {
       title: '🌟 Vanguarcito',
@@ -746,6 +752,7 @@ function Dashboard() {
       <BirthdayWidget comunicadoAbierto={false} />
       <EleccionesCampanaBanner />
       <div className="dashboard-container">
+        <TarjetasTardanzaPersonal />
         <div className="admin-stats-grid">
           {cards.map((card) => (
             <div key={card.key} className="admin-stat-card" style={{ background: card.color }}>

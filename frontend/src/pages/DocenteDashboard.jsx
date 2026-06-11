@@ -191,7 +191,7 @@ function DocenteDashboard() {
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
   ];
-  const mesActual = meses[new Date().getMonth()];
+  const mesActual = estadisticas?.mesTardanzasNombre || meses[new Date().getMonth()];
 
   // Función auxiliar para crear fecha desde string (ignora zona horaria, solo usa fecha)
   // SOLO para usar en "Próximos Eventos" del dashboard
@@ -482,7 +482,20 @@ function DocenteDashboard() {
             </div>
           )}
 
-          <div className="stat-card mundo-card" style={{ background: coloresPastelesDashboard[3] }}>
+          <div
+            className="stat-card mundo-card stat-card-clickable"
+            style={{ background: coloresPastelesDashboard[3], cursor: 'pointer' }}
+            role="button"
+            tabIndex={0}
+            title="Ver detalle de mis asistencias"
+            onClick={() => window.dispatchEvent(new CustomEvent('vanguard:abrir-asistencias'))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent('vanguard:abrir-asistencias'));
+              }
+            }}
+          >
             <div className="stat-icon">⏰</div>
             <div className="stat-content">
               <div className="stat-number">{estadisticas?.tardanzasMesActual || 0}</div>
@@ -490,11 +503,24 @@ function DocenteDashboard() {
             </div>
           </div>
 
-          <div className="stat-card mundo-card" style={{ background: coloresPastelesDashboard[4] }}>
+          <div
+            className="stat-card mundo-card stat-card-clickable"
+            style={{ background: coloresPastelesDashboard[4], cursor: 'pointer' }}
+            role="button"
+            tabIndex={0}
+            title="Ver detalle de mis asistencias"
+            onClick={() => window.dispatchEvent(new CustomEvent('vanguard:abrir-asistencias'))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent('vanguard:abrir-asistencias'));
+              }
+            }}
+          >
             <div className="stat-icon">💰</div>
             <div className="stat-content">
               <div className="stat-number">
-                {estadisticas?.descuentoMesActual 
+                {estadisticas?.descuentoMesActual
                   ? new Intl.NumberFormat('es-PE', {
                       style: 'currency',
                       currency: 'PEN',
@@ -766,6 +792,7 @@ function DocenteDashboard() {
 
       {/* Widget flotante de cumpleaños (z-index menor que comunicado para evitar conflictos) */}
       <BirthdayWidget comunicadoAbierto={mostrarComunicadoHome} />
+
     </DashboardLayout>
   );
 }

@@ -28,24 +28,38 @@ export async function fetchYExportarLibretaAlumno(hijoId, ciclo = 1, anio = null
   }
 }
 
-export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1) {
+/**
+ * @param {object} [options]
+ * @param {import('jspdf').jsPDF} [options.doc] — documento existente (export grupal)
+ * @param {boolean} [options.save=true] — si false, no descarga (solo dibuja en doc)
+ * @param {boolean} [options.addPageBefore=false] — nueva página antes de este alumno
+ */
+export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1, options = {}) {
+  const { doc: externalDoc, save = true, addPageBefore = false } = options;
   try {
       if (!datosLibreta || !datosLibreta.alumno) {
-        Swal.fire({
-          icon: 'info',
-          title: 'Sin datos',
-          text: 'No hay datos disponibles para generar la libreta',
-          confirmButtonText: 'Entendido'
-        });
-        return;
+        if (save) {
+          Swal.fire({
+            icon: 'info',
+            title: 'Sin datos',
+            text: 'No hay datos disponibles para generar la libreta',
+            confirmButtonText: 'Entendido',
+          });
+        }
+        return externalDoc || null;
       }
 
-      // Generar PDF
-      const doc = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
+      const doc =
+        externalDoc ||
+        new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4',
+        });
+
+      if (addPageBefore) {
+        doc.addPage();
+      }
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
@@ -571,15 +585,21 @@ export async function renderLibretaAlumnoPdf(datosLibreta, ciclo = 1) {
       }
       } // fin else layout cuantitativo
 
-      const nombreArchivo = `Libreta_${datosLibreta.alumno.apellido_paterno?.replace(/\s+/g, '_') || 'libreta'}_${new Date().getTime()}.pdf`;
-      doc.save(nombreArchivo);
+      if (save) {
+        const nombreArchivo = `Libreta_${datosLibreta.alumno.apellido_paterno?.replace(/\s+/g, '_') || 'libreta'}_${new Date().getTime()}.pdf`;
+        doc.save(nombreArchivo);
+      }
+      return doc;
   } catch (error) {
     console.error('Error render libreta:', error);
-    Swal.fire({
-      icon: 'error',
-      title: 'Error',
-      text: error.response?.data?.error || 'No se pudo generar la libreta',
-      confirmButtonText: 'Entendido',
-    });
+    if (save) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.error || 'No se pudo generar la libreta',
+        confirmButtonText: 'Entendido',
+      });
+    }
+    return externalDoc || null;
   }
 }

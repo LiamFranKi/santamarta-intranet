@@ -53,6 +53,11 @@ const {
   guardarRecomendacionesPorGrupo,
 } = require('../utils/recomendacionesGrupoMatriculas');
 const {
+  calcularTardanzasMesPersonal,
+  calcTardanza,
+  DESCUENTO_POR_MINUTO,
+} = require('../utils/adminTardanzasHuellero');
+const {
   listarAlumnosConductaPorGrupo,
   guardarConductaPorGrupo,
 } = require('../utils/conductaGrupoMatriculas');
@@ -1568,57 +1573,12 @@ router.get('/dashboard', async (req, res) => {
       [usuario_id]
     );
 
-    // Calcular tardanzas y descuentos del mes actual
-    // Obtener la hora de entrada configurada del personal
-    const horaEntradaConfigurada = docente.hora_entrada; // Formato TIME (HH:mm:ss)
-    
-    let totalMinutosTardanza = 0;
-    let totalDescuento = 0;
-    
-    if (horaEntradaConfigurada) {
-      // Obtener mes actual
-      const fechaActual = new Date();
-      const mesActual = fechaActual.getMonth() + 1; // 1-12
-      const añoActual = fechaActual.getFullYear();
-      
-      // Obtener registros de asistencia del mes actual donde hay entrada registrada
-      const registrosAsistencia = await query(
-        `SELECT ar.fecha, ar.hora_entrada
-         FROM asistencia_registros ar
-         WHERE ar.usuario_id = ?
-           AND ar.colegio_id = ?
-           AND ar.anio = ?
-           AND YEAR(ar.fecha) = ?
-           AND MONTH(ar.fecha) = ?
-           AND ar.hora_entrada IS NOT NULL
-           AND (ar.tipo_registro = 'ENTRADA' OR ar.tipo_registro = 'ENTRADA_SALIDA')
-         ORDER BY ar.fecha ASC`,
-        [usuario_id, colegio_id, anio_activo, añoActual, mesActual]
-      );
-      
-      // Calcular minutos de tardanza para cada registro
-      for (const registro of registrosAsistencia) {
-        if (registro.hora_entrada) {
-          // Convertir hora_entrada configurada a minutos desde medianoche
-          const [horaConfig, minutoConfig, segundoConfig] = horaEntradaConfigurada.split(':').map(Number);
-          const minutosConfigurados = horaConfig * 60 + minutoConfig;
-          
-          // Convertir hora_entrada registrada a minutos desde medianoche
-          const [horaReg, minutoReg, segundoReg] = registro.hora_entrada.split(':').map(Number);
-          const minutosRegistrados = horaReg * 60 + minutoReg;
-          
-          // Calcular diferencia (si es positiva, hay tardanza)
-          const minutosTardanza = minutosRegistrados - minutosConfigurados;
-          
-          if (minutosTardanza > 0) {
-            totalMinutosTardanza += minutosTardanza;
-          }
-        }
-      }
-      
-      // Calcular descuento: S/. 1.00 por minuto de tardanza
-      totalDescuento = totalMinutosTardanza * 1.00;
-    }
+    const tardanzaMes = await calcularTardanzasMesPersonal(query, {
+      usuario_id,
+      colegio_id,
+      anio_activo,
+      hora_entrada_config: docente.hora_entrada,
+    });
 
     // Obtener comunicado con show_in_home activo (más reciente)
     const comunicadoHome = await query(
@@ -1733,8 +1693,9 @@ router.get('/dashboard', async (req, res) => {
         cursosAsignados: cursosAsignados[0]?.total || 0,
         estudiantes: estudiantes[0]?.total || 0,
         mensajesNoLeidos: mensajesNoLeidos[0]?.total || 0,
-        tardanzasMesActual: totalMinutosTardanza, // Minutos de tardanza del mes actual
-        descuentoMesActual: totalDescuento // Descuento en soles (S/. 1.00 por minuto)
+        tardanzasMesActual: tardanzaMes.minutos_tardanza,
+        descuentoMesActual: tardanzaMes.descuento,
+        mesTardanzasNombre: tardanzaMes.mes_nombre,
       },
       proximosExamenes: proximosExamenes || [],
       proximasTareas: proximasTareas || [],
@@ -1795,34 +1756,20 @@ router.get('/asistencias', async (req, res) => {
       [usuario_id, colegio_id, anio_activo, anioInt, mesInt]
     );
 
-    // Calcular minutos de tardanza y descuento para cada registro
     let totalMinutosTardanza = 0;
     const asistenciasConCalculos = registrosAsistencia.map((registro) => {
-      let minutosTardanza = 0;
-      
-      if (horaEntradaConfigurada && registro.hora_entrada) {
-        const [horaConfig, minutoConfig] = horaEntradaConfigurada.split(':').map(Number);
-        const [horaReg, minutoReg] = registro.hora_entrada.split(':').map(Number);
-        
-        const minutosConfigurados = horaConfig * 60 + minutoConfig;
-        const minutosRegistrados = horaReg * 60 + minutoReg;
-        
-        minutosTardanza = minutosRegistrados - minutosConfigurados;
-        if (minutosTardanza > 0) {
-          totalMinutosTardanza += minutosTardanza;
-        } else {
-          minutosTardanza = 0;
-        }
-      }
-
+      const { minutos_tardanza: minutosTardanza } = calcTardanza(
+        horaEntradaConfigurada,
+        registro.hora_entrada
+      );
+      totalMinutosTardanza += minutosTardanza;
       return {
         ...registro,
-        minutos_tardanza: minutosTardanza
+        minutos_tardanza: minutosTardanza,
       };
     });
 
-    // Calcular descuento total: S/. 1.00 por minuto
-    const totalDescuento = totalMinutosTardanza * 1.00;
+    const totalDescuento = Math.round(totalMinutosTardanza * DESCUENTO_POR_MINUTO * 100) / 100;
 
     res.json({
       asistencias: asistenciasConCalculos,
@@ -6405,7 +6352,7 @@ router.get('/tutoria', async (req, res) => {
 
     // Obtener TODOS los grupos donde es tutor
     const gruposTutor = await query(
-      `SELECT g.*, n.nombre as nivel_nombre, t.nombre as turno_nombre,
+      `SELECT g.*, n.nombre as nivel_nombre, n.tipo_calificacion, t.nombre as turno_nombre,
               (SELECT COUNT(*) 
                FROM matriculas m 
                WHERE m.grupo_id = g.id 

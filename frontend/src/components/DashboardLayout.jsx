@@ -149,6 +149,7 @@ export default function DashboardLayout({ children }) {
     tiene_cursos: false
   });
   const [mostrarModalAsistencias, setMostrarModalAsistencias] = useState(false);
+  const [tienePersonalAsistencias, setTienePersonalAsistencias] = useState(false);
   const [esSupervisorSupervision, setEsSupervisorSupervision] = useState(false);
   /** Contexto del aula (solo docente en rutas /docente/cursos/:id/aula o tutor aula-virtual). */
   const [docenteAulaUbicacion, setDocenteAulaUbicacion] = useState(null);
@@ -157,6 +158,40 @@ export default function DashboardLayout({ children }) {
   React.useEffect(() => {
     console.log('✅ [DASHBOARD LAYOUT] Componente montado, user:', user?.tipo);
   }, [user]);
+
+  const tiposConPosiblePersonal = [
+    'DOCENTE',
+    'ADMINISTRADOR',
+    'SECRETARIA',
+    'PROMOTORIA',
+    'PSICOLOGA',
+    'ASISTENCIA',
+  ];
+
+  useEffect(() => {
+    const abrirAsistencias = () => setMostrarModalAsistencias(true);
+    window.addEventListener('vanguard:abrir-asistencias', abrirAsistencias);
+    return () => window.removeEventListener('vanguard:abrir-asistencias', abrirAsistencias);
+  }, []);
+
+  useEffect(() => {
+    if (!user?.tipo || !tiposConPosiblePersonal.includes(user.tipo)) {
+      setTienePersonalAsistencias(false);
+      return undefined;
+    }
+    let cancelled = false;
+    api
+      .get('/personal/tardanzas/mi-mes')
+      .then((res) => {
+        if (!cancelled) setTienePersonalAsistencias(!!res.data?.tiene_personal);
+      })
+      .catch(() => {
+        if (!cancelled) setTienePersonalAsistencias(user.tipo === 'DOCENTE');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.tipo]);
 
   // Docente: roles + asignaciones + supervisión. Admin/Promotoría con personal_id: solo roles-adicionales (apoderado/tutor vía DNI).
   useEffect(() => {
@@ -1069,6 +1104,19 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mi Perfil</span>
                 </NavLink>
               </div>
+              {tienePersonalAsistencias && (
+                <div className="sidebar-item">
+                  <button
+                    type="button"
+                    className="sidebar-link"
+                    onClick={() => setMostrarModalAsistencias(true)}
+                    style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    <span className="sidebar-icon">⏰</span>
+                    <span className="sidebar-label">Mis Asistencias</span>
+                  </button>
+                </div>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/psicologia" end>
                   <span className="sidebar-icon">🧠</span>
@@ -1267,6 +1315,19 @@ export default function DashboardLayout({ children }) {
                   <span className="sidebar-label">Mi Perfil</span>
                 </NavLink>
               </div>
+              {tienePersonalAsistencias && (
+                <div className="sidebar-item">
+                  <button
+                    type="button"
+                    className="sidebar-link"
+                    onClick={() => setMostrarModalAsistencias(true)}
+                    style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    <span className="sidebar-icon">⏰</span>
+                    <span className="sidebar-label">Mis Asistencias</span>
+                  </button>
+                </div>
+              )}
               <div className="sidebar-item">
                 <NavLink className={({ isActive }) => `sidebar-link ${isActive ? 'active' : ''}`} to="/admin/institucional">
                   <span className="sidebar-icon">🏛️</span>
@@ -1391,6 +1452,10 @@ export default function DashboardLayout({ children }) {
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/supervision">
                     <span className="sidebar-icon" aria-hidden>🎯</span>
                     <span className="sidebar-label">Supervisión</span>
+                  </NavLink>
+                  <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/herramientas/tardanzas">
+                    <span className="sidebar-icon" aria-hidden>⏱️</span>
+                    <span className="sidebar-label">Tardanzas</span>
                   </NavLink>
                   {false && (
                   <NavLink
@@ -1731,10 +1796,10 @@ export default function DashboardLayout({ children }) {
         <BirthdayWelcomeModal />
 
         {/* Modal de Asistencias */}
-        {user?.tipo === 'DOCENTE' && (
-          <ModalAsistencias 
-            isOpen={mostrarModalAsistencias} 
-            onClose={() => setMostrarModalAsistencias(false)} 
+        {(user?.tipo === 'DOCENTE' || tienePersonalAsistencias) && (
+          <ModalAsistencias
+            isOpen={mostrarModalAsistencias}
+            onClose={() => setMostrarModalAsistencias(false)}
           />
         )}
       </div>

@@ -267,3 +267,16 @@ body.li-libreta-modal-open.swal2-shown .swal2-container {
   text-align: center;
   color: #64748b;
 }
+
+.li-readonly-cell {
+  display: block;
+  font-size: 0.88rem;
+  color: #1e293b;
+  line-height: 1.45;
+  padding: 0.35rem 0;
+}
+
+.li-readonly-nota {
+  font-weight: 700;
+  text-align: center;
+}

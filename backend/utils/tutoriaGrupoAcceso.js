@@ -48,7 +48,7 @@ async function verificarAccesoGrupoTutoria(req, res, grupoId) {
 
 async function listarGruposTutoriaGeneral(colegioId, anioActivo) {
   return query(
-    `SELECT g.*, n.nombre as nivel_nombre, t.nombre as turno_nombre,
+    `SELECT g.*, n.nombre as nivel_nombre, n.tipo_calificacion, t.nombre as turno_nombre,
             (SELECT COUNT(*)
              FROM matriculas m
              WHERE m.grupo_id = g.id

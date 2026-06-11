@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import DashboardLayout from '../../components/DashboardLayout';
 import EleccionesCampanaBanner from '../../components/EleccionesCampanaBanner';
+import TarjetasTardanzaPersonal from '../../components/TarjetasTardanzaPersonal';
 import api from '../../services/api';
 import './PsicologaDashboard.css';
 
@@ -89,6 +90,7 @@ export default function PsicologaDashboard() {
             </div>
           )}
         </div>
+        <TarjetasTardanzaPersonal />
         <div className="psicologa-dashboard__grid">
           {enlaces.map(({ to, label, desc, icon }) => (
             <NavLink key={to} to={to} className="psicologa-dashboard__card">

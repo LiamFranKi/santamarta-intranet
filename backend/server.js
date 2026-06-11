@@ -312,6 +312,10 @@ const adminReportesNotasRoutes = require('./routes/admin.reportes.notas.routes')
 app.use('/api/admin/reportes/notas', adminReportesNotasRoutes);
 const adminReportesGeneralRoutes = require('./routes/admin.reportes.general.routes');
 app.use('/api/admin/reportes/general', adminReportesGeneralRoutes);
+const adminTardanzasRoutes = require('./routes/admin.tardanzas.routes');
+app.use('/api/admin/tardanzas', adminTardanzasRoutes);
+const personalTardanzasRoutes = require('./routes/personal.tardanzas.routes');
+app.use('/api/personal/tardanzas', personalTardanzasRoutes);
 app.use('/api/admin/psicologia', adminPsicologiaRoutes);
 /* Eventos antes que /api/admin: si no, admin.routes bloquea PSICOLOGA/Promotoría antes de llegar a eventos.routes */
 app.use('/api/public/eventos', eventosRoutes.publicEventosRouter);

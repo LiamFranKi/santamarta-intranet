@@ -60,6 +60,7 @@ import HerramientasExamenRealizar from './pages/herramientas/HerramientasExamenR
 import HerramientasExamenMiResultado from './pages/herramientas/HerramientasExamenMiResultado';
 import DisenadorFichas from './pages/herramientas/DisenadorFichas';
 import AdminSupervision from './pages/admin/AdminSupervision';
+import AdminTardanzas from './pages/admin/AdminTardanzas';
 import AdminEncuestas from './pages/admin/AdminEncuestas';
 import AdminEncuestaEditor from './pages/admin/AdminEncuestaEditor';
 import AdminEncuestaEstadisticas from './pages/admin/AdminEncuestaEstadisticas';
@@ -532,6 +533,14 @@ function AppRoutes() {
         element={
           <PrivateRoute requiredType="ADMINISTRADOR">
             <AdminSupervision />
+          </PrivateRoute>
+        }
+      />
+      <Route
+        path="/admin/herramientas/tardanzas"
+        element={
+          <PrivateRoute requiredType="ADMINISTRADOR">
+            <AdminTardanzas />
           </PrivateRoute>
         }
       />

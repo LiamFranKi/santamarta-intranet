@@ -342,7 +342,10 @@ async function listGrupos(req, res) {
     sql += `, (SELECT COUNT(DISTINCT m.alumno_id) FROM matriculas m
          WHERE m.grupo_id = g.id AND m.colegio_id = g.colegio_id
            AND ${sqlMatriculaEstadoSoloRegular('m')}) AS matriculas_count`;
-    if (gcols.has('nivel_id')) sql += `, n.nombre AS nivel_nombre`;
+    if (gcols.has('nivel_id')) {
+      sql += `, n.nombre AS nivel_nombre`;
+      sql += `, n.tipo_calificacion`;
+    }
     if (gcols.has('turno_id')) sql += `, t.nombre AS turno_nombre`;
     if (gcols.has('sede_id')) sql += `, s.nombre AS sede_nombre`;
     if (gcols.has('tutor_id')) {

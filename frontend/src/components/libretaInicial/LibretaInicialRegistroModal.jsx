@@ -16,7 +16,7 @@ function flattenIndicadores(areas) {
   return list;
 }
 
-export default function LibretaInicialRegistroModal({ grupo, onClose }) {
+export default function LibretaInicialRegistroModal({ grupo, onClose, soloLectura = false }) {
   const grupoId = grupo?.id;
   const [loading, setLoading] = useState(true);
   const [ciclo, setCiclo] = useState(1);
@@ -117,7 +117,7 @@ export default function LibretaInicialRegistroModal({ grupo, onClose }) {
   };
 
   const guardarAlumno = async () => {
-    if (!edit) return;
+    if (soloLectura || !edit) return;
     const nextFlat = flattenIndicadores(areas);
     const valores = nextFlat.map((ind) => ({
       indicador_id: ind.id,
@@ -145,7 +145,7 @@ export default function LibretaInicialRegistroModal({ grupo, onClose }) {
       <div className="li-modal" role="dialog" aria-labelledby="li-reg-title" onClick={(e) => e.stopPropagation()}>
         <div className="li-modal-header">
           <div>
-            <h2 id="li-reg-title">Registrar Notas</h2>
+            <h2 id="li-reg-title">{soloLectura ? 'Ver Libretas' : 'Registrar Notas'}</h2>
             <p className="li-modal-sub">{tituloGrupo}</p>
           </div>
           <button type="button" className="li-btn-close" onClick={onClose} aria-label="Cerrar">
@@ -173,8 +173,14 @@ export default function LibretaInicialRegistroModal({ grupo, onClose }) {
           ) : (
             <>
               <p style={{ color: '#64748b', fontSize: '0.88rem', marginTop: 0 }}>
-                Abra un alumno, complete la <strong>nota</strong> por indicador, y use <strong>Guardar este alumno</strong>{' '}
-                antes de cerrar o cambiar de alumno para no perder cambios.
+                {soloLectura
+                  ? 'Indicadores registrados por el docente para cada alumno del aula (solo consulta).'
+                  : (
+                    <>
+                      Abra un alumno, complete la <strong>nota</strong> por indicador, y use <strong>Guardar este alumno</strong>{' '}
+                      antes de cerrar o cambiar de alumno para no perder cambios.
+                    </>
+                  )}
               </p>
               {(alumnos || []).map((al) => (
                 <div key={al.matricula_id} className="li-accordion">
@@ -212,24 +218,36 @@ export default function LibretaInicialRegistroModal({ grupo, onClose }) {
                                 <tr key={ind.id}>
                                   <td className="li-col-indicador">{ind.descripcion}</td>
                                   <td className="li-col-detalle">
-                                    <textarea
-                                      className="li-textarea-detalle"
-                                      value={edit.vals[ind.id]?.detalle ?? ''}
-                                      onChange={(e) => setVal(ind.id, 'detalle', e.target.value)}
-                                    />
+                                    {soloLectura ? (
+                                      <span className="li-readonly-cell">
+                                        {edit.vals[ind.id]?.detalle?.trim() || '—'}
+                                      </span>
+                                    ) : (
+                                      <textarea
+                                        className="li-textarea-detalle"
+                                        value={edit.vals[ind.id]?.detalle ?? ''}
+                                        onChange={(e) => setVal(ind.id, 'detalle', e.target.value)}
+                                      />
+                                    )}
                                   </td>
                                   <td className="li-col-nota">
-                                    <select
-                                      className="li-input li-select-nota"
-                                      value={edit.vals[ind.id]?.nota ?? ''}
-                                      onChange={(e) => setVal(ind.id, 'nota', e.target.value)}
-                                    >
-                                      {NOTAS.map((n) => (
-                                        <option key={n || 'empty'} value={n}>
-                                          {n || '—'}
-                                        </option>
-                                      ))}
-                                    </select>
+                                    {soloLectura ? (
+                                      <span className="li-readonly-cell li-readonly-nota">
+                                        {edit.vals[ind.id]?.nota || '—'}
+                                      </span>
+                                    ) : (
+                                      <select
+                                        className="li-input li-select-nota"
+                                        value={edit.vals[ind.id]?.nota ?? ''}
+                                        onChange={(e) => setVal(ind.id, 'nota', e.target.value)}
+                                      >
+                                        {NOTAS.map((n) => (
+                                          <option key={n || 'empty'} value={n}>
+                                            {n || '—'}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    )}
                                   </td>
                                 </tr>
                               ))}
@@ -240,21 +258,29 @@ export default function LibretaInicialRegistroModal({ grupo, onClose }) {
 
                       <div className="li-recomendaciones">
                         <label htmlFor={`rec-${edit.matricula_id}`}>Recomendaciones (tutoría / libreta)</label>
-                        <textarea
-                          id={`rec-${edit.matricula_id}`}
-                          className="li-textarea-detalle"
-                          style={{ minHeight: 80 }}
-                          value={edit.recomendacion}
-                          onChange={(e) => setEdit((p) => (p ? { ...p, recomendacion: e.target.value } : p))}
-                          placeholder="Observaciones generales para la familia…"
-                        />
+                        {soloLectura ? (
+                          <p className="li-readonly-cell" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+                            {edit.recomendacion?.trim() || '—'}
+                          </p>
+                        ) : (
+                          <textarea
+                            id={`rec-${edit.matricula_id}`}
+                            className="li-textarea-detalle"
+                            style={{ minHeight: 80 }}
+                            value={edit.recomendacion}
+                            onChange={(e) => setEdit((p) => (p ? { ...p, recomendacion: e.target.value } : p))}
+                            placeholder="Observaciones generales para la familia…"
+                          />
+                        )}
                       </div>
 
-                      <div className="li-toolbar" style={{ marginTop: '0.75rem' }}>
-                        <button type="button" className="li-btn li-btn-primary" onClick={guardarAlumno}>
-                          Guardar este alumno
-                        </button>
-                      </div>
+                      {!soloLectura && (
+                        <div className="li-toolbar" style={{ marginTop: '0.75rem' }}>
+                          <button type="button" className="li-btn li-btn-primary" onClick={guardarAlumno}>
+                            Guardar este alumno
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

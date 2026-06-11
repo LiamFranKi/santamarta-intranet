@@ -16,6 +16,8 @@ import LibretaInicialAreasModal from '../../components/libretaInicial/LibretaIni
 import LibretaInicialRegistroModal from '../../components/libretaInicial/LibretaInicialRegistroModal';
 import { exportGrupoCarnetsPdfA4 } from '../../utils/carnetQrPdf';
 import { generarPDFNotasTutoria } from '../../utils/pdfNotasTutoria';
+import { opcionesGrupoMenuParaFila } from '../../utils/opcionesMenuGrupo';
+import { abrirVerLibretasGrupo } from '../../utils/exportLibretasGrupoPdf';
 import { ETIQUETA_CO_TUTOR, ETIQUETA_TUTOR, ERROR_TUTORES_MISMA_PERSONA } from '../../utils/tutoresGrupoTexto';
 import { jsPDF } from 'jspdf';
 import './AdminDocumentosGestion.css';
@@ -872,6 +874,7 @@ function GruposPanel({ meta }) {
   const [recomendacionesAlumnosAdmin, setRecomendacionesAlumnosAdmin] = useState([]);
   const [loadingRecomendacionesAdmin, setLoadingRecomendacionesAdmin] = useState(false);
   const [guardandoRecomendacionesAdmin, setGuardandoRecomendacionesAdmin] = useState(false);
+  const [modalLibretaRegistroGrupo, setModalLibretaRegistroGrupo] = useState(null);
 
   const reportesConducta = useGrupoReportesConducta({
     apiPathPrefix: 'docente/grupos',
@@ -1377,6 +1380,17 @@ function GruposPanel({ meta }) {
       }
       return;
     }
+    if (accion === 'ver_libretas') {
+      setMenuGrupoId(null);
+      await abrirVerLibretasGrupo(row, {
+        onAbrirLibretaInicial: (g) => setModalLibretaRegistroGrupo(g),
+        alumnosApiUrl: `/docente/grupos/${row.id}/alumnos`,
+        anioEsperado: row.anio != null ? parseInt(row.anio, 10) : parseInt(anio, 10),
+        añosDisponibles: añosSelect,
+        SwalInst: SwalAcademico,
+      });
+      return;
+    }
     if (accion === 'registrar_conducta') {
       if (vistaSoloLecturaGrados) return;
       setMenuGrupoId(null);
@@ -1429,6 +1443,13 @@ function GruposPanel({ meta }) {
           />
         </section>
         {reportesConducta.ReportesModals}
+        {modalLibretaRegistroGrupo && (
+          <LibretaInicialRegistroModal
+            grupo={modalLibretaRegistroGrupo}
+            soloLectura
+            onClose={() => setModalLibretaRegistroGrupo(null)}
+          />
+        )}
       </>
     );
   }
@@ -1538,7 +1559,7 @@ function GruposPanel({ meta }) {
                         className="admin-academico-grupo-card__dropdown"
                         role="menu"
                       >
-                        {opcionesGrupoMenuVisibles.map((op) => (
+                        {opcionesGrupoMenuParaFila(r, opcionesGrupoMenuVisibles).map((op) => (
                           <button
                             key={op.key}
                             type="button"
@@ -1822,6 +1843,13 @@ function GruposPanel({ meta }) {
         : null}
     </section>
     {reportesConducta.ReportesModals}
+    {modalLibretaRegistroGrupo && (
+      <LibretaInicialRegistroModal
+        grupo={modalLibretaRegistroGrupo}
+        soloLectura
+        onClose={() => setModalLibretaRegistroGrupo(null)}
+      />
+    )}
     </>
   );
 }

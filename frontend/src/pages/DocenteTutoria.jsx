@@ -19,6 +19,9 @@ import './DocenteHijos.css';
 import './DocenteTutoria-swal-layer.css';
 import '../styles/docente-swal-over-modal.css';
 import TutoriaModalDeudores from '../components/tutoria/TutoriaModalDeudores';
+import LibretaInicialRegistroModal from '../components/libretaInicial/LibretaInicialRegistroModal';
+import { buildOpcionesTutoriaGrupo } from '../utils/opcionesMenuGrupo';
+import { abrirVerLibretasGrupo } from '../utils/exportLibretasGrupoPdf';
 
 /** Rango inicial (año calendario del año lectivo hasta hoy) para reportes tutor evidencias */
 function rangoFechasReporteGrupo(anioEscolar) {
@@ -118,7 +121,8 @@ function DocenteTutoria({
   const [loadingAlumnoInfo, setLoadingAlumnoInfo] = useState(false);
   const dropdownRef = useRef(null);
   const alumnoDropdownRef = useRef(null);
-  
+  const [modalLibretaRegistroGrupo, setModalLibretaRegistroGrupo] = useState(null);
+
   // Estados para Cursos Asignados
   const [mostrarCursos, setMostrarCursos] = useState(false);
   const [cursos, setCursos] = useState([]);
@@ -686,6 +690,13 @@ function DocenteTutoria({
         break;
       case 'notas-asistencia':
         await handleVerNotasPDF(grupo);
+        break;
+      case 'ver-libretas':
+        await abrirVerLibretasGrupo(grupo, {
+          onAbrirLibretaInicial: (g) => setModalLibretaRegistroGrupo(g),
+          alumnosApiUrl: `${apiPrefix}/grupos/${grupo.id}/alumnos`,
+          anioEsperado: grupo.anio != null ? parseInt(grupo.anio, 10) : undefined,
+        });
         break;
       case 'conexiones-familiares':
         navigate(`/docente/grupos/${grupo.id}/conexiones-familiares`, { state: { grupo } });
@@ -4134,19 +4145,7 @@ function DocenteTutoria({
                     const grupo = gruposTutor.find(g => g.id === openDropdown.grupoId);
                     if (!grupo) return null;
 
-                    const opciones = [
-                      { id: 'lista-alumnos', label: 'Lista de Alumnos', icon: '📋' },
-                      { id: 'cursos-asignados', label: 'Cursos Asignados', icon: '📚' },
-                      { id: 'ver-horario', label: 'Ver Horario', icon: '📅' },
-                      { id: 'ver-nomina', label: 'Ver Nómina', icon: '📄' },
-                      { id: 'orden-merito', label: 'Orden de Mérito', icon: '🏆' },
-                      { id: 'notas-asistencia', label: 'Ver Notas', icon: '📊' },
-                      { id: 'conexiones-familiares', label: 'Conexiones Familiares', icon: '✉️' },
-                      { id: 'registrar-asistencia', label: soloLectura ? 'Ver Asistencias' : 'Asistencias', icon: '✅' },
-                      { id: 'apreciaciones-recomendaciones', label: soloLectura ? 'Ver Recomendaciones' : 'Recomendaciones', icon: '💬' },
-                      { id: 'registrar-conducta', label: soloLectura ? 'Ver Conducta' : 'Registrar Conducta', icon: '📝' },
-                      { id: 'deudores', label: 'Deudores', icon: '💰' }
-                    ];
+                    const opciones = buildOpcionesTutoriaGrupo(grupo, { soloLectura });
 
                     return opciones.map((opcion) => (
                       <div
@@ -5370,6 +5369,13 @@ function DocenteTutoria({
           </div>
         </div>,
         document.body
+      )}
+      {modalLibretaRegistroGrupo && (
+        <LibretaInicialRegistroModal
+          grupo={modalLibretaRegistroGrupo}
+          soloLectura={soloLectura}
+          onClose={() => setModalLibretaRegistroGrupo(null)}
+        />
       )}
     </DashboardLayout>
   );
