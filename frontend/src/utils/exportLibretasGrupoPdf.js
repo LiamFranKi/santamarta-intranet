@@ -1,6 +1,5 @@
 import api from '../services/api';
 import Swal from 'sweetalert2';
-import { esNivelInicial } from './esNivelInicial';
 import { renderLibretaAlumnoPdf } from './exportLibretaAlumnoPdf';
 
 function etiquetaGrupoArchivo(grupo) {
@@ -158,21 +157,14 @@ export async function exportLibretasGrupoPdf({
 }
 
 /**
- * Abre libreta inicial (modal) o exporta libretas cuantitativas según el nivel.
+ * Abre libretas del aula (PDF multipágina, igual que apoderado — incluye INICIAL).
  */
 export async function abrirVerLibretasGrupo(grupo, {
-  onAbrirLibretaInicial,
   alumnosApiUrl,
   anioEsperado,
   añosDisponibles,
   SwalInst = Swal,
 }) {
-  if (esNivelInicial(grupo)) {
-    if (typeof onAbrirLibretaInicial === 'function') {
-      onAbrirLibretaInicial(grupo);
-    }
-    return;
-  }
   await exportLibretasGrupoPdf({
     grupo,
     alumnosApiUrl,

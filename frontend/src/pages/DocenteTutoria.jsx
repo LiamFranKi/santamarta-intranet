@@ -19,7 +19,6 @@ import './DocenteHijos.css';
 import './DocenteTutoria-swal-layer.css';
 import '../styles/docente-swal-over-modal.css';
 import TutoriaModalDeudores from '../components/tutoria/TutoriaModalDeudores';
-import LibretaInicialRegistroModal from '../components/libretaInicial/LibretaInicialRegistroModal';
 import { buildOpcionesTutoriaGrupo } from '../utils/opcionesMenuGrupo';
 import { abrirVerLibretasGrupo } from '../utils/exportLibretasGrupoPdf';
 
@@ -121,7 +120,6 @@ function DocenteTutoria({
   const [loadingAlumnoInfo, setLoadingAlumnoInfo] = useState(false);
   const dropdownRef = useRef(null);
   const alumnoDropdownRef = useRef(null);
-  const [modalLibretaRegistroGrupo, setModalLibretaRegistroGrupo] = useState(null);
 
   // Estados para Cursos Asignados
   const [mostrarCursos, setMostrarCursos] = useState(false);
@@ -693,7 +691,6 @@ function DocenteTutoria({
         break;
       case 'ver-libretas':
         await abrirVerLibretasGrupo(grupo, {
-          onAbrirLibretaInicial: (g) => setModalLibretaRegistroGrupo(g),
           alumnosApiUrl: `${apiPrefix}/grupos/${grupo.id}/alumnos`,
           anioEsperado: grupo.anio != null ? parseInt(grupo.anio, 10) : undefined,
         });
@@ -5369,13 +5366,6 @@ function DocenteTutoria({
           </div>
         </div>,
         document.body
-      )}
-      {modalLibretaRegistroGrupo && (
-        <LibretaInicialRegistroModal
-          grupo={modalLibretaRegistroGrupo}
-          soloLectura={soloLectura}
-          onClose={() => setModalLibretaRegistroGrupo(null)}
-        />
       )}
     </DashboardLayout>
   );

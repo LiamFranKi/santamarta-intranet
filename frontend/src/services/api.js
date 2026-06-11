@@ -154,6 +154,9 @@ api.interceptors.response.use(
     const urlForMatch = reqUrl + base;
 
     const isHijosRoute = reqUrl.includes('/hijos/') && reqUrl.includes('/datos');
+    const isHijosLibretaRoute =
+      /\/hijos\/[^/]+\/libreta/.test(reqUrl) || /\/hijos\/[^/]+\/libreta-anios/.test(reqUrl);
+    const skipLogoutHijosLibreta = isHijosLibretaRoute && (status === 403 || status === 500);
     const isApoderadoHijosRoute = reqUrl.includes('/apoderado/hijos');
     /** 403 en login no debe cerrar sesión ni mostrar mensaje de “permisos” genérico por interceptor */
     const isAuthLoginRoute = /\/auth\/login\b/.test(reqUrl);
@@ -225,6 +228,7 @@ api.interceptors.response.use(
       criticalErrors[status] &&
       !isAuthLoginRoute &&
       !isHijosRoute &&
+      !skipLogoutHijosLibreta &&
       !isApoderadoHijosRoute &&
       !isHijosProxyRoute &&
       !isTutoriaProxyRoute &&

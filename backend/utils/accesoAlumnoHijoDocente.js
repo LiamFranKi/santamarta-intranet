@@ -2,9 +2,69 @@
  * Acceso a rutas /docente/hijos/:id/* : docente-apoderado o staff (admin/promotoría/psicóloga).
  */
 const { query } = require('./mysql');
+const { esTutoriaGeneralActivo, resolvePersonalId } = require('./tutoriaGeneral');
 
 function esStaffAlumnoColegio(tipo) {
   return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA' || tipo === 'PSICOLOGA';
+}
+
+/**
+ * Docente tutor, con asignatura en el aula, o Tutoría General puede ver libreta de alumnos del grupo.
+ */
+async function verificarDocenteAccesoAlumnoEnGrupo(req, hijoIdNum) {
+  const { colegio_id, anio_activo, personal_id } = req.user;
+  if (!colegio_id || !anio_activo) return { ok: false };
+
+  const matRows = await query(
+    `SELECT m.grupo_id
+     FROM matriculas m
+     INNER JOIN grupos g ON g.id = m.grupo_id
+     WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ? AND (m.estado = 0)
+     LIMIT 1`,
+    [hijoIdNum, colegio_id, anio_activo]
+  );
+  if (!matRows?.length) return { ok: false };
+
+  const grupoId = matRows[0].grupo_id;
+  const personalIdResolved = personal_id ? parseInt(personal_id, 10) : await resolvePersonalId(req);
+
+  if (req._tutoriaAccesoGeneral && personalIdResolved) {
+    const gRow = await query(
+      `SELECT g.id FROM grupos g WHERE g.id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+      [grupoId, colegio_id, anio_activo]
+    );
+    if (gRow?.length) return { ok: true };
+  }
+
+  if (personalIdResolved) {
+    if (await esTutoriaGeneralActivo(personalIdResolved, colegio_id)) {
+      const gRow = await query(
+        `SELECT g.id FROM grupos g WHERE g.id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+        [grupoId, colegio_id, anio_activo]
+      );
+      if (gRow?.length) return { ok: true };
+    }
+
+    const tutorRow = await query(
+      `SELECT 1 FROM grupos g
+       WHERE g.id = ? AND g.colegio_id = ? AND g.anio = ?
+         AND (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?))
+       LIMIT 1`,
+      [grupoId, colegio_id, anio_activo, personalIdResolved, personalIdResolved]
+    );
+    if (tutorRow?.length) return { ok: true };
+
+    const asigRow = await query(
+      `SELECT 1 FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.grupo_id = ? AND a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?
+       LIMIT 1`,
+      [grupoId, personalIdResolved, colegio_id, anio_activo]
+    );
+    if (asigRow?.length) return { ok: true };
+  }
+
+  return { ok: false };
 }
 
 /**
@@ -26,6 +86,11 @@ async function verificarAccesoAlumnoHijoDocente(req, hijoIdNum) {
       return { ok: false, status: 404, error: 'Alumno no encontrado' };
     }
     return { ok: true, nroDocumento: null, staff: true };
+  }
+
+  const accesoGrupo = await verificarDocenteAccesoAlumnoEnGrupo(req, hijoIdNum);
+  if (accesoGrupo.ok) {
+    return { ok: true, nroDocumento: null, staff: false };
   }
 
   if (!personal_id) {
@@ -76,4 +141,5 @@ async function verificarAccesoAlumnoHijoDocente(req, hijoIdNum) {
 module.exports = {
   esStaffAlumnoColegio,
   verificarAccesoAlumnoHijoDocente,
+  verificarDocenteAccesoAlumnoEnGrupo,
 };

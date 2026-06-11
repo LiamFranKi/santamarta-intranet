@@ -874,7 +874,6 @@ function GruposPanel({ meta }) {
   const [recomendacionesAlumnosAdmin, setRecomendacionesAlumnosAdmin] = useState([]);
   const [loadingRecomendacionesAdmin, setLoadingRecomendacionesAdmin] = useState(false);
   const [guardandoRecomendacionesAdmin, setGuardandoRecomendacionesAdmin] = useState(false);
-  const [modalLibretaRegistroGrupo, setModalLibretaRegistroGrupo] = useState(null);
 
   const reportesConducta = useGrupoReportesConducta({
     apiPathPrefix: 'docente/grupos',
@@ -1383,7 +1382,6 @@ function GruposPanel({ meta }) {
     if (accion === 'ver_libretas') {
       setMenuGrupoId(null);
       await abrirVerLibretasGrupo(row, {
-        onAbrirLibretaInicial: (g) => setModalLibretaRegistroGrupo(g),
         alumnosApiUrl: `/docente/grupos/${row.id}/alumnos`,
         anioEsperado: row.anio != null ? parseInt(row.anio, 10) : parseInt(anio, 10),
         añosDisponibles: añosSelect,
@@ -1443,13 +1441,6 @@ function GruposPanel({ meta }) {
           />
         </section>
         {reportesConducta.ReportesModals}
-        {modalLibretaRegistroGrupo && (
-          <LibretaInicialRegistroModal
-            grupo={modalLibretaRegistroGrupo}
-            soloLectura
-            onClose={() => setModalLibretaRegistroGrupo(null)}
-          />
-        )}
       </>
     );
   }
@@ -1843,13 +1834,6 @@ function GruposPanel({ meta }) {
         : null}
     </section>
     {reportesConducta.ReportesModals}
-    {modalLibretaRegistroGrupo && (
-      <LibretaInicialRegistroModal
-        grupo={modalLibretaRegistroGrupo}
-        soloLectura
-        onClose={() => setModalLibretaRegistroGrupo(null)}
-      />
-    )}
     </>
   );
 }

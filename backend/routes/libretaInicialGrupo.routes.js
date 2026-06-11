@@ -29,6 +29,15 @@ async function assertAccesoGrupoLibretaInicial(req, grupoId) {
     return { ok: true, anioEsc: Number(gRow[0].anio) };
   }
 
+  if (req._tutoriaAccesoGeneral || req._tutoriaGrupoAccesoOk) {
+    const gRow = await query(
+      `SELECT g.id, g.anio FROM grupos g WHERE g.id = ? AND g.colegio_id = ? AND g.anio = ? LIMIT 1`,
+      [grupoId, colegio_id, anio_activo]
+    );
+    if (!gRow.length) return { ok: false, status: 403, error: 'No tienes acceso a este grupo' };
+    return { ok: true, anioEsc: Number(gRow[0].anio) };
+  }
+
   const personalId = req.user.personal_id;
   if (!personalId) return { ok: false, status: 404, error: 'Docente no encontrado' };
 
