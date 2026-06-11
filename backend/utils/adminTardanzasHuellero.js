@@ -346,6 +346,7 @@ async function previewHuelleroImport(query, colegioId, buffer) {
 }
 
 async function importarHuellero(query, execute, colegioId, adminUsuarioId, buffer) {
+  const auditUserId = adminUsuarioId ?? null;
   const parsed = parseHuelleroExcelBuffer(buffer);
   const personalList = await loadPersonalColegio(query, colegioId);
   const { anio } = await getAnioActivo(query, colegioId);
@@ -383,7 +384,7 @@ async function importarHuellero(query, execute, colegioId, adminUsuarioId, buffe
           `UPDATE asistencia_registros
            SET hora_entrada = ?, tipo_registro = 'ENTRADA', actualizado_por = ?, fecha_actualizacion = NOW()
            WHERE id = ?`,
-          [row.hora_marcacion, adminUsuarioId, ex.id]
+          [row.hora_marcacion, auditUserId, ex.id]
         );
         stats.actualizados += 1;
       } else {
@@ -391,7 +392,7 @@ async function importarHuellero(query, execute, colegioId, adminUsuarioId, buffe
           `INSERT INTO asistencia_registros
            (usuario_id, colegio_id, anio, fecha, tipo_registro, hora_entrada, creado_por, fecha_creacion)
            VALUES (?, ?, ?, ?, 'ENTRADA', ?, ?, NOW())`,
-          [match.usuario_id, colegioId, anio, row.fecha, row.hora_marcacion, adminUsuarioId]
+          [match.usuario_id, colegioId, anio, row.fecha, row.hora_marcacion, auditUserId]
         );
         stats.insertados += 1;
       }

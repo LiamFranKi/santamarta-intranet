@@ -110,11 +110,12 @@ router.post('/importar', upload.single('archivo'), async (req, res) => {
       return res.status(400).json({ error: 'Adjunte un archivo Excel.' });
     }
     const { query, execute } = require('../utils/mysql');
+    const adminUsuarioId = req.user?.usuario_id || req.user?.id || null;
     const stats = await importarHuellero(
       query,
       execute,
       colegioId(req),
-      req.user.id,
+      adminUsuarioId,
       req.file.buffer
     );
     res.json({ ok: true, stats });

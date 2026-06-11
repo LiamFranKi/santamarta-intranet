@@ -132,10 +132,12 @@ export default function AdminTardanzas() {
       const { data } = await api.post('/admin/tardanzas/importar', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      const { insertados, actualizados, omitidos_sin_match, errores = 0 } = data.stats;
+      const html = `Insertados: <strong>${insertados}</strong><br>Actualizados: <strong>${actualizados}</strong><br>Sin coincidencia: <strong>${omitidos_sin_match}</strong>${errores ? `<br>Errores: <strong>${errores}</strong>` : ''}`;
       await Swal.fire({
-        icon: 'success',
-        title: 'Importación completa',
-        html: `Insertados: <strong>${data.stats.insertados}</strong><br>Actualizados: <strong>${data.stats.actualizados}</strong><br>Sin coincidencia: <strong>${data.stats.omitidos_sin_match}</strong>`,
+        icon: errores ? 'warning' : 'success',
+        title: errores ? 'Importación con errores' : 'Importación completa',
+        html,
       });
       setPreview(null);
       setArchivo(null);
