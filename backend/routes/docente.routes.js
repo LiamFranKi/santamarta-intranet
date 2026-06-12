@@ -38,6 +38,7 @@ const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente'
 const { tryInsertPushCronDedup, fechaLimaYmd } = require('../utils/pushCronDedup');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { staticFsSubdir, joinStaticFs, getPublicStaticBaseUrl } = require('../utils/staticStorage');
+const { resolverTemaDestinoId } = require('../utils/copiarContenidoAsignatura');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { findAlternativaMarcadaVF } = require('../utils/examenRespuestaIds');
 const { assertDocentePuedeEditarContenidoExamenVirtual, examenBloqueaEdicionContenidoDocente } = require('../utils/examenBloqueoEdicionContenido');
@@ -5828,7 +5829,15 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       examenes: 0,
       videos: 0,
       enlaces: 0,
-      sesiones: 0
+      sesiones: 0,
+    };
+    const omitidos = {
+      temas: 0,
+      tareas: 0,
+      examenes: 0,
+      videos: 0,
+      enlaces: 0,
+      sesiones: 0,
     };
 
     /** Mapea id de tema en origen → id de tema copiado en destino (para sesiones PDF). */
@@ -5857,9 +5866,11 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
             ]
           );
           if (resultadoTema && resultadoTema.insertId) {
-            mapeoTemasOrigenADestino[temaId] = resultadoTema.insertId;
+            mapeoTemasOrigenADestino[String(temaId)] = resultadoTema.insertId;
           }
           copiados.temas++;
+        } else {
+          omitidos.temas += 1;
         }
       }
     }
@@ -5904,6 +5915,8 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
           }
 
           copiados.tareas++;
+        } else {
+          omitidos.tareas += 1;
         }
       }
     }
@@ -6060,6 +6073,8 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
           }
 
           copiados.examenes++;
+        } else {
+          omitidos.examenes += 1;
         }
       }
     }
@@ -6086,6 +6101,8 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
             ]
           );
           copiados.videos++;
+        } else {
+          omitidos.videos += 1;
         }
       }
     }
@@ -6112,11 +6129,15 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
             ]
           );
           copiados.enlaces++;
+        } else {
+          omitidos.enlaces += 1;
         }
       }
     }
 
-    // Copiar sesiones PDF (aula virtual): requiere tema equivalente en destino (mapeo por copia de tema o mismo nombre/ciclo/orden)
+    const trabajadorDestino = personal_id || asignaturaOrigen[0].personal_id;
+
+    // Copiar sesiones PDF (vinculadas a tema interactivo en destino)
     if (sesiones_id && sesiones_id.length > 0) {
       for (const sesionId of sesiones_id) {
         const sesionRows = await query(
@@ -6124,25 +6145,22 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
           [sesionId, cursoId]
         );
 
-        if (sesionRows.length === 0) continue;
+        if (sesionRows.length === 0) {
+          omitidos.sesiones += 1;
+          continue;
+        }
         const s = sesionRows[0];
 
-        let temaDestinoId = mapeoTemasOrigenADestino[s.tema_id];
+        const temaDestinoId = await resolverTemaDestinoId(query, {
+          temaOrigenId: s.tema_id,
+          asignaturaOrigenId: cursoId,
+          asignaturaDestinoId: asignatura_destino_id,
+          mapeoTemasOrigenADestino,
+        });
+
         if (!temaDestinoId) {
-          const temaOrigen = await query(
-            `SELECT nombre, ciclo, orden FROM asignaturas_archivos WHERE id = ? AND asignatura_id = ?`,
-            [s.tema_id, cursoId]
-          );
-          if (temaOrigen.length === 0) continue;
-          const t = temaOrigen[0];
-          const temaDest = await query(
-            `SELECT id FROM asignaturas_archivos
-             WHERE asignatura_id = ? AND nombre = ? AND ciclo = ? AND orden = ?
-             LIMIT 1`,
-            [asignatura_destino_id, t.nombre, t.ciclo, t.orden]
-          );
-          if (temaDest.length === 0) continue;
-          temaDestinoId = temaDest[0].id;
+          omitidos.sesiones += 1;
+          continue;
         }
 
         await execute(
@@ -6155,9 +6173,9 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
             s.descripcion,
             s.archivo,
             s.ciclo,
-            s.trabajador_id,
+            trabajadorDestino || s.trabajador_id,
             s.fecha_hora,
-            s.colegio_id
+            colegio_id,
           ]
         );
         copiados.sesiones++;
@@ -6184,10 +6202,14 @@ router.post('/cursos/:cursoId/copiar-contenido', async (req, res) => {
       resultado: 'EXITOSO'
     }).catch(err => console.error('Error en auditoría:', err));
 
+    const totalOmitidos = Object.values(omitidos).reduce((a, b) => a + b, 0);
     res.json({
       success: true,
-      message: 'Contenido copiado correctamente',
-      copiados: copiados
+      message: totalOmitidos
+        ? 'Contenido copiado con algunos elementos omitidos (revise el detalle).'
+        : 'Contenido copiado correctamente',
+      copiados,
+      omitidos,
     });
   } catch (error) {
     console.error('Error copiando contenido:', error);
@@ -21056,29 +21078,12 @@ router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
         );
         if (sesionRows.length === 0) continue;
         const s = sesionRows[0];
-        const temaOrigen = await query(
-          `SELECT nombre, ciclo, orden FROM asignaturas_archivos WHERE id = ? AND asignatura_id = ?`,
-          [s.tema_id, asignatura_origen_id]
-        );
-        if (temaOrigen.length === 0) continue;
-        const t = temaOrigen[0];
-        let temaDest = await query(
-          `SELECT id FROM asignaturas_archivos
-           WHERE asignatura_id = ? AND nombre = ? AND ciclo = ? AND orden = ?
-           LIMIT 1`,
-          [asignatura_id, t.nombre, t.ciclo, t.orden != null ? parseInt(t.orden, 10) : 0]
-        );
-        if (temaDest.length === 0) {
-          temaDest = await query(
-            `SELECT id FROM asignaturas_archivos
-             WHERE asignatura_id = ? AND nombre = ? AND ciclo = ?
-             ORDER BY orden ASC, id ASC
-             LIMIT 1`,
-            [asignatura_id, t.nombre, t.ciclo]
-          );
-        }
-        if (temaDest.length === 0) continue;
-        const temaDestinoId = temaDest[0].id;
+        const temaDestinoId = await resolverTemaDestinoId(query, {
+          temaOrigenId: s.tema_id,
+          asignaturaOrigenId: asignatura_origen_id,
+          asignaturaDestinoId: asignatura_id,
+        });
+        if (!temaDestinoId) continue;
         await execute(
           `INSERT INTO asignaturas_sesion_pdf (asignatura_id, tema_id, titulo, descripcion, archivo, ciclo, trabajador_id, fecha_hora, colegio_id)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,

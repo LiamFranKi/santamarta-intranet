@@ -687,11 +687,16 @@ function AdminConfiguracion() {
 
     if (result.isConfirmed) {
       try {
-        await api.post('/admin/configuracion/reiniciar-accesos');
+        const { data } = await api.post('/admin/configuracion/reiniciar-accesos');
+        const s = data.stats || {};
         Swal.fire({
           icon: 'success',
           title: 'Éxito',
-          text: 'Accesos reiniciados correctamente'
+          html: `Contraseñas reiniciadas al DNI (SHA1).<br>
+            Alumnos: <strong>${s.alumnos ?? 0}</strong> ·
+            Apoderados: <strong>${s.apoderados ?? 0}</strong> ·
+            Personal/docentes: <strong>${s.personal ?? 0}</strong>
+            ${s.omitidos ? `<br><small>Sin DNI (omitidos): ${s.omitidos}</small>` : ''}`,
         });
       } catch (error) {
         console.error('Error reiniciando accesos:', error);

@@ -1944,65 +1944,97 @@ router.delete('/avatares/accesorios/:id', async (req, res) => {
   }
 });
 
+function sha1Password(plain) {
+  return crypto.createHash('sha1').update(String(plain || '')).digest('hex');
+}
+
 /**
  * POST /api/admin/configuracion/reiniciar-accesos
- * Reiniciar accesos de alumnos y apoderados
+ * Reinicia contraseñas al DNI (SHA1, igual que login) — excepto administradores.
  */
 router.post('/configuracion/reiniciar-accesos', async (req, res) => {
   try {
-    const { colegio_id } = req.user;
+    const { colegio_id, usuario_id } = req.user;
+    const stats = { alumnos: 0, apoderados: 0, personal: 0, omitidos: 0 };
 
-    // Obtener todos los alumnos del colegio
     const alumnos = await query(
-      `SELECT a.id FROM alumnos a
-       INNER JOIN usuarios u ON u.alumno_id = a.id
-       WHERE u.colegio_id = ?`,
+      `SELECT u.id, a.nro_documento
+       FROM usuarios u
+       INNER JOIN alumnos a ON a.id = u.alumno_id AND a.colegio_id = u.colegio_id
+       WHERE u.colegio_id = ? AND u.tipo = 'ALUMNO' AND u.estado = 'ACTIVO'`,
       [colegio_id]
     );
-
-    // Resetear contraseñas de alumnos (a su DNI)
-    for (const alumno of alumnos) {
-      const usuario = await query(
-        `SELECT usuario FROM usuarios WHERE alumno_id = ? AND colegio_id = ? LIMIT 1`,
-        [alumno.id, colegio_id]
-      );
-      if (usuario.length > 0) {
-        const dni = usuario[0].usuario;
-        const bcrypt = require('bcryptjs');
-        const hashedPassword = await bcrypt.hash(dni, 10);
-        await execute(
-          `UPDATE usuarios SET password = ? WHERE alumno_id = ? AND colegio_id = ?`,
-          [hashedPassword, alumno.id, colegio_id]
-        );
+    for (const row of alumnos) {
+      const dni = String(row.nro_documento || '').trim();
+      if (!dni) {
+        stats.omitidos += 1;
+        continue;
       }
+      await execute(
+        `UPDATE usuarios SET password = ?, cambiar_password = 'NO' WHERE id = ? AND colegio_id = ?`,
+        [sha1Password(dni), row.id, colegio_id]
+      );
+      stats.alumnos += 1;
     }
 
-    // Obtener todos los apoderados del colegio
     const apoderados = await query(
-      `SELECT ap.id FROM apoderados ap
-       INNER JOIN usuarios u ON u.apoderado_id = ap.id
-       WHERE u.colegio_id = ?`,
+      `SELECT u.id, ap.nro_documento
+       FROM usuarios u
+       INNER JOIN apoderados ap ON ap.id = u.apoderado_id AND ap.colegio_id = u.colegio_id
+       WHERE u.colegio_id = ? AND u.tipo = 'APODERADO' AND u.estado = 'ACTIVO'`,
       [colegio_id]
     );
-
-    // Resetear contraseñas de apoderados (a su DNI)
-    for (const apoderado of apoderados) {
-      const usuario = await query(
-        `SELECT usuario FROM usuarios WHERE apoderado_id = ? AND colegio_id = ? LIMIT 1`,
-        [apoderado.id, colegio_id]
-      );
-      if (usuario.length > 0) {
-        const dni = usuario[0].usuario;
-        const bcrypt = require('bcryptjs');
-        const hashedPassword = await bcrypt.hash(dni, 10);
-        await execute(
-          `UPDATE usuarios SET password = ? WHERE apoderado_id = ? AND colegio_id = ?`,
-          [hashedPassword, apoderado.id, colegio_id]
-        );
+    for (const row of apoderados) {
+      const dni = String(row.nro_documento || '').trim();
+      if (!dni) {
+        stats.omitidos += 1;
+        continue;
       }
+      await execute(
+        `UPDATE usuarios SET password = ?, cambiar_password = 'NO' WHERE id = ? AND colegio_id = ?`,
+        [sha1Password(dni), row.id, colegio_id]
+      );
+      stats.apoderados += 1;
     }
 
-    res.json({ success: true, message: 'Accesos reiniciados correctamente' });
+    const personal = await query(
+      `SELECT u.id, p.nro_documento
+       FROM usuarios u
+       INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = u.colegio_id
+       WHERE u.colegio_id = ? AND u.personal_id > 0 AND u.tipo != 'ADMINISTRADOR' AND u.estado = 'ACTIVO'`,
+      [colegio_id]
+    );
+    for (const row of personal) {
+      const dni = String(row.nro_documento || '').trim();
+      if (!dni) {
+        stats.omitidos += 1;
+        continue;
+      }
+      await execute(
+        `UPDATE usuarios SET password = ?, cambiar_password = 'NO' WHERE id = ? AND colegio_id = ?`,
+        [sha1Password(dni), row.id, colegio_id]
+      );
+      stats.personal += 1;
+    }
+
+    registrarAccion({
+      usuario_id,
+      colegio_id,
+      tipo_usuario: req.user?.tipo || 'ADMINISTRADOR',
+      accion: 'REINICIAR_ACCESOS',
+      modulo: 'Configuración',
+      entidad: 'usuarios',
+      descripcion: `Reinició contraseñas masivas. Alumnos: ${stats.alumnos}, Apoderados: ${stats.apoderados}, Personal: ${stats.personal}, Sin DNI: ${stats.omitidos}`,
+      url: req.originalUrl,
+      metodo_http: req.method,
+      resultado: 'EXITOSO',
+    }).catch((err) => console.error('auditoría reiniciar-accesos', err));
+
+    res.json({
+      success: true,
+      message: 'Accesos reiniciados correctamente (contraseña = DNI)',
+      stats,
+    });
   } catch (error) {
     console.error('Error reiniciando accesos:', error);
     res.status(500).json({ error: 'Error al reiniciar accesos' });

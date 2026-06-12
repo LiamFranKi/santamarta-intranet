@@ -109,16 +109,22 @@ export default function ModalCopiarContenidoAsignatura({
         formCopiarContenido
       );
 
+      const { copiados, omitidos = {} } = response.data;
+      const totalOmitidos = Object.values(omitidos).reduce((a, b) => a + (b || 0), 0);
+      const omitHtml = totalOmitidos
+        ? `<br><br><span style="color:#b45309">Omitidos (no se encontró en destino):<br>
+           Temas: ${omitidos.temas || 0} · Sesiones: ${omitidos.sesiones || 0} · Proyectos: ${omitidos.tareas || 0} · Exámenes: ${omitidos.examenes || 0}</span>`
+        : '';
       Swal.fire({
-        title: '¡Éxito!',
-        html: `Contenido copiado correctamente.<br>
-               <strong>Temas:</strong> ${response.data.copiados.temas}<br>
-               <strong>Proyectos:</strong> ${response.data.copiados.tareas}<br>
-               <strong>Exámenes:</strong> ${response.data.copiados.examenes}<br>
-               <strong>Videos:</strong> ${response.data.copiados.videos}<br>
-               <strong>Enlaces:</strong> ${response.data.copiados.enlaces}<br>
-               <strong>Sesiones (PDF):</strong> ${response.data.copiados.sesiones ?? 0}`,
-        icon: 'success',
+        title: totalOmitidos ? 'Copiado con advertencias' : '¡Éxito!',
+        html: `${response.data.message || 'Contenido copiado.'}<br>
+               <strong>Temas:</strong> ${copiados.temas}<br>
+               <strong>Sesiones (PDF):</strong> ${copiados.sesiones ?? 0}<br>
+               <strong>Proyectos:</strong> ${copiados.tareas}<br>
+               <strong>Exámenes:</strong> ${copiados.examenes}<br>
+               <strong>Videos:</strong> ${copiados.videos}<br>
+               <strong>Enlaces:</strong> ${copiados.enlaces}${omitHtml}`,
+        icon: totalOmitidos ? 'warning' : 'success',
         confirmButtonText: 'Aceptar',
       });
 
