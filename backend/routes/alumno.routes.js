@@ -3679,6 +3679,20 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
       return res.status(404).json({ error: 'Examen no encontrado o sin acceso' });
     }
 
+    const matricula = await query(
+      `SELECT m.id as matricula_id
+       FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+       AND (m.estado = 0)
+       LIMIT 1`,
+      [alumno_id, colegio_id, anio_activo]
+    );
+
+    if (matricula.length === 0) {
+      return res.status(404).json({ error: 'No se encontró la matrícula del alumno' });
+    }
+
     if (examen[0].estado !== 'ACTIVO') {
       const { cerrarIntentoIndividual, MOTIVO } = require('../utils/examenCerrarIntentosPendientes');
       const pruebaColgada = await query(
@@ -3708,21 +3722,6 @@ router.post('/examenes/:examenId/iniciar', async (req, res) => {
         error:
           'Este examen es material en PDF. Ábrelo desde el aula virtual; no uses “Iniciar prueba” en línea.'
       });
-    }
-
-    // Obtener matrícula del alumno
-    const matricula = await query(
-      `SELECT m.id as matricula_id
-       FROM matriculas m
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
-       AND (m.estado = 0)
-       LIMIT 1`,
-      [alumno_id, colegio_id, anio_activo]
-    );
-
-    if (matricula.length === 0) {
-      return res.status(404).json({ error: 'No se encontró la matrícula del alumno' });
     }
 
     // Verificar intentos (la tabla usa matricula_id, no alumno_id)
