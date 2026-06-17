@@ -24,6 +24,13 @@ const mensajesConfig = require('../config/mensajes.json');
 const moment = require('moment-timezone');
 const { fechaHoraMySQLLima, fechaMySQLLima, horaMySQLLima } = require('../utils/fechaHoraLima');
 const {
+  ACTIVIDADES_SELECT_SQL,
+  ACTIVIDADES_SELECT_CON_EVENTO_SQL,
+  normalizarDatetimeMysqlEntrada,
+  compararDatetimeMysql,
+  esDatetimeMysqlValido
+} = require('../utils/actividadesFecha');
+const {
   obtenerContextoAlumnoGrupoParaMensaje,
   enriquecerMensajeApoderadoADocente
 } = require('../utils/mensajesHijoDocenteContexto');
@@ -1543,9 +1550,7 @@ router.get('/dashboard', async (req, res) => {
     // Usar DATE() en ambos lados para comparar solo fechas
     const añoActual = new Date().getFullYear();
     const actividades = await query(
-      `SELECT a.*,
-              DATE(a.fecha_inicio) as fecha_evento
-       FROM actividades a
+      `${ACTIVIDADES_SELECT_CON_EVENTO_SQL}
        WHERE a.colegio_id = ?
        AND YEAR(a.fecha_inicio) = ?
        AND DATE(a.fecha_inicio) >= DATE(NOW())
@@ -14151,29 +14156,21 @@ router.post('/actividades', async (req, res) => {
       return res.status(400).json({ error: 'Descripción y fecha de inicio son requeridas' });
     }
 
-    // Las fechas vienen en formato "YYYY-MM-DD HH:mm:ss" (hora local)
-    // Usarlas directamente sin conversión UTC para preservar la hora local
-    let fechaInicioStr = fecha_inicio;
-    let fechaFinStr = fecha_fin || fecha_inicio;
+    const fechaInicioStr = normalizarDatetimeMysqlEntrada(fecha_inicio);
+    const fechaFinStr = normalizarDatetimeMysqlEntrada(fecha_fin || fecha_inicio);
 
-    // Validar formato de fecha (debe ser "YYYY-MM-DD HH:mm:ss")
-    const fechaRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-    if (!fechaRegex.test(fechaInicioStr)) {
+    if (!fechaInicioStr) {
       return res.status(400).json({ error: 'Formato de fecha de inicio inválido. Debe ser YYYY-MM-DD HH:mm:ss' });
     }
-    if (fechaFinStr && !fechaRegex.test(fechaFinStr)) {
+    if (!fechaFinStr) {
       return res.status(400).json({ error: 'Formato de fecha de fin inválido. Debe ser YYYY-MM-DD HH:mm:ss' });
     }
 
-    // Validar que las fechas sean lógicas
-    const fechaInicioObj = new Date(fechaInicioStr.replace(' ', 'T'));
-    const fechaFinObj = new Date(fechaFinStr.replace(' ', 'T'));
-
-    if (isNaN(fechaInicioObj.getTime())) {
+    if (!esDatetimeMysqlValido(fechaInicioStr)) {
       return res.status(400).json({ error: 'Fecha de inicio inválida' });
     }
 
-    if (fechaFinObj < fechaInicioObj) {
+    if (compararDatetimeMysql(fechaFinStr, fechaInicioStr) < 0) {
       return res.status(400).json({ error: 'La fecha de fin no puede ser anterior a la fecha de inicio' });
     }
 
@@ -14251,29 +14248,21 @@ router.put('/actividades/:id', async (req, res) => {
       return res.status(404).json({ error: 'Actividad no encontrada' });
     }
 
-    // Las fechas vienen en formato "YYYY-MM-DD HH:mm:ss" (hora local)
-    // Usarlas directamente sin conversión UTC para preservar la hora local
-    let fechaInicioStr = fecha_inicio;
-    let fechaFinStr = fecha_fin || fecha_inicio;
+    const fechaInicioStr = normalizarDatetimeMysqlEntrada(fecha_inicio);
+    const fechaFinStr = normalizarDatetimeMysqlEntrada(fecha_fin || fecha_inicio);
 
-    // Validar formato de fecha (debe ser "YYYY-MM-DD HH:mm:ss")
-    const fechaRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-    if (!fechaRegex.test(fechaInicioStr)) {
+    if (!fechaInicioStr) {
       return res.status(400).json({ error: 'Formato de fecha de inicio inválido. Debe ser YYYY-MM-DD HH:mm:ss' });
     }
-    if (fechaFinStr && !fechaRegex.test(fechaFinStr)) {
+    if (!fechaFinStr) {
       return res.status(400).json({ error: 'Formato de fecha de fin inválido. Debe ser YYYY-MM-DD HH:mm:ss' });
     }
 
-    // Validar que las fechas sean lógicas
-    const fechaInicioObj = new Date(fechaInicioStr.replace(' ', 'T'));
-    const fechaFinObj = new Date(fechaFinStr.replace(' ', 'T'));
-
-    if (isNaN(fechaInicioObj.getTime())) {
+    if (!esDatetimeMysqlValido(fechaInicioStr)) {
       return res.status(400).json({ error: 'Fecha de inicio inválida' });
     }
 
-    if (fechaFinObj < fechaInicioObj) {
+    if (compararDatetimeMysql(fechaFinStr, fechaInicioStr) < 0) {
       return res.status(400).json({ error: 'La fecha de fin no puede ser anterior a la fecha de inicio' });
     }
 
@@ -14393,8 +14382,7 @@ router.get('/actividades', async (req, res) => {
     const añoFiltro = anio ? parseInt(anio) : new Date().getFullYear();
 
     let querySql = `
-      SELECT a.*
-      FROM actividades a
+      ${ACTIVIDADES_SELECT_SQL}
       WHERE a.colegio_id = ?
         AND YEAR(a.fecha_inicio) = ?
     `;

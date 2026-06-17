@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './EventoModal.css';
+import { crearFechaLima } from '../utils/fechaLima';
 
 function EventoModal({ actividades, fechaSeleccionada, actividadInicial, onClose }) {
   const [actividadSeleccionada, setActividadSeleccionada] = useState(
@@ -10,8 +11,8 @@ function EventoModal({ actividades, fechaSeleccionada, actividadInicial, onClose
 
   const actividadActual = actividadSeleccionada || actividades[0];
 
-  const fechaInicio = actividadActual ? new Date(actividadActual.fecha_inicio) : null;
-  const fechaFin = actividadActual && actividadActual.fecha_fin ? new Date(actividadActual.fecha_fin) : null;
+  const fechaInicio = actividadActual ? crearFechaLima(actividadActual.fecha_inicio) : null;
+  const fechaFin = actividadActual && actividadActual.fecha_fin ? crearFechaLima(actividadActual.fecha_fin) : null;
 
   return (
     <div className="evento-modal-overlay" onClick={onClose}>
@@ -37,8 +38,8 @@ function EventoModal({ actividades, fechaSeleccionada, actividadInicial, onClose
           {/* Lista de todos los eventos del día */}
           <div className="eventos-lista">
             {actividades.map((act, index) => {
-              const fechaInicioAct = new Date(act.fecha_inicio);
-              const fechaFinAct = act.fecha_fin ? new Date(act.fecha_fin) : null;
+              const fechaInicioAct = crearFechaLima(act.fecha_inicio);
+              const fechaFinAct = act.fecha_fin ? crearFechaLima(act.fecha_fin) : null;
               const estaSeleccionado = actividadSeleccionada && actividadSeleccionada.id === act.id;
               
               return (

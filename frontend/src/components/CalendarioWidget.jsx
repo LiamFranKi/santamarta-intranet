@@ -4,6 +4,7 @@ import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import EventoModal from './EventoModal';
 import './CalendarioWidget.css';
+import { crearFechaLima } from '../utils/fechaLima';
 
 function CalendarioWidget() {
   const { user } = useAuth();
@@ -68,7 +69,7 @@ function CalendarioWidget() {
           descripcion: a.descripcion,
           fecha_inicio: a.fecha_inicio,
           fecha_fin: a.fecha_fin,
-          año: new Date(a.fecha_inicio).getFullYear()
+          año: crearFechaLima(a.fecha_inicio)?.getFullYear()
         })));
       }
       
@@ -136,8 +137,10 @@ function CalendarioWidget() {
       }
       
       try {
-        const fechaInicio = new Date(act.fecha_inicio);
-        const fechaFin = act.fecha_fin ? new Date(act.fecha_fin) : new Date(act.fecha_inicio);
+        const fechaInicio = crearFechaLima(act.fecha_inicio);
+        const fechaFin = act.fecha_fin ? crearFechaLima(act.fecha_fin) : crearFechaLima(act.fecha_inicio);
+        
+        if (!fechaInicio || !fechaFin) return false;
         
         // Extraer año, mes, día de las fechas del evento
         const añoInicio = fechaInicio.getFullYear();

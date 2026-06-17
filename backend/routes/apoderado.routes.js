@@ -16,6 +16,7 @@ const {
   enriquecerMensajeApoderadoADocente
 } = require('../utils/mensajesHijoDocenteContexto');
 const { fechaHoraMySQLLima, fechaMySQLLima } = require('../utils/fechaHoraLima');
+const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('../utils/actividadesFecha');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaVigenteMasReciente, sqlMatriculaIdMasRecientePorAlumno } = require('../utils/matriculaVigente');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
@@ -504,9 +505,7 @@ router.get('/dashboard', async (req, res) => {
     // Actividades próximas
     const añoActual = new Date().getFullYear();
     const actividades = await query(
-      `SELECT a.*,
-              DATE(a.fecha_inicio) as fecha_evento
-       FROM actividades a
+      `${ACTIVIDADES_SELECT_CON_EVENTO_SQL}
        WHERE a.colegio_id = ?
        AND YEAR(a.fecha_inicio) = ?
        AND DATE(a.fecha_inicio) >= DATE(NOW())
@@ -1079,8 +1078,7 @@ router.get('/actividades', async (req, res) => {
     const añoFiltro = anio ? parseInt(anio) : new Date().getFullYear();
 
     const actividades = await query(
-      `SELECT a.*
-       FROM actividades a
+      `${ACTIVIDADES_SELECT_SQL}
        WHERE a.colegio_id = ?
        AND YEAR(a.fecha_inicio) = ?
        ORDER BY a.fecha_inicio ASC`,

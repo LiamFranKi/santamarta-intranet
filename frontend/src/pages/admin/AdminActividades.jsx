@@ -6,6 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import '../DocenteActividades.css';
 import '../DocenteGrupos.css';
 import Swal from 'sweetalert2';
+import { crearFechaLima, datetimeLocalAMysql, mysqlADatetimeLocal } from '../../utils/fechaLima';
 
 const MESES = [
   { num: 1, nombre: 'Enero', nombreCorto: 'Ene', icon: '❄️' },
@@ -21,22 +22,6 @@ const MESES = [
   { num: 11, nombre: 'Noviembre', nombreCorto: 'Nov', icon: '🍁' },
   { num: 12, nombre: 'Diciembre', nombreCorto: 'Dic', icon: '🎄' }
 ];
-
-// Función para crear fecha desde string interpretándola como hora local (no UTC)
-const crearFechaLocal = (fechaString) => {
-  if (!fechaString) return null;
-  
-  // Si viene como "YYYY-MM-DD HH:mm:ss" o "YYYY-MM-DDTHH:mm:ss"
-  // Extraer componentes y crear fecha en hora local
-  const fechaPart = fechaString.toString().replace('T', ' ').split(' ')[0];
-  const horaPart = fechaString.toString().replace('T', ' ').split(' ')[1] || '00:00:00';
-  
-  const [year, month, day] = fechaPart.split('-').map(Number);
-  const [hours, minutes, seconds] = horaPart.split(':').map(Number);
-  
-  // Crear fecha en hora local (no UTC)
-  return new Date(year, month - 1, day, hours || 0, minutes || 0, seconds || 0);
-};
 
 function AdminActividades() {
   const { user } = useAuth();
@@ -61,7 +46,7 @@ function AdminActividades() {
     let actividadesFiltradas = actividadesData;
     if (mes !== null) {
       actividadesFiltradas = actividadesData.filter(a => {
-        const fecha = crearFechaLocal(a.fecha_inicio);
+        const fecha = crearFechaLima(a.fecha_inicio);
         return fecha && fecha.getMonth() + 1 === mes;
       });
     }
@@ -70,8 +55,8 @@ function AdminActividades() {
 
     const agrupadas = {};
     actividadesFiltradas.forEach(actividad => {
-      const fechaInicio = crearFechaLocal(actividad.fecha_inicio);
-      const fechaFin = actividad.fecha_fin ? crearFechaLocal(actividad.fecha_fin) : fechaInicio;
+      const fechaInicio = crearFechaLima(actividad.fecha_inicio);
+      const fechaFin = actividad.fecha_fin ? crearFechaLima(actividad.fecha_fin) : fechaInicio;
       
       if (!fechaInicio) return;
       
@@ -150,25 +135,12 @@ function AdminActividades() {
 
   const abrirModalEditar = (actividad) => {
     setActividadEditando(actividad);
-    // Formatear fechas para datetime-local (YYYY-MM-DDTHH:mm)
-    const fechaInicio = new Date(actividad.fecha_inicio);
-    const fechaFin = actividad.fecha_fin ? new Date(actividad.fecha_fin) : fechaInicio;
-    
-    const formatearParaInput = (fecha) => {
-      const year = fecha.getFullYear();
-      const month = String(fecha.getMonth() + 1).padStart(2, '0');
-      const day = String(fecha.getDate()).padStart(2, '0');
-      const hours = String(fecha.getHours()).padStart(2, '0');
-      const minutes = String(fecha.getMinutes()).padStart(2, '0');
-      return `${year}-${month}-${day}T${hours}:${minutes}`;
-    };
-
     setFormulario({
       descripcion: actividad.descripcion || '',
       lugar: actividad.lugar || '',
       detalles: actividad.detalles || '',
-      fecha_inicio: formatearParaInput(fechaInicio),
-      fecha_fin: formatearParaInput(fechaFin)
+      fecha_inicio: mysqlADatetimeLocal(actividad.fecha_inicio),
+      fecha_fin: mysqlADatetimeLocal(actividad.fecha_fin || actividad.fecha_inicio)
     });
     setMostrarModal(true);
   };
@@ -185,38 +157,14 @@ function AdminActividades() {
     });
   };
 
-  // Función para convertir fecha de datetime-local a formato ISO con zona horaria local
-  const convertirFechaLocal = (fechaLocal) => {
-    if (!fechaLocal) return null;
-    
-    // datetime-local viene como "YYYY-MM-DDTHH:mm" (sin zona horaria)
-    // Necesitamos crear un Date interpretándolo como hora local
-    const fecha = new Date(fechaLocal);
-    
-    // Si la fecha es inválida, retornar null
-    if (isNaN(fecha.getTime())) return null;
-    
-    // Obtener los componentes de la fecha en hora local
-    const año = fecha.getFullYear();
-    const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-    const dia = String(fecha.getDate()).padStart(2, '0');
-    const horas = String(fecha.getHours()).padStart(2, '0');
-    const minutos = String(fecha.getMinutes()).padStart(2, '0');
-    const segundos = String(fecha.getSeconds()).padStart(2, '0');
-    
-    // Retornar en formato "YYYY-MM-DD HH:mm:ss" (hora local, sin conversión UTC)
-    return `${año}-${mes}-${dia} ${horas}:${minutos}:${segundos}`;
-  };
-
   const handleGuardarActividad = async (e) => {
     e.preventDefault();
     
     try {
-      // Convertir fechas a formato que preserve la hora local
       const datosEnviar = {
         ...formulario,
-        fecha_inicio: convertirFechaLocal(formulario.fecha_inicio),
-        fecha_fin: formulario.fecha_fin ? convertirFechaLocal(formulario.fecha_fin) : null
+        fecha_inicio: datetimeLocalAMysql(formulario.fecha_inicio),
+        fecha_fin: formulario.fecha_fin ? datetimeLocalAMysql(formulario.fecha_fin) : null
       };
 
       if (actividadEditando) {
@@ -308,7 +256,7 @@ function AdminActividades() {
 
   const formatearFecha = (fechaStr) => {
     // Interpretar fecha como hora local (no UTC)
-    const fecha = crearFechaLocal(fechaStr);
+    const fecha = crearFechaLima(fechaStr);
     if (!fecha) return { diaSemana: '', dia: 0, mes: '', anio: 0, fechaCompleta: null };
     
     const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -415,7 +363,7 @@ function AdminActividades() {
               </button>
               {MESES.map((mes) => {
                 const actividadesDelMes = todasLasActividades.filter(a => {
-                  const fecha = crearFechaLocal(a.fecha_inicio);
+                  const fecha = crearFechaLima(a.fecha_inicio);
                   return fecha && fecha.getMonth() + 1 === mes.num;
                 });
                 const tieneActividades = actividadesDelMes.length > 0;
@@ -476,8 +424,8 @@ function AdminActividades() {
                       
                       <div className="actividades-del-dia">
                         {actividadesDelDia.map((actividad, actIndex) => {
-                          const fechaInicio = crearFechaLocal(actividad.fecha_inicio);
-                          const fechaFin = actividad.fecha_fin ? crearFechaLocal(actividad.fecha_fin) : fechaInicio;
+                          const fechaInicio = crearFechaLima(actividad.fecha_inicio);
+                          const fechaFin = actividad.fecha_fin ? crearFechaLima(actividad.fecha_fin) : fechaInicio;
                           
                           if (!fechaInicio) return null;
                           

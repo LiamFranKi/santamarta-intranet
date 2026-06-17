@@ -10,6 +10,7 @@ const { enviarPushNotificacionesIndividuales } = require('../services/pushNotifi
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
 const phpSerialize = require('php-serialize');
 const { fechaHoraMySQLLima, fechaMySQLLima, horaMySQLLima } = require('../utils/fechaHoraLima');
+const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('../utils/actividadesFecha');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
@@ -404,9 +405,7 @@ router.get('/dashboard', async (req, res) => {
     // Actividades próximas (solo futuras del año actual)
     const añoActual = new Date().getFullYear();
     const actividades = await query(
-      `SELECT a.*,
-              DATE(a.fecha_inicio) as fecha_evento
-       FROM actividades a
+      `${ACTIVIDADES_SELECT_CON_EVENTO_SQL}
        WHERE a.colegio_id = ?
        AND YEAR(a.fecha_inicio) = ?
        AND DATE(a.fecha_inicio) >= DATE(NOW())
@@ -1799,8 +1798,7 @@ router.get('/actividades', async (req, res) => {
 
     // Obtener todas las actividades del año especificado
     const actividades = await query(
-      `SELECT a.*
-       FROM actividades a
+      `${ACTIVIDADES_SELECT_SQL}
        WHERE a.colegio_id = ?
        AND YEAR(a.fecha_inicio) = ?
        ORDER BY a.fecha_inicio ASC`,
