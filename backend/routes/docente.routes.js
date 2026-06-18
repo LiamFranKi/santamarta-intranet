@@ -41,7 +41,7 @@ const {
 const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
-const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
+const { fetchMatriculaAnioActivoOperativa, sqlExistePagoMatriculaCancelado, personalHijoTieneMatriculaAnioActivoOperativa, MENSAJE_SIN_MATRICULA } = require('../utils/matriculaAnioActivo');
 const { tryInsertPushCronDedup, fechaLimaYmd } = require('../utils/pushCronDedup');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { staticFsSubdir, joinStaticFs, getPublicStaticBaseUrl } = require('../utils/staticStorage');
@@ -9426,13 +9426,14 @@ router.get('/roles-adicionales', async (req, res) => {
            FROM apoderados ap
            INNER JOIN familias f ON f.apoderado_id = ap.id
            INNER JOIN alumnos a ON a.id = f.alumno_id
-           INNER JOIN matriculas m ON m.alumno_id = a.id
+           INNER JOIN matriculas m ON m.alumno_id = a.id AND m.colegio_id = ap.colegio_id
            INNER JOIN grupos g ON g.id = m.grupo_id
            WHERE ap.colegio_id = ? 
              AND ap.nro_documento = ?
-             AND m.colegio_id = ?
+             AND a.colegio_id = ?
              AND (m.estado = 0)
-             AND g.anio = ?`,
+             AND g.anio = ?
+             AND ${sqlExistePagoMatriculaCancelado('m')}`,
           [colegio_id, nroDocumento, colegio_id, anio_activo]
         );
 
@@ -9489,11 +9490,13 @@ router.get('/roles-adicionales', async (req, res) => {
              INNER JOIN turnos t ON t.id = g.turno_id
              WHERE ap.colegio_id = ? 
                AND ap.nro_documento = ?
+               AND a.colegio_id = ?
                AND m.colegio_id = ?
                AND (m.estado = 0)
                AND g.anio = ?
+               AND ${sqlExistePagoMatriculaCancelado('m')}
              ORDER BY n.nombre, g.grado, g.seccion, a.apellido_paterno, a.apellido_materno, a.nombres`,
-            [colegio_id, nroDocumento, colegio_id, anio_activo]
+            [colegio_id, nroDocumento, colegio_id, colegio_id, anio_activo]
           );
           
           console.log(`📋 [ROLES-ADICIONALES] Hijos encontrados: ${hijos.length}`);
@@ -10115,7 +10118,12 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
 
     const alumnoData = alumno[0];
 
-    const matricula = await fetchMatriculaVigenteMasReciente(query, alumnoData.id, colegio_id);
+    const matricula = await fetchMatriculaAnioActivoOperativa(
+      query,
+      alumnoData.id,
+      colegio_id,
+      anio_activo
+    );
 
     // Obtener nombre del colegio
     const colegio = await query(
@@ -11330,6 +11338,18 @@ async function verificarHijoYUsuario(req, hijoId) {
   if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
     console.error(`❌ [VERIFICAR-HIJO] El alumno no está registrado como hijo. count: ${esHijo?.[0]?.count || 0}`);
     throw new Error('No tienes permisos. El alumno no está registrado como tu hijo.');
+  }
+
+  const { anio_activo } = req.user;
+  const matriculaHijoOk = await personalHijoTieneMatriculaAnioActivoOperativa(
+    query,
+    nroDocumento,
+    hijoIdNum,
+    colegio_id,
+    anio_activo
+  );
+  if (!matriculaHijoOk) {
+    throw new Error(MENSAJE_SIN_MATRICULA);
   }
 
   // Obtener usuario_id del hijo

@@ -3,6 +3,10 @@
  */
 const { query } = require('./mysql');
 const { esTutoriaGeneralActivo, resolvePersonalId } = require('./tutoriaGeneral');
+const {
+  personalHijoTieneMatriculaAnioActivoOperativa,
+  MENSAJE_SIN_MATRICULA
+} = require('./matriculaAnioActivo');
 
 function esStaffAlumnoColegio(tipo) {
   return tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA' || tipo === 'PSICOLOGA';
@@ -133,6 +137,17 @@ async function verificarAccesoAlumnoHijoDocente(req, hijoIdNum) {
       status: 403,
       error: 'No tienes permisos. El alumno no está registrado como tu hijo.',
     };
+  }
+
+  const matriculaOk = await personalHijoTieneMatriculaAnioActivoOperativa(
+    query,
+    nroDocumento,
+    hijoIdNum,
+    colegio_id,
+    req.user.anio_activo
+  );
+  if (!matriculaOk) {
+    return { ok: false, status: 403, error: MENSAJE_SIN_MATRICULA };
   }
 
   return { ok: true, nroDocumento, staff: false };

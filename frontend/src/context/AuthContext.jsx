@@ -112,6 +112,15 @@ export const AuthProvider = ({ children }) => {
       const status = error.response?.status;
       // 403 en login = política interna (p. ej. acceso restringido); nunca mostrar texto de deudas al usuario
       if (status === 403) {
+        const code = error.response?.data?.code;
+        if (code === 'SIN_MATRICULA_ACTIVA') {
+          return {
+            success: false,
+            error:
+              error.response?.data?.error ||
+              'No tiene matrícula activa pagada para el año académico actual. Contacte a secretaría.'
+          };
+        }
         return {
           success: false,
           error: 'Problemas con el servidor, se está solucionando.'

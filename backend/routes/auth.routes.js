@@ -9,6 +9,7 @@ const { registrarAccion } = require('../utils/auditoria');
 const { authenticateToken } = require('../middleware/auth');
 const { calcularPensionesAVerificar } = require('../utils/deudaPensiones');
 const { urlStaticFotos } = require('../utils/staticStorage');
+const { verificarMatriculaPortalLogin, MENSAJE_SIN_MATRICULA, sqlExistePagoMatriculaCancelado } = require('../utils/matriculaAnioActivo');
 
 /**
  * POST /api/auth/login
@@ -65,6 +66,14 @@ router.post('/login', async (req, res) => {
     if (!anioActivo) {
       return res.status(500).json({ 
         error: 'No se pudo obtener el año activo del colegio' 
+      });
+    }
+
+    const accesoMatricula = await verificarMatriculaPortalLogin(query, usuarioDB, anioActivo);
+    if (!accesoMatricula.permitido) {
+      return res.status(403).json({
+        error: accesoMatricula.mensaje || MENSAJE_SIN_MATRICULA,
+        code: 'SIN_MATRICULA_ACTIVA'
       });
     }
 
@@ -504,12 +513,13 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
          FROM matriculas m
          INNER JOIN grupos g ON g.id = m.grupo_id
          WHERE m.alumno_id = ? AND m.colegio_id = ? AND (m.estado = 0) AND g.anio = ?
+           AND ${sqlExistePagoMatriculaCancelado('m')}
          LIMIT 1`,
         [usuario.alumno_id, usuario.colegio_id, anioActivo]
       );
 
       if (matriculas.length === 0) {
-        return false; // No hay matrícula activa
+        return false; // No hay matrícula activa pagada
       }
 
       const matricula = matriculas[0];
@@ -600,12 +610,14 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
          INNER JOIN alumnos a ON a.id = m.alumno_id
          INNER JOIN familias f ON f.alumno_id = a.id
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND (m.estado = 0) AND g.anio = ?`,
-        [usuario.apoderado_id, usuario.colegio_id, anioActivo]
+         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND a.colegio_id = ?
+           AND (m.estado = 0) AND g.anio = ?
+           AND ${sqlExistePagoMatriculaCancelado('m')}`,
+        [usuario.apoderado_id, usuario.colegio_id, usuario.colegio_id, anioActivo]
       );
 
       if (matriculasHijos.length === 0) {
-        return false; // No hay hijos con matrícula activa
+        return false; // No hay hijos con matrícula activa pagada
       }
 
       const inicioPensiones = colegio.inicio_pensiones || 2;
@@ -746,8 +758,10 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
          INNER JOIN alumnos a ON a.id = m.alumno_id
          INNER JOIN familias f ON f.alumno_id = a.id
          INNER JOIN grupos g ON g.id = m.grupo_id
-         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND (m.estado = 0) AND g.anio = ?`,
-        [apoderadoId, usuario.colegio_id, anioActivo]
+         WHERE f.apoderado_id = ? AND m.colegio_id = ? AND a.colegio_id = ?
+           AND (m.estado = 0) AND g.anio = ?
+           AND ${sqlExistePagoMatriculaCancelado('m')}`,
+        [apoderadoId, usuario.colegio_id, usuario.colegio_id, anioActivo]
       );
 
       console.log(`[VERIFICAR DEUDAS] ✅ Matrículas de hijos encontradas: ${matriculasHijos.length}`);

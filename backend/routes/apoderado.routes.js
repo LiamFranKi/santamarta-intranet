@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
+const { requireMatriculaPortalActiva } = require('../middleware/matriculaPortal');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
 const { enviarCorreoNotificacion } = require('../services/emailService');
@@ -18,7 +19,14 @@ const {
 const { fechaHoraMySQLLima, fechaMySQLLima } = require('../utils/fechaHoraLima');
 const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('../utils/actividadesFecha');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
-const { fetchMatriculaVigenteMasReciente, sqlMatriculaIdMasRecientePorAlumno } = require('../utils/matriculaVigente');
+const {
+  fetchMatriculaAnioActivoOperativa,
+  sqlFromHijosApoderadoMatriculaAnioActivo,
+  SQL_SELECT_CAMPOS_HIJO_APODERADO,
+  sqlExistePagoMatriculaCancelado,
+  apoderadoHijoTieneMatriculaAnioActivoOperativa,
+  MENSAJE_SIN_MATRICULA
+} = require('../utils/matriculaAnioActivo');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { getBoletaPdfJsonForPago } = require('../utils/boletaPdfData');
@@ -117,6 +125,7 @@ const uploadAlumnoHijo = multer({
 // Todas las rutas requieren autenticación y ser APODERADO
 router.use(authenticateToken);
 router.use(requireUserType('APODERADO'));
+router.use(requireMatriculaPortalActiva);
 
 /**
  * GET /api/apoderado/documentos-gestion
@@ -242,9 +251,11 @@ async function apoderadoTieneDeudaParaAnio(apoderado_id, colegio_id, anioConsult
      INNER JOIN grupos g ON g.id = m.grupo_id
      WHERE f.apoderado_id = ?
        AND m.colegio_id = ?
+       AND a.colegio_id = ?
        AND (m.estado = 0)
-       AND g.anio = ?`,
-    [apoderado_id, colegio_id, anioConsulta]
+       AND g.anio = ?
+       AND ${sqlExistePagoMatriculaCancelado('m')}`,
+    [apoderado_id, colegio_id, colegio_id, anioConsulta]
   );
 
   if (!matriculasHijos || matriculasHijos.length === 0) {
@@ -372,29 +383,10 @@ router.get('/dashboard', async (req, res) => {
 
     // Obtener hijos del apoderado (matrícula vigente = mayor año de grupo, no solo JWT)
     const hijos = await query(
-      `SELECT DISTINCT
-              a.id,
-              a.nombres,
-              a.apellido_paterno,
-              a.apellido_materno,
-              a.nro_documento as dni,
-              a.foto,
-              g.grado,
-              g.seccion,
-              n.nombre as nivel_nombre,
-              t.nombre as turno_nombre,
-              m.id as matricula_id
-       FROM apoderados ap
-       INNER JOIN familias f ON f.apoderado_id = ap.id
-       INNER JOIN alumnos a ON a.id = f.alumno_id
-       INNER JOIN matriculas m ON m.id = ${sqlMatriculaIdMasRecientePorAlumno('a')}
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE ap.id = ? 
-         AND ap.colegio_id = ?
+      `${SQL_SELECT_CAMPOS_HIJO_APODERADO}
+       ${sqlFromHijosApoderadoMatriculaAnioActivo()}
        ORDER BY n.nombre, g.grado, g.seccion, a.apellido_paterno, a.apellido_materno, a.nombres`,
-      [colegio_id, apoderadoData.id, colegio_id]
+      [apoderadoData.id, colegio_id, anio_activo]
     );
 
     // Estadísticas
@@ -402,16 +394,19 @@ router.get('/dashboard', async (req, res) => {
     
     // Contar total de cursos de todos los hijos
     const totalCursos = await query(
-      `SELECT COUNT(DISTINCT a.id) as total
+      `SELECT COUNT(DISTINCT asig.id) as total
        FROM apoderados ap
        INNER JOIN familias f ON f.apoderado_id = ap.id
-       INNER JOIN alumnos al ON al.id = f.alumno_id
-       INNER JOIN matriculas m ON m.id = ${sqlMatriculaIdMasRecientePorAlumno('al')}
+       INNER JOIN alumnos al ON al.id = f.alumno_id AND al.colegio_id = ap.colegio_id
+       INNER JOIN matriculas m ON m.alumno_id = al.id AND m.colegio_id = ap.colegio_id
        INNER JOIN grupos g ON g.id = m.grupo_id
-       INNER JOIN asignaturas a ON a.grupo_id = g.id
-       WHERE ap.id = ? 
-         AND ap.colegio_id = ?`,
-      [colegio_id, apoderadoData.id, colegio_id]
+       INNER JOIN asignaturas asig ON asig.grupo_id = g.id
+       WHERE ap.id = ?
+         AND ap.colegio_id = ?
+         AND (m.estado = 0)
+         AND g.anio = ?
+         AND ${sqlExistePagoMatriculaCancelado('m')}`,
+      [apoderadoData.id, colegio_id, anio_activo]
     );
 
     // Contar total de matrículas de todos los hijos (debe ser igual a totalHijos ya que cada hijo tiene una matrícula en el año activo)
@@ -631,7 +626,7 @@ router.get('/hijos', async (req, res) => {
 
     const apoderadoData = apoderado[0];
 
-    // Obtener hijos del apoderado (matrícula vigente = mayor año de grupo)
+    // Obtener hijos matriculados en el año académico electivo (Regular + matrícula pagada)
     const hijos = await query(
       `SELECT DISTINCT
               a.id,
@@ -657,17 +652,9 @@ router.get('/hijos', async (req, res) => {
                  AND pt.id = g.tutor_id
                  AND pt.colegio_id = g.colegio_id
                LIMIT 1) AS tutor_nombre_completo
-       FROM apoderados ap
-       INNER JOIN familias f ON f.apoderado_id = ap.id
-       INNER JOIN alumnos a ON a.id = f.alumno_id
-       INNER JOIN matriculas m ON m.id = ${sqlMatriculaIdMasRecientePorAlumno('a')}
-       INNER JOIN grupos g ON g.id = m.grupo_id
-       INNER JOIN niveles n ON n.id = g.nivel_id
-       INNER JOIN turnos t ON t.id = g.turno_id
-       WHERE ap.id = ? 
-         AND ap.colegio_id = ?
+       ${sqlFromHijosApoderadoMatriculaAnioActivo()}
        ORDER BY n.nombre, g.grado, g.seccion, a.apellido_paterno, a.apellido_materno, a.nombres`,
-      [colegio_id, apoderadoData.id, colegio_id]
+      [apoderadoData.id, colegio_id, anio_activo]
     );
 
     // Construir URLs de fotos
@@ -718,6 +705,7 @@ router.get('/hijos/anios-historico', async (req, res) => {
          AND m.colegio_id = ?
          AND (m.estado = 0)
          AND g.anio < ?
+         AND ${sqlExistePagoMatriculaCancelado('m')}
        ORDER BY g.anio DESC`,
       [apoderado_id, colegio_id, colegio_id, anioActual]
     );
@@ -1239,7 +1227,7 @@ router.put('/notificaciones/:id/marcar-leido', async (req, res) => {
  * Helper: Verificar que el apoderado tiene permisos sobre el hijo y obtener usuario_id del hijo
  */
 async function verificarHijoYUsuarioApoderado(req, hijoId) {
-  const { colegio_id, apoderado_id } = req.user;
+  const { colegio_id, apoderado_id, anio_activo } = req.user;
   
   if (!hijoId || isNaN(parseInt(hijoId))) {
     throw new Error('ID de alumno inválido');
@@ -1251,20 +1239,16 @@ async function verificarHijoYUsuarioApoderado(req, hijoId) {
     throw new Error('Información de usuario incompleta. No se encontró apoderado_id.');
   }
 
-  // Verificar que el alumno es hijo del apoderado
-  const esHijo = await query(
-    `SELECT COUNT(*) as count
-     FROM apoderados ap
-     INNER JOIN familias f ON f.apoderado_id = ap.id
-     INNER JOIN alumnos a ON a.id = f.alumno_id
-     WHERE ap.id = ?
-       AND a.id = ?
-       AND a.colegio_id = ?`,
-    [apoderado_id, hijoIdNum, colegio_id]
+  const matriculaOk = await apoderadoHijoTieneMatriculaAnioActivoOperativa(
+    query,
+    apoderado_id,
+    hijoIdNum,
+    colegio_id,
+    anio_activo
   );
 
-  if (!esHijo || esHijo.length === 0 || esHijo[0].count === 0) {
-    throw new Error('No tienes permisos. El alumno no está registrado como tu hijo.');
+  if (!matriculaOk) {
+    throw new Error(MENSAJE_SIN_MATRICULA);
   }
 
   // Obtener usuario_id del hijo
@@ -1291,7 +1275,7 @@ async function verificarHijoYUsuarioApoderado(req, hijoId) {
  * Verifica que el alumno es hijo del apoderado (sin exigir que el alumno tenga usuario activo).
  */
 async function verificarSoloVinculoApoderadoAlumno(req, hijoId) {
-  const { colegio_id, apoderado_id } = req.user;
+  const { colegio_id, apoderado_id, anio_activo } = req.user;
   if (!hijoId || isNaN(parseInt(hijoId))) {
     throw new Error('ID de alumno inválido');
   }
@@ -1322,7 +1306,7 @@ async function verificarSoloVinculoApoderadoAlumno(req, hijoId) {
 router.get('/hijos/:hijoId/cursos', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -1350,7 +1334,7 @@ router.get('/hijos/:hijoId/cursos', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver estos cursos.' });
     }
 
-    const matricula = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id);
+    const matricula = await fetchMatriculaAnioActivoOperativa(query, hijoIdNum, colegio_id, anio_activo);
 
     const matriculaData = matricula.length > 0 ? matricula[0] : null;
     const grupoId = matriculaData ? matriculaData.grupo_id : null;
@@ -1428,7 +1412,7 @@ router.get('/hijos/:hijoId/cursos', async (req, res) => {
 router.get('/hijos/:hijoId/horario', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -1456,7 +1440,7 @@ router.get('/hijos/:hijoId/horario', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver este horario.' });
     }
 
-    const matricula = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id, 'm.grupo_id, g.anio AS grupo_anio');
+    const matricula = await fetchMatriculaAnioActivoOperativa(query, hijoIdNum, colegio_id, anio_activo, 'm.grupo_id, g.anio AS grupo_anio');
 
     if (matricula.length === 0) {
       return res.json({ horario: [] });
@@ -1530,7 +1514,7 @@ router.get('/hijos/:hijoId/horario', async (req, res) => {
 router.get('/hijos/:hijoId/incidencias', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -1558,7 +1542,7 @@ router.get('/hijos/:hijoId/incidencias', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver estas incidencias.' });
     }
 
-    const matricula = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id, 'm.id');
+    const matricula = await fetchMatriculaAnioActivoOperativa(query, hijoIdNum, colegio_id, anio_activo, 'm.id');
 
     if (!matricula || matricula.length === 0) {
       return res.json({ incidencias: [] });
@@ -1597,7 +1581,7 @@ router.get('/hijos/:hijoId/incidencias', async (req, res) => {
 router.get('/hijos/:hijoId/estrellas', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -1625,7 +1609,7 @@ router.get('/hijos/:hijoId/estrellas', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver estas estrellas.' });
     }
 
-    const matricula = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id, 'm.id');
+    const matricula = await fetchMatriculaAnioActivoOperativa(query, hijoIdNum, colegio_id, anio_activo, 'm.id');
 
     if (!matricula || matricula.length === 0) {
       return res.json({
@@ -1673,7 +1657,7 @@ router.get('/hijos/:hijoId/estrellas', async (req, res) => {
 router.get('/hijos/:hijoId/asistencias', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -1701,7 +1685,7 @@ router.get('/hijos/:hijoId/asistencias', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver estas asistencias.' });
     }
 
-    const matricula = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id, 'm.id');
+    const matricula = await fetchMatriculaAnioActivoOperativa(query, hijoIdNum, colegio_id, anio_activo, 'm.id');
 
     if (!matricula || matricula.length === 0) {
       return res.json({
@@ -1790,7 +1774,7 @@ router.get('/hijos/:hijoId/qr', async (req, res) => {
 
     const alumnoData = alumno[0];
 
-    const matricula = await fetchMatriculaVigenteMasReciente(query, alumnoData.id, colegio_id);
+    const matricula = await fetchMatriculaAnioActivoOperativa(query, alumnoData.id, colegio_id, anio_activo);
 
     // Obtener nombre del colegio
     const colegio = await query(
@@ -2270,7 +2254,7 @@ router.get('/hijos/:hijoId/pagos', async (req, res) => {
 router.get('/pagos/:pagoId/boleta', async (req, res) => {
   try {
     const { pagoId } = req.params;
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
 
     if (!pagoId || isNaN(parseInt(pagoId))) {
       return res.status(400).json({ error: 'ID de pago inválido' });
@@ -2303,7 +2287,7 @@ router.get('/pagos/:pagoId/boleta', async (req, res) => {
 router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -2331,7 +2315,7 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
       return res.status(403).json({ error: 'No tienes permisos para ver estas notas.' });
     }
 
-    const matricula = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id, 'm.id AS matricula_id, m.grupo_id');
+    const matricula = await fetchMatriculaAnioActivoOperativa(query, hijoIdNum, colegio_id, anio_activo, 'm.id AS matricula_id, m.grupo_id');
 
     if (!matricula || matricula.length === 0) {
       return res.json({ asignaturas: [] });
@@ -2550,7 +2534,7 @@ router.get('/hijos/:hijoId/notas-detalladas', async (req, res) => {
 router.get('/hijos/:hijoId/libreta-anios', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -2626,7 +2610,7 @@ router.get('/hijos/:hijoId/libreta', async (req, res) => {
 
     let anio = (anioParam && anioParam > 0) ? anioParam : null;
     if (!anio) {
-      const ultima = await fetchMatriculaVigenteMasReciente(query, hijoIdNum, colegio_id, 'g.anio AS grupo_anio');
+      const ultima = await fetchMatriculaAnioActivoOperativa(query, hijoIdNum, colegio_id, anio_activo, 'g.anio AS grupo_anio');
       anio = ultima[0]?.grupo_anio != null ? parseInt(String(ultima[0].grupo_anio), 10) : parseInt(String(anio_activo), 10);
     }
 
@@ -5458,7 +5442,7 @@ router.delete('/mensajes', async (req, res) => {
 router.get('/hijos/:hijoId/datos', async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
       return res.status(400).json({ error: 'ID de alumno inválido' });
@@ -5523,7 +5507,7 @@ router.get('/hijos/:hijoId/datos', async (req, res) => {
 router.put('/hijos/:hijoId/datos', uploadAlumnoHijo.single('foto'), async (req, res) => {
   try {
     const { hijoId } = req.params;
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
     const { nombres, apellido_paterno, apellido_materno, email, sexo, fecha_nacimiento } = req.body;
 
     if (!hijoId || isNaN(parseInt(hijoId))) {
@@ -5728,7 +5712,7 @@ router.post('/hijos/:hijoId/reiniciar-contrasena', async (req, res) => {
  */
 router.get('/psicologia/mis-hijos', async (req, res) => {
   try {
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
     if (!apoderado_id) {
       return res.status(400).json({ error: 'Sin datos de apoderado' });
     }
@@ -5807,7 +5791,7 @@ router.get('/psicologia/psicologa-contacto', async (req, res) => {
  */
 router.get('/psicologia/alumnos/:alumnoId/vista-familia', async (req, res) => {
   try {
-    const { colegio_id, apoderado_id } = req.user;
+    const { colegio_id, apoderado_id, anio_activo } = req.user;
     const alumnoId = parseInt(req.params.alumnoId, 10);
     if (!Number.isFinite(alumnoId)) return res.status(400).json({ error: 'Alumno inválido' });
     if (!apoderado_id) return res.status(400).json({ error: 'Sin datos de apoderado' });

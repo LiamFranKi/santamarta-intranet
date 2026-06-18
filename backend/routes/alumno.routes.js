@@ -6,13 +6,14 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken, requireUserType } = require('../middleware/auth');
+const { requireMatriculaPortalActiva } = require('../middleware/matriculaPortal');
 const { enviarPushNotificacionesIndividuales } = require('../services/pushNotificationService');
 const { insertNotificacionUsuario, notificacionMensajeDuplicadaReciente } = require('../utils/notificacionInsert');
 const phpSerialize = require('php-serialize');
 const { fechaHoraMySQLLima, fechaMySQLLima, horaMySQLLima } = require('../utils/fechaHoraLima');
 const { ACTIVIDADES_SELECT_SQL, ACTIVIDADES_SELECT_CON_EVENTO_SQL } = require('../utils/actividadesFecha');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
-const { fetchMatriculaVigenteMasReciente } = require('../utils/matriculaVigente');
+const { fetchMatriculaAnioActivoOperativa } = require('../utils/matriculaAnioActivo');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { buildArchivoPdfUrl, esExamenTipoPdf } = require('../utils/examenArchivoPdfUrl');
 const { esCompletarCorrecto } = require('../utils/examenCompletar');
@@ -154,6 +155,7 @@ const uploadMensajes = multer({
 // Todas las rutas requieren autenticación y ser ALUMNO
 router.use(authenticateToken);
 router.use(requireUserType('ALUMNO'));
+router.use(requireMatriculaPortalActiva);
 
 /**
  * GET /api/alumno/documentos-gestion
@@ -2365,7 +2367,12 @@ router.get('/qr', async (req, res) => {
 
     const alumnoData = alumno[0];
 
-    const matricula = await fetchMatriculaVigenteMasReciente(query, alumnoData.id, colegio_id);
+    const matricula = await fetchMatriculaAnioActivoOperativa(
+      query,
+      alumnoData.id,
+      colegio_id,
+      anio_activo
+    );
 
     // Obtener nombre del colegio
     const colegio = await query(
