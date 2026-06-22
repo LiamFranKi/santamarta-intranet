@@ -73,6 +73,63 @@ async function criterioTieneNotas(asignaturaId, criterioId) {
   return false;
 }
 
+/**
+ * Máximo índice de cuadro con nota (1-based) en notas_detalles para un criterio.
+ */
+async function maxCuadrosConNotaEnCriterio(asignaturaId, criterioId) {
+  const id = parseInt(criterioId, 10);
+  const asigId = parseInt(asignaturaId, 10);
+  if (!id || !asigId) return 0;
+
+  const indicadores = await query(
+    `SELECT id FROM asignaturas_indicadores WHERE criterio_id = ?`,
+    [id]
+  );
+  if (indicadores.length === 0) return 0;
+
+  const indIds = new Set(indicadores.map((i) => String(i.id)));
+  const detalles = await query(
+    `SELECT data FROM notas_detalles WHERE asignatura_id = ?`,
+    [asigId]
+  );
+
+  let maxCuadros = 0;
+
+  for (const row of detalles) {
+    if (!row.data) continue;
+    let data;
+    try {
+      if (Buffer.isBuffer(row.data)) {
+        data = phpSerialize.unserialize(row.data);
+      } else if (typeof row.data === 'string') {
+        try {
+          data = phpSerialize.unserialize(row.data);
+        } catch {
+          data = JSON.parse(row.data);
+        }
+      } else {
+        data = row.data;
+      }
+    } catch {
+      continue;
+    }
+    const bloque = data?.[id] ?? data?.[String(id)];
+    if (!bloque || typeof bloque !== 'object') continue;
+    for (const indKey of Object.keys(bloque)) {
+      if (!indIds.has(String(indKey))) continue;
+      const arr = bloque[indKey];
+      if (!Array.isArray(arr)) continue;
+      arr.forEach((n, idx) => {
+        if (n !== null && n !== undefined && String(n).trim() !== '') {
+          maxCuadros = Math.max(maxCuadros, idx + 1);
+        }
+      });
+    }
+  }
+
+  return maxCuadros;
+}
+
 async function eliminarCriterioSeguro(criterioId) {
   await execute(`DELETE FROM asignaturas_indicadores WHERE criterio_id = ?`, [criterioId]);
   await execute(`DELETE FROM notas WHERE criterio_id = ?`, [criterioId]);
@@ -251,6 +308,7 @@ async function aplicarPlantillaAAsignatura({
 module.exports = {
   normAbrev,
   criterioTieneNotas,
+  maxCuadrosConNotaEnCriterio,
   eliminarCriterioSeguro,
   insertarCriterioDesdeItem,
   listarAsignaturasCuantitativas,

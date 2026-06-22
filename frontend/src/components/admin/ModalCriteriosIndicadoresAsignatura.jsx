@@ -23,14 +23,26 @@ function emptyForm() {
   return { descripcion: '', abreviatura: '', bimestre: 1, peso: '', cuadros: '1' };
 }
 
+function formDesdeCriterio(c) {
+  return {
+    descripcion: c.descripcion || '',
+    abreviatura: c.abreviatura || '',
+    bimestre: parseInt(c.ciclo, 10) ?? 1,
+    peso: c.peso != null && c.peso !== '' ? String(parseFloat(c.peso) || 0) : '',
+    cuadros: String(c.indicadores?.[0]?.cuadros ?? 1),
+  };
+}
+
 export default function ModalCriteriosIndicadoresAsignatura({ open, asignaturaId, onClose, onChanged }) {
   const [loading, setLoading] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [criterios, setCriterios] = useState([]);
   const [infoCurso, setInfoCurso] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [criterioEditandoId, setCriterioEditandoId] = useState(null);
 
   const esCuantitativa = infoCurso?.tipo_calificacion === 1;
+  const modoEdicion = criterioEditandoId != null;
 
   const cargarCriterios = useCallback(async (cursoId) => {
     if (!cursoId) return;
@@ -52,14 +64,25 @@ export default function ModalCriteriosIndicadoresAsignatura({ open, asignaturaId
       setCriterios([]);
       setInfoCurso(null);
       setForm(emptyForm());
+      setCriterioEditandoId(null);
       return;
     }
     cargarCriterios(asignaturaId);
   }, [open, asignaturaId, cargarCriterios]);
 
-  const cerrar = () => {
+  const cancelarEdicion = () => {
+    setCriterioEditandoId(null);
     setForm(emptyForm());
+  };
+
+  const cerrar = () => {
+    cancelarEdicion();
     onClose();
+  };
+
+  const abrirEditar = (criterio) => {
+    setCriterioEditandoId(criterio.id);
+    setForm(formDesdeCriterio(criterio));
   };
 
   const eliminarCriterio = async (criterioId) => {
@@ -77,6 +100,7 @@ export default function ModalCriteriosIndicadoresAsignatura({ open, asignaturaId
     try {
       await api.delete(`/docente/cursos/${asignaturaId}/criterios/${criterioId}`);
       Swal.fire('Eliminado', 'Criterio eliminado correctamente', 'success');
+      if (criterioEditandoId === criterioId) cancelarEdicion();
       await cargarCriterios(asignaturaId);
       onChanged?.();
     } catch (error) {
@@ -105,13 +129,21 @@ export default function ModalCriteriosIndicadoresAsignatura({ open, asignaturaId
         payload.peso = form.peso === '' ? 0 : parseFloat(form.peso);
         payload.cuadros = Math.max(1, parseInt(form.cuadros, 10) || 1);
       }
-      await api.post(`/docente/cursos/${asignaturaId}/criterios`, payload);
-      Swal.fire('¡Éxito!', 'Criterio registrado correctamente', 'success');
-      setForm((prev) => ({ ...emptyForm(), bimestre: prev.bimestre, peso: prev.peso }));
+
+      if (modoEdicion) {
+        await api.put(`/docente/cursos/${asignaturaId}/criterios/${criterioEditandoId}`, payload);
+        Swal.fire('¡Éxito!', 'Criterio actualizado correctamente', 'success');
+        cancelarEdicion();
+      } else {
+        await api.post(`/docente/cursos/${asignaturaId}/criterios`, payload);
+        Swal.fire('¡Éxito!', 'Criterio registrado correctamente', 'success');
+        setForm((prev) => ({ ...emptyForm(), bimestre: prev.bimestre, peso: prev.peso }));
+      }
+
       await cargarCriterios(asignaturaId);
       onChanged?.();
     } catch (error) {
-      Swal.fire('Error', error.response?.data?.error || 'No se pudo registrar', 'error');
+      Swal.fire('Error', error.response?.data?.error || 'No se pudo guardar', 'error');
     } finally {
       setGuardando(false);
     }
@@ -152,6 +184,11 @@ export default function ModalCriteriosIndicadoresAsignatura({ open, asignaturaId
         </div>
         <div className="modal-body-indicadores">
           <div className="modal-indicadores-instruction">{instruccion}</div>
+          {modoEdicion && (
+            <p className="indicadores-advertencia" style={{ background: '#eff6ff', borderColor: '#93c5fd', color: '#1e40af' }}>
+              Editando criterio seleccionado. Al reducir cuadros, no puede quedar por debajo de notas ya registradas.
+            </p>
+          )}
           <form onSubmit={guardar} className="form-indicadores">
             <div className="form-group-indicadores">
               <label htmlFor="crit-descripcion">Descripción <span className="text-required">*</span></label>
@@ -201,8 +238,18 @@ export default function ModalCriteriosIndicadoresAsignatura({ open, asignaturaId
               </div>
             </div>
             <div className="modal-indicadores-footer">
-              <button type="button" className="btn-indicadores btn-cancelar-indicadores" onClick={cerrar} disabled={guardando}>Cancelar</button>
-              <button type="submit" className="btn-indicadores btn-guardar-indicadores" disabled={guardando}>{guardando ? '⏳ Guardando...' : '💾 Guardar Datos'}</button>
+              {modoEdicion ? (
+                <button type="button" className="btn-indicadores btn-cancelar-indicadores" onClick={cancelarEdicion} disabled={guardando}>
+                  Cancelar edición
+                </button>
+              ) : (
+                <button type="button" className="btn-indicadores btn-cancelar-indicadores" onClick={cerrar} disabled={guardando}>
+                  Cancelar
+                </button>
+              )}
+              <button type="submit" className="btn-indicadores btn-guardar-indicadores" disabled={guardando}>
+                {guardando ? '⏳ Guardando...' : modoEdicion ? '💾 Actualizar criterio' : '💾 Guardar Datos'}
+              </button>
             </div>
           </form>
           <div className="indicadores-lista-section">
@@ -218,7 +265,7 @@ export default function ModalCriteriosIndicadoresAsignatura({ open, asignaturaId
                   <thead><tr><th>Descripción</th>{esCuantitativa && <th>Peso %</th>}{esCuantitativa && <th>Cuadros</th>}<th>Bimestre</th><th /></tr></thead>
                   <tbody>
                     {criterios.map((c) => (
-                      <tr key={c.id}>
+                      <tr key={c.id} className={criterioEditandoId === c.id ? 'criterio-fila-editando' : undefined}>
                         <td><span className="criterio-desc-cell">{c.descripcion}</span>{c.abreviatura && <span className="indicador-abrev">{c.abreviatura}</span>}</td>
                         {esCuantitativa && <td className="criterio-peso-cell">{parseFloat(c.peso) || 0}</td>}
                         {esCuantitativa && (
@@ -226,6 +273,7 @@ export default function ModalCriteriosIndicadoresAsignatura({ open, asignaturaId
                         )}
                         <td>{etiquetaBimestre(c.ciclo)}</td>
                         <td className="criterio-acciones-cell">
+                          <button type="button" className="btn-editar-indicador" onClick={() => abrirEditar(c)} title="Editar" aria-label="Editar">✏️</button>
                           <button type="button" className="btn-eliminar-indicador" onClick={() => eliminarCriterio(c.id)} title="Eliminar" aria-label="Eliminar">🗑️</button>
                         </td>
                       </tr>

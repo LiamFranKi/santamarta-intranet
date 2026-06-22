@@ -42,6 +42,7 @@ const { fetchUsuariosTutoresGrupos } = require('../utils/grupoTutores');
 const { enriquecerMensajeDocenteParaDestinatario } = require('../utils/mensajesDocenteApoderadoContexto');
 const { fetchPreguntasConAlternativas } = require('../utils/examenPreguntasAlternativas');
 const { fetchMatriculaAnioActivoOperativa, sqlExistePagoMatriculaCancelado, personalHijoTieneMatriculaAnioActivoOperativa, MENSAJE_SIN_MATRICULA } = require('../utils/matriculaAnioActivo');
+const { maxCuadrosConNotaEnCriterio } = require('../utils/indicadoresPlantillaService');
 const { tryInsertPushCronDedup, fechaLimaYmd } = require('../utils/pushCronDedup');
 const { normalizarUrlsImagenesEnHtml, urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const { staticFsSubdir, joinStaticFs, getPublicStaticBaseUrl } = require('../utils/staticStorage');
@@ -5348,6 +5349,86 @@ router.post('/cursos/:cursoId/criterios', async (req, res) => {
   } catch (error) {
     console.error('Error creando criterio:', error);
     res.status(500).json({ error: 'Error al registrar indicador' });
+  }
+});
+
+/**
+ * PUT /api/docente/cursos/:cursoId/criterios/:criterioId
+ * Actualizar criterio/indicador (descripción, abreviatura, peso, cuadros, bimestre)
+ */
+router.put('/cursos/:cursoId/criterios/:criterioId', async (req, res) => {
+  try {
+    const { cursoId, criterioId } = req.params;
+    const { colegio_id, personal_id } = req.user;
+    const { descripcion, abreviatura, ciclo, peso, cuadros } = req.body;
+
+    if (!personal_id && !esStaffColegio(req.user.tipo)) {
+      return res.status(404).json({ error: 'Docente no encontrado' });
+    }
+    if (!descripcion || !descripcion.trim()) {
+      return res.status(400).json({ error: 'La descripción es obligatoria' });
+    }
+
+    const asignatura = await verificarAccesoAsignatura(
+      req,
+      res,
+      cursoId,
+      'a.*, n.tipo_calificacion'
+    );
+    if (!asignatura) return;
+
+    const criterioRows = await query(
+      `SELECT * FROM asignaturas_criterios
+       WHERE id = ? AND asignatura_id = ? AND colegio_id = ?`,
+      [criterioId, cursoId, colegio_id]
+    );
+    if (!criterioRows.length) {
+      return res.status(404).json({ error: 'Criterio no encontrado' });
+    }
+
+    const cicloInt =
+      ciclo !== undefined && ciclo !== null && ciclo !== ''
+        ? parseInt(ciclo, 10)
+        : parseInt(criterioRows[0].ciclo, 10);
+    if (!Number.isFinite(cicloInt) || cicloInt < 0 || cicloInt > 4) {
+      return res.status(400).json({ error: 'Bimestre no válido' });
+    }
+
+    const esCualitativa = asignatura.tipo_calificacion === 0;
+    const pesoVal = esCualitativa ? 0 : Math.max(0, parseFloat(peso) || 0);
+    const abrev = (abreviatura || '').trim() || descripcion.trim().substring(0, 20);
+    const cuadrosVal = esCualitativa ? 1 : Math.max(1, parseInt(cuadros, 10) || 1);
+
+    if (!esCualitativa) {
+      const maxUsados = await maxCuadrosConNotaEnCriterio(cursoId, criterioId);
+      if (cuadrosVal < maxUsados) {
+        return res.status(400).json({
+          error: `No puede reducir a ${cuadrosVal} cuadro(s): ya hay notas registradas hasta el cuadro ${maxUsados}.`
+        });
+      }
+    }
+
+    await execute(
+      `UPDATE asignaturas_criterios
+       SET descripcion = ?, abreviatura = ?, ciclo = ?, peso = ?
+       WHERE id = ? AND asignatura_id = ? AND colegio_id = ?`,
+      [descripcion.trim(), abrev, cicloInt, pesoVal, criterioId, cursoId, colegio_id]
+    );
+
+    await execute(
+      `UPDATE asignaturas_indicadores
+       SET descripcion = ?, cuadros = ?
+       WHERE criterio_id = ?`,
+      [descripcion.trim(), cuadrosVal, criterioId]
+    );
+
+    res.json({
+      success: true,
+      message: 'Criterio actualizado correctamente'
+    });
+  } catch (error) {
+    console.error('Error actualizando criterio:', error);
+    res.status(500).json({ error: 'Error al actualizar el criterio' });
   }
 });
 
