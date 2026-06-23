@@ -1,10 +1,17 @@
 import { jsPDF } from 'jspdf';
-import { obtenerLogoColegioParaPdf, dibujarLogoEsquina } from './pdfReporteColegioLogo';
-import { PDF_HEADER_BLUE, PDF_BORDER, safeTxtPdf, textoCentradoCelda } from './pdfReportesGeneralTheme';
+import { obtenerLogoColegioParaPdf } from './pdfReporteColegioLogo';
+import {
+  PDF_HEADER_BLUE,
+  PDF_BORDER,
+  PDF_PAGE_MARGIN,
+  safeTxtPdf,
+  textoCentradoCelda,
+  dibujarCabeceraReportePdf,
+} from './pdfReportesGeneralTheme';
 
 const ROW_H = 7;
 const HEAD_H = 8;
-const MARGIN = 10;
+const MARGIN = PDF_PAGE_MARGIN;
 const FOOTER_H = 14;
 
 const COLS = [
@@ -112,17 +119,10 @@ function drawBloqueGrupo(doc, { titulo, filas, totales, colegioNombre, esPrimera
     y = MARGIN;
   }
 
-  const logoH = dibujarLogoEsquina(doc, logoData, { margin: MARGIN });
-  y = Math.max(y, MARGIN + logoH);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(30, 64, 175);
-  doc.text(safeTxt(colegioNombre || 'Colegio'), pageW - MARGIN, y + 4, { align: 'right' });
-  y += 8;
-  doc.setFontSize(10);
-  doc.text(`LISTA DE ALUMNOS - ${safeTxt(titulo)}`, pageW - MARGIN, y, { align: 'right' });
-  y += 10;
+  y = dibujarCabeceraReportePdf(doc, logoData, {
+    colegioNombre,
+    titulos: [`LISTA DE ALUMNOS - ${safeTxt(titulo)}`],
+  });
 
   const prepared = (filas || []).map(prepFila);
   let idx = 0;

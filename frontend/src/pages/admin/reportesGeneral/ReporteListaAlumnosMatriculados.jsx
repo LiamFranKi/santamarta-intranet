@@ -209,7 +209,7 @@ export default function ReporteListaAlumnosMatriculados() {
             <span>Cargando filtros…</span>
           </div>
         ) : (
-          <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line">
+          <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line rg-filtros-toolbar--fill">
               {(meta?.sedes || []).length > 0 && (
                 <TextField
                   select

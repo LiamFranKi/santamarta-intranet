@@ -1,8 +1,15 @@
 import { jsPDF } from 'jspdf';
-import { obtenerLogoColegioParaPdf, dibujarLogoEsquina } from './pdfReporteColegioLogo';
-import { PDF_HEADER_BLUE, PDF_BORDER, safeTxtPdf, textoCentradoCelda } from './pdfReportesGeneralTheme';
+import { obtenerLogoColegioParaPdf } from './pdfReporteColegioLogo';
+import {
+  PDF_HEADER_BLUE,
+  PDF_BORDER,
+  PDF_PAGE_MARGIN,
+  safeTxtPdf,
+  textoCentradoCelda,
+  dibujarCabeceraReportePdf,
+} from './pdfReportesGeneralTheme';
 
-const MARGIN = 10;
+const MARGIN = PDF_PAGE_MARGIN;
 const ROW_H = 8;
 const HEAD_H = 8;
 const BOTTOM_SAFE = 22;
@@ -82,24 +89,13 @@ export async function generarPdfAlumnosDeudoresPagadores(opts) {
   const totalReg = typeof totalRegOpt === 'number' ? totalRegOpt : (filas || []).length;
 
   function drawHeader(yStart) {
-    const logoH = dibujarLogoEsquina(doc, logo, { margin: MARGIN });
-    let y = Math.max(yStart, MARGIN + logoH);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.setTextColor(30, 64, 175);
-    doc.text(safeTxt(colegioNombre), pageW - MARGIN, y, { align: 'right' });
-    y += 6;
-    doc.setFontSize(10);
-    doc.text(`${tituloReporte} — ${anio}`, pageW - MARGIN, y, { align: 'right' });
-    y += 5;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(80, 80, 80);
-    let sub = `Concepto: ${safeTxt(concepto)}`;
-    if (sede_etiqueta) sub += ` · Sede: ${safeTxt(sede_etiqueta)}`;
-    doc.text(sub, pageW - MARGIN, y, { align: 'right' });
-    doc.setTextColor(0, 0, 0);
-    return y + 8;
+    return dibujarCabeceraReportePdf(doc, logo, {
+      colegioNombre,
+      titulos: [`${tituloReporte} — ${anio}`],
+      subtitulos: [
+        `Concepto: ${safeTxt(concepto)}${sede_etiqueta ? ` · Sede: ${safeTxt(sede_etiqueta)}` : ''}`,
+      ],
+    });
   }
 
   function drawTableHead(y) {

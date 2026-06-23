@@ -72,7 +72,7 @@ export default function useReporteDeudoresPagadores({ modo, tone, icon, title, d
           <CircularProgress size={24} />
         </div>
       ) : (
-        <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line">
+        <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line rg-filtros-toolbar--fill">
           <FiltrosSedeAnioConcepto
             meta={meta}
             sedeId={sedeId}

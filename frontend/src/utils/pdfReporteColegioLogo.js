@@ -65,9 +65,9 @@ export function dibujarLogoEsquina(doc, logoPack, opts = {}) {
   const dataUrl = typeof logoPack === 'string' ? logoPack : logoPack?.dataUrl;
   if (!dataUrl) return 0;
 
-  const margin = opts.margin ?? 12;
-  const maxWidth = opts.maxWidth ?? 42;
-  const maxHeight = opts.maxHeight ?? 13;
+  const margin = opts.margin ?? 8;
+  const maxWidth = opts.maxWidth ?? 28;
+  const maxHeight = opts.maxHeight ?? 8;
   const dims = typeof logoPack === 'object' ? logoPack?.dims : null;
 
   let drawW = maxWidth;

@@ -71,7 +71,7 @@ export default function ReporteResumenAlumnosMatriculados() {
             <CircularProgress size={24} />
           </div>
         ) : (
-          <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line">
+          <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line rg-filtros-toolbar--fill">
             <FiltrosSedeAnio
               meta={meta}
               sedeId={sedeId}

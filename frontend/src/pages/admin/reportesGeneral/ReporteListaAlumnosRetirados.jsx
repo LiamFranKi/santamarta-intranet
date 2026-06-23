@@ -70,6 +70,11 @@ export default function ReporteListaAlumnosRetirados() {
         icon="📤"
         title="Lista alumnos retirados"
         description="Matrículas en estado retirado."
+        hint={
+          <>
+            Seleccione sede, año y nivel. Use <strong>TODOS</strong> para ver todos los niveles.
+          </>
+        }
         compact
       >
         {loading ? (
@@ -77,40 +82,35 @@ export default function ReporteListaAlumnosRetirados() {
             <CircularProgress size={24} />
           </div>
         ) : (
-          <div className="rg-alum-filtros rg-alum-filtros--compact">
-            <p className="rg-retirados-hint">
-              Seleccione sede, año y nivel. Use <strong>TODOS</strong> para ver todos los niveles.
-            </p>
-            <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line">
-              <FiltrosSedeAnio
-                meta={meta}
-                sedeId={sedeId}
-                setSedeId={setSedeId}
-                anio={anio}
-                setAnio={setAnio}
-                compact
-              />
-              <TextField
-                select
-                size="small"
-                label="Nivel"
-                value={nivelId}
-                onChange={(e) => setNivelId(e.target.value)}
-                className="rg-alum-field rg-alum-field--nivel-compact"
-              >
-                <MenuItem value="TODOS">TODOS</MenuItem>
-                {(meta?.niveles || []).map((n) => (
-                  <MenuItem key={n.id} value={String(n.id)}>
-                    {n.nombre}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <div className="rg-filtros-toolbar__actions">
-                <button type="button" className="rg-alum-btn rg-alum-btn--primary" onClick={verReporte}>
-                  <VisibilityIcon fontSize="small" aria-hidden />
-                  Ver
-                </button>
-              </div>
+          <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line rg-filtros-toolbar--fill">
+            <FiltrosSedeAnio
+              meta={meta}
+              sedeId={sedeId}
+              setSedeId={setSedeId}
+              anio={anio}
+              setAnio={setAnio}
+              compact
+            />
+            <TextField
+              select
+              size="small"
+              label="Nivel"
+              value={nivelId}
+              onChange={(e) => setNivelId(e.target.value)}
+              className="rg-alum-field rg-alum-field--nivel-compact"
+            >
+              <MenuItem value="TODOS">TODOS</MenuItem>
+              {(meta?.niveles || []).map((n) => (
+                <MenuItem key={n.id} value={String(n.id)}>
+                  {n.nombre}
+                </MenuItem>
+              ))}
+            </TextField>
+            <div className="rg-filtros-toolbar__actions">
+              <button type="button" className="rg-alum-btn rg-alum-btn--primary" onClick={verReporte}>
+                <VisibilityIcon fontSize="small" aria-hidden />
+                Ver
+              </button>
             </div>
           </div>
         )}

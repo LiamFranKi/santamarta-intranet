@@ -1,8 +1,15 @@
 import { jsPDF } from 'jspdf';
-import { obtenerLogoColegioParaPdf, dibujarLogoEsquina } from './pdfReporteColegioLogo';
-import { PDF_HEADER_BLUE, PDF_BORDER, safeTxtPdf, textoCentradoCelda } from './pdfReportesGeneralTheme';
+import { obtenerLogoColegioParaPdf } from './pdfReporteColegioLogo';
+import {
+  PDF_HEADER_BLUE,
+  PDF_BORDER,
+  PDF_PAGE_MARGIN,
+  safeTxtPdf,
+  textoCentradoCelda,
+  dibujarCabeceraReportePdf,
+} from './pdfReportesGeneralTheme';
 
-const MARGIN = 12;
+const MARGIN = PDF_PAGE_MARGIN;
 
 function safeTxt(s) {
   return safeTxtPdf(s);
@@ -72,19 +79,10 @@ export async function generarPdfResumenAlumnosMatriculados({ colegioNombre, anio
   const logo = await obtenerLogoColegioParaPdf();
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
-  let y = MARGIN;
-
-  const logoH = dibujarLogoEsquina(doc, logo, { margin: MARGIN });
-  y = Math.max(y, MARGIN + logoH);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.setTextColor(30, 64, 175);
-  doc.text(safeTxt(colegioNombre || 'Colegio'), pageW - MARGIN, y, { align: 'right' });
-  y += 7;
-  doc.setFontSize(12);
-  doc.text(`Alumnos Matriculados ${anio}`, pageW - MARGIN, y, { align: 'right' });
-  y += 12;
+  let y = dibujarCabeceraReportePdf(doc, logo, {
+    colegioNombre,
+    titulos: [`Alumnos Matriculados ${anio}`],
+  });
 
   for (const sec of secciones || []) {
     if (y > doc.internal.pageSize.getHeight() - 40) {

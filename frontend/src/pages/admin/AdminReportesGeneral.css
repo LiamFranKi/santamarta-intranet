@@ -62,7 +62,7 @@
 .rg-panel {
   border-radius: 16px;
   border: 1px solid rgba(15, 23, 42, 0.08);
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
 }
 
@@ -103,9 +103,18 @@
   line-height: 1.45;
 }
 
+.rg-panel__hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.4;
+  font-weight: 400;
+}
+
 .rg-panel__body {
   padding: 1.15rem 1.25rem 1.35rem;
   background: rgba(255, 255, 255, 0.72);
+  overflow: visible;
 }
 
 /* Tonos pastel (ciclan con tone % 6) */
@@ -176,15 +185,47 @@
 .rg-filtros-toolbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
   gap: 0.6rem;
+  overflow: visible;
 }
 
 .rg-filtros-toolbar--single-line {
   flex-wrap: nowrap;
   overflow-x: auto;
-  padding-bottom: 0.15rem;
+  overflow-y: visible;
+  padding-top: 0.35rem;
+  padding-bottom: 0.1rem;
   scrollbar-width: thin;
+  align-items: flex-end;
+}
+
+/* Campos repartidos en todo el ancho del card */
+.rg-filtros-toolbar--fill {
+  width: 100%;
+}
+
+.rg-filtros-toolbar--fill .rg-alum-field.MuiFormControl-root {
+  flex: 1 1 0;
+  width: auto !important;
+  min-width: 4.5rem;
+  max-width: none;
+  overflow: visible;
+}
+
+.rg-filtros-toolbar--fill .rg-alum-field--anio {
+  flex: 0 0 5.25rem;
+  min-width: 5.25rem;
+  max-width: 5.5rem;
+}
+
+.rg-filtros-toolbar--fill .rg-filtros-toolbar__actions {
+  margin-left: 0;
+  flex: 0 0 auto;
+}
+
+.rg-filtros-toolbar--fill.rg-filtros-toolbar--single-line .rg-filtros-toolbar__actions {
+  margin-left: 0;
 }
 
 .rg-filtros-toolbar__actions {
@@ -199,10 +240,22 @@
   margin-left: auto;
 }
 
-/* Anchos fijos para MUI TextField (evita que Sede ocupe toda la fila) */
+/* Anchos fijos para MUI TextField (modo sin --fill) */
 .rg-alum-field.MuiFormControl-root {
   flex: 0 0 auto;
   min-width: 0;
+  overflow: visible;
+}
+
+.rg-alum-field .MuiInputLabel-root {
+  font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0 0.2rem;
+}
+
+.rg-alum-field .MuiInputBase-root {
+  font-size: 0.875rem;
+  overflow: visible;
 }
 
 .rg-alum-field {
@@ -247,10 +300,6 @@
 
 .rg-alum-field--fecha {
   width: 10.75rem;
-}
-
-.rg-alum-field .MuiInputBase-root {
-  font-size: 0.875rem;
 }
 
 .rg-alum-field .MuiSelect-select {
@@ -476,16 +525,7 @@
   padding-top: 0;
 }
 
-.rg-retirados-hint {
-  margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.4;
-  color: #64748b;
-  padding: 0.45rem 0.65rem;
-  background: rgba(255, 255, 255, 0.75);
-  border-radius: 8px;
-  border: 1px solid rgba(147, 197, 253, 0.45);
-}
+/* (hint retirados movido al header del panel) */
 
 /* Resumen matriculados */
 .rg-resumen-seccion {

@@ -1,8 +1,15 @@
 import { jsPDF } from 'jspdf';
-import { obtenerLogoColegioParaPdf, dibujarLogoEsquina } from './pdfReporteColegioLogo';
-import { PDF_HEADER_BLUE, PDF_BORDER, safeTxtPdf, textoCentradoCelda } from './pdfReportesGeneralTheme';
+import { obtenerLogoColegioParaPdf } from './pdfReporteColegioLogo';
+import {
+  PDF_HEADER_BLUE,
+  PDF_BORDER,
+  PDF_PAGE_MARGIN,
+  safeTxtPdf,
+  textoCentradoCelda,
+  dibujarCabeceraReportePdf,
+} from './pdfReportesGeneralTheme';
 
-const MARGIN = 12;
+const MARGIN = PDF_PAGE_MARGIN;
 const ROW_H = 7;
 const HEAD_H = 8;
 
@@ -36,36 +43,19 @@ export async function generarPdfResumenIngresos({
   widths[widths.length - 1] += tableW - sum;
   const labels = ['Nº DE RECIBO', 'MONTO S/.', 'DESCRIPCIÓN', 'ALUMNO', 'FECHA PAGO'];
 
-  const drawPageHeader = (yStart) => {
-    const logoH = dibujarLogoEsquina(doc, logo, { margin: MARGIN });
-    let y = Math.max(yStart, MARGIN + logoH);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(30, 64, 175);
-    doc.text(safeTxt(colegioNombre || 'Colegio'), pageW - MARGIN, y, { align: 'right' });
-    y += 6;
-    doc.text('Resumen de Ingresos', pageW - MARGIN, y, { align: 'right' });
-    y += 6;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
-    doc.setTextColor(35, 35, 35);
-    doc.text(safeTxt(rango_etiqueta), pageW - MARGIN, y, { align: 'right' });
-    if (sede_etiqueta) {
-      y += 5;
-      doc.setFontSize(8.5);
-      doc.setTextColor(80, 80, 80);
-      doc.text(`Sede: ${safeTxt(sede_etiqueta)}`, pageW - MARGIN, y, { align: 'right' });
-      doc.setTextColor(35, 35, 35);
-    }
-    return y + 10;
-  };
+  const drawPageHeader = () =>
+    dibujarCabeceraReportePdf(doc, logo, {
+      colegioNombre,
+      titulos: ['Resumen de Ingresos', safeTxt(rango_etiqueta)],
+      subtitulos: sede_etiqueta ? [`Sede: ${safeTxt(sede_etiqueta)}`] : [],
+    });
 
   const drawSectionTitle = (y, title) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(30, 30, 30);
     doc.text(title, MARGIN, y);
-    return y + 5;
+    return y + 4;
   };
 
   const drawTableHead = (y) => {
@@ -106,7 +96,7 @@ export async function generarPdfResumenIngresos({
   };
 
   const drawBalance = (y) => {
-    y = drawSectionTitle(y + 6, 'BALANCE');
+    y = drawSectionTitle(y + 4, 'BALANCE');
     const boxW = tableW * 0.35;
     const boxX = MARGIN + (tableW - boxW) / 2;
     doc.setDrawColor(...PDF_BORDER);
@@ -125,14 +115,14 @@ export async function generarPdfResumenIngresos({
     return y + 12;
   };
 
-  let y = drawPageHeader(MARGIN);
+  let y = drawPageHeader();
   y = drawSectionTitle(y, 'INGRESOS');
   y = drawTableHead(y);
 
   for (const row of filas || []) {
     if (y + ROW_H > pageH - MARGIN - 30) {
       doc.addPage();
-      y = drawPageHeader(MARGIN);
+      y = drawPageHeader();
       y = drawSectionTitle(y, 'INGRESOS (continúa)');
       y = drawTableHead(y);
     }
@@ -148,7 +138,7 @@ export async function generarPdfResumenIngresos({
 
   if (y + 28 > pageH - MARGIN) {
     doc.addPage();
-    y = MARGIN + 10;
+    y = MARGIN + 6;
   }
   drawBalance(y);
 

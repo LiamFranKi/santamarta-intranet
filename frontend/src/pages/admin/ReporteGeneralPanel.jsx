@@ -4,7 +4,7 @@ import React from 'react';
  * Bloque de un reporte en Reportes → General.
  * Apilar varios uno debajo de otro; usar `tone` distinto (0–5) para color pastel.
  */
-export default function ReporteGeneralPanel({ tone = 0, icon = '📄', title, description, children, compact = false }) {
+export default function ReporteGeneralPanel({ tone = 0, icon = '📄', title, description, hint, children, compact = false }) {
   const toneClass = `rg-panel--tone-${Number(tone) % 6}`;
 
   return (
@@ -21,6 +21,7 @@ export default function ReporteGeneralPanel({ tone = 0, icon = '📄', title, de
             {title}
           </h2>
           {description ? <p className="rg-panel__desc">{description}</p> : null}
+          {hint ? <p className="rg-panel__hint">{hint}</p> : null}
         </div>
       </header>
       <div className="rg-panel__body">{children}</div>
