@@ -13,6 +13,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { generarPdfResumenAlumnosMatriculados } from '../../../utils/pdfResumenAlumnosMatriculados';
+import { REPORTE_GENERAL_DIALOG_SX } from './reporteDialogProps';
 
 function TablaNivel({ seccion }) {
   return (
@@ -79,7 +80,7 @@ export default function ModalResumenAlumnosMatriculados({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth scroll="paper" className="rg-alum-modal">
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth scroll="paper" className="rg-alum-modal" sx={REPORTE_GENERAL_DIALOG_SX}>
       <DialogTitle className="rg-alum-modal__title">
         <span>Resumen alumnos matriculados {anio ? `— ${anio}` : ''}</span>
         <IconButton aria-label="Cerrar" onClick={onClose} size="small">

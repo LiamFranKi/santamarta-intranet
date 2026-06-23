@@ -11,7 +11,7 @@ export default function FiltrosSedeAnio({ meta, sedeId, setSedeId, anio, setAnio
           label="Sede"
           value={sedeId}
           onChange={(e) => setSedeId(e.target.value)}
-          className={compact ? 'rg-alum-field rg-alum-field--sede-compact' : 'rg-alum-field'}
+          className={compact ? 'rg-alum-field rg-alum-field--sede-compact' : 'rg-alum-field rg-alum-field--sede'}
         >
           {(meta.sedes || []).map((s) => (
             <MenuItem key={s.id} value={String(s.id)}>

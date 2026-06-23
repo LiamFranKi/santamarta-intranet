@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { CircularProgress, Stack } from '@mui/material';
+import { CircularProgress } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import api from '../../../services/api';
 import Swal from 'sweetalert2';
@@ -71,18 +71,16 @@ export default function ReporteResumenAlumnosMatriculados() {
             <CircularProgress size={24} />
           </div>
         ) : (
-          <div className="rg-alum-filtros rg-alum-filtros--compact">
-            <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" useFlexGap>
-              <FiltrosSedeAnio
-                meta={meta}
-                sedeId={sedeId}
-                setSedeId={setSedeId}
-                anio={anio}
-                setAnio={setAnio}
-                compact
-              />
-            </Stack>
-            <div className="rg-alum-actions rg-alum-actions--compact">
+          <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line">
+            <FiltrosSedeAnio
+              meta={meta}
+              sedeId={sedeId}
+              setSedeId={setSedeId}
+              anio={anio}
+              setAnio={setAnio}
+              compact
+            />
+            <div className="rg-filtros-toolbar__actions">
               <button type="button" className="rg-alum-btn rg-alum-btn--primary" onClick={verReporte}>
                 <VisibilityIcon fontSize="small" aria-hidden />
                 Ver

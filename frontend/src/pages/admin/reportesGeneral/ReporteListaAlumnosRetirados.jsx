@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { CircularProgress, MenuItem, Stack, TextField } from '@mui/material';
+import { CircularProgress, MenuItem, TextField } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import api from '../../../services/api';
 import Swal from 'sweetalert2';
@@ -81,7 +81,7 @@ export default function ReporteListaAlumnosRetirados() {
             <p className="rg-retirados-hint">
               Seleccione sede, año y nivel. Use <strong>TODOS</strong> para ver todos los niveles.
             </p>
-            <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" useFlexGap>
+            <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line">
               <FiltrosSedeAnio
                 meta={meta}
                 sedeId={sedeId}
@@ -105,12 +105,12 @@ export default function ReporteListaAlumnosRetirados() {
                   </MenuItem>
                 ))}
               </TextField>
-            </Stack>
-            <div className="rg-alum-actions rg-alum-actions--compact">
-              <button type="button" className="rg-alum-btn rg-alum-btn--primary" onClick={verReporte}>
-                <VisibilityIcon fontSize="small" aria-hidden />
-                Ver
-              </button>
+              <div className="rg-filtros-toolbar__actions">
+                <button type="button" className="rg-alum-btn rg-alum-btn--primary" onClick={verReporte}>
+                  <VisibilityIcon fontSize="small" aria-hidden />
+                  Ver
+                </button>
+              </div>
             </div>
           </div>
         )}

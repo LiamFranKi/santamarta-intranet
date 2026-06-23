@@ -12,10 +12,10 @@ import {
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
-import {
-  generarPdfListaAlumnosTodosGrupos,
+import { generarPdfListaAlumnosTodosGrupos,
   generarPdfListaAlumnosUnGrupo,
 } from '../../../utils/pdfListaAlumnosMatriculados';
+import { REPORTE_GENERAL_DIALOG_SX } from './reporteDialogProps';
 
 function fmtFecha(iso) {
   if (!iso || iso === '—') return '—';
@@ -123,7 +123,7 @@ export default function ModalListaAlumnosMatriculados({
       : (filas || []).length > 0;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth scroll="paper" className="rg-alum-modal">
+    <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth scroll="paper" className="rg-alum-modal" sx={REPORTE_GENERAL_DIALOG_SX}>
       <DialogTitle className="rg-alum-modal__title">
         <span>
           {modo === 'todos' ? 'Lista de alumnos — todos los grados' : 'Lista de alumnos matriculados'}

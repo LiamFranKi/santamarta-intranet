@@ -128,6 +128,18 @@
   background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
 }
 
+@media (max-width: 900px) {
+  .rg-filtros-toolbar--single-line {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+
+  .rg-filtros-toolbar--single-line .rg-filtros-toolbar__actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
 @media (max-width: 640px) {
   .rg-panel__header {
     padding: 0.9rem 1rem;
@@ -157,23 +169,94 @@
 .rg-alum-filtros {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
+}
+
+/* Barra única: campos + botones en la misma línea */
+.rg-filtros-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.rg-filtros-toolbar--single-line {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  padding-bottom: 0.15rem;
+  scrollbar-width: thin;
+}
+
+.rg-filtros-toolbar__actions {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.rg-filtros-toolbar--single-line .rg-filtros-toolbar__actions {
+  margin-left: auto;
+}
+
+/* Anchos fijos para MUI TextField (evita que Sede ocupe toda la fila) */
+.rg-alum-field.MuiFormControl-root {
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 .rg-alum-field {
-  min-width: 8.5rem;
+  width: 8.5rem;
+}
+
+.rg-alum-field--sede {
+  width: 8.25rem;
+}
+
+.rg-alum-field--sede-compact {
+  width: 7.75rem;
+}
+
+.rg-alum-field--nivel {
+  width: 7.25rem;
 }
 
 .rg-alum-field--grado {
-  min-width: 6.5rem;
+  width: 6.5rem;
 }
 
 .rg-alum-field--sec {
-  min-width: 5.5rem;
+  width: 5.75rem;
+}
+
+.rg-alum-field--turno {
+  width: 7rem;
 }
 
 .rg-alum-field--anio {
-  width: 5.5rem;
+  width: 5.25rem;
+}
+
+.rg-alum-field--nivel-compact {
+  width: 7.25rem;
+}
+
+.rg-alum-field--concepto-compact {
+  width: 9.5rem;
+}
+
+.rg-alum-field--fecha {
+  width: 10.75rem;
+}
+
+.rg-alum-field .MuiInputBase-root {
+  font-size: 0.875rem;
+}
+
+.rg-alum-field .MuiSelect-select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rg-alum-actions {
@@ -222,7 +305,11 @@
   background: #eff6ff;
 }
 
-/* Modal */
+/* Modal — por encima del sidebar (z-index 9999) */
+.rg-alum-modal {
+  z-index: 10050 !important;
+}
+
 .rg-alum-modal__title {
   display: flex !important;
   align-items: center;
@@ -303,6 +390,7 @@
   border-right: 1px solid #f1f5f9;
   color: #334155;
   vertical-align: middle;
+  text-align: center;
 }
 
 .rg-alum-lista-table tbody tr:nth-child(even) {
@@ -321,7 +409,8 @@
 
 .rg-alum-lista-table .col-email {
   font-size: 0.72rem;
-  word-break: break-all;
+  word-break: break-word;
+  text-align: center;
 }
 
 .rg-alum-totales {
@@ -380,21 +469,11 @@
 }
 
 .rg-alum-filtros--compact {
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .rg-alum-actions--compact {
   padding-top: 0;
-}
-
-.rg-alum-field--sede-compact {
-  min-width: 7rem;
-  flex: 1;
-}
-
-.rg-alum-field--nivel-compact {
-  min-width: 7.5rem;
-  flex: 1;
 }
 
 .rg-retirados-hint {
@@ -426,7 +505,7 @@
 }
 
 .rg-resumen-table .col-grupo {
-  text-align: left;
+  text-align: center;
   min-width: 14rem;
 }
 
@@ -464,7 +543,7 @@
 }
 
 .rg-resumen-general-table td:first-child {
-  text-align: left;
+  text-align: center;
   width: 42%;
 }
 
@@ -496,12 +575,13 @@
 
 .rg-deudores-table th,
 .rg-deudores-table td {
-  vertical-align: top;
+  vertical-align: middle;
   padding: 0.45rem 0.5rem;
+  text-align: center;
 }
 
 .rg-alum-field--concepto-compact {
-  min-width: 11rem;
+  width: 9.5rem;
 }
 
 /* Resumen de ingresos */
@@ -525,11 +605,11 @@
 }
 
 .rg-ingresos-filtros {
-  margin-bottom: 0.75rem;
+  margin-bottom: 0;
 }
 
-.rg-alum-field--fecha {
-  min-width: 11.5rem;
+.rg-ingresos-filtros .rg-alum-field--fecha {
+  width: 10.25rem;
 }
 
 .rg-ingresos-section-title {
@@ -550,10 +630,21 @@
   font-size: 0.8rem;
 }
 
+.rg-ingresos-table thead th {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%) !important;
+  color: #fff !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.rg-ingresos-table tbody td {
+  text-align: center;
+}
+
 .rg-ingresos-table th,
 .rg-ingresos-table td {
-  border: 1px solid #cbd5e1;
-  padding: 0.4rem 0.5rem;
+  border: 1px solid #e2e8f0;
+  padding: 0.45rem 0.5rem;
+  text-align: center;
 }
 
 .rg-ingresos-balance {

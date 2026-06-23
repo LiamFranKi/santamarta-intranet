@@ -13,6 +13,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { generarPdfResumenIngresos } from '../../../utils/pdfResumenIngresos';
+import { REPORTE_GENERAL_DIALOG_SX } from './reporteDialogProps';
 
 function fmtMonto(n, moneda) {
   const v = parseFloat(n);
@@ -45,7 +46,7 @@ export default function ModalResumenIngresos({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth scroll="paper" className="rg-alum-modal">
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth scroll="paper" className="rg-alum-modal" sx={REPORTE_GENERAL_DIALOG_SX}>
       <DialogTitle className="rg-alum-modal__title">
         <span>Resumen de Ingresos {rango_etiqueta ? `— ${rango_etiqueta}` : ''}</span>
         <IconButton aria-label="Cerrar" onClick={onClose} size="small">

@@ -3,7 +3,6 @@ import {
   MenuItem,
   TextField,
   CircularProgress,
-  Stack,
 } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import ListAltIcon from '@mui/icons-material/ListAlt';
@@ -210,8 +209,7 @@ export default function ReporteListaAlumnosMatriculados() {
             <span>Cargando filtros…</span>
           </div>
         ) : (
-          <div className="rg-alum-filtros">
-            <Stack direction="row" flexWrap="wrap" gap={1.25} alignItems="center" useFlexGap>
+          <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line">
               {(meta?.sedes || []).length > 0 && (
                 <TextField
                   select
@@ -219,7 +217,7 @@ export default function ReporteListaAlumnosMatriculados() {
                   label="Sede"
                   value={sedeId}
                   onChange={(e) => setSedeId(e.target.value)}
-                  className="rg-alum-field"
+                  className="rg-alum-field rg-alum-field--sede"
                 >
                   {(meta.sedes || []).map((s) => (
                     <MenuItem key={s.id} value={String(s.id)}>
@@ -234,7 +232,7 @@ export default function ReporteListaAlumnosMatriculados() {
                 label="Nivel"
                 value={nivelId}
                 onChange={(e) => onNivelChange(e.target.value)}
-                className="rg-alum-field"
+                className="rg-alum-field rg-alum-field--nivel"
                 required
               >
                 {(meta?.niveles || []).map((n) => (
@@ -280,7 +278,7 @@ export default function ReporteListaAlumnosMatriculados() {
                 label="Turno"
                 value={turnoId}
                 onChange={(e) => setTurnoId(e.target.value)}
-                className="rg-alum-field"
+                className="rg-alum-field rg-alum-field--turno"
                 required
               >
                 {(meta?.turnos || []).map((t) => (
@@ -299,18 +297,17 @@ export default function ReporteListaAlumnosMatriculados() {
                 inputProps={{ min: 2000, max: 2100 }}
                 required
               />
-            </Stack>
-            <div className="rg-alum-actions">
-              <button type="button" className="rg-alum-btn rg-alum-btn--primary" onClick={verUnGrupo}>
-                <VisibilityIcon fontSize="small" aria-hidden />
-                Ver
-              </button>
-              <button type="button" className="rg-alum-btn rg-alum-btn--secondary" onClick={verTodos}>
-                <ListAltIcon fontSize="small" aria-hidden />
-                Ver todos
-              </button>
+              <div className="rg-filtros-toolbar__actions">
+                <button type="button" className="rg-alum-btn rg-alum-btn--primary" onClick={verUnGrupo}>
+                  <VisibilityIcon fontSize="small" aria-hidden />
+                  Ver
+                </button>
+                <button type="button" className="rg-alum-btn rg-alum-btn--secondary" onClick={verTodos}>
+                  <ListAltIcon fontSize="small" aria-hidden />
+                  Ver todos
+                </button>
+              </div>
             </div>
-          </div>
         )}
       </ReporteGeneralPanel>
 

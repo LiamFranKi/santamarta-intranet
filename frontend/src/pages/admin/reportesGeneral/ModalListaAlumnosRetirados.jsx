@@ -13,6 +13,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { generarPdfListaAlumnosRetirados } from '../../../utils/pdfListaAlumnosRetirados';
+import { REPORTE_GENERAL_DIALOG_SX } from './reporteDialogProps';
 
 export default function ModalListaAlumnosRetirados({
   open,
@@ -36,7 +37,7 @@ export default function ModalListaAlumnosRetirados({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth scroll="paper" className="rg-alum-modal">
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth scroll="paper" className="rg-alum-modal" sx={REPORTE_GENERAL_DIALOG_SX}>
       <DialogTitle className="rg-alum-modal__title">
         <span>Lista de alumnos retirados {anio ? `— ${anio}` : ''}</span>
         <IconButton aria-label="Cerrar" onClick={onClose} size="small">

@@ -1,13 +1,13 @@
 import { jsPDF } from 'jspdf';
-import { obtenerLogoColegioDataUrl, dibujarLogoEsquina } from './pdfReporteColegioLogo';
+import { obtenerLogoColegioParaPdf, dibujarLogoEsquina } from './pdfReporteColegioLogo';
+import { PDF_HEADER_BLUE, PDF_BORDER, safeTxtPdf, textoCentradoCelda } from './pdfReportesGeneralTheme';
 
 const MARGIN = 12;
 const ROW_H = 7;
 const HEAD_H = 8;
-const BORDER = [0, 0, 0];
 
 function safeTxt(s) {
-  return String(s ?? '').replace(/\r?\n/g, ' ').trim();
+  return safeTxtPdf(s);
 }
 
 function fmtMonto(n, moneda) {
@@ -24,7 +24,7 @@ export async function generarPdfResumenIngresos({
   filas = [],
   total_ingresos,
 }) {
-  const logoData = await obtenerLogoColegioDataUrl();
+  const logo = await obtenerLogoColegioParaPdf();
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -37,22 +37,25 @@ export async function generarPdfResumenIngresos({
   const labels = ['Nº DE RECIBO', 'MONTO S/.', 'DESCRIPCIÓN', 'ALUMNO', 'FECHA PAGO'];
 
   const drawPageHeader = (yStart) => {
-    const logoH = dibujarLogoEsquina(doc, logoData, { margin: MARGIN, size: 16 });
+    const logoH = dibujarLogoEsquina(doc, logo, { margin: MARGIN });
     let y = Math.max(yStart, MARGIN + logoH);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
-    doc.setTextColor(0, 0, 0);
+    doc.setTextColor(30, 64, 175);
+    doc.text(safeTxt(colegioNombre || 'Colegio'), pageW - MARGIN, y, { align: 'right' });
+    y += 6;
     doc.text('Resumen de Ingresos', pageW - MARGIN, y, { align: 'right' });
     y += 6;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
+    doc.setTextColor(35, 35, 35);
     doc.text(safeTxt(rango_etiqueta), pageW - MARGIN, y, { align: 'right' });
     if (sede_etiqueta) {
       y += 5;
       doc.setFontSize(8.5);
       doc.setTextColor(80, 80, 80);
       doc.text(`Sede: ${safeTxt(sede_etiqueta)}`, pageW - MARGIN, y, { align: 'right' });
-      doc.setTextColor(0, 0, 0);
+      doc.setTextColor(35, 35, 35);
     }
     return y + 10;
   };
@@ -60,29 +63,31 @@ export async function generarPdfResumenIngresos({
   const drawSectionTitle = (y, title) => {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
+    doc.setTextColor(30, 30, 30);
     doc.text(title, MARGIN, y);
     return y + 5;
   };
 
   const drawTableHead = (y) => {
+    doc.setFillColor(...PDF_HEADER_BLUE);
+    doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7);
-    doc.setDrawColor(...BORDER);
-    doc.rect(MARGIN, y, tableW, HEAD_H);
+    doc.rect(MARGIN, y, tableW, HEAD_H, 'F');
     let x = MARGIN;
     labels.forEach((lb, i) => {
       doc.text(lb, x + widths[i] / 2, y + 5.2, { align: 'center', maxWidth: widths[i] - 2 });
       x += widths[i];
-      if (i < labels.length - 1) doc.line(x, y, x, y + HEAD_H);
     });
     return y + HEAD_H;
   };
 
   const drawRow = (y, row) => {
-    doc.setDrawColor(...BORDER);
+    doc.setDrawColor(...PDF_BORDER);
     doc.rect(MARGIN, y, tableW, ROW_H);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6.5);
+    doc.setTextColor(35, 35, 35);
     let x = MARGIN;
     const vals = [
       row.nro_recibo,
@@ -93,10 +98,7 @@ export async function generarPdfResumenIngresos({
     ];
     vals.forEach((v, i) => {
       const w = widths[i];
-      const txt = doc.splitTextToSize(safeTxt(v), w - 2).slice(0, 1)[0] || '';
-      const cx = i <= 1 || i === 4 ? x + w / 2 : x + 1.2;
-      const align = i <= 1 || i === 4 ? 'center' : 'left';
-      doc.text(txt, cx, y + 4.8, { align, maxWidth: w - 2 });
+      textoCentradoCelda(doc, v, x, y + 4.8, w);
       x += w;
       doc.line(x, y, x, y + ROW_H);
     });
@@ -107,7 +109,7 @@ export async function generarPdfResumenIngresos({
     y = drawSectionTitle(y + 6, 'BALANCE');
     const boxW = tableW * 0.35;
     const boxX = MARGIN + (tableW - boxW) / 2;
-    doc.setDrawColor(...BORDER);
+    doc.setDrawColor(...PDF_BORDER);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.rect(boxX, y, boxW, 7);

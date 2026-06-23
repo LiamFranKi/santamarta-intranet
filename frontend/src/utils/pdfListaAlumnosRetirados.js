@@ -1,24 +1,23 @@
 import { jsPDF } from 'jspdf';
-import { obtenerLogoColegioDataUrl, dibujarLogoEsquina } from './pdfReporteColegioLogo';
+import { obtenerLogoColegioParaPdf, dibujarLogoEsquina } from './pdfReporteColegioLogo';
+import { PDF_HEADER_BLUE, PDF_BORDER, safeTxtPdf, textoCentradoCelda } from './pdfReportesGeneralTheme';
 
-const HEADER_BLUE = [30, 64, 175];
-const BORDER = [190, 200, 220];
 const MARGIN = 12;
 const ROW_H = 7;
 const HEAD_H = 8;
 
 function safeTxt(s) {
-  return String(s ?? '').replace(/\r?\n/g, ' ').trim();
+  return safeTxtPdf(s);
 }
 
 export async function generarPdfListaAlumnosRetirados({ colegioNombre, anio, nivel_etiqueta, filas }) {
-  const logoData = await obtenerLogoColegioDataUrl();
+  const logo = await obtenerLogoColegioParaPdf();
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   let y = MARGIN;
 
-  const logoH = dibujarLogoEsquina(doc, logoData, { margin: MARGIN, size: 16 });
+  const logoH = dibujarLogoEsquina(doc, logo, { margin: MARGIN });
   y = Math.max(y, MARGIN + logoH);
 
   doc.setFont('helvetica', 'bold');
@@ -41,7 +40,7 @@ export async function generarPdfListaAlumnosRetirados({ colegioNombre, anio, niv
   const labels = ['APELLIDOS Y NOMBRES', 'GRADO - SECCIÓN', 'Nº DOCUMENTO'];
 
   const drawHead = () => {
-    doc.setFillColor(...HEADER_BLUE);
+    doc.setFillColor(...PDF_HEADER_BLUE);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(7.5);
@@ -66,13 +65,13 @@ export async function generarPdfListaAlumnosRetirados({ colegioNombre, anio, niv
       y = MARGIN;
       drawHead();
     }
-    doc.setDrawColor(...BORDER);
+    doc.setDrawColor(...PDF_BORDER);
     doc.rect(MARGIN, y, tableW, ROW_H);
     let x = MARGIN;
     const vals = [f.alumno_nombre, f.grado_seccion, f.nro_documento];
     vals.forEach((v, i) => {
       const w = widths[i];
-      doc.text(safeTxt(v), x + 1.5, y + 4.6, { maxWidth: w - 2 });
+      textoCentradoCelda(doc, v, x, y + 4.6, w);
       x += w;
     });
     y += ROW_H;

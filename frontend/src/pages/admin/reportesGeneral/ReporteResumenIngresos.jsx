@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { CircularProgress, Stack, TextField } from '@mui/material';
+import { CircularProgress, TextField } from '@mui/material';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import api from '../../../services/api';
 import Swal from 'sweetalert2';
@@ -108,7 +108,7 @@ export default function ReporteResumenIngresos() {
               </p>
             </div>
 
-            <Stack direction="row" flexWrap="wrap" gap={1.5} alignItems="center" useFlexGap className="rg-ingresos-filtros">
+            <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line">
               <FiltrosSedeAnio
                 meta={meta}
                 sedeId={sedeId}
@@ -136,13 +136,12 @@ export default function ReporteResumenIngresos() {
                 className="rg-alum-field rg-alum-field--fecha"
                 InputLabelProps={{ shrink: true }}
               />
-            </Stack>
-
-            <div className="rg-alum-actions">
-              <button type="button" className="rg-alum-btn rg-alum-btn--primary" onClick={verReporte}>
-                <VisibilityIcon fontSize="small" aria-hidden />
-                Ver Reporte
-              </button>
+              <div className="rg-filtros-toolbar__actions">
+                <button type="button" className="rg-alum-btn rg-alum-btn--primary" onClick={verReporte}>
+                  <VisibilityIcon fontSize="small" aria-hidden />
+                  Ver Reporte
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -1,12 +1,11 @@
 import { jsPDF } from 'jspdf';
-import { obtenerLogoColegioDataUrl, dibujarLogoEsquina } from './pdfReporteColegioLogo';
+import { obtenerLogoColegioParaPdf, dibujarLogoEsquina } from './pdfReporteColegioLogo';
+import { PDF_HEADER_BLUE, PDF_BORDER, safeTxtPdf, textoCentradoCelda } from './pdfReportesGeneralTheme';
 
-const HEADER_BLUE = [30, 64, 175];
-const BORDER = [190, 200, 220];
 const MARGIN = 12;
 
 function safeTxt(s) {
-  return String(s ?? '').replace(/\r?\n/g, ' ').trim();
+  return safeTxtPdf(s);
 }
 
 function drawSectionTable(doc, seccion, startY, pageW) {
@@ -21,7 +20,7 @@ function drawSectionTable(doc, seccion, startY, pageW) {
   doc.text(safeTxt(seccion.nivel), MARGIN, y);
   y += 6;
 
-  doc.setFillColor(...HEADER_BLUE);
+  doc.setFillColor(...PDF_HEADER_BLUE);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(8);
   doc.rect(MARGIN, y, tableW, 7, 'F');
@@ -43,15 +42,13 @@ function drawSectionTable(doc, seccion, startY, pageW) {
       doc.addPage();
       y = MARGIN;
     }
-    doc.setDrawColor(...BORDER);
+    doc.setDrawColor(...PDF_BORDER);
     doc.rect(MARGIN, y, tableW, 6);
     x = MARGIN;
     const vals = [fila.grupo, String(fila.hombres), String(fila.mujeres), String(fila.total)];
     vals.forEach((v, i) => {
       const w = widths[i];
-      const align = i === 0 ? 'left' : 'center';
-      const tx = i === 0 ? x + 1.5 : x + w / 2;
-      doc.text(safeTxt(v), tx, y + 4.2, { align, maxWidth: w - 2 });
+      textoCentradoCelda(doc, v, x, y + 4.2, w);
       x += w;
     });
     y += 6;
@@ -63,8 +60,7 @@ function drawSectionTable(doc, seccion, startY, pageW) {
   const totVals = ['TOTAL', String(seccion.totales?.hombres ?? 0), String(seccion.totales?.mujeres ?? 0), String(seccion.totales?.total ?? 0)];
   totVals.forEach((v, i) => {
     const w = widths[i];
-    const tx = i === 0 ? x + 1.5 : x + w / 2;
-    doc.text(v, tx, y + 4.8, { align: i === 0 ? 'left' : 'center' });
+    textoCentradoCelda(doc, v, x, y + 4.8, w);
     x += w;
   });
   y += 12;
@@ -73,12 +69,12 @@ function drawSectionTable(doc, seccion, startY, pageW) {
 }
 
 export async function generarPdfResumenAlumnosMatriculados({ colegioNombre, anio, secciones, total_general }) {
-  const logoData = await obtenerLogoColegioDataUrl();
+  const logo = await obtenerLogoColegioParaPdf();
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   let y = MARGIN;
 
-  const logoH = dibujarLogoEsquina(doc, logoData, { margin: MARGIN, size: 16 });
+  const logoH = dibujarLogoEsquina(doc, logo, { margin: MARGIN });
   y = Math.max(y, MARGIN + logoH);
 
   doc.setFont('helvetica', 'bold');
@@ -116,8 +112,7 @@ export async function generarPdfResumenAlumnosMatriculados({ colegioNombre, anio
   let x = MARGIN;
   ['TOTAL GENERAL', String(tg.hombres), String(tg.mujeres), String(tg.total)].forEach((v, i) => {
     const w = widths[i];
-    const tx = i === 0 ? x + 1.5 : x + w / 2;
-    doc.text(v, tx, y + 5.5, { align: i === 0 ? 'left' : 'center' });
+    textoCentradoCelda(doc, v, x, y + 5.5, w);
     x += w;
   });
 

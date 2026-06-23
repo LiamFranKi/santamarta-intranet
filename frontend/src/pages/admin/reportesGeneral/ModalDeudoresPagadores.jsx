@@ -13,6 +13,7 @@ import {
 import CloseIcon from '@mui/icons-material/Close';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { generarPdfAlumnosDeudoresPagadores } from '../../../utils/pdfAlumnosDeudoresPagadores';
+import { REPORTE_GENERAL_DIALOG_SX } from './reporteDialogProps';
 
 function fmtMonto(n, moneda) {
   if (n == null || n === '') return '—';
@@ -65,7 +66,7 @@ export default function ModalDeudoresPagadores({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth scroll="paper" className="rg-alum-modal">
+    <Dialog open={open} onClose={onClose} maxWidth="xl" fullWidth scroll="paper" className="rg-alum-modal" sx={REPORTE_GENERAL_DIALOG_SX}>
       <DialogTitle className="rg-alum-modal__title">
         <span>
           {tituloModal} {anio ? `— ${anio}` : ''}

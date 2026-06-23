@@ -1,15 +1,14 @@
 import { jsPDF } from 'jspdf';
-import { obtenerLogoColegioDataUrl, dibujarLogoEsquina } from './pdfReporteColegioLogo';
+import { obtenerLogoColegioParaPdf, dibujarLogoEsquina } from './pdfReporteColegioLogo';
+import { PDF_HEADER_BLUE, PDF_BORDER, safeTxtPdf, textoCentradoCelda } from './pdfReportesGeneralTheme';
 
-const HEADER_BLUE = [30, 64, 175];
-const BORDER = [190, 200, 220];
 const MARGIN = 10;
 const ROW_H = 8;
 const HEAD_H = 8;
 const BOTTOM_SAFE = 22;
 
 function safeTxt(s) {
-  return String(s ?? '').replace(/\r?\n/g, ' ').trim();
+  return safeTxtPdf(s);
 }
 
 function fmtMonto(n, moneda) {
@@ -68,7 +67,7 @@ export async function generarPdfAlumnosDeudoresPagadores(opts) {
     total_registros: totalRegOpt,
   } = opts;
 
-  const logoData = await obtenerLogoColegioDataUrl();
+  const logo = await obtenerLogoColegioParaPdf();
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -83,7 +82,7 @@ export async function generarPdfAlumnosDeudoresPagadores(opts) {
   const totalReg = typeof totalRegOpt === 'number' ? totalRegOpt : (filas || []).length;
 
   function drawHeader(yStart) {
-    const logoH = dibujarLogoEsquina(doc, logoData, { margin: MARGIN, size: 14 });
+    const logoH = dibujarLogoEsquina(doc, logo, { margin: MARGIN });
     let y = Math.max(yStart, MARGIN + logoH);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
@@ -104,7 +103,7 @@ export async function generarPdfAlumnosDeudoresPagadores(opts) {
   }
 
   function drawTableHead(y) {
-    doc.setFillColor(...HEADER_BLUE);
+    doc.setFillColor(...PDF_HEADER_BLUE);
     doc.rect(MARGIN, y, innerW, HEAD_H, 'F');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
@@ -119,7 +118,7 @@ export async function generarPdfAlumnosDeudoresPagadores(opts) {
   }
 
   function drawRow(y, row) {
-    doc.setDrawColor(...BORDER);
+    doc.setDrawColor(...PDF_BORDER);
     doc.rect(MARGIN, y, innerW, ROW_H);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(6);
@@ -136,8 +135,7 @@ export async function generarPdfAlumnosDeudoresPagadores(opts) {
     ];
     vals.forEach((v, i) => {
       const w = cols[i].w;
-      const txt = doc.splitTextToSize(safeTxt(v), w - 2).slice(0, 2)[0] || '';
-      doc.text(txt, x + 1.2, y + 5, { maxWidth: w - 2 });
+      textoCentradoCelda(doc, v, x, y + 5, w, 2);
       x += w;
       doc.line(x, y, x, y + ROW_H);
     });

@@ -1,27 +1,25 @@
 import { jsPDF } from 'jspdf';
-import { obtenerLogoColegioDataUrl, dibujarLogoEsquina } from './pdfReporteColegioLogo';
+import { obtenerLogoColegioParaPdf, dibujarLogoEsquina } from './pdfReporteColegioLogo';
+import { PDF_HEADER_BLUE, PDF_BORDER, safeTxtPdf, textoCentradoCelda } from './pdfReportesGeneralTheme';
 
-const HEADER_BLUE = [30, 64, 175];
-const BORDER = [190, 200, 220];
 const ROW_H = 7;
 const HEAD_H = 8;
 const MARGIN = 10;
 const FOOTER_H = 14;
 
 const COLS = [
-  { key: 'n', label: 'N°', w: 7, align: 'center' },
-  { key: 'alumno_nombre', label: 'Apellidos y Nombres', w: 42, align: 'left' },
-  { key: 'alumno_dni', label: 'N° Doc.', w: 18, align: 'center' },
-  { key: 'apoderado_nombre', label: 'Apoderado', w: 38, align: 'left' },
-  { key: 'apoderado_dni', label: 'N° Doc.', w: 18, align: 'center' },
-  { key: 'fecha_nacimiento', label: 'Fec.Nac.', w: 18, align: 'center' },
-  { key: 'telefono', label: 'Teléfono', w: 20, align: 'center' },
-  { key: 'email', label: 'Email', w: 29, align: 'left' },
+  { key: 'n', label: 'N°', w: 7 },
+  { key: 'alumno_nombre', label: 'Apellidos y Nombres', w: 42 },
+  { key: 'alumno_dni', label: 'N° Doc.', w: 18 },
+  { key: 'apoderado_nombre', label: 'Apoderado', w: 38 },
+  { key: 'apoderado_dni', label: 'N° Doc.', w: 18 },
+  { key: 'fecha_nacimiento', label: 'Fec.Nac.', w: 18 },
+  { key: 'telefono', label: 'Teléfono', w: 20 },
+  { key: 'email', label: 'Email', w: 29 },
 ];
 
 function safeTxt(s) {
-  if (s == null) return '';
-  return String(s).replace(/\r?\n/g, ' ').trim();
+  return safeTxtPdf(s);
 }
 
 function fmtFecha(iso) {
@@ -46,7 +44,7 @@ function drawTableHeader(doc, y, pageW) {
   const totalW = totalColWidth();
   const scale = (pageW - MARGIN * 2) / totalW;
   let x = MARGIN;
-  doc.setFillColor(...HEADER_BLUE);
+  doc.setFillColor(...PDF_HEADER_BLUE);
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(7);
@@ -63,21 +61,14 @@ function drawRow(doc, fila, y, pageW) {
   const totalW = totalColWidth();
   const scale = (pageW - MARGIN * 2) / totalW;
   let x = MARGIN;
-  doc.setDrawColor(...BORDER);
+  doc.setDrawColor(...PDF_BORDER);
   doc.setTextColor(35, 35, 35);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(6.3);
   doc.rect(MARGIN, y, pageW - MARGIN * 2, ROW_H);
   for (const col of COLS) {
     const w = col.w * scale;
-    const val = safeTxt(fila[col.key]);
-    const lines = doc.splitTextToSize(val, w - 2).slice(0, 2);
-    const txt = lines[0] || '';
-    const cx = col.align === 'center' ? x + w / 2 : x + 1.5;
-    doc.text(txt, cx, y + 4.8, {
-      align: col.align === 'center' ? 'center' : 'left',
-      maxWidth: w - 2,
-    });
+    textoCentradoCelda(doc, fila[col.key], x, y + 4.8, w);
     x += w;
     doc.line(x, y, x, y + ROW_H);
   }
@@ -96,7 +87,7 @@ function drawTotales(doc, totales, y, pageW) {
   doc.setTextColor(30, 64, 175);
   labels.forEach((lb, i) => {
     const x0 = MARGIN + i * boxW;
-    doc.setDrawColor(...BORDER);
+    doc.setDrawColor(...PDF_BORDER);
     doc.rect(x0, y, boxW, FOOTER_H);
     doc.text(lb.t, x0 + boxW / 2, y + 5, { align: 'center' });
     doc.setFontSize(11);
@@ -121,7 +112,7 @@ function drawBloqueGrupo(doc, { titulo, filas, totales, colegioNombre, esPrimera
     y = MARGIN;
   }
 
-  const logoH = dibujarLogoEsquina(doc, logoData, { margin: MARGIN, size: 14 });
+  const logoH = dibujarLogoEsquina(doc, logoData, { margin: MARGIN });
   y = Math.max(y, MARGIN + logoH);
 
   doc.setFont('helvetica', 'bold');
@@ -176,7 +167,7 @@ function drawBloqueGrupo(doc, { titulo, filas, totales, colegioNombre, esPrimera
  * @param {{ colegioNombre?: string, titulo?: string, filas?: object[], totales?: object }} payload — un grupo
  */
 export async function generarPdfListaAlumnosUnGrupo(payload) {
-  const logoData = await obtenerLogoColegioDataUrl();
+  const logo = await obtenerLogoColegioParaPdf();
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   drawBloqueGrupo(doc, {
     colegioNombre: payload.colegioNombre,
@@ -184,7 +175,7 @@ export async function generarPdfListaAlumnosUnGrupo(payload) {
     filas: payload.filas || [],
     totales: payload.totales || { hombres: 0, mujeres: 0, total: 0 },
     esPrimeraPagina: true,
-    logoData,
+    logoData: logo,
   });
   const safeName = safeTxt(payload.titulo).replace(/[^\w\s-]/g, '').slice(0, 40) || 'lista';
   doc.save(`lista_alumnos_${safeName}.pdf`);
@@ -194,7 +185,7 @@ export async function generarPdfListaAlumnosUnGrupo(payload) {
  * @param {{ colegioNombre?: string, bloques?: { titulo, filas, totales }[], totales_generales?: object }} payload
  */
 export async function generarPdfListaAlumnosTodosGrupos(payload) {
-  const logoData = await obtenerLogoColegioDataUrl();
+  const logo = await obtenerLogoColegioParaPdf();
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const bloques = payload.bloques || [];
   if (!bloques.length) {
@@ -210,7 +201,7 @@ export async function generarPdfListaAlumnosTodosGrupos(payload) {
       filas: bloque.filas,
       totales: bloque.totales,
       esPrimeraPagina: i === 0,
-      logoData,
+      logoData: logo,
     });
   });
   doc.save('lista_alumnos_todos_grados.pdf');
