@@ -68,9 +68,12 @@ export async function generarPdfListaPersonal({ colegioNombre, titulo, subtitulo
       doc.addPage();
       y = MARGIN;
       drawHead();
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(35, 35, 35);
     }
     doc.setDrawColor(...PDF_BORDER);
-    doc.rect(MARGIN, y, tableW, ROW_H);
+    doc.rect(MARGIN, y, tableW, ROW_H, 'S');
     let x = MARGIN;
     const vals = [f.nombre_completo, f.perfil, f.fecha_nacimiento, f.telefono, f.email];
     vals.forEach((v, i) => {

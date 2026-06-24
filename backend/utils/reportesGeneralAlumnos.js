@@ -6,6 +6,7 @@ const { query } = require('./mysql');
 const { sqlMatriculaEstadoSoloRegular } = require('./matriculaEstados');
 const {
   columnExists,
+  compararNivelGradoApellido,
 } = require('./listaAlumnosMatriculadosReporte');
 
 const FILL_CABECERA = 'FFC6EFCE';
@@ -41,18 +42,6 @@ function nombreAlumnoExcel(row) {
   if (ap && nom) return `${ap}, ${nom}`;
   if (ap) return ap;
   return nom || '—';
-}
-
-function compararPorApellido(a, b) {
-  const ap = String(a.apellido_paterno || '').localeCompare(String(b.apellido_paterno || ''), 'es', {
-    sensitivity: 'base',
-  });
-  if (ap !== 0) return ap;
-  const am = String(a.apellido_materno || '').localeCompare(String(b.apellido_materno || ''), 'es', {
-    sensitivity: 'base',
-  });
-  if (am !== 0) return am;
-  return String(a.nombres || '').localeCompare(String(b.nombres || ''), 'es', { sensitivity: 'base' });
 }
 
 function normalizarFiltroAntiguedad(raw) {
@@ -121,10 +110,11 @@ async function cargarAlumnosReporte(colegioId, anio, sedeId, filtroAntiguedad) {
   }
 
   sql += `
-    ORDER BY a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC`;
+    ORDER BY g.nivel_id ASC, g.grado ASC, g.seccion ASC,
+             a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC`;
 
   const rows = await query(sql, params);
-  return [...(rows || [])].sort(compararPorApellido);
+  return [...(rows || [])].sort(compararNivelGradoApellido);
 }
 
 function aplicarBordeFila(row, colCount) {

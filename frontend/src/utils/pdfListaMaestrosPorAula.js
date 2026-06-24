@@ -59,9 +59,12 @@ export async function generarPdfListaMaestrosPorAula({ colegioNombre, titulo, fi
       doc.addPage();
       y = MARGIN;
       drawHead();
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(35, 35, 35);
     }
     doc.setDrawColor(...PDF_BORDER);
-    doc.rect(MARGIN, y, tableW, ROW_H);
+    doc.rect(MARGIN, y, tableW, ROW_H, 'S');
     let x = MARGIN;
     const vals = [f.profesor_nombre, f.curso];
     vals.forEach((v, i) => {

@@ -7,6 +7,7 @@ const { sqlMatriculaEstadoSoloRegular } = require('./matriculaEstados');
 const { sqlFiltroAnioPago } = require('./pagoFechaHora');
 const {
   columnExists,
+  compararNivelGradoApellido,
 } = require('./listaAlumnosMatriculadosReporte');
 const { cargarConfigColegio } = require('./reportesGeneralDeudoresPagadores');
 
@@ -61,18 +62,6 @@ function celdaAlumno(row) {
   return `${ap} ${am} ${nom}`;
 }
 
-function compararPorApellido(a, b) {
-  const ap = String(a.apellido_paterno || '').localeCompare(String(b.apellido_paterno || ''), 'es', {
-    sensitivity: 'base',
-  });
-  if (ap !== 0) return ap;
-  const am = String(a.apellido_materno || '').localeCompare(String(b.apellido_materno || ''), 'es', {
-    sensitivity: 'base',
-  });
-  if (am !== 0) return am;
-  return String(a.nombres || '').localeCompare(String(b.nombres || ''), 'es', { sensitivity: 'base' });
-}
-
 function saldoPendiente(tarifa, pagado) {
   const t = parseFloat(tarifa) || 0;
   const p = parseFloat(pagado) || 0;
@@ -120,9 +109,10 @@ async function cargarMatriculasDeudaAnual(colegioId, anio, sedeId) {
     params.push(sedeId);
   }
   sql += `
-    ORDER BY a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC`;
+    ORDER BY g.nivel_id ASC, g.grado ASC, g.seccion ASC,
+             a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC`;
   const rows = await query(sql, params);
-  return [...(rows || [])].sort(compararPorApellido);
+  return [...(rows || [])].sort(compararNivelGradoApellido);
 }
 
 async function cargarPagosPorMatricula(colegioId, matriculaIds, totalPensiones, anio) {

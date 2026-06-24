@@ -107,6 +107,7 @@ export async function generarPdfAsistenciaMensual({ colegioNombre, titulo, subti
 
     const y2 = y + HEAD_H;
     x = MARGIN + wNombre;
+    doc.setFillColor(...PDF_HEADER_BLUE);
     cols.forEach((c) => {
       doc.rect(x, y2, wDia, HEAD_H, 'FD');
       textoCabeceraCelda(doc, etiquetaDiaNumero(c), x, y2, wDia, HEAD_H);

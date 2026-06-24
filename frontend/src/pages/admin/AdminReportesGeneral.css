@@ -812,6 +812,11 @@
   padding: 0.25rem !important;
 }
 
+.rg-asist-mes-table thead .rg-asist-mes-col-dia {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%) !important;
+  color: #fff !important;
+}
+
 .rg-asist-mes-table tbody td {
   text-align: center;
   vertical-align: middle;

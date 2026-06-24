@@ -12,6 +12,29 @@ function ordenNivelEducativoNombre(nombre) {
   return 9;
 }
 
+function compararNivelGradoApellido(a, b) {
+  const oa = ordenNivelEducativoNombre(a.nivel_nombre);
+  const ob = ordenNivelEducativoNombre(b.nivel_nombre);
+  if (oa !== ob) return oa - ob;
+  const nid = (parseInt(a.nivel_id, 10) || 0) - (parseInt(b.nivel_id, 10) || 0);
+  if (nid !== 0) return nid;
+  const gd = (parseInt(a.grado, 10) || 0) - (parseInt(b.grado, 10) || 0);
+  if (gd !== 0) return gd;
+  const sc = String(a.seccion || '').localeCompare(String(b.seccion || ''), 'es', {
+    sensitivity: 'base',
+  });
+  if (sc !== 0) return sc;
+  const ap = String(a.apellido_paterno || '').localeCompare(String(b.apellido_paterno || ''), 'es', {
+    sensitivity: 'base',
+  });
+  if (ap !== 0) return ap;
+  const am = String(a.apellido_materno || '').localeCompare(String(b.apellido_materno || ''), 'es', {
+    sensitivity: 'base',
+  });
+  if (am !== 0) return am;
+  return String(a.nombres || '').localeCompare(String(b.nombres || ''), 'es', { sensitivity: 'base' });
+}
+
 function etiquetaGradoTitulo(nivelNombre, grado) {
   const n = String(nivelNombre || '').toLowerCase();
   const g = grado != null && grado !== '' ? String(grado).trim() : '';
@@ -249,6 +272,7 @@ async function obtenerListaTodosGrupos(colegioId, { anio, turnoId, sedeId }) {
 
 module.exports = {
   ordenNivelEducativoNombre,
+  compararNivelGradoApellido,
   etiquetaGradoTitulo,
   buildTituloGrupo,
   calcularTotales,
