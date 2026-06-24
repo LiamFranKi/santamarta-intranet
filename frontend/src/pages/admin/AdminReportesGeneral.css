@@ -781,11 +781,17 @@
   font-size: 0.78rem;
 }
 
+.rg-asist-mes-table thead {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+}
+
 .rg-asist-mes-table thead th {
   text-align: center;
   padding: 0.35rem 0.25rem;
   font-size: 0.72rem;
   white-space: nowrap;
+  background: transparent !important;
+  color: #fff !important;
 }
 
 .rg-asist-mes-col-nombre {

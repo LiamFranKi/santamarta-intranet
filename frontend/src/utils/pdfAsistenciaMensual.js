@@ -84,35 +84,45 @@ export async function generarPdfAsistenciaMensual({ colegioNombre, titulo, subti
 
   const wNombre = 52;
   const tableW = pageW - MARGIN * 2;
-  const wDia = (tableW - wNombre) / numDias;
+  const wDiasTotal = tableW - wNombre;
+  const wDia = numDias > 0 ? wDiasTotal / numDias : wDiasTotal;
+
+  const anchoCeldaDia = (index) => {
+    if (numDias <= 0) return wDia;
+    const xInicio = MARGIN + wNombre + index * wDia;
+    if (index === numDias - 1) return MARGIN + tableW - xInicio;
+    return wDia;
+  };
 
   const drawHead = (startY) => {
-    let y = startY;
+    const y = startY;
     const headTotalH = HEAD_H * HEAD_ROWS;
+    const xDias = MARGIN + wNombre;
 
-    doc.setFillColor(...PDF_HEADER_BLUE);
     doc.setDrawColor(...PDF_BORDER);
     doc.setFontSize(6);
 
-    doc.rect(MARGIN, y, wNombre, headTotalH, 'FD');
+    // Fondo azul continuo (jsPDF no siempre rellena bien muchas celdas pequeñas con 'FD')
+    doc.setFillColor(...PDF_HEADER_BLUE);
+    doc.rect(MARGIN, y, wNombre, headTotalH, 'F');
+    doc.rect(xDias, y, wDiasTotal, headTotalH, 'F');
+
+    // Contornos
+    doc.rect(MARGIN, y, tableW, headTotalH, 'S');
+    doc.line(xDias, y, xDias, y + headTotalH);
+    doc.line(MARGIN, y + HEAD_H, MARGIN + tableW, y + HEAD_H);
+
+    let x = xDias;
+    cols.forEach((c, i) => {
+      const cw = anchoCeldaDia(i);
+      if (i > 0) doc.line(x, y, x, y + headTotalH);
+      textoCabeceraCelda(doc, etiquetaDiaSemana(c), x, y, cw, HEAD_H);
+      textoCabeceraCelda(doc, etiquetaDiaNumero(c), x, y + HEAD_H, cw, HEAD_H);
+      x += cw;
+    });
+
     textoCabeceraCelda(doc, 'APELLIDOS Y', MARGIN, y, wNombre, HEAD_H);
     textoCabeceraCelda(doc, 'NOMBRES', MARGIN, y + HEAD_H, wNombre, HEAD_H);
-
-    let x = MARGIN + wNombre;
-    cols.forEach((c) => {
-      doc.rect(x, y, wDia, HEAD_H, 'FD');
-      textoCabeceraCelda(doc, etiquetaDiaSemana(c), x, y, wDia, HEAD_H);
-      x += wDia;
-    });
-
-    const y2 = y + HEAD_H;
-    x = MARGIN + wNombre;
-    doc.setFillColor(...PDF_HEADER_BLUE);
-    cols.forEach((c) => {
-      doc.rect(x, y2, wDia, HEAD_H, 'FD');
-      textoCabeceraCelda(doc, etiquetaDiaNumero(c), x, y2, wDia, HEAD_H);
-      x += wDia;
-    });
 
     return y + headTotalH;
   };
@@ -136,7 +146,7 @@ export async function generarPdfAsistenciaMensual({ colegioNombre, titulo, subti
     }
 
     doc.setDrawColor(...PDF_BORDER);
-    doc.rect(MARGIN, y, tableW, ROW_H);
+    doc.rect(MARGIN, y, tableW, ROW_H, 'S');
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(35, 35, 35);
@@ -145,10 +155,11 @@ export async function generarPdfAsistenciaMensual({ colegioNombre, titulo, subti
     doc.text(nomLines[0] || '', MARGIN + 1.5, y + 3.8, { maxWidth: wNombre - 2 });
 
     let x = MARGIN + wNombre;
-    (f.marcas || []).forEach((cod) => {
+    (f.marcas || []).forEach((cod, j) => {
+      const cw = anchoCeldaDia(j);
       colorPdfCodigo(doc, cod);
-      textoCentradoMark(doc, cod, x, y + 3.8, wDia);
-      x += wDia;
+      textoCentradoMark(doc, cod, x, y + 3.8, cw);
+      x += cw;
     });
     doc.setTextColor(35, 35, 35);
     doc.setFont('helvetica', 'normal');
