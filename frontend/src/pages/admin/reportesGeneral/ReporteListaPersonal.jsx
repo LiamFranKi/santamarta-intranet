@@ -22,7 +22,7 @@ export default function ReporteListaPersonal() {
   const [sedeId, setSedeId] = useState('');
   const [turnoId, setTurnoId] = useState('');
   const [anio, setAnio] = useState('');
-  const [ordenCampo, setOrdenCampo] = useState('NOMBRES');
+  const [ordenCampo, setOrdenCampo] = useState('APELLIDOS');
   const [ordenDir, setOrdenDir] = useState('ASC');
 
   const onDefaults = useCallback((data) => {

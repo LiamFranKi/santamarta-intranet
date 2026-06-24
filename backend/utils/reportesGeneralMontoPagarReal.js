@@ -69,6 +69,18 @@ function etiquetasMesesPension(totalPensiones, inicioPensiones) {
   return labels;
 }
 
+function compararPorApellido(a, b) {
+  const ap = String(a.apellido_paterno || '').localeCompare(String(b.apellido_paterno || ''), 'es', {
+    sensitivity: 'base',
+  });
+  if (ap !== 0) return ap;
+  const am = String(a.apellido_materno || '').localeCompare(String(b.apellido_materno || ''), 'es', {
+    sensitivity: 'base',
+  });
+  if (am !== 0) return am;
+  return String(a.nombres || '').localeCompare(String(b.nombres || ''), 'es', { sensitivity: 'base' });
+}
+
 function compararGrupo(a, b) {
   const oa = ordenNivelEducativoNombre(a.nivel_nombre);
   const ob = ordenNivelEducativoNombre(b.nivel_nombre);
@@ -81,15 +93,7 @@ function compararGrupo(a, b) {
 }
 
 function compararAlumno(a, b) {
-  const ap = String(a.apellido_paterno || '').localeCompare(String(b.apellido_paterno || ''), 'es', {
-    sensitivity: 'base',
-  });
-  if (ap !== 0) return ap;
-  const am = String(a.apellido_materno || '').localeCompare(String(b.apellido_materno || ''), 'es', {
-    sensitivity: 'base',
-  });
-  if (am !== 0) return am;
-  return String(a.nombres || '').localeCompare(String(b.nombres || ''), 'es', { sensitivity: 'base' });
+  return compararPorApellido(a, b);
 }
 
 async function cargarMatriculasMontoPagar(colegioId, anio, sedeId) {
@@ -205,6 +209,26 @@ function pintarFila(row, colCount, fillArgb, bold = false, centerNums = false) {
   aplicarBordeFila(row, colCount);
 }
 
+function pintarFilaEtiquetaTotales(row, colCount, fillArgb, etiquetaCol, etiquetaTexto) {
+  for (let c = 1; c <= colCount; c += 1) {
+    const cell = row.getCell(c);
+    if (fillArgb) {
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillArgb } };
+    }
+    const esEtiqueta = c === etiquetaCol;
+    cell.font = { bold: esEtiqueta, size: 10 };
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: esEtiqueta || c >= 4 ? 'center' : 'left',
+    };
+  }
+  aplicarBordeFila(row, colCount);
+  const labelCell = row.getCell(etiquetaCol);
+  labelCell.value = etiquetaTexto;
+  labelCell.font = { bold: true, size: 10 };
+  labelCell.alignment = { vertical: 'middle', horizontal: 'center' };
+}
+
 async function construirDatosReporte(colegioId, filtros) {
   const anio = parseInt(filtros.anio, 10);
   const sedeId = filtros.sedeId != null ? parseInt(filtros.sedeId, 10) : null;
@@ -294,7 +318,7 @@ async function generarExcelMontoPagarReal(colegioId, filtros) {
     gCell.value = bloque.titulo;
     gCell.font = { bold: true, size: 10 };
     gCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_GRUPO } };
-    gCell.alignment = { horizontal: 'left', vertical: 'middle' };
+    gCell.alignment = { horizontal: 'center', vertical: 'middle' };
     aplicarBordeFila(ws.getRow(r), colCount);
     ws.getRow(r).height = 18;
     r += 1;
@@ -321,14 +345,14 @@ async function generarExcelMontoPagarReal(colegioId, filtros) {
 
     const totRow = ws.getRow(r);
     totRow.values = [
+      '',
+      '',
       'TOTALES',
-      '',
-      '',
       bloque.totales.matricula,
       ...bloque.totales.pensiones,
       bloque.totales.anual,
     ];
-    pintarFila(totRow, colCount, FILL_TOTALES, true, true);
+    pintarFilaEtiquetaTotales(totRow, colCount, FILL_TOTALES, 3, 'TOTALES');
     ws.getRow(r).height = 18;
     r += 1;
 
@@ -337,14 +361,14 @@ async function generarExcelMontoPagarReal(colegioId, filtros) {
 
   const granRow = ws.getRow(r);
   granRow.values = [
-    'TOTAL ANUALES',
     '',
+    'TOTALES ANUALES',
     '',
     totalAnuales.matricula,
     ...totalAnuales.pensiones,
     totalAnuales.anual,
   ];
-  pintarFila(granRow, colCount, FILL_TOTALES, true, true);
+  pintarFilaEtiquetaTotales(granRow, colCount, FILL_TOTALES, 2, 'TOTALES ANUALES');
 
   const buffer = await wb.xlsx.writeBuffer();
   return {

@@ -5,12 +5,12 @@ const ExcelJS = require('exceljs');
 const { query } = require('./mysql');
 const { sqlMatriculaEstadoSoloRegular } = require('./matriculaEstados');
 const {
-  ordenNivelEducativoNombre,
   columnExists,
 } = require('./listaAlumnosMatriculadosReporte');
 
 const FILL_CABECERA = 'FFC6EFCE';
 const FILL_FILA_PAR = 'FFF5FBF5';
+const FILL_RESUMEN = 'FFE8F5E9';
 const BORDER_THIN = { style: 'thin', color: { argb: 'FF000000' } };
 
 const ANTIGUEDAD_FILTROS = new Set(['todos', 'antiguos', 'nuevos']);
@@ -43,16 +43,7 @@ function nombreAlumnoExcel(row) {
   return nom || '—';
 }
 
-function compararFila(a, b) {
-  const oa = ordenNivelEducativoNombre(a.nivel_nombre);
-  const ob = ordenNivelEducativoNombre(b.nivel_nombre);
-  if (oa !== ob) return oa - ob;
-  const nid = (parseInt(a.nivel_id, 10) || 0) - (parseInt(b.nivel_id, 10) || 0);
-  if (nid !== 0) return nid;
-  const gd = (parseInt(a.grado, 10) || 0) - (parseInt(b.grado, 10) || 0);
-  if (gd !== 0) return gd;
-  const sc = String(a.seccion || '').localeCompare(String(b.seccion || ''), 'es', { sensitivity: 'base' });
-  if (sc !== 0) return sc;
+function compararPorApellido(a, b) {
   const ap = String(a.apellido_paterno || '').localeCompare(String(b.apellido_paterno || ''), 'es', {
     sensitivity: 'base',
   });
@@ -130,11 +121,10 @@ async function cargarAlumnosReporte(colegioId, anio, sedeId, filtroAntiguedad) {
   }
 
   sql += `
-    ORDER BY n.id ASC, g.grado ASC, g.seccion ASC,
-             a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC`;
+    ORDER BY a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC`;
 
   const rows = await query(sql, params);
-  return [...(rows || [])].sort(compararFila);
+  return [...(rows || [])].sort(compararPorApellido);
 }
 
 function aplicarBordeFila(row, colCount) {
@@ -157,15 +147,21 @@ function pintarFilaDatos(row, colCount, fillArgb, par = false) {
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } };
     }
     cell.font = { size: 10 };
-    if (c === 2) {
-      cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false };
-    } else if (c === 3) {
-      cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: false };
-    } else {
-      cell.alignment = { vertical: 'middle', horizontal: 'center' };
-    }
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: c === 2 || c === 3 };
   }
   aplicarBordeFila(row, colCount);
+}
+
+function pintarFilaResumen(row, colCount, etiqueta, valor) {
+  for (let c = 1; c <= colCount; c += 1) {
+    const cell = row.getCell(c);
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_RESUMEN } };
+    cell.font = { bold: c === 2, size: 10 };
+    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+  }
+  aplicarBordeFila(row, colCount);
+  row.getCell(2).value = etiqueta;
+  row.getCell(5).value = valor;
 }
 
 async function construirDatosReporte(colegioId, filtros) {
@@ -195,12 +191,17 @@ async function construirDatosReporte(colegioId, filtros) {
     antiguedad: row.antiguedad || 'NUEVO',
   }));
 
+  const totalNuevos = filas.filter((f) => f.antiguedad === 'NUEVO').length;
+  const totalAntiguos = filas.filter((f) => f.antiguedad === 'ANTIGUO').length;
+
   return {
     ok: true,
     anio,
     antiguedad,
     filas,
     total: filas.length,
+    total_nuevos: totalNuevos,
+    total_antiguos: totalAntiguos,
   };
 }
 
@@ -208,7 +209,7 @@ async function generarExcelReporteAlumnos(colegioId, filtros) {
   const data = await construirDatosReporte(colegioId, filtros);
   if (!data.ok) return data;
 
-  const { anio, filas } = data;
+  const { anio, filas, total, total_nuevos: totalNuevos, total_antiguos: totalAntiguos } = data;
   const colCount = 5;
   const lastCol = 'E';
   const cabecera = ['N°', 'Apellidos y Nombres', 'Grupo', 'DNI', 'ANTIGUEDAD'];
@@ -248,6 +249,19 @@ async function generarExcelReporteAlumnos(colegioId, filtros) {
     const row = ws.getRow(r);
     row.values = [alumno.numero, alumno.nombre, alumno.grupo, alumno.dni, alumno.antiguedad];
     pintarFilaDatos(row, colCount, null, i % 2 === 1);
+    r += 1;
+  }
+
+  r += 1;
+  const resumenFilas = [
+    ['TOTAL ALUMNOS', total],
+    ['TOTAL NUEVOS', totalNuevos],
+    ['TOTAL ANTIGUOS', totalAntiguos],
+  ];
+  for (const [etiqueta, valor] of resumenFilas) {
+    const resRow = ws.getRow(r);
+    pintarFilaResumen(resRow, colCount, etiqueta, valor);
+    ws.getRow(r).height = 18;
     r += 1;
   }
 

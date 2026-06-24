@@ -87,7 +87,7 @@ async function obtenerListaPersonal(colegioId, filtros) {
   const anio = parseInt(filtros.anio, 10);
   const sedeId = filtros.sedeId != null ? parseInt(filtros.sedeId, 10) : null;
   const turnoId = filtros.turnoId != null ? parseInt(filtros.turnoId, 10) : null;
-  const campoRaw = String(filtros.ordenCampo || 'NOMBRES').toUpperCase();
+  const campoRaw = String(filtros.ordenCampo || 'APELLIDOS').toUpperCase();
   const campoKey = campoRaw === 'CARGO' ? 'PERFIL' : campoRaw;
   const ordenCampo = ORDEN_CAMPOS[campoKey] || ORDEN_CAMPOS.NOMBRES;
   const dirRaw = String(filtros.ordenDir || 'ASC').toUpperCase();
@@ -150,7 +150,7 @@ async function obtenerListaPersonal(colegioId, filtros) {
     anio,
     sede_nombre: sedeNombre,
     turno_nombre: turnoNombre,
-    orden_campo: campoKey in ORDEN_CAMPOS ? campoKey : 'NOMBRES',
+    orden_campo: campoKey in ORDEN_CAMPOS ? campoKey : 'APELLIDOS',
     orden_dir: ordenDir,
     filas,
     total: filas.length,

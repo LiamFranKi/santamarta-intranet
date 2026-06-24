@@ -6,7 +6,6 @@ const { query } = require('./mysql');
 const { sqlMatriculaEstadoSoloRegular } = require('./matriculaEstados');
 const { sqlFiltroAnioPago } = require('./pagoFechaHora');
 const {
-  ordenNivelEducativoNombre,
   columnExists,
 } = require('./listaAlumnosMatriculadosReporte');
 const { cargarConfigColegio } = require('./reportesGeneralDeudoresPagadores');
@@ -52,14 +51,26 @@ function celdaGrupo(row) {
   const nivel = tituloNivel(row.nivel_nombre);
   const grado = row.grado != null && row.grado !== '' ? String(row.grado).trim() : '—';
   const sec = String(row.seccion || '').trim().toUpperCase() || '—';
-  return `${nivel} / ${grado} / ${sec}`;
+  return `${nivel} ${grado} ${sec}`;
 }
 
 function celdaAlumno(row) {
   const ap = String(row.apellido_paterno || '').trim().toUpperCase() || '—';
   const am = String(row.apellido_materno || '').trim().toUpperCase() || '—';
   const nom = String(row.nombres || '').trim().toUpperCase() || '—';
-  return `${ap} / ${am} / ${nom}`;
+  return `${ap} ${am} ${nom}`;
+}
+
+function compararPorApellido(a, b) {
+  const ap = String(a.apellido_paterno || '').localeCompare(String(b.apellido_paterno || ''), 'es', {
+    sensitivity: 'base',
+  });
+  if (ap !== 0) return ap;
+  const am = String(a.apellido_materno || '').localeCompare(String(b.apellido_materno || ''), 'es', {
+    sensitivity: 'base',
+  });
+  if (am !== 0) return am;
+  return String(a.nombres || '').localeCompare(String(b.nombres || ''), 'es', { sensitivity: 'base' });
 }
 
 function saldoPendiente(tarifa, pagado) {
@@ -75,27 +86,6 @@ function sumaDeudas(celdas) {
     if (typeof v === 'number' && Number.isFinite(v)) sum += v;
   }
   return Math.round(sum * 100) / 100;
-}
-
-function compararFila(a, b) {
-  const oa = ordenNivelEducativoNombre(a.nivel_nombre);
-  const ob = ordenNivelEducativoNombre(b.nivel_nombre);
-  if (oa !== ob) return oa - ob;
-  const nid = (parseInt(a.nivel_id, 10) || 0) - (parseInt(b.nivel_id, 10) || 0);
-  if (nid !== 0) return nid;
-  const gd = (parseInt(a.grado, 10) || 0) - (parseInt(b.grado, 10) || 0);
-  if (gd !== 0) return gd;
-  const sc = String(a.seccion || '').localeCompare(String(b.seccion || ''), 'es', { sensitivity: 'base' });
-  if (sc !== 0) return sc;
-  const ap = String(a.apellido_paterno || '').localeCompare(String(b.apellido_paterno || ''), 'es', {
-    sensitivity: 'base',
-  });
-  if (ap !== 0) return ap;
-  const am = String(a.apellido_materno || '').localeCompare(String(b.apellido_materno || ''), 'es', {
-    sensitivity: 'base',
-  });
-  if (am !== 0) return am;
-  return String(a.nombres || '').localeCompare(String(b.nombres || ''), 'es', { sensitivity: 'base' });
 }
 
 function colLetter(n) {
@@ -130,10 +120,9 @@ async function cargarMatriculasDeudaAnual(colegioId, anio, sedeId) {
     params.push(sedeId);
   }
   sql += `
-    ORDER BY n.id ASC, g.grado ASC, g.seccion ASC,
-             a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC`;
+    ORDER BY a.apellido_paterno ASC, a.apellido_materno ASC, a.nombres ASC`;
   const rows = await query(sql, params);
-  return [...(rows || [])].sort(compararFila);
+  return [...(rows || [])].sort(compararPorApellido);
 }
 
 async function cargarPagosPorMatricula(colegioId, matriculaIds, totalPensiones, anio) {
@@ -242,8 +231,8 @@ async function generarExcelDeudaAnual(colegioId, filtros) {
   const lastCol = colLetter(colCount);
 
   const cabecera = [
-    'Nivel / Grado / Sección',
-    'Apellido Paterno / Apellido Materno / Nombres',
+    'Grado y Seccion',
+    'Nombres Completos',
     'Matrícula',
     ...mesesCols,
     'Total',
