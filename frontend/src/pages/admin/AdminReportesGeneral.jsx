@@ -9,6 +9,9 @@ import ReporteResumenIngresos from './reportesGeneral/ReporteResumenIngresos';
 import ReporteListaMaestrosPorAula from './reportesGeneral/ReporteListaMaestrosPorAula';
 import ReporteListaPersonal from './reportesGeneral/ReporteListaPersonal';
 import ReporteAsistenciaMensual from './reportesGeneral/ReporteAsistenciaMensual';
+import ReporteMontoPagarReal from './reportesGeneral/ReporteMontoPagarReal';
+import ReporteAlumnos from './reportesGeneral/ReporteAlumnos';
+import ReporteDeudaAnual from './reportesGeneral/ReporteDeudaAnual';
 import './AdminEstadisticas.css';
 import './AdminReportesGeneral.css';
 
@@ -43,6 +46,11 @@ export default function AdminReportesGeneral() {
             <ReporteListaPersonal />
           </div>
           <ReporteAsistenciaMensual />
+          <div className="rg-row-3">
+            <ReporteMontoPagarReal />
+            <ReporteAlumnos />
+            <ReporteDeudaAnual />
+          </div>
         </div>
       </div>
     </DashboardLayout>

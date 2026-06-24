@@ -69,7 +69,38 @@ function buildTituloAsistencia(grupo) {
 
 function codigoTipoAsistencia(tipo) {
   if (!tipo) return '';
-  return TIPO_CODIGO[String(tipo).toUpperCase()] || '';
+  const t = String(tipo).toUpperCase().trim();
+  if (TIPO_CODIGO[t]) return TIPO_CODIGO[t];
+  if (t === 'P' || t.includes('PRESENT')) return 'P';
+  if (t === 'F' || t.includes('FALT')) return t.includes('JUST') ? 'FJ' : 'F';
+  if (t === 'T' || t.includes('TARD')) return t.includes('JUST') ? 'TJ' : 'T';
+  return '';
+}
+
+async function cargarMapaAsistenciasMes(colegioId, grupoId, fechaInicio, fechaFin) {
+  const mapaAsist = {};
+  const asistRows = await query(
+    `SELECT
+       m_actual.id AS matricula_id,
+       DATE_FORMAT(ma.fecha, '%Y-%m-%d') AS fecha,
+       ma.tipo
+     FROM matriculas_asistencias ma
+     INNER JOIN matriculas m_reg ON m_reg.id = ma.matricula_id AND m_reg.colegio_id = ?
+     INNER JOIN matriculas m_actual ON m_actual.alumno_id = m_reg.alumno_id
+       AND m_actual.grupo_id = ? AND m_actual.colegio_id = ?
+     WHERE DATE(ma.fecha) >= DATE(?) AND DATE(ma.fecha) <= DATE(?)
+       AND ${sqlMatriculaEstadoSoloRegular('m_actual')}`,
+    [colegioId, grupoId, colegioId, fechaInicio, fechaFin]
+  );
+
+  for (const row of asistRows || []) {
+    const f = String(row.fecha || '').slice(0, 10);
+    if (!f) continue;
+    const key = `${row.matricula_id}|${f}`;
+    const cod = codigoTipoAsistencia(row.tipo);
+    if (cod) mapaAsist[key] = cod;
+  }
+  return mapaAsist;
 }
 
 async function obtenerAsistenciaMensual(colegioId, filtros) {
@@ -121,19 +152,10 @@ async function obtenerAsistenciaMensual(colegioId, filtros) {
   if (matriculas.length && columnas.length) {
     const fechaInicio = columnas[0].fecha;
     const fechaFin = columnas[columnas.length - 1].fecha;
-    const ids = matriculas.map((m) => m.matricula_id);
-    const ph = ids.map(() => '?').join(',');
-    const asistRows = await query(
-      `SELECT matricula_id, fecha, tipo
-       FROM matriculas_asistencias
-       WHERE matricula_id IN (${ph}) AND fecha >= ? AND fecha <= ?`,
-      [...ids, fechaInicio, fechaFin]
+    Object.assign(
+      mapaAsist,
+      await cargarMapaAsistenciasMes(colegioId, grupo.id, fechaInicio, fechaFin)
     );
-    for (const row of asistRows || []) {
-      const f = String(row.fecha).slice(0, 10);
-      const key = `${row.matricula_id}|${f}`;
-      mapaAsist[key] = codigoTipoAsistencia(row.tipo);
-    }
   }
 
   const filas = (matriculas || []).map((m) => {

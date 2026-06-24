@@ -63,7 +63,7 @@ export default function ModalListaPersonal({
                   <thead>
                     <tr>
                       <th>Apellidos y nombres</th>
-                      <th>Cargo</th>
+                      <th>Perfil</th>
                       <th>Fecha de nacimiento</th>
                       <th>Teléfono</th>
                       <th>Email</th>
@@ -73,7 +73,7 @@ export default function ModalListaPersonal({
                     {(filas || []).map((f, i) => (
                       <tr key={`${f.nombre_completo}-${i}`}>
                         <td>{f.nombre_completo}</td>
-                        <td>{f.cargo}</td>
+                        <td>{f.perfil}</td>
                         <td>{f.fecha_nacimiento}</td>
                         <td>{f.telefono}</td>
                         <td>{f.email}</td>

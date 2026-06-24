@@ -18,6 +18,9 @@ const { obtenerResumenIngresos } = require('../utils/reportesGeneralResumenIngre
 const { obtenerListaMaestrosPorAula } = require('../utils/reportesGeneralMaestrosPorAula');
 const { obtenerListaPersonal } = require('../utils/reportesGeneralListaPersonal');
 const { obtenerAsistenciaMensual } = require('../utils/reportesGeneralAsistenciaMensual');
+const { generarExcelMontoPagarReal } = require('../utils/reportesGeneralMontoPagarReal');
+const { generarExcelReporteAlumnos } = require('../utils/reportesGeneralAlumnos');
+const { generarExcelDeudaAnual } = require('../utils/reportesGeneralDeudaAnual');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -297,6 +300,103 @@ router.get('/asistencia-mensual', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/asistencia-mensual]', e);
     res.status(500).json({ error: e.message || 'Error al generar reporte de asistencia' });
+  }
+});
+
+/** GET /api/admin/reportes/general/monto-pagar-real — Excel con montos de matrícula y pensiones */
+router.get('/monto-pagar-real', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anio = parseInt(req.query.anio, 10);
+    const sedeRaw = req.query.sede_id;
+    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
+
+    if (!Number.isFinite(anio)) {
+      return res.status(400).json({ error: 'Indique un año válido.' });
+    }
+
+    const result = await generarExcelMontoPagarReal(cid, {
+      anio,
+      sedeId: Number.isFinite(sedeId) ? sedeId : null,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(Buffer.from(result.buffer));
+  } catch (e) {
+    console.error('[reportes/general/monto-pagar-real]', e);
+    res.status(500).json({ error: e.message || 'Error al generar Excel' });
+  }
+});
+
+/** GET /api/admin/reportes/general/reporte-alumnos — Excel con antigüedad */
+router.get('/reporte-alumnos', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anio = parseInt(req.query.anio, 10);
+    const sedeRaw = req.query.sede_id;
+    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
+
+    if (!Number.isFinite(anio)) {
+      return res.status(400).json({ error: 'Indique un año válido.' });
+    }
+
+    const result = await generarExcelReporteAlumnos(cid, {
+      anio,
+      sedeId: Number.isFinite(sedeId) ? sedeId : null,
+      antiguedad: req.query.antiguedad,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(Buffer.from(result.buffer));
+  } catch (e) {
+    console.error('[reportes/general/reporte-alumnos]', e);
+    res.status(500).json({ error: e.message || 'Error al generar Excel' });
+  }
+});
+
+/** GET /api/admin/reportes/general/deuda-anual — Excel deuda por matrícula y pensiones */
+router.get('/deuda-anual', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anio = parseInt(req.query.anio, 10);
+    const sedeRaw = req.query.sede_id;
+    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
+
+    if (!Number.isFinite(anio)) {
+      return res.status(400).json({ error: 'Indique un año válido.' });
+    }
+
+    const result = await generarExcelDeudaAnual(cid, {
+      anio,
+      sedeId: Number.isFinite(sedeId) ? sedeId : null,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(Buffer.from(result.buffer));
+  } catch (e) {
+    console.error('[reportes/general/deuda-anual]', e);
+    res.status(500).json({ error: e.message || 'Error al generar Excel' });
   }
 });
 

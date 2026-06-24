@@ -6,8 +6,36 @@ const { query } = require('./mysql');
 const ORDEN_CAMPOS = {
   NOMBRES: 'p.nombres',
   APELLIDOS: 'p.apellidos',
+  PERFIL: 'u.tipo',
   CARGO: 'p.cargo',
 };
+
+function fechaDdMmAaaa(val) {
+  if (val == null || val === '') return '—';
+  if (val instanceof Date && !Number.isNaN(val.getTime())) {
+    const dd = String(val.getDate()).padStart(2, '0');
+    const mm = String(val.getMonth() + 1).padStart(2, '0');
+    const yyyy = val.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  const s = String(val).trim();
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) {
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  return '—';
+}
+
+function etiquetaPerfil(tipo) {
+  const t = String(tipo || '').trim();
+  if (!t) return '—';
+  return t.replace(/_/g, ' ');
+}
 
 function tituloCadaPalabra(texto) {
   return String(texto || '')
@@ -32,11 +60,6 @@ function telefonoPersonalLista(row) {
   return cel || fijo || '—';
 }
 
-function fechaCorta(val) {
-  if (val == null || val === '') return '—';
-  const s = String(val).slice(0, 10);
-  return s || '—';
-}
 
 async function resolverEtiquetaSedeTurno(colegioId, sedeId, turnoId) {
   let sedeNombre = '';
@@ -65,7 +88,8 @@ async function obtenerListaPersonal(colegioId, filtros) {
   const sedeId = filtros.sedeId != null ? parseInt(filtros.sedeId, 10) : null;
   const turnoId = filtros.turnoId != null ? parseInt(filtros.turnoId, 10) : null;
   const campoRaw = String(filtros.ordenCampo || 'NOMBRES').toUpperCase();
-  const ordenCampo = ORDEN_CAMPOS[campoRaw] || ORDEN_CAMPOS.NOMBRES;
+  const campoKey = campoRaw === 'CARGO' ? 'PERFIL' : campoRaw;
+  const ordenCampo = ORDEN_CAMPOS[campoKey] || ORDEN_CAMPOS.NOMBRES;
   const dirRaw = String(filtros.ordenDir || 'ASC').toUpperCase();
   const ordenDir = dirRaw === 'DESC' ? 'DESC' : 'ASC';
 
@@ -78,20 +102,29 @@ async function obtenerListaPersonal(colegioId, filtros) {
   const orderSecondary =
     ordenCampo === ORDEN_CAMPOS.APELLIDOS
       ? 'p.nombres ASC'
-      : ordenCampo === ORDEN_CAMPOS.CARGO
+      : ordenCampo === ORDEN_CAMPOS.PERFIL
         ? 'p.apellidos ASC, p.nombres ASC'
-        : 'p.apellidos ASC';
+        : ordenCampo === ORDEN_CAMPOS.CARGO
+          ? 'p.apellidos ASC, p.nombres ASC'
+          : 'p.apellidos ASC';
 
   const rows = await query(
     `SELECT
        p.apellidos,
        p.nombres,
-       p.cargo,
        p.fecha_nacimiento,
        p.telefono_celular,
        p.telefono_fijo,
-       p.email
+       p.email,
+       u.tipo AS usuario_tipo
      FROM personal p
+     LEFT JOIN usuarios u ON u.id = (
+       SELECT uu.id
+       FROM usuarios uu
+       WHERE uu.personal_id = p.id AND uu.colegio_id = p.colegio_id
+       ORDER BY (uu.estado = 'ACTIVO') DESC, uu.id ASC
+       LIMIT 1
+     )
      WHERE p.colegio_id = ?
      ORDER BY ${ordenCampo} ${ordenDir}, ${orderSecondary}`,
     [colegioId]
@@ -99,8 +132,8 @@ async function obtenerListaPersonal(colegioId, filtros) {
 
   const filas = (rows || []).map((row) => ({
     nombre_completo: nombrePersonalLista(row),
-    cargo: String(row.cargo || '').trim() || '—',
-    fecha_nacimiento: fechaCorta(row.fecha_nacimiento),
+    perfil: etiquetaPerfil(row.usuario_tipo),
+    fecha_nacimiento: fechaDdMmAaaa(row.fecha_nacimiento),
     telefono: telefonoPersonalLista(row),
     email: String(row.email || '').trim() || '—',
   }));
@@ -117,7 +150,7 @@ async function obtenerListaPersonal(colegioId, filtros) {
     anio,
     sede_nombre: sedeNombre,
     turno_nombre: turnoNombre,
-    orden_campo: campoRaw in ORDEN_CAMPOS ? campoRaw : 'NOMBRES',
+    orden_campo: campoKey in ORDEN_CAMPOS ? campoKey : 'NOMBRES',
     orden_dir: ordenDir,
     filas,
     total: filas.length,

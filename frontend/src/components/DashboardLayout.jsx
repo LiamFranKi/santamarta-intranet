@@ -1606,10 +1606,12 @@ export default function DashboardLayout({ children }) {
                     <span className="sidebar-icon" aria-hidden>📚</span>
                     <span className="sidebar-label">Temas</span>
                   </NavLink>
+                  {role !== 'ADMINISTRADOR' && (
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/asistencias">
                     <span className="sidebar-icon" aria-hidden>✅</span>
                     <span className="sidebar-label">Asistencias</span>
                   </NavLink>
+                  )}
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/reportes/notas">
                     <span className="sidebar-icon" aria-hidden>📊</span>
                     <span className="sidebar-label">Notas</span>

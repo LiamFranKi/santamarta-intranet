@@ -24,6 +24,56 @@
   }
 }
 
+.rg-row-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.35rem;
+  align-items: stretch;
+}
+
+@media (max-width: 1100px) {
+  .rg-row-3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rg-filtros-toolbar--card-monto-real {
+  flex-wrap: nowrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.rg-filtros-toolbar--card-monto-real .rg-alum-field--anio {
+  flex: 0 0 5.25rem;
+  min-width: 5.25rem;
+}
+
+.rg-filtros-toolbar--card-monto-real .rg-filtros-toolbar__actions {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.rg-filtros-toolbar--card-alumnos {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.rg-filtros-toolbar--card-alumnos .rg-alum-field--anio {
+  flex: 0 0 5.25rem;
+  min-width: 5.25rem;
+}
+
+.rg-filtros-toolbar--card-alumnos .rg-alum-field--antiguedad {
+  flex: 1 1 7.5rem;
+  min-width: 7rem;
+}
+
+.rg-filtros-toolbar--card-alumnos .rg-filtros-toolbar__actions {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
 .rg-panel--compact .rg-panel__header {
   padding: 0.85rem 1rem;
 }
@@ -226,6 +276,48 @@
 
 .rg-filtros-toolbar--fill.rg-filtros-toolbar--single-line .rg-filtros-toolbar__actions {
   margin-left: 0;
+}
+
+/* Cards en rg-row-2: sin scroll horizontal; sede/año/turno ocultos (defaults en estado) */
+.rg-filtros-toolbar--card-duo {
+  flex-wrap: wrap;
+  overflow-x: visible;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.rg-filtros-toolbar--card-duo .rg-alum-field.MuiFormControl-root {
+  flex: 1 1 5.5rem;
+  min-width: 4.75rem;
+  max-width: none;
+}
+
+.rg-filtros-toolbar--card-duo .rg-alum-field--nivel,
+.rg-filtros-toolbar--card-duo .rg-alum-field--grado,
+.rg-filtros-toolbar--card-duo .rg-alum-field--sec {
+  flex: 1 1 4.5rem;
+  min-width: 4.25rem;
+}
+
+.rg-filtros-toolbar--card-duo .rg-alum-field--orden-campo {
+  flex: 1.4 1 6rem;
+}
+
+.rg-filtros-toolbar--card-duo .rg-alum-field--orden-dir {
+  flex: 1.2 1 5.5rem;
+}
+
+.rg-filtros-toolbar--card-duo .rg-filtros-toolbar__actions {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding-bottom: 0.05rem;
+}
+
+.rg-filtros-toolbar--card-duo .rg-alum-btn {
+  white-space: nowrap;
+  padding-left: 0.65rem;
+  padding-right: 0.65rem;
+  font-size: 0.8rem;
 }
 
 .rg-filtros-toolbar__actions {

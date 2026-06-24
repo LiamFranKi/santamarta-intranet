@@ -5,13 +5,12 @@ import api from '../../../services/api';
 import Swal from 'sweetalert2';
 import ReporteGeneralPanel from '../ReporteGeneralPanel';
 import useReportesGeneralMeta, { aplicarDefaultsSedeAnio } from './useReportesGeneralMeta';
-import FiltrosSedeAnio from './FiltrosSedeAnio';
 import ModalListaPersonal from './ModalListaPersonal';
 
 const ORDEN_CAMPOS = [
   { value: 'NOMBRES', label: 'NOMBRES' },
   { value: 'APELLIDOS', label: 'APELLIDOS' },
-  { value: 'CARGO', label: 'CARGO' },
+  { value: 'PERFIL', label: 'PERFIL' },
 ];
 
 const ORDEN_DIR = [
@@ -40,16 +39,14 @@ export default function ReporteListaPersonal() {
   const [modalTotal, setModalTotal] = useState(0);
 
   const verReporte = async () => {
-    const anioN = parseInt(anio, 10);
-    const turnoN = parseInt(turnoId, 10);
-    const sedeN = sedeId !== '' ? parseInt(sedeId, 10) : undefined;
+    const d = meta?.defaults || {};
+    const anioN = parseInt(anio, 10) || parseInt(d.anio, 10);
+    const turnoN = parseInt(turnoId, 10) || parseInt(d.turno_id, 10);
+    const sedeRaw = sedeId !== '' ? sedeId : d.sede_id;
+    const sedeN = sedeRaw != null && sedeRaw !== '' ? parseInt(sedeRaw, 10) : undefined;
 
-    if (!Number.isFinite(anioN)) {
-      Swal.fire({ icon: 'warning', title: 'Filtros', text: 'Indique un año válido.' });
-      return;
-    }
-    if (!Number.isFinite(turnoN)) {
-      Swal.fire({ icon: 'warning', title: 'Filtros', text: 'Seleccione un turno válido.' });
+    if (!Number.isFinite(anioN) || !Number.isFinite(turnoN)) {
+      Swal.fire({ icon: 'warning', title: 'Filtros', text: 'Espere a que carguen los filtros o recargue la página.' });
       return;
     }
 
@@ -96,30 +93,7 @@ export default function ReporteListaPersonal() {
             <CircularProgress size={24} />
           </div>
         ) : (
-          <div className="rg-filtros-toolbar rg-filtros-toolbar--single-line rg-filtros-toolbar--fill">
-            <FiltrosSedeAnio
-              meta={meta}
-              sedeId={sedeId}
-              setSedeId={setSedeId}
-              anio={anio}
-              setAnio={setAnio}
-              compact
-            />
-            <TextField
-              select
-              size="small"
-              label="Turno"
-              value={turnoId}
-              onChange={(e) => setTurnoId(e.target.value)}
-              className="rg-alum-field rg-alum-field--turno"
-              required
-            >
-              {(meta?.turnos || []).map((t) => (
-                <MenuItem key={t.id} value={String(t.id)}>
-                  {t.nombre}
-                </MenuItem>
-              ))}
-            </TextField>
+          <div className="rg-filtros-toolbar rg-filtros-toolbar--fill rg-filtros-toolbar--card-duo">
             <TextField
               select
               size="small"

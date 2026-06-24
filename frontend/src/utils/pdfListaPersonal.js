@@ -37,7 +37,7 @@ export async function generarPdfListaPersonal({ colegioNombre, titulo, subtitulo
   const widths = ratios.map((r) => tableW * r);
   const labels = [
     'APELLIDOS Y NOMBRES',
-    'CARGO',
+    'PERFIL',
     'FECHA DE NACIMIENTO',
     'TELÉFONO',
     'EMAIL',
@@ -72,7 +72,7 @@ export async function generarPdfListaPersonal({ colegioNombre, titulo, subtitulo
     doc.setDrawColor(...PDF_BORDER);
     doc.rect(MARGIN, y, tableW, ROW_H);
     let x = MARGIN;
-    const vals = [f.nombre_completo, f.cargo, f.fecha_nacimiento, f.telefono, f.email];
+    const vals = [f.nombre_completo, f.perfil, f.fecha_nacimiento, f.telefono, f.email];
     vals.forEach((v, i) => {
       const w = widths[i];
       textoCentradoCelda(doc, v, x, y + 4.6, w);
