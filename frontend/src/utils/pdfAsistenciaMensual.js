@@ -18,11 +18,35 @@ const CODIGO_ASISTENCIA_COLOR = {
 
 const MARGIN = PDF_PAGE_MARGIN;
 const ROW_H = 5.5;
-const HEAD_H = 5;
+const HEAD_H = 6;
 const HEAD_ROWS = 2;
 
 function safeTxt(s) {
   return safeTxtPdf(s);
+}
+
+function etiquetaDiaNumero(col) {
+  if (col == null) return '';
+  if (col.dia_numero != null && col.dia_numero !== '') return String(col.dia_numero);
+  if (col.dia != null && col.dia !== '') return String(col.dia);
+  const f = String(col.fecha || '').trim();
+  const m = f.match(/-(\d{1,2})$/);
+  if (m) return String(parseInt(m[1], 10));
+  return '';
+}
+
+function etiquetaDiaSemana(col) {
+  if (col == null) return '';
+  return String(col.dia_semana || col.diaSemana || '').trim();
+}
+
+/** Texto blanco centrado en celda de cabecera azul */
+function textoCabeceraCelda(doc, text, x, y, w, h) {
+  const raw = String(text ?? '').trim();
+  if (!raw) return;
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.text(raw, x + w / 2, y + h / 2 + 1.2, { align: 'center' });
 }
 
 function colorPdfCodigo(doc, codigo) {
@@ -64,31 +88,32 @@ export async function generarPdfAsistenciaMensual({ colegioNombre, titulo, subti
 
   const drawHead = (startY) => {
     let y = startY;
-    doc.setFillColor(...PDF_HEADER_BLUE);
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(5.5);
+    const headTotalH = HEAD_H * HEAD_ROWS;
 
-    doc.rect(MARGIN, y, wNombre, HEAD_H * HEAD_ROWS, 'F');
-    doc.text('APELLIDOS Y', MARGIN + wNombre / 2, y + 4, { align: 'center', maxWidth: wNombre - 2 });
-    doc.text('NOMBRES', MARGIN + wNombre / 2, y + 8, { align: 'center', maxWidth: wNombre - 2 });
+    doc.setFillColor(...PDF_HEADER_BLUE);
+    doc.setDrawColor(...PDF_BORDER);
+    doc.setFontSize(6);
+
+    doc.rect(MARGIN, y, wNombre, headTotalH, 'FD');
+    textoCabeceraCelda(doc, 'APELLIDOS Y', MARGIN, y, wNombre, HEAD_H);
+    textoCabeceraCelda(doc, 'NOMBRES', MARGIN, y + HEAD_H, wNombre, HEAD_H);
 
     let x = MARGIN + wNombre;
     cols.forEach((c) => {
-      doc.rect(x, y, wDia, HEAD_H, 'F');
-      doc.text(String(c.dia_semana || ''), x + wDia / 2, y + 3.8, { align: 'center', maxWidth: wDia - 1 });
+      doc.rect(x, y, wDia, HEAD_H, 'FD');
+      textoCabeceraCelda(doc, etiquetaDiaSemana(c), x, y, wDia, HEAD_H);
       x += wDia;
     });
-    y += HEAD_H;
 
+    const y2 = y + HEAD_H;
     x = MARGIN + wNombre;
     cols.forEach((c) => {
-      doc.rect(x, y, wDia, HEAD_H, 'F');
-      doc.text(String(c.dia_numero ?? ''), x + wDia / 2, y + 3.8, { align: 'center', maxWidth: wDia - 1 });
+      doc.rect(x, y2, wDia, HEAD_H, 'FD');
+      textoCabeceraCelda(doc, etiquetaDiaNumero(c), x, y2, wDia, HEAD_H);
       x += wDia;
     });
-    y += HEAD_H;
-    return y;
+
+    return y + headTotalH;
   };
 
   let y = dibujarCabeceraReportePdf(doc, logo, {
