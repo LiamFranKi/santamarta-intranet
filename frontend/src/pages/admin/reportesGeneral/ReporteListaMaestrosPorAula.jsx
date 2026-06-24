@@ -124,7 +124,7 @@ export default function ReporteListaMaestrosPorAula() {
         tone={1}
         icon="👨‍🏫"
         title="Lista de Maestros por Aula"
-        description="Docentes asignados por curso en el grupo seleccionado, incluyendo Tutoría y Co-Tutoría."
+        description="Docentes asignados por curso en el grupo seleccionado."
         compact
       >
         {loading ? (

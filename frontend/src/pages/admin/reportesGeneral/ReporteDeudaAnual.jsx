@@ -76,7 +76,6 @@ export default function ReporteDeudaAnual() {
       icon="📊"
       title="Reporte Deuda Anual"
       description="Deuda pendiente por alumno: matrícula y pensiones mensuales del año."
-      hint="Exporta Excel con saldo por concepto y total por alumno."
       compact
     >
       {loading ? (
@@ -85,7 +84,7 @@ export default function ReporteDeudaAnual() {
           Cargando filtros…
         </div>
       ) : (
-        <div className="rg-filtros-toolbar rg-filtros-toolbar--card-monto-real">
+        <div className="rg-filtros-toolbar rg-filtros-toolbar--card-trio">
           <TextField
             size="small"
             label="Año"
@@ -98,7 +97,7 @@ export default function ReporteDeudaAnual() {
           <div className="rg-filtros-toolbar__actions">
             <button
               type="button"
-              className="rg-alum-btn rg-alum-btn--primary"
+              className="rg-alum-btn rg-alum-btn--primary rg-alum-btn--compact"
               onClick={verReporte}
               disabled={downloading}
             >

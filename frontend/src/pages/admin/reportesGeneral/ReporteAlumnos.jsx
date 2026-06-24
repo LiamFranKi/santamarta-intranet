@@ -84,7 +84,6 @@ export default function ReporteAlumnos() {
       icon="👨‍🎓"
       title="Reporte de alumnos"
       description="Listado de alumnos matriculados con antigüedad (nuevos o antiguos en el colegio)."
-      hint="Exporta Excel ordenado por grado y apellidos."
       compact
     >
       {loading ? (
@@ -93,7 +92,7 @@ export default function ReporteAlumnos() {
           Cargando filtros…
         </div>
       ) : (
-        <div className="rg-filtros-toolbar rg-filtros-toolbar--card-alumnos">
+        <div className="rg-filtros-toolbar rg-filtros-toolbar--card-trio">
           <TextField
             size="small"
             label="Año"
@@ -120,7 +119,7 @@ export default function ReporteAlumnos() {
           <div className="rg-filtros-toolbar__actions">
             <button
               type="button"
-              className="rg-alum-btn rg-alum-btn--primary"
+              className="rg-alum-btn rg-alum-btn--primary rg-alum-btn--compact"
               onClick={verReporte}
               disabled={downloading}
             >

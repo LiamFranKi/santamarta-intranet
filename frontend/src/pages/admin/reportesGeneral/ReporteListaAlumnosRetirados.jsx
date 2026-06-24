@@ -69,7 +69,6 @@ export default function ReporteListaAlumnosRetirados() {
         tone={2}
         icon="📤"
         title="Lista alumnos retirados"
-        description="Matrículas en estado retirado."
         hint={
           <>
             Seleccione sede, año y nivel. Use <strong>TODOS</strong> para ver todos los niveles.

@@ -76,7 +76,6 @@ export default function ReporteMontoPagarReal() {
       icon="💰"
       title="Monto a Pagar - Real"
       description="Montos de matrícula y pensiones asignados a cada alumno matriculado, agrupados por aula."
-      hint="Se exporta en Excel (.xlsx) con totales por grupo y total anual."
       compact
     >
       {loading ? (
@@ -85,7 +84,7 @@ export default function ReporteMontoPagarReal() {
           Cargando filtros…
         </div>
       ) : (
-        <div className="rg-filtros-toolbar rg-filtros-toolbar--card-monto-real">
+        <div className="rg-filtros-toolbar rg-filtros-toolbar--card-trio">
           <TextField
             select={false}
             size="small"
@@ -99,7 +98,7 @@ export default function ReporteMontoPagarReal() {
           <div className="rg-filtros-toolbar__actions">
             <button
               type="button"
-              className="rg-alum-btn rg-alum-btn--primary"
+              className="rg-alum-btn rg-alum-btn--primary rg-alum-btn--compact"
               onClick={verReporte}
               disabled={downloading}
             >
