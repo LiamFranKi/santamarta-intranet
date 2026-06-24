@@ -591,6 +591,134 @@
   min-width: 700px;
 }
 
+.rg-maestros-aula-table {
+  min-width: 520px;
+}
+
+.rg-maestros-aula-row--tutoria td {
+  background: #f0f9ff;
+  font-weight: 600;
+}
+
+.rg-maestros-aula-total {
+  margin: 0.75rem 0 0;
+  font-size: 0.88rem;
+  color: #475569;
+  text-align: right;
+}
+
+.rg-personal-lista-table {
+  min-width: 900px;
+  font-size: 0.8rem;
+}
+
+.rg-alum-modal__subtitle--muted {
+  margin-top: -0.35rem;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.rg-alum-field--orden-campo,
+.rg-alum-field--orden-dir {
+  min-width: 7.5rem;
+}
+
+.rg-alum-field--mes {
+  min-width: 6.5rem;
+}
+
+/* Asistencia mensual */
+.rg-asist-mes-table-wrap {
+  overflow-x: auto;
+}
+
+.rg-asist-mes-table {
+  min-width: 720px;
+  font-size: 0.78rem;
+}
+
+.rg-asist-mes-table thead th {
+  text-align: center;
+  padding: 0.35rem 0.25rem;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.rg-asist-mes-col-nombre {
+  min-width: 11rem;
+  max-width: 14rem;
+  text-align: left !important;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #fff;
+  box-shadow: 2px 0 4px rgba(15, 23, 42, 0.06);
+}
+
+.rg-asist-mes-table thead .rg-asist-mes-col-nombre {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%) !important;
+  color: #fff !important;
+  z-index: 3;
+}
+
+.rg-asist-mes-col-dia {
+  width: 2.1rem;
+  min-width: 2.1rem;
+  text-align: center !important;
+  padding: 0.25rem !important;
+}
+
+.rg-asist-mes-table tbody td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.rg-asist-mes-table tbody .rg-asist-mes-col-nombre {
+  text-align: left;
+  font-weight: 500;
+}
+
+.rg-asist-mes-mark {
+  display: inline-block;
+  min-width: 1.1rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.rg-asist-mes-mark--p {
+  color: #1565c0;
+}
+
+.rg-asist-mes-mark--f {
+  color: #c62828;
+}
+
+.rg-asist-mes-mark--t {
+  color: #e65100;
+}
+
+.rg-asist-mes-mark--tj {
+  color: #1565c0;
+}
+
+.rg-asist-mes-mark--fj {
+  color: #6a1b9a;
+}
+
+.rg-asist-mes-leyenda {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.85rem;
+  align-items: center;
+}
+
+.rg-asist-mes-leyenda .rg-asist-mes-mark {
+  margin-right: 0.2rem;
+}
+
 /* Deudores / pagadores */
 .rg-deudores-seccion {
   margin-bottom: 1.35rem;

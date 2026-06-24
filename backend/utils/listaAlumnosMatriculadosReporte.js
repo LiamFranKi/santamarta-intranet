@@ -254,6 +254,7 @@ module.exports = {
   calcularTotales,
   normalizarSexoConteo,
   columnExists,
+  resolverGrupoId,
   obtenerListaUnGrupo,
   obtenerListaTodosGrupos,
 };

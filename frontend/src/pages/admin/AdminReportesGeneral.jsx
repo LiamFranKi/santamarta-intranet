@@ -6,6 +6,9 @@ import ReporteListaAlumnosRetirados from './reportesGeneral/ReporteListaAlumnosR
 import ReporteAlumnosDeudores from './reportesGeneral/ReporteAlumnosDeudores';
 import ReporteAlumnosPagadores from './reportesGeneral/ReporteAlumnosPagadores';
 import ReporteResumenIngresos from './reportesGeneral/ReporteResumenIngresos';
+import ReporteListaMaestrosPorAula from './reportesGeneral/ReporteListaMaestrosPorAula';
+import ReporteListaPersonal from './reportesGeneral/ReporteListaPersonal';
+import ReporteAsistenciaMensual from './reportesGeneral/ReporteAsistenciaMensual';
 import './AdminEstadisticas.css';
 import './AdminReportesGeneral.css';
 
@@ -35,6 +38,11 @@ export default function AdminReportesGeneral() {
             <ReporteAlumnosPagadores />
           </div>
           <ReporteResumenIngresos />
+          <div className="rg-row-2">
+            <ReporteListaMaestrosPorAula />
+            <ReporteListaPersonal />
+          </div>
+          <ReporteAsistenciaMensual />
         </div>
       </div>
     </DashboardLayout>

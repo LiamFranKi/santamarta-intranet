@@ -15,6 +15,9 @@ const {
   obtenerListaPagadores,
 } = require('../utils/reportesGeneralDeudoresPagadores');
 const { obtenerResumenIngresos } = require('../utils/reportesGeneralResumenIngresos');
+const { obtenerListaMaestrosPorAula } = require('../utils/reportesGeneralMaestrosPorAula');
+const { obtenerListaPersonal } = require('../utils/reportesGeneralListaPersonal');
+const { obtenerAsistenciaMensual } = require('../utils/reportesGeneralAsistenciaMensual');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -198,6 +201,102 @@ router.get('/alumnos-matriculados/lista-todos', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/lista-todos]', e);
     res.status(500).json({ error: e.message || 'Error al generar listas' });
+  }
+});
+
+/** GET /api/admin/reportes/general/maestros-por-aula */
+router.get('/maestros-por-aula', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anio = parseInt(req.query.anio, 10);
+    const nivelId = parseInt(req.query.nivel_id, 10);
+    const grado = parseInt(req.query.grado, 10);
+    const seccion = String(req.query.seccion || '').trim();
+    const turnoId = parseInt(req.query.turno_id, 10);
+    const sedeRaw = req.query.sede_id;
+    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
+
+    if (!Number.isFinite(anio) || !Number.isFinite(nivelId) || !Number.isFinite(grado) || !seccion || !Number.isFinite(turnoId)) {
+      return res.status(400).json({ error: 'Parámetros incompletos: anio, nivel_id, grado, seccion, turno_id' });
+    }
+
+    const result = await obtenerListaMaestrosPorAula(cid, {
+      anio,
+      nivelId,
+      grado,
+      seccion,
+      turnoId,
+      sedeId,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/maestros-por-aula]', e);
+    res.status(500).json({ error: e.message || 'Error al generar lista de maestros' });
+  }
+});
+
+/** GET /api/admin/reportes/general/lista-personal */
+router.get('/lista-personal', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anio = parseInt(req.query.anio, 10);
+    const turnoId = parseInt(req.query.turno_id, 10);
+    const sedeRaw = req.query.sede_id;
+    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
+
+    const result = await obtenerListaPersonal(cid, {
+      anio,
+      sedeId: Number.isFinite(sedeId) ? sedeId : null,
+      turnoId: Number.isFinite(turnoId) ? turnoId : null,
+      ordenCampo: req.query.orden_campo,
+      ordenDir: req.query.orden_dir,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/lista-personal]', e);
+    res.status(500).json({ error: e.message || 'Error al generar lista de personal' });
+  }
+});
+
+/** GET /api/admin/reportes/general/asistencia-mensual */
+router.get('/asistencia-mensual', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anio = parseInt(req.query.anio, 10);
+    const mes = parseInt(req.query.mes, 10);
+    const nivelId = parseInt(req.query.nivel_id, 10);
+    const grado = parseInt(req.query.grado, 10);
+    const seccion = String(req.query.seccion || '').trim();
+    const turnoId = parseInt(req.query.turno_id, 10);
+    const sedeRaw = req.query.sede_id;
+    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
+
+    if (!Number.isFinite(anio) || !Number.isFinite(mes) || !Number.isFinite(nivelId) || !Number.isFinite(grado) || !seccion || !Number.isFinite(turnoId)) {
+      return res.status(400).json({ error: 'Parámetros incompletos: anio, mes, nivel_id, grado, seccion, turno_id' });
+    }
+
+    const result = await obtenerAsistenciaMensual(cid, {
+      anio,
+      mes,
+      nivelId,
+      grado,
+      seccion,
+      turnoId,
+      sedeId: Number.isFinite(sedeId) ? sedeId : null,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/asistencia-mensual]', e);
+    res.status(500).json({ error: e.message || 'Error al generar reporte de asistencia' });
   }
 });
 
