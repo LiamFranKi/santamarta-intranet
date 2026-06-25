@@ -112,8 +112,8 @@ export default function ModalAsistenciaPersonal({
                       <th className="rg-asist-personal-col-nombre">Nombre trabajador</th>
                       <th>Hora ingreso</th>
                       {fechas.map((f) => (
-                        <th key={f} className="rg-asist-personal-col-dia">
-                          {f}
+                        <th key={f.iso || f} className="rg-asist-personal-col-dia">
+                          {f.label || f}
                         </th>
                       ))}
                       <th className="col-num">Minutos</th>
@@ -122,15 +122,18 @@ export default function ModalAsistenciaPersonal({
                   </thead>
                   <tbody>
                     {filas.map((f) => (
-                      <tr key={`${f.personal_id}-${f.numero}`}>
+                      <tr key={f.personal_id}>
                         <td className="col-num">{f.numero}</td>
                         <td className="rg-asist-personal-col-nombre">{f.nombre}</td>
                         <td>{f.hora_ingreso || '—'}</td>
-                        {fechas.map((fecha) => (
-                          <td key={`${f.personal_id}-${fecha}`} className="rg-asist-personal-col-dia">
-                            {f.dias?.[fecha]?.hora_marcacion || ''}
-                          </td>
-                        ))}
+                        {fechas.map((fecha) => {
+                          const iso = fecha.iso || fecha;
+                          return (
+                            <td key={`${f.personal_id}-${iso}`} className="rg-asist-personal-col-dia">
+                              {f.dias?.[iso]?.hora_marcacion || ''}
+                            </td>
+                          );
+                        })}
                         <td className="col-num">{f.minutos_total ?? 0}</td>
                         <td className="col-num">{f.descuento_total_fmt || 'S/. 0.00'}</td>
                       </tr>

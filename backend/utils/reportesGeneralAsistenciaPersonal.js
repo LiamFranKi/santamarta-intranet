@@ -33,6 +33,43 @@ function fechasEnRango(desde, hasta) {
   return out;
 }
 
+function esDiaLaboral(fechaISO) {
+  const day = new Date(`${fechaISO}T12:00:00`).getDay();
+  return day !== 0 && day !== 6;
+}
+
+function fechasLaborablesEnRango(desde, hasta) {
+  return fechasEnRango(desde, hasta).filter(esDiaLaboral);
+}
+
+function fmtFechaDDMMAAAA(iso) {
+  const [y, m, d] = String(iso || '').split('-');
+  if (!y || !m || !d) return iso;
+  return `${d}-${m}-${y}`;
+}
+
+function fmtFechaDDM(iso) {
+  const [, m, d] = String(iso || '').split('-');
+  if (!m || !d) return iso;
+  return `${d}-${m}`;
+}
+
+function dedupePersonalList(personalList) {
+  const byId = new Map();
+  for (const p of personalList || []) {
+    const id = p.personal_id;
+    const prev = byId.get(id);
+    if (!prev || (!prev.usuario_id && p.usuario_id)) {
+      byId.set(id, p);
+    }
+  }
+  return Array.from(byId.values()).sort((a, b) => {
+    const ap = String(a.apellidos || '').localeCompare(String(b.apellidos || ''), 'es');
+    if (ap !== 0) return ap;
+    return String(a.nombres || '').localeCompare(String(b.nombres || ''), 'es');
+  });
+}
+
 function etiquetaMesRango(fechas) {
   if (!fechas.length) return '';
   const [y, m] = fechas[0].split('-');
@@ -52,7 +89,9 @@ function etiquetaMesRango(fechas) {
   ];
   const idx = parseInt(m, 10) - 1;
   const todasMismoMes = fechas.every((f) => f.slice(0, 7) === `${y}-${m}`);
-  if (!todasMismoMes) return `RANGO ${fechas[0]} — ${fechas[fechas.length - 1]}`;
+  if (!todasMismoMes) {
+    return `RANGO ${fmtFechaDDMMAAAA(fechas[0])} — ${fmtFechaDDMMAAAA(fechas[fechas.length - 1])}`;
+  }
   return `MES ${meses[idx] || m} ${y}`;
 }
 
@@ -162,11 +201,11 @@ async function construirDatosAsistenciaPersonal(colegioId, filtros) {
     return { ok: false, status: 400, error: 'La fecha «desde» no puede ser posterior a «hasta».' };
   }
 
-  const fechas = fechasEnRango(desde, hasta);
-  if (fechas.length === 0) {
+  const fechasCalendario = fechasEnRango(desde, hasta);
+  if (fechasCalendario.length === 0) {
     return { ok: false, status: 400, error: 'El rango de fechas no es válido.' };
   }
-  if (fechas.length > MAX_DIAS_RANGO) {
+  if (fechasCalendario.length > MAX_DIAS_RANGO) {
     return {
       ok: false,
       status: 400,
@@ -174,18 +213,21 @@ async function construirDatosAsistenciaPersonal(colegioId, filtros) {
     };
   }
 
+  const fechasIso = fechasLaborablesEnRango(desde, hasta);
+  const fechas = fechasIso.map((iso) => ({ iso, label: fmtFechaDDM(iso) }));
+
   const { colegio_nombre: colegioNombre } = await getAnioActivo(query, colegioId);
-  const personalList = await loadPersonalColegio(query, colegioId);
+  const personalList = dedupePersonalList(await loadPersonalColegio(query, colegioId));
   const marcMap = await cargarMarcacionesRango(colegioId, desde, hasta);
-  const filas = construirFilasReporte(personalList, fechas, marcMap);
+  const filas = construirFilasReporte(personalList, fechasIso, marcMap);
 
   const totalMinutos = filas.reduce((s, f) => s + (f.minutos_total || 0), 0);
   const totalDescuento = Math.round(filas.reduce((s, f) => s + (f.descuento_total || 0), 0) * 100) / 100;
 
   return {
     ok: true,
-    titulo: `RESULTADOS FINALES - DESCUENTOS del ${desde} al ${hasta}`,
-    subtitulo: etiquetaMesRango(fechas),
+    titulo: `RESULTADOS FINALES - DESCUENTOS del ${fmtFechaDDMMAAAA(desde)} al ${fmtFechaDDMMAAAA(hasta)}`,
+    subtitulo: etiquetaMesRango(fechasIso),
     desde,
     hasta,
     fechas,
@@ -217,7 +259,7 @@ async function generarExcelAsistenciaPersonal(colegioId, filtros) {
   ws.getColumn(2).width = 34;
   ws.getColumn(3).width = 14;
   for (let i = 0; i < fechas.length; i += 1) {
-    ws.getColumn(4 + i).width = 11;
+    ws.getColumn(4 + i).width = 7;
   }
   ws.getColumn(colMinutos).width = 10;
   ws.getColumn(colDescuento).width = 12;
@@ -257,7 +299,7 @@ async function generarExcelAsistenciaPersonal(colegioId, filtros) {
     'N°',
     'NOMBRE TRABAJADOR',
     'HORA INGRESO',
-    ...fechas,
+    ...fechas.map((f) => f.label),
     'MINUTOS',
     'DESCUENTO',
   ];
@@ -280,7 +322,7 @@ async function generarExcelAsistenciaPersonal(colegioId, filtros) {
       f.numero,
       f.nombre,
       f.hora_ingreso,
-      ...fechas.map((fecha) => f.dias[fecha]?.hora_marcacion || ''),
+      ...fechas.map((fecha) => f.dias[fecha.iso]?.hora_marcacion || ''),
       f.minutos_total,
       f.descuento_total_fmt,
     ];
@@ -302,7 +344,7 @@ async function generarExcelAsistenciaPersonal(colegioId, filtros) {
   }
 
   for (const fecha of fechas) {
-    const sheetName = fecha.slice(0, 10);
+    const sheetName = fecha.label;
     const wsDia = wb.addWorksheet(sheetName, { views: [{ showGridLines: true }] });
     wsDia.getColumn(1).width = 5;
     wsDia.getColumn(2).width = 34;
@@ -314,7 +356,7 @@ async function generarExcelAsistenciaPersonal(colegioId, filtros) {
     let rd = 1;
     wsDia.mergeCells(`A${rd}:F${rd}`);
     const tCell = wsDia.getCell(`A${rd}`);
-    tCell.value = `ASISTENCIA PERSONAL — ${fecha}`;
+    tCell.value = `ASISTENCIA PERSONAL — ${fmtFechaDDMMAAAA(fecha.iso)}`;
     tCell.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
     tCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_TITULO } };
     tCell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -332,7 +374,7 @@ async function generarExcelAsistenciaPersonal(colegioId, filtros) {
     rd += 1;
 
     filas.forEach((f, idx) => {
-      const d = f.dias[fecha] || {};
+      const d = f.dias[fecha.iso] || {};
       const rowD = wsDia.getRow(rd);
       rowD.values = [
         f.numero,
@@ -367,5 +409,9 @@ module.exports = {
   construirDatosAsistenciaPersonal,
   generarExcelAsistenciaPersonal,
   fechasEnRango,
+  fechasLaborablesEnRango,
+  fmtFechaDDM,
+  fmtFechaDDMMAAAA,
+  dedupePersonalList,
   MAX_DIAS_RANGO,
 };
