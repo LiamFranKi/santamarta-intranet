@@ -1,13 +1,16 @@
 /**
- * Reporte «Consolidado de Promedios Detallados» — Excel directo (indicadores + PROM por curso).
+ * Reporte «Consolidado de Promedios Detallados» — Excel directo (criterios/indicadores + PROM por curso).
  */
 const ExcelJS = require('exceljs');
+const { query } = require('./mysql');
 const {
   resolverFiltrosConsolidado,
   listarGruposConsolidado,
   cargarAlumnosGrupo,
   cargarAsignaturasGrupo,
   cargarIndicadoresAsignatura,
+  cargarCriteriosAsignatura,
+  cargarIndicadoresPorCriterio,
   cargarNotasDetalleGrupo,
   mapDetallePorMatriculaAsig,
   mapExplicacionIndicador,
@@ -21,44 +24,47 @@ const {
   colLetter,
   aplicarBordeFila,
   notaIndicadorDesdeDetalle,
-  promedioNumericoIndicador,
+  promedioNumericoCriterio,
+  aplanarColumnasBloques,
 } = require('./reportesGeneralConsolidadoPromedios');
+const {
+  cargarLibretaInicialGrupo,
+  bloquesDesdeLibretaInicial,
+  notaLibretaInicial,
+} = require('./libretaInicialGrupoReporte');
 
 const FILL_TITULO = 'FF1E40AF';
 const FILL_CABECERA_FIJA = 'FFB4C7E7';
 const FILL_CABECERA_CURSOS = 'FFFFF2CC';
-const FILL_CABECERA_PROM = 'FFFCE4D6';
+const FILL_CABECERA_PROM = 'FFFFB366';
 const FILL_FILA_PAR = 'FFF8FAFC';
+const FILL_FILA_PROM = 'FFFFE0B2';
 const NOTA_MINIMA_ROJA = 11;
 
 function aplanarColumnas(bloques) {
-  const flat = [];
-  for (const bloque of bloques || []) {
-    for (const col of bloque.columnas || []) {
-      flat.push({ ...col, curso_nombre: bloque.curso_nombre, asignatura_id: bloque.asignatura_id });
-    }
-  }
-  return flat;
+  return aplanarColumnasBloques(bloques);
 }
 
-async function construirBloquesCurso(colegioId, asignaturas, ciclo, esInicial) {
+async function construirBloquesCursoNumerico(colegioId, asignaturas, ciclo) {
   const bloques = [];
   for (const asig of asignaturas) {
-    const indicadores = await cargarIndicadoresAsignatura(colegioId, asig.asignatura_id, ciclo);
-    const columnas = (indicadores || []).map((ind, idx) => {
-      const descripcion = String(ind.descripcion || '').trim();
-      const label = esInicial
-        ? (descripcion.split(/\s+/)[0] || `C${idx + 1}`).slice(0, 12).toUpperCase()
-        : `C${idx + 1}`;
+    const criterios = await cargarCriteriosAsignatura(colegioId, asig.asignatura_id, ciclo);
+    const criterioIds = (criterios || []).map((c) => c.id);
+    const indPorCriterio = await cargarIndicadoresPorCriterio(criterioIds);
+
+    const columnas = (criterios || []).map((crit, idx) => {
+      const descripcion = String(crit.descripcion || '').trim();
+      const abrev = String(crit.abreviatura || '').trim();
       return {
-        key: `ind_${ind.indicador_id}`,
-        label,
-        titulo: descripcion || `Indicador ${ind.indicador_id}`,
-        indicador_id: ind.indicador_id,
-        criterio_id: ind.criterio_id,
-        tipo: 'indicador',
+        key: `crit_${crit.id}`,
+        label: abrev || `C${idx + 1}`,
+        titulo: descripcion || `Criterio ${crit.id}`,
+        criterio_id: crit.id,
+        indicador_ids: indPorCriterio[crit.id] || [],
+        tipo: 'criterio',
       };
     });
+
     columnas.push({
       key: `prom_${asig.asignatura_id}`,
       label: 'PROM',
@@ -66,6 +72,32 @@ async function construirBloquesCurso(colegioId, asignaturas, ciclo, esInicial) {
       asignatura_id: asig.asignatura_id,
       tipo: 'prom',
     });
+
+    bloques.push({
+      curso_nombre: String(asig.curso_nombre || '').trim().toUpperCase(),
+      asignatura_id: asig.asignatura_id,
+      columnas,
+    });
+  }
+  return bloques;
+}
+
+async function construirBloquesCursoInicialFallback(colegioId, asignaturas, ciclo) {
+  const bloques = [];
+  for (const asig of asignaturas) {
+    const indicadores = await cargarIndicadoresAsignatura(colegioId, asig.asignatura_id, ciclo);
+    const columnas = (indicadores || []).map((ind, idx) => {
+      const descripcion = String(ind.descripcion || '').trim();
+      return {
+        key: `ind_${ind.indicador_id}`,
+        label: (descripcion.split(/\s+/)[0] || `C${idx + 1}`).slice(0, 12).toUpperCase(),
+        titulo: descripcion || `Indicador ${ind.indicador_id}`,
+        indicador_id: ind.indicador_id,
+        criterio_id: ind.criterio_id,
+        tipo: 'indicador',
+      };
+    });
+    if (!columnas.length) continue;
     bloques.push({
       curso_nombre: String(asig.curso_nombre || '').trim().toUpperCase(),
       asignatura_id: asig.asignatura_id,
@@ -82,6 +114,7 @@ function valorCeldaDetallada({
   detMap,
   explMap,
   promMap,
+  notaMapLibreta,
 }) {
   if (col.tipo === 'prom') {
     const raw = promMap[`${matriculaId}:${col.asignatura_id}`];
@@ -89,8 +122,17 @@ function valorCeldaDetallada({
     return esInicial ? String(raw).trim().toUpperCase() : fmtNotaNumerica(raw);
   }
 
+  if (col.tipo === 'indicador_libreta') {
+    return notaLibretaInicial(notaMapLibreta || {}, matriculaId, col.indicador_id);
+  }
+
+  if (col.tipo === 'criterio') {
+    const det = detMap[`${matriculaId}:${col.asignatura_id}`] || {};
+    return promedioNumericoCriterio(det, col.criterio_id, col.indicador_ids);
+  }
+
   const det = detMap[`${matriculaId}:${col.asignatura_id}`] || {};
-  if (esInicial) {
+  if (esInicial && col.tipo === 'indicador') {
     let val = notaIndicadorDesdeDetalle(det, col.criterio_id, col.indicador_id);
     if (!val) {
       const raw = explMap[`${matriculaId}:${col.indicador_id}`];
@@ -98,16 +140,36 @@ function valorCeldaDetallada({
     }
     return val;
   }
-  return promedioNumericoIndicador(det, col.criterio_id, col.indicador_id);
+  return '';
 }
 
 async function construirHojaDetallada(colegioId, grupo, alumnos, asignaturas, ciclo) {
   const esInicial = esNivelInicial(grupo.nivel_nombre, grupo.tipo_calificacion);
-  const bloques = await construirBloquesCurso(colegioId, asignaturas, ciclo, esInicial);
+  const matriculaIds = alumnos.map((a) => a.matricula_id);
+  let bloques = [];
+  let notaMapLibreta = null;
+
+  if (esInicial) {
+    const libreta = await cargarLibretaInicialGrupo(query, {
+      grupoId: grupo.grupo_id,
+      colegioId,
+      anio: grupo.anio,
+      ciclo,
+      matriculaIds,
+    });
+    if (libreta) {
+      bloques = bloquesDesdeLibretaInicial(libreta, { incluirProm: false });
+      notaMapLibreta = libreta.notaMap;
+    } else {
+      bloques = await construirBloquesCursoInicialFallback(colegioId, asignaturas, ciclo);
+    }
+  } else {
+    bloques = await construirBloquesCursoNumerico(colegioId, asignaturas, ciclo);
+  }
+
   const columnasFlat = aplanarColumnas(bloques);
 
   const asignaturaIds = asignaturas.map((a) => a.asignatura_id);
-  const matriculaIds = alumnos.map((a) => a.matricula_id);
   const notasPack = await cargarNotasDetalleGrupo(colegioId, asignaturaIds, matriculaIds, ciclo);
   const detMap = mapDetallePorMatriculaAsig(notasPack.detalles);
   const explMap = mapExplicacionIndicador(notasPack.explicaciones);
@@ -123,6 +185,7 @@ async function construirHojaDetallada(colegioId, grupo, alumnos, asignaturas, ci
         detMap,
         explMap,
         promMap,
+        notaMapLibreta,
       });
     }
     return {
@@ -270,13 +333,13 @@ function escribirHojaDetallada(ws, data, tituloGlobal) {
     for (let c = 1; c <= colCount; c += 1) {
       const cell = row.getCell(c);
       const flatCol = columnasFlat[c - 4];
-      if (idx % 2 === 1) {
+      if (flatCol?.tipo === 'prom') {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_FILA_PROM } };
+      } else if (idx % 2 === 1) {
         cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_FILA_PAR } };
-      } else if (flatCol?.tipo === 'prom') {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFAF5' } };
       }
       cell.font = { size: 9 };
-      if (!data.es_inicial && flatCol && c > 3) {
+      if (!data.es_inicial && flatCol && c > 3 && flatCol.tipo !== 'prom') {
         const n = parseNumPromedio(cell.value);
         if (n != null && n < NOTA_MINIMA_ROJA) {
           cell.font = { size: 9, color: { argb: 'FFDC2626' }, bold: true };
@@ -310,7 +373,8 @@ async function generarExcelConsolidadoPromediosDetallado(colegioId, filtros) {
     if (!alumnos.length) continue;
 
     const asignaturas = await cargarAsignaturasGrupo(colegioId, g.grupo_id);
-    if (!asignaturas.length) continue;
+    const esInicial = esNivelInicial(g.nivel_nombre, g.tipo_calificacion);
+    if (!asignaturas.length && !esInicial) continue;
 
     const hoja = await construirHojaDetallada(colegioId, grupo, alumnos, asignaturas, bimestre);
     if (!hoja.columnas_flat.length) continue;

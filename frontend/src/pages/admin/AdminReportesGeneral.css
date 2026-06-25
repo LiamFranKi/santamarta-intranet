@@ -1197,6 +1197,17 @@
   vertical-align: middle;
 }
 
+.rg-consolidado-col-area {
+  text-align: center !important;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 0.4rem 0.35rem !important;
+  background: linear-gradient(180deg, #fef9c3 0%, #fde68a 100%) !important;
+  color: #1e293b;
+  border-bottom: 1px solid #e2e8f0;
+}
+
 .rg-consolidado-curso-head {
   display: inline-block;
   writing-mode: vertical-rl;

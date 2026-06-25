@@ -32,7 +32,11 @@ export default function ModalConsolidadoPromedios({
   const [exporting, setExporting] = useState(false);
   const pestanas = data?.pestanas || [];
   const pestana = pestanas[tabIdx] || null;
-  const columnas = pestana?.columnas || [];
+  const bloques = pestana?.bloques || [];
+  const usaBloques = Boolean(pestana?.usa_bloques && bloques.length > 0);
+  const columnas = usaBloques
+    ? pestana?.columnas_flat || pestana?.columnas || []
+    : pestana?.columnas || [];
   const filas = pestana?.filas || [];
   const hayDatos = pestanas.length > 0;
 
@@ -136,22 +140,64 @@ export default function ModalConsolidadoPromedios({
                 <div className="rg-alum-lista-table-wrap rg-consolidado-table-wrap">
                   <table className="rg-alum-lista-table rg-consolidado-table">
                     <thead>
-                      <tr>
-                        <th className="rg-consolidado-col-num">N°</th>
-                        <th className="rg-consolidado-col-dni">DNI</th>
-                        <th className="rg-consolidado-col-nombre">Alumnos</th>
-                        {columnas.map((c) => (
-                          <th
-                            key={c.key}
-                            className="rg-consolidado-col-curso"
-                            title={
-                              c.nombre_curso ? `${c.nombre_curso} — ${c.nombre}` : c.nombre
-                            }
-                          >
-                            <span className="rg-consolidado-curso-head">{c.nombre}</span>
-                          </th>
-                        ))}
-                      </tr>
+                      {usaBloques ? (
+                        <>
+                          <tr>
+                            <th className="rg-consolidado-col-num" rowSpan={2}>
+                              N°
+                            </th>
+                            <th className="rg-consolidado-col-dni" rowSpan={2}>
+                              DNI
+                            </th>
+                            <th className="rg-consolidado-col-nombre" rowSpan={2}>
+                              Alumnos
+                            </th>
+                            {bloques.map((b) => (
+                              <th
+                                key={`area-${b.area_id || b.asignatura_id || b.curso_nombre}`}
+                                className="rg-consolidado-col-area"
+                                colSpan={(b.columnas || []).length}
+                              >
+                                {b.curso_nombre}
+                              </th>
+                            ))}
+                          </tr>
+                          <tr>
+                            {bloques.flatMap((b) =>
+                              (b.columnas || []).map((col) => (
+                                <th
+                                  key={col.key}
+                                  className="rg-consolidado-col-curso"
+                                  title={col.titulo || col.label}
+                                >
+                                  <span className="rg-consolidado-curso-head">{col.label}</span>
+                                </th>
+                              ))
+                            )}
+                          </tr>
+                        </>
+                      ) : (
+                        <tr>
+                          <th className="rg-consolidado-col-num">N°</th>
+                          <th className="rg-consolidado-col-dni">DNI</th>
+                          <th className="rg-consolidado-col-nombre">Alumnos</th>
+                          {columnas.map((c) => (
+                            <th
+                              key={c.key}
+                              className="rg-consolidado-col-curso"
+                              title={
+                                c.titulo
+                                  ? c.titulo
+                                  : c.nombre_curso
+                                    ? `${c.nombre_curso} — ${c.nombre}`
+                                    : c.nombre
+                              }
+                            >
+                              <span className="rg-consolidado-curso-head">{c.nombre}</span>
+                            </th>
+                          ))}
+                        </tr>
+                      )}
                     </thead>
                     <tbody>
                       {filas.map((f) => (

@@ -10,6 +10,12 @@ const {
 } = require('./listaAlumnosMatriculadosReporte');
 const { cargarMetaReportesGeneral } = require('./reportesGeneralMeta');
 const { deserializarNotasDetalles } = require('./notasTodosGrupoData');
+const {
+  cargarLibretaInicialGrupo,
+  bloquesDesdeLibretaInicial,
+  aplanarColumnasBloques,
+  notaLibretaInicial,
+} = require('./libretaInicialGrupoReporte');
 
 const CONDUCTA_ASIGNATURA_ID = -101;
 const FILL_TITULO = 'FF1E40AF';
@@ -125,6 +131,63 @@ function promedioNumericoIndicador(notasDet, criterioId, indicadorId) {
     .filter((n) => Number.isFinite(n));
   if (!validas.length) return '';
   return String(Math.round(validas.reduce((s, n) => s + n, 0) / validas.length));
+}
+
+function promedioNumericoCriterio(notasDet, criterioId, indicadorIds) {
+  const notaCriterio = notasDet[criterioId] ?? notasDet[String(criterioId)];
+  if (!notaCriterio) return '';
+  const ids =
+    indicadorIds?.length > 0
+      ? indicadorIds
+      : Object.keys(notaCriterio).map((k) => parseInt(k, 10)).filter((n) => Number.isFinite(n));
+  const allNums = [];
+  for (const indId of ids) {
+    const notasArr = notaCriterio[indId] ?? notaCriterio[String(indId)];
+    if (!notasArr || !Array.isArray(notasArr)) continue;
+    notasArr.forEach((n) => {
+      const v = parseFloat(String(n).replace(',', '.'));
+      if (Number.isFinite(v)) allNums.push(v);
+    });
+  }
+  if (!allNums.length) return '';
+  return String(Math.round(allNums.reduce((s, n) => s + n, 0) / allNums.length));
+}
+
+async function cargarCriteriosAsignatura(colegioId, asignaturaId, ciclo) {
+  let criterios = await query(
+    `SELECT id, asignatura_id, descripcion, abreviatura, orden
+     FROM asignaturas_criterios
+     WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = ? OR ciclo = 0)
+     ORDER BY orden ASC, id ASC`,
+    [asignaturaId, colegioId, ciclo]
+  );
+  if ((!criterios || !criterios.length) && ciclo > 1) {
+    criterios = await query(
+      `SELECT id, asignatura_id, descripcion, abreviatura, orden
+       FROM asignaturas_criterios
+       WHERE asignatura_id = ? AND colegio_id = ? AND (ciclo = 1 OR ciclo = 0)
+       ORDER BY orden ASC, id ASC`,
+      [asignaturaId, colegioId]
+    );
+  }
+  return criterios || [];
+}
+
+async function cargarIndicadoresPorCriterio(criterioIds) {
+  if (!criterioIds?.length) return {};
+  const rows = await query(
+    `SELECT id, criterio_id FROM asignaturas_indicadores
+     WHERE criterio_id IN (${criterioIds.map(() => '?').join(',')})
+     ORDER BY id ASC`,
+    criterioIds
+  );
+  const map = {};
+  for (const row of rows || []) {
+    const cid = row.criterio_id;
+    if (!map[cid]) map[cid] = [];
+    map[cid].push(row.id);
+  }
+  return map;
 }
 
 async function listarGruposConsolidado(colegioId, anio, turnoId, sedeId) {
@@ -298,46 +361,123 @@ async function construirPestanaNumerica(colegioId, grupo, alumnos, asignaturas, 
 }
 
 async function construirPestanaInicial(colegioId, grupo, alumnos, asignaturas, ciclo) {
-  const asignaturaIds = asignaturas.map((a) => a.asignatura_id);
   const matriculaIds = alumnos.map((a) => a.matricula_id);
+  const anio = grupo.anio;
+
+  const libreta = await cargarLibretaInicialGrupo(query, {
+    grupoId: grupo.grupo_id,
+    colegioId,
+    anio,
+    ciclo,
+    matriculaIds,
+  });
+
+  if (libreta) {
+    const bloques = bloquesDesdeLibretaInicial(libreta, { incluirProm: false });
+    const columnas_flat = aplanarColumnasBloques(bloques);
+    const columnas = columnas_flat.map((c) => ({
+      key: c.key,
+      nombre: c.label,
+      titulo: c.titulo,
+      nombre_curso: c.curso_nombre,
+      area_id: c.area_id,
+      indicador_id: c.indicador_id,
+      tipo: c.tipo,
+    }));
+
+    const filas = alumnos.map((al, idx) => {
+      const notas = {};
+      for (const col of columnas_flat) {
+        if (col.tipo === 'indicador_libreta') {
+          notas[col.key] = notaLibretaInicial(libreta.notaMap, al.matricula_id, col.indicador_id);
+        }
+      }
+      return {
+        numero: idx + 1,
+        matricula_id: al.matricula_id,
+        dni: al.dni || '',
+        nombre: nombreAlumnoLista(al),
+        notas,
+      };
+    });
+
+    return {
+      grupo_id: grupo.grupo_id,
+      tab_label: tabLabelGrupo(grupo),
+      subtitulo: subtituloGrupo(grupo, grupo.anio),
+      modo_cualitativo: true,
+      usa_bloques: true,
+      bloques,
+      columnas_flat,
+      columnas,
+      filas,
+    };
+  }
+
+  const asignaturaIds = asignaturas.map((a) => a.asignatura_id);
   const notasPack = await cargarNotasDetalleGrupo(colegioId, asignaturaIds, matriculaIds, ciclo);
   const detMap = mapDetallePorMatriculaAsig(notasPack.detalles);
   const explMap = mapExplicacionIndicador(notasPack.explicaciones);
   const promMap = mapPromedios(notasPack.promedios);
 
-  const columnas = [];
+  const bloques = [];
+  const columnas_flat = [];
 
   for (const asig of asignaturas) {
     const indicadores = await cargarIndicadoresAsignatura(colegioId, asig.asignatura_id, ciclo);
-    for (const ind of indicadores) {
-      const nombreInd = String(ind.descripcion || `Ind ${ind.indicador_id}`).trim();
-      const nombreCurso = String(asig.curso_nombre || '').trim();
-      columnas.push({
-        key: `ind_${ind.indicador_id}`,
-        indicador_id: ind.indicador_id,
+    const nombreCurso = String(asig.curso_nombre || '').trim().toUpperCase();
+
+    if (indicadores.length) {
+      const columnasBloque = indicadores.map((ind, idx) => {
+        const descripcion = String(ind.descripcion || `Ind ${ind.indicador_id}`).trim();
+        const col = {
+          key: `ind_${ind.indicador_id}`,
+          label: descripcion.split(/\s+/)[0]?.slice(0, 12).toUpperCase() || `I${idx + 1}`,
+          titulo: descripcion,
+          indicador_id: ind.indicador_id,
+          criterio_id: ind.criterio_id,
+          asignatura_id: asig.asignatura_id,
+          tipo: 'indicador',
+        };
+        columnas_flat.push({ ...col, curso_nombre: nombreCurso });
+        return col;
+      });
+      bloques.push({
+        curso_nombre: nombreCurso,
         asignatura_id: asig.asignatura_id,
-        criterio_id: ind.criterio_id,
-        nombre: nombreInd.toUpperCase(),
-        nombre_curso: nombreCurso,
-        tipo: 'indicador',
+        columnas: columnasBloque,
+      });
+    } else {
+      const col = {
+        key: `asig_${asig.asignatura_id}`,
+        label: nombreCurso.slice(0, 14),
+        titulo: String(asig.curso_nombre || '').trim(),
+        asignatura_id: asig.asignatura_id,
+        tipo: 'curso',
+      };
+      columnas_flat.push({ ...col, curso_nombre: nombreCurso });
+      bloques.push({
+        curso_nombre: nombreCurso,
+        asignatura_id: asig.asignatura_id,
+        columnas: [col],
       });
     }
   }
 
-  if (!columnas.length) {
-    for (const asig of asignaturas) {
-      columnas.push({
-        key: `asig_${asig.asignatura_id}`,
-        asignatura_id: asig.asignatura_id,
-        nombre: String(asig.curso_nombre || '').trim().toUpperCase(),
-        tipo: 'curso',
-      });
-    }
-  }
+  const columnas = columnas_flat.map((c) => ({
+    key: c.key,
+    nombre: c.label || c.nombre,
+    titulo: c.titulo,
+    nombre_curso: c.curso_nombre,
+    asignatura_id: c.asignatura_id,
+    indicador_id: c.indicador_id,
+    criterio_id: c.criterio_id,
+    tipo: c.tipo,
+  }));
 
   const filas = alumnos.map((al, idx) => {
     const notas = {};
-    for (const col of columnas) {
+    for (const col of columnas_flat) {
       if (col.tipo === 'indicador') {
         const det = detMap[`${al.matricula_id}:${col.asignatura_id}`] || {};
         let val = notaIndicadorDesdeDetalle(det, col.criterio_id, col.indicador_id);
@@ -365,6 +505,9 @@ async function construirPestanaInicial(colegioId, grupo, alumnos, asignaturas, c
     tab_label: tabLabelGrupo(grupo),
     subtitulo: subtituloGrupo(grupo, grupo.anio),
     modo_cualitativo: true,
+    usa_bloques: bloques.length > 0,
+    bloques,
+    columnas_flat,
     columnas,
     filas,
   };
@@ -442,6 +585,123 @@ function estiloCabecera(cell, fillArgb, { vertical = false } = {}) {
   };
 }
 
+function escribirHojaConsolidado(ws, pest, tituloGlobal) {
+  const bloques = pest.bloques || [];
+  const usaBloques = pest.usa_bloques && bloques.length > 0;
+  const columnasFlat = usaBloques
+    ? pest.columnas_flat || aplanarColumnasBloques(bloques)
+    : [];
+  const cols = usaBloques ? columnasFlat : pest.columnas || [];
+  const colCount = 3 + cols.length;
+  const lastCol = colLetter(colCount);
+
+  ws.getColumn(1).width = 4;
+  ws.getColumn(2).width = 11;
+  ws.getColumn(3).width = 34;
+  for (let i = 0; i < cols.length; i += 1) {
+    ws.getColumn(4 + i).width = cols.length > 12 ? 5 : 8;
+  }
+
+  let r = 1;
+  ws.mergeCells(`A${r}:${lastCol}${r}`);
+  const titleCell = ws.getCell(`A${r}`);
+  titleCell.value = `${tituloGlobal} — ${pest.tab_label}`;
+  titleCell.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+  titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_TITULO } };
+  titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getRow(r).height = 22;
+  r += 1;
+
+  if (pest.subtitulo) {
+    ws.mergeCells(`A${r}:${lastCol}${r}`);
+    const sub = ws.getCell(`A${r}`);
+    sub.value = pest.subtitulo;
+    sub.font = { size: 9, italic: true };
+    sub.alignment = { horizontal: 'center' };
+    r += 1;
+  }
+
+  if (usaBloques) {
+    const rCurso = r;
+    const rInd = r + 1;
+
+    ws.mergeCells(`A${rCurso}:A${rInd}`);
+    ws.mergeCells(`B${rCurso}:B${rInd}`);
+    ws.mergeCells(`C${rCurso}:C${rInd}`);
+
+    estiloCabecera(ws.getCell(`A${rCurso}`), FILL_CABECERA_FIJA);
+    ws.getCell(`A${rCurso}`).value = 'N°';
+    estiloCabecera(ws.getCell(`B${rCurso}`), FILL_CABECERA_FIJA);
+    ws.getCell(`B${rCurso}`).value = 'DNI';
+    estiloCabecera(ws.getCell(`C${rCurso}`), FILL_CABECERA_FIJA);
+    ws.getCell(`C${rCurso}`).value = 'ALUMNOS';
+
+    let colIdx = 4;
+    for (const bloque of bloques) {
+      const colsBloque = bloque.columnas || [];
+      if (!colsBloque.length) continue;
+      const startCol = colIdx;
+      const endCol = colIdx + colsBloque.length - 1;
+      if (startCol < endCol) {
+        ws.mergeCells(`${colLetter(startCol)}${rCurso}:${colLetter(endCol)}${rCurso}`);
+      }
+      const cursoCell = ws.getCell(`${colLetter(startCol)}${rCurso}`);
+      cursoCell.value = bloque.curso_nombre;
+      estiloCabecera(cursoCell, FILL_CABECERA_CURSOS);
+
+      for (const col of colsBloque) {
+        const cell = ws.getCell(`${colLetter(colIdx)}${rInd}`);
+        cell.value = col.label || col.nombre;
+        estiloCabecera(cell, FILL_CABECERA_CURSOS, { vertical: true });
+        if (col.titulo && col.titulo !== (col.label || col.nombre)) {
+          cell.note = col.titulo;
+        }
+        colIdx += 1;
+      }
+    }
+
+    aplicarBordeFila(ws.getRow(rCurso), colCount);
+    aplicarBordeFila(ws.getRow(rInd), colCount);
+    ws.getRow(rInd).height = cols.length > 10 ? 72 : 32;
+    r = rInd + 1;
+  } else {
+    const headRow = ws.getRow(r);
+    headRow.values = ['N°', 'DNI', 'ALUMNOS', ...cols.map((c) => c.nombre)];
+    for (let c = 1; c <= colCount; c += 1) {
+      estiloCabecera(headRow.getCell(c), c <= 3 ? FILL_CABECERA_FIJA : FILL_CABECERA_CURSOS, {
+        vertical: c > 3,
+      });
+    }
+    aplicarBordeFila(headRow, colCount);
+    ws.getRow(r).height = cols.length > 10 ? 72 : 28;
+    r += 1;
+  }
+
+  (pest.filas || []).forEach((f, idx) => {
+    const row = ws.getRow(r);
+    row.values = [
+      f.numero,
+      f.dni || '',
+      f.nombre,
+      ...cols.map((c) => f.notas?.[c.key] || ''),
+    ];
+    for (let c = 1; c <= colCount; c += 1) {
+      const cell = row.getCell(c);
+      if (idx % 2 === 1) {
+        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_FILA_PAR } };
+      }
+      cell.font = { size: 9 };
+      cell.alignment = {
+        vertical: 'middle',
+        horizontal: c === 3 ? 'left' : 'center',
+        wrapText: c === 3,
+      };
+    }
+    aplicarBordeFila(row, colCount);
+    r += 1;
+  });
+}
+
 async function generarExcelConsolidadoPromedios(colegioId, filtros) {
   const data = await construirConsolidadoPromedios(colegioId, filtros);
   if (!data.ok) return data;
@@ -451,71 +711,7 @@ async function generarExcelConsolidadoPromedios(colegioId, filtros) {
   for (const pest of data.pestanas || []) {
     const sheetName = String(pest.tab_label || 'Hoja').slice(0, 31);
     const ws = wb.addWorksheet(sheetName, { views: [{ showGridLines: true }] });
-    const cols = pest.columnas || [];
-    const colCount = 3 + cols.length;
-    const lastCol = colLetter(colCount);
-
-    ws.getColumn(1).width = 4;
-    ws.getColumn(2).width = 11;
-    ws.getColumn(3).width = 34;
-    for (let i = 0; i < cols.length; i += 1) {
-      ws.getColumn(4 + i).width = cols.length > 12 ? 5 : 8;
-    }
-
-    let r = 1;
-    ws.mergeCells(`A${r}:${lastCol}${r}`);
-    const titleCell = ws.getCell(`A${r}`);
-    titleCell.value = `${data.titulo} — ${pest.tab_label}`;
-    titleCell.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
-    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_TITULO } };
-    titleCell.alignment = { horizontal: 'center', vertical: 'middle' };
-    ws.getRow(r).height = 22;
-    r += 1;
-
-    if (pest.subtitulo) {
-      ws.mergeCells(`A${r}:${lastCol}${r}`);
-      const sub = ws.getCell(`A${r}`);
-      sub.value = pest.subtitulo;
-      sub.font = { size: 9, italic: true };
-      sub.alignment = { horizontal: 'center' };
-      r += 1;
-    }
-
-    const headRow = ws.getRow(r);
-    headRow.values = ['N°', 'DNI', 'ALUMNOS', ...cols.map((c) => c.nombre)];
-    for (let c = 1; c <= colCount; c += 1) {
-      const cell = headRow.getCell(c);
-      estiloCabecera(cell, c <= 3 ? FILL_CABECERA_FIJA : FILL_CABECERA_CURSOS, {
-        vertical: c > 3,
-      });
-    }
-    aplicarBordeFila(headRow, colCount);
-    ws.getRow(r).height = cols.length > 10 ? 72 : 28;
-    r += 1;
-
-    (pest.filas || []).forEach((f, idx) => {
-      const row = ws.getRow(r);
-      row.values = [
-        f.numero,
-        f.dni || '',
-        f.nombre,
-        ...cols.map((c) => f.notas?.[c.key] || ''),
-      ];
-      for (let c = 1; c <= colCount; c += 1) {
-        const cell = row.getCell(c);
-        if (idx % 2 === 1) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: FILL_FILA_PAR } };
-        }
-        cell.font = { size: 9 };
-        cell.alignment = {
-          vertical: 'middle',
-          horizontal: c === 3 ? 'left' : 'center',
-          wrapText: c === 3,
-        };
-      }
-      aplicarBordeFila(row, colCount);
-      r += 1;
-    });
+    escribirHojaConsolidado(ws, pest, data.titulo);
   }
 
   if (!data.pestanas?.length) {
@@ -539,6 +735,8 @@ module.exports = {
   cargarAlumnosGrupo,
   cargarAsignaturasGrupo,
   cargarIndicadoresAsignatura,
+  cargarCriteriosAsignatura,
+  cargarIndicadoresPorCriterio,
   cargarNotasDetalleGrupo,
   mapDetallePorMatriculaAsig,
   mapExplicacionIndicador,
@@ -553,4 +751,6 @@ module.exports = {
   aplicarBordeFila,
   notaIndicadorDesdeDetalle,
   promedioNumericoIndicador,
+  promedioNumericoCriterio,
+  aplanarColumnasBloques,
 };
