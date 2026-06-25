@@ -1242,22 +1242,37 @@
 }
 
 /* Nóminas de alumnos — vista previa modal */
+.rg-nomina-modal__content {
+  width: 100%;
+}
+
 .rg-nomina-table-wrap {
-  overflow-x: auto;
+  width: 100%;
   max-height: min(52vh, 480px);
   overflow-y: auto;
+  overflow-x: hidden;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #fff;
 }
 
 .rg-nomina-table {
-  min-width: 640px;
-  width: max-content;
-  max-width: 100%;
+  width: 100%;
   table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.78rem;
+}
+
+.rg-nomina-table col.rg-nomina-col-num {
+  width: 2.25rem;
+}
+
+.rg-nomina-table col.rg-nomina-col-nombres {
+  width: 34%;
+}
+
+.rg-nomina-table col.rg-nomina-col-cuadro {
+  width: auto;
 }
 
 .rg-nomina-table thead th {
@@ -1278,28 +1293,27 @@
 
 .rg-nomina-col-num {
   width: 2.25rem;
-  min-width: 2.25rem;
   text-align: center;
   font-weight: 700;
   background: #eff6ff;
 }
 
 .rg-nomina-col-nombres {
-  width: 9.25rem;
-  min-width: 9.25rem;
-  max-width: 9.25rem;
+  min-width: 0;
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  padding-left: 0.5rem !important;
+  padding-right: 0.5rem !important;
+  text-align: left;
 }
 
 .rg-nomina-col-cuadro {
-  width: 1.65rem;
-  min-width: 1.65rem;
-  max-width: 1.65rem;
-  padding: 0.15rem !important;
+  min-width: 0;
+  padding: 0.12rem !important;
   background: #fafafa;
+  border-left: 1px solid #e5e7eb;
 }
 
 .rg-nomina-table tbody tr:nth-child(even) .rg-nomina-col-nombres {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect, useRef, useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -19,15 +19,52 @@ import {
   NUM_CUADROS_NOMINA,
 } from '../../../utils/pdfNominaAlumnosGrupo';
 
+const COL_NUM_PX = 36;
+const NAME_MIN_PX = 200;
+const NAME_RATIO = 0.34;
+const CUADRO_CELL_PX = 24;
+
+function calcularCuadros(anchoContenedor) {
+  if (!anchoContenedor || anchoContenedor < 320) return NUM_CUADROS_NOMINA;
+  const nameW = Math.min(Math.max(NAME_MIN_PX, anchoContenedor * NAME_RATIO), 320);
+  const disponible = anchoContenedor - COL_NUM_PX - nameW;
+  const extra = Math.floor(disponible / CUADRO_CELL_PX);
+  return Math.max(NUM_CUADROS_NOMINA, extra);
+}
+
 function TablaNominaPreview({ filas }) {
+  const wrapRef = useRef(null);
+  const [numCuadros, setNumCuadros] = useState(NUM_CUADROS_NOMINA);
+
+  useLayoutEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return undefined;
+
+    const actualizar = () => {
+      setNumCuadros(calcularCuadros(el.clientWidth));
+    };
+
+    actualizar();
+    const ro = new ResizeObserver(actualizar);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [filas?.length]);
+
   return (
-    <div className="rg-nomina-table-wrap">
+    <div className="rg-nomina-table-wrap" ref={wrapRef}>
       <table className="rg-nomina-table">
+        <colgroup>
+          <col className="rg-nomina-col-num" />
+          <col className="rg-nomina-col-nombres" />
+          {Array.from({ length: numCuadros }, (_, i) => (
+            <col key={i} className="rg-nomina-col-cuadro" />
+          ))}
+        </colgroup>
         <thead>
           <tr>
             <th className="rg-nomina-col-num">N°</th>
             <th className="rg-nomina-col-nombres">Apellidos y Nombres</th>
-            {Array.from({ length: NUM_CUADROS_NOMINA }, (_, i) => (
+            {Array.from({ length: numCuadros }, (_, i) => (
               <th key={i} className="rg-nomina-col-cuadro" aria-hidden="true" />
             ))}
           </tr>
@@ -39,7 +76,7 @@ function TablaNominaPreview({ filas }) {
               <td className="rg-nomina-col-nombres" title={f.alumno_nombre}>
                 {f.alumno_nombre}
               </td>
-              {Array.from({ length: NUM_CUADROS_NOMINA }, (_, i) => (
+              {Array.from({ length: numCuadros }, (_, i) => (
                 <td key={i} className="rg-nomina-col-cuadro" />
               ))}
             </tr>
@@ -105,7 +142,7 @@ export default function ModalNominaAlumnos({
           <CloseIcon />
         </IconButton>
       </DialogTitle>
-      <DialogContent dividers className="rg-alum-modal__content">
+      <DialogContent dividers className="rg-alum-modal__content rg-nomina-modal__content">
         {loading ? (
           <Box display="flex" justifyContent="center" py={6}>
             <CircularProgress />
