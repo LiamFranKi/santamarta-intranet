@@ -21,6 +21,11 @@ const { obtenerAsistenciaMensual } = require('../utils/reportesGeneralAsistencia
 const { generarExcelMontoPagarReal } = require('../utils/reportesGeneralMontoPagarReal');
 const { generarExcelReporteAlumnos } = require('../utils/reportesGeneralAlumnos');
 const { generarExcelDeudaAnual } = require('../utils/reportesGeneralDeudaAnual');
+const { obtenerRankingNotas } = require('../utils/reportesGeneralRankingNotas');
+const {
+  construirDatosAsistenciaPersonal,
+  generarExcelAsistenciaPersonal,
+} = require('../utils/reportesGeneralAsistenciaPersonal');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -397,6 +402,79 @@ router.get('/deuda-anual', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/deuda-anual]', e);
     res.status(500).json({ error: e.message || 'Error al generar Excel' });
+  }
+});
+
+/** GET /api/admin/reportes/general/ranking-notas */
+router.get('/ranking-notas', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const anio = parseInt(req.query.anio, 10);
+    const nivelId = parseInt(req.query.nivel_id, 10);
+    const grado = parseInt(req.query.grado, 10);
+    const seccion = String(req.query.seccion || '').trim();
+    const turnoId = parseInt(req.query.turno_id, 10);
+    const bimestre = parseInt(req.query.bimestre, 10);
+    const sedeRaw = req.query.sede_id;
+    const sedeId = sedeRaw !== undefined && sedeRaw !== '' ? parseInt(sedeRaw, 10) : null;
+
+    const result = await obtenerRankingNotas(cid, {
+      anio,
+      nivelId,
+      grado,
+      seccion,
+      turnoId,
+      bimestre,
+      sedeId: Number.isFinite(sedeId) ? sedeId : null,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/ranking-notas]', e);
+    res.status(500).json({ error: e.message || 'Error al generar ranking de notas' });
+  }
+});
+
+/** GET /api/admin/reportes/general/asistencia-personal */
+router.get('/asistencia-personal', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const result = await construirDatosAsistenciaPersonal(cid, {
+      desde: req.query.desde,
+      hasta: req.query.hasta,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/asistencia-personal]', e);
+    res.status(500).json({ error: e.message || 'Error al generar asistencia del personal' });
+  }
+});
+
+/** GET /api/admin/reportes/general/asistencia-personal/excel */
+router.get('/asistencia-personal/excel', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const result = await generarExcelAsistenciaPersonal(cid, {
+      desde: req.query.desde,
+      hasta: req.query.hasta,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(Buffer.from(result.buffer));
+  } catch (e) {
+    console.error('[reportes/general/asistencia-personal/excel]', e);
+    res.status(500).json({ error: e.message || 'Error al exportar Excel' });
   }
 });
 

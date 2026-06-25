@@ -372,6 +372,38 @@
   font-size: 0.8rem;
 }
 
+.rg-filtros-toolbar--card-quad {
+  flex-wrap: wrap;
+  overflow-x: visible;
+  gap: 0.5rem;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.rg-filtros-toolbar--card-quad .rg-alum-field.MuiFormControl-root {
+  flex: 1 1 5rem;
+  min-width: 4.5rem;
+  max-width: 8.5rem;
+}
+
+.rg-filtros-toolbar--card-quad .rg-alum-field--bimestre {
+  flex: 1.1 1 6.5rem;
+  min-width: 5.5rem;
+}
+
+.rg-filtros-toolbar--card-quad .rg-filtros-toolbar__actions {
+  flex: 0 0 auto;
+  margin-left: 0;
+  padding-bottom: 0.05rem;
+}
+
+.rg-filtros-toolbar--card-quad .rg-alum-btn {
+  white-space: nowrap;
+  padding-left: 0.65rem;
+  padding-right: 0.65rem;
+  font-size: 0.8rem;
+}
+
 .rg-filtros-toolbar__actions {
   display: inline-flex;
   flex-wrap: nowrap;
@@ -519,6 +551,25 @@
   font-weight: 600;
   color: #475569;
   text-align: right;
+}
+
+.rg-alum-modal__subtitle--strong {
+  font-weight: 700;
+  color: #1e40af;
+  font-size: 0.95rem;
+}
+
+.rg-alum-modal__subtitle--muted {
+  font-weight: 500;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.rg-alum-modal__hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  text-align: center;
 }
 
 .rg-alum-modal__content {
@@ -872,6 +923,52 @@
 
 .rg-asist-mes-leyenda .rg-asist-mes-mark {
   margin-right: 0.2rem;
+}
+
+/* Ranking de notas */
+.rg-ranking-notas-table .rg-ranking-notas-nombre {
+  text-align: left;
+  font-weight: 500;
+}
+
+.rg-ranking-notas-table .col-num {
+  width: 5.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Asistencia del personal */
+.rg-asist-personal-table-wrap {
+  overflow-x: auto;
+}
+
+.rg-asist-personal-table {
+  min-width: 720px;
+  font-size: 0.76rem;
+}
+
+.rg-asist-personal-col-nombre {
+  min-width: 11rem;
+  max-width: 16rem;
+  text-align: left !important;
+  font-weight: 500;
+}
+
+.rg-asist-personal-col-dia {
+  min-width: 5.5rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.rg-filtros-toolbar--fechas-derecha {
+  justify-content: flex-end;
+}
+
+.rg-filtros-toolbar--fechas-derecha .rg-filtros-toolbar__actions {
+  margin-left: 0;
+}
+
+.rg-btn-excel {
+  background: linear-gradient(135deg, #15803d 0%, #16a34a 100%) !important;
 }
 
 /* Deudores / pagadores */
