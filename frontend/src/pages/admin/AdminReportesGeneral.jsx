@@ -16,6 +16,7 @@ import ReporteRankingNotas from './reportesGeneral/ReporteRankingNotas';
 import ReporteAsistenciaPersonal from './reportesGeneral/ReporteAsistenciaPersonal';
 import ReporteConsolidadoPromedios from './reportesGeneral/ReporteConsolidadoPromedios';
 import ReporteConsolidadoPromediosDetallado from './reportesGeneral/ReporteConsolidadoPromediosDetallado';
+import ReporteNominasAlumnos from './reportesGeneral/ReporteNominasAlumnos';
 import './AdminEstadisticas.css';
 import './AdminReportesGeneral.css';
 
@@ -63,6 +64,7 @@ export default function AdminReportesGeneral() {
             <ReporteConsolidadoPromedios />
             <ReporteConsolidadoPromediosDetallado />
           </div>
+          <ReporteNominasAlumnos />
         </div>
       </div>
     </DashboardLayout>

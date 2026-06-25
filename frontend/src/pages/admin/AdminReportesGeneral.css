@@ -1238,3 +1238,69 @@
 .rg-consolidado-table tbody tr:hover .rg-consolidado-col-nombre {
   background: #eff6ff;
 }
+
+/* Nóminas de alumnos — vista previa modal */
+.rg-nomina-table-wrap {
+  overflow-x: auto;
+  max-height: min(52vh, 480px);
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.rg-nomina-table {
+  min-width: 720px;
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.rg-nomina-table thead th {
+  background: linear-gradient(135deg, #4a83c1 0%, #3b6fa8 100%);
+  color: #fff;
+  font-weight: 700;
+  border: 1px solid #3b6fa8;
+  padding: 0.4rem 0.35rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.rg-nomina-table tbody td {
+  border: 1px solid #e5e7eb;
+  padding: 0.3rem 0.35rem;
+}
+
+.rg-nomina-col-num {
+  width: 2.25rem;
+  min-width: 2.25rem;
+  text-align: center;
+  font-weight: 700;
+  background: #eff6ff;
+}
+
+.rg-nomina-col-nombres {
+  min-width: 12rem;
+  max-width: 16rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.rg-nomina-col-cuadro {
+  width: 1.65rem;
+  min-width: 1.65rem;
+  max-width: 1.65rem;
+  padding: 0.15rem !important;
+  background: #fafafa;
+}
+
+.rg-nomina-table tbody tr:nth-child(even) .rg-nomina-col-nombres {
+  background: #f8fafc;
+}
+
+.rg-nomina-total-general {
+  margin-top: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #cbd5e1;
+}
