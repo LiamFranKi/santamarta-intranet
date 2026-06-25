@@ -10,6 +10,7 @@ const {
   formatHoraDisplay,
   nombrePersonal,
   getAnioActivo,
+  esDiaLaboral,
 } = require('./adminTardanzasHuellero');
 
 const FILL_TITULO = 'FFE8A5A5';
@@ -33,11 +34,6 @@ function fechasEnRango(desde, hasta) {
   return out;
 }
 
-function esDiaLaboral(fechaISO) {
-  const day = new Date(`${fechaISO}T12:00:00`).getDay();
-  return day !== 0 && day !== 6;
-}
-
 function fechasLaborablesEnRango(desde, hasta) {
   return fechasEnRango(desde, hasta).filter(esDiaLaboral);
 }
@@ -52,22 +48,6 @@ function fmtFechaDDM(iso) {
   const [, m, d] = String(iso || '').split('-');
   if (!m || !d) return iso;
   return `${d}-${m}`;
-}
-
-function dedupePersonalList(personalList) {
-  const byId = new Map();
-  for (const p of personalList || []) {
-    const id = p.personal_id;
-    const prev = byId.get(id);
-    if (!prev || (!prev.usuario_id && p.usuario_id)) {
-      byId.set(id, p);
-    }
-  }
-  return Array.from(byId.values()).sort((a, b) => {
-    const ap = String(a.apellidos || '').localeCompare(String(b.apellidos || ''), 'es');
-    if (ap !== 0) return ap;
-    return String(a.nombres || '').localeCompare(String(b.nombres || ''), 'es');
-  });
 }
 
 function etiquetaMesRango(fechas) {
@@ -217,7 +197,7 @@ async function construirDatosAsistenciaPersonal(colegioId, filtros) {
   const fechas = fechasIso.map((iso) => ({ iso, label: fmtFechaDDM(iso) }));
 
   const { colegio_nombre: colegioNombre } = await getAnioActivo(query, colegioId);
-  const personalList = dedupePersonalList(await loadPersonalColegio(query, colegioId));
+  const personalList = await loadPersonalColegio(query, colegioId);
   const marcMap = await cargarMarcacionesRango(colegioId, desde, hasta);
   const filas = construirFilasReporte(personalList, fechasIso, marcMap);
 
@@ -412,6 +392,5 @@ module.exports = {
   fechasLaborablesEnRango,
   fmtFechaDDM,
   fmtFechaDDMMAAAA,
-  dedupePersonalList,
   MAX_DIAS_RANGO,
 };

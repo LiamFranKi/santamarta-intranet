@@ -265,6 +265,62 @@ function parseHuelleroExcelBuffer(buffer) {
   return [...dedupeMap.values()];
 }
 
+function fechaIsoFromValue(fecha) {
+  if (fecha instanceof Date) return fecha.toISOString().slice(0, 10);
+  return String(fecha || '').slice(0, 10);
+}
+
+function esDiaLaboral(fechaISO) {
+  const day = new Date(`${fechaIsoFromValue(fechaISO)}T12:00:00`).getDay();
+  return day !== 0 && day !== 6;
+}
+
+/** Un registro por personal_id (prioriza fila con usuario vinculado). */
+function dedupePersonalList(personalList) {
+  const byId = new Map();
+  for (const p of personalList || []) {
+    const id = p.personal_id ?? p.id;
+    if (!id) continue;
+    const prev = byId.get(id);
+    if (!prev || (!prev.usuario_id && p.usuario_id)) {
+      byId.set(id, p);
+    }
+  }
+  return Array.from(byId.values()).sort((a, b) => {
+    const ap = String(a.apellidos || '').localeCompare(String(b.apellidos || ''), 'es');
+    if (ap !== 0) return ap;
+    return String(a.nombres || '').localeCompare(String(b.nombres || ''), 'es');
+  });
+}
+
+/**
+ * Suma tardanzas sin doble conteo (mismo personal + mismo día).
+ * Por defecto excluye sábados y domingos, igual que el reporte Asistencia del Personal.
+ */
+function sumarTardanzasDesdeRegistros(rows, { soloDiasLaborables = true } = {}) {
+  const seen = new Set();
+  let totalMinutos = 0;
+  let registrosUnicos = 0;
+
+  for (const r of rows || []) {
+    const fecha = fechaIsoFromValue(r.fecha);
+    if (soloDiasLaborables && !esDiaLaboral(fecha)) continue;
+
+    const personalId = r.personal_id;
+    if (!personalId) continue;
+
+    const key = `${personalId}:${fecha}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    const { minutos_tardanza } = calcTardanza(r.hora_entrada_real, r.hora_marcacion);
+    totalMinutos += minutos_tardanza;
+    registrosUnicos += 1;
+  }
+
+  return { totalMinutos, registrosUnicos };
+}
+
 async function loadPersonalColegio(query, colegioId) {
   const rows = await query(
     `SELECT p.id AS personal_id, p.nombres, p.apellidos, p.hora_entrada, p.cargo,
@@ -275,7 +331,7 @@ async function loadPersonalColegio(query, colegioId) {
      ORDER BY p.apellidos ASC, p.nombres ASC`,
     [colegioId]
   );
-  return rows || [];
+  return dedupePersonalList(rows || []);
 }
 
 async function getAnioActivo(query, colegioId) {
@@ -592,7 +648,8 @@ async function calcularTardanzasMesColegio(query, colegioId, params = {}) {
   const mesNombre = MESES_ES[mesNum - 1] || `Mes ${mesNum}`;
 
   const rows = await query(
-    `SELECT ar.hora_entrada AS hora_marcacion, p.hora_entrada AS hora_entrada_real
+    `SELECT ar.fecha, ar.hora_entrada AS hora_marcacion, p.hora_entrada AS hora_entrada_real,
+            u.personal_id
      FROM asistencia_registros ar
      INNER JOIN usuarios u ON u.id = ar.usuario_id AND u.colegio_id = ar.colegio_id
      INNER JOIN personal p ON p.id = u.personal_id AND p.colegio_id = ar.colegio_id
@@ -602,15 +659,12 @@ async function calcularTardanzasMesColegio(query, colegioId, params = {}) {
        AND MONTH(ar.fecha) = ?
        AND ar.hora_entrada IS NOT NULL
        AND u.personal_id > 0
-       AND (ar.tipo_registro = 'ENTRADA' OR ar.tipo_registro = 'ENTRADA_SALIDA')`,
+       AND (ar.tipo_registro = 'ENTRADA' OR ar.tipo_registro = 'ENTRADA_SALIDA')
+     ORDER BY ar.fecha ASC, ar.hora_entrada ASC`,
     [colegioId, anio, anioCal, mesNum]
   );
 
-  let totalMinutos = 0;
-  (rows || []).forEach((r) => {
-    const { minutos_tardanza } = calcTardanza(r.hora_entrada_real, r.hora_marcacion);
-    totalMinutos += minutos_tardanza;
-  });
+  const { totalMinutos, registrosUnicos } = sumarTardanzasDesdeRegistros(rows);
 
   return {
     mes: mesNum,
@@ -619,7 +673,7 @@ async function calcularTardanzasMesColegio(query, colegioId, params = {}) {
     anio_academico: anio,
     minutos_tardanza: totalMinutos,
     descuento: Math.round(totalMinutos * DESCUENTO_POR_MINUTO * 100) / 100,
-    registros: (rows || []).length,
+    registros: registrosUnicos,
     tarifa_por_minuto: DESCUENTO_POR_MINUTO,
   };
 }
@@ -655,6 +709,9 @@ module.exports = {
   eliminarRegistroTardanza,
   calcularTardanzasMesColegio,
   loadPersonalColegio,
+  dedupePersonalList,
+  esDiaLaboral,
+  sumarTardanzasDesdeRegistros,
   getAnioActivo,
   buildExportWorkbook,
   nombrePersonal,
