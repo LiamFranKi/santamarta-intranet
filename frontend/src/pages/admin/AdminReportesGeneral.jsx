@@ -14,6 +14,8 @@ import ReporteAlumnos from './reportesGeneral/ReporteAlumnos';
 import ReporteDeudaAnual from './reportesGeneral/ReporteDeudaAnual';
 import ReporteRankingNotas from './reportesGeneral/ReporteRankingNotas';
 import ReporteAsistenciaPersonal from './reportesGeneral/ReporteAsistenciaPersonal';
+import ReporteConsolidadoPromedios from './reportesGeneral/ReporteConsolidadoPromedios';
+import ReporteConsolidadoPromediosDetallado from './reportesGeneral/ReporteConsolidadoPromediosDetallado';
 import './AdminEstadisticas.css';
 import './AdminReportesGeneral.css';
 
@@ -56,6 +58,10 @@ export default function AdminReportesGeneral() {
           <div className="rg-row-2">
             <ReporteRankingNotas />
             <ReporteAsistenciaPersonal />
+          </div>
+          <div className="rg-row-2">
+            <ReporteConsolidadoPromedios />
+            <ReporteConsolidadoPromediosDetallado />
           </div>
         </div>
       </div>

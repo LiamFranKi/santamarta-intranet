@@ -993,6 +993,21 @@
   background: linear-gradient(135deg, #15803d 0%, #16a34a 100%) !important;
 }
 
+.rg-alum-btn.rg-btn-excel {
+  background: linear-gradient(135deg, #15803d 0%, #16a34a 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(22, 163, 74, 0.35);
+}
+
+.rg-alum-btn.rg-btn-excel:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(22, 163, 74, 0.45);
+}
+
+.rg-alum-btn.rg-btn-excel:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
 /* Deudores / pagadores */
 .rg-deudores-seccion {
   margin-bottom: 1.35rem;
@@ -1108,4 +1123,107 @@
   padding: 0.55rem 0.5rem;
   font-weight: 700;
   font-size: 1.05rem;
+}
+
+/* Consolidado de promedios */
+.rg-consolidado-tabs {
+  margin-bottom: 0.5rem;
+  min-height: 40px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.rg-consolidado-tabs .MuiTab-root {
+  min-height: 40px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: none;
+  padding: 0.35rem 0.75rem;
+}
+
+.rg-consolidado-tab-sub {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 0.76rem;
+  color: #64748b;
+  text-align: center;
+}
+
+.rg-consolidado-table-wrap {
+  overflow-x: auto;
+  max-height: min(58vh, 520px);
+  overflow-y: auto;
+}
+
+.rg-consolidado-table {
+  min-width: 720px;
+  font-size: 0.74rem;
+}
+
+.rg-consolidado-col-num {
+  width: 2.25rem;
+  min-width: 2.25rem;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: inherit;
+}
+
+.rg-consolidado-col-dni {
+  width: 4.75rem;
+  min-width: 4.75rem;
+  position: sticky;
+  left: 2.25rem;
+  z-index: 2;
+  background: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.rg-consolidado-col-nombre {
+  min-width: 10rem;
+  max-width: 14rem;
+  text-align: left !important;
+  font-weight: 500;
+  position: sticky;
+  left: 7rem;
+  z-index: 2;
+  background: inherit;
+  box-shadow: 4px 0 6px -4px rgba(15, 23, 42, 0.12);
+}
+
+.rg-consolidado-col-curso {
+  min-width: 2.6rem;
+  max-width: 3.25rem;
+  padding: 0.35rem 0.2rem !important;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+}
+
+.rg-consolidado-curso-head {
+  display: inline-block;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  max-height: 7.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.68rem;
+  line-height: 1.1;
+}
+
+.rg-consolidado-table thead th.rg-consolidado-col-num,
+.rg-consolidado-table thead th.rg-consolidado-col-dni,
+.rg-consolidado-table thead th.rg-consolidado-col-nombre {
+  z-index: 3;
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+}
+
+.rg-consolidado-table tbody tr:nth-child(even) .rg-consolidado-col-num,
+.rg-consolidado-table tbody tr:nth-child(even) .rg-consolidado-col-dni,
+.rg-consolidado-table tbody tr:nth-child(even) .rg-consolidado-col-nombre {
+  background: #f8fafc;
+}
+
+.rg-consolidado-table tbody tr:hover .rg-consolidado-col-num,
+.rg-consolidado-table tbody tr:hover .rg-consolidado-col-dni,
+.rg-consolidado-table tbody tr:hover .rg-consolidado-col-nombre {
+  background: #eff6ff;
 }

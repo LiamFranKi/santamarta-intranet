@@ -26,6 +26,13 @@ const {
   construirDatosAsistenciaPersonal,
   generarExcelAsistenciaPersonal,
 } = require('../utils/reportesGeneralAsistenciaPersonal');
+const {
+  construirConsolidadoPromedios,
+  generarExcelConsolidadoPromedios,
+} = require('../utils/reportesGeneralConsolidadoPromedios');
+const {
+  generarExcelConsolidadoPromediosDetallado,
+} = require('../utils/reportesGeneralConsolidadoPromediosDetallado');
 
 router.use(authenticateToken);
 router.use((req, res, next) => {
@@ -475,6 +482,76 @@ router.get('/asistencia-personal/excel', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/asistencia-personal/excel]', e);
     res.status(500).json({ error: e.message || 'Error al exportar Excel' });
+  }
+});
+
+/** GET /api/admin/reportes/general/consolidado-promedios */
+router.get('/consolidado-promedios', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const result = await construirConsolidadoPromedios(cid, {
+      anio: req.query.anio,
+      bimestre: req.query.bimestre,
+      turno_id: req.query.turno_id,
+      sede_id: req.query.sede_id,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[reportes/general/consolidado-promedios]', e);
+    res.status(500).json({ error: e.message || 'Error al generar consolidado de promedios' });
+  }
+});
+
+/** GET /api/admin/reportes/general/consolidado-promedios/excel */
+router.get('/consolidado-promedios/excel', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const result = await generarExcelConsolidadoPromedios(cid, {
+      anio: req.query.anio,
+      bimestre: req.query.bimestre,
+      turno_id: req.query.turno_id,
+      sede_id: req.query.sede_id,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(Buffer.from(result.buffer));
+  } catch (e) {
+    console.error('[reportes/general/consolidado-promedios/excel]', e);
+    res.status(500).json({ error: e.message || 'Error al exportar Excel' });
+  }
+});
+
+/** GET /api/admin/reportes/general/consolidado-promedios-detallado/excel */
+router.get('/consolidado-promedios-detallado/excel', async (req, res) => {
+  try {
+    const cid = colegioId(req);
+    const result = await generarExcelConsolidadoPromediosDetallado(cid, {
+      anio: req.query.anio,
+      bimestre: req.query.bimestre,
+      turno_id: req.query.turno_id,
+      sede_id: req.query.sede_id,
+    });
+    if (!result.ok) {
+      return res.status(result.status || 500).json({ error: result.error });
+    }
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+    res.send(Buffer.from(result.buffer));
+  } catch (e) {
+    console.error('[reportes/general/consolidado-promedios-detallado/excel]', e);
+    res.status(500).json({ error: e.message || 'Error al exportar Excel detallado' });
   }
 });
 
