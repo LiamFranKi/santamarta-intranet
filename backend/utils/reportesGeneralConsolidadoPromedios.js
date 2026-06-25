@@ -12,9 +12,8 @@ const { cargarMetaReportesGeneral } = require('./reportesGeneralMeta');
 const { deserializarNotasDetalles } = require('./notasTodosGrupoData');
 const {
   cargarLibretaInicialGrupo,
-  bloquesDesdeLibretaInicial,
+  promedioAreaLibretaInicial,
   aplanarColumnasBloques,
-  notaLibretaInicial,
 } = require('./libretaInicialGrupoReporte');
 
 const CONDUCTA_ASIGNATURA_ID = -101;
@@ -373,24 +372,22 @@ async function construirPestanaInicial(colegioId, grupo, alumnos, asignaturas, c
   });
 
   if (libreta) {
-    const bloques = bloquesDesdeLibretaInicial(libreta, { incluirProm: false });
-    const columnas_flat = aplanarColumnasBloques(bloques);
-    const columnas = columnas_flat.map((c) => ({
-      key: c.key,
-      nombre: c.label,
-      titulo: c.titulo,
-      nombre_curso: c.curso_nombre,
-      area_id: c.area_id,
-      indicador_id: c.indicador_id,
-      tipo: c.tipo,
+    const columnas = (libreta.areas || []).map((area) => ({
+      key: `area_${area.id}`,
+      nombre: String(area.nombre || '').trim().toUpperCase(),
+      area_id: area.id,
+      indicador_ids: (area.indicadores || []).map((i) => i.id),
+      tipo: 'curso_libreta',
     }));
 
     const filas = alumnos.map((al, idx) => {
       const notas = {};
-      for (const col of columnas_flat) {
-        if (col.tipo === 'indicador_libreta') {
-          notas[col.key] = notaLibretaInicial(libreta.notaMap, al.matricula_id, col.indicador_id);
-        }
+      for (const col of columnas) {
+        notas[col.key] = promedioAreaLibretaInicial(
+          libreta.notaMap,
+          al.matricula_id,
+          col.indicador_ids
+        );
       }
       return {
         numero: idx + 1,
@@ -406,9 +403,6 @@ async function construirPestanaInicial(colegioId, grupo, alumnos, asignaturas, c
       tab_label: tabLabelGrupo(grupo),
       subtitulo: subtituloGrupo(grupo, grupo.anio),
       modo_cualitativo: true,
-      usa_bloques: true,
-      bloques,
-      columnas_flat,
       columnas,
       filas,
     };
@@ -416,80 +410,23 @@ async function construirPestanaInicial(colegioId, grupo, alumnos, asignaturas, c
 
   const asignaturaIds = asignaturas.map((a) => a.asignatura_id);
   const notasPack = await cargarNotasDetalleGrupo(colegioId, asignaturaIds, matriculaIds, ciclo);
-  const detMap = mapDetallePorMatriculaAsig(notasPack.detalles);
-  const explMap = mapExplicacionIndicador(notasPack.explicaciones);
   const promMap = mapPromedios(notasPack.promedios);
 
-  const bloques = [];
-  const columnas_flat = [];
-
-  for (const asig of asignaturas) {
-    const indicadores = await cargarIndicadoresAsignatura(colegioId, asig.asignatura_id, ciclo);
-    const nombreCurso = String(asig.curso_nombre || '').trim().toUpperCase();
-
-    if (indicadores.length) {
-      const columnasBloque = indicadores.map((ind, idx) => {
-        const descripcion = String(ind.descripcion || `Ind ${ind.indicador_id}`).trim();
-        const col = {
-          key: `ind_${ind.indicador_id}`,
-          label: descripcion.split(/\s+/)[0]?.slice(0, 12).toUpperCase() || `I${idx + 1}`,
-          titulo: descripcion,
-          indicador_id: ind.indicador_id,
-          criterio_id: ind.criterio_id,
-          asignatura_id: asig.asignatura_id,
-          tipo: 'indicador',
-        };
-        columnas_flat.push({ ...col, curso_nombre: nombreCurso });
-        return col;
-      });
-      bloques.push({
-        curso_nombre: nombreCurso,
-        asignatura_id: asig.asignatura_id,
-        columnas: columnasBloque,
-      });
-    } else {
-      const col = {
-        key: `asig_${asig.asignatura_id}`,
-        label: nombreCurso.slice(0, 14),
-        titulo: String(asig.curso_nombre || '').trim(),
-        asignatura_id: asig.asignatura_id,
-        tipo: 'curso',
-      };
-      columnas_flat.push({ ...col, curso_nombre: nombreCurso });
-      bloques.push({
-        curso_nombre: nombreCurso,
-        asignatura_id: asig.asignatura_id,
-        columnas: [col],
-      });
-    }
-  }
-
-  const columnas = columnas_flat.map((c) => ({
-    key: c.key,
-    nombre: c.label || c.nombre,
-    titulo: c.titulo,
-    nombre_curso: c.curso_nombre,
-    asignatura_id: c.asignatura_id,
-    indicador_id: c.indicador_id,
-    criterio_id: c.criterio_id,
-    tipo: c.tipo,
+  const columnas = asignaturas.map((asig) => ({
+    key: `asig_${asig.asignatura_id}`,
+    asignatura_id: asig.asignatura_id,
+    nombre: String(asig.curso_nombre || '').trim().toUpperCase(),
+    tipo: 'curso',
   }));
 
   const filas = alumnos.map((al, idx) => {
     const notas = {};
-    for (const col of columnas_flat) {
-      if (col.tipo === 'indicador') {
-        const det = detMap[`${al.matricula_id}:${col.asignatura_id}`] || {};
-        let val = notaIndicadorDesdeDetalle(det, col.criterio_id, col.indicador_id);
-        if (!val) {
-          const raw = explMap[`${al.matricula_id}:${col.indicador_id}`];
-          val = raw != null && raw !== '' ? String(raw).trim().toUpperCase() : '';
-        }
-        notas[col.key] = val;
-      } else {
-        const raw = promMap[`${al.matricula_id}:${col.asignatura_id}`];
-        notas[col.key] = raw != null && raw !== '' ? String(raw).trim().toUpperCase() : '';
-      }
+    for (const col of columnas) {
+      const raw = promMap[`${al.matricula_id}:${col.asignatura_id}`];
+      notas[col.key] =
+        raw != null && raw !== '' && raw !== '-'
+          ? String(raw).trim().toUpperCase()
+          : '';
     }
     return {
       numero: idx + 1,
@@ -505,9 +442,6 @@ async function construirPestanaInicial(colegioId, grupo, alumnos, asignaturas, c
     tab_label: tabLabelGrupo(grupo),
     subtitulo: subtituloGrupo(grupo, grupo.anio),
     modo_cualitativo: true,
-    usa_bloques: bloques.length > 0,
-    bloques,
-    columnas_flat,
     columnas,
     filas,
   };

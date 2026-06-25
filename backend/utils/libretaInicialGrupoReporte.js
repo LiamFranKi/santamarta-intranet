@@ -142,10 +142,44 @@ function notaLibretaInicial(notaMap, matriculaId, indicadorId) {
   return notaMap[`${matriculaId}:${indicadorId}`] || '';
 }
 
+const PUNTAJES_LETRAS_INICIAL = { AD: 20, A: 19, B: 18, C: 17 };
+
+function letraANumeroInicial(letra) {
+  const ln = String(letra || '').trim().toUpperCase();
+  return PUNTAJES_LETRAS_INICIAL[ln] ?? null;
+}
+
+function numeroALetraInicial(num) {
+  if (num == null || !Number.isFinite(num)) return '';
+  const rounded = Math.round(num);
+  if (rounded >= 20) return 'AD';
+  if (rounded >= 19) return 'A';
+  if (rounded >= 18) return 'B';
+  if (rounded >= 17) return 'C';
+  return '';
+}
+
+function promedioLetrasCualitativas(letras) {
+  const nums = (letras || []).map(letraANumeroInicial).filter((n) => n != null);
+  if (!nums.length) return '';
+  const prom = nums.reduce((s, n) => s + n, 0) / nums.length;
+  return numeroALetraInicial(prom);
+}
+
+/** Promedio general del área/curso Inicial a partir de las letras de sus indicadores. */
+function promedioAreaLibretaInicial(notaMap, matriculaId, indicadorIds) {
+  const letras = (indicadorIds || [])
+    .map((id) => notaLibretaInicial(notaMap, matriculaId, id))
+    .filter(Boolean);
+  return promedioLetrasCualitativas(letras);
+}
+
 module.exports = {
   labelIndicadorInicial,
   cargarLibretaInicialGrupo,
   bloquesDesdeLibretaInicial,
   aplanarColumnasBloques,
   notaLibretaInicial,
+  promedioAreaLibretaInicial,
+  promedioLetrasCualitativas,
 };

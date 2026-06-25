@@ -114,7 +114,7 @@ export default function ModalConsolidadoPromedios({
             ) : null}
             {pestana?.modo_cualitativo ? (
               <p className="rg-alum-modal__hint">
-                Inicial: calificaciones cualitativas por indicador (AD, A, B, C).
+                Inicial: promedio general por curso (AD, A, B, C).
               </p>
             ) : null}
             {!hayDatos ? (
