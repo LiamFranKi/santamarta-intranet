@@ -36,7 +36,9 @@ function TablaNominaPreview({ filas }) {
           {(filas || []).map((f) => (
             <tr key={`${f.n}-${f.alumno_nombre}`}>
               <td className="rg-nomina-col-num">{f.n}</td>
-              <td className="rg-nomina-col-nombres">{f.alumno_nombre}</td>
+              <td className="rg-nomina-col-nombres" title={f.alumno_nombre}>
+                {f.alumno_nombre}
+              </td>
               {Array.from({ length: NUM_CUADROS_NOMINA }, (_, i) => (
                 <td key={i} className="rg-nomina-col-cuadro" />
               ))}

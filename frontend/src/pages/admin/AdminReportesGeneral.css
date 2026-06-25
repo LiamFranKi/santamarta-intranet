@@ -3,12 +3,14 @@
 .rg-page {
   max-width: min(1200px, 100%);
   margin: 0 auto;
+  padding-bottom: 4rem;
 }
 
 .rg-stack {
   display: flex;
   flex-direction: column;
   gap: 1.35rem;
+  padding-bottom: 2rem;
 }
 
 .rg-row-2 {
@@ -1250,8 +1252,10 @@
 }
 
 .rg-nomina-table {
-  min-width: 720px;
-  width: 100%;
+  min-width: 640px;
+  width: max-content;
+  max-width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 0.78rem;
 }
@@ -1281,10 +1285,13 @@
 }
 
 .rg-nomina-col-nombres {
-  min-width: 12rem;
-  max-width: 16rem;
+  width: 9.25rem;
+  min-width: 9.25rem;
+  max-width: 9.25rem;
   font-weight: 500;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rg-nomina-col-cuadro {
@@ -1303,4 +1310,8 @@
   margin-top: 0.75rem;
   padding-top: 0.5rem;
   border-top: 1px dashed #cbd5e1;
+}
+
+.rg-nomina-modal .rg-maestros-aula-total {
+  margin-bottom: 0.35rem;
 }
