@@ -268,9 +268,9 @@ function Dashboard() {
       icon: '🧾'
     },
     '/admin/pagos-facturas/buscar-pagos': {
-      title: '🔍 Buscar Pagos',
-      description: 'Consulta y gestión de pagos del colegio',
-      icon: '🔍'
+      title: '💳 Pagos escolares',
+      description: 'Buscar alumnos, BCP, boletear e historial de importaciones',
+      icon: '💳'
     },
     '/admin/pagos-facturas/productos': {
       title: '📦 Productos',

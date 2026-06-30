@@ -1,0 +1,172 @@
+---
+description: Módulo Pagos BCP (CREP/CDPG/Boletear/Historial) — análisis legacy y plan de migración a React/Node. Usar al implementar pagos con banco.
+globs: backend/**/*pagos*,frontend/**/*pagos*,frontend/**/*Pagos*
+alwaysApply: false
+---
+
+# Módulo Pagos + BCP — contexto para migración
+
+**Estado:** Análisis completo hecho (jun 2026). **Próximo paso:** implementar en React/Node replicando lógica legacy. **No inventar** formatos ni campos: misma BD MySQL.
+
+## Menú legacy (referencia UI)
+
+| Menú | Ruta legacy | App PHP |
+|------|-------------|---------|
+| Buscar Alumnos | `#/pagos` | `Main/Applications/pagos/index.php` |
+| Importar / Exportar BCP | `#/importar_exportar` | `Main/Applications/importar_exportar/index.php` |
+| Boletear Pagos | `#/pagos/boletear` | `pagos/index.php` → `do_boletear_*` |
+| Historial Archivos Imp. | `#/pagos/importaciones` | `pagos/index.php` → `importaciones` |
+
+Roles: ADMINISTRADOR, SECRETARIA.
+
+## Flujo de negocio
+
+1. Matrícula crea pagos PENDIENTE (matrícula + pensiones).
+2. **Export CREP** → archivo plano al BCP (deudores por concepto).
+3. Banco cobra → devuelve **CDPG.txt**.
+4. **Import CDPG** → marca pagos CANCELADO, `observaciones=IMPORTADO`, guarda historial.
+5. **Boletear** (paralelo): crea/actualiza `PAGO TEMPORAL` y genera ZIP JSON de boletas (SUNAT vía `impresiones`).
+6. **Historial:** un registro por importación exitosa; reimpresión masiva de boletas del lote.
+
+## Export CREP (`do_bcp`)
+
+- **Salida:** `CREP.txt`, `Content-Type: text/plain`.
+- **Config obligatoria:** `recaudo_nro_sucursal`, `recaudo_nro_cuenta`, `recaudo_razon_social`.
+
+### Filtros UI
+
+- `anio`, `fecha` (fecha del archivo YYYYMMDD en líneas)
+- `nro_pago`, `grupo_id` (-1 = todos) o `matricula_id[]` (individual)
+- `tipo`: **A** Agregar, **M** Modificar, **E** Eliminar
+- `tipo_alumno`: TODOS / NUEVOS (1 matrícula histórica) / ANTIGUOS (>1)
+- `tipo_documento`: A / R (cabecera)
+
+### Catálogo `nro_pago` en export
+
+| Valor | Concepto | tipo BD |
+|-------|----------|---------|
+| -1 | Todos (matrícula + todas pensiones del año) | mixto |
+| 0 | Matrícula | 0 |
+| 1–10 | Mensualidad (según `COLEGIO.getOptionsNroPago`) | 1 |
+| 20 | Matrícula + Agenda | especial |
+| 21 | Reserva vacante (adelanto) | especial |
+| 22 | Cancelación matrícula | especial |
+| 51–60 | Comedor (nro real = valor − 50) | 3 |
+
+### Exclusiones al exportar
+
+- Pago ya `estado_pago=CANCELADO` → no exportar.
+- Pensión con `costo.pension <= 0` (becado) → no exportar.
+- Filtro NUEVOS/ANTIGUOS por `alumno.getMatriculasCount()`.
+
+### Formato archivo
+
+**Línea 0 — CC** (`getHeader_bcp`): sucursal + moneda 0 + cuenta + "C" + razón social(40) + fecha Ymd + count DD(9) + monto total(13+2) + tipo_documento + padding.
+
+**Líneas DD** (`buildLine`): DD + sucursal + 0 + cuenta + DNI(14) + nombre(40) + **identificador(30)** + fecha archivo Ymd + vencimiento Ymd + monto(13+2) + mora 0(13+2) + monto mínimo(7+2) + tipo A/M/E + descripción(20) + documento(16) + padding(61).
+
+**Identificador (30 chars)** — contrato con banco para leer CDPG:
+```
+DNI(8) + matricula_id(6 zero-pad) + nro_pago(3 zero-pad)
+```
+
+Montos: matrícula desde `costo.matricula`; pensión `costo.pension + colegio.monto_adicional` o monto del registro `pagos` si existe. Vencimientos: `COLEGIO.getVencimientoPension(nro_pago)`.
+
+## Import CDPG (`importar_bcp`)
+
+- Salta línea 0 (cabecera). Parseo posicional `getImportDetails`:
+
+| Campo | substr |
+|-------|--------|
+| dni | 27, 8 |
+| matricula_id | 35, 6 |
+| nro_pago | 41, 3 |
+| fecha | 57, 8 → Y-m-d |
+| importe_origen | 73,13 + 86,2 |
+| importe_total | 103,13 + 116,2 |
+| nro_movimiento | 124, 6 |
+
+- `importe_mora = importe_total - importe_origen`.
+
+### Enrutamiento por nro_pago
+
+- 0 → `importPago(tipo=0)` matrícula
+- 1–10 → `importPago(tipo=1)` pensión
+- 20 → `importMatriculaAgenda` (puede crear matrícula + agenda tipo 2)
+- 21 → adelanto matrícula
+- 22 → cancelación adelanto (+ agenda si aplica)
+- >50 → comedor (tipo 3, nro_pago − 50)
+
+### importPago (común)
+
+- Busca pago activo por matricula + nro_pago + tipo.
+- No existe → crea con `descripcion=PAGO CANCELADO`, `observaciones=IMPORTADO`, `banco=BCP`, `nro_movimiento_banco`.
+- Existe PENDIENTE → actualiza montos/mora/fecha, `estado_pago=CANCELADO`.
+- Ya CANCELADO → no tocar.
+- Si `matricula.estado=4` (temporal) y paga matrícula → `estado=0` (regular).
+
+### Historial (`pagos_historial`)
+
+Solo si hubo pagos procesados **y cero errores** (matrícula no encontrada → código -2, lista errores, **sin historial**).
+
+Campos: `colegio_id`, `archivo`, `fecha`, `data` = base64(serialize([ids pagos])), `impreso` NO/SI.
+Estado UI: NO → "IMPRESION PENDIENTE"; SI → "BOLETAS IMPRESAS".
+
+## Import N° operación (`importar_operacion`)
+
+Excel `.xlsx`, fila inicio default 5. Por fila: A=fecha, C=DNI (substr 14,8), G=número operación → actualiza `pagos.nro_movimiento_importado` por fecha_cancelado + DNI.
+
+## Boletear Pagos
+
+- `do_boletear_json`: grupo + nro_pago (mensualidad).
+- `do_boletear_json2`: todos los grupos del año activo + nro_pago.
+- Por matrícula: si no hay pago pensión → crea PENDIENTE `observaciones=PAGO TEMPORAL`; si existe → actualiza observación.
+- `getActiveImpresion` → tabla `impresiones` + serie/número `Boleta_Configuracion` por sede.
+- Descarga ZIP JSON (`generarBoletasZip` en `Helper.php`).
+- `do_boletear_moras_json`: pagos CANCELADOS con mora>0 en rango fechas, límite cantidad → ZIP notas débito.
+
+**Boletear NO cancela pagos** — solo prepara comprobantes. Cobro banco = CREP/CDPG.
+
+## Lista pagos por alumno (legacy `pagos/detalles`)
+
+Totales: a pagar, pagado, adeuda, otros. Acciones: registrar, imprimir, boleta externa, editar, anular (toggle ACTIVO/ANULADO), borrar (delete).
+
+## Tablas BD clave
+
+- `pagos`: matricula_id, nro_pago, tipo (0 matrícula, 1 pensión, 2 agenda, 3 comedor), monto, mora, estado_pago, estado, observaciones, fecha_cancelado, nro_movimiento_banco, nro_movimiento_importado, banco, incluye_agenda.
+- `pagos_historial`: lote importación CDPG.
+- `impresiones`: boletas/notas por pago_id.
+- `colegios`: MESES, inicio_pensiones, total_pensiones, vencimientos, monto_adicional, pago_comedor.
+
+## Sistema nuevo — qué hay vs qué falta
+
+**Ya existe (parcial):**
+- Página **Pagos escolares** con **3 tabs**: Buscar alumnos | Importar/Exportar BCP (incl. historial abajo) | Boletear (pendiente)
+- Tab BCP: `TabBcp.jsx` + API `/api/admin/pagos/bcp/*` (CREP, CDPG, Excel operación, historial paginado 10)
+- Utils: `bcpFormat.js`, `bcpColegioConfig.js`, `bcpCrepExport.js`, `bcpCdpgImport.js`
+
+## Orden sugerido de implementación
+
+1. Utils CREP (export) + endpoint descarga.
+2. Utils CDPG (import) + historial + manejo errores -2.
+3. UI Importar/Exportar BCP.
+4. Historial + imprimir lote.
+5. Boletear (grupo/todos/moras) + integración impresiones existente.
+
+## Archivos legacy fuente de verdad
+
+- `sistema-anterior/Main/Applications/importar_exportar/index.php`
+- `sistema-anterior/Main/Applications/importar_exportar/views/index.php`
+- `sistema-anterior/Main/Applications/pagos/index.php`
+- `sistema-anterior/Main/Applications/pagos/views/boletear.php`
+- `sistema-anterior/Main/Applications/pagos/views/importaciones.php`
+- `sistema-anterior/Main/Models/Pago.php`, `Pago_Historial.php`
+- `sistema-anterior/Main/Applications/Helper.php` → `generarBoletasZip`, `generarNotasDebitoZip`
+
+## Reglas al codificar
+
+- Replicar posiciones fijas CREP/CDPG y identificador DNI+matricula_id+nro_pago sin cambios.
+- Respetar tipo A/M/E en exportación.
+- Historial solo si importación sin errores de matrícula.
+- Distinguir observaciones IMPORTADO (banco) vs PAGO TEMPORAL (boletear).
+- Matrícula estado 4→0 al pagar matrícula vía import.

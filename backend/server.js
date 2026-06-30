@@ -305,6 +305,8 @@ app.use('/api/asistencia', asistenciaRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/admin/usuarios', adminUsuariosRoutes);
 app.use('/api/admin/usuarios', adminInscripcionMatriculaRoutes);
+const adminPagosRoutes = require('./routes/admin.pagos.routes');
+app.use('/api/admin/pagos', adminPagosRoutes);
 app.use('/api/admin/academico', adminAcademicoRoutes);
 app.use('/api/admin/indicadores-plantillas', adminIndicadoresPlantillasRoutes);
 app.use('/api/admin/reportes', adminReportesRoutes);

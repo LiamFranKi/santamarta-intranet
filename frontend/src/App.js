@@ -70,6 +70,7 @@ import AdminEleccionProceso from './pages/admin/AdminEleccionProceso';
 import AdminEleccionVotos from './pages/admin/AdminEleccionVotos';
 import AdminEventos from './pages/admin/AdminEventos';
 import AdminEnConstruccion from './pages/admin/AdminEnConstruccion';
+import AdminPagosEscolares from './pages/admin/pagosEscolares/AdminPagosEscolares';
 import MisEncuestas from './pages/MisEncuestas';
 import EncuestaResponder from './pages/EncuestaResponder';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
@@ -1154,8 +1155,8 @@ function AppRoutes() {
       <Route
         path="/admin/pagos-facturas/buscar-pagos"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
-            <AdminEnConstruccion titulo="Buscar Pagos" />
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA', 'CAJERO']}>
+            <AdminPagosEscolares />
           </PrivateRoute>
         }
       />

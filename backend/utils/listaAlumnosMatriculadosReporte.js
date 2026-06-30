@@ -281,4 +281,5 @@ module.exports = {
   resolverGrupoId,
   obtenerListaUnGrupo,
   obtenerListaTodosGrupos,
+  listarGruposFiltro,
 };

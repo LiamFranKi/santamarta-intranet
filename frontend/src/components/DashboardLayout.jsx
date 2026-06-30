@@ -1534,8 +1534,8 @@ export default function DashboardLayout({ children }) {
                   className={`sidebar-submenu ${expandedMenus.pagosFacturas ? 'expanded' : ''}`}
                 >
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/pagos-facturas/buscar-pagos">
-                    <span className="sidebar-icon" aria-hidden>🔍</span>
-                    <span className="sidebar-label">Buscar Pagos</span>
+                    <span className="sidebar-icon" aria-hidden>💳</span>
+                    <span className="sidebar-label">Pagos escolares</span>
                   </NavLink>
                   <NavLink className={({ isActive }) => `sidebar-sublink ${isActive ? 'active' : ''}`} to="/admin/pagos-facturas/productos">
                     <span className="sidebar-icon" aria-hidden>📦</span>

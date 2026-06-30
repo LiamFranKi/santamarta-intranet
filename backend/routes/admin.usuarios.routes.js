@@ -59,7 +59,15 @@ function sha1Password(plain) {
 }
 
 /**
+ * Rutas de lista/gestión de pagos por matrícula (módulo Pagos escolares).
+ */
+function isPagosMatriculaAdminPath(rel) {
+  return /^\/alumnos\/[^/]+\/matriculas\/[^/]+\/pagos/.test(String(rel || ''));
+}
+
+/**
  * Administrador: todo el módulo. PSICOLOGA: solo alumnos, apoderados y búsqueda personal por DNI (apoyo a fichas).
+ * SECRETARIA / CAJERO: pagos por matrícula (legado PagosApplication).
  */
 function requireAdminOrPsicologaUsuarios(req, res, next) {
   if (!req.user) {
@@ -68,6 +76,12 @@ function requireAdminOrPsicologaUsuarios(req, res, next) {
   const tipo = req.user.tipo;
   if (tipo === 'ADMINISTRADOR') {
     return next();
+  }
+  if (tipo === 'SECRETARIA' || tipo === 'CAJERO') {
+    if (isPagosMatriculaAdminPath(req.path || '')) {
+      return next();
+    }
+    return res.status(403).json({ error: 'No autorizado' });
   }
   if (tipo === 'PSICOLOGA') {
     const rel = req.path || '';
