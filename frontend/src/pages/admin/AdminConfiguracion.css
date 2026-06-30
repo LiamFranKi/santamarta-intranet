@@ -160,6 +160,17 @@
   grid-template-columns: repeat(2, 1fr);
 }
 
+.form-grid--narrow {
+  grid-template-columns: repeat(2, minmax(180px, 280px));
+  max-width: 640px;
+}
+
+.config-section-hint {
+  margin: -0.25rem 0 1rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;

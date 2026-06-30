@@ -423,13 +423,19 @@ function AdminConfiguracion() {
     
     // Campos numéricos que deben manejarse como números
     const numericFields = ['inicio_pensiones', 'inicio_notas', 'total_pensiones', 'total_notas', 
-                          'ciclo_pensiones', 'ciclo_notas', 'monto_adicional', 'dias_tolerancia',
-                          'comision_tarjeta_debito', 'comision_tarjeta_credito'];
+                          'ciclo_pensiones', 'ciclo_notas', 'dias_tolerancia', 'anio_activo', 'anio_matriculas'];
+    const floatFields = ['monto_adicional', 'comision_tarjeta_debito', 'comision_tarjeta_credito'];
     
     let processedValue = type === 'checkbox' ? checked : value;
     
-    // Si es un campo numérico y viene de un select o input numérico, convertir a número
-    if (numericFields.includes(name) && type !== 'checkbox') {
+    if (floatFields.includes(name) && type !== 'checkbox') {
+      if (value === '' || value === null || value === undefined) {
+        processedValue = 0;
+      } else {
+        const numValue = parseFloat(value);
+        processedValue = Number.isNaN(numValue) ? value : numValue;
+      }
+    } else if (numericFields.includes(name) && type !== 'checkbox') {
       if (value === '' || value === null || value === undefined) {
                   processedValue = name === 'inicio_pensiones' || name === 'inicio_notas' ? 0 : 0;
       } else {
@@ -620,10 +626,18 @@ function AdminConfiguracion() {
           if (value !== undefined && value !== null) {
             // Campos numéricos que deben enviarse como números (no strings)
             const numericFields = ['inicio_pensiones', 'inicio_notas', 'total_pensiones', 'total_notas', 
-                                  'ciclo_pensiones', 'ciclo_notas', 'monto_adicional', 'dias_tolerancia',
-                                  'comision_tarjeta_debito', 'comision_tarjeta_credito', 'anio_activo', 'anio_matriculas'];
+                                  'ciclo_pensiones', 'ciclo_notas', 'dias_tolerancia',
+                                  'anio_activo', 'anio_matriculas'];
+            const floatFields = ['monto_adicional', 'comision_tarjeta_debito', 'comision_tarjeta_credito'];
             
-            if (numericFields.includes(field)) {
+            if (floatFields.includes(field)) {
+              const numValue = parseFloat(value);
+              if (!Number.isNaN(numValue)) {
+                formData.append(field, numValue);
+              } else {
+                formData.append(field, value);
+              }
+            } else if (numericFields.includes(field)) {
               // Enviar como número explícitamente
               const numValue = Number(value);
               if (!isNaN(numValue)) {
@@ -746,6 +760,7 @@ function AdminConfiguracion() {
 
       <div className="config-tab-panel">
           {activeTab === 'general' && (
+          <>
           <div className="config-panel-card">
             <div className="config-section">
               <h2 className="section-title">📋 INFORMACIÓN GENERAL</h2>
@@ -827,6 +842,50 @@ function AdminConfiguracion() {
             </div>
             </div>
           </div>
+
+          <div className="config-panel-card config-panel-card--spaced">
+            <div className="config-section">
+              <h2 className="section-title">💳 COMISIÓN PAGO CON TARJETA</h2>
+              <p className="config-section-hint">
+                Porcentajes usados automáticamente en ventas al calcular la comisión de tarjeta.
+              </p>
+              <div className="form-grid form-grid--narrow">
+                <div className="form-group">
+                  <label>Tarjeta de Débito %</label>
+                  <input
+                    type="number"
+                    name="comision_tarjeta_debito"
+                    value={config.comision_tarjeta_debito}
+                    onChange={handleInputChange}
+                    step="0.01"
+                    min="0"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Tarjeta de Crédito %</label>
+                  <input
+                    type="number"
+                    name="comision_tarjeta_credito"
+                    value={config.comision_tarjeta_credito}
+                    onChange={handleInputChange}
+                    step="0.01"
+                    min="0"
+                  />
+                </div>
+              </div>
+              <div className="card-actions">
+                <button
+                  type="button"
+                  onClick={() => handleSaveSection(['comision_tarjeta_debito', 'comision_tarjeta_credito'], 'Comisión tarjeta')}
+                  disabled={saving}
+                  className="btn-submit-card"
+                >
+                  {saving ? 'Guardando...' : '💾 Guardar comisión'}
+                </button>
+              </div>
+            </div>
+          </div>
+          </>
           )}
 
           {activeTab === 'recaudo' && (

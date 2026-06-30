@@ -14,7 +14,31 @@ export const SERIES_VENTA = [
   { value: 3, label: '003 — Transferencias gratuitas' },
 ];
 
-export const TIPOS_DOC_IDENTIDAD = ['DNI', 'RUC', 'CE', 'PASAPORTE'];
+export const TIPOS_DOC_IDENTIDAD = [
+  'DNI',
+  'Pasaporte',
+  'Partida de Nacimiento',
+  'Libreta Electoral',
+  'Libreta Militar',
+  'Carnet de Extranjería',
+  'Licencia de Conducir',
+  'Tarjeta de Seguro',
+  'Otro',
+];
+
+export const TRANSFERENCIA_GRATUITA_OPCIONES = ['NO', 'SI'];
+
+export const TIPOS_TARJETA_VENTA = [
+  { value: 'CREDITO', label: 'Tarjeta de Crédito' },
+  { value: 'DEBITO', label: 'Tarjeta de Débito' },
+];
+
+/** Comisión en soles según porcentaje configurado en colegio. */
+export function calcularComisionTarjeta(subtotal, pct) {
+  const base = parseFloat(subtotal) || 0;
+  const tasa = parseFloat(pct) || 0;
+  return Math.round(((base * tasa) / 100) * 100) / 100;
+}
 
 export const RUBROS_VENTA = [
   'NINGUNO',
@@ -31,6 +55,6 @@ export const TIPOS_COMPRA = ['BOLETA DE VENTA', 'FACTURA'];
 
 export const TIPOS_MOVIMIENTO = ['INGRESO', 'EGRESO'];
 
-export const TIPOS_CLIENTE_VENTA = ['EXTERNO', 'ALUMNO', 'DOCENTE'];
+export const TIPOS_CLIENTE_VENTA = ['ALUMNO', 'DOCENTE', 'EXTERNO'];
 
 export const ESTADOS_PAGO_VENTA = ['PENDIENTE', 'CANCELADO'];

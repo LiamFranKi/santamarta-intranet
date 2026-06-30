@@ -40,6 +40,10 @@ router.get('/meta', async (req, res) => {
   try {
     const cid = colegioId(req);
     const sedes = await query(`SELECT id, nombre FROM sedes WHERE colegio_id = ? ORDER BY nombre`, [cid]);
+    const [colegioRow] = await query(
+      `SELECT comision_tarjeta_debito, comision_tarjeta_credito FROM colegios WHERE id = ? LIMIT 1`,
+      [cid]
+    );
     const arbol = await catalogo.arbolCatalogoVenta(cid);
     const configs = [];
     for (const s of sedes || []) {
@@ -56,7 +60,13 @@ router.get('/meta', async (req, res) => {
         });
       }
     }
-    res.json({ sedes: sedes || [], catalogo: arbol, numeracion: configs });
+    res.json({
+      sedes: sedes || [],
+      catalogo: arbol,
+      numeracion: configs,
+      comision_tarjeta_debito: parseFloat(colegioRow?.comision_tarjeta_debito) || 0,
+      comision_tarjeta_credito: parseFloat(colegioRow?.comision_tarjeta_credito) || 0,
+    });
   } catch (e) {
     console.error('[facturacion/meta]', e);
     res.status(500).json({ error: e.message || 'Error al cargar meta' });

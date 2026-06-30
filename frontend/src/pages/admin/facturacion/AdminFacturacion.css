@@ -340,7 +340,74 @@
 .fact-form-table {
   display: flex;
   flex-direction: column;
+  gap: 0.75rem;
+}
+
+.fact-form-grid-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.fact-form-line {
+  display: grid;
   gap: 0.65rem;
+  align-items: end;
+}
+
+.fact-form-line--3 {
+  grid-template-columns: minmax(140px, 1fr) 130px minmax(160px, 1.2fr);
+}
+
+.fact-form-line--2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.fact-form-line--sede-serie {
+  grid-template-columns: 1fr minmax(240px, 1fr);
+}
+
+.fact-form-line--3eq {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.fact-form-cell label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+  margin-bottom: 0.3rem;
+}
+
+.fact-form-cell label .fact-req {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.fact-form-cell--split {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 0.5rem;
+}
+
+.fact-form-cell--serie {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 0.5rem;
+}
+
+@media (max-width: 900px) {
+  .fact-form-line--3,
+  .fact-form-line--2,
+  .fact-form-line--sede-serie,
+  .fact-form-line--3eq {
+    grid-template-columns: 1fr;
+  }
+
+  .fact-form-cell--split,
+  .fact-form-cell--serie {
+    grid-template-columns: 1fr;
+  }
 }
 
 .fact-form-row {
@@ -421,22 +488,31 @@
 }
 
 .fact-detalle-table thead tr {
-  background: #ecfdf5;
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
 }
 
 .fact-detalle-table th {
   padding: 0.55rem 0.5rem;
-  text-align: left;
+  text-align: center;
   font-weight: 700;
-  color: #0f172a;
-  border-bottom: 2px solid #bbf7d0;
+  color: #fff;
+  border-bottom: none;
   white-space: nowrap;
 }
 
 .fact-detalle-table td {
   padding: 0.4rem 0.35rem;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
   vertical-align: middle;
+  text-align: center;
+}
+
+.fact-detalle-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.fact-detalle-table tbody tr:nth-child(odd) {
+  background: #fff;
 }
 
 .fact-col-num {
@@ -521,6 +597,24 @@
 }
 
 .fact-totals-row--edit {
+  align-items: center;
+}
+
+.fact-totals-row--readonly strong {
+  color: #1e40af;
+}
+
+.fact-totals-row--tarjeta {
+  align-items: center;
+}
+
+.fact-totals-select {
+  min-width: 180px;
+}
+
+.fact-totals-select .MuiOutlinedInput-root {
+  background: #fff;
+}
   gap: 0.5rem;
 }
 

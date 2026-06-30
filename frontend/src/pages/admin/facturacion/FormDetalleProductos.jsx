@@ -134,8 +134,18 @@ export default function FormDetalleProductos({
   );
 }
 
-export function TotalesFacturacion({ subtotal, comision = 0, mostrarComision = false, onComisionChange }) {
+export function TotalesFacturacion({
+  subtotal,
+  comision = 0,
+  mostrarComision = false,
+  tipoTarjeta = 'CREDITO',
+  onTipoTarjetaChange,
+  pctDebito = 0,
+  pctCredito = 0,
+}) {
   const total = subtotal + (parseFloat(comision) || 0);
+  const pctActivo = tipoTarjeta === 'DEBITO' ? pctDebito : pctCredito;
+
   return (
     <div className="fact-totals">
       <div className="fact-totals-row">
@@ -143,17 +153,25 @@ export function TotalesFacturacion({ subtotal, comision = 0, mostrarComision = f
         <strong>S/ {subtotal.toFixed(2)}</strong>
       </div>
       {mostrarComision && (
-        <div className="fact-totals-row fact-totals-row--edit">
-          <span>COMISIÓN TARJETA</span>
-          <TextField
-            size="small"
-            type="number"
-            value={comision}
-            onChange={(e) => onComisionChange?.(e.target.value)}
-            inputProps={{ min: 0, step: 'any' }}
-            className="fact-totals-input"
-          />
-        </div>
+        <>
+          <div className="fact-totals-row fact-totals-row--tarjeta">
+            <span>Tipo tarjeta</span>
+            <TextField
+              select
+              size="small"
+              value={tipoTarjeta}
+              onChange={(e) => onTipoTarjetaChange?.(e.target.value)}
+              className="fact-totals-select"
+            >
+              <MenuItem value="CREDITO">Crédito ({pctCredito}%)</MenuItem>
+              <MenuItem value="DEBITO">Débito ({pctDebito}%)</MenuItem>
+            </TextField>
+          </div>
+          <div className="fact-totals-row fact-totals-row--readonly">
+            <span>COMISIÓN TARJETA ({pctActivo}%)</span>
+            <strong>S/ {(parseFloat(comision) || 0).toFixed(2)}</strong>
+          </div>
+        </>
       )}
       <div className="fact-totals-row fact-totals-row--final">
         <span>TOTAL A PAGAR</span>

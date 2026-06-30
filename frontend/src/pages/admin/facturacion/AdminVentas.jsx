@@ -10,7 +10,17 @@ import DashboardLayout from '../../../components/DashboardLayout';
 import api from '../../../services/api';
 import PeTablaPaginacion from '../../../components/admin/PeTablaPaginacion';
 import { usePaginacionTabla } from '../../../hooks/usePaginacionTabla';
-import { ESTADOS_PAGO_VENTA, RUBROS_VENTA, SERIES_VENTA, TIPOS_CLIENTE_VENTA, TIPOS_DOC_IDENTIDAD, sedeIdSanMartin, todayIso } from './facturacionHelpers';
+import {
+  ESTADOS_PAGO_VENTA,
+  RUBROS_VENTA,
+  SERIES_VENTA,
+  TIPOS_CLIENTE_VENTA,
+  TIPOS_DOC_IDENTIDAD,
+  TRANSFERENCIA_GRATUITA_OPCIONES,
+  calcularComisionTarjeta,
+  sedeIdSanMartin,
+  todayIso,
+} from './facturacionHelpers';
 import FormDetalleProductos, { TotalesFacturacion } from './FormDetalleProductos';
 import { buscarClientePorDni } from './facturacionClienteDni';
 import FacturacionModal from './FacturacionModal';
@@ -21,7 +31,7 @@ import './AdminFacturacion.css';
 const lineaVacia = () => ({ categoria_id: '', concepto_id: '', cantidad: 1, precio: 0, stock: null });
 
 export default function AdminVentas() {
-  const [meta, setMeta] = useState({ sedes: [], catalogo: [] });
+  const [meta, setMeta] = useState({ sedes: [], catalogo: [], comision_tarjeta_debito: 0, comision_tarjeta_credito: 0 });
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fecha1, setFecha1] = useState(todayIso());
@@ -96,6 +106,7 @@ export default function AdminVentas() {
       transferencia_gratuita: 'NO',
       entry: 'NINGUNO',
       comision_tarjeta: 0,
+      tipo_tarjeta: 'CREDITO',
       doc_identidad: 'DNI',
       detalles: [lineaVacia()],
     });
@@ -119,6 +130,7 @@ export default function AdminVentas() {
         ...data,
         doc_identidad: data.doc_identidad || 'DNI',
         entry: data.entry || 'NINGUNO',
+        tipo_tarjeta: data.tipo_tarjeta || 'CREDITO',
         comision_tarjeta: data.comision_tarjeta || 0,
         serie: resolveSerieIdx(data),
         detalles: (data.detalles || []).map((d) => ({
@@ -157,6 +169,15 @@ export default function AdminVentas() {
     if (!modal?.detalles) return 0;
     return modal.detalles.reduce((s, d) => s + (parseFloat(d.cantidad) || 0) * (parseFloat(d.precio) || 0), 0);
   }, [modal]);
+
+  const comisionMonto = useMemo(() => {
+    const tipo = modal?.tipo_tarjeta || 'CREDITO';
+    const pct =
+      tipo === 'DEBITO'
+        ? meta.comision_tarjeta_debito
+        : meta.comision_tarjeta_credito;
+    return calcularComisionTarjeta(totalModal, pct);
+  }, [modal?.tipo_tarjeta, meta.comision_tarjeta_debito, meta.comision_tarjeta_credito, totalModal]);
 
   const serieNumeroVista = useMemo(() => {
     if (!modal) return { serie: '001', numero: '' };
@@ -212,7 +233,11 @@ export default function AdminVentas() {
 
   const guardar = async () => {
     try {
-      const payload = { ...modal, detalles: modal.detalles.filter((d) => d.concepto_id) };
+      const payload = {
+        ...modal,
+        comision_tarjeta: comisionMonto,
+        detalles: modal.detalles.filter((d) => d.concepto_id),
+      };
       if (modal.id) {
         await api.put(`/admin/facturacion/ventas/${modal.id}`, payload);
       } else {
@@ -310,13 +335,13 @@ export default function AdminVentas() {
             <table className="pe-table">
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>N° Boleta</th>
-                  <th>Cliente</th>
-                  <th>DNI</th>
-                  <th>Total</th>
-                  <th>Pago</th>
-                  <th />
+                  <th className="pe-th-center">Fecha</th>
+                  <th className="pe-th-center">N° Boleta</th>
+                  <th className="pe-th-center">Cliente</th>
+                  <th className="pe-th-center">DNI</th>
+                  <th className="pe-th-center">Total</th>
+                  <th className="pe-th-center">Pago</th>
+                  <th className="pe-th-center pe-th-accion">Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -389,10 +414,10 @@ export default function AdminVentas() {
                   <section className="fact-panel">
                     <div className="fact-panel-head">Información General</div>
                     <div className="fact-panel-body">
-                      <div className="fact-form-table">
-                        <div className="fact-form-row">
-                          <label>Tipo de Documento</label>
-                          <div className="fact-form-field">
+                      <div className="fact-form-grid-lines">
+                        <div className="fact-form-line fact-form-line--3">
+                          <div className="fact-form-cell">
+                            <label>Tipo de Documento</label>
                             <TextField
                               select
                               size="small"
@@ -407,18 +432,16 @@ export default function AdminVentas() {
                               ))}
                             </TextField>
                           </div>
-                        </div>
-
-                        <div className="fact-form-row">
-                          <label>
-                            N° de Documento<span className="fact-req">*</span>
-                          </label>
-                          <div className="fact-form-field fact-form-field--split">
+                          <div className="fact-form-cell">
+                            <label>
+                              N° de Documento<span className="fact-req">*</span>
+                            </label>
                             <TextField
                               select
                               size="small"
                               value={modal.tipo || 'ALUMNO'}
                               onChange={(e) => onTipoClienteChange(e.target.value)}
+                              fullWidth
                             >
                               {TIPOS_CLIENTE_VENTA.map((t) => (
                                 <MenuItem key={t} value={t}>
@@ -426,6 +449,9 @@ export default function AdminVentas() {
                                 </MenuItem>
                               ))}
                             </TextField>
+                          </div>
+                          <div className="fact-form-cell">
+                            <label>DNI / documento</label>
                             <TextField
                               size="small"
                               value={modal.dni || ''}
@@ -435,14 +461,14 @@ export default function AdminVentas() {
                               fullWidth
                             />
                           </div>
-                          {buscandoDni && <div className="fact-dni-busy">Buscando en el sistema…</div>}
                         </div>
+                        {buscandoDni && <div className="fact-dni-busy">Buscando en el sistema…</div>}
 
-                        <div className="fact-form-row">
-                          <label>
-                            Nombre<span className="fact-req">*</span>
-                          </label>
-                          <div className="fact-form-field">
+                        <div className="fact-form-line fact-form-line--2">
+                          <div className="fact-form-cell">
+                            <label>
+                              Nombre<span className="fact-req">*</span>
+                            </label>
                             <TextField
                               size="small"
                               value={modal.nombre || ''}
@@ -451,13 +477,10 @@ export default function AdminVentas() {
                               required
                             />
                           </div>
-                        </div>
-
-                        <div className="fact-form-row">
-                          <label>
-                            Fecha<span className="fact-req">*</span>
-                          </label>
-                          <div className="fact-form-field">
+                          <div className="fact-form-cell">
+                            <label>
+                              Fecha<span className="fact-req">*</span>
+                            </label>
                             <TextField
                               type="date"
                               size="small"
@@ -469,11 +492,11 @@ export default function AdminVentas() {
                           </div>
                         </div>
 
-                        <div className="fact-form-row">
-                          <label>
-                            Sede<span className="fact-req">*</span>
-                          </label>
-                          <div className="fact-form-field">
+                        <div className="fact-form-line fact-form-line--sede-serie">
+                          <div className="fact-form-cell">
+                            <label>
+                              Sede<span className="fact-req">*</span>
+                            </label>
                             <TextField
                               select
                               size="small"
@@ -492,45 +515,43 @@ export default function AdminVentas() {
                               ))}
                             </TextField>
                           </div>
-                        </div>
-
-                        <div className="fact-form-row">
-                          <label>
-                            Serie / Número<span className="fact-req">*</span>
-                          </label>
-                          <div className="fact-form-field fact-form-field--split fact-form-field--serie-num">
-                            <TextField
-                              select
-                              size="small"
-                              className="fact-serie-display"
-                              value={modal.serie}
-                              onChange={(e) => {
-                                const v = parseInt(e.target.value, 10);
-                                setModal({ ...modal, serie: v });
-                                fetchSiguienteNumero(modal.sede_id || sedeDefault, v);
-                              }}
-                            >
-                              {SERIES_VENTA.map((s) => (
-                                <MenuItem key={s.value} value={s.value}>
-                                  {String(s.value).padStart(3, '0')}
-                                </MenuItem>
-                              ))}
-                            </TextField>
-                            <TextField
-                              size="small"
-                              className="fact-num-display"
-                              value={serieNumeroVista.numero}
-                              InputProps={{ readOnly: true }}
-                              fullWidth
-                            />
+                          <div className="fact-form-cell">
+                            <label>
+                              Serie / Número<span className="fact-req">*</span>
+                            </label>
+                            <div className="fact-form-cell--serie">
+                              <TextField
+                                select
+                                size="small"
+                                value={modal.serie}
+                                onChange={(e) => {
+                                  const v = parseInt(e.target.value, 10);
+                                  setModal({ ...modal, serie: v });
+                                  fetchSiguienteNumero(modal.sede_id || sedeDefault, v);
+                                }}
+                                fullWidth
+                              >
+                                {SERIES_VENTA.map((s) => (
+                                  <MenuItem key={s.value} value={s.value}>
+                                    {String(s.value).padStart(3, '0')}
+                                  </MenuItem>
+                                ))}
+                              </TextField>
+                              <TextField
+                                size="small"
+                                value={serieNumeroVista.numero}
+                                InputProps={{ readOnly: true }}
+                                fullWidth
+                              />
+                            </div>
                           </div>
                         </div>
 
-                        <div className="fact-form-row">
-                          <label>
-                            Estado Pago<span className="fact-req">*</span>
-                          </label>
-                          <div className="fact-form-field">
+                        <div className="fact-form-line fact-form-line--3eq">
+                          <div className="fact-form-cell">
+                            <label>
+                              Estado Pago<span className="fact-req">*</span>
+                            </label>
                             <TextField
                               select
                               size="small"
@@ -545,13 +566,10 @@ export default function AdminVentas() {
                               ))}
                             </TextField>
                           </div>
-                        </div>
-
-                        <div className="fact-form-row">
-                          <label>
-                            Transferencia Gratuita<span className="fact-req">*</span>
-                          </label>
-                          <div className="fact-form-field">
+                          <div className="fact-form-cell">
+                            <label>
+                              Transferencia Gratuita<span className="fact-req">*</span>
+                            </label>
                             <TextField
                               select
                               size="small"
@@ -559,15 +577,15 @@ export default function AdminVentas() {
                               onChange={(e) => setModal({ ...modal, transferencia_gratuita: e.target.value })}
                               fullWidth
                             >
-                              <MenuItem value="NO">NO</MenuItem>
-                              <MenuItem value="SI">SI</MenuItem>
+                              {TRANSFERENCIA_GRATUITA_OPCIONES.map((t) => (
+                                <MenuItem key={t} value={t}>
+                                  {t}
+                                </MenuItem>
+                              ))}
                             </TextField>
                           </div>
-                        </div>
-
-                        <div className="fact-form-row">
-                          <label>Rubro</label>
-                          <div className="fact-form-field">
+                          <div className="fact-form-cell">
+                            <label>Rubro</label>
                             <TextField
                               select
                               size="small"
@@ -605,9 +623,12 @@ export default function AdminVentas() {
                       />
                       <TotalesFacturacion
                         subtotal={totalModal}
-                        comision={modal.comision_tarjeta || 0}
+                        comision={comisionMonto}
                         mostrarComision
-                        onComisionChange={(v) => setModal({ ...modal, comision_tarjeta: v })}
+                        tipoTarjeta={modal.tipo_tarjeta || 'CREDITO'}
+                        onTipoTarjetaChange={(v) => setModal({ ...modal, tipo_tarjeta: v })}
+                        pctDebito={meta.comision_tarjeta_debito || 0}
+                        pctCredito={meta.comision_tarjeta_credito || 0}
                       />
                     </div>
                   </section>

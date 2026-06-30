@@ -239,26 +239,35 @@
 }
 
 .pe-table thead tr {
-  background: #ecfdf5;
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
 }
 
 .pe-table th {
-  text-align: left;
+  text-align: center;
   padding: 0.65rem 0.75rem;
   font-weight: 700;
-  color: #0f172a;
-  border-bottom: 2px solid #d1fae5;
+  color: #fff;
+  border-bottom: none;
   white-space: nowrap;
 }
 
 .pe-table td {
   padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
   vertical-align: middle;
+  text-align: center;
+}
+
+.pe-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.pe-table tbody tr:nth-child(odd) {
+  background: #fff;
 }
 
 .pe-table tbody tr:hover {
-  background: #f8fafc;
+  background: #eff6ff;
 }
 
 .pe-th-accion,
