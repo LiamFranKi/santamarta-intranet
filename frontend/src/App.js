@@ -71,6 +71,10 @@ import AdminEleccionVotos from './pages/admin/AdminEleccionVotos';
 import AdminEventos from './pages/admin/AdminEventos';
 import AdminEnConstruccion from './pages/admin/AdminEnConstruccion';
 import AdminPagosEscolares from './pages/admin/pagosEscolares/AdminPagosEscolares';
+import AdminProductos from './pages/admin/facturacion/AdminProductos';
+import AdminVentas from './pages/admin/facturacion/AdminVentas';
+import AdminCompras from './pages/admin/facturacion/AdminCompras';
+import AdminCajaChica from './pages/admin/facturacion/AdminCajaChica';
 import MisEncuestas from './pages/MisEncuestas';
 import EncuestaResponder from './pages/EncuestaResponder';
 import DocenteAulaVirtual from './pages/DocenteAulaVirtual';
@@ -1163,32 +1167,32 @@ function AppRoutes() {
       <Route
         path="/admin/pagos-facturas/productos"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
-            <AdminEnConstruccion titulo="Productos" />
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA', 'CAJERO']}>
+            <AdminProductos />
           </PrivateRoute>
         }
       />
       <Route
         path="/admin/pagos-facturas/ventas"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
-            <AdminEnConstruccion titulo="Ventas" />
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA', 'CAJERO']}>
+            <AdminVentas />
           </PrivateRoute>
         }
       />
       <Route
         path="/admin/pagos-facturas/compras"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
-            <AdminEnConstruccion titulo="Compras" />
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA', 'CAJERO']}>
+            <AdminCompras />
           </PrivateRoute>
         }
       />
       <Route
         path="/admin/pagos-facturas/caja-chica"
         element={
-          <PrivateRoute requiredType="ADMINISTRADOR">
-            <AdminEnConstruccion titulo="Caja Chica" />
+          <PrivateRoute requiredTypes={['ADMINISTRADOR', 'SECRETARIA', 'CAJERO']}>
+            <AdminCajaChica />
           </PrivateRoute>
         }
       />
