@@ -105,15 +105,30 @@
   background: #fee2e2;
 }
 
+/* Portal en document.body — por encima del sidebar (9999) y header sticky (100). */
 .pe-modal-overlay {
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.45);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  z-index: 100000;
-  padding: 1rem;
+  z-index: 25000;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding:
+    max(3.75rem, calc(env(safe-area-inset-top) + 3rem))
+    max(1rem, env(safe-area-inset-right))
+    max(1.25rem, env(safe-area-inset-bottom))
+    max(1rem, env(safe-area-inset-left));
+  box-sizing: border-box;
+}
+
+.pe-modal-overlay > .pe-modal {
+  flex-shrink: 0;
+  margin: 0 auto;
 }
 
 .pe-modal {
@@ -150,9 +165,44 @@
 .pe-modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
+  gap: 0.65rem;
   padding: 1rem 1.25rem;
   border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 0 0 12px 12px;
+}
+
+.pe-btn--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.pe-btn--ghost {
+  background: #fff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+}
+
+.pe-btn--ghost:hover:not(:disabled) {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.pe-modal-footer .pe-btn--primary.pe-btn--icon {
+  min-width: 9.5rem;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+.pe-form-grid--producto {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 768px) {
+  .pe-form-grid--producto {
+    grid-template-columns: 1fr;
+  }
 }
 
 .pe-form-grid {

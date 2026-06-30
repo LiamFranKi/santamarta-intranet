@@ -9,6 +9,8 @@ import PeTablaPaginacion from '../../../components/admin/PeTablaPaginacion';
 import { usePaginacionTabla } from '../../../hooks/usePaginacionTabla';
 import '../pagosEscolares/AdminPagosEscolares.css';
 import './AdminFacturacion.css';
+import FacturacionModal from './FacturacionModal';
+import { FactModalCancel, FactModalSave } from './FactModalActions';
 
 export default function AdminCajaChica() {
   const { user } = useAuth();
@@ -290,16 +292,19 @@ export default function AdminCajaChica() {
           </div>
         </div>
 
-        {modalCuenta && (
-          <div className="pe-modal-overlay" onClick={() => setModalCuenta(null)} role="presentation">
-            <div className="pe-modal" onClick={(e) => e.stopPropagation()} role="dialog">
-              <div className="pe-modal-header">
-                <h2>{modalCuenta.id ? 'Editar cuenta' : 'Nueva cuenta'}</h2>
-                <button type="button" className="pe-btn pe-btn--sm" onClick={() => setModalCuenta(null)}>
-                  ✕
-                </button>
-              </div>
-              <div className="pe-modal-body pe-form-grid">
+        <FacturacionModal
+          open={!!modalCuenta}
+          onClose={() => setModalCuenta(null)}
+          title={modalCuenta?.id ? 'Editar cuenta' : 'Nueva cuenta'}
+          footer={
+            <>
+              <FactModalCancel onClick={() => setModalCuenta(null)} label="Cancelar" />
+              <FactModalSave onClick={guardarCuenta} label="Guardar" />
+            </>
+          }
+        >
+          {modalCuenta && (
+              <div className="pe-form-grid">
                 <TextField label="Nombre" size="small" value={modalCuenta.name || ''} onChange={(e) => setModalCuenta({ ...modalCuenta, name: e.target.value })} />
                 <TextField label="Descripción" size="small" value={modalCuenta.description || ''} onChange={(e) => setModalCuenta({ ...modalCuenta, description: e.target.value })} />
                 <TextField select label="Moneda" size="small" value={modalCuenta.cash_currency_id || ''} onChange={(e) => setModalCuenta({ ...modalCuenta, cash_currency_id: e.target.value })}>
@@ -323,28 +328,22 @@ export default function AdminCajaChica() {
                   <MenuItem value={0}>Privada (solo admin)</MenuItem>
                 </TextField>
               </div>
-              <div className="pe-modal-footer">
-                <button type="button" className="pe-btn" onClick={() => setModalCuenta(null)}>
-                  Cancelar
-                </button>
-                <button type="button" className="pe-btn pe-btn--primary" onClick={guardarCuenta}>
-                  Guardar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+          )}
+        </FacturacionModal>
 
-        {modalMov && (
-          <div className="pe-modal-overlay" onClick={() => setModalMov(null)} role="presentation">
-            <div className="pe-modal" onClick={(e) => e.stopPropagation()} role="dialog">
-              <div className="pe-modal-header">
-                <h2>{modalMov.id ? 'Editar movimiento' : 'Nuevo movimiento'}</h2>
-                <button type="button" className="pe-btn pe-btn--sm" onClick={() => setModalMov(null)}>
-                  ✕
-                </button>
-              </div>
-              <div className="pe-modal-body pe-form-grid">
+        <FacturacionModal
+          open={!!modalMov}
+          onClose={() => setModalMov(null)}
+          title={modalMov?.id ? 'Editar movimiento' : 'Nuevo movimiento'}
+          footer={
+            <>
+              <FactModalCancel onClick={() => setModalMov(null)} label="Cancelar" />
+              <FactModalSave onClick={guardarMov} label="Guardar" />
+            </>
+          }
+        >
+          {modalMov && (
+              <div className="pe-form-grid">
                 <TextField label="Descripción" size="small" value={modalMov.description || ''} onChange={(e) => setModalMov({ ...modalMov, description: e.target.value })} />
                 <TextField label="Referencia" size="small" value={modalMov.entry || ''} onChange={(e) => setModalMov({ ...modalMov, entry: e.target.value })} />
                 <TextField type="date" label="Fecha" size="small" value={String(modalMov.date || '').slice(0, 10)} onChange={(e) => setModalMov({ ...modalMov, date: e.target.value })} InputLabelProps={{ shrink: true }} />
@@ -358,17 +357,8 @@ export default function AdminCajaChica() {
                 </TextField>
                 <TextField type="number" label="Monto" size="small" value={modalMov.amount} onChange={(e) => setModalMov({ ...modalMov, amount: e.target.value })} />
               </div>
-              <div className="pe-modal-footer">
-                <button type="button" className="pe-btn" onClick={() => setModalMov(null)}>
-                  Cancelar
-                </button>
-                <button type="button" className="pe-btn pe-btn--primary" onClick={guardarMov}>
-                  Guardar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+          )}
+        </FacturacionModal>
       </div>
     </DashboardLayout>
   );

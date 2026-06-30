@@ -16,7 +16,16 @@ export const SERIES_VENTA = [
 
 export const TIPOS_DOC_IDENTIDAD = ['DNI', 'RUC', 'CE', 'PASAPORTE'];
 
-export const RUBROS_VENTA = ['NINGUNO', 'LIBROS', 'UNIFORMES', 'UTILES', 'OTROS'];
+export const RUBROS_VENTA = [
+  'NINGUNO',
+  'BCP RECAUDADORA',
+  'BCP IEP',
+  'BCP MARTHA',
+  'BCP YAPE',
+  'YAPE NUMERAL',
+  'EFECTIVO',
+  'TRANSFERENCIA',
+];
 
 export const TIPOS_COMPRA = ['BOLETA DE VENTA', 'FACTURA'];
 

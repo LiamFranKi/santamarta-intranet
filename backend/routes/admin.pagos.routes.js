@@ -10,8 +10,8 @@ const { cargarMetaReportesGeneral } = require('../utils/reportesGeneralMeta');
 const { buscarAlumnosPagosGrupo } = require('../utils/pagosBuscarAlumnos');
 const { cargarBcpColegioConfig } = require('../utils/bcpColegioConfig');
 const { generarCrep, listarGruposBcp, buscarMatriculasAutocomplete } = require('../utils/bcpCrepExport');
-const { importarCdpg, importarNumeroOperacion, listarHistorialImportaciones } = require('../utils/bcpCdpgImport');
-const { boletearGeneral, boletearMoras } = require('../utils/boletearPagos');
+const { importarCdpg, importarNumeroOperacion, listarHistorialImportaciones, obtenerHistorialImportacion } = require('../utils/bcpCdpgImport');
+const { boletearGeneral, boletearMoras, boletearHistorialImportacion } = require('../utils/boletearPagos');
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -200,6 +200,37 @@ router.get('/bcp/historial', async (req, res) => {
   } catch (e) {
     console.error('[admin/pagos/bcp/historial]', e);
     res.status(500).json({ error: e.message || 'Error al cargar historial' });
+  }
+});
+
+/** GET /api/admin/pagos/bcp/historial/:id — detalle del lote importado */
+router.get('/bcp/historial/:id', async (req, res) => {
+  try {
+    const result = await obtenerHistorialImportacion(colegioId(req), req.params.id);
+    if (!result.ok) {
+      return res.status(result.status || 400).json({ error: result.error });
+    }
+    res.json(result);
+  } catch (e) {
+    console.error('[admin/pagos/bcp/historial/:id]', e);
+    res.status(500).json({ error: e.message || 'Error al cargar detalle del historial' });
+  }
+});
+
+/** POST /api/admin/pagos/bcp/historial/:id/boletear — ZIP boletas del lote */
+router.post('/bcp/historial/:id/boletear', async (req, res) => {
+  try {
+    const result = await boletearHistorialImportacion(colegioId(req), req.params.id);
+    if (!result.ok) {
+      return res.status(result.status || 400).json({ error: result.error });
+    }
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename=${result.filename}`);
+    res.setHeader('X-Boletas-Count', String(result.boletas));
+    res.send(result.buffer);
+  } catch (e) {
+    console.error('[admin/pagos/bcp/historial/:id/boletear]', e);
+    res.status(500).json({ error: e.message || 'Error al boletear historial' });
   }
 });
 

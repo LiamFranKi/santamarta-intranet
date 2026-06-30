@@ -12,6 +12,8 @@ import '../pagosEscolares/AdminPagosEscolares.css';
 import './AdminFacturacion.css';
 import PeTablaPaginacion from '../../../components/admin/PeTablaPaginacion';
 import { usePaginacionTabla } from '../../../hooks/usePaginacionTabla';
+import FacturacionModal from './FacturacionModal';
+import { FactModalCancel, FactModalSave } from './FactModalActions';
 
 const TABS = [
   { id: 'productos', label: 'Productos', tone: 'productos' },
@@ -39,20 +41,11 @@ function FiltroBar({ value, onChange, placeholder }) {
   );
 }
 
-function Modal({ title, onClose, children, footer }) {
+function Modal({ title, onClose, children, footer, wide }) {
   return (
-    <div className="pe-modal-overlay" onClick={onClose} role="presentation">
-      <div className="pe-modal" onClick={(e) => e.stopPropagation()} role="dialog">
-        <div className="pe-modal-header">
-          <h2>{title}</h2>
-          <button type="button" className="pe-btn pe-btn--sm" onClick={onClose}>
-            ✕
-          </button>
-        </div>
-        <div className="pe-modal-body">{children}</div>
-        {footer && <div className="pe-modal-footer">{footer}</div>}
-      </div>
-    </div>
+    <FacturacionModal open title={title} onClose={onClose} footer={footer} wide={wide}>
+      {children}
+    </FacturacionModal>
   );
 }
 
@@ -130,7 +123,7 @@ function TabCategorias() {
 
   return (
     <>
-      <div className="pe-fact-actions">
+      <div className="pe-fact-actions pe-fact-actions--toolbar">
         <FiltroBar value={filtro} onChange={setFiltro} placeholder="Nombre o descripción…" />
         <button type="button" className="pe-btn pe-btn--primary pe-btn--icon" onClick={() => setModal({ nombre: '', descripcion: '' })}>
           <AddCircleOutlineIcon fontSize="small" />
@@ -191,12 +184,8 @@ function TabCategorias() {
           onClose={() => setModal(null)}
           footer={
             <>
-              <button type="button" className="pe-btn" onClick={() => setModal(null)}>
-                Cancelar
-              </button>
-              <button type="button" className="pe-btn pe-btn--primary" onClick={guardar}>
-                Guardar
-              </button>
+              <FactModalCancel onClick={() => setModal(null)} label="Cancelar" />
+              <FactModalSave onClick={guardar} label="Guardar" />
             </>
           }
         >
@@ -360,12 +349,8 @@ function TabSubcategorias({ categorias }) {
           onClose={() => setModal(null)}
           footer={
             <>
-              <button type="button" className="pe-btn" onClick={() => setModal(null)}>
-                Cancelar
-              </button>
-              <button type="button" className="pe-btn pe-btn--primary" onClick={guardar}>
-                Guardar
-              </button>
+              <FactModalCancel onClick={() => setModal(null)} label="Cancelar" />
+              <FactModalSave onClick={guardar} label="Guardar" />
             </>
           }
         >
@@ -587,16 +572,12 @@ function TabProductos({ categorias, subcategorias }) {
           onClose={() => setModal(null)}
           footer={
             <>
-              <button type="button" className="pe-btn" onClick={() => setModal(null)}>
-                Cancelar
-              </button>
-              <button type="button" className="pe-btn pe-btn--primary" onClick={guardar}>
-                Guardar
-              </button>
+              <FactModalCancel onClick={() => setModal(null)} label="Cancelar" />
+              <FactModalSave onClick={guardar} label="Guardar" />
             </>
           }
         >
-          <div className="pe-form-grid">
+          <div className="pe-form-grid pe-form-grid--producto">
             <TextField select label="Categoría" size="small" value={modal.categoria_id} onChange={(e) => setModal({ ...modal, categoria_id: e.target.value, subcategoria_id: '' })} fullWidth>
               {categorias.map((c) => (
                 <MenuItem key={c.id} value={c.id}>
@@ -613,16 +594,15 @@ function TabProductos({ categorias, subcategorias }) {
               ))}
             </TextField>
             <TextField label="Descripción" size="small" value={modal.descripcion} onChange={(e) => setModal({ ...modal, descripcion: e.target.value })} fullWidth />
-            <TextField label="Precio" size="small" type="number" value={modal.precio_inicial} onChange={(e) => setModal({ ...modal, precio_inicial: e.target.value })} />
-            <TextField label="Costo unitario" size="small" type="number" value={modal.costo_unitario || 0} onChange={(e) => setModal({ ...modal, costo_unitario: e.target.value })} />
-            <TextField select label="Controlar stock" size="small" value={modal.controlar_stock || 'NO'} onChange={(e) => setModal({ ...modal, controlar_stock: e.target.value })}>
+            <TextField label="Precio" size="small" type="number" value={modal.precio_inicial} onChange={(e) => setModal({ ...modal, precio_inicial: e.target.value })} fullWidth />
+            <TextField select label="Controlar stock" size="small" value={modal.controlar_stock || 'NO'} onChange={(e) => setModal({ ...modal, controlar_stock: e.target.value })} fullWidth>
               <MenuItem value="NO">NO</MenuItem>
               <MenuItem value="SI">SI</MenuItem>
             </TextField>
             {modal.controlar_stock === 'SI' && !modal.id && (
-              <TextField label="Stock inicial" size="small" type="number" value={modal.stock} onChange={(e) => setModal({ ...modal, stock: e.target.value })} />
+              <TextField label="Stock inicial" size="small" type="number" value={modal.stock} onChange={(e) => setModal({ ...modal, stock: e.target.value })} fullWidth />
             )}
-            <TextField select label="Ocultar" size="small" value={modal.ocultar || 'NO'} onChange={(e) => setModal({ ...modal, ocultar: e.target.value })}>
+            <TextField select label="Ocultar" size="small" value={modal.ocultar || 'NO'} onChange={(e) => setModal({ ...modal, ocultar: e.target.value })} fullWidth>
               <MenuItem value="NO">NO</MenuItem>
               <MenuItem value="SI">SI</MenuItem>
             </TextField>
@@ -635,12 +615,8 @@ function TabProductos({ categorias, subcategorias }) {
           onClose={() => setStockModal(null)}
           footer={
             <>
-              <button type="button" className="pe-btn" onClick={() => setStockModal(null)}>
-                Cancelar
-              </button>
-              <button type="button" className="pe-btn pe-btn--primary" onClick={guardarStock}>
-                Actualizar
-              </button>
+              <FactModalCancel onClick={() => setStockModal(null)} label="Cancelar" />
+              <FactModalSave onClick={guardarStock} label="Actualizar" />
             </>
           }
         >

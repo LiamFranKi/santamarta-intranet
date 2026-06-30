@@ -7,6 +7,8 @@ import PeTablaPaginacion from '../../../components/admin/PeTablaPaginacion';
 import { usePaginacionTabla } from '../../../hooks/usePaginacionTabla';
 import { TIPOS_COMPRA, todayIso } from './facturacionHelpers';
 import FormDetalleProductos, { TotalesFacturacion } from './FormDetalleProductos';
+import FacturacionModal from './FacturacionModal';
+import { FactModalCancel, FactModalSave } from './FactModalActions';
 import '../pagosEscolares/AdminPagosEscolares.css';
 import './AdminFacturacion.css';
 
@@ -223,16 +225,19 @@ export default function AdminCompras() {
           />
         )}
 
-        {modal && (
-          <div className="pe-modal-overlay" onClick={() => setModal(null)} role="presentation">
-            <div className="pe-modal pe-modal--factura" onClick={(e) => e.stopPropagation()} role="dialog">
-              <div className="pe-modal-header">
-                <h2>{modal.id ? 'Editar ingreso' : 'Registrar ingreso'}</h2>
-                <button type="button" className="pe-btn pe-btn--sm" onClick={() => setModal(null)}>
-                  ✕
-                </button>
-              </div>
-              <div className="pe-modal-body">
+        <FacturacionModal
+          open={!!modal}
+          onClose={() => setModal(null)}
+          wide
+          title={modal?.id ? 'Editar ingreso' : 'Registrar ingreso'}
+          footer={
+            <>
+              <FactModalCancel onClick={() => setModal(null)} />
+              <FactModalSave onClick={guardar} />
+            </>
+          }
+        >
+          {modal && (
                 <div className="fact-form-inner">
                   <section className="fact-panel">
                     <div className="fact-panel-head">Información General</div>
@@ -336,18 +341,8 @@ export default function AdminCompras() {
                     </div>
                   </section>
                 </div>
-              </div>
-              <div className="pe-modal-footer">
-                <button type="button" className="pe-btn" onClick={() => setModal(null)}>
-                  Cancelar
-                </button>
-                <button type="button" className="pe-btn pe-btn--primary" onClick={guardar}>
-                  Guardar datos
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+          )}
+        </FacturacionModal>
       </div>
     </DashboardLayout>
   );

@@ -424,8 +424,8 @@ async function importarNumeroOperacion(colegioId, buffer, startRow) {
   return { ok: true, code: 1, actualizados, errores };
 }
 
-function contarPagosHistorial(dataField) {
-  if (!dataField) return 0;
+function parseHistorialPagoIds(dataField) {
+  if (!dataField) return [];
   try {
     let raw = String(dataField);
     try {
@@ -434,16 +434,24 @@ function contarPagosHistorial(dataField) {
       /* plain */
     }
     const arr = phpSerialize.unserialize(raw);
-    if (Array.isArray(arr)) return arr.length;
+    if (Array.isArray(arr)) {
+      return arr.map((id) => parseInt(id, 10)).filter((id) => Number.isFinite(id) && id > 0);
+    }
   } catch {
     try {
       const j = JSON.parse(String(dataField));
-      if (Array.isArray(j)) return j.length;
+      if (Array.isArray(j)) {
+        return j.map((id) => parseInt(id, 10)).filter((id) => Number.isFinite(id) && id > 0);
+      }
     } catch {
       /* ignore */
     }
   }
-  return 0;
+  return [];
+}
+
+function contarPagosHistorial(dataField) {
+  return parseHistorialPagoIds(dataField).length;
 }
 
 async function listarHistorialImportaciones(colegioId, { anio, page = 1, pageSize = 10 }) {
@@ -488,8 +496,72 @@ async function listarHistorialImportaciones(colegioId, { anio, page = 1, pageSiz
   };
 }
 
+async function obtenerHistorialImportacion(colegioId, historialId) {
+  const id = parseInt(historialId, 10);
+  if (!Number.isFinite(id) || id < 1) {
+    return { ok: false, status: 400, error: 'ID de historial inválido.' };
+  }
+
+  const rows = await query(
+    `SELECT id, archivo, fecha, data, impreso FROM pagos_historial
+     WHERE id = ? AND colegio_id = ? LIMIT 1`,
+    [id, colegioId]
+  );
+  const row = rows?.[0];
+  if (!row) {
+    return { ok: false, status: 404, error: 'Registro de historial no encontrado.' };
+  }
+
+  const pagoIds = parseHistorialPagoIds(row.data);
+  let pagos = [];
+  if (pagoIds.length > 0) {
+    const placeholders = pagoIds.map(() => '?').join(',');
+    pagos = await query(
+      `SELECT p.id, p.nro_pago, p.descripcion, p.monto, p.mora, p.estado_pago, p.fecha_cancelado,
+              a.nro_documento AS dni, a.apellido_paterno, a.apellido_materno, a.nombres,
+              g.grado, g.seccion, n.nombre AS nivel_nombre
+       FROM pagos p
+       INNER JOIN matriculas m ON m.id = p.matricula_id
+       INNER JOIN alumnos a ON a.id = m.alumno_id
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       WHERE p.colegio_id = ? AND p.id IN (${placeholders})
+       ORDER BY a.apellido_paterno, a.apellido_materno, a.nombres, p.nro_pago`,
+      [colegioId, ...pagoIds]
+    );
+  }
+
+  return {
+    ok: true,
+    historial: {
+      id: row.id,
+      archivo: row.archivo,
+      fecha: row.fecha,
+      impreso: row.impreso,
+      estado: String(row.impreso).toUpperCase() === 'SI' ? 'BOLETAS IMPRESAS' : 'IMPRESION PENDIENTE',
+      cantidad_pagos: pagoIds.length,
+    },
+    pagos: (pagos || []).map((p) => ({
+      id: p.id,
+      nro_pago: p.nro_pago,
+      descripcion: p.descripcion,
+      monto: parseFloat(p.monto) || 0,
+      mora: parseFloat(p.mora) || 0,
+      estado_pago: p.estado_pago,
+      fecha_cancelado: p.fecha_cancelado,
+      dni: p.dni,
+      alumno: [p.apellido_paterno, p.apellido_materno, p.nombres].filter(Boolean).join(' ').trim(),
+      grado: p.grado,
+      seccion: p.seccion,
+      nivel: p.nivel_nombre,
+    })),
+  };
+}
+
 module.exports = {
   importarCdpg,
   importarNumeroOperacion,
   listarHistorialImportaciones,
+  obtenerHistorialImportacion,
+  parseHistorialPagoIds,
 };

@@ -7,6 +7,7 @@ const { PassThrough } = require('stream');
 const archiver = require('archiver');
 const { query, execute } = require('./mysql');
 const { cargarBcpColegioConfig } = require('./bcpColegioConfig');
+const { parseHistorialPagoIds } = require('./bcpCdpgImport');
 const { fechaHoraMySQLLima } = require('./fechaHoraLima');
 const {
   findActiveImpresion,
@@ -265,7 +266,70 @@ async function boletearMoras(colegioId, { from, to, cantidad }) {
   };
 }
 
+/**
+ * Boletear lote de un archivo CDPG importado (historial pagos_historial).
+ */
+async function boletearHistorialImportacion(colegioId, historialId) {
+  const id = parseInt(historialId, 10);
+  if (!Number.isFinite(id) || id < 1) {
+    return { ok: false, status: 400, error: 'ID de historial inválido.' };
+  }
+
+  const rows = await query(
+    `SELECT id, data FROM pagos_historial WHERE id = ? AND colegio_id = ? LIMIT 1`,
+    [id, colegioId]
+  );
+  const row = rows?.[0];
+  if (!row) {
+    return { ok: false, status: 404, error: 'Registro de historial no encontrado.' };
+  }
+
+  const pagoIds = parseHistorialPagoIds(row.data);
+  if (!pagoIds.length) {
+    return { ok: false, status: 400, error: 'El historial no contiene pagos para boletear.' };
+  }
+
+  const impresionesPendientes = [];
+
+  for (const pagoId of pagoIds) {
+    const ens = await ensurePagoImpresionActiva({
+      colegioId,
+      pagoId,
+      tipo: 'PAGO',
+      tipoDocumento: 'BOLETA',
+    });
+    if (!ens.ok || !ens.impresion) continue;
+
+    const imp = ens.impresion;
+    impresionesPendientes.push(imp);
+    if (impresoPendiente(imp)) {
+      await marcarImpresionComoImpresa(imp.id);
+    }
+  }
+
+  const files = [];
+  for (const imp of impresionesPendientes) {
+    const json = await jsonDesdeImpresion(colegioId, imp);
+    if (json) files.push(json);
+  }
+
+  if (!files.length) {
+    return { ok: false, status: 400, error: 'No se pudieron generar boletas para este lote.' };
+  }
+
+  await execute(`UPDATE pagos_historial SET impreso = 'SI' WHERE id = ? AND colegio_id = ?`, [id, colegioId]);
+
+  const buffer = await buildZipBuffer(files);
+  return {
+    ok: true,
+    buffer,
+    filename: zipFilename(),
+    boletas: files.length,
+  };
+}
+
 module.exports = {
   boletearGeneral,
   boletearMoras,
+  boletearHistorialImportacion,
 };

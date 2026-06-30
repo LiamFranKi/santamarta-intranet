@@ -3,13 +3,19 @@ import {
   Autocomplete,
   Chip,
   CircularProgress,
+  IconButton,
   MenuItem,
   TextField,
+  Tooltip,
 } from '@mui/material';
+import ArticleOutlinedIcon from '@mui/icons-material/ArticleOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import Swal from 'sweetalert2';
 import api from '../../../services/api';
 import PeTablaPaginacion from '../../../components/admin/PeTablaPaginacion';
 import { DEFAULT_PAGE_SIZE } from '../../../hooks/usePaginacionTabla';
+import FacturacionModal from '../facturacion/FacturacionModal';
+import '../facturacion/AdminFacturacion.css';
 import { sedeIdSanMartin } from './pagosEscolaresFilters';
 
 function todayIso() {
@@ -25,11 +31,27 @@ function descargarBlob(blob, filename) {
   window.URL.revokeObjectURL(url);
 }
 
+async function parseErrorBlob(e, fallback) {
+  if (e.response?.data instanceof Blob) {
+    try {
+      const txt = await e.response.data.text();
+      const j = JSON.parse(txt);
+      return j.error || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  return e.response?.data?.error || fallback;
+}
+
 function HistorialBcp({ anio }) {
   const [items, setItems] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, page_size: DEFAULT_PAGE_SIZE, total: 0, total_pages: 1 });
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
+  const [detalle, setDetalle] = useState(null);
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+  const [boleteandoId, setBoleteandoId] = useState(null);
 
   const cargar = useCallback(
     async (page = 1, size = pageSize) => {
@@ -66,6 +88,57 @@ function HistorialBcp({ anio }) {
     cargar(1, size);
   };
 
+  const verDetalle = async (row) => {
+    setCargandoDetalle(true);
+    try {
+      const { data } = await api.get(`/admin/pagos/bcp/historial/${row.id}`);
+      setDetalle(data);
+    } catch (e) {
+      Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo cargar el detalle' });
+    } finally {
+      setCargandoDetalle(false);
+    }
+  };
+
+  const boletearLote = async (row) => {
+    const ok = await Swal.fire({
+      icon: 'question',
+      title: 'Boletear lote',
+      text: `¿Generar ZIP de boletas para "${row.archivo}"?`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, boletear',
+    });
+    if (!ok.isConfirmed) return;
+
+    setBoleteandoId(row.id);
+    try {
+      const { data, headers } = await api.post(
+        `/admin/pagos/bcp/historial/${row.id}/boletear`,
+        {},
+        { responseType: 'blob' }
+      );
+      const disp = headers['content-disposition'] || '';
+      const m = disp.match(/filename=([^;]+)/i);
+      const filename = m ? m[1].replace(/"/g, '') : 'boletas.zip';
+      descargarBlob(data, filename);
+      const count = headers['x-boletas-count'];
+      Swal.fire({
+        icon: 'success',
+        title: 'Boletas generadas',
+        text: count ? `${count} comprobante(s) en el ZIP.` : 'Descarga iniciada.',
+        timer: 2200,
+        showConfirmButton: false,
+      });
+      cargar(page, pageSize);
+      window.dispatchEvent(new Event('pe-bcp-historial-refresh'));
+    } catch (e) {
+      const msg = await parseErrorBlob(e, 'No se pudo boletear el lote');
+      Swal.fire({ icon: 'error', text: msg });
+    } finally {
+      setBoleteandoId(null);
+    }
+  };
+
   return (
     <div className="pe-bcp-historial">
       <h3 className="pe-bcp-section-title">Historial de archivos importados</h3>
@@ -82,26 +155,27 @@ function HistorialBcp({ anio }) {
             <table className="pe-table">
               <thead>
                 <tr>
-                  <th>Fecha</th>
-                  <th>Archivo</th>
-                  <th>Cantidad de pagos</th>
-                  <th>Estado</th>
+                  <th className="pe-th-center">Fecha</th>
+                  <th className="pe-th-center">Archivo</th>
+                  <th className="pe-th-center">Cantidad de pagos</th>
+                  <th className="pe-th-center">Estado</th>
+                  <th className="pe-th-center pe-th-accion">Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {items.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="pe-empty">
+                    <td colSpan={5} className="pe-empty">
                       No hay importaciones registradas para {anio}.
                     </td>
                   </tr>
                 ) : (
                   items.map((row) => (
                     <tr key={row.id}>
-                      <td>{String(row.fecha || '').slice(0, 10)}</td>
-                      <td>{row.archivo}</td>
+                      <td className="pe-td-center">{String(row.fecha || '').slice(0, 10)}</td>
+                      <td className="pe-td-center">{row.archivo}</td>
                       <td className="pe-td-center">{row.cantidad_pagos}</td>
-                      <td>
+                      <td className="pe-td-center">
                         <span
                           className={`pe-badge ${
                             row.estado === 'BOLETAS IMPRESAS' ? 'pe-badge--ok' : 'pe-badge--pending'
@@ -109,6 +183,34 @@ function HistorialBcp({ anio }) {
                         >
                           {row.estado}
                         </span>
+                      </td>
+                      <td className="pe-td-accion">
+                        <div className="pe-bcp-historial-actions">
+                          <Tooltip title="Ver pagos importados">
+                            <IconButton
+                              size="small"
+                              className="pe-btn-historial-ver"
+                              onClick={() => verDetalle(row)}
+                              disabled={cargandoDetalle}
+                            >
+                              <ArticleOutlinedIcon fontSize="small" />
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip title="Boletear lote">
+                            <IconButton
+                              size="small"
+                              className="pe-btn-historial-print"
+                              onClick={() => boletearLote(row)}
+                              disabled={boleteandoId === row.id}
+                            >
+                              {boleteandoId === row.id ? (
+                                <CircularProgress size={16} />
+                              ) : (
+                                <PrintOutlinedIcon fontSize="small" />
+                              )}
+                            </IconButton>
+                          </Tooltip>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -130,6 +232,61 @@ function HistorialBcp({ anio }) {
           )}
         </>
       )}
+
+      <FacturacionModal
+        open={!!detalle}
+        onClose={() => setDetalle(null)}
+        wide
+        title={detalle?.historial ? `Pagos — ${detalle.historial.archivo}` : 'Detalle del lote'}
+      >
+        {detalle && (
+          <>
+            <p className="pe-bcp-detalle-meta">
+              <strong>Fecha:</strong> {String(detalle.historial.fecha || '').slice(0, 10)}
+              {' · '}
+              <strong>Estado:</strong> {detalle.historial.estado}
+              {' · '}
+              <strong>Pagos:</strong> {detalle.historial.cantidad_pagos}
+            </p>
+            <div className="pe-table-wrap">
+              <table className="pe-table pe-table--compact">
+                <thead>
+                  <tr>
+                    <th className="pe-th-center">DNI</th>
+                    <th className="pe-th-center">Alumno</th>
+                    <th className="pe-th-center">Nivel / Grado</th>
+                    <th className="pe-th-center">Concepto</th>
+                    <th className="pe-th-center">Monto</th>
+                    <th className="pe-th-center">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(detalle.pagos || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="pe-empty">
+                        Sin pagos en este lote.
+                      </td>
+                    </tr>
+                  ) : (
+                    detalle.pagos.map((p) => (
+                      <tr key={p.id}>
+                        <td className="pe-td-center">{p.dni}</td>
+                        <td className="pe-td-center">{p.alumno}</td>
+                        <td className="pe-td-center">
+                          {[p.nivel, p.grado && `${p.grado}°`, p.seccion].filter(Boolean).join(' ')}
+                        </td>
+                        <td className="pe-td-center">{p.descripcion || `Pensión ${p.nro_pago}`}</td>
+                        <td className="pe-td-center">S/ {Number(p.monto || 0).toFixed(2)}</td>
+                        <td className="pe-td-center">{p.estado_pago}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </FacturacionModal>
     </div>
   );
 }

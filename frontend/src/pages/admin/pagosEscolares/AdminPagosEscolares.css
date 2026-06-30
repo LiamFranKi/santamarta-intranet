@@ -462,6 +462,51 @@
   text-align: center;
 }
 
+.pe-th-center {
+  text-align: center;
+}
+
+.pe-bcp-historial-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.pe-btn-historial-ver {
+  background: #dbeafe !important;
+  color: #1d4ed8 !important;
+  border-radius: 6px !important;
+  border: 1px solid #93c5fd !important;
+}
+
+.pe-btn-historial-ver:hover:not(:disabled) {
+  background: #bfdbfe !important;
+}
+
+.pe-btn-historial-print {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+  border-radius: 6px !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+.pe-btn-historial-print:hover:not(:disabled) {
+  background: #e2e8f0 !important;
+}
+
+.pe-bcp-detalle-meta {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+.pe-table--compact td,
+.pe-table--compact th {
+  font-size: 0.82rem;
+  padding: 0.45rem 0.5rem;
+}
+
 .pe-badge {
   display: inline-block;
   padding: 0.2rem 0.5rem;
