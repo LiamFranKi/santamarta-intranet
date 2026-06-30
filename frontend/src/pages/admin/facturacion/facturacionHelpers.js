@@ -2,6 +2,12 @@ export function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+export function sedeIdSanMartin(sedes) {
+  if (!Array.isArray(sedes) || !sedes.length) return '';
+  const found = sedes.find((s) => /san\s*mart[ií]n/i.test(String(s.nombre || '')));
+  return found ? found.id : sedes[0].id;
+}
+
 export const SERIES_VENTA = [
   { value: 1, label: '001 — Ventas' },
   { value: 2, label: '002 — Talleres' },

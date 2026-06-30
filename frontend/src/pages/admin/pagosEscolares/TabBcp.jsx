@@ -8,6 +8,7 @@ import {
 } from '@mui/material';
 import Swal from 'sweetalert2';
 import api from '../../../services/api';
+import { sedeIdSanMartin } from './pagosEscolaresFilters';
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
@@ -140,19 +141,20 @@ function HistorialBcp({ anio }) {
 export default function TabBcp() {
   const [meta, setMeta] = useState(null);
   const [bcpCfg, setBcpCfg] = useState(null);
+  const [loadError, setLoadError] = useState('');
   const [grupos, setGrupos] = useState([]);
   const [loadingInit, setLoadingInit] = useState(true);
 
   const [anio, setAnio] = useState('');
   const [fecha, setFecha] = useState(todayIso());
   const [sedeId, setSedeId] = useState('');
-  const [nroPago, setNroPago] = useState(-1);
+  const [nroPago, setNroPago] = useState('');
   const [grupoId, setGrupoId] = useState(-1);
   const [tipo, setTipo] = useState('A');
   const [tipoAlumno, setTipoAlumno] = useState('TODOS');
   const [tipoDocumento, setTipoDocumento] = useState('A');
 
-  const [nroPagoInd, setNroPagoInd] = useState(-1);
+  const [nroPagoInd, setNroPagoInd] = useState('');
   const [tipoInd, setTipoInd] = useState('A');
   const [tipoDocumentoInd, setTipoDocumentoInd] = useState('A');
   const [matriculaOpts, setMatriculaOpts] = useState([]);
@@ -178,11 +180,19 @@ export default function TabBcp() {
         if (cancelled) return;
         setMeta(metaRes.data);
         setBcpCfg(bcpRes.data);
+        setLoadError('');
         const anioAct = String(bcpRes.data.anio_activo || metaRes.data.anio_activo || new Date().getFullYear());
         setAnio(anioAct);
-        if (metaRes.data.defaults?.sede_id != null) setSedeId(String(metaRes.data.defaults.sede_id));
+        const sedes = metaRes.data.sedes || [];
+        if (sedes.length) setSedeId(sedeIdSanMartin(sedes));
+        const opts = Array.isArray(bcpRes.data.opciones_nro_pago) ? bcpRes.data.opciones_nro_pago : [];
+        if (opts.length) {
+          setNroPago(opts[0].value);
+          setNroPagoInd(opts[0].value);
+        }
       } catch (e) {
         if (!cancelled) {
+          setLoadError(e.response?.data?.error || 'Error al cargar datos BCP');
           Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error al cargar datos BCP' });
         }
       } finally {
@@ -247,7 +257,7 @@ export default function TabBcp() {
     const params = {
       anio: parseInt(anio, 10),
       fecha,
-      nro_pago: modo === 'individual' ? nroPagoInd : nroPago,
+      nro_pago: modo === 'individual' ? nroPagoIndVal : nroPagoVal,
       tipo: modo === 'individual' ? tipoInd : tipo,
       tipo_documento: modo === 'individual' ? tipoDocumentoInd : tipoDocumento,
     };
@@ -371,7 +381,7 @@ export default function TabBcp() {
     }
   };
 
-  const opcionesPago = bcpCfg?.opciones_nro_pago || [];
+  const opcionesPago = Array.isArray(bcpCfg?.opciones_nro_pago) ? bcpCfg.opciones_nro_pago : [];
 
   if (loadingInit) {
     return (
@@ -381,6 +391,17 @@ export default function TabBcp() {
       </div>
     );
   }
+
+  if (!bcpCfg || !opcionesPago.length) {
+    return (
+      <div className="pe-empty-state">
+        <p>{loadError || 'No se pudo cargar la configuración BCP. Verifique su conexión o permisos.'}</p>
+      </div>
+    );
+  }
+
+  const nroPagoVal = opcionesPago.some((o) => o.value === nroPago) ? nroPago : opcionesPago[0].value;
+  const nroPagoIndVal = opcionesPago.some((o) => o.value === nroPagoInd) ? nroPagoInd : opcionesPago[0].value;
 
   return (
     <div className="pe-tab-bcp">
@@ -393,16 +414,16 @@ export default function TabBcp() {
       <div className="pe-card pe-bcp-panel">
         <h3 className="pe-bcp-section-title">Exportar registro (CREP)</h3>
         <div className="pe-bcp-grid">
-          <TextField size="small" label="Año" type="number" value={anio} onChange={(e) => setAnio(e.target.value)} />
-          <TextField size="small" label="Fecha archivo" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} InputLabelProps={{ shrink: true }} />
-          <TextField select size="small" label="Pago" value={nroPago} onChange={(e) => setNroPago(parseInt(e.target.value, 10))}>
+          <TextField size="small" label="Año" type="number" value={anio} onChange={(e) => setAnio(e.target.value)} fullWidth />
+          <TextField size="small" label="Fecha archivo" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+          <TextField select size="small" label="Pago" value={nroPagoVal} onChange={(e) => setNroPago(parseInt(e.target.value, 10))} fullWidth>
             {opcionesPago.map((o) => (
               <MenuItem key={o.value} value={o.value}>
                 {o.label}
               </MenuItem>
             ))}
           </TextField>
-          <TextField select size="small" label="Grupo" value={grupoId} onChange={(e) => setGrupoId(parseInt(e.target.value, 10))}>
+          <TextField select size="small" label="Grupo" value={grupoId} onChange={(e) => setGrupoId(parseInt(e.target.value, 10))} fullWidth>
             <MenuItem value={-1}>-- TODOS --</MenuItem>
             {grupos.map((g) => (
               <MenuItem key={g.id} value={g.id}>
@@ -410,17 +431,17 @@ export default function TabBcp() {
               </MenuItem>
             ))}
           </TextField>
-          <TextField select size="small" label="Acción" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+          <TextField select size="small" label="Acción" value={tipo} onChange={(e) => setTipo(e.target.value)} fullWidth>
             <MenuItem value="A">AGREGAR</MenuItem>
             <MenuItem value="M">MODIFICAR</MenuItem>
             <MenuItem value="E">ELIMINAR</MenuItem>
           </TextField>
-          <TextField select size="small" label="Alumnos" value={tipoAlumno} onChange={(e) => setTipoAlumno(e.target.value)}>
+          <TextField select size="small" label="Alumnos" value={tipoAlumno} onChange={(e) => setTipoAlumno(e.target.value)} fullWidth>
             <MenuItem value="TODOS">TODOS</MenuItem>
             <MenuItem value="NUEVOS">NUEVOS</MenuItem>
             <MenuItem value="ANTIGUOS">ANTIGUOS</MenuItem>
           </TextField>
-          <TextField select size="small" label="Tipo doc." value={tipoDocumento} onChange={(e) => setTipoDocumento(e.target.value)}>
+          <TextField select size="small" label="Tipo doc." value={tipoDocumento} onChange={(e) => setTipoDocumento(e.target.value)} fullWidth>
             <MenuItem value="A">A</MenuItem>
             <MenuItem value="R">R</MenuItem>
           </TextField>
@@ -433,21 +454,21 @@ export default function TabBcp() {
       <div className="pe-card pe-bcp-panel">
         <h3 className="pe-bcp-section-title">Exportar registro — individual</h3>
         <div className="pe-bcp-grid">
-          <TextField size="small" label="Año" type="number" value={anio} onChange={(e) => setAnio(e.target.value)} />
-          <TextField size="small" label="Fecha archivo" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} InputLabelProps={{ shrink: true }} />
-          <TextField select size="small" label="Pago" value={nroPagoInd} onChange={(e) => setNroPagoInd(parseInt(e.target.value, 10))}>
+          <TextField size="small" label="Año" type="number" value={anio} onChange={(e) => setAnio(e.target.value)} fullWidth />
+          <TextField size="small" label="Fecha archivo" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+          <TextField select size="small" label="Pago" value={nroPagoIndVal} onChange={(e) => setNroPagoInd(parseInt(e.target.value, 10))} fullWidth>
             {opcionesPago.map((o) => (
               <MenuItem key={`i-${o.value}`} value={o.value}>
                 {o.label}
               </MenuItem>
             ))}
           </TextField>
-          <TextField select size="small" label="Acción" value={tipoInd} onChange={(e) => setTipoInd(e.target.value)}>
+          <TextField select size="small" label="Acción" value={tipoInd} onChange={(e) => setTipoInd(e.target.value)} fullWidth>
             <MenuItem value="A">AGREGAR</MenuItem>
             <MenuItem value="M">MODIFICAR</MenuItem>
             <MenuItem value="E">ELIMINAR</MenuItem>
           </TextField>
-          <TextField select size="small" label="Tipo doc." value={tipoDocumentoInd} onChange={(e) => setTipoDocumentoInd(e.target.value)}>
+          <TextField select size="small" label="Tipo doc." value={tipoDocumentoInd} onChange={(e) => setTipoDocumentoInd(e.target.value)} fullWidth>
             <MenuItem value="A">A</MenuItem>
             <MenuItem value="R">R</MenuItem>
           </TextField>
@@ -456,7 +477,8 @@ export default function TabBcp() {
           multiple
           size="small"
           options={matriculaOpts}
-          getOptionLabel={(o) => o.label || ''}
+          getOptionLabel={(o) => o?.label || ''}
+          isOptionEqualToValue={(a, b) => a?.matricula_id === b?.matricula_id}
           value={matriculaSel}
           onChange={(_, v) => setMatriculaSel(v)}
           inputValue={matriculaInput}
@@ -468,7 +490,7 @@ export default function TabBcp() {
             ))
           }
           renderInput={(params) => (
-            <TextField {...params} label="Alumnos (mín. 2 caracteres)" placeholder="Buscar por nombre o DNI" />
+            <TextField {...params} label="Alumnos (mín. 2 caracteres)" placeholder="Buscar por nombre o DNI" fullWidth />
           )}
           className="pe-bcp-autocomplete"
         />

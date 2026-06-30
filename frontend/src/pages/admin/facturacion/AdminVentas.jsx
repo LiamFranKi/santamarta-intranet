@@ -1,9 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { CircularProgress, MenuItem, TextField } from '@mui/material';
+import { CircularProgress, InputAdornment, MenuItem, TextField } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../../components/DashboardLayout';
 import api from '../../../services/api';
-import { ESTADOS_PAGO_VENTA, SERIES_VENTA, TIPOS_CLIENTE_VENTA, todayIso } from './facturacionHelpers';
+import { ESTADOS_PAGO_VENTA, SERIES_VENTA, TIPOS_CLIENTE_VENTA, sedeIdSanMartin, todayIso } from './facturacionHelpers';
 import '../pagosEscolares/AdminPagosEscolares.css';
 import './AdminFacturacion.css';
 
@@ -17,14 +22,9 @@ export default function AdminVentas() {
   const [fecha2, setFecha2] = useState(todayIso());
   const [modal, setModal] = useState(null);
   const [nroPreview, setNroPreview] = useState('');
+  const [filtroTabla, setFiltroTabla] = useState('');
 
-  const sedeNombre = useMemo(() => {
-    const m = {};
-    (meta.sedes || []).forEach((s) => {
-      m[s.id] = s.nombre;
-    });
-    return m;
-  }, [meta.sedes]);
+  const sedeDefault = useMemo(() => sedeIdSanMartin(meta.sedes), [meta.sedes]);
 
   const cargarMeta = useCallback(async () => {
     const { data } = await api.get('/admin/facturacion/meta');
@@ -74,7 +74,7 @@ export default function AdminVentas() {
   };
 
   const abrirNueva = () => {
-    const sedeId = meta.sedes[0]?.id || '';
+    const sedeId = sedeDefault || meta.sedes[0]?.id || '';
     setModal({
       sede_id: sedeId,
       serie: 1,
@@ -183,6 +183,17 @@ export default function AdminVentas() {
     }
   };
 
+  const itemsFiltrados = useMemo(() => {
+    const q = filtroTabla.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (r) =>
+        String(r.nombre || '').toLowerCase().includes(q) ||
+        String(r.dni || '').toLowerCase().includes(q) ||
+        String(r.nro_boleta || '').toLowerCase().includes(q)
+    );
+  }, [items, filtroTabla]);
+
   return (
     <DashboardLayout>
       <div className="pe-wrap">
@@ -191,39 +202,35 @@ export default function AdminVentas() {
           <p>Registro de ventas con numeración de boleta por sede y serie (001/002/003).</p>
         </header>
 
-        {(meta.numeracion || []).length > 0 && (
-          <div className="pe-card">
-            <h3 className="pe-card-title">Contadores actuales (siguiente N° al guardar)</h3>
-            <div className="pe-numeracion-grid">
-              {meta.numeracion.map((n) => (
-                <div key={n.sede_id} className="pe-numeracion-chip">
-                  <strong>{sedeNombre[n.sede_id] || `Sede ${n.sede_id}`}</strong>
-                  <span>
-                    001: {String(n.serie).padStart(3, '0')}-{String(n.numero).padStart(8, '0')}
-                  </span>
-                  <span>
-                    002: {String(n.serie_2).padStart(3, '0')}-{String(n.numero_2).padStart(8, '0')}
-                  </span>
-                  <span>
-                    003: {String(n.serie_3).padStart(3, '0')}-{String(n.numero_3).padStart(8, '0')}
-                  </span>
-                </div>
-              ))}
+        <div className="pe-card">
+          <div className="pe-toolbar-search">
+            <div className="pe-form-row" style={{ flex: 1, margin: 0 }}>
+              <TextField type="date" size="small" label="Desde" value={fecha1} onChange={(e) => setFecha1(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+              <TextField type="date" size="small" label="Hasta" value={fecha2} onChange={(e) => setFecha2(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
+              <button type="button" className="pe-btn pe-btn--secondary pe-btn--icon" onClick={cargar}>
+                <SearchIcon fontSize="small" />
+                Buscar
+              </button>
+              <button type="button" className="pe-btn pe-btn--primary pe-btn--icon" onClick={abrirNueva}>
+                <AddCircleOutlineIcon fontSize="small" />
+                Nueva venta
+              </button>
             </div>
           </div>
-        )}
-
-        <div className="pe-card">
-          <div className="pe-form-row">
-            <TextField type="date" size="small" label="Desde" value={fecha1} onChange={(e) => setFecha1(e.target.value)} InputLabelProps={{ shrink: true }} />
-            <TextField type="date" size="small" label="Hasta" value={fecha2} onChange={(e) => setFecha2(e.target.value)} InputLabelProps={{ shrink: true }} />
-            <button type="button" className="pe-btn pe-btn--secondary" onClick={cargar}>
-              Buscar
-            </button>
-            <button type="button" className="pe-btn pe-btn--primary" onClick={abrirNueva}>
-              Nueva venta
-            </button>
-          </div>
+          <TextField
+            size="small"
+            label="Filtrar resultados"
+            value={filtroTabla}
+            onChange={(e) => setFiltroTabla(e.target.value)}
+            fullWidth
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" color="action" />
+                </InputAdornment>
+              ),
+            }}
+          />
         </div>
 
         {loading ? (
@@ -245,14 +252,14 @@ export default function AdminVentas() {
                 </tr>
               </thead>
               <tbody>
-                {items.length === 0 ? (
+                {itemsFiltrados.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="pe-empty">
                       Sin ventas en el rango.
                     </td>
                   </tr>
                 ) : (
-                  items.map((r) => (
+                  itemsFiltrados.map((r) => (
                     <tr key={r.id}>
                       <td>{String(r.fecha || '').slice(0, 10)}</td>
                       <td>{r.nro_boleta}</td>
@@ -262,15 +269,18 @@ export default function AdminVentas() {
                       <td>{r.estado_pago}</td>
                       <td>
                         <div className="pe-table-actions">
-                          <button type="button" className="pe-btn pe-btn--sm" onClick={() => abrirEditar(r.id)}>
+                          <button type="button" className="pe-btn pe-btn--sm pe-btn--icon" onClick={() => abrirEditar(r.id)}>
+                            <EditOutlinedIcon fontSize="small" />
                             Editar
                           </button>
                           {r.nro_boleta === 'PENDIENTE' && (
-                            <button type="button" className="pe-btn pe-btn--sm" onClick={() => marcarImpresa(r)}>
+                            <button type="button" className="pe-btn pe-btn--sm pe-btn--icon" onClick={() => marcarImpresa(r)}>
+                              <PrintOutlinedIcon fontSize="small" />
                               Asignar N°
                             </button>
                           )}
-                          <button type="button" className="pe-btn pe-btn--sm pe-btn--danger" onClick={() => anular(r)}>
+                          <button type="button" className="pe-btn pe-btn--sm pe-btn--danger pe-btn--icon" onClick={() => anular(r)}>
+                            <BlockOutlinedIcon fontSize="small" />
                             Anular
                           </button>
                         </div>
@@ -298,12 +308,13 @@ export default function AdminVentas() {
                     select
                     label="Sede"
                     size="small"
-                    value={modal.sede_id}
+                    value={modal.sede_id || sedeDefault}
                     onChange={(e) => {
                       const v = e.target.value;
                       setModal({ ...modal, sede_id: v });
                       fetchSiguienteNumero(v, modal.serie);
                     }}
+                    fullWidth
                   >
                     {meta.sedes.map((s) => (
                       <MenuItem key={s.id} value={s.id}>

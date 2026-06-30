@@ -24,10 +24,17 @@ export function etiquetaGradoOpcion(nivel, grado) {
 export const SECCIONES_OPCIONES = ['UNICA', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 export const PAGOS_ESCOLARES_TABS = [
-  { id: 'buscar', label: 'Buscar alumnos' },
-  { id: 'bcp', label: 'Importar / Exportar BCP' },
-  { id: 'boletear', label: 'Boletear pagos' },
+  { id: 'buscar', label: 'Buscar alumnos', tone: 'buscar' },
+  { id: 'bcp', label: 'Importar / Exportar BCP', tone: 'bcp' },
+  { id: 'boletear', label: 'Boletear pagos', tone: 'boletear' },
 ];
+
+/** Sede San Martín por defecto en todo el módulo de pagos/facturación. */
+export function sedeIdSanMartin(sedes) {
+  if (!Array.isArray(sedes) || !sedes.length) return '';
+  const found = sedes.find((s) => /san\s*mart[ií]n/i.test(String(s.nombre || '')));
+  return found ? String(found.id) : String(sedes[0].id);
+}
 
 export function tabPagosFromSearchParams(searchParams) {
   const t = String(searchParams.get('tab') || 'buscar').toLowerCase();

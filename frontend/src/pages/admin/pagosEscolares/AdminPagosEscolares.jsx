@@ -31,12 +31,12 @@ export default function AdminPagosEscolares() {
           <p>Buscar alumnos, integración BCP, boletear y historial de importaciones.</p>
         </header>
 
-        <nav className="pe-tabs" aria-label="Secciones de pagos escolares">
+        <nav className="pe-tabs pe-tabs--full" aria-label="Secciones de pagos escolares">
           {PAGOS_ESCOLARES_TABS.map((tab) => (
             <button
               key={tab.id}
               type="button"
-              className={`pe-tab${tabActivo === tab.id ? ' pe-tab--active' : ''}`}
+              className={`pe-tab pe-tab--${tab.tone}${tabActivo === tab.id ? ' pe-tab--active' : ''}`}
               onClick={() => cambiarTab(tab.id)}
               aria-selected={tabActivo === tab.id}
             >

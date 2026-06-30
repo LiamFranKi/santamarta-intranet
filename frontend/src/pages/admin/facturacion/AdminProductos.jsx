@@ -1,5 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { CircularProgress, MenuItem, TextField } from '@mui/material';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { CircularProgress, IconButton, InputAdornment, MenuItem, TextField, Tooltip } from '@mui/material';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import SearchIcon from '@mui/icons-material/Search';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../../components/DashboardLayout';
 import api from '../../../services/api';
@@ -7,10 +12,30 @@ import '../pagosEscolares/AdminPagosEscolares.css';
 import './AdminFacturacion.css';
 
 const TABS = [
-  { id: 'productos', label: 'Productos' },
-  { id: 'categorias', label: 'Categorías' },
-  { id: 'subcategorias', label: 'Subcategorías' },
+  { id: 'productos', label: 'Productos', tone: 'productos' },
+  { id: 'categorias', label: 'Categorías', tone: 'categorias' },
+  { id: 'subcategorias', label: 'Subcategorías', tone: 'subcategorias' },
 ];
+
+function FiltroBar({ value, onChange, placeholder }) {
+  return (
+    <TextField
+      size="small"
+      label="Buscar"
+      placeholder={placeholder}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      fullWidth
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start">
+            <SearchIcon fontSize="small" color="action" />
+          </InputAdornment>
+        ),
+      }}
+    />
+  );
+}
 
 function Modal({ title, onClose, children, footer }) {
   return (
@@ -33,6 +58,7 @@ function TabCategorias() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
+  const [filtro, setFiltro] = useState('');
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -82,6 +108,14 @@ function TabCategorias() {
     }
   };
 
+  const filtrados = useMemo(() => {
+    const q = filtro.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter(
+      (r) => String(r.nombre || '').toLowerCase().includes(q) || String(r.descripcion || '').toLowerCase().includes(q)
+    );
+  }, [items, filtro]);
+
   if (loading) {
     return (
       <div className="pe-loading-inline">
@@ -93,7 +127,9 @@ function TabCategorias() {
   return (
     <>
       <div className="pe-fact-actions">
-        <button type="button" className="pe-btn pe-btn--primary" onClick={() => setModal({ nombre: '', descripcion: '' })}>
+        <FiltroBar value={filtro} onChange={setFiltro} placeholder="Nombre o descripción…" />
+        <button type="button" className="pe-btn pe-btn--primary pe-btn--icon" onClick={() => setModal({ nombre: '', descripcion: '' })}>
+          <AddCircleOutlineIcon fontSize="small" />
           Nueva categoría
         </button>
       </div>
@@ -103,26 +139,37 @@ function TabCategorias() {
             <tr>
               <th>Nombre</th>
               <th>Descripción</th>
-              <th />
+              <th className="pe-th-accion" />
             </tr>
           </thead>
           <tbody>
-            {items.map((r) => (
+            {filtrados.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="pe-empty">
+                  Sin categorías.
+                </td>
+              </tr>
+            ) : (
+              filtrados.map((r) => (
               <tr key={r.id}>
                 <td>{r.nombre}</td>
                 <td>{r.descripcion}</td>
-                <td>
-                  <div className="pe-table-actions">
-                    <button type="button" className="pe-btn pe-btn--sm" onClick={() => setModal({ ...r })}>
-                      Editar
-                    </button>
-                    <button type="button" className="pe-btn pe-btn--sm pe-btn--danger" onClick={() => eliminar(r)}>
-                      Eliminar
-                    </button>
+                <td className="pe-td-accion">
+                  <div className="pe-table-actions--icons">
+                    <Tooltip title="Editar">
+                      <IconButton size="small" color="primary" onClick={() => setModal({ ...r })}>
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <IconButton size="small" color="error" onClick={() => eliminar(r)}>
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </div>
                 </td>
               </tr>
-            ))}
+            )))}
           </tbody>
         </table>
       </div>
@@ -155,6 +202,8 @@ function TabSubcategorias({ categorias }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
+  const [filtro, setFiltro] = useState('');
+  const [filtroCat, setFiltroCat] = useState('');
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -198,6 +247,18 @@ function TabSubcategorias({ categorias }) {
     }
   };
 
+  const filtrados = useMemo(() => {
+    let list = items;
+    if (filtroCat) list = list.filter((r) => String(r.categoria_id) === String(filtroCat));
+    const q = filtro.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (r) =>
+        String(r.nombre || '').toLowerCase().includes(q) ||
+        String(r.categoria_nombre || '').toLowerCase().includes(q)
+    );
+  }, [items, filtro, filtroCat]);
+
   if (loading) {
     return (
       <div className="pe-loading-inline">
@@ -208,12 +269,24 @@ function TabSubcategorias({ categorias }) {
 
   return (
     <>
-      <div className="pe-fact-actions">
+      <div className="pe-fact-actions pe-fact-actions--toolbar">
+        <div className="pe-fact-filters">
+          <FiltroBar value={filtro} onChange={setFiltro} placeholder="Nombre o categoría…" />
+          <TextField select size="small" label="Categoría" value={filtroCat} onChange={(e) => setFiltroCat(e.target.value)} className="pe-field" fullWidth>
+            <MenuItem value="">Todas</MenuItem>
+            {categorias.map((c) => (
+              <MenuItem key={c.id} value={String(c.id)}>
+                {c.nombre}
+              </MenuItem>
+            ))}
+          </TextField>
+        </div>
         <button
           type="button"
-          className="pe-btn pe-btn--primary"
+          className="pe-btn pe-btn--primary pe-btn--icon"
           onClick={() => setModal({ categoria_id: categorias[0]?.id || '', nombre: '', descripcion: '', concar_igv: '', concar_cuenta: '', starsoft_cuenta: '' })}
         >
+          <AddCircleOutlineIcon fontSize="small" />
           Nueva subcategoría
         </button>
       </div>
@@ -224,27 +297,38 @@ function TabSubcategorias({ categorias }) {
               <th>Categoría</th>
               <th>Nombre</th>
               <th>CONCAR IGV</th>
-              <th />
+              <th className="pe-th-accion" />
             </tr>
           </thead>
           <tbody>
-            {items.map((r) => (
+            {filtrados.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="pe-empty">
+                  Sin subcategorías.
+                </td>
+              </tr>
+            ) : (
+              filtrados.map((r) => (
               <tr key={r.id}>
                 <td>{r.categoria_nombre}</td>
                 <td>{r.nombre}</td>
                 <td>{r.concar_igv}</td>
-                <td>
-                  <div className="pe-table-actions">
-                    <button type="button" className="pe-btn pe-btn--sm" onClick={() => setModal({ ...r })}>
-                      Editar
-                    </button>
-                    <button type="button" className="pe-btn pe-btn--sm pe-btn--danger" onClick={() => eliminar(r)}>
-                      Eliminar
-                    </button>
+                <td className="pe-td-accion">
+                  <div className="pe-table-actions--icons">
+                    <Tooltip title="Editar">
+                      <IconButton size="small" color="primary" onClick={() => setModal({ ...r })}>
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Eliminar">
+                      <IconButton size="small" color="error" onClick={() => eliminar(r)}>
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </div>
                 </td>
               </tr>
-            ))}
+            )))}
           </tbody>
         </table>
       </div>
@@ -288,6 +372,8 @@ function TabProductos({ categorias, subcategorias }) {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [stockModal, setStockModal] = useState(null);
+  const [filtro, setFiltro] = useState('');
+  const [filtroCat, setFiltroCat] = useState('');
 
   const cargar = useCallback(async () => {
     setLoading(true);
@@ -344,6 +430,18 @@ function TabProductos({ categorias, subcategorias }) {
     }
   };
 
+  const filtrados = useMemo(() => {
+    let list = items;
+    if (filtroCat) list = list.filter((r) => String(r.categoria_id) === String(filtroCat));
+    const q = filtro.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter(
+      (r) =>
+        String(r.descripcion || '').toLowerCase().includes(q) ||
+        String(r.categoria_nombre || '').toLowerCase().includes(q)
+    );
+  }, [items, filtro, filtroCat]);
+
   if (loading) {
     return (
       <div className="pe-loading-inline">
@@ -354,10 +452,21 @@ function TabProductos({ categorias, subcategorias }) {
 
   return (
     <>
-      <div className="pe-fact-actions">
+      <div className="pe-fact-actions pe-fact-actions--toolbar">
+        <div className="pe-fact-filters">
+          <FiltroBar value={filtro} onChange={setFiltro} placeholder="Descripción o categoría…" />
+          <TextField select size="small" label="Categoría" value={filtroCat} onChange={(e) => setFiltroCat(e.target.value)} className="pe-field" fullWidth>
+            <MenuItem value="">Todas</MenuItem>
+            {categorias.map((c) => (
+              <MenuItem key={c.id} value={String(c.id)}>
+                {c.nombre}
+              </MenuItem>
+            ))}
+          </TextField>
+        </div>
         <button
           type="button"
-          className="pe-btn pe-btn--primary"
+          className="pe-btn pe-btn--primary pe-btn--icon"
           onClick={() =>
             setModal({
               categoria_id: categorias[0]?.id || '',
@@ -371,6 +480,7 @@ function TabProductos({ categorias, subcategorias }) {
             })
           }
         >
+          <AddCircleOutlineIcon fontSize="small" />
           Nuevo producto
         </button>
       </div>
@@ -383,34 +493,59 @@ function TabProductos({ categorias, subcategorias }) {
               <th>Precio</th>
               <th>Stock</th>
               <th>Oculto</th>
-              <th />
+              <th className="pe-th-accion" />
             </tr>
           </thead>
           <tbody>
-            {items.map((r) => (
+            {filtrados.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="pe-empty">
+                  Sin productos.
+                </td>
+              </tr>
+            ) : (
+              filtrados.map((r) => (
               <tr key={r.id}>
                 <td>{r.descripcion}</td>
                 <td>{r.categoria_nombre}</td>
                 <td>S/ {Number(r.precio_inicial || 0).toFixed(2)}</td>
-                <td>{r.controlar_stock === 'SI' ? r.stock : '—'}</td>
-                <td>{r.ocultar}</td>
                 <td>
-                  <div className="pe-table-actions">
-                    <button type="button" className="pe-btn pe-btn--sm" onClick={() => setModal({ ...r })}>
-                      Editar
-                    </button>
+                  {r.controlar_stock === 'SI' ? (
+                    <span className="pe-badge pe-badge--ok">{r.stock}</span>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td>
+                  <span className={`pe-badge ${r.ocultar === 'SI' ? 'pe-badge--pending' : 'pe-badge--ok'}`}>{r.ocultar}</span>
+                </td>
+                <td className="pe-td-accion">
+                  <div className="pe-table-actions--icons">
+                    <Tooltip title="Editar">
+                      <IconButton size="small" color="primary" onClick={() => setModal({ ...r })}>
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                     {r.controlar_stock === 'SI' && (
-                      <button type="button" className="pe-btn pe-btn--sm" onClick={() => setStockModal({ id: r.id, stock_inicial: r.stock_inicial || r.stock, precio_inicial: r.precio_inicial })}>
-                        Stock
-                      </button>
+                      <Tooltip title="Stock">
+                        <IconButton
+                          size="small"
+                          color="secondary"
+                          onClick={() => setStockModal({ id: r.id, stock_inicial: r.stock_inicial || r.stock, precio_inicial: r.precio_inicial })}
+                        >
+                          <Inventory2OutlinedIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
                     )}
-                    <button type="button" className="pe-btn pe-btn--sm pe-btn--danger" onClick={() => eliminar(r)}>
-                      Eliminar
-                    </button>
+                    <Tooltip title="Eliminar">
+                      <IconButton size="small" color="error" onClick={() => eliminar(r)}>
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
                   </div>
                 </td>
               </tr>
-            ))}
+            )))}
           </tbody>
         </table>
       </div>
@@ -514,14 +649,14 @@ export default function AdminProductos() {
           <h1>Productos</h1>
           <p>Catálogo de productos, categorías y subcategorías para ventas y compras.</p>
         </header>
-        <nav className="pe-tabs" aria-label="Secciones de productos">
+        <nav className="pe-tabs pe-tabs--full pe-tabs--fact" aria-label="Secciones de productos">
           {TABS.map((t) => (
-            <button key={t.id} type="button" className={`pe-tab${tab === t.id ? ' pe-tab--active' : ''}`} onClick={() => setTab(t.id)}>
+            <button key={t.id} type="button" className={`pe-tab pe-tab--${t.tone}${tab === t.id ? ' pe-tab--active' : ''}`} onClick={() => setTab(t.id)}>
               {t.label}
             </button>
           ))}
         </nav>
-        <div className="pe-tab-panel">
+        <div className="pe-tab-panel pe-card">
           {tab === 'categorias' && <TabCategorias />}
           {tab === 'subcategorias' && <TabSubcategorias categorias={categorias} />}
           {tab === 'productos' && <TabProductos categorias={categorias} subcategorias={subcategorias} />}

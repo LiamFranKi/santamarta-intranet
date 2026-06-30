@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CircularProgress, MenuItem, TextField } from '@mui/material';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined';
 import Swal from 'sweetalert2';
 import api from '../../../services/api';
 
@@ -31,6 +33,7 @@ async function parseErrorBlob(e, fallback) {
 
 export default function TabBoletear() {
   const [loadingInit, setLoadingInit] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [opcionesPago, setOpcionesPago] = useState([]);
   const [nroPago, setNroPago] = useState('');
   const [from, setFrom] = useState(todayIso());
@@ -47,14 +50,17 @@ export default function TabBoletear() {
         const { data } = await api.get('/admin/pagos/bcp/config');
         if (cancelled) return;
         const total = data.total_pensiones || 10;
-        const mensualidades = (data.opciones_nro_pago || []).filter((o) => {
+        const raw = Array.isArray(data.opciones_nro_pago) ? data.opciones_nro_pago : [];
+        const mensualidades = raw.filter((o) => {
           const v = Number(o.value);
           return Number.isFinite(v) && v >= 1 && v <= total;
         });
         setOpcionesPago(mensualidades);
         if (mensualidades.length) setNroPago(String(mensualidades[0].value));
+        setLoadError('');
       } catch (e) {
         if (!cancelled) {
+          setLoadError(e.response?.data?.error || 'Error al cargar opciones de pago');
           Swal.fire({ icon: 'error', text: e.response?.data?.error || 'Error al cargar opciones de pago' });
         }
       } finally {
@@ -65,6 +71,9 @@ export default function TabBoletear() {
       cancelled = true;
     };
   }, []);
+
+  const nroPagoVal =
+    opcionesPago.some((o) => String(o.value) === String(nroPago)) ? nroPago : String(opcionesPago[0]?.value || '');
 
   const boletearGeneral = async () => {
     const confirm = await Swal.fire({
@@ -81,7 +90,7 @@ export default function TabBoletear() {
     try {
       const { data, headers } = await api.post(
         '/admin/pagos/boletear/general',
-        { nro_pago: parseInt(nroPago, 10) },
+        { nro_pago: parseInt(nroPagoVal, 10) },
         { responseType: 'blob' }
       );
       const count = headers['x-boletas-count'] || '?';
@@ -141,6 +150,14 @@ export default function TabBoletear() {
     );
   }
 
+  if (!opcionesPago.length) {
+    return (
+      <div className="pe-empty-state">
+        <p>{loadError || 'No hay mensualidades configuradas para boletear.'}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="pe-boletear">
       <div className="pe-card">
@@ -149,15 +166,15 @@ export default function TabBoletear() {
           Genera pagos temporales y descarga un ZIP con los JSON de boleta para todas las matrículas del año activo
           (mensualidad seleccionada).
         </p>
-        <div className="pe-form-row">
+        <div className="pe-form-row pe-form-row--actions-end">
           <TextField
             select
             size="small"
             label="Mensualidad"
-            value={nroPago}
+            value={nroPagoVal}
             onChange={(e) => setNroPago(e.target.value)}
             className="pe-field"
-            sx={{ minWidth: 220 }}
+            fullWidth
           >
             {opcionesPago.map((o) => (
               <MenuItem key={o.value} value={String(o.value)}>
@@ -167,10 +184,11 @@ export default function TabBoletear() {
           </TextField>
           <button
             type="button"
-            className="pe-btn pe-btn--primary"
-            disabled={boleteandoGeneral || !nroPago}
+            className="pe-btn pe-btn--primary pe-btn--icon"
+            disabled={boleteandoGeneral || !nroPagoVal}
             onClick={boletearGeneral}
           >
+            <ReceiptLongOutlinedIcon fontSize="small" />
             {boleteandoGeneral ? 'Generando…' : 'Boletear pagos'}
           </button>
         </div>
@@ -189,7 +207,7 @@ export default function TabBoletear() {
             value={from}
             onChange={(e) => setFrom(e.target.value)}
             InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: 160 }}
+            fullWidth
           />
           <TextField
             type="date"
@@ -198,7 +216,7 @@ export default function TabBoletear() {
             value={to}
             onChange={(e) => setTo(e.target.value)}
             InputLabelProps={{ shrink: true }}
-            sx={{ minWidth: 160 }}
+            fullWidth
           />
           <TextField
             type="number"
@@ -207,14 +225,15 @@ export default function TabBoletear() {
             value={cantidad}
             onChange={(e) => setCantidad(e.target.value)}
             inputProps={{ min: 1 }}
-            sx={{ width: 110 }}
+            fullWidth
           />
           <button
             type="button"
-            className="pe-btn pe-btn--primary"
+            className="pe-btn pe-btn--primary pe-btn--icon"
             disabled={boleteandoMoras}
             onClick={boletearMoras}
           >
+            <WarningAmberOutlinedIcon fontSize="small" />
             {boleteandoMoras ? 'Generando…' : 'Boletear moras'}
           </button>
         </div>

@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CircularProgress, MenuItem, TextField } from '@mui/material';
+import { CircularProgress, InputAdornment, MenuItem, TextField } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import Swal from 'sweetalert2';
 import api from '../../../services/api';
 import { showListaPagosMatriculaSwal } from '../../../utils/adminAlumnoPagosSwal';
@@ -7,6 +9,7 @@ import {
   SECCIONES_OPCIONES,
   etiquetaGradoOpcion,
   gradosParaNivel,
+  sedeIdSanMartin,
 } from './pagosEscolaresFilters';
 
 export default function TabBuscarAlumnos() {
@@ -53,7 +56,8 @@ export default function TabBuscarAlumnos() {
     defaultsAppliedRef.current = true;
     const d = meta.defaults || {};
     setAnio(String(d.anio ?? meta.anio_activo ?? new Date().getFullYear()));
-    if (d.sede_id != null) setSedeId(String(d.sede_id));
+    if (meta.sedes?.length) setSedeId(sedeIdSanMartin(meta.sedes));
+    else if (d.sede_id != null) setSedeId(String(d.sede_id));
     if (d.turno_id != null) setTurnoId(String(d.turno_id));
 
     const nivs = meta.niveles || [];
@@ -170,6 +174,7 @@ export default function TabBuscarAlumnos() {
                 value={sedeId}
                 onChange={(e) => setSedeId(e.target.value)}
                 className="pe-field pe-field--sede"
+                fullWidth
               >
                 {(meta.sedes || []).map((s) => (
                   <MenuItem key={s.id} value={String(s.id)}>
@@ -186,6 +191,7 @@ export default function TabBuscarAlumnos() {
               onChange={(e) => onNivelChange(e.target.value)}
               className="pe-field"
               required
+              fullWidth
             >
               {(meta?.niveles || []).map((n) => (
                 <MenuItem key={n.id} value={String(n.id)}>
@@ -202,6 +208,7 @@ export default function TabBuscarAlumnos() {
               className="pe-field"
               disabled={!nivelId || gradosOpciones.length === 0}
               required
+              fullWidth
             >
               {gradosOpciones.map((g) => (
                 <MenuItem key={g} value={String(g)}>
@@ -217,6 +224,7 @@ export default function TabBuscarAlumnos() {
               onChange={(e) => setSeccion(e.target.value)}
               className="pe-field"
               required
+              fullWidth
             >
               {SECCIONES_OPCIONES.map((sec) => (
                 <MenuItem key={sec} value={sec}>
@@ -232,6 +240,7 @@ export default function TabBuscarAlumnos() {
               onChange={(e) => setTurnoId(e.target.value)}
               className="pe-field"
               required
+              fullWidth
             >
               {(meta?.turnos || []).map((t) => (
                 <MenuItem key={t.id} value={String(t.id)}>
@@ -247,8 +256,10 @@ export default function TabBuscarAlumnos() {
               onChange={(e) => setAnio(e.target.value)}
               className="pe-field pe-field--anio"
               inputProps={{ min: 2000, max: 2100 }}
+              fullWidth
             />
-            <button type="button" className="pe-btn pe-btn--primary" onClick={buscar} disabled={buscando}>
+            <button type="button" className="pe-btn pe-btn--primary pe-btn--icon" onClick={buscar} disabled={buscando}>
+              <SearchIcon fontSize="small" />
               {buscando ? 'Buscando…' : 'Buscar'}
             </button>
           </div>
@@ -264,10 +275,18 @@ export default function TabBuscarAlumnos() {
             </div>
             <TextField
               size="small"
-              label="Filtrar"
+              label="Filtrar en tabla"
               value={filtroTabla}
               onChange={(e) => setFiltroTabla(e.target.value)}
               className="pe-field pe-field--filtro"
+              fullWidth
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchIcon fontSize="small" color="action" />
+                  </InputAdornment>
+                ),
+              }}
             />
           </div>
 
@@ -295,9 +314,10 @@ export default function TabBuscarAlumnos() {
                       <td className="pe-td-accion">
                         <button
                           type="button"
-                          className="pe-btn pe-btn--sm pe-btn--primary"
+                          className="pe-btn pe-btn--sm pe-btn--primary pe-btn--icon"
                           onClick={() => verPagos(row)}
                         >
+                          <PaymentsOutlinedIcon fontSize="small" />
                           Ver pagos
                         </button>
                       </td>
