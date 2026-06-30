@@ -137,5 +137,8 @@ function resolveFechaVencimientoBoletaJson(imp) {
 
 module.exports = {
   formatDateYyyyMmDd,
+  parsePensionesVencimiento,
+  calcularFechaVencimientoDdMmYyyy,
+  ddMmYyyyToYyyyMmDd,
   resolveFechaVencimientoBoletaJson,
 };
