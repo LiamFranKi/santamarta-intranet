@@ -243,3 +243,258 @@
   color: #0f172a;
   margin-bottom: 0.15rem;
 }
+
+/* —— Formularios Ventas / Compras (estilo legacy) —— */
+.pe-modal--factura {
+  max-width: 1060px;
+}
+
+.pe-modal--factura .pe-modal-body {
+  padding: 0;
+  background: #f1f5f9;
+}
+
+.fact-form-inner {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.fact-form-title {
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.fact-panel {
+  background: #fff;
+  border: 1px solid #dbe3ef;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.fact-panel-head {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 0.55rem 1rem;
+  letter-spacing: 0.02em;
+}
+
+.fact-panel-body {
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.fact-form-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.fact-form-row {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 1fr;
+  gap: 0.75rem 1rem;
+  align-items: center;
+}
+
+.fact-form-row label {
+  text-align: right;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.fact-form-row label .fact-req {
+  color: #dc2626;
+  margin-left: 2px;
+}
+
+.fact-form-field {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.fact-form-field .MuiTextField-root {
+  flex: 1;
+  min-width: 120px;
+}
+
+.fact-form-field--split .MuiTextField-root:first-child {
+  max-width: 140px;
+  flex: 0 0 140px;
+}
+
+.fact-form-field--serie-num .fact-serie-display {
+  max-width: 90px;
+  flex: 0 0 90px;
+}
+
+.fact-form-field--serie-num .fact-num-display {
+  max-width: 160px;
+  flex: 0 0 160px;
+}
+
+.fact-btn-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #16a34a;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  padding: 0.45rem 0.85rem;
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+}
+
+.fact-btn-add:hover {
+  background: #15803d;
+}
+
+.fact-detalle-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+}
+
+.fact-detalle-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.fact-detalle-table thead tr {
+  background: #ecfdf5;
+}
+
+.fact-detalle-table th {
+  padding: 0.55rem 0.5rem;
+  text-align: left;
+  font-weight: 700;
+  color: #0f172a;
+  border-bottom: 2px solid #bbf7d0;
+  white-space: nowrap;
+}
+
+.fact-detalle-table td {
+  padding: 0.4rem 0.35rem;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.fact-col-num {
+  width: 88px;
+  text-align: center;
+}
+
+.fact-col-accion {
+  width: 44px;
+  text-align: center;
+}
+
+.fact-cell-input .MuiOutlinedInput-root {
+  background: #fff;
+  font-size: 0.85rem;
+}
+
+.fact-cell-input--num .MuiOutlinedInput-root {
+  text-align: center;
+}
+
+.fact-cell-readonly {
+  color: #475569;
+  font-weight: 600;
+}
+
+.fact-importe {
+  color: #0f172a;
+}
+
+.fact-detalle-empty {
+  text-align: center;
+  color: #94a3b8;
+  padding: 1.25rem !important;
+}
+
+.fact-btn-remove {
+  border: none;
+  background: #fee2e2;
+  color: #b91c1c;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.fact-btn-remove:hover:not(:disabled) {
+  background: #fecaca;
+}
+
+.fact-btn-remove:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.fact-totals {
+  margin-top: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  max-width: 360px;
+  margin-left: auto;
+}
+
+.fact-totals-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.85rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.fact-totals-row--final {
+  background: #eff6ff;
+  font-size: 1rem;
+  border-bottom: none;
+}
+
+.fact-totals-row--edit {
+  gap: 0.5rem;
+}
+
+.fact-totals-input {
+  width: 100px;
+}
+
+.fact-totals-input .MuiOutlinedInput-root {
+  text-align: right;
+}
+
+.fact-dni-busy {
+  font-size: 0.75rem;
+  color: #64748b;
+  grid-column: 2;
+  margin-top: -0.35rem;
+}
+
+@media (max-width: 640px) {
+  .fact-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .fact-form-row label {
+    text-align: left;
+  }
+}

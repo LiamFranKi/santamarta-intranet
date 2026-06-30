@@ -8,6 +8,8 @@ import {
 } from '@mui/material';
 import Swal from 'sweetalert2';
 import api from '../../../services/api';
+import PeTablaPaginacion from '../../../components/admin/PeTablaPaginacion';
+import { DEFAULT_PAGE_SIZE } from '../../../hooks/usePaginacionTabla';
 import { sedeIdSanMartin } from './pagosEscolaresFilters';
 
 function todayIso() {
@@ -25,38 +27,44 @@ function descargarBlob(blob, filename) {
 
 function HistorialBcp({ anio }) {
   const [items, setItems] = useState([]);
-  const [pagination, setPagination] = useState({ page: 1, page_size: 10, total: 0, total_pages: 1 });
+  const [pagination, setPagination] = useState({ page: 1, page_size: DEFAULT_PAGE_SIZE, total: 0, total_pages: 1 });
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [loading, setLoading] = useState(false);
 
   const cargar = useCallback(
-    async (page = 1) => {
+    async (page = 1, size = pageSize) => {
       setLoading(true);
       try {
         const { data } = await api.get('/admin/pagos/bcp/historial', {
-          params: { anio, page, page_size: 10 },
+          params: { anio, page, page_size: size },
         });
         setItems(data.items || []);
-        setPagination(data.pagination || { page: 1, page_size: 10, total: 0, total_pages: 1 });
+        setPagination(data.pagination || { page: 1, page_size: size, total: 0, total_pages: 1 });
       } catch (e) {
         Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo cargar el historial' });
       } finally {
         setLoading(false);
       }
     },
-    [anio]
+    [anio, pageSize]
   );
 
   useEffect(() => {
-    cargar(1);
-  }, [cargar]);
+    cargar(1, pageSize);
+  }, [anio, pageSize]);
 
   useEffect(() => {
-    const handler = () => cargar(1);
+    const handler = () => cargar(1, pageSize);
     window.addEventListener('pe-bcp-historial-refresh', handler);
     return () => window.removeEventListener('pe-bcp-historial-refresh', handler);
-  }, [cargar]);
+  }, [cargar, pageSize]);
 
   const { page, total_pages, total } = pagination;
+
+  const onPageSizeChange = (size) => {
+    setPageSize(size);
+    cargar(1, size);
+  };
 
   return (
     <div className="pe-bcp-historial">
@@ -110,27 +118,15 @@ function HistorialBcp({ anio }) {
           </div>
 
           {total > 0 && (
-            <div className="pe-pagination">
-              <button
-                type="button"
-                className="pe-btn pe-btn--sm pe-btn--secondary"
-                disabled={page <= 1 || loading}
-                onClick={() => cargar(page - 1)}
-              >
-                Anterior
-              </button>
-              <span className="pe-pagination-info">
-                Página {page} de {total_pages} — {total} registro(s)
-              </span>
-              <button
-                type="button"
-                className="pe-btn pe-btn--sm pe-btn--secondary"
-                disabled={page >= total_pages || loading}
-                onClick={() => cargar(page + 1)}
-              >
-                Siguiente
-              </button>
-            </div>
+            <PeTablaPaginacion
+              page={page}
+              totalPages={total_pages}
+              total={total}
+              pageSize={pageSize}
+              onPageChange={(p) => cargar(p, pageSize)}
+              onPageSizeChange={onPageSizeChange}
+              disabled={loading}
+            />
           )}
         </>
       )}

@@ -5,6 +5,8 @@ import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import Swal from 'sweetalert2';
 import api from '../../../services/api';
 import { showListaPagosMatriculaSwal } from '../../../utils/adminAlumnoPagosSwal';
+import PeTablaPaginacion from '../../../components/admin/PeTablaPaginacion';
+import { usePaginacionTabla } from '../../../hooks/usePaginacionTabla';
 import {
   SECCIONES_OPCIONES,
   etiquetaGradoOpcion,
@@ -138,6 +140,8 @@ export default function TabBuscarAlumnos() {
         String(row.costo_texto || '').toLowerCase().includes(q)
     );
   }, [resultado, filtroTabla]);
+
+  const pag = usePaginacionTabla(filasFiltradas, [filtroTabla]);
 
   const verPagos = async (row) => {
     try {
@@ -307,7 +311,7 @@ export default function TabBuscarAlumnos() {
                     </td>
                   </tr>
                 ) : (
-                  filasFiltradas.map((row) => (
+                  pag.paginated.map((row) => (
                     <tr key={row.matricula_id}>
                       <td>{row.nombre}</td>
                       <td className="pe-td-costo">{row.costo_texto}</td>
@@ -327,6 +331,14 @@ export default function TabBuscarAlumnos() {
               </tbody>
             </table>
           </div>
+          <PeTablaPaginacion
+            page={pag.page}
+            totalPages={pag.totalPages}
+            total={pag.total}
+            pageSize={pag.pageSize}
+            onPageChange={pag.setPage}
+            onPageSizeChange={pag.setPageSize}
+          />
         </div>
       )}
     </div>

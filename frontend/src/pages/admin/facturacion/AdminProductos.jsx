@@ -10,6 +10,8 @@ import DashboardLayout from '../../../components/DashboardLayout';
 import api from '../../../services/api';
 import '../pagosEscolares/AdminPagosEscolares.css';
 import './AdminFacturacion.css';
+import PeTablaPaginacion from '../../../components/admin/PeTablaPaginacion';
+import { usePaginacionTabla } from '../../../hooks/usePaginacionTabla';
 
 const TABS = [
   { id: 'productos', label: 'Productos', tone: 'productos' },
@@ -116,6 +118,8 @@ function TabCategorias() {
     );
   }, [items, filtro]);
 
+  const pag = usePaginacionTabla(filtrados, [filtro]);
+
   if (loading) {
     return (
       <div className="pe-loading-inline">
@@ -150,7 +154,7 @@ function TabCategorias() {
                 </td>
               </tr>
             ) : (
-              filtrados.map((r) => (
+              pag.paginated.map((r) => (
               <tr key={r.id}>
                 <td>{r.nombre}</td>
                 <td>{r.descripcion}</td>
@@ -173,6 +177,14 @@ function TabCategorias() {
           </tbody>
         </table>
       </div>
+      <PeTablaPaginacion
+        page={pag.page}
+        totalPages={pag.totalPages}
+        total={pag.total}
+        pageSize={pag.pageSize}
+        onPageChange={pag.setPage}
+        onPageSizeChange={pag.setPageSize}
+      />
       {modal && (
         <Modal
           title={modal.id ? 'Editar categoría' : 'Nueva categoría'}
@@ -259,6 +271,8 @@ function TabSubcategorias({ categorias }) {
     );
   }, [items, filtro, filtroCat]);
 
+  const pag = usePaginacionTabla(filtrados, [filtro, filtroCat]);
+
   if (loading) {
     return (
       <div className="pe-loading-inline">
@@ -308,7 +322,7 @@ function TabSubcategorias({ categorias }) {
                 </td>
               </tr>
             ) : (
-              filtrados.map((r) => (
+              pag.paginated.map((r) => (
               <tr key={r.id}>
                 <td>{r.categoria_nombre}</td>
                 <td>{r.nombre}</td>
@@ -332,6 +346,14 @@ function TabSubcategorias({ categorias }) {
           </tbody>
         </table>
       </div>
+      <PeTablaPaginacion
+        page={pag.page}
+        totalPages={pag.totalPages}
+        total={pag.total}
+        pageSize={pag.pageSize}
+        onPageChange={pag.setPage}
+        onPageSizeChange={pag.setPageSize}
+      />
       {modal && (
         <Modal
           title={modal.id ? 'Editar subcategoría' : 'Nueva subcategoría'}
@@ -442,6 +464,8 @@ function TabProductos({ categorias, subcategorias }) {
     );
   }, [items, filtro, filtroCat]);
 
+  const pag = usePaginacionTabla(filtrados, [filtro, filtroCat]);
+
   if (loading) {
     return (
       <div className="pe-loading-inline">
@@ -504,7 +528,7 @@ function TabProductos({ categorias, subcategorias }) {
                 </td>
               </tr>
             ) : (
-              filtrados.map((r) => (
+              pag.paginated.map((r) => (
               <tr key={r.id}>
                 <td>{r.descripcion}</td>
                 <td>{r.categoria_nombre}</td>
@@ -549,6 +573,14 @@ function TabProductos({ categorias, subcategorias }) {
           </tbody>
         </table>
       </div>
+      <PeTablaPaginacion
+        page={pag.page}
+        totalPages={pag.totalPages}
+        total={pag.total}
+        pageSize={pag.pageSize}
+        onPageChange={pag.setPage}
+        onPageSizeChange={pag.setPageSize}
+      />
       {modal && (
         <Modal
           title={modal.id ? 'Editar producto' : 'Nuevo producto'}

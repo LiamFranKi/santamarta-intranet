@@ -14,6 +14,10 @@ export const SERIES_VENTA = [
   { value: 3, label: '003 — Transferencias gratuitas' },
 ];
 
+export const TIPOS_DOC_IDENTIDAD = ['DNI', 'RUC', 'CE', 'PASAPORTE'];
+
+export const RUBROS_VENTA = ['NINGUNO', 'LIBROS', 'UNIFORMES', 'UTILES', 'OTROS'];
+
 export const TIPOS_COMPRA = ['BOLETA DE VENTA', 'FACTURA'];
 
 export const TIPOS_MOVIMIENTO = ['INGRESO', 'EGRESO'];

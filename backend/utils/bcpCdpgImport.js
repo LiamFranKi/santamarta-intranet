@@ -449,7 +449,7 @@ function contarPagosHistorial(dataField) {
 async function listarHistorialImportaciones(colegioId, { anio, page = 1, pageSize = 10 }) {
   const anioN = parseInt(anio, 10) || new Date().getFullYear();
   const pageN = Math.max(1, parseInt(page, 10) || 1);
-  const sizeN = Math.min(50, Math.max(1, parseInt(pageSize, 10) || 10));
+  const sizeN = Math.min(100, Math.max(1, parseInt(pageSize, 10) || 20));
   const offset = (pageN - 1) * sizeN;
 
   const [countRow] = await query(

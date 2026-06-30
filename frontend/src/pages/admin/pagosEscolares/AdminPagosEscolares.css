@@ -483,10 +483,31 @@
 .pe-pagination {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: 1rem;
   margin-top: 1rem;
   flex-wrap: wrap;
+}
+
+.pe-pagination-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.pe-pagination-size {
+  min-width: 120px;
+}
+
+.pe-pagination-select {
+  width: 120px;
+}
+
+.pe-pagination-select .MuiInputBase-root {
+  width: 100%;
 }
 
 .pe-pagination-info {

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CircularProgress, InputAdornment, MenuItem, TextField } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
@@ -8,7 +8,11 @@ import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../../components/DashboardLayout';
 import api from '../../../services/api';
-import { ESTADOS_PAGO_VENTA, SERIES_VENTA, TIPOS_CLIENTE_VENTA, sedeIdSanMartin, todayIso } from './facturacionHelpers';
+import PeTablaPaginacion from '../../../components/admin/PeTablaPaginacion';
+import { usePaginacionTabla } from '../../../hooks/usePaginacionTabla';
+import { ESTADOS_PAGO_VENTA, RUBROS_VENTA, SERIES_VENTA, TIPOS_CLIENTE_VENTA, TIPOS_DOC_IDENTIDAD, sedeIdSanMartin, todayIso } from './facturacionHelpers';
+import FormDetalleProductos, { TotalesFacturacion } from './FormDetalleProductos';
+import { buscarClientePorDni } from './facturacionClienteDni';
 import '../pagosEscolares/AdminPagosEscolares.css';
 import './AdminFacturacion.css';
 
@@ -23,6 +27,8 @@ export default function AdminVentas() {
   const [modal, setModal] = useState(null);
   const [nroPreview, setNroPreview] = useState('');
   const [filtroTabla, setFiltroTabla] = useState('');
+  const [buscandoDni, setBuscandoDni] = useState(false);
+  const dniTimerRef = useRef(null);
 
   const sedeDefault = useMemo(() => sedeIdSanMartin(meta.sedes), [meta.sedes]);
 
@@ -82,10 +88,13 @@ export default function AdminVentas() {
       nombre: '',
       dni: '',
       fecha: todayIso(),
-      tipo: 'EXTERNO',
+      tipo: 'ALUMNO',
       estado_pago: 'PENDIENTE',
       tipo_documento: 'BOLETA',
       transferencia_gratuita: 'NO',
+      entry: 'NINGUNO',
+      comision_tarjeta: 0,
+      doc_identidad: 'DNI',
       detalles: [lineaVacia()],
     });
     if (sedeId) fetchSiguienteNumero(sedeId, 1);
@@ -106,6 +115,9 @@ export default function AdminVentas() {
       setNroPreview(data.nro_boleta || '');
       setModal({
         ...data,
+        doc_identidad: data.doc_identidad || 'DNI',
+        entry: data.entry || 'NINGUNO',
+        comision_tarjeta: data.comision_tarjeta || 0,
         serie: resolveSerieIdx(data),
         detalles: (data.detalles || []).map((d) => ({
           categoria_id: d.categoria_id,
@@ -143,6 +155,58 @@ export default function AdminVentas() {
     if (!modal?.detalles) return 0;
     return modal.detalles.reduce((s, d) => s + (parseFloat(d.cantidad) || 0) * (parseFloat(d.precio) || 0), 0);
   }, [modal]);
+
+  const serieNumeroVista = useMemo(() => {
+    if (!modal) return { serie: '001', numero: '' };
+    if (nroPreview && String(nroPreview).includes('-')) {
+      const [s, ...rest] = String(nroPreview).split('-');
+      return { serie: s, numero: rest.join('-') };
+    }
+    if (parseInt(modal.numero, 10) > 0) {
+      return {
+        serie: String(modal.serie || '1').padStart(3, '0'),
+        numero: String(modal.numero).padStart(8, '0'),
+      };
+    }
+    return { serie: '001', numero: '—' };
+  }, [modal, nroPreview]);
+
+  const ejecutarBusquedaDni = useCallback(async (dni, tipoCliente) => {
+    const doc = String(dni || '').trim();
+    if (doc.length < 8) return;
+    setBuscandoDni(true);
+    const r = await buscarClientePorDni(doc, tipoCliente);
+    setBuscandoDni(false);
+    setModal((prev) => {
+      if (!prev || String(prev.dni || '').trim() !== doc) return prev;
+      if (r.encontrado) {
+        return { ...prev, nombre: r.nombre, tipo: r.tipo || prev.tipo };
+      }
+      return { ...prev, nombre: '' };
+    });
+  }, []);
+
+  const onDniChange = (value) => {
+    setModal((prev) => {
+      if (dniTimerRef.current) clearTimeout(dniTimerRef.current);
+      dniTimerRef.current = setTimeout(() => ejecutarBusquedaDni(value, prev?.tipo || 'ALUMNO'), 450);
+      return { ...prev, dni: value };
+    });
+  };
+
+  const onTipoClienteChange = (tipo) => {
+    setModal((prev) => {
+      const next = { ...prev, tipo };
+      if (String(prev.dni || '').trim().length >= 8) {
+        ejecutarBusquedaDni(prev.dni, tipo);
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => () => {
+    if (dniTimerRef.current) clearTimeout(dniTimerRef.current);
+  }, []);
 
   const guardar = async () => {
     try {
@@ -193,6 +257,8 @@ export default function AdminVentas() {
         String(r.nro_boleta || '').toLowerCase().includes(q)
     );
   }, [items, filtroTabla]);
+
+  const pag = usePaginacionTabla(itemsFiltrados, [filtroTabla, fecha1, fecha2]);
 
   return (
     <DashboardLayout>
@@ -259,7 +325,7 @@ export default function AdminVentas() {
                     </td>
                   </tr>
                 ) : (
-                  itemsFiltrados.map((r) => (
+                  pag.paginated.map((r) => (
                     <tr key={r.id}>
                       <td>{String(r.fecha || '').slice(0, 10)}</td>
                       <td>{r.nro_boleta}</td>
@@ -293,110 +359,261 @@ export default function AdminVentas() {
           </div>
         )}
 
+        {!loading && (
+          <PeTablaPaginacion
+            page={pag.page}
+            totalPages={pag.totalPages}
+            total={pag.total}
+            pageSize={pag.pageSize}
+            onPageChange={pag.setPage}
+            onPageSizeChange={pag.setPageSize}
+          />
+        )}
+
         {modal && (
           <div className="pe-modal-overlay" onClick={() => setModal(null)} role="presentation">
-            <div className="pe-modal pe-modal--wide" onClick={(e) => e.stopPropagation()} role="dialog">
+            <div className="pe-modal pe-modal--factura" onClick={(e) => e.stopPropagation()} role="dialog">
               <div className="pe-modal-header">
-                <h2>{modal.id ? 'Editar venta' : 'Nueva venta'}</h2>
+                <h2>{modal.id ? 'Editar venta / servicio' : 'Registrar venta / servicio'}</h2>
                 <button type="button" className="pe-btn pe-btn--sm" onClick={() => setModal(null)}>
                   ✕
                 </button>
               </div>
               <div className="pe-modal-body">
-                <div className="pe-form-grid">
-                  <TextField
-                    select
-                    label="Sede"
-                    size="small"
-                    value={modal.sede_id || sedeDefault}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setModal({ ...modal, sede_id: v });
-                      fetchSiguienteNumero(v, modal.serie);
-                    }}
-                    fullWidth
-                  >
-                    {meta.sedes.map((s) => (
-                      <MenuItem key={s.id} value={s.id}>
-                        {s.nombre}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    select
-                    label="Serie"
-                    size="small"
-                    value={modal.serie}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value, 10);
-                      setModal({ ...modal, serie: v });
-                      fetchSiguienteNumero(modal.sede_id, v);
-                    }}
-                  >
-                    {SERIES_VENTA.map((s) => (
-                      <MenuItem key={s.value} value={s.value}>
-                        {s.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField label="Siguiente N°" size="small" value={nroPreview || modal.numero} InputProps={{ readOnly: true }} helperText="Contador desde configuración de sede" />
-                  <TextField type="date" label="Fecha" size="small" value={String(modal.fecha || '').slice(0, 10)} onChange={(e) => setModal({ ...modal, fecha: e.target.value })} InputLabelProps={{ shrink: true }} />
-                  <TextField label="DNI" size="small" value={modal.dni || ''} onChange={(e) => setModal({ ...modal, dni: e.target.value })} />
-                  <TextField label="Nombre cliente" size="small" value={modal.nombre || ''} onChange={(e) => setModal({ ...modal, nombre: e.target.value })} />
-                  <TextField select label="Tipo cliente" size="small" value={modal.tipo || 'EXTERNO'} onChange={(e) => setModal({ ...modal, tipo: e.target.value })}>
-                    {TIPOS_CLIENTE_VENTA.map((t) => (
-                      <MenuItem key={t} value={t}>
-                        {t}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField select label="Estado pago" size="small" value={modal.estado_pago || 'PENDIENTE'} onChange={(e) => setModal({ ...modal, estado_pago: e.target.value })}>
-                    {ESTADOS_PAGO_VENTA.map((t) => (
-                      <MenuItem key={t} value={t}>
-                        {t}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </div>
+                <div className="fact-form-inner">
+                  <section className="fact-panel">
+                    <div className="fact-panel-head">Información General</div>
+                    <div className="fact-panel-body">
+                      <div className="fact-form-table">
+                        <div className="fact-form-row">
+                          <label>Tipo de Documento</label>
+                          <div className="fact-form-field">
+                            <TextField
+                              select
+                              size="small"
+                              value={modal.doc_identidad || 'DNI'}
+                              onChange={(e) => setModal({ ...modal, doc_identidad: e.target.value })}
+                              fullWidth
+                            >
+                              {TIPOS_DOC_IDENTIDAD.map((t) => (
+                                <MenuItem key={t} value={t}>
+                                  {t}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </div>
+                        </div>
 
-                <h3 className="pe-card-title">Detalle</h3>
-                {modal.detalles.map((d, idx) => (
-                  <div className="pe-detalle-row" key={idx}>
-                    <TextField select size="small" label="Cat." value={d.categoria_id} onChange={(e) => setDetalle(idx, { categoria_id: e.target.value })}>
-                      <MenuItem value="">—</MenuItem>
-                      {(meta.catalogo || []).map((c) => (
-                        <MenuItem key={c.id} value={c.id}>
-                          {c.nombre}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                    <TextField select size="small" label="Producto" value={d.concepto_id} onChange={(e) => setDetalle(idx, { concepto_id: e.target.value })}>
-                      <MenuItem value="">—</MenuItem>
-                      {(catalogoMap[d.categoria_id]?.conceptos || []).map((p) => (
-                        <MenuItem key={p.id} value={p.id}>
-                          {p.descripcion}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                    <TextField size="small" type="number" label="Cant." value={d.cantidad} onChange={(e) => setDetalle(idx, { cantidad: e.target.value })} />
-                    <TextField size="small" type="number" label="Precio" value={d.precio} onChange={(e) => setDetalle(idx, { precio: e.target.value })} />
-                    <span>{d.stock != null ? `St:${d.stock}` : '—'}</span>
-                    <button type="button" className="pe-btn pe-btn--sm pe-btn--danger" onClick={() => setModal({ ...modal, detalles: modal.detalles.filter((_, i) => i !== idx) })}>
-                      ×
-                    </button>
-                  </div>
-                ))}
-                <button type="button" className="pe-btn pe-btn--sm" onClick={() => setModal({ ...modal, detalles: [...modal.detalles, lineaVacia()] })}>
-                  + Línea
-                </button>
-                <div className="pe-total-line">Total: S/ {totalModal.toFixed(2)}</div>
+                        <div className="fact-form-row">
+                          <label>
+                            N° de Documento<span className="fact-req">*</span>
+                          </label>
+                          <div className="fact-form-field fact-form-field--split">
+                            <TextField
+                              select
+                              size="small"
+                              value={modal.tipo || 'ALUMNO'}
+                              onChange={(e) => onTipoClienteChange(e.target.value)}
+                            >
+                              {TIPOS_CLIENTE_VENTA.map((t) => (
+                                <MenuItem key={t} value={t}>
+                                  {t}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                            <TextField
+                              size="small"
+                              value={modal.dni || ''}
+                              onChange={(e) => onDniChange(e.target.value)}
+                              onBlur={() => ejecutarBusquedaDni(modal.dni, modal.tipo)}
+                              placeholder="DNI / documento"
+                              fullWidth
+                            />
+                          </div>
+                          {buscandoDni && <div className="fact-dni-busy">Buscando en el sistema…</div>}
+                        </div>
+
+                        <div className="fact-form-row">
+                          <label>
+                            Nombre<span className="fact-req">*</span>
+                          </label>
+                          <div className="fact-form-field">
+                            <TextField
+                              size="small"
+                              value={modal.nombre || ''}
+                              onChange={(e) => setModal({ ...modal, nombre: e.target.value })}
+                              fullWidth
+                              required
+                            />
+                          </div>
+                        </div>
+
+                        <div className="fact-form-row">
+                          <label>
+                            Fecha<span className="fact-req">*</span>
+                          </label>
+                          <div className="fact-form-field">
+                            <TextField
+                              type="date"
+                              size="small"
+                              value={String(modal.fecha || '').slice(0, 10)}
+                              onChange={(e) => setModal({ ...modal, fecha: e.target.value })}
+                              InputLabelProps={{ shrink: true }}
+                              fullWidth
+                            />
+                          </div>
+                        </div>
+
+                        <div className="fact-form-row">
+                          <label>
+                            Sede<span className="fact-req">*</span>
+                          </label>
+                          <div className="fact-form-field">
+                            <TextField
+                              select
+                              size="small"
+                              value={modal.sede_id || sedeDefault}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setModal({ ...modal, sede_id: v });
+                                fetchSiguienteNumero(v, modal.serie);
+                              }}
+                              fullWidth
+                            >
+                              {meta.sedes.map((s) => (
+                                <MenuItem key={s.id} value={s.id}>
+                                  {s.nombre}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </div>
+                        </div>
+
+                        <div className="fact-form-row">
+                          <label>
+                            Serie / Número<span className="fact-req">*</span>
+                          </label>
+                          <div className="fact-form-field fact-form-field--split fact-form-field--serie-num">
+                            <TextField
+                              select
+                              size="small"
+                              className="fact-serie-display"
+                              value={modal.serie}
+                              onChange={(e) => {
+                                const v = parseInt(e.target.value, 10);
+                                setModal({ ...modal, serie: v });
+                                fetchSiguienteNumero(modal.sede_id || sedeDefault, v);
+                              }}
+                            >
+                              {SERIES_VENTA.map((s) => (
+                                <MenuItem key={s.value} value={s.value}>
+                                  {String(s.value).padStart(3, '0')}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                            <TextField
+                              size="small"
+                              className="fact-num-display"
+                              value={serieNumeroVista.numero}
+                              InputProps={{ readOnly: true }}
+                              fullWidth
+                            />
+                          </div>
+                        </div>
+
+                        <div className="fact-form-row">
+                          <label>
+                            Estado Pago<span className="fact-req">*</span>
+                          </label>
+                          <div className="fact-form-field">
+                            <TextField
+                              select
+                              size="small"
+                              value={modal.estado_pago || 'PENDIENTE'}
+                              onChange={(e) => setModal({ ...modal, estado_pago: e.target.value })}
+                              fullWidth
+                            >
+                              {ESTADOS_PAGO_VENTA.map((t) => (
+                                <MenuItem key={t} value={t}>
+                                  {t}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </div>
+                        </div>
+
+                        <div className="fact-form-row">
+                          <label>
+                            Transferencia Gratuita<span className="fact-req">*</span>
+                          </label>
+                          <div className="fact-form-field">
+                            <TextField
+                              select
+                              size="small"
+                              value={modal.transferencia_gratuita || 'NO'}
+                              onChange={(e) => setModal({ ...modal, transferencia_gratuita: e.target.value })}
+                              fullWidth
+                            >
+                              <MenuItem value="NO">NO</MenuItem>
+                              <MenuItem value="SI">SI</MenuItem>
+                            </TextField>
+                          </div>
+                        </div>
+
+                        <div className="fact-form-row">
+                          <label>Rubro</label>
+                          <div className="fact-form-field">
+                            <TextField
+                              select
+                              size="small"
+                              value={modal.entry || 'NINGUNO'}
+                              onChange={(e) => setModal({ ...modal, entry: e.target.value })}
+                              fullWidth
+                            >
+                              {RUBROS_VENTA.map((r) => (
+                                <MenuItem key={r} value={r}>
+                                  {r}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="fact-panel">
+                    <div className="fact-panel-head">Detalles de Productos</div>
+                    <div className="fact-panel-body">
+                      <FormDetalleProductos
+                        catalogo={meta.catalogo || []}
+                        catalogoMap={catalogoMap}
+                        detalles={modal.detalles}
+                        onChangeDetalle={setDetalle}
+                        onAddLinea={() => setModal({ ...modal, detalles: [...modal.detalles, lineaVacia()] })}
+                        onRemoveLinea={(idx) =>
+                          setModal({
+                            ...modal,
+                            detalles: modal.detalles.length > 1 ? modal.detalles.filter((_, i) => i !== idx) : modal.detalles,
+                          })
+                        }
+                      />
+                      <TotalesFacturacion
+                        subtotal={totalModal}
+                        comision={modal.comision_tarjeta || 0}
+                        mostrarComision
+                        onComisionChange={(v) => setModal({ ...modal, comision_tarjeta: v })}
+                      />
+                    </div>
+                  </section>
+                </div>
               </div>
               <div className="pe-modal-footer">
                 <button type="button" className="pe-btn" onClick={() => setModal(null)}>
                   Cancelar
                 </button>
                 <button type="button" className="pe-btn pe-btn--primary" onClick={guardar}>
-                  Guardar venta
+                  Guardar datos
                 </button>
               </div>
             </div>

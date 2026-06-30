@@ -3,7 +3,10 @@ import { CircularProgress, MenuItem, TextField } from '@mui/material';
 import Swal from 'sweetalert2';
 import DashboardLayout from '../../../components/DashboardLayout';
 import api from '../../../services/api';
+import PeTablaPaginacion from '../../../components/admin/PeTablaPaginacion';
+import { usePaginacionTabla } from '../../../hooks/usePaginacionTabla';
 import { TIPOS_COMPRA, todayIso } from './facturacionHelpers';
+import FormDetalleProductos, { TotalesFacturacion } from './FormDetalleProductos';
 import '../pagosEscolares/AdminPagosEscolares.css';
 import './AdminFacturacion.css';
 
@@ -16,6 +19,9 @@ export default function AdminCompras() {
   const [desde, setDesde] = useState(todayIso());
   const [hasta, setHasta] = useState(todayIso());
   const [modal, setModal] = useState(null);
+
+  const itemsFiltrados = useMemo(() => items, [items]);
+  const pag = usePaginacionTabla(itemsFiltrados, [desde, hasta]);
 
   const cargarMeta = useCallback(async () => {
     const { data } = await api.get('/admin/facturacion/meta');
@@ -179,7 +185,7 @@ export default function AdminCompras() {
                     </td>
                   </tr>
                 ) : (
-                  items.map((r) => (
+                  pag.paginated.map((r) => (
                     <tr key={r.id}>
                       <td>{String(r.fecha || '').slice(0, 10)}</td>
                       <td>
@@ -206,68 +212,137 @@ export default function AdminCompras() {
           </div>
         )}
 
+        {!loading && (
+          <PeTablaPaginacion
+            page={pag.page}
+            totalPages={pag.totalPages}
+            total={pag.total}
+            pageSize={pag.pageSize}
+            onPageChange={pag.setPage}
+            onPageSizeChange={pag.setPageSize}
+          />
+        )}
+
         {modal && (
           <div className="pe-modal-overlay" onClick={() => setModal(null)} role="presentation">
-            <div className="pe-modal pe-modal--wide" onClick={(e) => e.stopPropagation()} role="dialog">
+            <div className="pe-modal pe-modal--factura" onClick={(e) => e.stopPropagation()} role="dialog">
               <div className="pe-modal-header">
-                <h2>{modal.id ? 'Editar compra' : 'Nueva compra'}</h2>
+                <h2>{modal.id ? 'Editar ingreso' : 'Registrar ingreso'}</h2>
                 <button type="button" className="pe-btn pe-btn--sm" onClick={() => setModal(null)}>
                   ✕
                 </button>
               </div>
               <div className="pe-modal-body">
-                <div className="pe-form-grid">
-                  <TextField label="Descripción / proveedor" size="small" value={modal.descripcion || ''} onChange={(e) => setModal({ ...modal, descripcion: e.target.value })} />
-                  <TextField type="date" label="Fecha" size="small" value={String(modal.fecha || '').slice(0, 10)} onChange={(e) => setModal({ ...modal, fecha: e.target.value })} InputLabelProps={{ shrink: true }} />
-                  <TextField select label="Tipo doc." size="small" value={modal.tipo || 'BOLETA DE VENTA'} onChange={(e) => setModal({ ...modal, tipo: e.target.value })}>
-                    {TIPOS_COMPRA.map((t) => (
-                      <MenuItem key={t} value={t}>
-                        {t}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField label="Serie" size="small" value={modal.serie || ''} onChange={(e) => setModal({ ...modal, serie: e.target.value })} />
-                  <TextField label="Número" size="small" value={modal.numero || ''} onChange={(e) => setModal({ ...modal, numero: e.target.value })} />
-                </div>
+                <div className="fact-form-inner">
+                  <section className="fact-panel">
+                    <div className="fact-panel-head">Información General</div>
+                    <div className="fact-panel-body">
+                      <div className="fact-form-table">
+                        <div className="fact-form-row">
+                          <label>
+                            Descripción<span className="fact-req">*</span>
+                          </label>
+                          <div className="fact-form-field">
+                            <TextField
+                              size="small"
+                              value={modal.descripcion || ''}
+                              onChange={(e) => setModal({ ...modal, descripcion: e.target.value })}
+                              fullWidth
+                              placeholder="Proveedor o detalle del ingreso"
+                            />
+                          </div>
+                        </div>
 
-                <h3 className="pe-card-title">Detalle (aumenta stock)</h3>
-                {modal.detalles.map((d, idx) => (
-                  <div className="pe-detalle-row" key={idx}>
-                    <TextField select size="small" label="Cat." value={d.categoria_id} onChange={(e) => setDetalle(idx, { categoria_id: e.target.value })}>
-                      <MenuItem value="">—</MenuItem>
-                      {(meta.catalogo || []).map((c) => (
-                        <MenuItem key={c.id} value={c.id}>
-                          {c.nombre}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                    <TextField select size="small" label="Producto" value={d.concepto_id} onChange={(e) => setDetalle(idx, { concepto_id: e.target.value })}>
-                      <MenuItem value="">—</MenuItem>
-                      {(catalogoMap[d.categoria_id]?.conceptos || []).map((p) => (
-                        <MenuItem key={p.id} value={p.id}>
-                          {p.descripcion}
-                        </MenuItem>
-                      ))}
-                    </TextField>
-                    <TextField size="small" type="number" label="Cant." value={d.cantidad} onChange={(e) => setDetalle(idx, { cantidad: e.target.value })} />
-                    <TextField size="small" type="number" label="Precio" value={d.precio} onChange={(e) => setDetalle(idx, { precio: e.target.value })} />
-                    <span />
-                    <button type="button" className="pe-btn pe-btn--sm pe-btn--danger" onClick={() => setModal({ ...modal, detalles: modal.detalles.filter((_, i) => i !== idx) })}>
-                      ×
-                    </button>
-                  </div>
-                ))}
-                <button type="button" className="pe-btn pe-btn--sm" onClick={() => setModal({ ...modal, detalles: [...modal.detalles, lineaVacia()] })}>
-                  + Línea
-                </button>
-                <div className="pe-total-line">Total: S/ {totalModal.toFixed(2)}</div>
+                        <div className="fact-form-row">
+                          <label>
+                            Fecha<span className="fact-req">*</span>
+                          </label>
+                          <div className="fact-form-field">
+                            <TextField
+                              type="date"
+                              size="small"
+                              value={String(modal.fecha || '').slice(0, 10)}
+                              onChange={(e) => setModal({ ...modal, fecha: e.target.value })}
+                              InputLabelProps={{ shrink: true }}
+                              fullWidth
+                            />
+                          </div>
+                        </div>
+
+                        <div className="fact-form-row">
+                          <label>
+                            Tipo<span className="fact-req">*</span>
+                          </label>
+                          <div className="fact-form-field">
+                            <TextField
+                              select
+                              size="small"
+                              value={modal.tipo || 'BOLETA DE VENTA'}
+                              onChange={(e) => setModal({ ...modal, tipo: e.target.value })}
+                              fullWidth
+                            >
+                              {TIPOS_COMPRA.map((t) => (
+                                <MenuItem key={t} value={t}>
+                                  {t}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </div>
+                        </div>
+
+                        <div className="fact-form-row">
+                          <label>
+                            Serie / Número<span className="fact-req">*</span>
+                          </label>
+                          <div className="fact-form-field fact-form-field--split">
+                            <TextField
+                              size="small"
+                              value={modal.serie || ''}
+                              onChange={(e) => setModal({ ...modal, serie: e.target.value })}
+                              placeholder="Serie"
+                              fullWidth
+                            />
+                            <TextField
+                              size="small"
+                              value={modal.numero || ''}
+                              onChange={(e) => setModal({ ...modal, numero: e.target.value })}
+                              placeholder="Número"
+                              fullWidth
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="fact-panel">
+                    <div className="fact-panel-head">Detalles de Productos</div>
+                    <div className="fact-panel-body">
+                      <FormDetalleProductos
+                        catalogo={meta.catalogo || []}
+                        catalogoMap={catalogoMap}
+                        detalles={modal.detalles}
+                        mostrarStock={false}
+                        onChangeDetalle={setDetalle}
+                        onAddLinea={() => setModal({ ...modal, detalles: [...modal.detalles, lineaVacia()] })}
+                        onRemoveLinea={(idx) =>
+                          setModal({
+                            ...modal,
+                            detalles: modal.detalles.length > 1 ? modal.detalles.filter((_, i) => i !== idx) : modal.detalles,
+                          })
+                        }
+                      />
+                      <TotalesFacturacion subtotal={totalModal} />
+                    </div>
+                  </section>
+                </div>
               </div>
               <div className="pe-modal-footer">
                 <button type="button" className="pe-btn" onClick={() => setModal(null)}>
                   Cancelar
                 </button>
                 <button type="button" className="pe-btn pe-btn--primary" onClick={guardar}>
-                  Guardar compra
+                  Guardar datos
                 </button>
               </div>
             </div>

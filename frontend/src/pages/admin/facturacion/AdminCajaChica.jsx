@@ -5,6 +5,8 @@ import DashboardLayout from '../../../components/DashboardLayout';
 import api from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
 import { TIPOS_MOVIMIENTO, todayIso } from './facturacionHelpers';
+import PeTablaPaginacion from '../../../components/admin/PeTablaPaginacion';
+import { usePaginacionTabla } from '../../../hooks/usePaginacionTabla';
 import '../pagosEscolares/AdminPagosEscolares.css';
 import './AdminFacturacion.css';
 
@@ -73,6 +75,8 @@ export default function AdminCajaChica() {
       return m.type === 'EGRESO' ? s - amt : s + amt;
     }, 0);
   }, [movimientos]);
+
+  const pagMovs = usePaginacionTabla(movimientos, [cuentaId]);
 
   const guardarCuenta = async () => {
     try {
@@ -241,7 +245,7 @@ export default function AdminCajaChica() {
                             </td>
                           </tr>
                         ) : (
-                          movimientos.map((m) => (
+                          pagMovs.paginated.map((m) => (
                             <tr key={m.id}>
                               <td>
                                 {String(m.date || '').slice(0, 10)} {m.time ? String(m.time).slice(0, 5) : ''}
@@ -267,6 +271,17 @@ export default function AdminCajaChica() {
                       </tbody>
                     </table>
                   </div>
+                )}
+
+                {!loadingMovs && (
+                  <PeTablaPaginacion
+                    page={pagMovs.page}
+                    totalPages={pagMovs.totalPages}
+                    total={pagMovs.total}
+                    pageSize={pagMovs.pageSize}
+                    onPageChange={pagMovs.setPage}
+                    onPageSizeChange={pagMovs.setPageSize}
+                  />
                 )}
               </>
             ) : (
