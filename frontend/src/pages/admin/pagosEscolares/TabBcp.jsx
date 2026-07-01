@@ -31,6 +31,17 @@ function descargarBlob(blob, filename) {
   window.URL.revokeObjectURL(url);
 }
 
+/** Fecha pago DESC, luego apellido/nombre (columna alumno). */
+function ordenarPagosDetalleBcp(pagos) {
+  return [...(pagos || [])].sort((a, b) => {
+    const fa = String(a.fecha_cancelado || '').slice(0, 10);
+    const fb = String(b.fecha_cancelado || '').slice(0, 10);
+    const porFecha = fb.localeCompare(fa);
+    if (porFecha !== 0) return porFecha;
+    return String(a.alumno || '').localeCompare(String(b.alumno || ''), 'es', { sensitivity: 'base' });
+  });
+}
+
 async function parseErrorBlob(e, fallback) {
   if (e.response?.data instanceof Blob) {
     try {
@@ -288,7 +299,7 @@ function HistorialBcp({ anio }) {
                       </td>
                     </tr>
                   ) : (
-                    detalle.pagos.map((p) => (
+                    ordenarPagosDetalleBcp(detalle.pagos).map((p) => (
                       <tr key={p.id}>
                         <td className="pe-td-left">{p.alumno}</td>
                         <td className="pe-td-left">{p.descripcion}</td>
@@ -583,7 +594,7 @@ export default function TabBcp() {
         </div>
       )}
 
-      <div className="pe-card pe-bcp-panel">
+      <div className="pe-card pe-card--pastel-sky pe-bcp-panel">
         <h3 className="pe-bcp-section-title">Exportar registro (CREP)</h3>
         <div className="pe-bcp-grid">
           <TextField size="small" label="Año" type="number" value={anio} onChange={(e) => setAnio(e.target.value)} fullWidth />
@@ -623,7 +634,7 @@ export default function TabBcp() {
         </button>
       </div>
 
-      <div className="pe-card pe-bcp-panel">
+      <div className="pe-card pe-card--pastel-mint pe-bcp-panel">
         <h3 className="pe-bcp-section-title">Exportar registro — individual</h3>
         <div className="pe-bcp-grid">
           <TextField size="small" label="Año" type="number" value={anio} onChange={(e) => setAnio(e.target.value)} fullWidth />
@@ -671,7 +682,7 @@ export default function TabBcp() {
         </button>
       </div>
 
-      <div className="pe-card pe-bcp-panel">
+      <div className="pe-card pe-card--pastel-peach pe-bcp-panel">
         <h3 className="pe-bcp-section-title">Importar registro (CDPG)</h3>
         <p className="pe-bcp-section-hint">Archivo plano .txt que envía el BCP (ej. CDPG-PENSIONES-…).</p>
         <div className="pe-bcp-import-row">
@@ -682,7 +693,7 @@ export default function TabBcp() {
         </div>
       </div>
 
-      <div className="pe-card pe-bcp-panel">
+      <div className="pe-card pe-card--pastel-lavender pe-bcp-panel">
         <h3 className="pe-bcp-section-title">Importar N° de operación</h3>
         <div className="pe-bcp-import-row">
           <input type="file" accept=".xlsx,.xls" onChange={(e) => setArchivoXlsx(e.target.files?.[0] || null)} />
@@ -701,7 +712,7 @@ export default function TabBcp() {
         </div>
       </div>
 
-      <div className="pe-card pe-bcp-panel pe-bcp-panel--historial">
+      <div className="pe-card pe-card--pastel-rose pe-bcp-panel pe-bcp-panel--historial">
         <HistorialBcp
           anio={parseInt(anio, 10) || new Date().getFullYear()}
           key={`hist-${anio}`}

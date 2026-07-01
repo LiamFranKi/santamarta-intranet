@@ -161,7 +161,7 @@ export default function TabBuscarAlumnos() {
 
   return (
     <div className="pe-tab-buscar">
-      <div className="pe-card pe-card--filtros">
+      <div className="pe-card pe-card--filtros pe-card--pastel-mint">
         <h2 className="pe-card-title">Buscar alumnos</h2>
         {loadingMeta ? (
           <div className="pe-loading-inline">
@@ -271,7 +271,7 @@ export default function TabBuscarAlumnos() {
       </div>
 
       {resultado && (
-        <div className="pe-card pe-card--tabla">
+        <div className="pe-card pe-card--tabla pe-card--pastel-sky">
           <div className="pe-tabla-toolbar">
             <div className="pe-tabla-info">
               <strong>{resultado.titulo || 'Resultados'}</strong>

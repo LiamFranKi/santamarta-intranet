@@ -295,7 +295,7 @@ export default function AdminVentas() {
           <p>Registro de ventas con numeración de boleta por sede y serie (001/002/003).</p>
         </header>
 
-        <div className="pe-card">
+        <div className="pe-card pe-card--pastel-lavender">
           <div className="pe-toolbar-search">
             <div className="pe-form-row" style={{ flex: 1, margin: 0 }}>
               <TextField type="date" size="small" label="Desde" value={fecha1} onChange={(e) => setFecha1(e.target.value)} InputLabelProps={{ shrink: true }} fullWidth />
@@ -331,6 +331,7 @@ export default function AdminVentas() {
             <CircularProgress size={22} />
           </div>
         ) : (
+          <div className="pe-card pe-card--pastel-sky pe-card--tabla-suelta">
           <div className="pe-table-wrap">
             <table className="pe-table">
               <thead>
@@ -384,6 +385,7 @@ export default function AdminVentas() {
               </tbody>
             </table>
           </div>
+          </div>
         )}
 
         {!loading && (
@@ -411,7 +413,7 @@ export default function AdminVentas() {
         >
           {modal && (
                 <div className="fact-form-inner">
-                  <section className="fact-panel">
+                  <section className="fact-panel fact-panel--general">
                     <div className="fact-panel-head">Información General</div>
                     <div className="fact-panel-body">
                       <div className="fact-form-grid-lines">
@@ -605,7 +607,7 @@ export default function AdminVentas() {
                     </div>
                   </section>
 
-                  <section className="fact-panel">
+                  <section className="fact-panel fact-panel--productos">
                     <div className="fact-panel-head">Detalles de Productos</div>
                     <div className="fact-panel-body">
                       <FormDetalleProductos

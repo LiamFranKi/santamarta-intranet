@@ -120,6 +120,83 @@
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
+/* Cards pastel — Pagos / Facturación */
+.pe-card--pastel-sky {
+  background: linear-gradient(145deg, #f0f9ff 0%, #e8f4fc 100%);
+  border-color: #bae6fd;
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.08);
+}
+
+.pe-card--pastel-mint {
+  background: linear-gradient(145deg, #ecfdf5 0%, #e6faf3 100%);
+  border-color: #a7f3d0;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
+}
+
+.pe-card--pastel-peach {
+  background: linear-gradient(145deg, #fff7ed 0%, #fff1e6 100%);
+  border-color: #fed7aa;
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.08);
+}
+
+.pe-card--pastel-lavender {
+  background: linear-gradient(145deg, #f5f3ff 0%, #ede9fe 100%);
+  border-color: #ddd6fe;
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.08);
+}
+
+.pe-card--pastel-rose {
+  background: linear-gradient(145deg, #fff1f2 0%, #ffe8ec 100%);
+  border-color: #fecdd3;
+  box-shadow: 0 2px 8px rgba(244, 63, 94, 0.08);
+}
+
+.pe-card--pastel-amber {
+  background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 100%);
+  border-color: #fde68a;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
+}
+
+.pe-card--pastel-sky .pe-card-title,
+.pe-card--pastel-sky .pe-bcp-section-title {
+  color: #0c4a6e;
+}
+
+.pe-card--pastel-mint .pe-card-title,
+.pe-card--pastel-mint .pe-bcp-section-title {
+  color: #065f46;
+}
+
+.pe-card--pastel-peach .pe-card-title,
+.pe-card--pastel-peach .pe-bcp-section-title {
+  color: #9a3412;
+}
+
+.pe-card--pastel-lavender .pe-card-title,
+.pe-card--pastel-lavender .pe-bcp-section-title {
+  color: #5b21b6;
+}
+
+.pe-card--pastel-rose .pe-card-title,
+.pe-card--pastel-rose .pe-bcp-section-title {
+  color: #9f1239;
+}
+
+.pe-card--pastel-amber .pe-card-title,
+.pe-card--pastel-amber .pe-bcp-section-title {
+  color: #92400e;
+}
+
+.pe-card--tabla-suelta {
+  padding: 0.85rem 1rem 1rem;
+}
+
+.pe-card--tabla-suelta .pe-table-wrap {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
 .pe-card-title {
   margin: 0 0 1rem;
   font-size: 1.05rem;
@@ -259,7 +336,7 @@
 }
 
 .pe-table tbody tr:nth-child(even) {
-  background: #f8fafc;
+  background: #eef6fc;
 }
 
 .pe-table tbody tr:nth-child(odd) {
@@ -267,7 +344,7 @@
 }
 
 .pe-table tbody tr:hover {
-  background: #eff6ff;
+  background: #e0f2fe;
 }
 
 .pe-th-accion,

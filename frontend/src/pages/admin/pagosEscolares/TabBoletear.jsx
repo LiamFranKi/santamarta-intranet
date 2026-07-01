@@ -160,7 +160,7 @@ export default function TabBoletear() {
 
   return (
     <div className="pe-boletear">
-      <div className="pe-card">
+      <div className="pe-card pe-card--pastel-amber">
         <h2 className="pe-card-title">Boletear pagos — todos los grupos</h2>
         <p className="pe-bcp-section-hint">
           Genera pagos temporales y descarga un ZIP con los JSON de boleta para todas las matrículas del año activo
@@ -194,7 +194,7 @@ export default function TabBoletear() {
         </div>
       </div>
 
-      <div className="pe-card">
+      <div className="pe-card pe-card--pastel-sky">
         <h2 className="pe-card-title">Boletear moras — JSON</h2>
         <p className="pe-bcp-section-hint">
           Se imprimirán las moras de los pagos cancelados en el rango de fechas indicado.

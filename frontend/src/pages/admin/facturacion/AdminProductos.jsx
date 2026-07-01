@@ -664,7 +664,9 @@ export default function AdminProductos() {
             </button>
           ))}
         </nav>
-        <div className="pe-tab-panel pe-card">
+        <div
+          className={`pe-tab-panel pe-card pe-card--pastel-${tab === 'categorias' ? 'sky' : tab === 'subcategorias' ? 'mint' : 'lavender'}`}
+        >
           {tab === 'categorias' && <TabCategorias />}
           {tab === 'subcategorias' && <TabSubcategorias categorias={categorias} />}
           {tab === 'productos' && <TabProductos categorias={categorias} subcategorias={subcategorias} />}

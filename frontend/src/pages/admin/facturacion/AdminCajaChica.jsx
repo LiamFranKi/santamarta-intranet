@@ -142,7 +142,7 @@ export default function AdminCajaChica() {
         </header>
 
         <div className="pe-caja-layout">
-          <div>
+          <div className="pe-card pe-card--pastel-amber">
             <div className="pe-fact-actions">
               <strong>Cuentas</strong>
               {esAdmin && (
@@ -195,7 +195,7 @@ export default function AdminCajaChica() {
             )}
           </div>
 
-          <div className="pe-card">
+          <div className="pe-card pe-card--pastel-sky">
             {cuentaActiva ? (
               <>
                 <div className="pe-fact-actions">

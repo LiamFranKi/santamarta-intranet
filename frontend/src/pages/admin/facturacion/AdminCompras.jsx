@@ -149,7 +149,7 @@ export default function AdminCompras() {
           <p>Ingreso de mercadería. Serie y número del comprobante se ingresan manualmente.</p>
         </header>
 
-        <div className="pe-card">
+        <div className="pe-card pe-card--pastel-peach">
           <div className="pe-form-row">
             <TextField type="date" size="small" label="Desde" value={desde} onChange={(e) => setDesde(e.target.value)} InputLabelProps={{ shrink: true }} />
             <TextField type="date" size="small" label="Hasta" value={hasta} onChange={(e) => setHasta(e.target.value)} InputLabelProps={{ shrink: true }} />
@@ -167,6 +167,7 @@ export default function AdminCompras() {
             <CircularProgress size={22} />
           </div>
         ) : (
+          <div className="pe-card pe-card--pastel-mint pe-card--tabla-suelta">
           <div className="pe-table-wrap">
             <table className="pe-table">
               <thead>
@@ -212,6 +213,7 @@ export default function AdminCompras() {
               </tbody>
             </table>
           </div>
+          </div>
         )}
 
         {!loading && (
@@ -239,7 +241,7 @@ export default function AdminCompras() {
         >
           {modal && (
                 <div className="fact-form-inner">
-                  <section className="fact-panel">
+                  <section className="fact-panel fact-panel--general">
                     <div className="fact-panel-head">Información General</div>
                     <div className="fact-panel-body">
                       <div className="fact-form-table">
@@ -320,7 +322,7 @@ export default function AdminCompras() {
                     </div>
                   </section>
 
-                  <section className="fact-panel">
+                  <section className="fact-panel fact-panel--productos">
                     <div className="fact-panel-head">Detalles de Productos</div>
                     <div className="fact-panel-body">
                       <FormDetalleProductos
