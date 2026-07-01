@@ -4,10 +4,15 @@ import { createPortal } from 'react-dom';
 /**
  * Modal en document.body para quedar por encima del sidebar (z-index 9999) y del header sticky.
  */
-export default function FacturacionModal({ open, onClose, title, wide, children, footer }) {
+export default function FacturacionModal({ open, onClose, title, wide, variant, children, footer }) {
   if (!open) return null;
 
-  const modalCls = ['pe-modal', wide ? 'pe-modal--wide' : '', wide ? 'pe-modal--factura' : '']
+  const modalCls = [
+    'pe-modal',
+    wide ? 'pe-modal--wide' : '',
+    wide && variant !== 'detalle' ? 'pe-modal--factura' : '',
+    variant === 'detalle' ? 'pe-modal--detalle' : '',
+  ]
     .filter(Boolean)
     .join(' ');
 

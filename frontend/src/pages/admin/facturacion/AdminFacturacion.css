@@ -295,6 +295,20 @@
 }
 
 /* —— Formularios Ventas / Compras (estilo legacy) —— */
+.pe-modal--detalle {
+  max-width: 980px;
+}
+
+.pe-modal--detalle .pe-modal-body {
+  padding: 1.25rem 1.5rem 1.5rem;
+  background: #f8fafc;
+}
+
+.pe-modal--detalle .pe-modal-header h2 {
+  font-size: 1.05rem;
+  color: #1e3a8a;
+}
+
 .pe-modal--factura {
   max-width: 1060px;
 }

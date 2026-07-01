@@ -4,7 +4,12 @@
 const phpSerialize = require('php-serialize');
 const XLSX = require('xlsx');
 const { query, execute, mysqlReadPool } = require('./mysql');
-const { parseCdpgLine } = require('./bcpFormat');
+const {
+  parseCdpgLine,
+  descripcionConceptoPagoLegacy,
+  formatAlumnoHistorialLegacy,
+} = require('./bcpFormat');
+const { cargarBcpColegioConfig } = require('./bcpColegioConfig');
 const { resolverPersonalIdPago } = require('./pagoPendienteInsert');
 const { fechaMySQLLima } = require('./fechaHoraLima');
 
@@ -513,13 +518,14 @@ async function obtenerHistorialImportacion(colegioId, historialId) {
   }
 
   const pagoIds = parseHistorialPagoIds(row.data);
+  const cfg = await cargarBcpColegioConfig(colegioId);
   let pagos = [];
   if (pagoIds.length > 0) {
     const placeholders = pagoIds.map(() => '?').join(',');
     pagos = await query(
-      `SELECT p.id, p.nro_pago, p.descripcion, p.monto, p.mora, p.estado_pago, p.fecha_cancelado,
+      `SELECT p.id, p.nro_pago, p.tipo, p.descripcion, p.monto, p.mora, p.estado_pago, p.fecha_cancelado,
               a.nro_documento AS dni, a.apellido_paterno, a.apellido_materno, a.nombres,
-              g.grado, g.seccion, n.nombre AS nivel_nombre
+              g.grado, g.seccion, g.anio AS grupo_anio, n.nombre AS nivel_nombre
        FROM pagos p
        INNER JOIN matriculas m ON m.id = p.matricula_id
        INNER JOIN alumnos a ON a.id = m.alumno_id
@@ -544,16 +550,18 @@ async function obtenerHistorialImportacion(colegioId, historialId) {
     pagos: (pagos || []).map((p) => ({
       id: p.id,
       nro_pago: p.nro_pago,
-      descripcion: p.descripcion,
+      tipo: p.tipo,
+      descripcion: descripcionConceptoPagoLegacy(p, cfg),
       monto: parseFloat(p.monto) || 0,
       mora: parseFloat(p.mora) || 0,
       estado_pago: p.estado_pago,
       fecha_cancelado: p.fecha_cancelado,
       dni: p.dni,
-      alumno: [p.apellido_paterno, p.apellido_materno, p.nombres].filter(Boolean).join(' ').trim(),
+      alumno: formatAlumnoHistorialLegacy(p.apellido_paterno, p.apellido_materno, p.nombres),
       grado: p.grado,
       seccion: p.seccion,
       nivel: p.nivel_nombre,
+      grupo_anio: p.grupo_anio,
     })),
   };
 }

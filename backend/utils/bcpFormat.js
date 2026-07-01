@@ -202,6 +202,45 @@ function nombreMesPension(nroPago, inicioPensiones) {
   return `Mes ${nroPago}`;
 }
 
+/** Etiqueta de concepto como en historial CDPG legacy (no "PAGO CANCELADO"). */
+function descripcionConceptoPagoLegacy(pago, cfg = {}) {
+  const tipo = parseInt(pago.tipo, 10);
+  const nro = parseInt(pago.nro_pago, 10) || 0;
+  const anio = pago.grupo_anio || pago.anio || '';
+  const inicio = parseInt(cfg.inicio_pensiones ?? 2, 10);
+  const raw = String(pago.descripcion || '').trim();
+  const upper = raw.toUpperCase();
+
+  if (raw && upper !== 'PAGO CANCELADO') {
+    if (upper.includes('ADELANTO') && upper.includes('MATRIC')) return 'ADELANTO MATRÍCULA';
+    if (upper.includes('CANCELACION') && upper.includes('ADELANTO')) return 'CANCELACIÓN DE MATRÍCULA';
+    if (upper.includes('MATRICULAYAGENDA') || (upper.includes('MATRIC') && upper.includes('AGENDA'))) {
+      return `MATRÍCULA Y AGENDA ${anio}`.trim();
+    }
+    if (upper.includes('AGENDA')) return 'PAGO DE AGENDA';
+    return raw;
+  }
+
+  if (tipo === 0) return `MATRÍCULA ${anio}`.trim();
+  if (tipo === 1) {
+    const mes = nombreMesPension(nro, inicio).toUpperCase();
+    return anio ? `MENSUALIDAD ${mes} ${anio}` : `MENSUALIDAD ${mes}`;
+  }
+  if (tipo === 2) return 'PAGO DE AGENDA';
+  if (tipo === 3) {
+    const mes = nombreMesPension(nro, inicio).toUpperCase();
+    return `COMEDOR ${mes}`;
+  }
+  return raw || `Pago ${nro}`;
+}
+
+function formatAlumnoHistorialLegacy(apellidoPaterno, apellidoMaterno, nombres) {
+  const apellidos = [apellidoPaterno, apellidoMaterno].filter(Boolean).join(' ').trim().toUpperCase();
+  const nom = String(nombres || '').trim();
+  if (apellidos && nom) return `${apellidos}, ${nom}`;
+  return [apellidos, nom].filter(Boolean).join(' ').trim();
+}
+
 module.exports = {
   MESES_BCP,
   sanearStringNombre,
@@ -210,4 +249,6 @@ module.exports = {
   buildCrepHeader,
   toYmdFromDateInput,
   nombreMesPension,
+  descripcionConceptoPagoLegacy,
+  formatAlumnoHistorialLegacy,
 };

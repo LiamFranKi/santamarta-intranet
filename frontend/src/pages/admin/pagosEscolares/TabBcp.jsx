@@ -237,54 +237,73 @@ function HistorialBcp({ anio }) {
         open={!!detalle}
         onClose={() => setDetalle(null)}
         wide
-        title={detalle?.historial ? `Pagos — ${detalle.historial.archivo}` : 'Detalle del lote'}
+        variant="detalle"
+        title="Detalles archivo importado"
       >
         {detalle && (
-          <>
-            <p className="pe-bcp-detalle-meta">
-              <strong>Fecha:</strong> {String(detalle.historial.fecha || '').slice(0, 10)}
-              {' · '}
-              <strong>Estado:</strong> {detalle.historial.estado}
-              {' · '}
-              <strong>Pagos:</strong> {detalle.historial.cantidad_pagos}
-            </p>
-            <div className="pe-table-wrap">
-              <table className="pe-table pe-table--compact">
+          <div className="pe-bcp-detalle">
+            <div className="pe-bcp-detalle-resumen">
+              <div className="pe-bcp-detalle-resumen-row">
+                <span className="pe-bcp-detalle-label">Archivo</span>
+                <span className="pe-bcp-detalle-value">{detalle.historial.archivo}</span>
+              </div>
+              <div className="pe-bcp-detalle-resumen-row">
+                <span className="pe-bcp-detalle-label">Fecha</span>
+                <span className="pe-bcp-detalle-value">
+                  {String(detalle.historial.fecha || '').slice(0, 10)}
+                </span>
+              </div>
+              <div className="pe-bcp-detalle-resumen-row">
+                <span className="pe-bcp-detalle-label">Estado</span>
+                <span
+                  className={`pe-badge ${
+                    detalle.historial.estado === 'BOLETAS IMPRESAS' ? 'pe-badge--ok' : 'pe-badge--pending'
+                  }`}
+                >
+                  {detalle.historial.estado}
+                </span>
+              </div>
+              <div className="pe-bcp-detalle-resumen-row">
+                <span className="pe-bcp-detalle-label">Pagos</span>
+                <span className="pe-bcp-detalle-value">{detalle.historial.cantidad_pagos}</span>
+              </div>
+            </div>
+
+            <div className="pe-bcp-detalle-table-wrap">
+              <table className="pe-table pe-table--detalle-bcp">
                 <thead>
                   <tr>
-                    <th className="pe-th-center">DNI</th>
                     <th className="pe-th-center">Alumno</th>
-                    <th className="pe-th-center">Nivel / Grado</th>
-                    <th className="pe-th-center">Concepto</th>
+                    <th className="pe-th-center">Descripción</th>
+                    <th className="pe-th-center">Fecha pago</th>
                     <th className="pe-th-center">Monto</th>
-                    <th className="pe-th-center">Estado</th>
+                    <th className="pe-th-center">Mora</th>
                   </tr>
                 </thead>
                 <tbody>
                   {(detalle.pagos || []).length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="pe-empty">
+                      <td colSpan={5} className="pe-empty">
                         Sin pagos en este lote.
                       </td>
                     </tr>
                   ) : (
                     detalle.pagos.map((p) => (
                       <tr key={p.id}>
-                        <td className="pe-td-center">{p.dni}</td>
-                        <td className="pe-td-center">{p.alumno}</td>
+                        <td className="pe-td-left">{p.alumno}</td>
+                        <td className="pe-td-left">{p.descripcion}</td>
                         <td className="pe-td-center">
-                          {[p.nivel, p.grado && `${p.grado}°`, p.seccion].filter(Boolean).join(' ')}
+                          {String(p.fecha_cancelado || '').slice(0, 10) || '—'}
                         </td>
-                        <td className="pe-td-center">{p.descripcion || `Pensión ${p.nro_pago}`}</td>
                         <td className="pe-td-center">S/ {Number(p.monto || 0).toFixed(2)}</td>
-                        <td className="pe-td-center">{p.estado_pago}</td>
+                        <td className="pe-td-center">S/ {Number(p.mora || 0).toFixed(2)}</td>
                       </tr>
                     ))
                   )}
                 </tbody>
               </table>
             </div>
-          </>
+          </div>
         )}
       </FacturacionModal>
     </div>
