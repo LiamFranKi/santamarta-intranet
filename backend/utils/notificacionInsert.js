@@ -63,12 +63,16 @@ async function notificacionMensajeDuplicadaReciente(query, params) {
   ) {
     return false;
   }
+  const contenidoStr = String(contenido);
+  const accionStr = String(accion_tipo);
   const rows = await query(
     `SELECT id FROM notificaciones
-     WHERE usuario_id = ? AND destinatario_id = ? AND accion_tipo = ? AND contenido = ?
+     WHERE usuario_id = ? AND destinatario_id = ?
+       AND accion_tipo COLLATE utf8mb4_unicode_ci = ?
+       AND contenido COLLATE utf8mb4_unicode_ci = ?
        AND fecha_hora >= DATE_SUB(NOW(), INTERVAL ? SECOND)
      LIMIT 1`,
-    [usuario_id, destinatario_id, accion_tipo, String(contenido), ventanaSegundos]
+    [usuario_id, destinatario_id, accionStr, contenidoStr, ventanaSegundos]
   );
   return Array.isArray(rows) && rows.length > 0;
 }

@@ -10,6 +10,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { calcularPensionesAVerificar } = require('../utils/deudaPensiones');
 const { urlStaticFotos } = require('../utils/staticStorage');
 const { verificarMatriculaPortalLogin, MENSAJE_SIN_MATRICULA, sqlExistePagoMatriculaCancelado } = require('../utils/matriculaAnioActivo');
+const { deudasLog, deudasWarn, deudasError, deudasInfo } = require('../utils/deudasLogger');
 
 /**
  * POST /api/auth/login
@@ -346,18 +347,18 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
   try {
     // Validar que anioActivo esté definido
     if (!anioActivo || isNaN(anioActivo)) {
-      console.error(`[VERIFICAR DEUDAS] anioActivo inválido: ${anioActivo}`);
+      deudasError(`anioActivo inválido: ${anioActivo}`);
       return false;
     }
     
     // Validar que usuario tenga los campos necesarios
     if (!usuario || !usuario.id || !usuario.colegio_id) {
-      console.error(`[VERIFICAR DEUDAS] Usuario inválido:`, usuario);
+      deudasError('Usuario inválido:', usuario);
       return false;
     }
     
-    console.log(
-      `[VERIFICAR DEUDAS] Iniciando verificación para usuario ID: ${usuario.id}, tipo: ${usuario.tipo}, contexto: ${contexto}, colegio_id: ${usuario.colegio_id}, anioActivo: ${anioActivo}`
+    deudasLog(
+      `Iniciando verificación para usuario ID: ${usuario.id}, tipo: ${usuario.tipo}, contexto: ${contexto}, colegio_id: ${usuario.colegio_id}, anioActivo: ${anioActivo}`
     );
     
     // Obtener configuración del colegio
@@ -367,14 +368,14 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
       [usuario.colegio_id]
     );
 
-    console.log(`[VERIFICAR DEUDAS] Configuración del colegio:`, {
+    deudasLog(` Configuración del colegio:`, {
       bloquear_deudores: colegios.length > 0 ? colegios[0].bloquear_deudores : 'NO ENCONTRADO',
       dias_tolerancia: colegios.length > 0 ? colegios[0].dias_tolerancia : null,
       inicio_pensiones: colegios.length > 0 ? colegios[0].inicio_pensiones : null
     });
 
     if (colegios.length === 0) {
-      console.log(`[VERIFICAR DEUDAS] ⚠️ No se encontró configuración del colegio`);
+      deudasLog(` ⚠️ No se encontró configuración del colegio`);
       return false; // No hay configuración del colegio
     }
 
@@ -383,26 +384,26 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
     const bloquearDeudoresActivo =
       String(colegios[0].bloquear_deudores || '').trim().toUpperCase() === 'SI';
     if (!bloquearDeudoresActivo) {
-      console.log(
-        `[VERIFICAR DEUDAS] bloquear_deudores=${colegios[0].bloquear_deudores} → sin verificación de deuda por configuración`
+      deudasLog(
+        `bloquear_deudores=${colegios[0].bloquear_deudores} → sin verificación de deuda por configuración`
       );
       return false;
     }
 
-    console.log(`[VERIFICAR DEUDAS] Continuando verificación de deudas vencidas (bloquear_deudores: SI)`);
+    deudasLog(` Continuando verificación de deudas vencidas (bloquear_deudores: SI)`);
 
     const tiposEnLogin = ['ALUMNO', 'APODERADO'];
     const tiposEnSesion = ['ALUMNO', 'APODERADO', 'DOCENTE'];
     const tiposPermitidos = contexto === 'login' ? tiposEnLogin : tiposEnSesion;
 
     if (!tiposPermitidos.includes(usuario.tipo)) {
-      console.log(
-        `[VERIFICAR DEUDAS] Tipo ${usuario.tipo} no aplica en contexto ${contexto} (permitidos: ${tiposPermitidos.join(', ')})`
+      deudasLog(
+        `Tipo ${usuario.tipo} no aplica en contexto ${contexto} (permitidos: ${tiposPermitidos.join(', ')})`
       );
       return false;
     }
 
-    console.log(`[VERIFICAR DEUDAS] Tipo de usuario válido: ${usuario.tipo}`);
+    deudasLog(` Tipo de usuario válido: ${usuario.tipo}`);
 
     const colegio = colegios[0];
     const diasTolerancia = colegio.dias_tolerancia || 0;
@@ -415,16 +416,16 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         const decoded = Buffer.from(colegio.pensiones_vencimiento, 'base64').toString('utf-8');
         const deserialized = phpSerialize.unserialize(decoded);
         vencimientosPensiones = deserialized || {};
-        console.log(`[VERIFICAR DEUDAS] pensiones_vencimiento deserializado:`, JSON.stringify(vencimientosPensiones, null, 2));
-        console.log(`[VERIFICAR DEUDAS] Claves en vencimientosPensiones:`, Object.keys(vencimientosPensiones));
-        console.log(`[VERIFICAR DEUDAS] Total pensiones configuradas:`, Object.keys(vencimientosPensiones).length);
+        deudasLog(` pensiones_vencimiento deserializado:`, JSON.stringify(vencimientosPensiones, null, 2));
+        deudasLog(` Claves en vencimientosPensiones:`, Object.keys(vencimientosPensiones));
+        deudasLog(` Total pensiones configuradas:`, Object.keys(vencimientosPensiones).length);
       } catch (e) {
-        console.warn('[VERIFICAR DEUDAS] No se pudo deserializar pensiones_vencimiento:', e.message);
-        console.warn('[VERIFICAR DEUDAS] Stack:', e.stack);
+        deudasWarn(' No se pudo deserializar pensiones_vencimiento:', e.message);
+        deudasWarn(' Stack:', e.stack);
         vencimientosPensiones = {};
       }
     } else {
-      console.log(`[VERIFICAR DEUDAS] pensiones_vencimiento está vacío o no existe`);
+      deudasLog(` pensiones_vencimiento está vacío o no existe`);
     }
 
     // Calcular número de pensión que debería estar pagada
@@ -443,7 +444,7 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
     const inicioPensiones = colegio.inicio_pensiones || 2; // Por defecto 2 (Marzo)
     const nroPago = currentMonth - inicioPensiones; // Pensión que debería estar pagada
 
-    console.log(`[VERIFICAR DEUDAS] Mes actual: ${currentMonth}, inicio_pensiones: ${inicioPensiones}, nroPago calculado: ${nroPago}, anioActivo: ${anioActivo}`);
+    deudasLog(` Mes actual: ${currentMonth}, inicio_pensiones: ${inicioPensiones}, nroPago calculado: ${nroPago}, anioActivo: ${anioActivo}`);
 
     // NO retornar false si nroPago <= 0, porque las pensiones pueden tener fechas de vencimiento configuradas
     // que son anteriores al mes actual (ej: pensión de marzo con vencimiento 31-01)
@@ -461,7 +462,7 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
     const calcularFechaVencimiento = (nroPension, anio, inicioPensiones) => {
       let vencimiento = vencimientosPensiones[nroPension];
       
-      console.log(`[VERIFICAR DEUDAS] calcularFechaVencimiento: nroPension=${nroPension}, vencimiento configurado="${vencimiento || 'NO'}"`);
+      deudasLog(` calcularFechaVencimiento: nroPension=${nroPension}, vencimiento configurado="${vencimiento || 'NO'}"`);
       
       if (!vencimiento || vencimiento === '') {
         // Si no hay configuración específica, usar el último día del mes correspondiente
@@ -471,7 +472,7 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         const mesPension = nroPension + 2; // Según sistema anterior
         const ultimoDia = new Date(anio, mesPension, 0).getDate();
         const fechaCalculada = `${ultimoDia}-${String(mesPension).padStart(2, '0')}-${anio}`;
-        console.log(`[VERIFICAR DEUDAS] No hay vencimiento configurado, usando último día del mes: ${fechaCalculada}`);
+        deudasLog(` No hay vencimiento configurado, usando último día del mes: ${fechaCalculada}`);
         return fechaCalculada;
       }
 
@@ -482,12 +483,12 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         // Solo día: "31" -> según sistema anterior: fecha = "dd-(nroPension+2)-anio"
         const mesPension = nroPension + 2; // Según sistema anterior línea 569
         const fechaCalculada = `${partes[0].padStart(2, '0')}-${String(mesPension).padStart(2, '0')}-${anio}`;
-        console.log(`[VERIFICAR DEUDAS] Solo día configurado (${partes[0]}), fecha calculada: ${fechaCalculada}`);
+        deudasLog(` Solo día configurado (${partes[0]}), fecha calculada: ${fechaCalculada}`);
         return fechaCalculada;
       } else if (partes.length === 2) {
         // Día-mes: "31-01" -> según sistema anterior: fecha = "dd-mm-anio"
         const fechaCalculada = `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${anio}`;
-        console.log(`[VERIFICAR DEUDAS] Día-mes configurado (${vencimiento}), fecha calculada: ${fechaCalculada}`);
+        deudasLog(` Día-mes configurado (${vencimiento}), fecha calculada: ${fechaCalculada}`);
         return fechaCalculada;
       } else {
         // Día-mes-año: puede ser "31-01-2026" o "31-01-20" (año con 2 dígitos)
@@ -497,10 +498,10 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         if (añoFinal.length === 2) {
           // Usar el año del contexto (anio) en lugar de interpretar el año de 2 dígitos
           añoFinal = String(anio);
-          console.log(`[VERIFICAR DEUDAS] Año de 2 dígitos detectado (${partes[2]}), usando año del contexto: ${añoFinal}`);
+          deudasLog(` Año de 2 dígitos detectado (${partes[2]}), usando año del contexto: ${añoFinal}`);
         }
         const fechaCalculada = `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${añoFinal}`;
-        console.log(`[VERIFICAR DEUDAS] Fecha completa configurada (${vencimiento}), fecha final: ${fechaCalculada}`);
+        deudasLog(` Fecha completa configurada (${vencimiento}), fecha final: ${fechaCalculada}`);
         return fechaCalculada;
       }
     };
@@ -535,13 +536,13 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         inicioPensiones,
       });
 
-      console.log(`[VERIFICAR DEUDAS] nroPago: ${nroPago}, bloquear_deudores_hasta_mes: ${colegio.bloquear_deudores_hasta_mes ?? 'NULL'}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
-      console.log(`[VERIFICAR DEUDAS] pensionesAVerificar calculado (ALUMNO):`, pensionesAVerificar);
-      console.log(`[VERIFICAR DEUDAS] Total pensiones a verificar (ALUMNO): ${pensionesAVerificar.length}`);
+      deudasLog(` nroPago: ${nroPago}, bloquear_deudores_hasta_mes: ${colegio.bloquear_deudores_hasta_mes ?? 'NULL'}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
+      deudasLog(` pensionesAVerificar calculado (ALUMNO):`, pensionesAVerificar);
+      deudasLog(` Total pensiones a verificar (ALUMNO): ${pensionesAVerificar.length}`);
 
       if (pensionesAVerificar.length === 0) {
-        console.log(`[VERIFICAR DEUDAS] ⚠️ No hay pensiones para verificar (ALUMNO)`);
-        console.log(`[VERIFICAR DEUDAS] ⚠️ nroPago: ${nroPago}, vencimientosPensiones vacío: ${Object.keys(vencimientosPensiones).length === 0}`);
+        deudasLog(` ⚠️ No hay pensiones para verificar (ALUMNO)`);
+        deudasLog(` ⚠️ nroPago: ${nroPago}, vencimientosPensiones vacío: ${Object.keys(vencimientosPensiones).length === 0}`);
         return false;
       }
 
@@ -566,13 +567,13 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         fechaLimite.setHours(23, 59, 59, 999);
 
         // Debug logging
-        console.log(`[VERIFICAR DEUDAS] Pensión ${i}:`);
-        console.log(`  Fecha vencimiento configurada: ${fechaVencimientoStr}`);
-        console.log(`  Fecha vencimiento Date: ${fechaVencimiento.toISOString()}`);
-        console.log(`  Días tolerancia: ${diasTolerancia}`);
-        console.log(`  Fecha límite (vencimiento + tolerancia): ${fechaLimite.toISOString()}`);
-        console.log(`  Fecha actual: ${fechaActual.toISOString()}`);
-        console.log(`  ¿Fecha actual > fecha límite?: ${fechaActual > fechaLimite}`);
+        deudasLog(` Pensión ${i}:`);
+        deudasLog(`  Fecha vencimiento configurada: ${fechaVencimientoStr}`);
+        deudasLog(`  Fecha vencimiento Date: ${fechaVencimiento.toISOString()}`);
+        deudasLog(`  Días tolerancia: ${diasTolerancia}`);
+        deudasLog(`  Fecha límite (vencimiento + tolerancia): ${fechaLimite.toISOString()}`);
+        deudasLog(`  Fecha actual: ${fechaActual.toISOString()}`);
+        deudasLog(`  ¿Fecha actual > fecha límite?: ${fechaActual > fechaLimite}`);
 
         // Verificar si la fecha actual supera el límite (vencimiento + tolerancia)
         if (fechaActual > fechaLimite) {
@@ -588,11 +589,11 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
             [matricula.id, i]
           );
 
-          console.log(`  Pagos cancelados para pensión ${i}: ${pagosCancelados[0].total}`);
+          deudasLog(`  Pagos cancelados para pensión ${i}: ${pagosCancelados[0].total}`);
 
           if (pagosCancelados[0].total === 0) {
             // Tiene deuda: la pensión está vencida (considerando tolerancia) y no está cancelada
-            console.log(`  ✅ DEUDA DETECTADA: Pensión ${i} vencida y sin pago cancelado`);
+            deudasInfo(`DEUDA: pensión ${i} vencida sin pago cancelado (alumno ${usuario.alumno_id}, matrícula ${matricula.id})`);
             return true;
           }
         }
@@ -624,7 +625,7 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
 
       // Verificar todas las pensiones que tengan configuración de vencimiento
       // O si nroPago > 0, verificar desde 1 hasta nroPago
-      console.log(`[VERIFICAR DEUDAS] nroPago: ${nroPago}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
+      deudasLog(` nroPago: ${nroPago}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
       const pensionesAVerificar = calcularPensionesAVerificar({
         nroPago,
         vencimientosPensiones,
@@ -632,12 +633,12 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         inicioPensiones,
       });
 
-      console.log(`[VERIFICAR DEUDAS] pensionesAVerificar calculado (APODERADO):`, pensionesAVerificar);
-      console.log(`[VERIFICAR DEUDAS] Total pensiones a verificar (APODERADO): ${pensionesAVerificar.length}`);
+      deudasLog(` pensionesAVerificar calculado (APODERADO):`, pensionesAVerificar);
+      deudasLog(` Total pensiones a verificar (APODERADO): ${pensionesAVerificar.length}`);
 
       if (pensionesAVerificar.length === 0) {
-        console.log(`[VERIFICAR DEUDAS] ⚠️ No hay pensiones para verificar (APODERADO)`);
-        console.log(`[VERIFICAR DEUDAS] ⚠️ nroPago: ${nroPago}, vencimientosPensiones vacío: ${Object.keys(vencimientosPensiones).length === 0}`);
+        deudasLog(` ⚠️ No hay pensiones para verificar (APODERADO)`);
+        deudasLog(` ⚠️ nroPago: ${nroPago}, vencimientosPensiones vacío: ${Object.keys(vencimientosPensiones).length === 0}`);
         return false;
       }
 
@@ -646,7 +647,7 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         for (const i of pensionesAVerificar) {
           // Validar que i sea un número válido
           if (!i || isNaN(i) || i <= 0) {
-            console.warn(`[VERIFICAR DEUDAS] Saltando pensión inválida: ${i}`);
+            deudasWarn(` Saltando pensión inválida: ${i}`);
             continue;
           }
           const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
@@ -679,6 +680,9 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
             );
 
             if (pagosCancelados[0].total === 0) {
+              deudasInfo(
+                `DEUDA: pensión ${i} vencida sin pago (apoderado ${usuario.apoderado_id}, matrícula ${matricula.id})`
+              );
               return true; // Al menos un hijo tiene deuda
             }
           }
@@ -693,16 +697,16 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
       try {
         // Asegurar que tenemos usuario_id (puede venir como id o usuario_id)
         const docenteUsuarioId = usuario.usuario_id || usuario.id;
-        console.log(`[VERIFICAR DEUDAS] Verificando deudas para DOCENTE ID: ${docenteUsuarioId}`);
-        console.log(`[VERIFICAR DEUDAS] Usuario objeto completo:`, JSON.stringify(usuario, null, 2));
+        deudasLog(` Verificando deudas para DOCENTE ID: ${docenteUsuarioId}`);
+        deudasLog(` Usuario objeto completo:`, JSON.stringify(usuario, null, 2));
         
         if (!docenteUsuarioId) {
-          console.error(`[VERIFICAR DEUDAS] ❌ No se encontró usuario_id en el objeto usuario`);
+          deudasError('No se encontró usuario_id en el objeto usuario');
           return false;
         }
         
         // Obtener DNI del docente desde la tabla personal
-        console.log(`[VERIFICAR DEUDAS] 🔍 Buscando DNI del docente en tabla personal...`);
+        deudasLog(` 🔍 Buscando DNI del docente en tabla personal...`);
         const docenteData = await query(
           `SELECT p.nro_documento, p.id as personal_id
            FROM personal p
@@ -712,23 +716,23 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
           [docenteUsuarioId, usuario.colegio_id]
         );
 
-        console.log(`[VERIFICAR DEUDAS] Docente data encontrada: ${docenteData.length > 0 ? 'SÍ' : 'NO'}`);
+        deudasLog(` Docente data encontrada: ${docenteData.length > 0 ? 'SÍ' : 'NO'}`);
 
         if (docenteData.length === 0) {
-          console.log(`[VERIFICAR DEUDAS] ⚠️ No se encontró el docente en tabla personal`);
+          deudasLog(` ⚠️ No se encontró el docente en tabla personal`);
           return false; // No se encontró el docente
         }
 
         const docenteDni = docenteData[0].nro_documento;
-        console.log(`[VERIFICAR DEUDAS] DNI del docente: ${docenteDni || 'NO TIENE'}`);
+        deudasLog(` DNI del docente: ${docenteDni || 'NO TIENE'}`);
         
         if (!docenteDni) {
-          console.log(`[VERIFICAR DEUDAS] ⚠️ Docente no tiene DNI registrado`);
+          deudasLog(` ⚠️ Docente no tiene DNI registrado`);
           return false; // No tiene DNI registrado
         }
 
         // Buscar si el docente es apoderado (mismo DNI en tabla apoderados)
-        console.log(`[VERIFICAR DEUDAS] 🔍 Buscando si el docente es apoderado (DNI: ${docenteDni})...`);
+        deudasLog(` 🔍 Buscando si el docente es apoderado (DNI: ${docenteDni})...`);
         const apoderadoData = await query(
           `SELECT ap.id as apoderado_id
            FROM apoderados ap
@@ -737,21 +741,21 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
           [docenteDni, usuario.colegio_id]
         );
 
-        console.log(`[VERIFICAR DEUDAS] Apoderado encontrado con mismo DNI: ${apoderadoData.length > 0 ? 'SÍ' : 'NO'}`);
+        deudasLog(` Apoderado encontrado con mismo DNI: ${apoderadoData.length > 0 ? 'SÍ' : 'NO'}`);
         if (apoderadoData.length > 0) {
-          console.log(`[VERIFICAR DEUDAS] Apoderado ID: ${apoderadoData[0].apoderado_id}`);
+          deudasLog(` Apoderado ID: ${apoderadoData[0].apoderado_id}`);
         }
 
         if (apoderadoData.length === 0) {
-          console.log(`[VERIFICAR DEUDAS] ⚠️ El docente no es apoderado (no hay registro en tabla apoderados con ese DNI)`);
+          deudasLog(` ⚠️ El docente no es apoderado (no hay registro en tabla apoderados con ese DNI)`);
           return false; // El docente no es apoderado
         }
 
       const apoderadoId = apoderadoData[0].apoderado_id;
-      console.log(`[VERIFICAR DEUDAS] ✅ Apoderado ID encontrado: ${apoderadoId}`);
+      deudasLog(` ✅ Apoderado ID encontrado: ${apoderadoId}`);
 
       // Obtener matrículas activas de los hijos del docente-apoderado
-      console.log(`[VERIFICAR DEUDAS] Buscando matrículas para apoderado_id: ${apoderadoId}, colegio_id: ${usuario.colegio_id}, anio: ${anioActivo}`);
+      deudasLog(` Buscando matrículas para apoderado_id: ${apoderadoId}, colegio_id: ${usuario.colegio_id}, anio: ${anioActivo}`);
       const matriculasHijos = await query(
         `SELECT m.id, m.grupo_id, g.anio
          FROM matriculas m
@@ -764,22 +768,22 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         [apoderadoId, usuario.colegio_id, usuario.colegio_id, anioActivo]
       );
 
-      console.log(`[VERIFICAR DEUDAS] ✅ Matrículas de hijos encontradas: ${matriculasHijos.length}`);
+      deudasLog(` ✅ Matrículas de hijos encontradas: ${matriculasHijos.length}`);
       if (matriculasHijos.length > 0) {
-        console.log(`[VERIFICAR DEUDAS] IDs de matrículas:`, matriculasHijos.map(m => m.id));
+        deudasLog(` IDs de matrículas:`, matriculasHijos.map(m => m.id));
       }
 
       if (matriculasHijos.length === 0) {
-        console.log(`[VERIFICAR DEUDAS] ⚠️ No hay hijos con matrícula activa para el docente-apoderado`);
+        deudasLog(` ⚠️ No hay hijos con matrícula activa para el docente-apoderado`);
         return false; // No hay hijos con matrícula activa
       }
 
       const inicioPensiones = colegio.inicio_pensiones || 2;
-      console.log(`[VERIFICAR DEUDAS] Inicio pensiones: ${inicioPensiones}, nroPago: ${nroPago}`);
+      deudasLog(` Inicio pensiones: ${inicioPensiones}, nroPago: ${nroPago}`);
 
       // Verificar todas las pensiones que tengan configuración de vencimiento
       // O si nroPago > 0, verificar desde 1 hasta nroPago
-      console.log(`[VERIFICAR DEUDAS] nroPago: ${nroPago}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
+      deudasLog(` nroPago: ${nroPago}, vencimientosPensiones keys:`, Object.keys(vencimientosPensiones));
       const pensionesAVerificar = calcularPensionesAVerificar({
         nroPago,
         vencimientosPensiones,
@@ -787,22 +791,22 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
         inicioPensiones,
       });
 
-      console.log(`[VERIFICAR DEUDAS] pensionesAVerificar calculado (DOCENTE/APODERADO):`, pensionesAVerificar);
-      console.log(`[VERIFICAR DEUDAS] Total pensiones a verificar (DOCENTE/APODERADO): ${pensionesAVerificar.length}`);
+      deudasLog(` pensionesAVerificar calculado (DOCENTE/APODERADO):`, pensionesAVerificar);
+      deudasLog(` Total pensiones a verificar (DOCENTE/APODERADO): ${pensionesAVerificar.length}`);
 
       if (pensionesAVerificar.length === 0) {
-        console.log(`[VERIFICAR DEUDAS] ⚠️ No hay pensiones para verificar (DOCENTE/APODERADO)`);
-        console.log(`[VERIFICAR DEUDAS] ⚠️ nroPago: ${nroPago}, vencimientosPensiones vacío: ${Object.keys(vencimientosPensiones).length === 0}`);
+        deudasLog(` ⚠️ No hay pensiones para verificar (DOCENTE/APODERADO)`);
+        deudasLog(` ⚠️ nroPago: ${nroPago}, vencimientosPensiones vacío: ${Object.keys(vencimientosPensiones).length === 0}`);
         return false;
       }
 
       // Verificar deudas de cada hijo
       for (const matricula of matriculasHijos) {
-        console.log(`[VERIFICAR DEUDAS] Verificando matrícula ID: ${matricula.id} del hijo (DOCENTE/APODERADO)`);
+        deudasLog(` Verificando matrícula ID: ${matricula.id} del hijo (DOCENTE/APODERADO)`);
         for (const i of pensionesAVerificar) {
           // Validar que i sea un número válido
           if (!i || isNaN(i) || i <= 0) {
-            console.warn(`[VERIFICAR DEUDAS] Saltando pensión inválida: ${i}`);
+            deudasWarn(` Saltando pensión inválida: ${i}`);
             continue;
           }
           const fechaVencimientoStr = calcularFechaVencimiento(i, anioActivo, inicioPensiones);
@@ -822,7 +826,7 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
           fechaActual.setHours(0, 0, 0, 0);
           fechaLimite.setHours(23, 59, 59, 999);
 
-          console.log(`[VERIFICAR DEUDAS] Pensión ${i} (DOCENTE/APODERADO): fechaVencimiento=${fechaVencimientoStr}, fechaLimite=${fechaLimite.toISOString()}, fechaActual=${fechaActual.toISOString()}, ¿vencida?=${fechaActual > fechaLimite}`);
+          deudasLog(` Pensión ${i} (DOCENTE/APODERADO): fechaVencimiento=${fechaVencimientoStr}, fechaLimite=${fechaLimite.toISOString()}, fechaActual=${fechaActual.toISOString()}, ¿vencida?=${fechaActual > fechaLimite}`);
 
           if (fechaActual > fechaLimite) {
             const pagosCancelados = await query(
@@ -836,21 +840,23 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
               [matricula.id, i]
             );
 
-            console.log(`[VERIFICAR DEUDAS] Pensión ${i} (DOCENTE/APODERADO): pagos cancelados = ${pagosCancelados[0].total}`);
+            deudasLog(` Pensión ${i} (DOCENTE/APODERADO): pagos cancelados = ${pagosCancelados[0].total}`);
 
             if (pagosCancelados[0].total === 0) {
-              console.log(`[VERIFICAR DEUDAS] ✅ DEUDA DETECTADA (DOCENTE/APODERADO): Pensión ${i} vencida y sin pago cancelado para matrícula ${matricula.id}`);
+              deudasInfo(
+                `DEUDA: pensión ${i} vencida sin pago (docente-apoderado, matrícula ${matricula.id})`
+              );
               return true; // Al menos un hijo tiene deuda
             }
           }
         }
       }
 
-        console.log(`[VERIFICAR DEUDAS] Ningún hijo tiene deudas (DOCENTE/APODERADO)`);
+        deudasLog(` Ningún hijo tiene deudas (DOCENTE/APODERADO)`);
         return false; // Ningún hijo tiene deudas
       } catch (error) {
-        console.error(`[VERIFICAR DEUDAS] ❌ Error en verificación DOCENTE/APODERADO:`, error);
-        console.error(`[VERIFICAR DEUDAS] ❌ Stack:`, error.stack);
+        deudasError('Error en verificación DOCENTE/APODERADO:', error);
+        deudasError('Stack:', error.stack);
         return false; // En caso de error, permitir acceso
       }
     }
@@ -868,8 +874,7 @@ async function verificarDeudas(usuario, anioActivo, opciones = {}) {
  */
 router.get('/verificar-deudas', authenticateToken, async (req, res) => {
   try {
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] ========== INICIO ==========`);
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] req.user completo:`, req.user);
+    deudasLog('ENDPOINT /verificar-deudas — inicio', { userId: req.user?.usuario_id || req.user?.id, tipo: req.user?.tipo });
     
     // El token JWT tiene 'usuario_id', no 'id'
     const user = {
@@ -883,31 +888,18 @@ router.get('/verificar-deudas', authenticateToken, async (req, res) => {
       apoderado_id: req.user.apoderado_id || 0
     };
     
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Usuario normalizado:`, user);
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Llamado por usuario ID: ${user.id}, usuario_id: ${user.usuario_id}, tipo: ${user.tipo}`);
-    
     const anioActivo = req.user.anio_activo || new Date().getFullYear();
-    
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] anioActivo: ${anioActivo}`);
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Llamando a verificarDeudas...`);
     
     const tieneDeudas = await verificarDeudas(user, anioActivo);
     
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] ========== RESULTADO ==========`);
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] tieneDeudas retornado: ${tieneDeudas}`);
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] Tipo de tieneDeudas: ${typeof tieneDeudas}`);
-    console.log(`[ENDPOINT VERIFICAR-DEUDAS] =============================`);
+    deudasLog('ENDPOINT /verificar-deudas — resultado:', tieneDeudas);
     
     res.json({
       tiene_deudas: tieneDeudas,
       bloqueado: tieneDeudas
     });
   } catch (error) {
-    console.error('[ENDPOINT VERIFICAR-DEUDAS] ========== ERROR ==========');
-    console.error('[ENDPOINT VERIFICAR-DEUDAS] Error verificando deudas en endpoint:', error);
-    console.error('[ENDPOINT VERIFICAR-DEUDAS] Error message:', error.message);
-    console.error('[ENDPOINT VERIFICAR-DEUDAS] Stack:', error.stack);
-    console.error('[ENDPOINT VERIFICAR-DEUDAS] ===========================');
+    deudasError('ENDPOINT /verificar-deudas — error:', error);
     res.status(500).json({
       error: 'Problemas con el servidor, se está solucionando.',
       tiene_deudas: false,
@@ -922,7 +914,7 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
     const { dni } = req.params;
     const { colegio_id, anio_activo } = req.user;
     
-    console.log(`[DIAGNOSTICO] Verificando deudas para DNI: ${dni}, Colegio: ${colegio_id}, Año: ${anio_activo}`);
+    deudasLog(`[DIAGNOSTICO] Verificando deudas para DNI: ${dni}, Colegio: ${colegio_id}, Año: ${anio_activo}`);
     
     // Obtener configuración del colegio
     const colegios = await query(
@@ -948,12 +940,12 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
         const decoded = Buffer.from(colegio.pensiones_vencimiento, 'base64').toString('utf-8');
         const deserialized = phpSerialize.unserialize(decoded);
         vencimientosPensiones = deserialized || {};
-        console.log(`[DIAGNOSTICO] pensiones_vencimiento deserializado:`, JSON.stringify(vencimientosPensiones, null, 2));
+        deudasLog(`[DIAGNOSTICO] pensiones_vencimiento deserializado:`, JSON.stringify(vencimientosPensiones, null, 2));
       } catch (e) {
-        console.warn('[DIAGNOSTICO] Error deserializando pensiones_vencimiento:', e.message);
+        deudasWarn('[DIAGNOSTICO] Error deserializando pensiones_vencimiento:', e.message);
       }
     } else {
-      console.log(`[DIAGNOSTICO] pensiones_vencimiento está vacío o no existe`);
+      deudasLog(`[DIAGNOSTICO] pensiones_vencimiento está vacío o no existe`);
     }
     
     // Buscar alumno por DNI
@@ -996,35 +988,35 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
     const currentMonth = new Date().getMonth() + 1; // 1-12
     const nroPago = currentMonth - inicioPensiones; // Pensión que debería estar pagada
     
-    console.log(`[DIAGNOSTICO] Mes actual: ${currentMonth}, inicio_pensiones: ${inicioPensiones}, nroPago calculado: ${nroPago}`);
-    console.log(`[DIAGNOSTICO] Configuración: diasTolerancia=${diasTolerancia}, inicioPensiones=${inicioPensiones}`);
-    console.log(`[DIAGNOSTICO] Pensiones configuradas en vencimientos:`, Object.keys(vencimientosPensiones).map(k => `nro_pago=${k}`).join(', '));
+    deudasLog(`[DIAGNOSTICO] Mes actual: ${currentMonth}, inicio_pensiones: ${inicioPensiones}, nroPago calculado: ${nroPago}`);
+    deudasLog(`[DIAGNOSTICO] Configuración: diasTolerancia=${diasTolerancia}, inicioPensiones=${inicioPensiones}`);
+    deudasLog(`[DIAGNOSTICO] Pensiones configuradas en vencimientos:`, Object.keys(vencimientosPensiones).map(k => `nro_pago=${k}`).join(', '));
     
     // Función para calcular fecha de vencimiento (igual que en verificarDeudas)
     const calcularFechaVencimiento = (nroPension, anio, inicioPensiones) => {
       let vencimiento = vencimientosPensiones[nroPension];
       
-      console.log(`[DIAGNOSTICO] calcularFechaVencimiento: nroPension=${nroPension}, vencimiento configurado="${vencimiento || 'NO'}"`);
+      deudasLog(`[DIAGNOSTICO] calcularFechaVencimiento: nroPension=${nroPension}, vencimiento configurado="${vencimiento || 'NO'}"`);
       
       if (!vencimiento || vencimiento === '') {
         const mesPension = nroPension + 2;
         const ultimoDia = new Date(anio, mesPension, 0).getDate();
         const fechaCalculada = `${ultimoDia}-${String(mesPension).padStart(2, '0')}-${anio}`;
-        console.log(`[DIAGNOSTICO] No hay vencimiento configurado, usando último día del mes: ${fechaCalculada}`);
+        deudasLog(`[DIAGNOSTICO] No hay vencimiento configurado, usando último día del mes: ${fechaCalculada}`);
         return fechaCalculada;
       }
       
       const partes = String(vencimiento).trim().split('-');
-      console.log(`[DIAGNOSTICO] Partes del vencimiento:`, partes);
+      deudasLog(`[DIAGNOSTICO] Partes del vencimiento:`, partes);
       
       if (partes.length === 1) {
         const mesPension = nroPension + 2;
         const fechaCalculada = `${partes[0].padStart(2, '0')}-${String(mesPension).padStart(2, '0')}-${anio}`;
-        console.log(`[DIAGNOSTICO] Solo día configurado (${partes[0]}), fecha calculada: ${fechaCalculada}`);
+        deudasLog(`[DIAGNOSTICO] Solo día configurado (${partes[0]}), fecha calculada: ${fechaCalculada}`);
         return fechaCalculada;
       } else if (partes.length === 2) {
         const fechaCalculada = `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${anio}`;
-        console.log(`[DIAGNOSTICO] Día-mes configurado (${vencimiento}), fecha calculada: ${fechaCalculada}`);
+        deudasLog(`[DIAGNOSTICO] Día-mes configurado (${vencimiento}), fecha calculada: ${fechaCalculada}`);
         return fechaCalculada;
       } else {
         // Día-mes-año: puede ser "31-01-2026" o "31-01-20" (año con 2 dígitos)
@@ -1032,10 +1024,10 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
         // Si el año tiene solo 2 dígitos, usar el año del contexto (anio)
         if (añoFinal.length === 2) {
           añoFinal = String(anio);
-          console.log(`[DIAGNOSTICO] Año de 2 dígitos detectado (${partes[2]}), usando año del contexto: ${añoFinal}`);
+          deudasLog(`[DIAGNOSTICO] Año de 2 dígitos detectado (${partes[2]}), usando año del contexto: ${añoFinal}`);
         }
         const fechaCalculada = `${partes[0].padStart(2, '0')}-${partes[1].padStart(2, '0')}-${añoFinal}`;
-        console.log(`[DIAGNOSTICO] Fecha completa configurada (${vencimiento}), fecha final: ${fechaCalculada}`);
+        deudasLog(`[DIAGNOSTICO] Fecha completa configurada (${vencimiento}), fecha final: ${fechaCalculada}`);
         return fechaCalculada;
       }
     };
@@ -1049,8 +1041,8 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
       inicioPensiones,
     });
 
-    console.log(`[DIAGNOSTICO] bloquear_deudores_hasta_mes: ${colegio.bloquear_deudores_hasta_mes ?? 'NULL'}`);
-    console.log(`[DIAGNOSTICO] Pensiones a verificar:`, pensionesAVerificar);
+    deudasLog(`[DIAGNOSTICO] bloquear_deudores_hasta_mes: ${colegio.bloquear_deudores_hasta_mes ?? 'NULL'}`);
+    deudasLog(`[DIAGNOSTICO] Pensiones a verificar:`, pensionesAVerificar);
 
     // Verificar cada pensión
     const detallesPensiones = [];
@@ -1086,15 +1078,15 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
       const estaVencida = fechaActual > fechaLimite;
       const tieneDeuda = estaVencida && !tienePago;
       
-      console.log(`[DIAGNOSTICO] Pensión ${i}:`);
-      console.log(`  - Fecha vencimiento configurada: ${fechaVencimientoStr}`);
-      console.log(`  - Fecha vencimiento Date: ${fechaVencimiento.toISOString()}`);
-      console.log(`  - Días tolerancia: ${diasTolerancia}`);
-      console.log(`  - Fecha límite (vencimiento + tolerancia): ${fechaLimite.toISOString()}`);
-      console.log(`  - Fecha actual: ${fechaActual.toISOString()}`);
-      console.log(`  - ¿Está vencida? (fechaActual > fechaLimite): ${estaVencida}`);
-      console.log(`  - ¿Tiene pago cancelado?: ${tienePago} (total: ${pagosCancelados[0].total})`);
-      console.log(`  - ¿Tiene deuda? (vencida && !tienePago): ${tieneDeuda}`);
+      deudasLog(`[DIAGNOSTICO] Pensión ${i}:`);
+      deudasLog(`  - Fecha vencimiento configurada: ${fechaVencimientoStr}`);
+      deudasLog(`  - Fecha vencimiento Date: ${fechaVencimiento.toISOString()}`);
+      deudasLog(`  - Días tolerancia: ${diasTolerancia}`);
+      deudasLog(`  - Fecha límite (vencimiento + tolerancia): ${fechaLimite.toISOString()}`);
+      deudasLog(`  - Fecha actual: ${fechaActual.toISOString()}`);
+      deudasLog(`  - ¿Está vencida? (fechaActual > fechaLimite): ${estaVencida}`);
+      deudasLog(`  - ¿Tiene pago cancelado?: ${tienePago} (total: ${pagosCancelados[0].total})`);
+      deudasLog(`  - ¿Tiene deuda? (vencida && !tienePago): ${tieneDeuda}`);
       
       detallesPensiones.push({
         nro_pension: i,
@@ -1112,12 +1104,12 @@ router.get('/diagnostico-deudas/:dni', authenticateToken, async (req, res) => {
     
     const tieneDeudas = detallesPensiones.some(p => p.tiene_deuda);
     
-    console.log(`[DIAGNOSTICO] ========== RESUMEN FINAL ==========`);
-    console.log(`[DIAGNOSTICO] Total pensiones verificadas: ${detallesPensiones.length}`);
-    console.log(`[DIAGNOSTICO] Pensiones con deuda: ${detallesPensiones.filter(p => p.tiene_deuda).length}`);
-    console.log(`[DIAGNOSTICO] ¿Tiene deudas?: ${tieneDeudas}`);
-    console.log(`[DIAGNOSTICO] ¿Debe bloquear?: ${colegio.bloquear_deudores === 'SI' && tieneDeudas}`);
-    console.log(`[DIAGNOSTICO] ====================================`);
+    deudasLog(`[DIAGNOSTICO] ========== RESUMEN FINAL ==========`);
+    deudasLog(`[DIAGNOSTICO] Total pensiones verificadas: ${detallesPensiones.length}`);
+    deudasLog(`[DIAGNOSTICO] Pensiones con deuda: ${detallesPensiones.filter(p => p.tiene_deuda).length}`);
+    deudasLog(`[DIAGNOSTICO] ¿Tiene deudas?: ${tieneDeudas}`);
+    deudasLog(`[DIAGNOSTICO] ¿Debe bloquear?: ${colegio.bloquear_deudores === 'SI' && tieneDeudas}`);
+    deudasLog(`[DIAGNOSTICO] ====================================`);
     
     res.json({
       alumno: {

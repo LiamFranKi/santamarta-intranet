@@ -131,6 +131,12 @@
   margin: 0 auto;
 }
 
+/* Select / Autocomplete MUI se renderizan en body con z-index ~1300; el overlay usa 25000. */
+body > .MuiPopover-root,
+body > .MuiPopper-root {
+  z-index: 26000 !important;
+}
+
 .pe-modal {
   background: #fff;
   border-radius: 12px;

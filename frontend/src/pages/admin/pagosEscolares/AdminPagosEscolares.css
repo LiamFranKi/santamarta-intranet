@@ -736,3 +736,9 @@
 .pe-form-row--actions-end {
   grid-template-columns: 1fr auto;
 }
+
+/* Menús MUI por encima de modales Pagos/Facturas (FacturacionModal z-index: 25000). */
+body > .MuiPopover-root,
+body > .MuiPopper-root {
+  z-index: 26000 !important;
+}

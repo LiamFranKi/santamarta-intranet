@@ -287,7 +287,7 @@ function TabSubcategorias({ categorias }) {
         <button
           type="button"
           className="pe-btn pe-btn--primary pe-btn--icon"
-          onClick={() => setModal({ categoria_id: categorias[0]?.id || '', nombre: '', descripcion: '', concar_igv: '', concar_cuenta: '', starsoft_cuenta: '' })}
+          onClick={() => setModal({ categoria_id: categorias[0]?.id || '', nombre: '', descripcion: '', concar_igv: 'NO', concar_cuenta: '', starsoft_cuenta: '' })}
         >
           <AddCircleOutlineIcon fontSize="small" />
           Nueva subcategoría
@@ -364,7 +364,10 @@ function TabSubcategorias({ categorias }) {
             </TextField>
             <TextField label="Nombre" size="small" value={modal.nombre} onChange={(e) => setModal({ ...modal, nombre: e.target.value })} fullWidth />
             <TextField label="Descripción" size="small" value={modal.descripcion || ''} onChange={(e) => setModal({ ...modal, descripcion: e.target.value })} fullWidth />
-            <TextField label="CONCAR IGV" size="small" value={modal.concar_igv || ''} onChange={(e) => setModal({ ...modal, concar_igv: e.target.value })} fullWidth />
+            <TextField select label="CONCAR IGV" size="small" value={modal.concar_igv || 'NO'} onChange={(e) => setModal({ ...modal, concar_igv: e.target.value })} fullWidth>
+              <MenuItem value="SI">SI</MenuItem>
+              <MenuItem value="NO">NO</MenuItem>
+            </TextField>
             <TextField label="CONCAR cuenta" size="small" value={modal.concar_cuenta || ''} onChange={(e) => setModal({ ...modal, concar_cuenta: e.target.value })} fullWidth />
             <TextField label="Starsoft cuenta" size="small" value={modal.starsoft_cuenta || ''} onChange={(e) => setModal({ ...modal, starsoft_cuenta: e.target.value })} fullWidth />
           </div>
