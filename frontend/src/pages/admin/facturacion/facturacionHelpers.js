@@ -29,9 +29,15 @@ export const TIPOS_DOC_IDENTIDAD = [
 export const TRANSFERENCIA_GRATUITA_OPCIONES = ['NO', 'SI'];
 
 export const TIPOS_TARJETA_VENTA = [
-  { value: 'CREDITO', label: 'Tarjeta de Crédito' },
-  { value: 'DEBITO', label: 'Tarjeta de Débito' },
+  { value: 'NINGUNO', label: 'Ninguno' },
+  { value: 'CREDITO', label: 'Tarjeta Crédito' },
+  { value: 'DEBITO', label: 'Tarjeta Débito' },
 ];
+
+/** Porcentaje con un decimal para UI (evita 3.599999990463256%). */
+export function formatPctTarjeta(pct) {
+  return (parseFloat(pct) || 0).toFixed(1);
+}
 
 /** Comisión en soles según porcentaje configurado en colegio. */
 export function calcularComisionTarjeta(subtotal, pct) {

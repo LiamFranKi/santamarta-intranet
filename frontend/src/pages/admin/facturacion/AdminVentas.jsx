@@ -106,7 +106,7 @@ export default function AdminVentas() {
       transferencia_gratuita: 'NO',
       entry: 'NINGUNO',
       comision_tarjeta: 0,
-      tipo_tarjeta: 'CREDITO',
+      tipo_tarjeta: 'NINGUNO',
       doc_identidad: 'DNI',
       detalles: [lineaVacia()],
     });
@@ -122,23 +122,33 @@ export default function AdminVentas() {
     return 1;
   };
 
+  const inferTipoTarjetaVenta = (data, subtotal) => {
+    const com = parseFloat(data.comision_tarjeta) || 0;
+    if (com <= 0) return 'NINGUNO';
+    const comDeb = calcularComisionTarjeta(subtotal, meta.comision_tarjeta_debito);
+    const comCred = calcularComisionTarjeta(subtotal, meta.comision_tarjeta_credito);
+    return Math.abs(com - comDeb) < Math.abs(com - comCred) ? 'DEBITO' : 'CREDITO';
+  };
+
   const abrirEditar = async (id) => {
     try {
       const { data } = await api.get(`/admin/facturacion/ventas/${id}`);
       setNroPreview(data.nro_boleta || '');
+      const detalles = (data.detalles || []).map((d) => ({
+        categoria_id: d.categoria_id,
+        concepto_id: d.concepto_id,
+        cantidad: d.cantidad,
+        precio: d.precio,
+      }));
+      const subtotal = detalles.reduce((s, d) => s + (parseFloat(d.cantidad) || 0) * (parseFloat(d.precio) || 0), 0);
       setModal({
         ...data,
         doc_identidad: data.doc_identidad || 'DNI',
         entry: data.entry || 'NINGUNO',
-        tipo_tarjeta: data.tipo_tarjeta || 'CREDITO',
+        tipo_tarjeta: inferTipoTarjetaVenta(data, subtotal),
         comision_tarjeta: data.comision_tarjeta || 0,
         serie: resolveSerieIdx(data),
-        detalles: (data.detalles || []).map((d) => ({
-          categoria_id: d.categoria_id,
-          concepto_id: d.concepto_id,
-          cantidad: d.cantidad,
-          precio: d.precio,
-        })),
+        detalles,
       });
     } catch (e) {
       Swal.fire({ icon: 'error', text: e.response?.data?.error || 'No se pudo cargar' });
@@ -171,7 +181,8 @@ export default function AdminVentas() {
   }, [modal]);
 
   const comisionMonto = useMemo(() => {
-    const tipo = modal?.tipo_tarjeta || 'CREDITO';
+    const tipo = modal?.tipo_tarjeta || 'NINGUNO';
+    if (tipo === 'NINGUNO') return 0;
     const pct =
       tipo === 'DEBITO'
         ? meta.comision_tarjeta_debito
@@ -627,7 +638,7 @@ export default function AdminVentas() {
                         subtotal={totalModal}
                         comision={comisionMonto}
                         mostrarComision
-                        tipoTarjeta={modal.tipo_tarjeta || 'CREDITO'}
+                        tipoTarjeta={modal.tipo_tarjeta || 'NINGUNO'}
                         onTipoTarjetaChange={(v) => setModal({ ...modal, tipo_tarjeta: v })}
                         pctDebito={meta.comision_tarjeta_debito || 0}
                         pctCredito={meta.comision_tarjeta_credito || 0}

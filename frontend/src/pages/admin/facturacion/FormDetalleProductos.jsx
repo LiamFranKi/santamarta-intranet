@@ -138,13 +138,16 @@ export function TotalesFacturacion({
   subtotal,
   comision = 0,
   mostrarComision = false,
-  tipoTarjeta = 'CREDITO',
+  tipoTarjeta = 'NINGUNO',
   onTipoTarjetaChange,
   pctDebito = 0,
   pctCredito = 0,
 }) {
   const total = subtotal + (parseFloat(comision) || 0);
-  const pctActivo = tipoTarjeta === 'DEBITO' ? pctDebito : pctCredito;
+  const tipo = tipoTarjeta || 'NINGUNO';
+  const pctActivo = tipo === 'DEBITO' ? pctDebito : tipo === 'CREDITO' ? pctCredito : 0;
+  const pctFmt = (n) => (parseFloat(n) || 0).toFixed(1);
+  const cobraComision = tipo === 'CREDITO' || tipo === 'DEBITO';
 
   return (
     <div className="fact-totals">
@@ -155,22 +158,25 @@ export function TotalesFacturacion({
       {mostrarComision && (
         <>
           <div className="fact-totals-row fact-totals-row--tarjeta">
-            <span>Tipo tarjeta</span>
+            <span>Tipo de Pago</span>
             <TextField
               select
               size="small"
-              value={tipoTarjeta}
+              value={tipo}
               onChange={(e) => onTipoTarjetaChange?.(e.target.value)}
               className="fact-totals-select"
             >
-              <MenuItem value="CREDITO">Crédito ({pctCredito}%)</MenuItem>
-              <MenuItem value="DEBITO">Débito ({pctDebito}%)</MenuItem>
+              <MenuItem value="NINGUNO">Ninguno</MenuItem>
+              <MenuItem value="CREDITO">Tarjeta Crédito ({pctFmt(pctCredito)}%)</MenuItem>
+              <MenuItem value="DEBITO">Tarjeta Débito ({pctFmt(pctDebito)}%)</MenuItem>
             </TextField>
           </div>
-          <div className="fact-totals-row fact-totals-row--readonly">
-            <span>COMISIÓN TARJETA ({pctActivo}%)</span>
-            <strong>S/ {(parseFloat(comision) || 0).toFixed(2)}</strong>
-          </div>
+          {cobraComision && (
+            <div className="fact-totals-row fact-totals-row--readonly">
+              <span>COMISIÓN TARJETA ({pctFmt(pctActivo)}%)</span>
+              <strong>S/ {(parseFloat(comision) || 0).toFixed(2)}</strong>
+            </div>
+          )}
         </>
       )}
       <div className="fact-totals-row fact-totals-row--final">

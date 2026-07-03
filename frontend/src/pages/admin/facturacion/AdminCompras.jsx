@@ -244,12 +244,12 @@ export default function AdminCompras() {
                   <section className="fact-panel fact-panel--general">
                     <div className="fact-panel-head">Información General</div>
                     <div className="fact-panel-body">
-                      <div className="fact-form-table">
-                        <div className="fact-form-row">
-                          <label>
-                            Descripción<span className="fact-req">*</span>
-                          </label>
-                          <div className="fact-form-field">
+                      <div className="fact-form-grid-lines">
+                        <div className="fact-form-line fact-form-line--2">
+                          <div className="fact-form-cell">
+                            <label>
+                              Descripción<span className="fact-req">*</span>
+                            </label>
                             <TextField
                               size="small"
                               value={modal.descripcion || ''}
@@ -258,13 +258,10 @@ export default function AdminCompras() {
                               placeholder="Proveedor o detalle del ingreso"
                             />
                           </div>
-                        </div>
-
-                        <div className="fact-form-row">
-                          <label>
-                            Fecha<span className="fact-req">*</span>
-                          </label>
-                          <div className="fact-form-field">
+                          <div className="fact-form-cell">
+                            <label>
+                              Fecha<span className="fact-req">*</span>
+                            </label>
                             <TextField
                               type="date"
                               size="small"
@@ -276,11 +273,11 @@ export default function AdminCompras() {
                           </div>
                         </div>
 
-                        <div className="fact-form-row">
-                          <label>
-                            Tipo<span className="fact-req">*</span>
-                          </label>
-                          <div className="fact-form-field">
+                        <div className="fact-form-line fact-form-line--2">
+                          <div className="fact-form-cell">
+                            <label>
+                              Tipo<span className="fact-req">*</span>
+                            </label>
                             <TextField
                               select
                               size="small"
@@ -295,27 +292,26 @@ export default function AdminCompras() {
                               ))}
                             </TextField>
                           </div>
-                        </div>
-
-                        <div className="fact-form-row">
-                          <label>
-                            Serie / Número<span className="fact-req">*</span>
-                          </label>
-                          <div className="fact-form-field fact-form-field--split">
-                            <TextField
-                              size="small"
-                              value={modal.serie || ''}
-                              onChange={(e) => setModal({ ...modal, serie: e.target.value })}
-                              placeholder="Serie"
-                              fullWidth
-                            />
-                            <TextField
-                              size="small"
-                              value={modal.numero || ''}
-                              onChange={(e) => setModal({ ...modal, numero: e.target.value })}
-                              placeholder="Número"
-                              fullWidth
-                            />
+                          <div className="fact-form-cell">
+                            <label>
+                              Serie / Número<span className="fact-req">*</span>
+                            </label>
+                            <div className="fact-form-cell--split">
+                              <TextField
+                                size="small"
+                                value={modal.serie || ''}
+                                onChange={(e) => setModal({ ...modal, serie: e.target.value })}
+                                placeholder="Serie"
+                                fullWidth
+                              />
+                              <TextField
+                                size="small"
+                                value={modal.numero || ''}
+                                onChange={(e) => setModal({ ...modal, numero: e.target.value })}
+                                placeholder="Número"
+                                fullWidth
+                              />
+                            </div>
                           </div>
                         </div>
                       </div>
