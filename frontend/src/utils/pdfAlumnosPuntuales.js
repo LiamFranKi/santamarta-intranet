@@ -60,7 +60,6 @@ export async function generarPdfAlumnosPuntuales(opts) {
     mes_etiqueta = '',
     sede_etiqueta = '',
     filas = [],
-    total_monto_pension: totalMontoOpt,
     total_registros: totalRegOpt,
   } = opts;
 
@@ -72,10 +71,6 @@ export async function generarPdfAlumnosPuntuales(opts) {
   const cols = buildColumns(innerW);
 
   const totalReg = typeof totalRegOpt === 'number' ? totalRegOpt : (filas || []).length;
-  const totalMonto =
-    typeof totalMontoOpt === 'number'
-      ? totalMontoOpt
-      : Math.round((filas || []).reduce((s, r) => s + (parseFloat(r.monto_pension) || 0), 0) * 100) / 100;
 
   function drawHeader() {
     return dibujarCabeceraReportePdf(doc, logo, {
@@ -127,17 +122,20 @@ export async function generarPdfAlumnosPuntuales(opts) {
   }
 
   function drawFooter(y) {
-    if (y + 10 > pageH - BOTTOM_SAFE) {
+    if (y + 16 > pageH - BOTTOM_SAFE) {
       doc.addPage();
       y = drawHeader(MARGIN);
     }
+    y += 5;
+    doc.setDrawColor(...PDF_BORDER);
+    doc.line(MARGIN, y, MARGIN + innerW, y);
+    y += 8;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.setFontSize(10);
     doc.setTextColor(30, 64, 175);
-    doc.text(`Total alumnos: ${totalReg}`, MARGIN, y + 6);
-    doc.text(`Suma pensiones: ${fmtMonto(totalMonto, moneda)}`, pageW - MARGIN, y + 6, { align: 'right' });
+    doc.text(`TOTAL DE ALUMNOS: ${totalReg}`, pageW / 2, y, { align: 'center' });
     doc.setTextColor(0, 0, 0);
-    return y + 12;
+    return y + 10;
   }
 
   const secciones = (filas || []).length ? agruparPorGrado(filas) : [{ titulo: null, filas: [] }];

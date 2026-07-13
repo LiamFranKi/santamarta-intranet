@@ -106,39 +106,46 @@ export default function ModalAlumnosPuntuales({
                 No hay alumnos puntuales con los filtros seleccionados.
               </Typography>
             ) : (
-              secciones.map((sec) => (
-                <div key={sec.titulo} className="rg-deudores-seccion">
-                  <h3 className="rg-deudores-seccion__titulo">{sec.titulo}</h3>
-                  <div className="rg-alum-lista-table-wrap">
-                    <table className="rg-alum-lista-table rg-deudores-table">
-                      <thead>
-                        <tr>
-                          <th>Alumno</th>
-                          <th>Grupo</th>
-                          <th>DNI</th>
-                          <th>Pensión mensual</th>
-                          <th>Fecha pago último mes</th>
-                          <th>Tel. apoderado</th>
-                          <th>Email apoderado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sec.filas.map((f) => (
-                          <tr key={f.matricula_id}>
-                            <td>{f.alumno_nombre}</td>
-                            <td>{f.grado_seccion}</td>
-                            <td className="col-num">{f.nro_documento}</td>
-                            <td className="col-num">{fmtMonto(f.monto_pension, moneda)}</td>
-                            <td className="col-num">{fmtFecha(f.fecha_pago_ultimo_mes)}</td>
-                            <td>{f.telefono_apoderado || '—'}</td>
-                            <td>{f.email_apoderado || '—'}</td>
+              <>
+                {secciones.map((sec) => (
+                  <div key={sec.titulo} className="rg-deudores-seccion">
+                    <h3 className="rg-deudores-seccion__titulo">{sec.titulo}</h3>
+                    <div className="rg-alum-lista-table-wrap">
+                      <table className="rg-alum-lista-table rg-deudores-table">
+                        <thead>
+                          <tr>
+                            <th>Alumno</th>
+                            <th>Grupo</th>
+                            <th>DNI</th>
+                            <th>Pensión mensual</th>
+                            <th>Fecha pago último mes</th>
+                            <th>Tel. apoderado</th>
+                            <th>Email apoderado</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {sec.filas.map((f) => (
+                            <tr key={f.matricula_id}>
+                              <td>{f.alumno_nombre}</td>
+                              <td>{f.grado_seccion}</td>
+                              <td className="col-num">{f.nro_documento}</td>
+                              <td className="col-num">{fmtMonto(f.monto_pension, moneda)}</td>
+                              <td className="col-num">{fmtFecha(f.fecha_pago_ultimo_mes)}</td>
+                              <td>{f.telefono_apoderado || '—'}</td>
+                              <td>{f.email_apoderado || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              ))
+                ))}
+                <p className="rg-maestros-aula-total">
+                  <strong>
+                    Total de alumnos: {typeof total_registros === 'number' ? total_registros : filas.length}
+                  </strong>
+                </p>
+              </>
             )}
           </>
         )}
