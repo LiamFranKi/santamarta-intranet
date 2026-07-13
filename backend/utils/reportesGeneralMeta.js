@@ -1,6 +1,15 @@
 const { query } = require('./mysql');
 const { ordenNivelEducativoNombre } = require('./listaAlumnosMatriculadosReporte');
-const { buildConceptosOpciones, cargarConfigColegio } = require('./reportesGeneralDeudoresPagadores');
+const { buildConceptosOpciones, buildMesesPensionOpciones, cargarConfigColegio } = require('./reportesGeneralDeudoresPagadores');
+const { nroPagoDesdeMesCalendario } = require('./deudaPensiones');
+
+function mesHastaPensionPorDefecto(totalPensiones, inicioPensiones) {
+  const mesActual = new Date().getMonth() + 1;
+  let nro = nroPagoDesdeMesCalendario(mesActual, inicioPensiones);
+  if (!Number.isFinite(nro) || nro < 1) nro = 1;
+  if (nro > totalPensiones) nro = totalPensiones;
+  return nro;
+}
 
 async function cargarMetaReportesGeneral(colegioId) {
   let anioActivo = new Date().getFullYear();
@@ -39,6 +48,8 @@ async function cargarMetaReportesGeneral(colegioId) {
   const turnoManana = (turnos || []).find((t) => /mañana|manana/i.test(String(t.nombre || '')));
   const sedeUno = (sedes || []).find((s) => Number(s.id) === 1);
   const pagoCfg = await cargarConfigColegio(colegioId);
+  const mesesPension = buildMesesPensionOpciones(pagoCfg.totalPensiones, pagoCfg.inicioPensiones);
+  const defaultMesHasta = mesHastaPensionPorDefecto(pagoCfg.totalPensiones, pagoCfg.inicioPensiones);
 
   return {
     colegio_nombre: cRow?.nombre || 'Colegio',
@@ -50,11 +61,13 @@ async function cargarMetaReportesGeneral(colegioId) {
     total_pensiones: pagoCfg.totalPensiones,
     inicio_pensiones: pagoCfg.inicioPensiones,
     conceptos_opciones: buildConceptosOpciones(pagoCfg.totalPensiones, pagoCfg.inicioPensiones),
+    meses_pension_opciones: mesesPension,
     defaults: {
       sede_id: sedeUno ? sedeUno.id : (sedes[0]?.id ?? 1),
       turno_id: turnoManana?.id ?? turnos[0]?.id ?? null,
       anio: anioActivo,
       concepto: 'todos',
+      mes_hasta: defaultMesHasta,
     },
   };
 }

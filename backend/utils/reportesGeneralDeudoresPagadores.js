@@ -93,6 +93,14 @@ function buildConceptosOpciones(totalPensiones, inicioPensiones) {
   return list;
 }
 
+function buildMesesPensionOpciones(totalPensiones, inicioPensiones) {
+  const list = [];
+  for (let i = 1; i <= totalPensiones; i += 1) {
+    list.push({ value: String(i), label: nombreMesPension(i, inicioPensiones) });
+  }
+  return list;
+}
+
 async function cargarConfigColegio(colegioId) {
   const [colegio] = await query(
     `SELECT anio_activo, total_pensiones, moneda, inicio_pensiones, titulo_intranet, razon_social, nombre
@@ -464,7 +472,9 @@ async function obtenerListaPagadores(colegioId, opts) {
 
 module.exports = {
   buildConceptosOpciones,
+  buildMesesPensionOpciones,
   cargarConfigColegio,
+  nombreMesPension,
   obtenerListaDeudores,
   obtenerListaPagadores,
 };

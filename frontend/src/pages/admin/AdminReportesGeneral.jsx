@@ -5,6 +5,7 @@ import ReporteResumenAlumnosMatriculados from './reportesGeneral/ReporteResumenA
 import ReporteListaAlumnosRetirados from './reportesGeneral/ReporteListaAlumnosRetirados';
 import ReporteAlumnosDeudores from './reportesGeneral/ReporteAlumnosDeudores';
 import ReporteAlumnosPagadores from './reportesGeneral/ReporteAlumnosPagadores';
+import ReporteAlumnosPuntuales from './reportesGeneral/ReporteAlumnosPuntuales';
 import ReporteResumenIngresos from './reportesGeneral/ReporteResumenIngresos';
 import ReporteListaMaestrosPorAula from './reportesGeneral/ReporteListaMaestrosPorAula';
 import ReporteListaPersonal from './reportesGeneral/ReporteListaPersonal';
@@ -45,6 +46,7 @@ export default function AdminReportesGeneral() {
             <ReporteAlumnosDeudores />
             <ReporteAlumnosPagadores />
           </div>
+          <ReporteAlumnosPuntuales />
           <ReporteResumenIngresos />
           <div className="rg-row-2">
             <ReporteListaMaestrosPorAula />

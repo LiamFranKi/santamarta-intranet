@@ -14,6 +14,7 @@ const {
   obtenerListaDeudores,
   obtenerListaPagadores,
 } = require('../utils/reportesGeneralDeudoresPagadores');
+const { obtenerListaAlumnosPuntuales } = require('../utils/reportesGeneralAlumnosPuntuales');
 const { obtenerResumenIngresos } = require('../utils/reportesGeneralResumenIngresos');
 const { obtenerListaMaestrosPorAula } = require('../utils/reportesGeneralMaestrosPorAula');
 const { obtenerListaPersonal } = require('../utils/reportesGeneralListaPersonal');
@@ -168,6 +169,31 @@ router.get('/alumnos-pagadores', async (req, res) => {
   } catch (e) {
     console.error('[reportes/general/alumnos-pagadores]', e);
     res.status(500).json({ error: e.message || 'Error al generar lista de pagadores' });
+  }
+});
+
+/** GET /api/admin/reportes/general/alumnos-puntuales?anio=&sede_id=&mes_hasta= */
+router.get('/alumnos-puntuales', async (req, res) => {
+  try {
+    const anio = parseInt(req.query.anio, 10);
+    const sedeId = parseInt(req.query.sede_id, 10);
+    const mesHasta = parseInt(req.query.mes_hasta, 10);
+    if (!Number.isFinite(anio)) {
+      return res.status(400).json({ error: 'Indique un año válido.' });
+    }
+    if (!Number.isFinite(sedeId)) {
+      return res.status(400).json({ error: 'Indique una sede válida.' });
+    }
+    if (!Number.isFinite(mesHasta)) {
+      return res.status(400).json({ error: 'Indique el mes de pensión hasta el cual filtrar.' });
+    }
+    const data = await obtenerListaAlumnosPuntuales(colegioId(req), { anio, sedeId, mesHasta });
+    res.json(data);
+  } catch (e) {
+    const msg = e.message || 'Error al generar lista de alumnos puntuales';
+    const status = /válid|Indique/i.test(msg) ? 400 : 500;
+    console.error('[reportes/general/alumnos-puntuales]', e);
+    res.status(status).json({ error: msg });
   }
 });
 
