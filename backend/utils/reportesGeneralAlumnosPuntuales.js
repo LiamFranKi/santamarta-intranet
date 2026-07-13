@@ -69,12 +69,12 @@ async function contactosPorAlumno(colegioId, alumnoIds) {
   const trows = await query(
     `SELECT f.alumno_id, f.id AS familia_id,
         COALESCE(NULLIF(TRIM(ap.telefono_celular), ''), NULLIF(TRIM(ap.telefono_fijo), ''), '') AS telefono,
-        COALESCE(NULLIF(TRIM(ap.email), ''), '') AS email,
-        COALESCE(NULLIF(TRIM(f.direccion), ''), '') AS direccion
+        NULLIF(TRIM(ap.email), '') AS email,
+        NULLIF(TRIM(ap.direccion), '') AS direccion
      FROM familias f
-     INNER JOIN apoderados ap ON ap.familia_id = f.id
-     WHERE f.colegio_id = ? AND f.alumno_id IN (${ph})
-     ORDER BY ap.id ASC`,
+     INNER JOIN apoderados ap ON ap.id = f.apoderado_id AND ap.colegio_id = ?
+     WHERE f.alumno_id IN (${ph})
+     ORDER BY f.alumno_id ASC, f.id ASC`,
     [colegioId, ...uniq]
   );
   for (const tr of trows || []) {
