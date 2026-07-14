@@ -14,13 +14,43 @@ import {
   Typography
 } from '@mui/material';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 import DashboardLayout from '../../components/DashboardLayout';
 import api from '../../services/api';
+import { procesarHTMLMensaje } from '../../utils/mensajesHtml';
+import { generarPdfEstadisticasEncuesta } from './encuestaReportesPdf';
 import Swal from 'sweetalert2';
 import './AdminUsuarios.css';
 import './AdminEncuestas.css';
 
 const COLORS = ['#3f74ad', '#667eea', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444'];
+
+function stripHtmlPlain(html) {
+  const s = String(html || '');
+  if (typeof document !== 'undefined') {
+    const d = document.createElement('div');
+    d.innerHTML = s;
+    const t = (d.textContent || '').replace(/\s+/g, ' ').trim();
+    if (t) return t;
+    if (/<img\b/i.test(s)) return '(imagen)';
+    return '';
+  }
+  return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function RichHtml({ html }) {
+  if (!html) return null;
+  return (
+    <div
+      className="admin-enc-rich"
+      dangerouslySetInnerHTML={{ __html: procesarHTMLMensaje(html) }}
+    />
+  );
+}
 
 function maxVal(obj) {
   const vals = Object.values(obj || {}).map((x) => Number(x) || 0);
@@ -151,31 +181,52 @@ export default function AdminEncuestaEstadisticas() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [grupoSel, setGrupoSel] = useState('');
   const [modal, setModal] = useState({ open: false, titulo: '', textos: [] });
 
-  useEffect(() => {
-    let c = false;
-    (async () => {
-      try {
-        const { data: d } = await api.get(`/encuestas/admin/${id}/estadisticas`);
-        if (!c) setData(d);
-      } catch (e) {
-        Swal.fire('Error', e.response?.data?.error || 'No se pudieron cargar', 'error');
-        navigate('/admin/herramientas/encuestas');
-      } finally {
-        if (!c) setLoading(false);
-      }
-    })();
-    return () => {
-      c = true;
-    };
-  }, [id, navigate]);
+  const cargar = async (grupo) => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (grupo) params.grupo = grupo;
+      const { data: d } = await api.get(`/encuestas/admin/${id}/estadisticas`, { params });
+      setData(d);
+    } catch (e) {
+      Swal.fire('Error', e.response?.data?.error || 'No se pudieron cargar', 'error');
+      navigate('/admin/herramientas/encuestas');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const { encuesta, totalRespuestas, porRol, resultadosPreguntas } = data || {};
+  useEffect(() => {
+    cargar('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const { encuesta, totalRespuestas, totalGeneral, porRol, porGrupo, resultadosPreguntas, grupoSeleccionado } =
+    data || {};
   const totalPorRol = useMemo(() => {
     const rows = porRol || [];
     return rows.reduce((s, r) => s + Number(r.c || 0), 0);
   }, [porRol]);
+
+  const exportarPdf = () => {
+    if (!data) return;
+    try {
+      generarPdfEstadisticasEncuesta({
+        encuesta,
+        totalGeneral: totalGeneral ?? totalRespuestas,
+        totalRespuestas,
+        grupoSeleccionado: grupoSeleccionado || null,
+        porGrupo: porGrupo || [],
+        porRol: porRol || [],
+        resultadosPreguntas: resultadosPreguntas || []
+      });
+    } catch (e) {
+      Swal.fire('Error', e.message || 'No se pudo generar el PDF', 'error');
+    }
+  };
 
   if (loading || !data) {
     return (
@@ -190,7 +241,7 @@ export default function AdminEncuestaEstadisticas() {
   return (
     <DashboardLayout>
       <div className="admin-encuestas-wrap">
-        <div className="admin-usu-toolbar" style={{ marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div className="admin-usu-toolbar" style={{ marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
           <button
             type="button"
             className="admin-usu-btn admin-usu-btn-secondary"
@@ -204,6 +255,15 @@ export default function AdminEncuestaEstadisticas() {
               Estadísticas de encuesta
             </Typography>
           </Stack>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<PictureAsPdfIcon />}
+            onClick={exportarPdf}
+            sx={{ textTransform: 'none', ml: 'auto', background: 'linear-gradient(135deg,#dc2626,#ea580c)' }}
+          >
+            Exportar PDF
+          </Button>
         </div>
 
         <div className="admin-enc-stat-hero">
@@ -217,28 +277,82 @@ export default function AdminEncuestaEstadisticas() {
                 {' · '}
               </>
             ) : null}
-            Resumen de respuestas recopiladas
+            {grupoSeleccionado
+              ? `Estadísticas del grupo «${grupoSeleccionado}»`
+              : 'Resumen total general de respuestas'}
           </Typography>
+
+          <FormControl size="small" sx={{ mt: 2, minWidth: 260, bgcolor: '#fff', borderRadius: 1 }}>
+            <InputLabel id="enc-stat-grupo-label">Ver por grupo</InputLabel>
+            <Select
+              labelId="enc-stat-grupo-label"
+              label="Ver por grupo"
+              value={grupoSel}
+              onChange={(e) => {
+                const v = e.target.value;
+                setGrupoSel(v);
+                cargar(v);
+              }}
+            >
+              <MenuItem value="">
+                Total general ({totalGeneral ?? totalRespuestas})
+              </MenuItem>
+              {(porGrupo || []).map((g) => (
+                <MenuItem key={g.etiqueta} value={g.etiqueta}>
+                  {g.etiqueta} ({g.c})
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 2 }}>
             <div className="admin-enc-stat-kpi" style={{ flex: 1 }}>
               <div className="admin-enc-stat-kpi-num">{totalRespuestas}</div>
               <Typography variant="caption" color="text.secondary">
-                Respuestas totales
+                {grupoSeleccionado ? 'Respuestas del grupo' : 'Respuestas (vista actual)'}
               </Typography>
             </div>
             <div className="admin-enc-stat-kpi" style={{ flex: 1 }}>
-              <div className="admin-enc-stat-kpi-num">{(resultadosPreguntas || []).length}</div>
+              <div className="admin-enc-stat-kpi-num">{totalGeneral ?? totalRespuestas}</div>
               <Typography variant="caption" color="text.secondary">
-                Preguntas con datos
+                Total general
+              </Typography>
+            </div>
+            <div className="admin-enc-stat-kpi" style={{ flex: 1 }}>
+              <div className="admin-enc-stat-kpi-num">{(porGrupo || []).length}</div>
+              <Typography variant="caption" color="text.secondary">
+                Grupos con respuestas
               </Typography>
             </div>
           </Stack>
         </div>
 
+        {(porGrupo || []).length > 0 && !grupoSeleccionado ? (
+          <div className="admin-usu-table-card" style={{ marginBottom: '1rem' }}>
+            <Box sx={{ p: 2.5 }}>
+              <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ color: '#374151' }}>
+                Participación por grupo
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Pulsa un grupo en el filtro de arriba para ver estadísticas solo de ese aula.
+              </Typography>
+              <DistribucionBarraSegmentada
+                entries={(porGrupo || []).map((g) => [g.etiqueta, g.c])}
+                total={totalGeneral || totalRespuestas}
+              />
+              <LeyendaFilas
+                entries={(porGrupo || []).map((g) => [g.etiqueta, g.c])}
+                total={totalGeneral || totalRespuestas}
+              />
+            </Box>
+          </div>
+        ) : null}
+
         <div className="admin-usu-table-card" style={{ marginBottom: '1rem' }}>
           <Box sx={{ p: 2.5 }}>
             <Typography variant="subtitle1" fontWeight={700} gutterBottom sx={{ color: '#374151' }}>
               Participación por rol
+              {grupoSeleccionado ? ` · ${grupoSeleccionado}` : ' · total'}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               Distribución de quién envió cada respuesta (según rol en el momento de responder).
@@ -272,9 +386,9 @@ export default function AdminEncuestaEstadisticas() {
                     <Typography variant="caption" color="primary" fontWeight={700}>
                       Pregunta {rp.orden}
                     </Typography>
-                    <Typography variant="subtitle1" fontWeight={700} sx={{ mt: 0.25 }}>
-                      {rp.texto_pregunta}
-                    </Typography>
+                    <Box sx={{ mt: 0.25 }}>
+                      <RichHtml html={rp.texto_pregunta} />
+                    </Box>
                   </Box>
                   <Chip size="small" label={rp.tipo_respuesta} variant="outlined" />
                 </Stack>
@@ -291,9 +405,9 @@ export default function AdminEncuestaEstadisticas() {
                         return (
                           <Box key={label}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center">
-                              <Typography variant="body2" sx={{ pr: 1 }}>
-                                {label}
-                              </Typography>
+                              <Box sx={{ pr: 1, flex: 1, minWidth: 0 }}>
+                                <RichHtml html={label} />
+                              </Box>
                               <Typography variant="body2" fontWeight={700}>
                                 {count}
                               </Typography>
@@ -370,7 +484,7 @@ export default function AdminEncuestaEstadisticas() {
                         onClick={() =>
                           setModal({
                             open: true,
-                            titulo: `Respuestas — ${rp.texto_pregunta}`,
+                            titulo: `Respuestas — ${stripHtmlPlain(rp.texto_pregunta) || 'pregunta'}`,
                             textos: datosObj.muestras || []
                           })
                         }

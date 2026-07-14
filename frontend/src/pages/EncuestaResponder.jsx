@@ -21,7 +21,32 @@ import {
 } from '@mui/material';
 import DashboardLayout from '../components/DashboardLayout';
 import api from '../services/api';
+import { procesarHTMLMensaje } from '../utils/mensajesHtml';
 import Swal from 'sweetalert2';
+import './admin/AdminEncuestas.css';
+
+function stripHtmlPlain(html) {
+  const s = String(html || '');
+  if (typeof document !== 'undefined') {
+    const d = document.createElement('div');
+    d.innerHTML = s;
+    const t = (d.textContent || '').replace(/\s+/g, ' ').trim();
+    if (t) return t;
+    if (/<img\b/i.test(s)) return '(imagen)';
+    return '';
+  }
+  return s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function RichHtml({ html, className = 'admin-enc-rich' }) {
+  if (!html) return null;
+  return (
+    <div
+      className={className}
+      dangerouslySetInnerHTML={{ __html: procesarHTMLMensaje(html) }}
+    />
+  );
+}
 
 export default function EncuestaResponder() {
   const { id } = useParams();
@@ -87,18 +112,18 @@ export default function EncuestaResponder() {
       if (oblig) {
         if (ti === 'texto_corto' || ti === 'texto_largo') {
           if (!r?.texto?.trim()) {
-            Swal.fire('Atención', `Completa: ${p.texto_pregunta}`, 'warning');
+            Swal.fire('Atención', `Completa: ${stripHtmlPlain(p.texto_pregunta) || 'la pregunta'}`, 'warning');
             return;
           }
         } else if (ti === 'escala') {
           if (r?.valor_numerico == null) {
-            Swal.fire('Atención', `Selecciona escala: ${p.texto_pregunta}`, 'warning');
+            Swal.fire('Atención', `Selecciona escala: ${stripHtmlPlain(p.texto_pregunta) || 'la pregunta'}`, 'warning');
             return;
           }
         } else if (ti === 'marcar' || ti === 'lista') {
           const arr = r?.opciones_seleccionadas || [];
           if (!arr.length) {
-            Swal.fire('Atención', `Selecciona opción: ${p.texto_pregunta}`, 'warning');
+            Swal.fire('Atención', `Selecciona opción: ${stripHtmlPlain(p.texto_pregunta) || 'la pregunta'}`, 'warning');
             return;
           }
         }
@@ -187,41 +212,42 @@ export default function EncuestaResponder() {
                 if (ti === 'titulo') {
                   return (
                     <Box key={p.id} sx={{ py: 1 }}>
-                      <Typography variant="h6" fontWeight={700} color="primary">
-                        {p.texto_pregunta}
-                      </Typography>
-                      {p.subtitulo ? (
-                        <Typography variant="body2" color="text.secondary">
-                          {p.subtitulo}
-                        </Typography>
-                      ) : null}
+                      <Box sx={{ '& h1,& h2,& h3,& h4,& h5,& h6,&.admin-enc-rich': { color: 'primary.main', fontWeight: 700 } }}>
+                        <RichHtml html={p.texto_pregunta} />
+                      </Box>
+                      {p.subtitulo ? <RichHtml html={p.subtitulo} /> : null}
                     </Box>
                   );
                 }
                 return (
                   <Box key={p.id}>
-                    <Typography fontWeight={600}>
-                      {idx + 1}. {p.texto_pregunta}
-                      {p.obligatoria ? <span style={{ color: '#d32f2f' }}> *</span> : null}
-                    </Typography>
-                    {p.subtitulo ? (
-                      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                        {p.subtitulo}
+                    <Stack direction="row" alignItems="flex-start" spacing={0.5}>
+                      <Typography fontWeight={600} component="span" sx={{ flexShrink: 0 }}>
+                        {idx + 1}.
                       </Typography>
+                      <Box sx={{ flex: 1 }}>
+                        <RichHtml html={p.texto_pregunta} />
+                        {p.obligatoria ? <span style={{ color: '#d32f2f' }}> *</span> : null}
+                      </Box>
+                    </Stack>
+                    {p.subtitulo ? (
+                      <Box sx={{ mb: 1, mt: 0.5, color: 'text.secondary' }}>
+                        <RichHtml html={p.subtitulo} />
+                      </Box>
                     ) : null}
 
                     {ti === 'marcar' && op.multiple && (
                       <Stack spacing={0.5} sx={{ mt: 1 }}>
-                        {(op.opciones || []).map((opt) => (
+                        {(op.opciones || []).map((opt, oi) => (
                           <FormControlLabel
-                            key={opt}
+                            key={`${p.id}-m-${oi}`}
                             control={
                               <Checkbox
                                 checked={(respuestas[p.id]?.opciones_seleccionadas || []).includes(opt)}
                                 onChange={() => handleMarcar(p.id, opt, true)}
                               />
                             }
-                            label={opt}
+                            label={<RichHtml html={opt} />}
                           />
                         ))}
                       </Stack>
@@ -233,8 +259,13 @@ export default function EncuestaResponder() {
                         value={(respuestas[p.id]?.opciones_seleccionadas || [])[0] || ''}
                         onChange={(e) => setVal(p.id, { opciones_seleccionadas: [e.target.value] })}
                       >
-                        {(op.opciones || []).map((opt) => (
-                          <FormControlLabel key={opt} value={opt} control={<Radio />} label={opt} />
+                        {(op.opciones || []).map((opt, oi) => (
+                          <FormControlLabel
+                            key={`${p.id}-r-${oi}`}
+                            value={opt}
+                            control={<Radio />}
+                            label={<RichHtml html={opt} />}
+                          />
                         ))}
                       </RadioGroup>
                     )}
@@ -247,11 +278,18 @@ export default function EncuestaResponder() {
                           onChange={(e) =>
                             setVal(p.id, { opciones_seleccionadas: e.target.value ? [e.target.value] : [] })
                           }
+                          renderValue={(selected) =>
+                            selected ? (
+                              <RichHtml html={selected} />
+                            ) : (
+                              <em style={{ color: '#94a3b8' }}>Selecciona…</em>
+                            )
+                          }
                         >
                           <MenuItem value="">Selecciona…</MenuItem>
-                          {(op.opciones || []).map((opt) => (
-                            <MenuItem key={opt} value={opt}>
-                              {opt}
+                          {(op.opciones || []).map((opt, oi) => (
+                            <MenuItem key={`${p.id}-l-${oi}`} value={opt}>
+                              <RichHtml html={opt} />
                             </MenuItem>
                           ))}
                         </Select>

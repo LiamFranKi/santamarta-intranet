@@ -138,6 +138,11 @@ export default function AdminEncuestas() {
                             </span>
                           ))}
                         </div>
+                        <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: 4 }}>
+                          {String(e.alcance_grupos || '').toUpperCase() === 'GRUPOS' || (e.grupos || []).length
+                            ? `Grupos: ${(e.grupos || []).length}`
+                            : 'Cobertura: todos'}
+                        </div>
                       </td>
                       <td>{e.total_respuestas ?? 0}</td>
                       <td>

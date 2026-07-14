@@ -128,3 +128,297 @@
   overflow-y: auto;
   padding-right: 4px;
 }
+
+/* ——— Editor nueva / editar encuesta ——— */
+.admin-enc-editor {
+  max-width: 920px;
+}
+
+.admin-enc-editor-hero {
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 55%, #14b8a6 100%);
+  box-shadow: 0 10px 28px rgba(14, 165, 233, 0.28);
+}
+
+.admin-enc-section {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.05);
+  padding: 1.35rem 1.5rem 1.5rem;
+  margin-bottom: 1.15rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-enc-section::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+}
+
+.admin-enc-section--info::before {
+  background: linear-gradient(180deg, #2563eb, #38bdf8);
+}
+
+.admin-enc-section--audiencia::before {
+  background: linear-gradient(180deg, #059669, #34d399);
+}
+
+.admin-enc-section--preguntas::before {
+  background: linear-gradient(180deg, #d97706, #fbbf24);
+}
+
+.admin-enc-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin-bottom: 1.15rem;
+  flex-wrap: wrap;
+}
+
+.admin-enc-section-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.admin-enc-section-head p {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.admin-enc-section-badge {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(135deg, #2563eb, #0ea5e9);
+}
+
+.admin-enc-section--audiencia .admin-enc-section-badge {
+  background: linear-gradient(135deg, #059669, #10b981);
+}
+
+.admin-enc-section--preguntas .admin-enc-section-badge {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+}
+
+.admin-enc-aud-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-enc-aud-chip {
+  border: 1.5px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem 0.45rem 0.55rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: border-color 0.15s, background 0.15s, transform 0.15s;
+}
+
+.admin-enc-aud-chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-enc-aud-chip:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.admin-enc-aud-check {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #fff;
+  font-size: 0.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.admin-enc-aud-chip.is-on .admin-enc-aud-check {
+  background: currentColor;
+}
+
+.admin-enc-aud-chip--alumnos.is-on {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.admin-enc-aud-chip--apoderados.is-on {
+  border-color: #8b5cf6;
+  background: #f5f3ff;
+  color: #6d28d9;
+}
+.admin-enc-aud-chip--docentes.is-on {
+  border-color: #0ea5e9;
+  background: #f0f9ff;
+  color: #0369a1;
+}
+.admin-enc-aud-chip--promotoria.is-on {
+  border-color: #f59e0b;
+  background: #fffbeb;
+  color: #b45309;
+}
+.admin-enc-aud-chip--admins.is-on {
+  border-color: #64748b;
+  background: #f1f5f9;
+  color: #334155;
+}
+.admin-enc-aud-chip--todos.is-on {
+  border-color: #10b981;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.admin-enc-cobertura {
+  padding-top: 0.35rem;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.admin-enc-cobertura-radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
+}
+
+.admin-enc-cobertura-radios label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.85rem;
+  border-radius: 10px;
+  border: 1.5px solid #e2e8f0;
+  background: #fff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+}
+
+.admin-enc-cobertura-radios label.is-on {
+  border-color: #10b981;
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.admin-enc-grupos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.45rem;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 0.35rem;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-enc-grupo-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #334155;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid transparent;
+}
+
+.admin-enc-grupo-item.is-on {
+  border-color: #34d399;
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.admin-enc-pregunta-acc {
+  margin-bottom: 0.65rem !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+  background: #fff;
+}
+
+.admin-enc-pregunta-acc:before {
+  display: none !important;
+}
+
+.admin-enc-pregunta-sum {
+  background: linear-gradient(90deg, #fff7ed 0%, #f8fafc 100%) !important;
+}
+
+.admin-enc-pregunta-sum .MuiAccordionSummary-content {
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0.65rem 0 !important;
+}
+
+.enc-pregunta-editor {
+  background: #fafbfc;
+  border-top: 1px solid #eef2f7;
+}
+
+.admin-enc-opcion-row {
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.admin-enc-html-readonly {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  background: #f8fafc;
+  font-size: 0.9rem;
+}
+
+.admin-enc-html-readonly img,
+.admin-enc-rich img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 6px;
+}
+
+.admin-enc-rich {
+  line-height: 1.45;
+}
+
+.admin-enc-rich p {
+  margin: 0 0 0.35rem;
+}
+
+.admin-enc-rich p:last-child {
+  margin-bottom: 0;
+}
+
+.admin-enc-add-preg-btn {
+  background: linear-gradient(135deg, #d97706, #f59e0b) !important;
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.3);
+}

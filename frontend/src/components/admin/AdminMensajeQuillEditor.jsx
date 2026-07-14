@@ -17,6 +17,16 @@ const MODULES = {
   ],
 };
 
+const MODULES_COMPACT = {
+  toolbar: [
+    ['bold', 'italic', 'underline'],
+    [{ list: 'ordered' }, { list: 'bullet' }],
+    [{ color: [] }],
+    ['link', 'image'],
+    ['clean'],
+  ],
+};
+
 const FORMATS = [
   'header',
   'bold',
@@ -34,9 +44,11 @@ const FORMATS = [
 
 /**
  * Editor alineado con DocenteMensajes: imágenes vía POST /docente/mensajes/subir-imagen
+ * @param {boolean} [compact] toolbar y altura reducidos (preguntas/opciones de encuesta)
  */
-export default function AdminMensajeQuillEditor({ value, onChange, placeholder }) {
+export default function AdminMensajeQuillEditor({ value, onChange, placeholder, compact = false }) {
   const quillRef = useRef(null);
+  const modules = compact ? MODULES_COMPACT : MODULES;
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -80,14 +92,14 @@ export default function AdminMensajeQuillEditor({ value, onChange, placeholder }
   }, []);
 
   return (
-    <div className="admin-mensaje-quill-wrap">
+    <div className={`admin-mensaje-quill-wrap${compact ? ' admin-mensaje-quill-compact' : ''}`}>
       <ReactQuill
         ref={quillRef}
         theme="snow"
         value={value || ''}
         onChange={onChange}
         placeholder={placeholder || 'Escriba su mensaje...'}
-        modules={MODULES}
+        modules={modules}
         formats={FORMATS}
       />
     </div>

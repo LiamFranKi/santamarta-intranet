@@ -1,28 +1,120 @@
 /**
  * Encuestas: notificaciones campanita + push al activar; aviso a admins al activar y al responder.
  */
-const { query, execute } = require('../utils/mysql');
+const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { insertNotificacionUsuario } = require('../utils/notificacionInsert');
 const { enviarPushNotificacionesIndividuales } = require('./pushNotificationService');
 
-async function obtenerDestinatariosEncuesta(colegio_id, audiencias) {
+/**
+ * Destinatarios por audiencia. Si grupo_ids tiene valores, filtra por grupos del año activo
+ * (alumno / apoderado-hijos / docente-asignatura|tutor). Admin y promotoría por audiencia no se filtran por grupo.
+ */
+async function obtenerDestinatariosEncuesta(colegio_id, audiencias, grupo_ids = [], anio = null) {
   if (!audiencias || audiencias.length === 0) return [];
-  const types = audiencias.map((a) => a.tipo);
-  if (types.includes('TODOS')) {
+  const audList = Array.isArray(audiencias)
+    ? audiencias.map((a) => (typeof a === 'object' ? a.tipo : a))
+    : [];
+  const types = audList.map((t) => String(t || '').toUpperCase());
+  const typeSet = new Set(types);
+  const gids = (grupo_ids || []).map((g) => parseInt(g, 10)).filter(Boolean);
+
+  if (gids.length === 0) {
+    if (types.includes('TODOS')) {
+      return query(
+        `SELECT id, email, tipo, personal_id FROM usuarios WHERE colegio_id = ? AND (estado = 'ACTIVO' OR estado IS NULL)`,
+        [colegio_id]
+      );
+    }
+    const parts = [];
+    if (types.includes('ALUMNO')) parts.push(`tipo = 'ALUMNO'`);
+    if (types.includes('APODERADO')) parts.push(`tipo = 'APODERADO'`);
+    if (types.includes('DOCENTE')) parts.push(`tipo = 'DOCENTE'`);
+    if (types.includes('PROMOTORIA')) parts.push(`tipo = 'PROMOTORIA'`);
+    if (types.includes('ADMINISTRADOR')) parts.push(`tipo = 'ADMINISTRADOR'`);
+    if (parts.length === 0) return [];
     return query(
-      `SELECT id, email, tipo, personal_id FROM usuarios WHERE colegio_id = ? AND (estado = 'ACTIVO' OR estado IS NULL)`,
+      `SELECT id, email, tipo, personal_id FROM usuarios WHERE colegio_id = ? AND (estado = 'ACTIVO' OR estado IS NULL) AND (${parts.join(' OR ')})`,
       [colegio_id]
     );
   }
-  const parts = [];
-  if (types.includes('ALUMNO')) parts.push(`tipo = 'ALUMNO'`);
-  if (types.includes('APODERADO')) parts.push(`tipo = 'APODERADO'`);
-  if (types.includes('DOCENTE')) parts.push(`tipo = 'DOCENTE'`);
-  if (types.includes('PROMOTORIA')) parts.push(`tipo = 'PROMOTORIA'`);
-  if (types.includes('ADMINISTRADOR')) parts.push(`tipo = 'ADMINISTRADOR'`);
-  if (parts.length === 0) return [];
-  const sql = `SELECT id, email, tipo, personal_id FROM usuarios WHERE colegio_id = ? AND (estado = 'ACTIVO' OR estado IS NULL) AND (${parts.join(' OR ')})`;
-  return query(sql, [colegio_id]);
+
+  const anioAct = anio || (await getAnioActivo(colegio_id));
+  const ph = gids.map(() => '?').join(',');
+  const ids = new Set();
+  const includeTipo = (t) => typeSet.has('TODOS') || typeSet.has(t);
+
+  if (includeTipo('ALUMNO')) {
+    const r = await query(
+      `SELECT DISTINCT u.id FROM usuarios u
+       INNER JOIN matriculas m ON m.alumno_id = u.alumno_id AND m.colegio_id = ?
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ?
+       WHERE u.colegio_id = ? AND u.tipo = 'ALUMNO' AND (m.estado = 0)
+         AND m.grupo_id IN (${ph})`,
+      [colegio_id, anioAct, colegio_id, ...gids]
+    );
+    (r || []).forEach((x) => ids.add(x.id));
+  }
+
+  if (includeTipo('DOCENTE')) {
+    const r = await query(
+      `SELECT DISTINCT u.id FROM usuarios u
+       INNER JOIN personal p ON p.id = u.personal_id
+       WHERE u.colegio_id = ? AND u.tipo = 'DOCENTE'
+         AND (
+           EXISTS (
+             SELECT 1 FROM asignaturas a
+             INNER JOIN grupos g ON g.id = a.grupo_id
+             WHERE a.personal_id = p.id AND g.colegio_id = ? AND g.anio = ? AND g.id IN (${ph})
+           )
+           OR EXISTS (
+             SELECT 1 FROM grupos g
+             WHERE g.colegio_id = ? AND g.anio = ? AND g.id IN (${ph})
+               AND (g.tutor_id = p.id OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = p.id))
+           )
+         )`,
+      [colegio_id, colegio_id, anioAct, ...gids, colegio_id, anioAct, ...gids]
+    );
+    (r || []).forEach((x) => ids.add(x.id));
+  }
+
+  if (includeTipo('APODERADO')) {
+    const r = await query(
+      `SELECT DISTINCT u.id FROM usuarios u
+       INNER JOIN apoderados ap ON ap.id = u.apoderado_id
+       INNER JOIN familias f ON f.apoderado_id = ap.id
+       INNER JOIN alumnos al ON al.id = f.alumno_id
+       INNER JOIN matriculas m ON m.alumno_id = al.id AND m.colegio_id = ?
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ?
+       WHERE u.colegio_id = ? AND u.tipo = 'APODERADO' AND (m.estado = 0)
+         AND m.grupo_id IN (${ph})`,
+      [colegio_id, anioAct, colegio_id, ...gids]
+    );
+    (r || []).forEach((x) => ids.add(x.id));
+  }
+
+  if (includeTipo('ADMINISTRADOR')) {
+    const r = await query(
+      `SELECT id FROM usuarios WHERE colegio_id = ? AND tipo = 'ADMINISTRADOR' AND (estado = 'ACTIVO' OR estado IS NULL)`,
+      [colegio_id]
+    );
+    (r || []).forEach((x) => ids.add(x.id));
+  }
+
+  if (includeTipo('PROMOTORIA')) {
+    const r = await query(
+      `SELECT id FROM usuarios WHERE colegio_id = ? AND tipo = 'PROMOTORIA' AND (estado = 'ACTIVO' OR estado IS NULL)`,
+      [colegio_id]
+    );
+    (r || []).forEach((x) => ids.add(x.id));
+  }
+
+  const allIds = [...ids];
+  if (allIds.length === 0) return [];
+  const phId = allIds.map(() => '?').join(',');
+  return query(
+    `SELECT id, email, tipo, personal_id FROM usuarios WHERE colegio_id = ? AND id IN (${phId})`,
+    [colegio_id, ...allIds]
+  );
 }
 
 /** IDs de usuarios con rol de gestión (reciben avisos administrativos de encuestas). */
@@ -187,10 +279,20 @@ async function notificarAdminsEncuestaRespondida({
  * @param {number} params.encuesta_id
  * @param {string} params.titulo
  * @param {number} params.usuario_id_emisor
- * @param {Array<{tipo:string}>} params.audiencias
+ * @param {Array<{tipo:string}|string>} params.audiencias
+ * @param {number[]} [params.grupo_ids]
+ * @param {number} [params.anio]
  */
-async function notificarEncuestaActivada({ colegio_id, encuesta_id, titulo, usuario_id_emisor, audiencias }) {
-  const dest = await obtenerDestinatariosEncuesta(colegio_id, audiencias);
+async function notificarEncuestaActivada({
+  colegio_id,
+  encuesta_id,
+  titulo,
+  usuario_id_emisor,
+  audiencias,
+  grupo_ids = [],
+  anio = null
+}) {
+  const dest = await obtenerDestinatariosEncuesta(colegio_id, audiencias, grupo_ids, anio);
   const tituloSafe = String(titulo || 'Encuesta').trim() || 'Encuesta';
   const urlDestino = '/encuestas/responder/' + encuesta_id;
   const asunto = 'Nueva encuesta disponible';

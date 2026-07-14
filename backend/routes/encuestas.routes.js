@@ -31,6 +31,107 @@ function usuarioCoincideAudiencia(user, audiencias) {
   return false;
 }
 
+async function cargarGruposIds(encuestaId) {
+  const rows = await query(`SELECT grupo_id FROM encuestas_grupos WHERE encuesta_id = ?`, [encuestaId]);
+  return (rows || []).map((r) => Number(r.grupo_id)).filter(Boolean);
+}
+
+/** Grupos del usuario en el año activo. Admin/promotoría: todos=true (bypass de filtro por grupo). */
+async function obtenerGruposUsuario(user, colegio_id, anio) {
+  const tipo = String(user.tipo || '').toUpperCase();
+  if (tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA') {
+    return { todos: true, ids: [] };
+  }
+  if (tipo === 'ALUMNO' && user.alumno_id) {
+    const r = await query(
+      `SELECT m.grupo_id FROM matriculas m
+       INNER JOIN grupos g ON g.id = m.grupo_id
+       WHERE m.alumno_id = ? AND m.colegio_id = ? AND g.anio = ?
+         AND (m.estado = 0)`,
+      [user.alumno_id, colegio_id, anio]
+    );
+    return { todos: false, ids: [...new Set((r || []).map((x) => Number(x.grupo_id)))] };
+  }
+  if ((tipo === 'DOCENTE' || tipo === 'PSICOLOGA') && user.personal_id) {
+    const asig = await query(
+      `SELECT DISTINCT g.id AS grupo_id FROM asignaturas a
+       INNER JOIN grupos g ON g.id = a.grupo_id
+       WHERE a.personal_id = ? AND g.colegio_id = ? AND g.anio = ?`,
+      [user.personal_id, colegio_id, anio]
+    );
+    const tut = await query(
+      `SELECT g.id AS grupo_id FROM grupos g
+       WHERE (g.tutor_id = ? OR (COALESCE(g.tutor_id_2, 0) > 0 AND g.tutor_id_2 = ?))
+         AND g.colegio_id = ? AND g.anio = ?`,
+      [user.personal_id, user.personal_id, colegio_id, anio]
+    );
+    const ids = [...new Set([...(asig || []), ...(tut || [])].map((x) => Number(x.grupo_id)))];
+    return { todos: false, ids };
+  }
+  if (tipo === 'APODERADO' && user.apoderado_id) {
+    const r = await query(
+      `SELECT DISTINCT g.id AS grupo_id
+       FROM familias f
+       INNER JOIN alumnos al ON al.id = f.alumno_id
+       INNER JOIN matriculas m ON m.alumno_id = al.id AND m.colegio_id = ?
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ?
+       WHERE f.apoderado_id = ? AND (m.estado = 0)`,
+      [colegio_id, anio, user.apoderado_id]
+    );
+    return { todos: false, ids: [...new Set((r || []).map((x) => Number(x.grupo_id)))] };
+  }
+  return { todos: false, ids: [] };
+}
+
+function usuarioCoincideAlcanceGrupos(user, encuestaGrupoIds, ug) {
+  if (!encuestaGrupoIds || encuestaGrupoIds.length === 0) return true;
+  const tipo = String(user.tipo || '').toUpperCase();
+  if (tipo === 'ADMINISTRADOR' || tipo === 'PROMOTORIA') return true;
+  if (ug.todos) return true;
+  const setE = new Set(encuestaGrupoIds);
+  return ug.ids.some((g) => setE.has(g));
+}
+
+async function usuarioPuedeVerEncuesta(user, colegio_id, encuestaId, audiencias) {
+  if (!usuarioCoincideAudiencia(user, audiencias)) return false;
+  const gids = await cargarGruposIds(encuestaId);
+  if (!gids.length) return true;
+  const anio = await getAnioActivo(colegio_id);
+  const ug = await obtenerGruposUsuario(user, colegio_id, anio);
+  return usuarioCoincideAlcanceGrupos(user, gids, ug);
+}
+
+function htmlTieneContenido(html) {
+  const s = String(html || '');
+  if (!s.trim()) return false;
+  if (/<img\b/i.test(s)) return true;
+  const text = s
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return text.length > 0;
+}
+
+function normalizarAlcanceGrupos(raw, gruposIds) {
+  const ids = [...new Set((gruposIds || []).map((g) => parseInt(g, 10)).filter(Boolean))];
+  let alcance = String(raw || 'TODOS').toUpperCase();
+  if (alcance !== 'GRUPOS' && alcance !== 'TODOS') alcance = 'TODOS';
+  if (ids.length > 0) alcance = 'GRUPOS';
+  if (alcance === 'TODOS') return { alcance: 'TODOS', grupos: [] };
+  return { alcance: 'GRUPOS', grupos: ids };
+}
+
+async function guardarGruposEncuesta(encuestaId, alcance, grupos) {
+  await execute(`DELETE FROM encuestas_grupos WHERE encuesta_id = ?`, [encuestaId]);
+  await execute(`UPDATE encuestas SET alcance_grupos = ? WHERE id = ?`, [alcance, encuestaId]);
+  if (alcance === 'GRUPOS') {
+    for (const gid of grupos) {
+      await execute(`INSERT INTO encuestas_grupos (encuesta_id, grupo_id) VALUES (?, ?)`, [encuestaId, gid]);
+    }
+  }
+}
+
 function encuestaVigente(enc) {
   if (!enc || String(enc.estado).toUpperCase() !== 'ACTIVO') return false;
   const today = new Date();
@@ -74,6 +175,210 @@ async function getGradoSnapshot(alumnoId, colegioId, anio) {
     grado_snapshot: grado || null,
     nivel_snapshot: r.nivel_nombre || null
   };
+}
+
+/** Etiqueta estable para agrupar stats/historial (grado + nivel). */
+function etiquetaGrupoRespuesta(grado, nivel) {
+  const g = String(grado || '').trim();
+  const n = String(nivel || '').trim();
+  if (g && n) return `${g} - ${n}`;
+  if (g) return g;
+  if (n) return n;
+  return 'Sin grupo';
+}
+
+/**
+ * Snapshot al responder: alumno por matrícula; apoderado por hijos del año activo.
+ * @returns {{ alumno_id: number|null, grado_snapshot: string|null, nivel_snapshot: string|null }}
+ */
+async function getSnapshotRespondiente(user, colegioId, anio) {
+  const tipo = String(user.tipo || '').toUpperCase();
+  if (user.alumno_id) {
+    const snap = await getGradoSnapshot(user.alumno_id, colegioId, anio);
+    return { alumno_id: user.alumno_id, ...snap };
+  }
+  if (tipo === 'APODERADO' && user.apoderado_id) {
+    const rows = await query(
+      `SELECT DISTINCT m.alumno_id, n.nombre AS nivel_nombre, g.grado, g.seccion
+       FROM familias f
+       INNER JOIN matriculas m ON m.alumno_id = f.alumno_id AND m.colegio_id = ?
+       INNER JOIN grupos g ON g.id = m.grupo_id AND g.anio = ?
+       LEFT JOIN niveles n ON n.id = g.nivel_id
+       WHERE f.apoderado_id = ? AND (m.estado = 0)
+       ORDER BY g.grado, g.seccion`,
+      [colegioId, anio, user.apoderado_id]
+    );
+    if (!rows || !rows.length) {
+      return { alumno_id: null, grado_snapshot: null, nivel_snapshot: null };
+    }
+    if (rows.length === 1) {
+      const r = rows[0];
+      const grado = [r.grado, r.seccion].filter(Boolean).join(' ').trim();
+      return {
+        alumno_id: r.alumno_id,
+        grado_snapshot: grado || null,
+        nivel_snapshot: r.nivel_nombre || null
+      };
+    }
+    const grados = [
+      ...new Set(
+        rows
+          .map((r) => [r.grado, r.seccion].filter(Boolean).join(' ').trim())
+          .filter(Boolean)
+      )
+    ];
+    const niveles = [...new Set(rows.map((r) => r.nivel_nombre).filter(Boolean))];
+    return {
+      alumno_id: rows[0].alumno_id,
+      grado_snapshot: grados.join(', ') || null,
+      nivel_snapshot: niveles.join(', ') || null
+    };
+  }
+  return { alumno_id: null, grado_snapshot: null, nivel_snapshot: null };
+}
+
+async function enriquecerGrupoHistorialFilas(filas, colegioId) {
+  const anio = await getAnioActivo(colegioId);
+  const needUserIds = [
+    ...new Set(
+      (filas || [])
+        .filter(
+          (f) =>
+            !String(f.grado_snapshot || '').trim() &&
+            String(f.rol_respondiente || f.usuario_tipo || '').toUpperCase() === 'APODERADO' &&
+            f.usuario_id
+        )
+        .map((f) => Number(f.usuario_id))
+    )
+  ];
+
+  const snapByUsuario = new Map();
+  if (needUserIds.length) {
+    const ph = needUserIds.map(() => '?').join(',');
+    const urows = await query(
+      `SELECT id, apoderado_id FROM usuarios WHERE colegio_id = ? AND id IN (${ph}) AND apoderado_id IS NOT NULL`,
+      [colegioId, ...needUserIds]
+    );
+    for (const u of urows || []) {
+      const snap = await getSnapshotRespondiente(
+        { tipo: 'APODERADO', apoderado_id: u.apoderado_id },
+        colegioId,
+        anio
+      );
+      snapByUsuario.set(Number(u.id), snap);
+    }
+  }
+
+  return (filas || []).map((f) => {
+    let grado = f.grado_snapshot;
+    let nivel = f.nivel_snapshot;
+    if ((!grado || !String(grado).trim()) && snapByUsuario.has(Number(f.usuario_id))) {
+      const snap = snapByUsuario.get(Number(f.usuario_id));
+      grado = snap.grado_snapshot || grado;
+      nivel = snap.nivel_snapshot || nivel;
+    }
+    return {
+      ...f,
+      grado_snapshot: grado,
+      nivel_snapshot: nivel,
+      grupo_etiqueta: etiquetaGrupoRespuesta(grado, nivel)
+    };
+  });
+}
+
+async function construirResultadosPreguntas(encuestaId, respuestaIds) {
+  const preguntas = await query(
+    `SELECT * FROM encuestas_preguntas WHERE encuesta_id = ? ORDER BY orden ASC, id ASC`,
+    [encuestaId]
+  );
+  const resultadosPreguntas = [];
+  const ids = Array.isArray(respuestaIds) ? respuestaIds.map((x) => Number(x)).filter(Boolean) : null;
+  if (ids && ids.length === 0) {
+    for (const p of preguntas || []) {
+      const tipo = p.tipo_interfaz || mapLegacyTipo(p.tipo_respuesta);
+      resultadosPreguntas.push({
+        pregunta_id: p.id,
+        orden: p.orden,
+        texto_pregunta: p.descripcion,
+        tipo_respuesta: tipo,
+        datos: tipo === 'escala' ? { distribucion: {}, promedio: null, total: 0 } : tipo === 'texto_corto' || tipo === 'texto_largo' ? { muestras: [] } : {}
+      });
+    }
+    return resultadosPreguntas;
+  }
+
+  const ph = ids && ids.length ? ids.map(() => '?').join(',') : null;
+  const filterR = ph ? ` AND r.id IN (${ph})` : '';
+  const paramsExtra = ph ? ids : [];
+
+  for (const p of preguntas || []) {
+    const tipo = p.tipo_interfaz || mapLegacyTipo(p.tipo_respuesta);
+    const item = {
+      pregunta_id: p.id,
+      orden: p.orden,
+      texto_pregunta: p.descripcion,
+      tipo_respuesta: tipo,
+      datos: {}
+    };
+
+    if (tipo === 'marcar' || tipo === 'lista') {
+      const det = await query(
+        `SELECT d.opciones_json FROM encuestas_respuestas_detalle d
+         INNER JOIN encuestas_respuestas r ON r.id = d.respuesta_id
+         WHERE d.pregunta_id = ? AND r.encuesta_id = ? AND d.opciones_json IS NOT NULL${filterR}`,
+        [p.id, encuestaId, ...paramsExtra]
+      );
+      const conteo = {};
+      for (const row of det || []) {
+        let arr = row.opciones_json;
+        if (typeof arr === 'string') {
+          try {
+            arr = JSON.parse(arr);
+          } catch {
+            arr = [];
+          }
+        }
+        if (!Array.isArray(arr)) arr = arr ? [arr] : [];
+        arr.forEach((op) => {
+          const k = String(op);
+          conteo[k] = (conteo[k] || 0) + 1;
+        });
+      }
+      item.datos = conteo;
+    } else if (tipo === 'escala') {
+      const det = await query(
+        `SELECT d.valor_numerico, COUNT(*) AS c
+         FROM encuestas_respuestas_detalle d
+         INNER JOIN encuestas_respuestas r ON r.id = d.respuesta_id
+         WHERE d.pregunta_id = ? AND r.encuesta_id = ? AND d.valor_numerico IS NOT NULL${filterR}
+         GROUP BY d.valor_numerico ORDER BY d.valor_numerico`,
+        [p.id, encuestaId, ...paramsExtra]
+      );
+      const dist = {};
+      let suma = 0;
+      let n = 0;
+      for (const row of det || []) {
+        const v = Number(row.valor_numerico);
+        dist[v] = Number(row.c);
+        suma += v * Number(row.c);
+        n += Number(row.c);
+      }
+      item.datos = { distribucion: dist, promedio: n > 0 ? Math.round((suma / n) * 100) / 100 : null, total: n };
+    } else if (tipo === 'texto_corto' || tipo === 'texto_largo') {
+      const det = await query(
+        `SELECT d.texto_respuesta FROM encuestas_respuestas_detalle d
+         INNER JOIN encuestas_respuestas r ON r.id = d.respuesta_id
+         WHERE d.pregunta_id = ? AND r.encuesta_id = ? AND d.texto_respuesta IS NOT NULL AND TRIM(d.texto_respuesta) <> ''${filterR}
+         ORDER BY d.id DESC LIMIT 3000`,
+        [p.id, encuestaId, ...paramsExtra]
+      );
+      item.datos = { muestras: (det || []).map((x) => x.texto_respuesta) };
+    } else {
+      item.datos = {};
+    }
+    resultadosPreguntas.push(item);
+  }
+  return resultadosPreguntas;
 }
 
 function parseOpciones(row) {
@@ -137,7 +442,7 @@ async function buscarEncuestaModalPendiente(user, colegio_id) {
   for (const e of rows || []) {
     if (!encuestaVigente(e)) continue;
     const aud = await cargarAudiencias(e.id);
-    if (usuarioCoincideAudiencia(user, aud)) {
+    if (await usuarioPuedeVerEncuesta(user, colegio_id, e.id, aud)) {
       return {
         id: e.id,
         titulo: e.titulo,
@@ -164,7 +469,13 @@ router.get('/admin/lista', authenticateToken, requireAdminOrPromotoria, async (r
     const out = [];
     for (const e of rows || []) {
       const aud = await cargarAudiencias(e.id);
-      out.push({ ...e, audiencias: aud.map((a) => a.tipo) });
+      const grupos = await cargarGruposIds(e.id);
+      out.push({
+        ...e,
+        audiencias: aud.map((a) => a.tipo),
+        grupos,
+        alcance_grupos: String(e.alcance_grupos || 'TODOS').toUpperCase() === 'GRUPOS' || grupos.length ? 'GRUPOS' : 'TODOS'
+      });
     }
     res.json({ success: true, encuestas: out });
   } catch (err) {
@@ -177,96 +488,55 @@ router.get('/admin/:id/estadisticas', authenticateToken, requireAdminOrPromotori
   try {
     const { colegio_id } = req.user;
     const id = parseInt(req.params.id, 10);
+    const grupoFiltro = req.query.grupo != null ? String(req.query.grupo).trim() : '';
     const enc = await query(`SELECT * FROM encuestas WHERE id = ? AND colegio_id = ? LIMIT 1`, [id, colegio_id]);
     if (!enc || !enc.length) return res.status(404).json({ error: 'No encontrada' });
 
-    const totalR = await query(`SELECT COUNT(*) AS c FROM encuestas_respuestas WHERE encuesta_id = ?`, [id]);
-    const totalRespuestas = totalR && totalR[0] ? Number(totalR[0].c) : 0;
-
-    const porRol = await query(
-      `SELECT rol_respondiente, COUNT(*) AS c FROM encuestas_respuestas WHERE encuesta_id = ? GROUP BY rol_respondiente`,
+    const todas = await query(
+      `SELECT id, rol_respondiente, grado_snapshot, nivel_snapshot FROM encuestas_respuestas WHERE encuesta_id = ?`,
       [id]
     );
 
-    const preguntas = await query(
-      `SELECT * FROM encuestas_preguntas WHERE encuesta_id = ? ORDER BY orden ASC, id ASC`,
-      [id]
-    );
+    const enriquecidas = (todas || []).map((r) => ({
+      ...r,
+      grupo_etiqueta: etiquetaGrupoRespuesta(r.grado_snapshot, r.nivel_snapshot)
+    }));
 
-    const resultadosPreguntas = [];
-    for (const p of preguntas || []) {
-      const tipo = p.tipo_interfaz || mapLegacyTipo(p.tipo_respuesta);
-      const item = {
-        pregunta_id: p.id,
-        orden: p.orden,
-        texto_pregunta: p.descripcion,
-        tipo_respuesta: tipo,
-        datos: {}
-      };
-
-      if (tipo === 'marcar' || tipo === 'lista') {
-        const det = await query(
-          `SELECT d.opciones_json FROM encuestas_respuestas_detalle d
-           INNER JOIN encuestas_respuestas r ON r.id = d.respuesta_id
-           WHERE d.pregunta_id = ? AND r.encuesta_id = ? AND d.opciones_json IS NOT NULL`,
-          [p.id, id]
-        );
-        const conteo = {};
-        for (const row of det || []) {
-          let arr = row.opciones_json;
-          if (typeof arr === 'string') {
-            try {
-              arr = JSON.parse(arr);
-            } catch {
-              arr = [];
-            }
-          }
-          if (!Array.isArray(arr)) arr = arr ? [arr] : [];
-          arr.forEach((op) => {
-            const k = String(op);
-            conteo[k] = (conteo[k] || 0) + 1;
-          });
-        }
-        item.datos = conteo;
-      } else if (tipo === 'escala') {
-        const det = await query(
-          `SELECT d.valor_numerico, COUNT(*) AS c
-           FROM encuestas_respuestas_detalle d
-           INNER JOIN encuestas_respuestas r ON r.id = d.respuesta_id
-           WHERE d.pregunta_id = ? AND r.encuesta_id = ? AND d.valor_numerico IS NOT NULL
-           GROUP BY d.valor_numerico ORDER BY d.valor_numerico`,
-          [p.id, id]
-        );
-        const dist = {};
-        let suma = 0;
-        let n = 0;
-        for (const row of det || []) {
-          const v = Number(row.valor_numerico);
-          dist[v] = Number(row.c);
-          suma += v * Number(row.c);
-          n += Number(row.c);
-        }
-        item.datos = { distribucion: dist, promedio: n > 0 ? Math.round((suma / n) * 100) / 100 : null, total: n };
-      } else if (tipo === 'texto_corto' || tipo === 'texto_largo') {
-        const det = await query(
-          `SELECT d.texto_respuesta FROM encuestas_respuestas_detalle d
-           INNER JOIN encuestas_respuestas r ON r.id = d.respuesta_id
-           WHERE d.pregunta_id = ? AND r.encuesta_id = ? AND d.texto_respuesta IS NOT NULL AND TRIM(d.texto_respuesta) <> ''
-           ORDER BY d.id DESC LIMIT 3000`,
-          [p.id, id]
-        );
-        item.datos = { muestras: (det || []).map((x) => x.texto_respuesta) };
-      } else {
-        item.datos = {};
-      }
-      resultadosPreguntas.push(item);
+    const totalGeneral = enriquecidas.length;
+    const porGrupoMap = new Map();
+    for (const r of enriquecidas) {
+      const k = r.grupo_etiqueta;
+      porGrupoMap.set(k, (porGrupoMap.get(k) || 0) + 1);
     }
+    const porGrupo = [...porGrupoMap.entries()]
+      .map(([etiqueta, c]) => ({ etiqueta, c }))
+      .sort((a, b) => b.c - a.c || a.etiqueta.localeCompare(b.etiqueta, 'es'));
+
+    const scope =
+      grupoFiltro && grupoFiltro !== '__TODOS__' && grupoFiltro !== 'TODOS'
+        ? enriquecidas.filter((r) => r.grupo_etiqueta === grupoFiltro)
+        : enriquecidas;
+    const filtrado = !!(grupoFiltro && grupoFiltro !== '__TODOS__' && grupoFiltro !== 'TODOS');
+    const respuestaIds = scope.map((r) => r.id);
+    const totalRespuestas = scope.length;
+
+    const porRolMap = new Map();
+    for (const r of scope) {
+      const rol = r.rol_respondiente || 'OTRO';
+      porRolMap.set(rol, (porRolMap.get(rol) || 0) + 1);
+    }
+    const porRol = [...porRolMap.entries()].map(([rol_respondiente, c]) => ({ rol_respondiente, c }));
+
+    const resultadosPreguntas = await construirResultadosPreguntas(id, filtrado ? respuestaIds : null);
 
     res.json({
       success: true,
       encuesta: enc[0],
+      totalGeneral,
       totalRespuestas,
-      porRol: porRol || [],
+      grupoSeleccionado: grupoFiltro && grupoFiltro !== '__TODOS__' ? grupoFiltro : null,
+      porGrupo,
+      porRol,
       resultadosPreguntas
     });
   } catch (err) {
@@ -317,7 +587,7 @@ router.get('/admin/:id/historial', authenticateToken, requireAdminOrPromotoria, 
     ]);
     if (!enc || !enc.length) return res.status(404).json({ error: 'No encontrada' });
 
-    const filas = await query(
+    const filasRaw = await query(
       `SELECT r.id AS respuesta_id, r.usuario_id, r.rol_respondiente, r.fecha_respuesta,
               r.grado_snapshot, r.nivel_snapshot, u.usuario AS usuario_login, u.tipo AS usuario_tipo,
               COALESCE(
@@ -336,10 +606,23 @@ router.get('/admin/:id/historial', authenticateToken, requireAdminOrPromotoria, 
       [encuestaId]
     );
 
+    const filas = await enriquecerGrupoHistorialFilas(filasRaw || [], colegio_id);
+
+    const porGrupoMap = new Map();
+    for (const f of filas) {
+      const k = f.grupo_etiqueta || 'Sin grupo';
+      porGrupoMap.set(k, (porGrupoMap.get(k) || 0) + 1);
+    }
+    const porGrupo = [...porGrupoMap.entries()]
+      .map(([etiqueta, c]) => ({ etiqueta, c }))
+      .sort((a, b) => b.c - a.c || a.etiqueta.localeCompare(b.etiqueta, 'es'));
+
     res.json({
       success: true,
       encuesta: enc[0],
-      filas: filas || []
+      filas,
+      porGrupo,
+      total: filas.length
     });
   } catch (err) {
     console.error('[encuestas] historial', err);
@@ -457,6 +740,7 @@ router.get('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req
       [id]
     );
     const audiencias = await cargarAudiencias(id);
+    const grupos = await cargarGruposIds(id);
     const preguntas = (preg || []).map((p) => ({
       id: p.id,
       orden: p.orden,
@@ -467,11 +751,15 @@ router.get('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req
       obligatoria: p.obligatoria !== 0 && p.obligatoria !== false,
       opciones: parseOpciones(p) || {}
     }));
+    const alcance =
+      String(enc[0].alcance_grupos || 'TODOS').toUpperCase() === 'GRUPOS' || grupos.length ? 'GRUPOS' : 'TODOS';
     res.json({
       success: true,
-      encuesta: enc[0],
+      encuesta: { ...enc[0], alcance_grupos: alcance },
       preguntas,
-      audiencias: audiencias.map((a) => a.tipo)
+      audiencias: audiencias.map((a) => a.tipo),
+      grupos,
+      alcance_grupos: alcance
     });
   } catch (err) {
     console.error('[encuestas] admin get', err);
@@ -491,7 +779,9 @@ router.post('/admin', authenticateToken, requireAdminOrPromotoria, async (req, r
       mensaje_agradecimiento,
       categoria_metrica,
       estado = 'ACTIVO',
-      preguntas = []
+      preguntas = [],
+      alcance_grupos,
+      grupos = []
     } = req.body;
 
     if (!titulo || !String(titulo).trim()) {
@@ -503,6 +793,11 @@ router.post('/admin', authenticateToken, requireAdminOrPromotoria, async (req, r
     }
     if (!Array.isArray(preguntas) || preguntas.length === 0) {
       return res.status(400).json({ error: 'Agrega al menos una pregunta' });
+    }
+
+    const alcanceNorm = normalizarAlcanceGrupos(alcance_grupos, grupos);
+    if (alcanceNorm.alcance === 'GRUPOS' && alcanceNorm.grupos.length === 0) {
+      return res.status(400).json({ error: 'Selecciona al menos un grupo o elige cobertura Todos' });
     }
 
     const tipoLegacy = audienciasLimpias[0] || 'APODERADO';
@@ -518,9 +813,9 @@ router.post('/admin', authenticateToken, requireAdminOrPromotoria, async (req, r
     }
 
     const ins = await execute(
-      `INSERT INTO encuestas (colegio_id, personal_id, titulo, estado, tipo, descripcion, fecha_inicio, fecha_fin, mensaje_agradecimiento, categoria_metrica, modelo_encuesta)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2)`,
-      [colegio_id, pers, String(titulo).trim(), est, tipoLegacy, desc, fi, ff, msg, cat]
+      `INSERT INTO encuestas (colegio_id, personal_id, titulo, estado, tipo, descripcion, fecha_inicio, fecha_fin, mensaje_agradecimiento, categoria_metrica, modelo_encuesta, alcance_grupos)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2, ?)`,
+      [colegio_id, pers, String(titulo).trim(), est, tipoLegacy, desc, fi, ff, msg, cat, alcanceNorm.alcance]
     );
     const encuestaId = ins.insertId;
 
@@ -528,11 +823,13 @@ router.post('/admin', authenticateToken, requireAdminOrPromotoria, async (req, r
       await execute(`INSERT INTO encuestas_audiencias (encuesta_id, tipo) VALUES (?, ?)`, [encuestaId, t]);
     }
 
+    await guardarGruposEncuesta(encuestaId, alcanceNorm.alcance, alcanceNorm.grupos);
+
     let orden = 1;
     for (const p of preguntas) {
       const ti = p.tipo_interfaz || 'texto_corto';
-      const text = String(p.texto_pregunta || p.descripcion || '').trim();
-      if (ti !== 'titulo' && !text) continue;
+      const text = String(p.texto_pregunta || p.descripcion || '');
+      if (ti !== 'titulo' && !htmlTieneContenido(text)) continue;
       const opc = p.opciones != null ? JSON.stringify(p.opciones) : null;
       const subt = p.subtitulo ? String(p.subtitulo) : null;
       const oblig = p.obligatoria !== false ? 1 : 0;
@@ -550,14 +847,16 @@ router.post('/admin', authenticateToken, requireAdminOrPromotoria, async (req, r
     if (est === 'ACTIVO') {
       setImmediate(() => {
         const tituloTrim = String(titulo).trim();
-        cargarAudiencias(encuestaId)
-          .then((aud) =>
+        Promise.all([cargarAudiencias(encuestaId), cargarGruposIds(encuestaId), getAnioActivo(colegio_id)])
+          .then(([aud, gids, anio]) =>
             notificarEncuestaActivada({
               colegio_id,
               encuesta_id: encuestaId,
               titulo: tituloTrim,
               usuario_id_emisor: usuario_id,
-              audiencias: aud
+              audiencias: aud,
+              grupo_ids: gids,
+              anio
             })
           )
           .then(() =>
@@ -598,7 +897,9 @@ router.put('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req
       mensaje_agradecimiento,
       categoria_metrica,
       estado,
-      preguntas
+      preguntas,
+      alcance_grupos,
+      grupos
     } = req.body;
 
     if (tiene && Array.isArray(preguntas) && preguntas.length > 0) {
@@ -613,6 +914,18 @@ router.put('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req
     if (estadoFinal !== 'ACTIVO' && estadoFinal !== 'INACTIVO') {
       return res.status(400).json({ error: 'Estado debe ser ACTIVO o INACTIVO' });
     }
+
+    let alcanceNorm = null;
+    if (!tiene && (alcance_grupos !== undefined || grupos !== undefined)) {
+      alcanceNorm = normalizarAlcanceGrupos(
+        alcance_grupos !== undefined ? alcance_grupos : cur.alcance_grupos,
+        Array.isArray(grupos) ? grupos : []
+      );
+      if (alcanceNorm.alcance === 'GRUPOS' && alcanceNorm.grupos.length === 0) {
+        return res.status(400).json({ error: 'Selecciona al menos un grupo o elige cobertura Todos' });
+      }
+    }
+
     await execute(
       `UPDATE encuestas SET titulo = ?, descripcion = ?, fecha_inicio = ?, fecha_fin = ?, mensaje_agradecimiento = ?, categoria_metrica = ?, estado = ?
        WHERE id = ? AND colegio_id = ?`,
@@ -640,13 +953,17 @@ router.put('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req
       }
     }
 
+    if (alcanceNorm) {
+      await guardarGruposEncuesta(id, alcanceNorm.alcance, alcanceNorm.grupos);
+    }
+
     if (!tiene && Array.isArray(preguntas)) {
       await execute(`DELETE FROM encuestas_preguntas WHERE encuesta_id = ?`, [id]);
       let orden = 1;
       for (const p of preguntas) {
         const ti = p.tipo_interfaz || 'texto_corto';
-        const text = String(p.texto_pregunta || p.descripcion || '').trim();
-        if (ti !== 'titulo' && !text) continue;
+        const text = String(p.texto_pregunta || p.descripcion || '');
+        if (ti !== 'titulo' && !htmlTieneContenido(text)) continue;
         const opc = p.opciones != null ? JSON.stringify(p.opciones) : null;
         const subt = p.subtitulo ? String(p.subtitulo) : null;
         const oblig = p.obligatoria !== false ? 1 : 0;
@@ -664,14 +981,16 @@ router.put('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (req
     if (newEstado === 'ACTIVO' && oldEstado !== 'ACTIVO') {
       setImmediate(() => {
         const tituloN = titulo != null ? String(titulo).trim() : cur.titulo;
-        cargarAudiencias(id)
-          .then((aud) =>
+        Promise.all([cargarAudiencias(id), cargarGruposIds(id), getAnioActivo(colegio_id)])
+          .then(([aud, gids, anio]) =>
             notificarEncuestaActivada({
               colegio_id,
               encuesta_id: id,
               titulo: tituloN,
               usuario_id_emisor: usuarioIdAdmin,
-              audiencias: aud
+              audiencias: aud,
+              grupo_ids: gids,
+              anio
             })
           )
           .then(() =>
@@ -709,6 +1028,7 @@ router.delete('/admin/:id', authenticateToken, requireAdminOrPromotoria, async (
     await execute(`DELETE FROM encuestas_respuestas WHERE encuesta_id = ?`, [id]);
     await execute(`DELETE FROM encuestas_modal_visto WHERE encuesta_id = ?`, [id]);
     await execute(`DELETE FROM encuestas_audiencias WHERE encuesta_id = ?`, [id]);
+    await execute(`DELETE FROM encuestas_grupos WHERE encuesta_id = ?`, [id]);
     await execute(`DELETE FROM encuestas_preguntas WHERE encuesta_id = ?`, [id]);
     const r = await execute(`DELETE FROM encuestas WHERE id = ? AND colegio_id = ?`, [id, colegio_id]);
     if (!r.affectedRows) return res.status(404).json({ error: 'No encontrada' });
@@ -763,7 +1083,7 @@ router.get('/mis-disponibles', authenticateToken, async (req, res) => {
     for (const e of rows || []) {
       if (!encuestaVigente(e)) continue;
       const aud = await cargarAudiencias(e.id);
-      if (!usuarioCoincideAudiencia(user, aud)) continue;
+      if (!(await usuarioPuedeVerEncuesta(user, colegio_id, e.id, aud))) continue;
       const ya = await query(
         `SELECT id FROM encuestas_respuestas WHERE encuesta_id = ? AND usuario_id = ? LIMIT 1`,
         [e.id, user.usuario_id]
@@ -793,8 +1113,8 @@ router.get('/contestar/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Encuesta no disponible' });
     }
     const aud = await cargarAudiencias(id);
-    if (!usuarioCoincideAudiencia(user, aud)) {
-      return res.status(403).json({ error: 'No está dirigida a tu perfil' });
+    if (!(await usuarioPuedeVerEncuesta(user, colegio_id, id, aud))) {
+      return res.status(403).json({ error: 'No está dirigida a tu perfil o grupo' });
     }
     const ya = await query(
       `SELECT id FROM encuestas_respuestas WHERE encuesta_id = ? AND usuario_id = ? LIMIT 1`,
@@ -842,8 +1162,8 @@ router.post('/contestar/:id', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Encuesta no disponible' });
     }
     const aud = await cargarAudiencias(id);
-    if (!usuarioCoincideAudiencia(user, aud)) {
-      return res.status(403).json({ error: 'No está dirigida a tu perfil' });
+    if (!(await usuarioPuedeVerEncuesta(user, colegio_id, id, aud))) {
+      return res.status(403).json({ error: 'No está dirigida a tu perfil o grupo' });
     }
 
     const ya = await query(`SELECT id FROM encuestas_respuestas WHERE encuesta_id = ? AND usuario_id = ? LIMIT 1`, [
@@ -861,7 +1181,7 @@ router.post('/contestar/:id', authenticateToken, async (req, res) => {
     const byId = new Map((preguntas || []).map((p) => [p.id, p]));
 
     const anio = await getAnioActivo(colegio_id);
-    const snap = await getGradoSnapshot(alumno_id, colegio_id, anio);
+    const snap = await getSnapshotRespondiente(user, colegio_id, anio);
 
     const mapR = {};
     if (Array.isArray(bodyRespuestas)) {
@@ -891,7 +1211,7 @@ router.post('/contestar/:id', authenticateToken, async (req, res) => {
         colegio_id,
         usuario_id,
         tipo,
-        alumno_id || null,
+        snap.alumno_id || alumno_id || null,
         snap.grado_snapshot,
         snap.nivel_snapshot
       ]
