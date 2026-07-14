@@ -398,6 +398,7 @@ router.get('/dashboard', async (req, res) => {
        INNER JOIN cursos c ON c.id = a.curso_id
        INNER JOIN personal p ON p.id = a.personal_id
        WHERE a.grupo_id = ? AND a.colegio_id = ? AND g.anio = ?
+       AND t.fecha_entrega IS NOT NULL
        AND DATE(t.fecha_entrega) >= DATE(NOW())
        ORDER BY t.fecha_entrega ASC
        LIMIT 10`,
@@ -4981,13 +4982,19 @@ router.post('/aula-virtual/tareas/:tareaId/entregar', async (req, res) => {
       return res.status(404).json({ error: 'Tarea no encontrada o sin permisos' });
     }
 
+    if (!tarea[0].fecha_entrega) {
+      return res.status(400).json({
+        error: 'Este proyecto no requiere entrega por la plataforma (sin fecha de entrega).',
+      });
+    }
+
     // Verificar que la fecha de entrega no haya pasado
     const fechaEntrega = new Date(tarea[0].fecha_entrega);
     const hoy = new Date();
     hoy.setHours(0, 0, 0, 0);
     fechaEntrega.setHours(0, 0, 0, 0);
 
-    if (hoy > fechaEntrega) {
+    if (Number.isNaN(fechaEntrega.getTime()) || hoy > fechaEntrega) {
       return res.status(400).json({ error: 'La fecha de entrega ya ha pasado' });
     }
 

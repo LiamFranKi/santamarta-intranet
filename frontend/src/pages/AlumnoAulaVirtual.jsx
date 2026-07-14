@@ -412,7 +412,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                     {tarea.fecha_entrega ? (
                       new Date(tarea.fecha_entrega).toLocaleDateString('es-PE')
                     ) : (
-                      '-'
+                      'Sin fecha'
                     )}
                   </td>
                   <td className="text-center">
@@ -1167,7 +1167,7 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
                           month: '2-digit',
                           year: 'numeric'
                         })
-                      ) : '-'}
+                      ) : 'Sin fecha (solo material)'}
                     </td>
                   </tr>
                   <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
@@ -1315,7 +1315,23 @@ function AlumnoAulaVirtual({ cursoId: cursoIdProp, isApoderado = false, hijoId =
               </table>
             </div>
             
-            {/* Formulario para enviar trabajo */}
+            {/* Sin fecha: solo material; el docente califica a mano (sin entrega por plataforma) */}
+            {!tareaDetalle.fecha_entrega && !modoSoloLectura && (
+              <div style={{
+                marginTop: '2rem',
+                padding: '1rem 1.25rem',
+                backgroundColor: '#f0f9ff',
+                borderRadius: '8px',
+                border: '1px solid #bae6fd',
+                color: '#0c4a6e',
+                fontSize: '0.9375rem',
+                lineHeight: 1.5
+              }}>
+                Este proyecto no tiene fecha de entrega. Revisa el material; el docente calificará a mano. No es necesario enviar trabajo por la plataforma.
+              </div>
+            )}
+
+            {/* Formulario para enviar trabajo (solo si hay fecha vigente) */}
             {tareaDetalle.fecha_entrega && new Date(tareaDetalle.fecha_entrega) >= new Date(new Date().setHours(0, 0, 0, 0)) && !modoSoloLectura && (
               <div style={{
                 marginTop: '2rem',

@@ -1022,11 +1022,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
   const handleCrearTarea = async (e) => {
     e.preventDefault();
     
-    if (!formTarea.titulo || !formTarea.fecha_entrega || !formTarea.ciclo) {
+    if (!formTarea.titulo || !formTarea.ciclo) {
       Swal.fire({
         icon: 'error',
         title: 'Error',
-        text: 'Título, Fecha de Entrega y Bimestre son requeridos',
+        text: 'Título y Bimestre son requeridos',
         toast: true,
         position: 'top-end',
         showConfirmButton: false,
@@ -1074,7 +1074,7 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
       formData.append('asignatura_id', asignaturaId);
       formData.append('titulo', formTarea.titulo);
       formData.append('descripcion', formTarea.descripcion || '');
-      formData.append('fecha_entrega', formTarea.fecha_entrega);
+      formData.append('fecha_entrega', formTarea.fecha_entrega || '');
       formData.append('ciclo', formTarea.ciclo);
       
       if (formTarea.archivo) {
@@ -1851,11 +1851,13 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                   <tr>
                     <td className="tarea-detalle-label">FECHA DE ENTREGA</td>
                     <td className="tarea-detalle-value">
-                      {new Date(tareaDetalle.fecha_entrega).toLocaleDateString('es-PE', { 
-                        day: '2-digit', 
-                        month: '2-digit', 
-                        year: 'numeric' 
-                      })}
+                      {tareaDetalle.fecha_entrega
+                        ? new Date(tareaDetalle.fecha_entrega).toLocaleDateString('es-PE', {
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric',
+                          })
+                        : 'Sin fecha (solo material)'}
                     </td>
                   </tr>
                   <tr>
@@ -1924,7 +1926,11 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
               <tr key={tarea.id}>
                 <td className="text-center">{tarea.titulo}</td>
                 <td className="text-center">{new Date(tarea.fecha_hora).toLocaleDateString('es-PE')}</td>
-                <td className="text-center">{new Date(tarea.fecha_entrega).toLocaleDateString('es-PE')}</td>
+                <td className="text-center">
+                  {tarea.fecha_entrega
+                    ? new Date(tarea.fecha_entrega).toLocaleDateString('es-PE')
+                    : 'Sin fecha'}
+                </td>
                 <td className="text-center">
                   <div className="btn-group-opciones">
                     <button 
@@ -3976,10 +3982,10 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                     />
                   </div>
 
-                  {/* Campo Fecha de Entrega */}
+                  {/* Campo Fecha de Entrega — opcional: sin fecha = solo material, sin 0 automático */}
                   <div className="form-group">
                     <label htmlFor="tarea-fecha-entrega">
-                      Fecha de Entrega *
+                      Fecha de Entrega
                     </label>
                     <input
                       type="date"
@@ -3987,8 +3993,10 @@ function DocenteAulaVirtual({ tutorGrupoId = null, cursoIdTutor = null } = {}) {
                       className="form-input"
                       value={formTarea.fecha_entrega}
                       onChange={(e) => setFormTarea({ ...formTarea, fecha_entrega: e.target.value })}
-                      required
                     />
+                    <small className="form-help-text">
+                      Opcional. Si la deja vacía, el alumno solo ve el material (sin entrega por plataforma) y usted califica a mano; no se asigna 0 automático. Si pone fecha, se mantiene el flujo actual de plazo y avisos.
+                    </small>
                   </div>
 
                   {/* Campo Bimestre */}

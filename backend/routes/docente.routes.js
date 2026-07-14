@@ -1541,6 +1541,7 @@ router.get('/dashboard', async (req, res) => {
        INNER JOIN cursos c ON c.id = a.curso_id
        INNER JOIN personal p ON p.id = a.personal_id
        WHERE a.personal_id = ? AND a.colegio_id = ? AND g.anio = ?
+       AND t.fecha_entrega IS NOT NULL
        AND DATE(t.fecha_entrega) >= DATE(NOW())
        ORDER BY t.fecha_entrega ASC`,
       [docente.id, colegio_id, anio_activo]
@@ -17498,9 +17499,16 @@ router.post('/aula-virtual/tareas', uploadAulaVirtual.single('archivo'), async (
     const { usuario_id, colegio_id, anio_activo, personal_id } = req.user;
     const { asignatura_id, titulo, descripcion, fecha_entrega, ciclo, enlace } = req.body;
 
-    if (!asignatura_id || !titulo || !fecha_entrega || !ciclo) {
-      return res.status(400).json({ error: 'asignatura_id, titulo, fecha_entrega y ciclo son requeridos' });
+    if (!asignatura_id || !titulo || !ciclo) {
+      return res.status(400).json({ error: 'asignatura_id, titulo y ciclo son requeridos' });
     }
+
+    // Vacío = proyecto sin plazo (solo material; sin 0 automático). Con fecha = flujo actual.
+    const fechaEntregaNormalizada = (() => {
+      const s = String(fecha_entrega || '').trim();
+      if (!s || s === 'null' || s === 'undefined') return null;
+      return s.slice(0, 10);
+    })();
 
     if (!req.file && !enlace) {
       return res.status(400).json({ error: 'Debe proporcionar al menos un archivo o una URL' });
@@ -17534,7 +17542,7 @@ router.post('/aula-virtual/tareas', uploadAulaVirtual.single('archivo'), async (
     }
 
     // Preparar datos para auditoría
-    const datosNuevos = { titulo, descripcion, fecha_entrega, ciclo, archivo: archivoPath, enlace };
+    const datosNuevos = { titulo, descripcion, fecha_entrega: fechaEntregaNormalizada, ciclo, archivo: archivoPath, enlace };
 
     // Registrar auditoría ANTES de crear
     const ahora = new Date();
@@ -17583,7 +17591,7 @@ router.post('/aula-virtual/tareas', uploadAulaVirtual.single('archivo'), async (
         titulo,
         descripcion || '',
         fechaHora,
-        fecha_entrega,
+        fechaEntregaNormalizada,
         trabajadorId,
         asignatura_id,
         parseInt(ciclo),
@@ -17623,7 +17631,7 @@ router.post('/aula-virtual/tareas', uploadAulaVirtual.single('archivo'), async (
         usuario_id,
         colegio_id,
         anio_activo,
-        fecha_entrega: fecha_entrega,
+        fecha_entrega: fechaEntregaNormalizada,
         entidad_id: result.insertId
       });
     });
@@ -17648,9 +17656,15 @@ router.put('/aula-virtual/tareas/:id', uploadAulaVirtual.single('archivo'), asyn
     const { id } = req.params;
     const { asignatura_id, titulo, descripcion, fecha_entrega, ciclo, enlace } = req.body;
 
-    if (!titulo || !fecha_entrega || !ciclo) {
-      return res.status(400).json({ error: 'titulo, fecha_entrega y ciclo son requeridos' });
+    if (!titulo || !ciclo) {
+      return res.status(400).json({ error: 'titulo y ciclo son requeridos' });
     }
+
+    const fechaEntregaNormalizada = (() => {
+      const s = String(fecha_entrega || '').trim();
+      if (!s || s === 'null' || s === 'undefined') return null;
+      return s.slice(0, 10);
+    })();
 
     const tareaActual = await verificarAccesoTarea(req, res, id, 't.*');
     if (!tareaActual) return;
@@ -17682,7 +17696,7 @@ router.put('/aula-virtual/tareas/:id', uploadAulaVirtual.single('archivo'), asyn
     }
 
     // Preparar datos nuevos para auditoría
-    const datosNuevos = { titulo, descripcion, fecha_entrega, ciclo, archivo: archivoPath, enlace };
+    const datosNuevos = { titulo, descripcion, fecha_entrega: fechaEntregaNormalizada, ciclo, archivo: archivoPath, enlace };
 
     // Registrar auditoría ANTES de actualizar
     registrarAccion({
@@ -17711,7 +17725,7 @@ router.put('/aula-virtual/tareas/:id', uploadAulaVirtual.single('archivo'), asyn
       [
         titulo,
         descripcion || '',
-        fecha_entrega,
+        fechaEntregaNormalizada,
         parseInt(ciclo),
         enlace || '',
         id
@@ -21052,7 +21066,7 @@ router.post('/aula-virtual/copiar-biblioteca', async (req, res) => {
         const resultado = await execute(
           `INSERT INTO asignaturas_tareas (titulo, descripcion, fecha_hora, fecha_entrega, trabajador_id, asignatura_id, ciclo)
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [t.titulo, t.descripcion || '', fechaHoraMySQLLima(), t.fecha_entrega || new Date(), trabajadorId, asignatura_id, t.ciclo]
+          [t.titulo, t.descripcion || '', fechaHoraMySQLLima(), t.fecha_entrega || null, trabajadorId, asignatura_id, t.ciclo]
         );
         const nuevaTareaId = resultado.insertId;
         const archivosTarea = await query(`SELECT * FROM asignaturas_tareas_archivos WHERE tarea_id = ?`, [item_id]);
@@ -23029,7 +23043,8 @@ async function verificarTareasPorVencer() {
          INNER JOIN personal p ON p.id = a.personal_id
          INNER JOIN grupos g ON g.id = a.grupo_id
          LEFT JOIN niveles n ON n.id = g.nivel_id
-         WHERE DATE(t.fecha_entrega) >= DATE(NOW())
+         WHERE t.fecha_entrega IS NOT NULL
+           AND DATE(t.fecha_entrega) >= DATE(NOW())
            AND DATE(t.fecha_entrega) <= DATE(DATE_ADD(NOW(), INTERVAL 3 DAY))
            AND a.colegio_id = ?
            AND g.anio = ?
@@ -23427,7 +23442,8 @@ async function verificarTareasVencidasSinEntrega() {
          INNER JOIN personal p ON p.id = a.personal_id
          INNER JOIN grupos g ON g.id = a.grupo_id
          LEFT JOIN niveles n ON n.id = g.nivel_id
-         WHERE DATE(t.fecha_entrega) < DATE(NOW())
+         WHERE t.fecha_entrega IS NOT NULL
+           AND DATE(t.fecha_entrega) < DATE(NOW())
            AND a.colegio_id = ?
            AND g.anio = ?
          ORDER BY t.fecha_entrega DESC`,
