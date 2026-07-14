@@ -2526,9 +2526,14 @@ function ApoderadoHijos() {
       doc.setFont('helvetica', 'bold'); // Texto en negrita
       doc.text('Dirección Académica', firmaX + firmaWidth / 2, yPos, { align: 'center' });
 
+      // Hijos a Cargo → Ver Libreta: por ahora solo la Boleta de Información Académica.
+      // Código conservado; poner en true para volver a incluir estas hojas.
+      const INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA = false;
+      const INCLUIR_HOJA_ORDEN_MERITO_LIBRETA = false;
+
       // Sección Detalle de Notas (explicaciones del docente por curso) — antes del Reporte de Orden de Mérito
       let detalleNotas = datosLibreta.detalle_notas || [];
-      if (detalleNotas.length === 0 && datosLibreta.areas) {
+      if (INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA && detalleNotas.length === 0 && datosLibreta.areas) {
         const items = [];
         (datosLibreta.areas || []).forEach(ar => {
           (ar.asignaturas || []).forEach(as => {
@@ -2542,7 +2547,7 @@ function ApoderadoHijos() {
         });
         detalleNotas = items;
       }
-      if (detalleNotas.length > 0) {
+      if (INCLUIR_HOJA_DETALLE_NOTAS_LIBRETA && detalleNotas.length > 0) {
         doc.addPage();
         let yDet = margin + 12;
         doc.setFont('helvetica', 'bold');
@@ -2604,7 +2609,7 @@ function ApoderadoHijos() {
 
       // Segunda hoja(s): lista de verificación orden de mérito por bimestre (solo libretas numéricas)
       const ordenMeritoDetalle = datosLibreta.resumen?.orden_merito_detalle;
-      if (ordenMeritoDetalle && cicloSel >= 1) {
+      if (INCLUIR_HOJA_ORDEN_MERITO_LIBRETA && ordenMeritoDetalle && cicloSel >= 1) {
         const bimestresLabel = ['I', 'II', 'III', 'IV'];
         const colPuesto = 18;
         const colPromedio = 28;
