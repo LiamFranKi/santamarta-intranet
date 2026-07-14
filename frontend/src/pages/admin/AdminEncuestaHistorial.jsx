@@ -93,7 +93,11 @@ export default function AdminEncuestaHistorial() {
       if (!map.has(k)) map.set(k, []);
       map.get(k).push(f);
     }
-    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0], 'es'));
+    return [...map.entries()].sort((a, b) => {
+      if (a[0] === 'Apoderados') return -1;
+      if (b[0] === 'Apoderados') return 1;
+      return a[0].localeCompare(b[0], 'es');
+    });
   }, [filasFiltradas]);
 
   const abrirDetalle = async (respuestaId) => {
@@ -153,7 +157,15 @@ export default function AdminEncuestaHistorial() {
               </td>
               <td>{f.rol_respondiente}</td>
               <td>{fmtFecha(f.fecha_respuesta)}</td>
-              <td>{f.grupo_etiqueta || '—'}</td>
+              <td>
+                {f.grupo_etiqueta || '—'}
+                {String(f.rol_respondiente || '').toUpperCase() === 'APODERADO' &&
+                (f.grado_snapshot || f.nivel_snapshot) ? (
+                  <div style={{ fontSize: '0.72rem', color: '#6b7280', marginTop: 2 }}>
+                    Hijos: {[f.grado_snapshot, f.nivel_snapshot].filter(Boolean).join(' · ')}
+                  </div>
+                ) : null}
+              </td>
               <td>
                 <button
                   type="button"

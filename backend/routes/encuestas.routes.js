@@ -188,6 +188,15 @@ function etiquetaGrupoRespuesta(grado, nivel) {
 }
 
 /**
+ * Agrupa todos los apoderados en un solo bucket (un apoderado puede tener hijos en varios grados).
+ * Alumnos / otros roles siguen por grado · nivel.
+ */
+function etiquetaGrupoPorRol(rol, grado, nivel) {
+  if (String(rol || '').toUpperCase() === 'APODERADO') return 'Apoderados';
+  return etiquetaGrupoRespuesta(grado, nivel);
+}
+
+/**
  * Snapshot al responder: alumno por matrícula; apoderado por hijos del año activo.
  * @returns {{ alumno_id: number|null, grado_snapshot: string|null, nivel_snapshot: string|null }}
  */
@@ -281,7 +290,7 @@ async function enriquecerGrupoHistorialFilas(filas, colegioId) {
       ...f,
       grado_snapshot: grado,
       nivel_snapshot: nivel,
-      grupo_etiqueta: etiquetaGrupoRespuesta(grado, nivel)
+      grupo_etiqueta: etiquetaGrupoPorRol(f.rol_respondiente || f.usuario_tipo, grado, nivel)
     };
   });
 }
@@ -499,7 +508,7 @@ router.get('/admin/:id/estadisticas', authenticateToken, requireAdminOrPromotori
 
     const enriquecidas = (todas || []).map((r) => ({
       ...r,
-      grupo_etiqueta: etiquetaGrupoRespuesta(r.grado_snapshot, r.nivel_snapshot)
+      grupo_etiqueta: etiquetaGrupoPorRol(r.rol_respondiente, r.grado_snapshot, r.nivel_snapshot)
     }));
 
     const totalGeneral = enriquecidas.length;
@@ -510,7 +519,11 @@ router.get('/admin/:id/estadisticas', authenticateToken, requireAdminOrPromotori
     }
     const porGrupo = [...porGrupoMap.entries()]
       .map(([etiqueta, c]) => ({ etiqueta, c }))
-      .sort((a, b) => b.c - a.c || a.etiqueta.localeCompare(b.etiqueta, 'es'));
+      .sort((a, b) => {
+        if (a.etiqueta === 'Apoderados') return -1;
+        if (b.etiqueta === 'Apoderados') return 1;
+        return b.c - a.c || a.etiqueta.localeCompare(b.etiqueta, 'es');
+      });
 
     const scope =
       grupoFiltro && grupoFiltro !== '__TODOS__' && grupoFiltro !== 'TODOS'
@@ -615,7 +628,11 @@ router.get('/admin/:id/historial', authenticateToken, requireAdminOrPromotoria, 
     }
     const porGrupo = [...porGrupoMap.entries()]
       .map(([etiqueta, c]) => ({ etiqueta, c }))
-      .sort((a, b) => b.c - a.c || a.etiqueta.localeCompare(b.etiqueta, 'es'));
+      .sort((a, b) => {
+        if (a.etiqueta === 'Apoderados') return -1;
+        if (b.etiqueta === 'Apoderados') return 1;
+        return b.c - a.c || a.etiqueta.localeCompare(b.etiqueta, 'es');
+      });
 
     res.json({
       success: true,
