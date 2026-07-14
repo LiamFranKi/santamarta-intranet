@@ -115,7 +115,7 @@ function HistorialBcp({ anio }) {
     const ok = await Swal.fire({
       icon: 'question',
       title: 'Boletear lote',
-      text: `¿Generar ZIP de boletas para "${row.archivo}"?`,
+      text: `¿Boletear los pagos de "${row.archivo}"? (no descarga ZIP)`,
       showCancelButton: true,
       confirmButtonText: 'Sí, boletear',
     });
@@ -123,27 +123,18 @@ function HistorialBcp({ anio }) {
 
     setBoleteandoId(row.id);
     try {
-      const { data, headers } = await api.post(
-        `/admin/pagos/bcp/historial/${row.id}/boletear`,
-        {},
-        { responseType: 'blob' }
-      );
-      const disp = headers['content-disposition'] || '';
-      const m = disp.match(/filename=([^;]+)/i);
-      const filename = m ? m[1].replace(/"/g, '') : 'boletas.zip';
-      descargarBlob(data, filename);
-      const count = headers['x-boletas-count'];
+      const { data } = await api.post(`/admin/pagos/bcp/historial/${row.id}/boletear`, {});
       Swal.fire({
         icon: 'success',
-        title: 'Boletas generadas',
-        text: count ? `${count} comprobante(s) en el ZIP.` : 'Descarga iniciada.',
+        title: 'Lote boleteado',
+        text: data?.mensaje || (data?.boletas ? `${data.boletas} pago(s) boleteados.` : 'Listo.'),
         timer: 2200,
         showConfirmButton: false,
       });
       cargar(page, pageSize);
       window.dispatchEvent(new Event('pe-bcp-historial-refresh'));
     } catch (e) {
-      const msg = await parseErrorBlob(e, 'No se pudo boletear el lote');
+      const msg = e.response?.data?.error || e.message || 'No se pudo boletear el lote';
       Swal.fire({ icon: 'error', text: msg });
     } finally {
       setBoleteandoId(null);

@@ -4,7 +4,7 @@
  */
 const crypto = require('crypto');
 const { PassThrough } = require('stream');
-const archiver = require('archiver');
+const archiverMod = require('archiver');
 const { query, execute } = require('./mysql');
 const { cargarBcpColegioConfig } = require('./bcpColegioConfig');
 const { parseHistorialPagoIds } = require('./bcpCdpgImport');
@@ -25,6 +25,19 @@ const {
 
 const SQL_MATRICULA_VISIBLE = `(m.ocultar IS NULL OR m.ocultar = '' OR UPPER(TRIM(m.ocultar)) = 'NO')`;
 
+/** Compatible con archiver v5 (función) y v8 (clase ZipArchive). */
+function createZipArchive(options = {}) {
+  if (typeof archiverMod === 'function') {
+    return archiverMod('zip', options);
+  }
+  if (archiverMod && typeof archiverMod.ZipArchive === 'function') {
+    return new archiverMod.ZipArchive(options);
+  }
+  const err = new Error('Módulo archiver inválido (se requiere v5 función o v8 ZipArchive)');
+  err.code = 'ARCHIVER_INVALID';
+  throw err;
+}
+
 async function buildZipBuffer(files) {
   return new Promise((resolve, reject) => {
     const chunks = [];
@@ -33,7 +46,13 @@ async function buildZipBuffer(files) {
     passthrough.on('end', () => resolve(Buffer.concat(chunks)));
     passthrough.on('error', reject);
 
-    const archive = archiver('zip', { zlib: { level: 9 } });
+    let archive;
+    try {
+      archive = createZipArchive({ zlib: { level: 9 } });
+    } catch (e) {
+      reject(e);
+      return;
+    }
     archive.on('error', reject);
     archive.pipe(passthrough);
 
@@ -268,6 +287,7 @@ async function boletearMoras(colegioId, { from, to, cantidad }) {
 
 /**
  * Boletear lote de un archivo CDPG importado (historial pagos_historial).
+ * Solo crea/marca impresiones como IMPRESAS y marca el historial; no genera ZIP.
  */
 async function boletearHistorialImportacion(colegioId, historialId) {
   const id = parseInt(historialId, 10);
@@ -289,7 +309,7 @@ async function boletearHistorialImportacion(colegioId, historialId) {
     return { ok: false, status: 400, error: 'El historial no contiene pagos para boletear.' };
   }
 
-  const impresionesPendientes = [];
+  let boletas = 0;
 
   for (const pagoId of pagoIds) {
     const ens = await ensurePagoImpresionActiva({
@@ -301,30 +321,27 @@ async function boletearHistorialImportacion(colegioId, historialId) {
     if (!ens.ok || !ens.impresion) continue;
 
     const imp = ens.impresion;
-    impresionesPendientes.push(imp);
     if (impresoPendiente(imp)) {
       await marcarImpresionComoImpresa(imp.id);
     }
+    boletas += 1;
   }
 
-  const files = [];
-  for (const imp of impresionesPendientes) {
-    const json = await jsonDesdeImpresion(colegioId, imp);
-    if (json) files.push(json);
-  }
-
-  if (!files.length) {
-    return { ok: false, status: 400, error: 'No se pudieron generar boletas para este lote.' };
+  if (!boletas) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'No se pudo boletear ningún pago de este lote (revise que los pagos existan).',
+    };
   }
 
   await execute(`UPDATE pagos_historial SET impreso = 'SI' WHERE id = ? AND colegio_id = ?`, [id, colegioId]);
 
-  const buffer = await buildZipBuffer(files);
   return {
     ok: true,
-    buffer,
-    filename: zipFilename(),
-    boletas: files.length,
+    sin_zip: true,
+    boletas,
+    mensaje: `Se boletearon ${boletas} pago(s). El lote quedó marcado como BOLETAS IMPRESAS.`,
   };
 }
 

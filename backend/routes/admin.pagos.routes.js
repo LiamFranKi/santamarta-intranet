@@ -217,17 +217,18 @@ router.get('/bcp/historial/:id', async (req, res) => {
   }
 });
 
-/** POST /api/admin/pagos/bcp/historial/:id/boletear — ZIP boletas del lote */
+/** POST /api/admin/pagos/bcp/historial/:id/boletear — marca boletas del lote (sin ZIP) */
 router.post('/bcp/historial/:id/boletear', async (req, res) => {
   try {
     const result = await boletearHistorialImportacion(colegioId(req), req.params.id);
     if (!result.ok) {
       return res.status(result.status || 400).json({ error: result.error });
     }
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename=${result.filename}`);
-    res.setHeader('X-Boletas-Count', String(result.boletas));
-    res.send(result.buffer);
+    res.json({
+      ok: true,
+      boletas: result.boletas,
+      mensaje: result.mensaje || `Se boletearon ${result.boletas} pago(s).`,
+    });
   } catch (e) {
     console.error('[admin/pagos/bcp/historial/:id/boletear]', e);
     res.status(500).json({ error: e.message || 'Error al boletear historial' });

@@ -71,10 +71,11 @@ async function getAdminImpresionPayload({ colegio_id, pagoId, impresionId }) {
      LEFT JOIN grupos g ON g.id = m.grupo_id
      LEFT JOIN niveles n ON n.id = g.nivel_id`;
   const colegioSelects = [
-    `c.ruc, c.razon_social, c.nombre_empresa, c.pensiones_vencimiento`,
     `c.ruc, c.razon_social, c.nombre AS nombre_empresa, c.pensiones_vencimiento`,
+    `c.ruc, c.razon_social, c.nombre_empresa, c.pensiones_vencimiento`,
     `c.ruc, c.razon_social, CAST(NULL AS CHAR) AS nombre_empresa, c.pensiones_vencimiento`,
     `c.ruc, c.razon_social, c.nombre AS nombre_empresa, CAST(NULL AS CHAR) AS pensiones_vencimiento`,
+    `CAST(NULL AS CHAR) AS ruc, CAST(NULL AS CHAR) AS razon_social, CAST(NULL AS CHAR) AS nombre_empresa, CAST(NULL AS CHAR) AS pensiones_vencimiento`,
   ];
   const variants = [
     { joinSede: true, alumnoTipo: true, inicioPensiones: true },
