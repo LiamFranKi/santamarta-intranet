@@ -527,8 +527,24 @@ export function generarPdfHistorialEncuesta({ encuesta, filas, grupoSeleccionado
     kit.y += 6.5;
 
     rows.forEach((f, i) => {
-      kit.ensure(8);
-      const rowH = 7;
+      const nombre = String(f.nombre_mostrar || f.usuario_login || 'Usuario');
+      const respuestas = Array.isArray(f.respuestas) ? f.respuestas : [];
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      const answerLines = [];
+      if (respuestas.length) {
+        for (const r of respuestas) {
+          const line = `P${r.orden}: ${String(r.respuesta || '—')}`;
+          answerLines.push(...doc.splitTextToSize(line, kit.contentW - 6));
+        }
+      } else if (f.respuestas_texto) {
+        answerLines.push(...doc.splitTextToSize(String(f.respuestas_texto), kit.contentW - 6));
+      }
+      const headerH = 7;
+      const answersH = answerLines.length ? 2 + answerLines.length * 3.4 : 0;
+      const rowH = headerH + answersH + (answerLines.length ? 1.5 : 0);
+      kit.ensure(rowH + 2);
+
       if (i % 2 === 1) {
         doc.setFillColor(248, 250, 252);
         doc.rect(kit.margin, kit.y, kit.contentW, rowH, 'F');
@@ -540,11 +556,9 @@ export function generarPdfHistorialEncuesta({ encuesta, filas, grupoSeleccionado
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(7.5);
       doc.setTextColor(...COLORS.slate);
-      const nombre = String(f.nombre_mostrar || f.usuario_login || 'Usuario');
       doc.text(doc.splitTextToSize(nombre, 74)[0], kit.margin + 2, kit.y + 4.5);
 
       const rol = String(f.rol_respondiente || '—');
-      // pill-ish for rol
       const rolW = Math.min(28, doc.getTextWidth(rol) + 4);
       const rolColor =
         rol.toUpperCase() === 'ALUMNO'
@@ -566,6 +580,17 @@ export function generarPdfHistorialEncuesta({ encuesta, filas, grupoSeleccionado
         ? new Date(f.fecha_respuesta).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })
         : '—';
       doc.text(fecha, kit.margin + 108, kit.y + 4.5);
+
+      if (answerLines.length) {
+        doc.setFontSize(7);
+        doc.setTextColor(...COLORS.slate);
+        doc.setFont('helvetica', 'normal');
+        let ay = kit.y + headerH + 2.5;
+        for (const line of answerLines) {
+          doc.text(line, kit.margin + 3, ay);
+          ay += 3.4;
+        }
+      }
 
       kit.y += rowH;
     });

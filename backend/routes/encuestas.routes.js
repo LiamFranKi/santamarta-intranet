@@ -3,9 +3,13 @@
  * Identidad y grado se toman del JWT / matrícula; no se pide nombre ni grado en el formulario.
  */
 const express = require('express');
+const path = require('path');
+const multer = require('multer');
 const router = express.Router();
 const { query, execute, getAnioActivo } = require('../utils/mysql');
 const { authenticateToken } = require('../middleware/auth');
+const { staticFsSubdir } = require('../utils/staticStorage');
+const { urlArchivoMensajeStatic } = require('../utils/mensajesHtml');
 const {
   notificarEncuestaActivada,
   notificarAdminsEncuestaActivada,
@@ -20,6 +24,103 @@ function requireAdminOrPromotoria(req, res, next) {
     return res.status(403).json({ error: 'No autorizado' });
   }
   next();
+}
+
+/** Imágenes del editor Quill (preguntas/alternativas) → Static/Archivos del intranet. */
+const encuestasEditorImagenStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      cb(null, staticFsSubdir('Archivos'));
+    } catch (e) {
+      cb(e);
+    }
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, `encuesta-editor-${uniqueSuffix}${path.extname(file.originalname || '')}`);
+  }
+});
+
+const fileFilterEncuestaImagen = (req, file, cb) => {
+  const ext = path.extname(file.originalname || '').toLowerCase();
+  const allowedExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
+  if (allowedExt.includes(ext) && file.mimetype && file.mimetype.startsWith('image/')) return cb(null, true);
+  cb(new Error('Solo imágenes (jpg, png, gif, webp)'));
+};
+
+const uploadEncuestaEditorImagen = multer({
+  storage: encuestasEditorImagenStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: fileFilterEncuestaImagen
+});
+
+function stripHtmlPlainServer(html) {
+  return String(html || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseOpcionesJsonDetalle(raw) {
+  let arr = raw;
+  if (typeof arr === 'string') {
+    try {
+      arr = JSON.parse(arr);
+    } catch {
+      arr = [];
+    }
+  }
+  if (!Array.isArray(arr)) arr = arr ? [arr] : [];
+  return arr;
+}
+
+function respuestaLegibleDesdeDetalle(row) {
+  const ti = row.tipo_interfaz || mapLegacyTipo(row.tipo_respuesta);
+  if (ti === 'titulo') return '—';
+  if (ti === 'texto_corto' || ti === 'texto_largo') {
+    return row.texto_respuesta != null ? String(row.texto_respuesta) : '';
+  }
+  if (ti === 'escala') {
+    return row.valor_numerico != null ? String(row.valor_numerico) : '—';
+  }
+  if (ti === 'marcar' || ti === 'lista') {
+    const arr = parseOpcionesJsonDetalle(row.opciones_json);
+    if (!arr.length) return '—';
+    return arr.map((op) => stripHtmlPlainServer(op) || '(opción)').join('; ');
+  }
+  return row.texto_respuesta != null ? String(row.texto_respuesta) : '—';
+}
+
+async function cargarRespuestasPorRespuestaIds(respuestaIds) {
+  const ids = [...new Set((respuestaIds || []).map((x) => Number(x)).filter(Boolean))];
+  const map = new Map();
+  if (!ids.length) return map;
+  const ph = ids.map(() => '?').join(',');
+  const det = await query(
+    `SELECT d.respuesta_id, d.pregunta_id, d.texto_respuesta, d.valor_numerico, d.opciones_json,
+            pr.descripcion AS pregunta_texto, pr.orden, pr.tipo_interfaz, pr.tipo_respuesta
+     FROM encuestas_respuestas_detalle d
+     INNER JOIN encuestas_preguntas pr ON pr.id = d.pregunta_id
+     WHERE d.respuesta_id IN (${ph})
+     ORDER BY pr.orden ASC, pr.id ASC`,
+    ids
+  );
+  for (const row of det || []) {
+    const ti = row.tipo_interfaz || mapLegacyTipo(row.tipo_respuesta);
+    if (ti === 'titulo') continue;
+    const rid = Number(row.respuesta_id);
+    if (!map.has(rid)) map.set(rid, []);
+    const preguntaPlain = stripHtmlPlainServer(row.pregunta_texto) || `Pregunta ${row.orden}`;
+    const respuestaPlain = respuestaLegibleDesdeDetalle(row);
+    map.get(rid).push({
+      orden: row.orden,
+      pregunta: preguntaPlain,
+      respuesta: respuestaPlain
+    });
+  }
+  return map;
 }
 
 /** Audiencia: filas encuestas_audiencias */
@@ -464,6 +565,28 @@ async function buscarEncuestaModalPendiente(user, colegio_id) {
 
 // ---------- Admin ----------
 
+/** Imágenes del editor de preguntas/alternativas (Quill). */
+router.post(
+  '/admin/subir-imagen',
+  authenticateToken,
+  requireAdminOrPromotoria,
+  (req, res, next) => {
+    uploadEncuestaEditorImagen.single('imagen')(req, res, (err) => {
+      if (err) return res.status(400).json({ error: err.message || 'Archivo no válido' });
+      next();
+    });
+  },
+  (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No se envió imagen' });
+      res.json({ url: urlArchivoMensajeStatic(req.file.filename) });
+    } catch (e) {
+      console.error('[encuestas] admin subir-imagen', e);
+      res.status(500).json({ error: 'Error al subir' });
+    }
+  }
+);
+
 router.get('/admin/lista', authenticateToken, requireAdminOrPromotoria, async (req, res) => {
   try {
     const { colegio_id } = req.user;
@@ -619,7 +742,18 @@ router.get('/admin/:id/historial', authenticateToken, requireAdminOrPromotoria, 
       [encuestaId]
     );
 
-    const filas = await enriquecerGrupoHistorialFilas(filasRaw || [], colegio_id);
+    const filasBase = await enriquecerGrupoHistorialFilas(filasRaw || [], colegio_id);
+    const detMap = await cargarRespuestasPorRespuestaIds(filasBase.map((f) => f.respuesta_id));
+    const filas = filasBase.map((f) => {
+      const respuestas = detMap.get(Number(f.respuesta_id)) || [];
+      return {
+        ...f,
+        respuestas,
+        respuestas_texto: respuestas
+          .map((r) => `P${r.orden}: ${r.respuesta}`)
+          .join(' | ')
+      };
+    });
 
     const porGrupoMap = new Map();
     for (const f of filas) {
@@ -694,34 +828,13 @@ router.get('/admin/:id/respuestas/:respuestaId', authenticateToken, requireAdmin
 
     const items = (det || []).map((row) => {
       const ti = row.tipo_interfaz || mapLegacyTipo(row.tipo_respuesta);
-      let respuestaLegible = '';
-      if (ti === 'titulo') {
-        respuestaLegible = '—';
-      } else if (ti === 'texto_corto' || ti === 'texto_largo') {
-        respuestaLegible = row.texto_respuesta != null ? String(row.texto_respuesta) : '';
-      } else if (ti === 'escala') {
-        respuestaLegible = row.valor_numerico != null ? String(row.valor_numerico) : '—';
-      } else if (ti === 'marcar' || ti === 'lista') {
-        let arr = row.opciones_json;
-        if (typeof arr === 'string') {
-          try {
-            arr = JSON.parse(arr);
-          } catch {
-            arr = [];
-          }
-        }
-        if (!Array.isArray(arr)) arr = arr ? [arr] : [];
-        respuestaLegible = arr.length ? arr.join(', ') : '—';
-      } else {
-        respuestaLegible = row.texto_respuesta != null ? String(row.texto_respuesta) : '—';
-      }
       return {
         pregunta_id: row.pregunta_id,
         orden: row.orden,
         texto_pregunta: row.pregunta_texto,
         subtitulo: row.subtitulo || '',
         tipo_interfaz: ti,
-        respuesta_legible: respuestaLegible
+        respuesta_legible: respuestaLegibleDesdeDetalle(row)
       };
     });
 

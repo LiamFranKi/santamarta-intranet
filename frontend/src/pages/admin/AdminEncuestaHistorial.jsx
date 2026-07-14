@@ -79,7 +79,7 @@ export default function AdminEncuestaHistorial() {
     const s = q.trim().toLowerCase();
     if (s) {
       rows = rows.filter((f) => {
-        const blob = `${f.nombre_mostrar || ''} ${f.usuario_login || ''} ${f.rol_respondiente || ''} ${f.grupo_etiqueta || ''}`.toLowerCase();
+        const blob = `${f.nombre_mostrar || ''} ${f.usuario_login || ''} ${f.rol_respondiente || ''} ${f.grupo_etiqueta || ''} ${f.respuestas_texto || ''}`.toLowerCase();
         return blob.includes(s);
       });
     }
@@ -143,6 +143,7 @@ export default function AdminEncuestaHistorial() {
           <tr>
             <th>Usuario</th>
             <th>Rol</th>
+            <th style={{ minWidth: 220 }}>Qué marcó</th>
             <th>Fecha</th>
             <th>Grupo</th>
             <th style={{ minWidth: 120 }}>Acción</th>
@@ -156,6 +157,26 @@ export default function AdminEncuestaHistorial() {
                 <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>{f.usuario_login}</div>
               </td>
               <td>{f.rol_respondiente}</td>
+              <td>
+                {(f.respuestas || []).length ? (
+                  <Stack spacing={0.5} sx={{ py: 0.5 }}>
+                    {f.respuestas.map((r, i) => (
+                      <Typography key={`${f.respuesta_id}-${i}`} variant="caption" component="div" sx={{ lineHeight: 1.35 }}>
+                        <Box component="span" sx={{ color: '#6b7280', fontWeight: 600 }}>
+                          P{r.orden}:
+                        </Box>{' '}
+                        <Box component="span" sx={{ color: '#0f172a', fontWeight: 600 }}>
+                          {r.respuesta || '—'}
+                        </Box>
+                      </Typography>
+                    ))}
+                  </Stack>
+                ) : (
+                  <Typography variant="caption" color="text.secondary">
+                    —
+                  </Typography>
+                )}
+              </td>
               <td>{fmtFecha(f.fecha_respuesta)}</td>
               <td>
                 {f.grupo_etiqueta || '—'}
@@ -223,7 +244,7 @@ export default function AdminEncuestaHistorial() {
             {titulo}
           </Typography>
           <Typography variant="caption" display="block" sx={{ mt: 1 }}>
-            Agrupado por grado/grupo. Usa el filtro para un aula, busca por nombre, o abre «Ver detalle» por respuesta.
+            Agrupado por grado/grupo. En «Qué marcó» ves las opciones elegidas; «Ver detalle» muestra la vista completa.
           </Typography>
 
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 2 }} flexWrap="wrap" useFlexGap>

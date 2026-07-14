@@ -537,6 +537,7 @@ export default function AdminEncuestaEditor() {
                   {!tieneRespuestas ? (
                     <AdminMensajeQuillEditor
                       compact
+                      uploadUrl="/encuestas/admin/subir-imagen"
                       value={p.texto_pregunta || ''}
                       onChange={(html) => actualizarPregunta(idx, 'texto_pregunta', html)}
                       placeholder="Escribe la pregunta… (formato e imágenes)"
@@ -554,6 +555,7 @@ export default function AdminEncuestaEditor() {
                   {!tieneRespuestas ? (
                     <AdminMensajeQuillEditor
                       compact
+                      uploadUrl="/encuestas/admin/subir-imagen"
                       value={p.subtitulo || ''}
                       onChange={(html) => actualizarPregunta(idx, 'subtitulo', html)}
                       placeholder="Subtítulo o ayuda…"
@@ -682,6 +684,7 @@ function OpcionesLista({ p, idx, actualizarOpciones }) {
           </Typography>
           <AdminMensajeQuillEditor
             compact
+            uploadUrl="/encuestas/admin/subir-imagen"
             value={typeof op === 'string' ? op : ''}
             onChange={(html) => {
               const nuevas = [...opts];

@@ -43,10 +43,17 @@ const FORMATS = [
 ];
 
 /**
- * Editor alineado con DocenteMensajes: imágenes vía POST /docente/mensajes/subir-imagen
+ * Editor Quill con subida de imágenes.
+ * @param {string} [uploadUrl] endpoint FormData field `imagen` (default mensajes docente)
  * @param {boolean} [compact] toolbar y altura reducidos (preguntas/opciones de encuesta)
  */
-export default function AdminMensajeQuillEditor({ value, onChange, placeholder, compact = false }) {
+export default function AdminMensajeQuillEditor({
+  value,
+  onChange,
+  placeholder,
+  compact = false,
+  uploadUrl = '/docente/mensajes/subir-imagen',
+}) {
   const quillRef = useRef(null);
   const modules = compact ? MODULES_COMPACT : MODULES;
 
@@ -74,7 +81,7 @@ export default function AdminMensajeQuillEditor({ value, onChange, placeholder, 
           try {
             const formData = new FormData();
             formData.append('imagen', file);
-            const { data } = await api.post('/docente/mensajes/subir-imagen', formData, {
+            const { data } = await api.post(uploadUrl, formData, {
               headers: { 'Content-Type': 'multipart/form-data' },
             });
             const imagenUrl = data.url;
@@ -89,7 +96,7 @@ export default function AdminMensajeQuillEditor({ value, onChange, placeholder, 
       });
     }, 0);
     return () => clearTimeout(t);
-  }, []);
+  }, [uploadUrl]);
 
   return (
     <div className={`admin-mensaje-quill-wrap${compact ? ' admin-mensaje-quill-compact' : ''}`}>
