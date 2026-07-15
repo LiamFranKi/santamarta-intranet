@@ -11,6 +11,14 @@ function toggleId(list, id) {
     : [...list, id];
 }
 
+function normCursoNombre(s) {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
 export default function ModalAsignarIndicadoresPlantilla({
   open,
   plantillaId,
@@ -51,6 +59,28 @@ export default function ModalAsignarIndicadoresPlantilla({
     const setN = new Set(nivelIds.map(String));
     return cursos.filter((c) => setN.has(String(c.nivel_id)));
   }, [meta, nivelIds]);
+
+  /** Un chip por nombre de curso; agrupa Primaria+Secundaria (ids distintos del mismo nombre). */
+  const cursosAgrupados = useMemo(() => {
+    const map = new Map();
+    for (const c of cursosVisibles) {
+      const key = normCursoNombre(c.nombre);
+      if (!key) continue;
+      if (!map.has(key)) {
+        map.set(key, {
+          key,
+          nombre: c.nombre,
+          ids: [],
+          niveles: [],
+        });
+      }
+      const g = map.get(key);
+      if (!g.ids.some((id) => String(id) === String(c.id))) g.ids.push(c.id);
+      const niv = (c.nivel_nombre || '').trim();
+      if (niv && !g.niveles.includes(niv)) g.niveles.push(niv);
+    }
+    return Array.from(map.values()).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }, [cursosVisibles]);
 
   const asignaturasVisibles = useMemo(() => {
     let list = meta?.asignaturas || [];
@@ -109,8 +139,20 @@ export default function ModalAsignarIndicadoresPlantilla({
     setAsignaturaIds([]);
   };
 
-  const onToggleCurso = (id) => {
-    setCursoIds((prev) => toggleId(prev, id));
+  const isCursoGrupoSelected = (grupo) =>
+    grupo.ids.length > 0 && grupo.ids.every((id) => cursoIds.some((x) => String(x) === String(id)));
+
+  const onToggleCursoGrupo = (grupo) => {
+    const idsStr = grupo.ids.map(String);
+    setCursoIds((prev) => {
+      const allOn = idsStr.every((id) => prev.some((x) => String(x) === id));
+      if (allOn) return prev.filter((x) => !idsStr.includes(String(x)));
+      const next = [...prev];
+      for (const id of grupo.ids) {
+        if (!next.some((x) => String(x) === String(id))) next.push(id);
+      }
+      return next;
+    });
     setAsignaturaIds([]);
   };
 
@@ -233,24 +275,24 @@ export default function ModalAsignarIndicadoresPlantilla({
             <div className="admin-ind-scope-block">
               <div className="admin-ind-scope-label">
                 <span>2 · Cursos</span>
-                <small>Vacío = todos los cursos del alcance</small>
+                <small>Vacío = todos. Mismo nombre (ej. Natación) incluye todos los niveles visibles</small>
               </div>
               <div className="admin-ind-niveles-grid">
-                {cursosVisibles.length === 0 && (
+                {cursosAgrupados.length === 0 && (
                   <p className="admin-ind-scope-empty">Sin cursos en el filtro actual.</p>
                 )}
-                {cursosVisibles.map((c) => (
+                {cursosAgrupados.map((g) => (
                   <button
-                    key={`${c.id}-${c.nivel_id}`}
+                    key={g.key}
                     type="button"
                     className={`admin-ind-nivel-chip admin-ind-nivel-chip--curso ${
-                      cursoIds.some((x) => String(x) === String(c.id)) ? 'selected' : ''
+                      isCursoGrupoSelected(g) ? 'selected' : ''
                     }`}
-                    onClick={() => onToggleCurso(c.id)}
-                    title={c.nivel_nombre}
+                    onClick={() => onToggleCursoGrupo(g)}
+                    title={g.niveles.join(', ')}
                   >
-                    {c.nombre}
-                    <em>{c.nivel_nombre}</em>
+                    {g.nombre}
+                    <em>{g.niveles.join(' · ') || '—'}</em>
                   </button>
                 ))}
               </div>

@@ -281,25 +281,29 @@
   font-family: inherit;
 }
 
-.admin-ind-btn:hover {
+.admin-ind-btn:hover:not(.admin-ind-btn-primary):not(:disabled) {
   background: #f8fafc;
 }
 
-.admin-ind-btn-primary {
-  background: linear-gradient(135deg, var(--ind-blue) 0%, var(--ind-teal) 100%);
+/* Colores literales: el modal va en portal (fuera de .admin-ind-plantillas) */
+.admin-ind-btn.admin-ind-btn-primary {
+  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
   border-color: transparent;
   color: #fff;
   box-shadow: 0 4px 14px rgba(29, 78, 216, 0.28);
 }
 
-.admin-ind-btn-primary:hover:not(:disabled) {
+.admin-ind-btn.admin-ind-btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
   filter: brightness(1.05);
+  color: #fff;
 }
 
-.admin-ind-btn-primary:disabled {
+.admin-ind-btn.admin-ind-btn-primary:disabled {
   opacity: 0.55;
   cursor: not-allowed;
   box-shadow: none;
+  color: #fff;
 }
 
 .admin-ind-btn-danger {
@@ -539,6 +543,12 @@
 
 /* Modal asignación */
 .admin-ind-modal-backdrop {
+  --ind-blue: #1d4ed8;
+  --ind-sky: #0ea5e9;
+  --ind-teal: #14b8a6;
+  --ind-muted: #64748b;
+  --ind-border: #cbd5e1;
+  --ind-text: #0f172a;
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.5);
