@@ -550,92 +550,133 @@ export default function DisenadorFichas() {
 
   return (
     <DashboardLayout>
-      <div className="voc-page">
-        <header className="voc-page-header fia-hero">
-          <div className="fia-hero-text">
-            <h1>Fichas IA</h1>
-            <p>
-              Biblioteca de fichas del colegio (teoría + ficha de aplicación). Vanguarcito estructura el contenido;
-              la plantilla Vanguard aplica diseño, logo y mascotas en el PDF.
-            </p>
-            {!config.tiene_clave_servidor ? (
-            <div className="voc-alert">
-              <strong>Sin clave en el servidor.</strong> El prepago en Google AI Studio no basta: debe agregar{' '}
-              <code>GOOGLE_AI_API_KEY</code> en <code>backend/.env</code> del VPS (clave del proyecto{' '}
-              <em>sistema-intranet</em>) y ejecutar <code>pm2 restart all</code>.
+      <div className="voc-page fia-page">
+        <header className="fia-hero fia-hero--banner">
+          <div className="fia-hero-main">
+            <div className="fia-hero-icon" aria-hidden="true">
+              ✨
             </div>
-          ) : config.verificacion && !config.verificacion.ok ? (
-            <div className="voc-alert">
-              <strong>Vanguarcito no conecta.</strong> {config.verificacion.mensaje}
-              {config.verificacion.ayuda && (
-                <>
-                  <br />
-                  <span style={{ fontSize: '0.9em' }}>{config.verificacion.ayuda}</span>
-                </>
-              )}
-              {config.verificacion.clave_sufijo && (
-                <>
-                  <br />
-                  <span style={{ fontSize: '0.85em' }}>Clave en servidor (sufijo): {config.verificacion.clave_sufijo}</span>
-                </>
-              )}
+            <div className="fia-hero-text">
+              <h1>Fichas IA</h1>
+              <p>
+                Biblioteca de fichas del colegio (teoría + ficha de aplicación). Vanguarcito estructura el
+                contenido; la plantilla Vanguard aplica diseño, logo y mascotas en el PDF.
+              </p>
+              <div className="fia-hero-meta">
+                <span className="fia-hero-chip">Colegio</span>
+                {config.vanguarcito_disponible ? (
+                  <span className="fia-hero-chip fia-hero-chip--ok">Vanguarcito listo</span>
+                ) : config.tiene_clave_servidor ? (
+                  <span className="fia-hero-chip fia-hero-chip--warn">Comprobando IA…</span>
+                ) : (
+                  <span className="fia-hero-chip fia-hero-chip--warn">Sin clave servidor</span>
+                )}
+              </div>
             </div>
-          ) : config.vanguarcito_disponible ? (
-            <div className="voc-alert" style={{ background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}>
-              Vanguarcito conectado — puede usarlo al crear o regenerar fichas.
+            <div className="fia-hero-mascota" aria-hidden="true">
+              <MascotaVanguarcitoVisual
+                src={urlMascotaVanguarcito(config)}
+                classNameImg="fia-hero-mascota-img"
+              />
             </div>
-          ) : (
-            <div className="voc-alert">Comprobando Vanguarcito…</div>
-          )}
-            {!esDocente && (
-            <details className="fia-tips">
-              <summary>💡 ¿Dónde más usar Vanguarcito sin gastar mucho en IA?</summary>
-              <ul>
-                <li>
-                  <strong>Fichas IA (aquí):</strong> solo al crear o regenerar; reutilice la misma ficha y edite
-                  puntos clave en lugar de regenerar todo.
-                </li>
-                <li>
-                  <strong>Sin IA:</strong> desmarque «Usar Vanguarcito» — la plantilla y mascotas en el PDF siguen
-                  igual; no consume Gemini.
-                </li>
-                <li>
-                  <strong>Docentes:</strong> mensaje de bienvenida en dashboard, tooltip en menú Fichas IA, PDF con
-                  mascotas (ya incluido).
-                </li>
-                <li>
-                  <strong>Alumnos:</strong> mascotas en fichas impresas y, a futuro, resúmenes cortos bajo demanda (no
-                  automáticos).
-                </li>
-                <li>
-                  <strong>Evitar costo:</strong> no regenerar en bucle; un PDF de apoyo claro reduce tokens; use
-                  instrucciones del docente en lugar de pedir todo de nuevo a la IA.
-                </li>
-              </ul>
-            </details>
-            )}
-          </div>
-          <div className="fia-hero-mascota" aria-hidden="true">
-            <MascotaVanguarcitoVisual
-              src={urlMascotaVanguarcito(config)}
-              classNameImg="fia-hero-mascota-img"
-            />
           </div>
         </header>
 
-        <section className="voc-section">
-          <div className="voc-section-head">
-            <h2>Biblioteca de fichas</h2>
-            {gruposAgregados.length > 0 && (
-              <button type="button" className="voc-btn-primary" onClick={() => abrirModal(null)} disabled={generando}>
-                + Nueva ficha
-              </button>
+        {!config.tiene_clave_servidor ? (
+          <div className="voc-alert fia-status-alert">
+            <strong>Sin clave en el servidor.</strong> El prepago en Google AI Studio no basta: debe agregar{' '}
+            <code>GOOGLE_AI_API_KEY</code> en <code>backend/.env</code> del VPS (clave del proyecto{' '}
+            <em>sistema-intranet</em>) y ejecutar <code>pm2 restart all</code>.
+          </div>
+        ) : config.verificacion && !config.verificacion.ok ? (
+          <div className="voc-alert fia-status-alert">
+            <strong>Vanguarcito no conecta.</strong> {config.verificacion.mensaje}
+            {config.verificacion.ayuda && (
+              <>
+                <br />
+                <span style={{ fontSize: '0.9em' }}>{config.verificacion.ayuda}</span>
+              </>
+            )}
+            {config.verificacion.clave_sufijo && (
+              <>
+                <br />
+                <span style={{ fontSize: '0.85em' }}>Clave en servidor (sufijo): {config.verificacion.clave_sufijo}</span>
+              </>
             )}
           </div>
+        ) : config.vanguarcito_disponible ? (
+          <div className="fia-status-ok">Vanguarcito conectado — puede usarlo al crear o regenerar fichas.</div>
+        ) : (
+          <div className="voc-alert fia-status-alert">Comprobando Vanguarcito…</div>
+        )}
 
-          <div className="voc-panel" style={{ marginBottom: 16 }}>
+        <div className="fia-help">
+          <div className="fia-help-icon" aria-hidden="true">
+            💡
+          </div>
+          <div>
+            <h2>Biblioteca y generación</h2>
+            <p>
+              Filtrá por grado o curso, abrí una ficha o creá una nueva. Desmarcá «Usar Vanguarcito» si querés
+              maquetar sin consumir IA.
+            </p>
+          </div>
+        </div>
+
+        {!esDocente && (
+          <details className="fia-tips">
+            <summary>¿Dónde más usar Vanguarcito sin gastar mucho en IA?</summary>
+            <ul>
+              <li>
+                <strong>Fichas IA (aquí):</strong> solo al crear o regenerar; reutilice la misma ficha y edite
+                puntos clave en lugar de regenerar todo.
+              </li>
+              <li>
+                <strong>Sin IA:</strong> desmarque «Usar Vanguarcito» — la plantilla y mascotas en el PDF siguen
+                igual; no consume Gemini.
+              </li>
+              <li>
+                <strong>Docentes:</strong> mensaje de bienvenida en dashboard, tooltip en menú Fichas IA, PDF con
+                mascotas (ya incluido).
+              </li>
+              <li>
+                <strong>Alumnos:</strong> mascotas en fichas impresas y, a futuro, resúmenes cortos bajo demanda
+                (no automáticos).
+              </li>
+              <li>
+                <strong>Evitar costo:</strong> no regenerar en bucle; un PDF de apoyo claro reduce tokens; use
+                instrucciones del docente en lugar de pedir todo de nuevo a la IA.
+              </li>
+            </ul>
+          </details>
+        )}
+
+        <div className="fia-toolbar">
+          <nav className="fia-tabs" aria-label="Sección de fichas">
+            <button type="button" className="fia-tab is-active" disabled>
+              Biblioteca
+            </button>
+          </nav>
+          {gruposAgregados.length > 0 && (
+            <button
+              type="button"
+              className="voc-btn-primary fia-btn-nueva"
+              onClick={() => abrirModal(null)}
+              disabled={generando}
+            >
+              + Nueva ficha
+            </button>
+          )}
+        </div>
+
+        <section className="voc-section fia-section">
+          <div className="voc-section-head">
+            <h2>Biblioteca de fichas</h2>
+          </div>
+
+          <div className="voc-panel fia-filters" style={{ marginBottom: 16 }}>
             <div className="voc-panel-head">
-              <FilterListOutlinedIcon sx={{ fontSize: 20, color: '#4a83c1' }} />
+              <FilterListOutlinedIcon sx={{ fontSize: 20, color: '#0ea5e9' }} />
               <div>
                 <div className="voc-panel-title">Filtros</div>
                 <p className="voc-panel-desc">Acote por grado (sin sección) o por curso/asignatura.</p>
