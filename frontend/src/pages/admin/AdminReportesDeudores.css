@@ -334,7 +334,7 @@
 }
 
 .admin-deudores-preview-table thead th {
-  background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #0ea5e9 100%);
+  background: #1e40af;
   color: #fff;
   padding: 0.65rem 0.35rem;
   text-align: center;
