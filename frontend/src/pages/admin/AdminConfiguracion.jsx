@@ -7,16 +7,164 @@ import Swal from 'sweetalert2';
 import { procesarHTMLMensaje } from '../../utils/mensajesHtml';
 import './AdminConfiguracion.css';
 
+function ConfigTabIcon({ name }) {
+  const common = {
+    width: 18,
+    height: 18,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': true,
+  };
+  switch (name) {
+    case 'general':
+      return (
+        <svg {...common}>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <path d="M14 2v6h6" />
+          <path d="M8 13h8M8 17h5" />
+        </svg>
+      );
+    case 'recaudo':
+      return (
+        <svg {...common}>
+          <path d="M12 1v22" />
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+      );
+    case 'anio':
+      return (
+        <svg {...common}>
+          <rect x="3" y="4" width="18" height="18" rx="2" />
+          <path d="M16 2v4M8 2v4M3 10h18" />
+        </svg>
+      );
+    case 'pagos':
+      return (
+        <svg {...common}>
+          <rect x="2" y="5" width="20" height="14" rx="2" />
+          <path d="M2 10h20" />
+        </svg>
+      );
+    case 'notas':
+      return (
+        <svg {...common}>
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+        </svg>
+      );
+    case 'facturacion':
+      return (
+        <svg {...common}>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16l2-1 2 1 2-1 2 1 2-1 2 1V8z" />
+          <path d="M14 2v6h6M8 13h6M8 17h4" />
+        </svg>
+      );
+    case 'matricula':
+      return (
+        <svg {...common}>
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <path d="M8 21h8M12 17v4" />
+        </svg>
+      );
+    case 'tutoria':
+      return (
+        <svg {...common}>
+          <path d="M22 10L12 5 2 10l10 5 10-5z" />
+          <path d="M6 12v5c0 1 3 3 6 3s6-2 6-3v-5" />
+        </svg>
+      );
+    case 'cajero':
+      return (
+        <svg {...common}>
+          <rect x="2" y="6" width="20" height="12" rx="2" />
+          <circle cx="12" cy="12" r="2.5" />
+          <path d="M6 12h.01M18 12h.01" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 const CONFIG_TABS = [
-  { id: 'general', label: 'General', icon: '📋' },
-  { id: 'recaudo', label: 'Recaudo', icon: '💰' },
-  { id: 'anio', label: 'Año académico', icon: '📅' },
-  { id: 'pagos', label: 'Pagos', icon: '💳' },
-  { id: 'notas', label: 'Notas', icon: '📝' },
-  { id: 'facturacion', label: 'Facturación', icon: '🧾' },
-  { id: 'matricula', label: 'Matrícula online', icon: '✉️' },
-  { id: 'tutoria', label: 'Tutoría', icon: '🎓', soloAdmin: true },
-  { id: 'cajero', label: 'Cajero', icon: '💵', soloAdmin: true },
+  {
+    id: 'general',
+    label: 'General',
+    icon: 'general',
+    tone: 'blue',
+    helpTitle: 'Identidad del colegio',
+    help: 'Nombre, código modular, resolución, textos visibles y fondo del login. Guarde cada bloque con su propio botón.',
+  },
+  {
+    id: 'recaudo',
+    label: 'Recaudo',
+    icon: 'recaudo',
+    tone: 'amber',
+    helpTitle: 'Datos de recaudo',
+    help: 'Sucursal, cuenta y razón social usados en cobros. Guarde el bloque antes de cambiar de pestaña.',
+  },
+  {
+    id: 'anio',
+    label: 'Año académico',
+    icon: 'anio',
+    tone: 'teal',
+    helpTitle: 'Año lectivo',
+    help: 'Define el año activo del sistema y el de matrículas. El reinicio de contraseñas es irreversible: usará el DNI.',
+  },
+  {
+    id: 'pagos',
+    label: 'Pagos',
+    icon: 'pagos',
+    tone: 'violet',
+    helpTitle: 'Pensiones y vencimientos',
+    help: 'Ciclo, cantidad de pensiones, moneda, bloqueo de deudores y fechas de vencimiento por mes.',
+  },
+  {
+    id: 'notas',
+    label: 'Notas',
+    icon: 'notas',
+    tone: 'sky',
+    helpTitle: 'Evaluación',
+    help: 'Ciclos de notas, conversión a letras (primaria) y rangos de apreciaciones para reportes.',
+  },
+  {
+    id: 'facturacion',
+    label: 'Facturación',
+    icon: 'facturacion',
+    tone: 'indigo',
+    helpTitle: 'Datos fiscales',
+    help: 'RUC, razón social, dirección y enlace de consulta de comprobantes.',
+  },
+  {
+    id: 'matricula',
+    label: 'Matrícula online',
+    icon: 'matricula',
+    tone: 'rose',
+    helpTitle: 'Formulario web',
+    help: 'Activa o desactiva la matrícula online, correos de notificación y plantillas HTML del mensaje.',
+  },
+  {
+    id: 'tutoria',
+    label: 'Tutoría',
+    icon: 'tutoria',
+    tone: 'emerald',
+    soloAdmin: true,
+    helpTitle: 'Tutoría general',
+    help: 'Personal con visión de todos los niveles en modo supervisión (solo lectura). No sustituye al tutor de aula.',
+  },
+  {
+    id: 'cajero',
+    label: 'Cajero',
+    icon: 'cajero',
+    tone: 'orange',
+    soloAdmin: true,
+    helpTitle: 'Caja chica',
+    help: 'Lista de personal autorizado como cajero para registrar movimientos de caja chica.',
+  },
 ];
 
 /** Porcentajes de comisión: siempre 2 decimales (evita artefacto float 3.599999…). */
@@ -879,8 +1027,11 @@ function AdminConfiguracion() {
 
   if (loading) {
     return (
-      <div className="admin-configuracion-loading">
-        <p>Cargando configuración...</p>
+      <div className="admin-configuracion admin-configuracion--loading">
+        <div className="config-loading-card">
+          <div className="config-loading-spinner" aria-hidden />
+          <p>Cargando configuración…</p>
+        </div>
       </div>
     );
   }
@@ -888,12 +1039,42 @@ function AdminConfiguracion() {
   const cicloLabel = CICLOS.find(c => c.value === parseInt(config.ciclo_notas))?.label || 'Ciclo';
   const totalNotas = parseInt(config.total_notas) || 4;
   const opcionesPago = ['Matrícula', ...Array.from({ length: parseInt(config.total_pensiones) || 10 }, (_, i) => `Pensión ${i + 1}`)];
+  const tabActiva = visibleTabs.find((t) => t.id === activeTab) || visibleTabs[0];
 
   return (
     <div className="admin-configuracion">
-      <div className="config-header">
-        <h1>Configuración General</h1>
-        <p>Administra la configuración del colegio por secciones</p>
+      <header className="config-hero">
+        <div className="config-hero-icon" aria-hidden="true">
+          <ConfigTabIcon name="general" />
+        </div>
+        <div className="config-hero-text">
+          <h1>Configuración General</h1>
+          <p>
+            Ajustes del colegio por sección: identidad, cobros, año lectivo, notas, facturación y más.
+            Cada tarjeta guarda solo sus campos.
+          </p>
+          <div className="config-hero-meta">
+            {config.titulo_intranet ? (
+              <span className="config-hero-chip">{config.titulo_intranet}</span>
+            ) : null}
+            {config.anio_activo ? (
+              <span className="config-hero-chip">Año activo {config.anio_activo}</span>
+            ) : null}
+            {config.codigo_modular ? (
+              <span className="config-hero-chip">Cód. {config.codigo_modular}</span>
+            ) : null}
+          </div>
+        </div>
+      </header>
+
+      <div className={`config-help config-help--${tabActiva?.tone || 'blue'}`}>
+        <div className="config-help-icon" aria-hidden="true">
+          <ConfigTabIcon name={tabActiva?.icon || 'general'} />
+        </div>
+        <div>
+          <h2>{tabActiva?.helpTitle || 'Sección'}</h2>
+          <p>{tabActiva?.help}</p>
+        </div>
       </div>
 
       <nav className="config-tabs" role="tablist" aria-label="Secciones de configuración">
@@ -903,21 +1084,26 @@ function AdminConfiguracion() {
             type="button"
             role="tab"
             aria-selected={activeTab === tab.id}
-            className={`config-tab${activeTab === tab.id ? ' config-tab--active' : ''}`}
+            className={`config-tab config-tab--${tab.tone}${activeTab === tab.id ? ' config-tab--active' : ''}`}
             onClick={() => setActiveTab(tab.id)}
           >
-            <span className="config-tab-icon" aria-hidden="true">{tab.icon}</span>
+            <span className="config-tab-icon" aria-hidden="true">
+              <ConfigTabIcon name={tab.icon} />
+            </span>
             <span className="config-tab-label">{tab.label}</span>
           </button>
         ))}
       </nav>
 
-      <div className="config-tab-panel">
+      <div className="config-tab-panel" data-tone={tabActiva?.tone || 'blue'}>
           {activeTab === 'general' && (
           <>
           <div className="config-panel-card">
+            <div className="config-panel-card-header">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="general" /></span>
+              Información general
+            </div>
             <div className="config-section">
-              <h2 className="section-title">📋 INFORMACIÓN GENERAL</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>Título / Nombre del Colegio</label>
@@ -991,15 +1177,18 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : '💾 Guardar'}
+                {saving ? 'Guardando…' : 'Guardar'}
               </button>
             </div>
             </div>
           </div>
 
           <div className="config-panel-card config-panel-card--spaced">
+            <div className="config-panel-card-header config-panel-card-header--violet">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="pagos" /></span>
+              Comisión pago con tarjeta
+            </div>
             <div className="config-section">
-              <h2 className="section-title">💳 COMISIÓN PAGO CON TARJETA</h2>
               <p className="config-section-hint">
                 Porcentajes usados automáticamente en ventas al calcular la comisión de tarjeta.
               </p>
@@ -1046,7 +1235,7 @@ function AdminConfiguracion() {
                   disabled={saving}
                   className="btn-submit-card"
                 >
-                  {saving ? 'Guardando...' : '💾 Guardar comisión'}
+                  {saving ? 'Guardando…' : 'Guardar comisión'}
                 </button>
               </div>
             </div>
@@ -1056,8 +1245,11 @@ function AdminConfiguracion() {
 
           {activeTab === 'recaudo' && (
           <div className="config-panel-card">
+            <div className="config-panel-card-header config-panel-card-header--amber">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="recaudo" /></span>
+              Información de recaudo
+            </div>
             <div className="config-section">
-              <h2 className="section-title">💰 Información Recaudo</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>N° de Sucursal</label>
@@ -1096,7 +1288,7 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : '💾 Guardar'}
+                {saving ? 'Guardando…' : 'Guardar'}
               </button>
             </div>
             </div>
@@ -1106,8 +1298,11 @@ function AdminConfiguracion() {
           {/* DISEÑO LIBRETA — legacy PHP; la libreta React no usa libreta_logo/libreta_fondo de aquí */}
           {false && (
           <div className="config-panel-card config-panel-card--hidden">
+            <div className="config-panel-card-header config-panel-card-header--amber">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="notas" /></span>
+              Diseño libreta de notas
+            </div>
             <div className="config-section">
-              <h2 className="section-title">📓 Diseño Libreta de Notas</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>Logo</label>
@@ -1149,7 +1344,7 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : '💾 Guardar'}
+                {saving ? 'Guardando…' : 'Guardar'}
               </button>
             </div>
             </div>
@@ -1158,8 +1353,11 @@ function AdminConfiguracion() {
 
           {activeTab === 'anio' && (
           <div className="config-panel-card">
+            <div className="config-panel-card-header config-panel-card-header--teal">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="anio" /></span>
+              Año académico
+            </div>
             <div className="config-section">
-              <h2 className="section-title">📅 Año Académico</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>Año Activo</label>
@@ -1215,7 +1413,7 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : 'Guardar cambios'}
+                {saving ? 'Guardando…' : 'Guardar cambios'}
               </button>
             </div>
             </div>
@@ -1225,8 +1423,11 @@ function AdminConfiguracion() {
           {activeTab === 'pagos' && (
           <>
           <div className="config-panel-card">
+            <div className="config-panel-card-header config-panel-card-header--violet">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="pagos" /></span>
+              Pagos
+            </div>
             <div className="config-section">
-              <h2 className="section-title">💳 Pagos</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>Ciclo de Pensiones</label>
@@ -1324,15 +1525,18 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : 'Guardar pagos'}
+                {saving ? 'Guardando…' : 'Guardar pagos'}
               </button>
             </div>
             </div>
           </div>
 
           <div className="config-panel-card config-panel-card--spaced">
+            <div className="config-panel-card-header config-panel-card-header--violet">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="pagos" /></span>
+              Vencimiento de pensiones
+            </div>
             <div className="config-section">
-              <h2 className="section-title">📆 Vencimiento de pensiones</h2>
             <div className="config-table-wrap">
             <table className="rangos-table rangos-table--vencimientos">
               <tbody>
@@ -1383,7 +1587,7 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : 'Guardar vencimientos'}
+                {saving ? 'Guardando…' : 'Guardar vencimientos'}
               </button>
             </div>
             </div>
@@ -1394,8 +1598,11 @@ function AdminConfiguracion() {
           {activeTab === 'notas' && (
           <>
           <div className="config-panel-card">
+            <div className="config-panel-card-header config-panel-card-header--sky">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="notas" /></span>
+              Notas
+            </div>
             <div className="config-section">
-              <h2 className="section-title">📝 Notas</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>Ciclo de Notas</label>
@@ -1482,15 +1689,18 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : 'Guardar notas'}
+                {saving ? 'Guardando…' : 'Guardar notas'}
               </button>
             </div>
             </div>
           </div>
 
           <div className="config-panel-card config-panel-card--spaced">
+            <div className="config-panel-card-header config-panel-card-header--sky">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="notas" /></span>
+              Conversión a letras
+            </div>
             <div className="config-section">
-              <h2 className="section-title">🔤 Conversión a notas a letras</h2>
             <button type="button" onClick={agregarRangoLetraPrimaria} className="btn-add">
               Agregar rango
             </button>
@@ -1546,7 +1756,7 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : 'Guardar conversión'}
+                {saving ? 'Guardando…' : 'Guardar conversión'}
               </button>
             </div>
             </div>
@@ -1557,8 +1767,11 @@ function AdminConfiguracion() {
           {/* APRECIACIONES — oculto; las tutoras ingresan apreciaciones manualmente */}
           {false && (
           <div className="config-panel-card config-panel-card--hidden">
+            <div className="config-panel-card-header config-panel-card-header--sky">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="notas" /></span>
+              Apreciaciones
+            </div>
             <div className="config-section">
-              <h2 className="section-title">⭐ Apreciaciones</h2>
             <button type="button" onClick={agregarRangoMensaje} className="btn-add">
               ➕ Agregar Nuevo
             </button>
@@ -1613,7 +1826,7 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : '💾 Guardar'}
+                {saving ? 'Guardando…' : 'Guardar'}
               </button>
             </div>
             </div>
@@ -1622,8 +1835,11 @@ function AdminConfiguracion() {
 
           {activeTab === 'facturacion' && (
           <div className="config-panel-card">
+            <div className="config-panel-card-header config-panel-card-header--indigo">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="facturacion" /></span>
+              Facturación
+            </div>
             <div className="config-section">
-              <h2 className="section-title">🧾 Facturación</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>RUC</label>
@@ -1686,7 +1902,7 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : 'Guardar facturación'}
+                {saving ? 'Guardando…' : 'Guardar facturación'}
               </button>
             </div>
             </div>
@@ -1695,8 +1911,11 @@ function AdminConfiguracion() {
 
           {activeTab === 'matricula' && (
           <div className="config-panel-card">
+            <div className="config-panel-card-header config-panel-card-header--rose">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="matricula" /></span>
+              Matrícula online
+            </div>
             <div className="config-section">
-              <h2 className="section-title">✉️ Matrícula online</h2>
               <p className="config-section-desc">
                 Formulario público en <strong>/matricula_online</strong>. Al enviar, se crea matrícula <strong>Temporal</strong> (sin pagos) para el año «Año Matrículas + 1».
               </p>
@@ -1801,7 +2020,7 @@ function AdminConfiguracion() {
                 disabled={saving}
                 className="btn-submit-card"
               >
-                {saving ? 'Guardando...' : 'Guardar matrícula online'}
+                {saving ? 'Guardando…' : 'Guardar matrícula online'}
               </button>
             </div>
             </div>
@@ -1810,8 +2029,11 @@ function AdminConfiguracion() {
 
           {activeTab === 'tutoria' && user?.tipo === 'ADMINISTRADOR' && (
           <div className="config-panel-card">
+            <div className="config-panel-card-header config-panel-card-header--emerald">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="tutoria" /></span>
+              Tutoría general
+            </div>
             <div className="config-section">
-              <h2 className="section-title">🎓 Tutoría General</h2>
               <PanelTutoriaGeneral />
             </div>
           </div>
@@ -1819,8 +2041,11 @@ function AdminConfiguracion() {
 
           {activeTab === 'cajero' && user?.tipo === 'ADMINISTRADOR' && (
           <div className="config-panel-card">
+            <div className="config-panel-card-header config-panel-card-header--orange">
+              <span className="config-panel-card-ico" aria-hidden="true"><ConfigTabIcon name="cajero" /></span>
+              Cajero — Caja chica
+            </div>
             <div className="config-section">
-              <h2 className="section-title">💵 Cajero — Caja Chica</h2>
               <PanelCajerosCajaChica />
             </div>
           </div>

@@ -1,7 +1,22 @@
+/* Configuración / Cumpleaños — hero + tabs (alineado a General / Indicadores) */
+
 .admin-config-cumpleanos {
-  max-width: 920px;
+  --cumple-blue: #1d4ed8;
+  --cumple-sky: #0ea5e9;
+  --cumple-teal: #14b8a6;
+  --cumple-violet: #7c3aed;
+  --cumple-amber: #d97706;
+  --cumple-emerald: #059669;
+  --cumple-border: #cbd5e1;
+  --cumple-muted: #64748b;
+  --cumple-text: #0f172a;
+  --cumple-font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  max-width: min(1120px, 100%);
   margin: 0 auto;
-  padding-bottom: 1.5rem;
+  padding-bottom: 2rem;
+  color: var(--cumple-text);
+  font-family: var(--cumple-font);
 }
 
 .admin-config-cumpleanos--loading {
@@ -11,14 +26,14 @@
   justify-content: center;
   gap: 1rem;
   min-height: 240px;
-  color: #64748b;
+  color: var(--cumple-muted);
 }
 
 .admin-config-cumpleanos__spinner {
   width: 36px;
   height: 36px;
   border: 3px solid #e2e8f0;
-  border-top-color: #6366f1;
+  border-top-color: var(--cumple-sky);
   border-radius: 50%;
   animation: admin-cumple-spin 0.75s linear infinite;
 }
@@ -29,186 +44,414 @@
   }
 }
 
-/* Hero */
+/* —— Hero —— */
 .admin-config-cumpleanos__hero {
-  background: linear-gradient(135deg, #1e1b4b 0%, #312e81 45%, #4c1d95 100%);
-  border-radius: 16px;
-  padding: 1.75rem 1.5rem 1.5rem;
-  margin-bottom: 1.75rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1.15rem;
+  margin-bottom: 1rem;
+  padding: 1.5rem 1.65rem;
+  border-radius: 18px;
   color: #fff;
-  box-shadow: 0 10px 40px rgba(49, 46, 129, 0.35);
+  background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 55%, #14b8a6 100%);
+  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.28);
+  position: relative;
+  overflow: hidden;
 }
 
-.admin-config-cumpleanos__hero-inner h1 {
-  margin: 0 0 0.5rem;
-  font-size: 1.65rem;
-  font-weight: 700;
+.admin-config-cumpleanos__hero::after {
+  content: '';
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.admin-config-cumpleanos__hero-icon {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(6px);
+  position: relative;
+  z-index: 1;
+  color: #fff;
+}
+
+.admin-config-cumpleanos__hero-text {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.admin-config-cumpleanos__hero h1 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.35rem, 4vw, 1.85rem);
+  font-weight: 800;
   letter-spacing: -0.02em;
+  color: #fff;
 }
 
-.admin-config-cumpleanos__lead {
-  margin: 0 0 1.25rem;
+.admin-config-cumpleanos__hero p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.92);
   font-size: 0.95rem;
-  line-height: 1.55;
-  color: rgba(255, 255, 255, 0.88);
+  line-height: 1.45;
   max-width: 52rem;
 }
 
-.admin-config-cumpleanos__lead strong {
+.admin-config-cumpleanos__hero p code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.88em;
+  padding: 0.08em 0.35em;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.admin-config-cumpleanos__hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.9rem;
+}
+
+.admin-config-cumpleanos__hero-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   color: #fff;
-  font-weight: 600;
 }
 
-/* Mapa 2x2 */
-.admin-config-cumpleanos__map {
+/* —— Help —— */
+.admin-config-cumpleanos__help {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+  margin-bottom: 0.9rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid #bae6fd;
+  border-left: 4px solid var(--cumple-sky);
+  background: #f0f9ff;
+}
+
+.admin-config-cumpleanos__help-icon {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: var(--cumple-blue);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+}
+
+.admin-config-cumpleanos__help h2 {
+  margin: 0 0 0.25rem;
+  font-size: 1.02rem;
+  font-weight: 750;
+  color: #0c4a6e;
+}
+
+.admin-config-cumpleanos__help p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: #075985;
+  line-height: 1.45;
+}
+
+.admin-config-cumpleanos__help--violet {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+  border-left-color: var(--cumple-violet);
+}
+.admin-config-cumpleanos__help--violet h2 {
+  color: #5b21b6;
+}
+.admin-config-cumpleanos__help--violet p {
+  color: #6d28d9;
+}
+.admin-config-cumpleanos__help--violet .admin-config-cumpleanos__help-icon {
+  color: var(--cumple-violet);
+}
+
+.admin-config-cumpleanos__help--sky {
+  background: #f0f9ff;
+  border-color: #bae6fd;
+  border-left-color: var(--cumple-sky);
+}
+.admin-config-cumpleanos__help--sky h2 {
+  color: #0c4a6e;
+}
+.admin-config-cumpleanos__help--sky p {
+  color: #0369a1;
+}
+.admin-config-cumpleanos__help--sky .admin-config-cumpleanos__help-icon {
+  color: var(--cumple-sky);
+}
+
+.admin-config-cumpleanos__help--amber {
+  background: #fffbeb;
+  border-color: #fde68a;
+  border-left-color: var(--cumple-amber);
+}
+.admin-config-cumpleanos__help--amber h2 {
+  color: #92400e;
+}
+.admin-config-cumpleanos__help--amber p {
+  color: #78350f;
+}
+.admin-config-cumpleanos__help--amber .admin-config-cumpleanos__help-icon {
+  color: var(--cumple-amber);
+}
+
+.admin-config-cumpleanos__help--emerald {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  border-left-color: var(--cumple-emerald);
+}
+.admin-config-cumpleanos__help--emerald h2 {
+  color: #065f46;
+}
+.admin-config-cumpleanos__help--emerald p {
+  color: #047857;
+}
+.admin-config-cumpleanos__help--emerald .admin-config-cumpleanos__help-icon {
+  color: var(--cumple-emerald);
+}
+
+/* —— Tabs —— */
+.admin-config-cumpleanos__tabs {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.65rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1.1rem;
+  padding: 0.55rem;
+  background: #fff;
+  border: 1px solid var(--cumple-border);
+  border-radius: 14px;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
 }
 
-@media (max-width: 640px) {
-  .admin-config-cumpleanos__map {
-    grid-template-columns: 1fr;
-  }
-}
-
-.admin-config-cumpleanos__map-item {
+.admin-config-cumpleanos__tab {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.65rem 0.85rem;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(8px);
+  gap: 0.55rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 11px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s, transform 0.12s;
 }
 
-.admin-config-cumpleanos__map-item > div {
-  flex: 1;
+.admin-config-cumpleanos__tab:hover {
+  background: #f8fafc;
+  color: #334155;
+}
+
+.admin-config-cumpleanos__tab-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9px;
+  background: #f1f5f9;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.admin-config-cumpleanos__tab-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
 }
 
-.admin-config-cumpleanos__map-item strong {
-  font-size: 0.82rem;
-  font-weight: 600;
+.admin-config-cumpleanos__tab-text strong {
+  font-size: 0.88rem;
+  font-weight: 750;
+  line-height: 1.2;
 }
 
-.admin-config-cumpleanos__map-dest {
-  font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.admin-config-cumpleanos__map-emoji {
-  font-size: 1.35rem;
-  line-height: 1;
-}
-
-.admin-config-cumpleanos__pill {
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 0.25rem 0.5rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.15);
-  color: rgba(255, 255, 255, 0.85);
+.admin-config-cumpleanos__tab-text em {
+  font-style: normal;
+  font-size: 0.68rem;
+  opacity: 0.85;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.admin-config-cumpleanos__pill--on {
-  background: rgba(52, 211, 153, 0.35);
-  color: #ecfdf5;
+.admin-config-cumpleanos__tab.is-active {
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(29, 78, 216, 0.22);
 }
 
-/* Grid de tarjetas */
-.admin-config-cumpleanos__grid {
-  display: flex;
-  flex-direction: column;
-  gap: 1.25rem;
+.admin-config-cumpleanos__tab.is-active .admin-config-cumpleanos__tab-ico {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.admin-config-cumpleanos__tab--violet.is-active {
+  background: linear-gradient(135deg, #6d28d9, #8b5cf6);
+  box-shadow: 0 4px 14px rgba(124, 58, 237, 0.28);
+}
+.admin-config-cumpleanos__tab--sky.is-active {
+  background: linear-gradient(135deg, #0284c7, #0ea5e9);
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.28);
+}
+.admin-config-cumpleanos__tab--amber.is-active {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+  box-shadow: 0 4px 14px rgba(217, 119, 6, 0.28);
+}
+.admin-config-cumpleanos__tab--emerald.is-active {
+  background: linear-gradient(135deg, #047857, #10b981);
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.28);
+}
+
+/* —— Panels (keep Quill mounted off-screen) —— */
+.admin-config-cumpleanos__panels {
+  position: relative;
+  margin-bottom: 0.25rem;
 }
 
 .admin-config-cumpleanos__card {
   background: #fff;
   border-radius: 14px;
-  padding: 1.35rem 1.4rem 1.4rem;
-  box-shadow: 0 4px 24px rgba(15, 23, 42, 0.06);
-  border: 1px solid #e8ecf1;
-  position: relative;
+  padding: 0;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+  border: 1px solid var(--cumple-border);
+  border-top: 3px solid var(--cumple-teal);
   overflow: hidden;
+  animation: cumplePanelIn 0.22s ease;
 }
 
-.admin-config-cumpleanos__card--accent::before {
-  content: '';
+.admin-config-cumpleanos__card.is-hidden {
   position: absolute;
-  left: 0;
+  left: -12000px;
   top: 0;
-  bottom: 0;
-  width: 4px;
-  border-radius: 14px 0 0 14px;
+  width: min(100%, 1120px);
+  max-width: 100%;
+  visibility: hidden;
+  pointer-events: none;
+  animation: none;
 }
 
-.admin-config-cumpleanos__card--push::before {
-  background: linear-gradient(180deg, #6366f1, #8b5cf6);
+@keyframes cumplePanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.admin-config-cumpleanos__card--ventana::before {
-  background: linear-gradient(180deg, #0ea5e9, #06b6d4);
+.admin-config-cumpleanos__card--push {
+  border-top-color: #8b5cf6;
 }
-
-.admin-config-cumpleanos__card--correo::before {
-  background: linear-gradient(180deg, #f59e0b, #ea580c);
+.admin-config-cumpleanos__card--ventana {
+  border-top-color: #0ea5e9;
 }
-
-.admin-config-cumpleanos__card--mensaje::before {
-  background: linear-gradient(180deg, #10b981, #059669);
+.admin-config-cumpleanos__card--correo {
+  border-top-color: #f59e0b;
+}
+.admin-config-cumpleanos__card--mensaje {
+  border-top-color: #10b981;
 }
 
 .admin-config-cumpleanos__card-head {
   display: flex;
   align-items: flex-start;
-  gap: 0.85rem;
-  margin-bottom: 0.65rem;
+  gap: 0.75rem;
+  padding: 0.8rem 1.15rem;
+  color: #fff;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #0ea5e9 100%);
 }
 
-.admin-config-cumpleanos__card-icon {
-  font-size: 1.75rem;
-  line-height: 1;
+.admin-config-cumpleanos__card-head--violet {
+  background: linear-gradient(135deg, #5b21b6 0%, #7c3aed 55%, #8b5cf6 100%);
+}
+.admin-config-cumpleanos__card-head--sky {
+  background: linear-gradient(135deg, #0369a1 0%, #0284c7 55%, #0ea5e9 100%);
+}
+.admin-config-cumpleanos__card-head--amber {
+  background: linear-gradient(135deg, #b45309 0%, #d97706 55%, #f59e0b 100%);
+}
+.admin-config-cumpleanos__card-head--emerald {
+  background: linear-gradient(135deg, #065f46 0%, #059669 55%, #34d399 100%);
+}
+
+.admin-config-cumpleanos__card-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  flex-shrink: 0;
   margin-top: 0.1rem;
 }
 
 .admin-config-cumpleanos__card-title {
   margin: 0;
-  font-size: 1.12rem;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.02em;
+  font-size: 1.05rem;
+  font-weight: 750;
+  color: #fff;
+  letter-spacing: -0.01em;
 }
 
 .admin-config-cumpleanos__card-destino {
-  margin: 0.2rem 0 0;
-  font-size: 0.8rem;
-  color: #64748b;
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.88);
   font-weight: 500;
+}
+
+.admin-config-cumpleanos__card-body {
+  padding: 1.15rem 1.25rem 1.35rem;
 }
 
 .admin-config-cumpleanos__hint--note {
   font-size: 0.82rem;
   line-height: 1.5;
   color: #64748b;
-  border-left: 3px solid #c4b5fd;
+  border-left: 3px solid #7dd3fc;
   padding: 0.65rem 0.75rem;
   margin-top: 0.5rem;
-  background: #f5f3ff;
+  background: #f0f9ff;
   border-radius: 0 8px 8px 0;
 }
 
 .admin-config-cumpleanos__hint {
   margin: 0 0 0.75rem;
   font-size: 0.86rem;
-  color: #64748b;
+  color: var(--cumple-muted);
   line-height: 1.5;
 }
 
@@ -222,7 +465,7 @@
 
 .admin-config-cumpleanos__ph-label {
   font-size: 0.72rem;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #94a3b8;
@@ -242,7 +485,7 @@
   width: 100%;
   box-sizing: border-box;
   padding: 0.85rem 1rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--cumple-border);
   border-radius: 10px;
   font-size: 0.92rem;
   font-family: inherit;
@@ -259,8 +502,8 @@
 
 .admin-config-cumpleanos__textarea:focus {
   outline: none;
-  border-color: #818cf8;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
   background: #fff;
 }
 
@@ -268,7 +511,7 @@
   display: block;
   margin: 0.85rem 0 0.4rem;
   font-size: 0.8rem;
-  font-weight: 600;
+  font-weight: 650;
   color: #475569;
 }
 
@@ -276,7 +519,7 @@
   width: 100%;
   box-sizing: border-box;
   padding: 0.65rem 0.9rem;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--cumple-border);
   border-radius: 10px;
   font-size: 0.92rem;
   font-family: inherit;
@@ -286,34 +529,34 @@
 
 .admin-config-cumpleanos__input:focus {
   outline: none;
-  border-color: #818cf8;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  border-color: #0ea5e9;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.15);
   background: #fff;
 }
 
-/* Barra de acciones al final */
 .admin-config-cumpleanos__footer-bar {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 0.65rem;
-  margin-top: 1.75rem;
+  margin-top: 1.15rem;
   padding: 1rem 1.15rem;
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
   border-radius: 14px;
-  border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.05);
+  border: 1px solid var(--cumple-border);
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.05);
 }
 
 .admin-config-cumpleanos__btn {
   padding: 0.55rem 1.15rem;
   border-radius: 10px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--cumple-border);
   background: #fff;
   color: #475569;
-  font-weight: 600;
+  font-weight: 650;
   cursor: pointer;
   font-size: 0.9rem;
+  font-family: inherit;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
   transition: background 0.15s, border-color 0.15s;
 }
@@ -328,33 +571,18 @@
   cursor: not-allowed;
 }
 
-.admin-config-cumpleanos__btn--primary {
-  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+.admin-config-cumpleanos__btn.admin-config-cumpleanos__btn--primary {
+  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.35);
+  box-shadow: 0 4px 14px rgba(29, 78, 216, 0.28);
 }
 
-/* Fondo y color explícitos en hover: el .btn:hover aplicaba #f8fafc y dejaba texto blanco ilegible */
 .admin-config-cumpleanos__btn.admin-config-cumpleanos__btn--primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #4338ca 0%, #4f46e5 100%);
+  background: linear-gradient(135deg, #1d4ed8 0%, #14b8a6 100%);
+  filter: brightness(1.05);
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 6px 18px rgba(67, 56, 202, 0.45);
-}
-
-.admin-config-cumpleanos__btn.admin-config-cumpleanos__btn--primary:active:not(:disabled) {
-  background: linear-gradient(135deg, #3730a3 0%, #4338ca 100%);
-  color: #fff;
-}
-
-.admin-config-cumpleanos__inline-code {
-  font-family: ui-monospace, monospace;
-  font-size: 0.9em;
-  padding: 0.1em 0.35em;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.22);
 }
 
 .admin-config-cumpleanos__quill-wrap {
@@ -392,18 +620,19 @@
 .admin-config-cumpleanos__btn-preview {
   padding: 0.4rem 0.9rem;
   border-radius: 8px;
-  border: 1px dashed #a5b4fc;
-  background: #eef2ff;
-  color: #4338ca;
-  font-weight: 600;
+  border: 1px dashed #7dd3fc;
+  background: #f0f9ff;
+  color: #0369a1;
+  font-weight: 650;
   font-size: 0.85rem;
   cursor: pointer;
+  font-family: inherit;
   transition: background 0.15s, border-color 0.15s;
 }
 
 .admin-config-cumpleanos__btn-preview:hover {
-  background: #e0e7ff;
-  border-color: #6366f1;
+  background: #e0f2fe;
+  border-color: #0ea5e9;
 }
 
 .admin-config-cumpleanos__preview-leyenda {
@@ -488,7 +717,6 @@
   justify-content: flex-end;
 }
 
-/* Push */
 .admin-cumple-preview-push-wrap {
   margin-top: 0.25rem;
 }
@@ -529,7 +757,6 @@
   color: #64748b;
 }
 
-/* Ventana / mensaje */
 .admin-cumple-preview-ventana {
   margin-top: 0.25rem;
   border-radius: 14px;
@@ -539,8 +766,12 @@
 .admin-cumple-preview-ventana--modal {
   position: relative;
   padding: 1.25rem 1.15rem;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(254, 243, 199, 0.88) 50%, rgba(253, 224, 231, 0.92) 100%);
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(254, 243, 199, 0.88) 50%,
+    rgba(253, 224, 231, 0.92) 100%
+  );
   border: 1px solid rgba(251, 191, 36, 0.4);
   overflow: hidden;
 }
@@ -559,8 +790,12 @@
 .admin-cumple-preview-ventana--mensaje-festivo {
   position: relative;
   padding: 1.25rem 1.15rem;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(254, 243, 199, 0.88) 50%, rgba(253, 224, 231, 0.92) 100%);
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.98) 0%,
+    rgba(254, 243, 199, 0.88) 50%,
+    rgba(253, 224, 231, 0.92) 100%
+  );
   border: 1px solid rgba(251, 191, 36, 0.4);
   overflow: hidden;
 }
@@ -594,7 +829,6 @@
   border-radius: 10px;
 }
 
-/* Correo */
 .admin-cumple-preview-correo {
   margin-top: 0.25rem;
 }
@@ -646,4 +880,33 @@
   max-width: 100%;
   height: auto;
   border-radius: 8px;
+}
+
+@media (max-width: 900px) {
+  .admin-config-cumpleanos__tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .admin-config-cumpleanos__hero {
+    padding: 1.15rem 1.2rem;
+    gap: 0.85rem;
+  }
+
+  .admin-config-cumpleanos__tabs {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-config-cumpleanos__tab-text em {
+    display: none;
+  }
+
+  .admin-config-cumpleanos__footer-bar {
+    flex-direction: column;
+  }
+
+  .admin-config-cumpleanos__footer-bar .admin-config-cumpleanos__btn {
+    width: 100%;
+  }
 }

@@ -66,41 +66,108 @@ function ensureHtmlForQuill(raw) {
   return `<p>${t.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br/>')}</p>`;
 }
 
+function CanalIcon({ name, size = 18 }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': true,
+  };
+  switch (name) {
+    case 'cake':
+      return (
+        <svg {...common}>
+          <path d="M20 21H4v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6z" />
+          <path d="M4 15h16" />
+          <path d="M12 7v4" />
+          <path d="M12 3c.8 0 1.5.7 1.5 1.5S12.8 6 12 6s-1.5-.7-1.5-1.5S11.2 3 12 3z" />
+          <path d="M8 11h.01M16 11h.01" />
+        </svg>
+      );
+    case 'push':
+      return (
+        <svg {...common}>
+          <rect x="5" y="2" width="14" height="20" rx="2" />
+          <path d="M12 18h.01" />
+        </svg>
+      );
+    case 'ventana':
+      return (
+        <svg {...common}>
+          <rect x="3" y="4" width="18" height="14" rx="2" />
+          <path d="M3 9h18M9 9v9" />
+        </svg>
+      );
+    case 'correo':
+      return (
+        <svg {...common}>
+          <rect x="2" y="4" width="20" height="16" rx="2" />
+          <path d="M22 7l-10 7L2 7" />
+        </svg>
+      );
+    case 'mensaje':
+      return (
+        <svg {...common}>
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 const CANALES = [
   {
     id: 'push',
-    emoji: '📱',
+    icon: 'push',
+    tone: 'violet',
     titulo: 'Notificación push',
+    labelCorto: 'Push',
     destino: 'Dispositivo (PWA / navegador)',
+    helpTitle: 'Alerta en el dispositivo',
     descripcion:
-      'Ejemplo abajo. En el envío real, {nombre} lista a quienes cumplen hoy en el alcance de ese aviso. Primera línea = título.',
+      'Texto plano: primera línea = título del push, el resto = cuerpo. En el envío real, {nombre} lista a quienes cumplen hoy.',
     activo: true,
   },
   {
     id: 'ventana',
-    emoji: '🪟',
+    icon: 'ventana',
+    tone: 'sky',
     titulo: 'Ventana al iniciar sesión',
+    labelCorto: 'Modal',
     destino: 'Modal al login',
+    helpTitle: 'Modal festivo al ingresar',
     descripcion:
-      'Solo si tu usuario cumple años hoy (fecha en ficha). {nombre} = tu nombre. Título y texto salen solo de esta plantilla.',
+      'Solo si hoy es el cumpleaños del usuario (fecha en ficha). {nombre} = esa persona. Título y texto salen de esta plantilla.',
     activo: true,
   },
   {
     id: 'correo',
-    emoji: '✉️',
+    icon: 'correo',
+    tone: 'amber',
     titulo: 'Correo electrónico',
+    labelCorto: 'Correo',
     destino: 'Bandeja de email',
+    helpTitle: 'Email diario automático',
     descripcion:
-      'Mismo marco festivo que el correo real. Envío diario automático si “Mostrar ventana cumpleaños” está en SÍ y hay email en la ficha.',
+      'Asunto en una línea y cuerpo HTML. Usa el mismo marco festivo que el correo real si “Mostrar ventana cumpleaños” está en SÍ.',
     activo: true,
   },
   {
     id: 'mensaje',
-    emoji: '💬',
+    icon: 'mensaje',
+    tone: 'emerald',
     titulo: 'Mensaje al sistema',
+    labelCorto: 'Mensaje',
     destino: 'Mensajes de la intranet',
+    helpTitle: 'Bandeja interna',
     descripcion:
-      'Vista con globos y marco como en la bandeja real. Envío diario desde un usuario administrador del colegio.',
+      'Plantilla HTML para el aviso automático en mensajes. Vista previa con globos y marco como en la bandeja real.',
     activo: true,
   },
 ];
@@ -129,8 +196,8 @@ function AdminConfigCumpleanos() {
   const [plantillaCorreoAsunto, setPlantillaCorreoAsunto] = useState('');
   const [plantillaCorreoCuerpo, setPlantillaCorreoCuerpo] = useState('');
   const [plantillaMensajeSistema, setPlantillaMensajeSistema] = useState('');
-  /** null | 'push' | 'ventana' | 'correo' | 'mensaje' */
   const [previewAbierto, setPreviewAbierto] = useState(null);
+  const [activeTab, setActiveTab] = useState('push');
 
   const quillVentanaRef = useRef(null);
   const quillCorreoRef = useRef(null);
@@ -290,201 +357,260 @@ function AdminConfigCumpleanos() {
     );
   }
 
+  const canalActivo = CANALES.find((c) => c.id === activeTab) || CANALES[0];
+
   return (
     <div className="admin-config-cumpleanos">
       <header className="admin-config-cumpleanos__hero">
-        <div className="admin-config-cumpleanos__hero-inner">
+        <div className="admin-config-cumpleanos__hero-icon" aria-hidden="true">
+          <CanalIcon name="cake" size={26} />
+        </div>
+        <div className="admin-config-cumpleanos__hero-text">
           <h1>Cumpleaños</h1>
-          <p className="admin-config-cumpleanos__lead">
-            Cada bloque tiene <strong>ejemplos</strong> que podés editar. En <strong>modal</strong>, <strong>correo</strong> y{' '}
-            <strong>mensaje</strong>, <code>{'{nombre}'}</code> es el <strong>cumpleañero</strong> (una persona). En{' '}
-            <strong>push</strong>, <code>{'{nombre}'}</code> es la lista de quienes cumplen hoy en el alcance de ese aviso.
-            El menú lateral usa el emoji <code className="admin-config-cumpleanos__inline-code">🎂</code> (U+1F382).
+          <p>
+            Plantillas por canal: push, modal al login, correo y mensaje interno. En modal, correo y mensaje,{' '}
+            <code>{'{nombre}'}</code> es una persona; en push es la lista de quienes cumplen hoy.
           </p>
-          <div className="admin-config-cumpleanos__map">
+          <div className="admin-config-cumpleanos__hero-meta">
             {CANALES.map((c) => (
-              <div key={c.id} className="admin-config-cumpleanos__map-item">
-                <span className="admin-config-cumpleanos__map-emoji" aria-hidden>
-                  {c.emoji}
-                </span>
-                <div>
-                  <strong>{c.titulo}</strong>
-                  <span className="admin-config-cumpleanos__map-dest">{c.destino}</span>
-                </div>
-                {c.activo ? (
-                  <span className="admin-config-cumpleanos__pill admin-config-cumpleanos__pill--on">Activo</span>
-                ) : (
-                  <span className="admin-config-cumpleanos__pill">Próximo</span>
-                )}
-              </div>
+              <span key={c.id} className="admin-config-cumpleanos__hero-chip">
+                <CanalIcon name={c.icon} size={14} />
+                {c.labelCorto}
+                {c.activo ? ' · Activo' : ''}
+              </span>
             ))}
           </div>
         </div>
       </header>
 
-      <div className="admin-config-cumpleanos__grid">
-        <section className="admin-config-cumpleanos__card admin-config-cumpleanos__card--accent admin-config-cumpleanos__card--push">
-          <div className="admin-config-cumpleanos__card-head">
-            <span className="admin-config-cumpleanos__card-icon" aria-hidden>
-              📱
+      <div className={`admin-config-cumpleanos__help admin-config-cumpleanos__help--${canalActivo.tone}`}>
+        <div className="admin-config-cumpleanos__help-icon" aria-hidden="true">
+          <CanalIcon name={canalActivo.icon} size={18} />
+        </div>
+        <div>
+          <h2>{canalActivo.helpTitle}</h2>
+          <p>{canalActivo.descripcion}</p>
+        </div>
+      </div>
+
+      <nav className="admin-config-cumpleanos__tabs" role="tablist" aria-label="Canales de cumpleaños">
+        {CANALES.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            role="tab"
+            aria-selected={activeTab === c.id}
+            className={`admin-config-cumpleanos__tab admin-config-cumpleanos__tab--${c.tone}${
+              activeTab === c.id ? ' is-active' : ''
+            }`}
+            onClick={() => setActiveTab(c.id)}
+          >
+            <span className="admin-config-cumpleanos__tab-ico" aria-hidden="true">
+              <CanalIcon name={c.icon} />
+            </span>
+            <span className="admin-config-cumpleanos__tab-text">
+              <strong>{c.labelCorto}</strong>
+              <em>{c.destino}</em>
+            </span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="admin-config-cumpleanos__panels">
+        <section
+          className={`admin-config-cumpleanos__card admin-config-cumpleanos__card--push${
+            activeTab !== 'push' ? ' is-hidden' : ''
+          }`}
+          role="tabpanel"
+          aria-hidden={activeTab !== 'push'}
+        >
+          <div className="admin-config-cumpleanos__card-head admin-config-cumpleanos__card-head--violet">
+            <span className="admin-config-cumpleanos__card-ico" aria-hidden="true">
+              <CanalIcon name="push" size={18} />
             </span>
             <div>
               <h2 className="admin-config-cumpleanos__card-title">Notificación push</h2>
               <p className="admin-config-cumpleanos__card-destino">→ Alerta en el dispositivo (PWA)</p>
             </div>
           </div>
-          <p className="admin-config-cumpleanos__hint">
-            Texto plano: dos líneas (primera = título del push, resto = cuerpo). Una sola línea usa título corto fijo en el
-            servidor.
-          </p>
-          {hintPlaceholders}
-          <div className="admin-config-cumpleanos__preview-row">
-            <button
-              type="button"
-              className="admin-config-cumpleanos__btn-preview"
-              onClick={() => setPreviewAbierto('push')}
-            >
-              Ver ejemplo (push)
-            </button>
+          <div className="admin-config-cumpleanos__card-body">
+            <p className="admin-config-cumpleanos__hint">
+              Texto plano: dos líneas (primera = título del push, resto = cuerpo). Una sola línea usa título corto fijo en el
+              servidor.
+            </p>
+            {hintPlaceholders}
+            <div className="admin-config-cumpleanos__preview-row">
+              <button
+                type="button"
+                className="admin-config-cumpleanos__btn-preview"
+                onClick={() => setPreviewAbierto('push')}
+              >
+                Ver ejemplo (push)
+              </button>
+            </div>
+            <textarea
+              className="admin-config-cumpleanos__textarea"
+              rows={4}
+              maxLength={500}
+              value={plantillaPush}
+              onChange={(e) => setPlantillaPush(e.target.value)}
+              placeholder={DEFAULTS.push}
+              aria-label="Plantilla push cumpleaños"
+            />
           </div>
-          <textarea
-            className="admin-config-cumpleanos__textarea"
-            rows={4}
-            maxLength={500}
-            value={plantillaPush}
-            onChange={(e) => setPlantillaPush(e.target.value)}
-            placeholder={DEFAULTS.push}
-            aria-label="Plantilla push cumpleaños"
-          />
         </section>
 
-        <section className="admin-config-cumpleanos__card admin-config-cumpleanos__card--accent admin-config-cumpleanos__card--ventana">
-          <div className="admin-config-cumpleanos__card-head">
-            <span className="admin-config-cumpleanos__card-icon" aria-hidden>
-              🪟
+        <section
+          className={`admin-config-cumpleanos__card admin-config-cumpleanos__card--ventana${
+            activeTab !== 'ventana' ? ' is-hidden' : ''
+          }`}
+          role="tabpanel"
+          aria-hidden={activeTab !== 'ventana'}
+        >
+          <div className="admin-config-cumpleanos__card-head admin-config-cumpleanos__card-head--sky">
+            <span className="admin-config-cumpleanos__card-ico" aria-hidden="true">
+              <CanalIcon name="ventana" size={18} />
             </span>
             <div>
               <h2 className="admin-config-cumpleanos__card-title">Modal al iniciar sesión</h2>
               <p className="admin-config-cumpleanos__card-destino">→ Ventana al ingresar (con fondo festivo)</p>
             </div>
           </div>
-          <p className="admin-config-cumpleanos__hint">
-            Todo lo que ves en el modal (títulos, emojis, párrafos) lo definís acá. Imágenes: botón de la barra (mismo
-            servidor que mensajes).
-          </p>
-          <p className="admin-config-cumpleanos__hint admin-config-cumpleanos__hint--note">
-            Solo aparece si <strong>hoy es tu cumpleaños</strong> según la fecha de nacimiento del alumno, personal o
-            apoderado vinculado a tu usuario. Si ya pulsaste Entendido, no se repite hasta mañana en este navegador.{' '}
-            <strong>Reiniciar PM2 no vuelve a mostrarlo</strong> (no hace falta tocar la base de datos: el cierre se guarda
-            en el navegador). Para probar de nuevo: ventana privada, borrar datos del sitio o esperar al día siguiente.
-          </p>
-          {hintPlaceholders}
-          <div className="admin-config-cumpleanos__preview-row">
-            <button
-              type="button"
-              className="admin-config-cumpleanos__btn-preview"
-              onClick={() => setPreviewAbierto('ventana')}
-            >
-              Ver ejemplo (modal)
-            </button>
-          </div>
-          <div className="admin-config-cumpleanos__quill-wrap">
-            <ReactQuill
-              ref={quillVentanaRef}
-              theme="snow"
-              value={plantillaVentana}
-              onChange={setPlantillaVentana}
-              modules={QUILL_MODULES}
-              formats={QUILL_FORMATS}
-              placeholder="Escribí el contenido del modal…"
-              className="admin-config-cumpleanos__quill"
-            />
+          <div className="admin-config-cumpleanos__card-body">
+            <p className="admin-config-cumpleanos__hint">
+              Todo lo que ves en el modal (títulos, emojis, párrafos) lo definís acá. Imágenes: botón de la barra (mismo
+              servidor que mensajes).
+            </p>
+            <p className="admin-config-cumpleanos__hint admin-config-cumpleanos__hint--note">
+              Solo aparece si <strong>hoy es tu cumpleaños</strong> según la fecha de nacimiento del alumno, personal o
+              apoderado vinculado a tu usuario. Si ya pulsaste Entendido, no se repite hasta mañana en este navegador.{' '}
+              <strong>Reiniciar PM2 no vuelve a mostrarlo</strong> (no hace falta tocar la base de datos: el cierre se guarda
+              en el navegador). Para probar de nuevo: ventana privada, borrar datos del sitio o esperar al día siguiente.
+            </p>
+            {hintPlaceholders}
+            <div className="admin-config-cumpleanos__preview-row">
+              <button
+                type="button"
+                className="admin-config-cumpleanos__btn-preview"
+                onClick={() => setPreviewAbierto('ventana')}
+              >
+                Ver ejemplo (modal)
+              </button>
+            </div>
+            <div className="admin-config-cumpleanos__quill-wrap">
+              <ReactQuill
+                ref={quillVentanaRef}
+                theme="snow"
+                value={plantillaVentana}
+                onChange={setPlantillaVentana}
+                modules={QUILL_MODULES}
+                formats={QUILL_FORMATS}
+                placeholder="Escribí el contenido del modal…"
+                className="admin-config-cumpleanos__quill"
+              />
+            </div>
           </div>
         </section>
 
-        <section className="admin-config-cumpleanos__card admin-config-cumpleanos__card--accent admin-config-cumpleanos__card--correo">
-          <div className="admin-config-cumpleanos__card-head">
-            <span className="admin-config-cumpleanos__card-icon" aria-hidden>
-              ✉️
+        <section
+          className={`admin-config-cumpleanos__card admin-config-cumpleanos__card--correo${
+            activeTab !== 'correo' ? ' is-hidden' : ''
+          }`}
+          role="tabpanel"
+          aria-hidden={activeTab !== 'correo'}
+        >
+          <div className="admin-config-cumpleanos__card-head admin-config-cumpleanos__card-head--amber">
+            <span className="admin-config-cumpleanos__card-ico" aria-hidden="true">
+              <CanalIcon name="correo" size={18} />
             </span>
             <div>
               <h2 className="admin-config-cumpleanos__card-title">Correo electrónico</h2>
               <p className="admin-config-cumpleanos__card-destino">→ Bandeja de correo del usuario</p>
             </div>
           </div>
-          <p className="admin-config-cumpleanos__hint">El asunto va en una línea; el cuerpo admite HTML enriquecido.</p>
-          {hintPlaceholders}
-          <div className="admin-config-cumpleanos__preview-row">
-            <button
-              type="button"
-              className="admin-config-cumpleanos__btn-preview"
-              onClick={() => setPreviewAbierto('correo')}
-            >
-              Ver ejemplo (correo)
-            </button>
-          </div>
-          <label className="admin-config-cumpleanos__label" htmlFor="cumple-correo-asunto">
-            Asunto
-          </label>
-          <input
-            id="cumple-correo-asunto"
-            type="text"
-            className="admin-config-cumpleanos__input"
-            maxLength={200}
-            value={plantillaCorreoAsunto}
-            onChange={(e) => setPlantillaCorreoAsunto(e.target.value)}
-            placeholder={DEFAULTS.correoAsunto}
-            aria-label="Asunto correo cumpleaños"
-          />
-          <label className="admin-config-cumpleanos__label" htmlFor="cumple-correo-cuerpo">
-            Cuerpo
-          </label>
-          <div className="admin-config-cumpleanos__quill-wrap">
-            <ReactQuill
-              ref={quillCorreoRef}
-              theme="snow"
-              value={plantillaCorreoCuerpo}
-              onChange={setPlantillaCorreoCuerpo}
-              modules={QUILL_MODULES}
-              formats={QUILL_FORMATS}
-              placeholder="Cuerpo del correo…"
-              className="admin-config-cumpleanos__quill"
+          <div className="admin-config-cumpleanos__card-body">
+            <p className="admin-config-cumpleanos__hint">El asunto va en una línea; el cuerpo admite HTML enriquecido.</p>
+            {hintPlaceholders}
+            <div className="admin-config-cumpleanos__preview-row">
+              <button
+                type="button"
+                className="admin-config-cumpleanos__btn-preview"
+                onClick={() => setPreviewAbierto('correo')}
+              >
+                Ver ejemplo (correo)
+              </button>
+            </div>
+            <label className="admin-config-cumpleanos__label" htmlFor="cumple-correo-asunto">
+              Asunto
+            </label>
+            <input
+              id="cumple-correo-asunto"
+              type="text"
+              className="admin-config-cumpleanos__input"
+              maxLength={200}
+              value={plantillaCorreoAsunto}
+              onChange={(e) => setPlantillaCorreoAsunto(e.target.value)}
+              placeholder={DEFAULTS.correoAsunto}
+              aria-label="Asunto correo cumpleaños"
             />
+            <label className="admin-config-cumpleanos__label" htmlFor="cumple-correo-cuerpo">
+              Cuerpo
+            </label>
+            <div className="admin-config-cumpleanos__quill-wrap">
+              <ReactQuill
+                ref={quillCorreoRef}
+                theme="snow"
+                value={plantillaCorreoCuerpo}
+                onChange={setPlantillaCorreoCuerpo}
+                modules={QUILL_MODULES}
+                formats={QUILL_FORMATS}
+                placeholder="Cuerpo del correo…"
+                className="admin-config-cumpleanos__quill"
+              />
+            </div>
           </div>
         </section>
 
-        <section className="admin-config-cumpleanos__card admin-config-cumpleanos__card--accent admin-config-cumpleanos__card--mensaje">
-          <div className="admin-config-cumpleanos__card-head">
-            <span className="admin-config-cumpleanos__card-icon" aria-hidden>
-              💬
+        <section
+          className={`admin-config-cumpleanos__card admin-config-cumpleanos__card--mensaje${
+            activeTab !== 'mensaje' ? ' is-hidden' : ''
+          }`}
+          role="tabpanel"
+          aria-hidden={activeTab !== 'mensaje'}
+        >
+          <div className="admin-config-cumpleanos__card-head admin-config-cumpleanos__card-head--emerald">
+            <span className="admin-config-cumpleanos__card-ico" aria-hidden="true">
+              <CanalIcon name="mensaje" size={18} />
             </span>
             <div>
               <h2 className="admin-config-cumpleanos__card-title">Mensaje al sistema</h2>
               <p className="admin-config-cumpleanos__card-destino">→ Bandeja de mensajes de la intranet</p>
             </div>
           </div>
-          <p className="admin-config-cumpleanos__hint">Plantilla HTML para el aviso automático en mensajes internos.</p>
-          {hintPlaceholders}
-          <div className="admin-config-cumpleanos__preview-row">
-            <button
-              type="button"
-              className="admin-config-cumpleanos__btn-preview"
-              onClick={() => setPreviewAbierto('mensaje')}
-            >
-              Ver ejemplo (mensaje al sistema)
-            </button>
-          </div>
-          <div className="admin-config-cumpleanos__quill-wrap">
-            <ReactQuill
-              ref={quillMensajeRef}
-              theme="snow"
-              value={plantillaMensajeSistema}
-              onChange={setPlantillaMensajeSistema}
-              modules={QUILL_MODULES}
-              formats={QUILL_FORMATS}
-              placeholder="Contenido del mensaje del sistema…"
-              className="admin-config-cumpleanos__quill"
-            />
+          <div className="admin-config-cumpleanos__card-body">
+            <p className="admin-config-cumpleanos__hint">Plantilla HTML para el aviso automático en mensajes internos.</p>
+            {hintPlaceholders}
+            <div className="admin-config-cumpleanos__preview-row">
+              <button
+                type="button"
+                className="admin-config-cumpleanos__btn-preview"
+                onClick={() => setPreviewAbierto('mensaje')}
+              >
+                Ver ejemplo (mensaje al sistema)
+              </button>
+            </div>
+            <div className="admin-config-cumpleanos__quill-wrap">
+              <ReactQuill
+                ref={quillMensajeRef}
+                theme="snow"
+                value={plantillaMensajeSistema}
+                onChange={setPlantillaMensajeSistema}
+                modules={QUILL_MODULES}
+                formats={QUILL_FORMATS}
+                placeholder="Contenido del mensaje del sistema…"
+                className="admin-config-cumpleanos__quill"
+              />
+            </div>
           </div>
         </section>
       </div>
@@ -610,7 +736,11 @@ function AdminConfigCumpleanos() {
                 })()}
 
               <div className="admin-cumple-preview-dialog__actions">
-                <button type="button" className="admin-config-cumpleanos__btn admin-config-cumpleanos__btn--primary" onClick={cerrarPreview}>
+                <button
+                  type="button"
+                  className="admin-config-cumpleanos__btn admin-config-cumpleanos__btn--primary"
+                  onClick={cerrarPreview}
+                >
                   Cerrar
                 </button>
               </div>
